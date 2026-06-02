@@ -7,7 +7,8 @@ reduce each result back to residues, then reconstruct bounded `int64_t` or
 `uint64_t` outputs with CRT when requested.
 
 The first development target is Windows on Radeon through the AMD HIP SDK. The
-full production target remains Linux ROCm for Radeon and Instinct systems. See
+full production target remains Linux ROCm for Radeon and Instinct systems, but
+Windows `gfx1100` evidence does not validate Linux ROCm or Instinct CDNA. See
 [docs/RNS8_RESEARCH_SPEC.md](docs/RNS8_RESEARCH_SPEC.md) for the full research
 and implementation plan. See [docs/roadmap-status.md](docs/roadmap-status.md)
 for the current implementation status and verified gaps.
@@ -27,7 +28,9 @@ Implemented:
   uses fixed-width two's-complement limbs over the centered CRT representative
   with the `x >= ceil(P / 2)` negative threshold; unsigned exact-wide export
   uses fixed-width magnitude limbs. Both use element-stride `ld`,
-  `limb_count` in `[1, 32]`, and range errors instead of truncation.
+  `limb_count` in `[1, 32]`, and destination-preserving range errors instead
+  of truncation. Exact-wide descriptors require `RNS8_BOUND_NONE` and are not
+  routed through bounded i64/u64 or strict wrap64 export surfaces.
 - Strict `mod 2^64` wraparound CPU GEMM through the explicit byte-limb backend,
   including one-shot and persistent byte-limb matrix APIs. This path returns
   low-64-bit `uint64_t` output and does not use odd-modulus CRT.
@@ -49,7 +52,8 @@ Not implemented yet:
 
 - Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
   hot kernels, and optimized GPU strict `mod 2^64` byte-GEMM kernels.
-- Performance claims beyond the current host/event-timed benchmark shell.
+- Reviewed production performance claims; current benchmark captures are raw
+  evidence only until baselines and gates are established.
 
 ## Windows Development Requirements
 
@@ -240,7 +244,8 @@ ctest --test-dir build\cpu-debug --output-on-failure
   compile/run probes under `temp/` for discovered accelerator components; these
   probes are evidence only and do not enable correctness backends. The JSON
   report separates implemented correctness backend families from candidate
-  accelerator evidence through `readiness.correctness_backend_validation`, keeps
+  accelerator evidence through `readiness.correctness_backend_validation`,
+  records exact-wide Windows/Linux/Instinct validation boundaries, keeps
   accelerator records marked with
   `candidate_evidence_is_correctness_validation=false`, and uses
   `hard_cut_self_checks` only for internal report consistency.

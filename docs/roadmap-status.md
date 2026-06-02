@@ -124,8 +124,11 @@ disagree, the spec remains the target and this file identifies the gap.
   `candidate_accelerator_evidence_only`.
   Opt-in Python and CMake accelerator probe modes record compile/link/runtime
   evidence under `temp/` or probe-only build directories while keeping all
-  accelerator backend enablement disabled. CTest configure-negative cases pin
-  that `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
+  accelerator backend enablement disabled. Readiness output also separates
+  correctness-backend validation from candidate accelerator evidence and reports
+  hard-cut self-check metadata so discovery cannot be read as enabled backend
+  validation. CTest configure-negative cases pin that `RNS8_ENABLE_HIPBLASLT`,
+  `RNS8_ENABLE_CK`,
   `RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast until
   real correctness backends exist. Report-level `hard_cut_self_checks` keep
   accelerator evidence, backend enablement, and Windows/Linux/Instinct
@@ -216,6 +219,10 @@ disagree, the spec remains the target and this file identifies the gap.
 - Multi-GPU modulus split experiments.
 
 ## Latest Evidence
+
+This section records lead-run integration evidence from prior checkpoints. It
+does not promote ignored `temp/` captures or historical schema versions into the
+current tracked schema contract.
 
 - `git diff --check`: passed for the current implementation patch.
 - `cmake --preset windows-msvc-hip-debug`: configured successfully with the
@@ -320,7 +327,7 @@ disagree, the spec remains the target and this file identifies the gap.
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
   Windows host. hipBLASLt was reported as candidate evidence only on this host;
   CK, rocWMMA, and AMDGPU builtins remained not ready, and none were promoted
-  to correctness requirements.
+  to correctness requirements or correctness-backend validation.
 - `python tools\check_dependencies.py --accelerator-probes --json`: host
   readiness stayed true while accelerator gates stayed `ok=false`. CK and
   rocWMMA probes did not run because headers were not discovered. hipBLASLt was
@@ -339,37 +346,42 @@ disagree, the spec remains the target and this file identifies the gap.
   `rns8-cpu-bounded-i64.json`, `rns8-cpu-bounded-u64.json`,
   `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`,
   `rns8-hip-bounded-u64-event-smoke.json`, and
-  `rns8-hip-bounded-u64-schedule-smoke.json`. Schema v3 smoke captures are
-  `rns8-v3-cpu-bounded-i64.json`, `rns8-v3-hip-bounded-u64*.json`,
-  `rns8-v3-wrap-u64.json`, and `rns8-v3-hip-wrap-u64.json`.
-- `temp\rns8-hip-bounded-u64-event-smoke.json`: checked schema v2, `gfx1100`,
-  live `git_commit`, `gpu_event_timing=true`, and nonnegative direct-HIP event
-  arrays for `pack`, `rns_gemm`, and `crt_export`.
-- `temp\rns8-hip-bounded-u64-schedule-smoke.json`: checked schema v2 with
-  `--tile-m 64 --tile-n 64`, fixed selected prefix metadata, required prefix
-  metadata, one prefix group, and `adaptive_execution_applied=false`.
+  `rns8-hip-bounded-u64-schedule-smoke.json`. Historical schema v3 smoke
+  captures in ignored `temp/` include `rns8-v3-cpu-bounded-i64.json`,
+  `rns8-v3-hip-bounded-u64*.json`, `rns8-v3-wrap-u64.json`, and
+  `rns8-v3-hip-wrap-u64.json`; they are not current tracked fixtures.
+- `temp\rns8-hip-bounded-u64-event-smoke.json`: historical schema v2 event
+  smoke evidence for `gfx1100`, live `git_commit`, `gpu_event_timing=true`,
+  and nonnegative direct-HIP event arrays for `pack`, `rns_gemm`, and
+  `crt_export`.
+- `temp\rns8-hip-bounded-u64-schedule-smoke.json`: historical schema v2
+  schedule smoke evidence with `--tile-m 64 --tile-n 64`, fixed selected prefix
+  metadata, required prefix metadata, one prefix group, and
+  `adaptive_execution_applied=false`.
 - `python tools\result_compare.py --json temp\rns8-hip-bounded-u64.json
   temp\rns8-hip-bounded-u64-repeat.json`: same-contract comparison passed,
   including matching fixed-prefix schedule metadata and matching GPU event
   timing metadata. Captures are raw evidence only and do not establish a
   performance claim.
-- `python tools\benchmark_schema.py temp\rns8-v3-cpu-bounded-i64.json
+- Historical checkpoint command:
+  `python tools\benchmark_schema.py temp\rns8-v3-cpu-bounded-i64.json
   temp\rns8-v3-hip-bounded-u64.json
   temp\rns8-v3-hip-bounded-u64-repeat.json
   temp\rns8-v3-hip-bounded-u64-repeat2.json temp\rns8-v3-wrap-u64.json
-  temp\rns8-v3-hip-wrap-u64.json`: all runtime captures validated as schema
-  v3, including measured `scheduling` timing and explicit reduction
-  availability metadata.
+  temp\rns8-v3-hip-wrap-u64.json`: runtime captures validated as schema v3 at
+  that checkpoint, including measured `scheduling` timing and explicit
+  reduction availability metadata. Current tooling accepts schema v4 only.
 - `temp\rns8-v4-hip-toolchain-smoke.json`: schema v4 direct-HIP bounded
   capture validated with configured HIP toolchain metadata, parsed HIP SDK root
   version `7.1`, hipcc version text from `hipcc --version`, exact
   `hipEventElapsedTime` source identity, and default bounded direct-HIP event
   source scope.
-- `python tools\result_compare.py --json
+- Historical checkpoint command:
+  `python tools\result_compare.py --json
   temp\rns8-v3-hip-bounded-u64-repeat.json
   temp\rns8-v3-hip-bounded-u64-repeat2.json`: same-contract schema v3
   comparison passed with comparable direct-HIP GPU event phase order. Captures
-  are raw evidence only and do not establish a performance claim.
+  are raw historical evidence only and do not establish a performance claim.
 - `temp\rns8-v4-hip-bounded-u64-adaptive.json` and
   `temp\rns8-v4-hip-bounded-u64-adaptive-repeat.json`: direct-HIP per-tile
   adaptive bounded captures validated as schema v4, with exact seeded-input

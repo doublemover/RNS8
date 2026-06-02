@@ -5,6 +5,8 @@ The script is intentionally read-only. It checks command discovery, Python
 packages, vcpkg manifest dependencies, HIP device visibility, MSVC availability,
 optional accelerator components and opt-in accelerator compile/run probes,
 repository tools, and optional Radeon Developer Tool Suite utilities.
+Hard-cut metadata separates candidate accelerator evidence from correctness
+backend validation and records Windows/Linux/Instinct validation boundaries.
 """
 
 from __future__ import annotations
@@ -56,7 +58,10 @@ ACCELERATOR_ENABLE_FLAGS = {
     "amdgpu_builtins": "RNS8_ENABLE_AMDGPU_BUILTINS",
 }
 ACCELERATOR_ENABLE_POLICY = "fail_fast_until_real_exact_correctness_backend"
-CHECKER_VALIDATION_SCOPE = "dependency/readiness reporting only; no build, test, smoke, schema, benchmark, or correctness run"
+CHECKER_VALIDATION_SCOPE = (
+    "dependency/readiness reporting only; no build, test, smoke, schema, benchmark, "
+    "or correctness validation"
+)
 CANDIDATE_ACCELERATOR_EVIDENCE_CLASS = "candidate_accelerator_evidence_only"
 
 ACCELERATOR_PROBE_SOURCES = {
@@ -535,7 +540,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "experiment": item["experiment"],
             "capability": item["capability"],
             "readiness": (
-                "candidate evidence only; backend remains disabled until a real backend has compiled kernels and exact CPU differentials"
+                "candidate evidence only; backend remains disabled until a real exact correctness backend "
+                "has target capability checks and exact CPU differentials"
                 if bool(item["header"] or item["library"] or item["tool"])
                 else item.get(
                     "not_ready_detail",
@@ -618,6 +624,8 @@ def accelerator_compile_probes(
             "requested": False,
             "probe_root": str(root),
             "policy": "not run by default; probes never enable correctness backends or affect host readiness",
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
             "items": items,
         }
 
@@ -710,6 +718,8 @@ def accelerator_compile_probes(
         "requested": True,
         "probe_root": str(root),
         "policy": "compile/link/run evidence only; probes never enable correctness backends or affect host readiness",
+        "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+        "candidate_evidence_is_correctness_validation": False,
         "items": items,
     }
 
@@ -803,7 +813,7 @@ def accelerator_gate(
     elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         detail = "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
     elif found:
-        detail = "component discovered, but this checker does not enable the backend without a compiled capability probe"
+        detail = "component discovered, but discovery is not correctness validation and this checker does not enable the backend"
     else:
         detail = "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
     return {
@@ -857,6 +867,8 @@ def accelerator_enablement_policy(
         "correctness_backends_enabled": False,
         "validated_correctness_backend_count": 0,
         "enable_flags_fail_fast": True,
+        "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+        "candidate_evidence_is_correctness_validation": False,
         "policy": (
             "hipBLASLt, CK, rocWMMA, and AMDGPU builtin flags fail fast until real exact "
             "correctness backends exist; discovery and probes are evidence only"
@@ -1101,10 +1113,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     return {
         "host": host_system,
         "host_readiness_ok": all(bool(gate["ok"]) for gate in required_gates),
+        "checker_validation_scope": CHECKER_VALIDATION_SCOPE,
         "policy": "optional accelerators are never promoted to enabled backends by this checker",
         "gates": gates,
         "platform_gates": platform_gates,
-        "checker_validation_scope": CHECKER_VALIDATION_SCOPE,
         "correctness_backend_validation": correctness_backend_validation_status(host_system, hip_info, accelerators),
         "accelerator_enablement": accelerator_enablement_policy(accelerators, accelerator_probes),
         "exact_wide_platform_validation": exact_wide_platform_validation_status(host_system, hip_info),
@@ -1167,6 +1179,7 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
     return {
         "ok": all(bool(item["ok"]) for item in checks.values()),
         "scope": "internal JSON/report consistency only; no external command or correctness verification",
+        "checker_validation_scope": CHECKER_VALIDATION_SCOPE,
         "checks": checks,
     }
 
@@ -1373,6 +1386,8 @@ def print_human(report: dict[str, object]) -> None:
     print(f"requested: {accelerator_probes['requested']}")
     print(f"probe root: {accelerator_probes['probe_root']}")
     print(f"policy: {accelerator_probes['policy']}")
+    print(f"evidence class: {accelerator_probes['evidence_class']}")
+    print(f"candidate evidence is correctness validation: {accelerator_probes['candidate_evidence_is_correctness_validation']}")
     probe_items = accelerator_probes["items"]
     assert isinstance(probe_items, dict)
     for name in sorted(probe_items):
@@ -1422,6 +1437,8 @@ def print_human(report: dict[str, object]) -> None:
     print(f"correctness backends enabled: {accelerator_enablement['correctness_backends_enabled']}")
     print(f"validated correctness backend count: {accelerator_enablement['validated_correctness_backend_count']}")
     print(f"enable flags fail fast: {accelerator_enablement['enable_flags_fail_fast']}")
+    print(f"evidence class: {accelerator_enablement['evidence_class']}")
+    print(f"candidate evidence is correctness validation: {accelerator_enablement['candidate_evidence_is_correctness_validation']}")
     print(f"policy: {accelerator_enablement['policy']}")
     accelerator_flags = accelerator_enablement["flags"]
     assert isinstance(accelerator_flags, dict)
@@ -1500,6 +1517,7 @@ def print_human(report: dict[str, object]) -> None:
     print("Hard-cut readiness self-checks")
     print(f"ok: {hard_cut_checks['ok']}")
     print(f"scope: {hard_cut_checks['scope']}")
+    print(f"checker validation scope: {hard_cut_checks['checker_validation_scope']}")
     checks = hard_cut_checks["checks"]
     assert isinstance(checks, dict)
     for name in sorted(checks):
