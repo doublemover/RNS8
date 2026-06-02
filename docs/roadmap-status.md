@@ -58,10 +58,12 @@ disagree, the spec remains the target and this file identifies the gap.
   per-element width in `[1, 32]`. Direct HIP exports signed and unsigned
   exact-wide limbs from device-resident RNS matrices without synchronizing host
   residue storage and reports range errors when the requested fixed width is too
-  small while preserving destination storage. Stale nonzero bounds, tile-bound
-  metadata, stale-prefix matrices, bounded matrices, wrap64 byte-limb matrices,
-  and signed/unsigned cross-export calls are rejected for exact-wide
-  descriptors and exports.
+  small while preserving destination storage. Direct HIP differential coverage
+  now includes max-width 32-limb padded exports for centered signed negatives
+  and high-bit unsigned magnitudes. Stale nonzero bounds, tile-bound metadata,
+  stale-prefix matrices, bounded matrices, wrap64 byte-limb matrices, and
+  signed/unsigned cross-export calls are rejected for exact-wide descriptors
+  and exports.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
@@ -222,6 +224,12 @@ disagree, the spec remains the target and this file identifies the gap.
 - `python tools\check_dependencies.py`: host readiness passed on Windows
   `gfx1100`; accelerator enable flags remain fail-fast/evidence-only and Linux
   ROCm/Instinct exact-wide validation remains not applicable on this host.
+- Verified post-`de1c251` exact-wide/readiness integration patch with an
+  incremental Windows HIP build, targeted CTest for direct-HIP exact-wide
+  max-width padded export and stale bounded metadata rejection, and dependency
+  readiness output. The dependency report now exposes explicit false
+  correctness-backend validation fields and explicit false Windows-to-Linux /
+  Windows-to-Instinct validation claims.
 - `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_i64_adaptive_hip.json`: current

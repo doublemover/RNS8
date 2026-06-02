@@ -3197,6 +3197,133 @@ TEST_CASE("direct HIP exact-wide signed sign extension matches CPU for limb widt
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP exact-wide max-width padded export matches CPU ABI") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for exact-wide max-width padded export smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 2;
+  constexpr int64_t k = 1;
+  constexpr int64_t limb_ld = 3;
+  constexpr uint32_t limb_count = 32;
+
+  {
+    auto cpu_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* cpu_plan = nullptr;
+    rns8_plan* hip_plan = nullptr;
+    rns8_matrix* cpu_c = nullptr;
+    rns8_matrix* hip_c = nullptr;
+    REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+
+    const boost::multiprecision::cpp_int product = rns8::detail::modulus_product(cpu_plan->prefix);
+    const boost::multiprecision::cpp_int half = product / 2;
+    fill_exact_residue_matrix(
+        cpu_c,
+        {half,
+         boost::multiprecision::cpp_int(-1),
+         -(boost::multiprecision::cpp_int(1) << 63u),
+         boost::multiprecision::cpp_int(1)});
+    fill_exact_residue_matrix(
+        hip_c,
+        {half,
+         boost::multiprecision::cpp_int(-1),
+         -(boost::multiprecision::cpp_int(1) << 63u),
+         boost::multiprecision::cpp_int(1)});
+    upload_exact_residues_to_hip(hip_c);
+
+    constexpr uint64_t sentinel = 0x1919191919191919ull;
+    std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    CHECK(hip_limbs == cpu_limbs);
+    CHECK_FALSE(hip_c->host_residues_current);
+    for (int64_t row = 0; row < m; ++row) {
+      const std::size_t padding = static_cast<std::size_t>((row * limb_ld + n) * limb_count);
+      for (uint32_t limb = 0; limb < limb_count; ++limb) {
+        CHECK(hip_limbs[padding + limb] == sentinel);
+      }
+    }
+    const std::size_t minus_one = static_cast<std::size_t>((0 * limb_ld + 1) * limb_count);
+    for (uint32_t limb = 0; limb < limb_count; ++limb) {
+      CHECK(hip_limbs[minus_one + limb] == std::numeric_limits<uint64_t>::max());
+    }
+
+    rns8_destroy_matrix(hip_c);
+    rns8_destroy_matrix(cpu_c);
+    rns8_destroy_plan(hip_plan);
+    rns8_destroy_plan(cpu_plan);
+  }
+
+  {
+    auto cpu_desc = exact_unsigned_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = exact_unsigned_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* cpu_plan = nullptr;
+    rns8_plan* hip_plan = nullptr;
+    rns8_matrix* cpu_c = nullptr;
+    rns8_matrix* hip_c = nullptr;
+    REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+
+    fill_exact_residue_matrix(
+        cpu_c,
+        {boost::multiprecision::cpp_int(0),
+         boost::multiprecision::cpp_int(1) << 63u,
+         boost::multiprecision::cpp_int(1) << 127u,
+         boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max())});
+    fill_exact_residue_matrix(
+        hip_c,
+        {boost::multiprecision::cpp_int(0),
+         boost::multiprecision::cpp_int(1) << 63u,
+         boost::multiprecision::cpp_int(1) << 127u,
+         boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max())});
+    upload_exact_residues_to_hip(hip_c);
+
+    constexpr uint64_t sentinel = 0x2929292929292929ull;
+    std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    CHECK(hip_limbs == cpu_limbs);
+    CHECK_FALSE(hip_c->host_residues_current);
+    for (int64_t row = 0; row < m; ++row) {
+      const std::size_t padding = static_cast<std::size_t>((row * limb_ld + n) * limb_count);
+      for (uint32_t limb = 0; limb < limb_count; ++limb) {
+        CHECK(hip_limbs[padding + limb] == sentinel);
+      }
+    }
+    const std::size_t high_bit = static_cast<std::size_t>((1 * limb_ld + 0) * limb_count);
+    CHECK(hip_limbs[high_bit] == 0);
+    CHECK(hip_limbs[high_bit + 1] == (uint64_t{1} << 63u));
+    for (uint32_t limb = 2; limb < limb_count; ++limb) {
+      CHECK(hip_limbs[high_bit + limb] == 0);
+    }
+
+    rns8_destroy_matrix(hip_c);
+    rns8_destroy_matrix(cpu_c);
+    rns8_destroy_plan(hip_plan);
+    rns8_destroy_plan(cpu_plan);
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP exact-wide export requires device-current resident residues") {
   if (!hip_available()) {
     SKIP("no HIP device available for exact-wide device-current export smoke");
@@ -3480,6 +3607,56 @@ TEST_CASE("direct HIP exact-wide descriptors reject stale bounded metadata") {
     CHECK(limbs[0] == 0xdfdfdfdfdfdfdfdfull);
     CHECK(limbs[1] == 0xe0e0e0e0e0e0e0e0ull);
     rns8_destroy_matrix(storage);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_signed_desc(1, 1, 1, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+
+    auto bounded = matrix_desc(1, 1, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    rns8_matrix* bounded_storage = nullptr;
+    REQUIRE(rns8_create_matrix(hip, &bounded, &bounded_storage) == RNS8_SUCCESS);
+    uint64_t limbs[2] = {0xababababababababull, 0xbcbcbcbcbcbcbcbcull};
+    CHECK(rns8_export_exact_wide_signed_limbs(hip, plan, bounded_storage, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0xababababababababull);
+    CHECK(limbs[1] == 0xbcbcbcbcbcbcbcbcull);
+
+    auto wrap = matrix_desc(1, 1, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
+    rns8_matrix* wrap_storage = nullptr;
+    REQUIRE(rns8_create_matrix(hip, &wrap, &wrap_storage) == RNS8_SUCCESS);
+    CHECK(rns8_export_exact_wide_signed_limbs(hip, plan, wrap_storage, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0xababababababababull);
+    CHECK(limbs[1] == 0xbcbcbcbcbcbcbcbcull);
+
+    rns8_destroy_matrix(wrap_storage);
+    rns8_destroy_matrix(bounded_storage);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_unsigned_desc(1, 1, 1, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+
+    auto bounded = matrix_desc(1, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    rns8_matrix* bounded_storage = nullptr;
+    REQUIRE(rns8_create_matrix(hip, &bounded, &bounded_storage) == RNS8_SUCCESS);
+    uint64_t limbs[2] = {0xcbcbcbcbcbcbcbcbull, 0xdcdcdcdcdcdcdcdcull};
+    CHECK(rns8_export_exact_wide_unsigned_limbs(hip, plan, bounded_storage, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0xcbcbcbcbcbcbcbcbull);
+    CHECK(limbs[1] == 0xdcdcdcdcdcdcdcdcull);
+
+    auto wrap = matrix_desc(1, 1, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
+    rns8_matrix* wrap_storage = nullptr;
+    REQUIRE(rns8_create_matrix(hip, &wrap, &wrap_storage) == RNS8_SUCCESS);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(hip, plan, wrap_storage, limbs, 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0xcbcbcbcbcbcbcbcbull);
+    CHECK(limbs[1] == 0xdcdcdcdcdcdcdcdcull);
+
+    rns8_destroy_matrix(wrap_storage);
+    rns8_destroy_matrix(bounded_storage);
     rns8_destroy_plan(plan);
   }
 

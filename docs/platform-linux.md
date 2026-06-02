@@ -14,6 +14,10 @@ The JSON readiness report also carries `exact_wide_platform_validation` so
 Windows `gfx1100` exact-wide limb evidence remains separate from Linux ROCm,
 Radeon Linux, and Instinct CDNA validation. Those fields stay unvalidated until
 the exact CPU differential suite is run on real supported Linux ROCm hardware.
+In particular, Windows reports keep `windows_evidence_validates_linux_rocm` and
+`windows_evidence_validates_instinct` false; Linux and Instinct fields are
+validation claims only after a real Linux ROCm host runs the relevant parity
+suite.
 
 Expected Linux configure path:
 
