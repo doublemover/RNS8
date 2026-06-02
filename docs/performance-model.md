@@ -3,6 +3,12 @@
 The research spec defines the long-term performance model. The current scaffold
 does not make optimized GPU performance claims.
 
+The commands and JSON contracts below are capture mechanics, not performance
+baselines. A timing capture becomes comparison evidence only after the current
+schema validator accepts it, the semantic contract matches the comparison
+target, and a reviewed baseline exists for the same backend family, target, and
+shape.
+
 Current benchmark shell:
 
 ```powershell
@@ -66,6 +72,8 @@ correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound
 `rns_gemm` and `crt_export`; their phase notes identify these as
 `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
+Exact-wide captures, when added, must use exact-wide limb semantics and cannot
+be normalized into bounded i64/u64 or strict wrap64 timing contracts.
 
 Schema version 4 is the only accepted tracked capture schema. Current captures
 must carry an explicit integer `"schema_version": 4`; missing version fields are

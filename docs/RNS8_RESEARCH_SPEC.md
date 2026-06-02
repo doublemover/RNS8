@@ -228,10 +228,17 @@ The dependency checker reports:
   fail-fast with `backend_enablement=disabled` and
   `correctness_backend=not_implemented` until a real exact correctness backend
   exists.
+- Correctness-backend validation as a separate readiness object. Candidate
+  accelerator evidence must report
+  `candidate_evidence_is_correctness_validation=false`, and discovery or tiny
+  compile/run probes must not be promoted to enabled correctness backends.
 - Exact-wide platform validation scope as a first-class readiness object.
   Windows `gfx1100` exact-wide evidence must not be reported as Linux ROCm,
   Radeon Linux, or Instinct CDNA validation; those entries stay unvalidated
   until a real supported Linux ROCm host runs exact CPU differentials.
+- Hard-cut self-check metadata that reports the dependency checker's own scope:
+  dependency/readiness reporting only, with no build, test, smoke, schema,
+  benchmark, or correctness validation implied by running the checker.
 - Boost, GMP/MPIR, FLINT, NTL, FFLAS-FFPACK, and LinBox discovery.
 - Python package versions.
 
@@ -323,11 +330,15 @@ multi-limb integers is supported through explicit little-endian limb export.
 Signed exact-wide export interprets the CRT result as a centered exact integer
 and uses fixed-width two's-complement limbs. Unsigned exact-wide export
 interprets the canonical nonnegative CRT result and uses fixed-width magnitude
-limbs. Both export exactly the caller-requested limb width and return
-`RNS8_RANGE_ERROR` if that width cannot represent the reconstructed value. CPU
-Boost.Multiprecision reconstruction remains the reference path. Direct HIP
-reconstructs fixed-width limbs on device for the supported prefix range and
-copies only the requested host limb layout.
+limbs. Both export exactly the caller-requested limb width, interpret `ld` as
+an element stride, require `limb_count` in `[1, 32]`, and return
+`RNS8_RANGE_ERROR` without modifying the destination if that width cannot
+represent the reconstructed value. Exact-wide descriptors require
+`RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound metadata; they are not bounded
+i64/u64 exports and are not strict wrap64 exports. CPU Boost.Multiprecision
+reconstruction remains the reference path. Direct HIP reconstructs fixed-width
+limbs on device for the supported prefix range and copies only the requested
+host limb layout.
 
 ### 6.4 Strict Wraparound `mod 2^64`
 
@@ -909,9 +920,9 @@ The default sequence is:
 CPU reference for verification
 direct HIP correctness backend
 direct HIP fused backend
-hipBLASLt if available and faster
-CK if available and faster
-rocWMMA/builtins for target-specific hot kernels
+hipBLASLt only after a real exact correctness backend exists and is faster
+CK only after a real exact correctness backend exists and is faster
+rocWMMA/builtins only after target-specific exact hot kernels exist
 ```
 
 ### 12.3 Signedness And INT8 Contract
@@ -945,6 +956,11 @@ effective_int64_tops = dense_int8_matrix_tops / selected_modulus_count
 
 This ceiling excludes packing, modular reduction, reconstruction, launch
 overhead, and memory traffic.
+
+The gates below are research targets and acceptance thresholds, not current
+performance claims. They require reviewed raw captures, matching semantic
+contracts, and target-family baselines before they can be used to claim a
+speedup or production performance level.
 
 Performance gates are architecture-family-specific:
 
@@ -1446,10 +1462,24 @@ int64 or uint64 source
   -> validated bounds metadata
   -> centered INT8 RNS packing using default modulus ladder
   -> persistent modulus-major residue matrices
-  -> direct HIP, hipBLASLt, CK, rocWMMA, or builtin INT8 GEMM backend
+  -> validated direct HIP or future validated accelerator INT8 GEMM backend
   -> fused INT32-to-residue reduction where supported
   -> RNS output
-  -> requested fixed-limb CRT export to int64 or uint64
+  -> bounded CRT export to int64 or uint64
+```
+
+Production exact-wide path:
+
+```text
+int64 or uint64 source
+  -> explicit exact-wide signed or unsigned descriptor with RNS8_BOUND_NONE
+  -> centered INT8 RNS packing using the selected prefix
+  -> persistent modulus-major residue matrices
+  -> validated direct HIP or future validated accelerator INT8 GEMM backend
+  -> RNS output
+  -> fixed-width little-endian limb export
+     signed: centered two's-complement limbs
+     unsigned: canonical magnitude limbs
 ```
 
 Production strict wraparound path:

@@ -20,7 +20,10 @@ Current core design:
 - Exact-wide export writes fixed-width little-endian limbs. Signed export uses
   the centered CRT representative with the same `x >= ceil(P / 2)` negative
   threshold as centered residue packing; unsigned export uses canonical
-  magnitude limbs. Both report range errors rather than truncating.
+  magnitude limbs. Both use `ld` as an element stride, require `limb_count` in
+  `[1, 32]`, and report destination-preserving range errors rather than
+  truncating. Exact-wide remains separate from bounded i64/u64 export and
+  strict wrap64 byte-limb export.
 
 Current backend boundary:
 
