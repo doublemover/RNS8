@@ -38,9 +38,10 @@ Implemented correctness coverage:
   Boost.Multiprecision residue oracles.
 - Exact-wide signed and unsigned CPU and direct HIP limb export tests. Signed
   export is fixed-width little-endian two's-complement, unsigned export is
-  fixed-width little-endian magnitude, both report range errors when too few
-  limbs are supplied, and direct HIP export leaves device-resident residues on
-  device instead of synchronizing host residue storage.
+  fixed-width little-endian magnitude, `ld` is an element stride rather than a
+  limb stride, both report range errors when too few limbs are supplied, and
+  direct HIP export leaves device-resident residues on device instead of
+  synchronizing host residue storage.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
@@ -83,8 +84,8 @@ Implemented correctness coverage:
   performance claim.
 - Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
   low-level coverage. The public and private HIP wrap64 tests are correctness
-  coverage for the one-thread-per-output byte-GEMM36 kernel, not optimized
-  matrix-engine byte-GEMM performance evidence.
+  coverage for the tiled byte-limb kernel, not optimized matrix-engine
+  byte-GEMM performance evidence.
 
 Not yet implemented:
 
@@ -103,7 +104,11 @@ Semantic guardrail:
   with `RNS8_BOUND_NONE` and explicit little-endian limb export. CPU Boost
   reconstruction remains the reference; direct HIP export reconstructs fixed
   limbs on device for correctness validation and copies only the requested limb
-  layout to host.
+  layout to host. Signed export interprets the CRT result as a centered exact
+  integer and emits exactly `limb_count` two's-complement limbs; unsigned export
+  interprets the canonical nonnegative result and emits exactly `limb_count`
+  magnitude limbs. The APIs report `RNS8_RANGE_ERROR` rather than truncating
+  when the requested fixed width is too small.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested

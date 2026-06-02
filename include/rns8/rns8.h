@@ -199,6 +199,20 @@ RNS8_API rns8_status rns8_export_wrap_u64(
     uint64_t* dst,
     int64_t ld);
 
+/* Export persistent RNS output for RNS8_EXACT_WIDE_SIGNED only.
+ *
+ * Output is row-major by matrix element. `ld` is a leading dimension in
+ * elements, not limbs, and each element stores exactly `limb_count` contiguous
+ * little-endian uint64_t limbs:
+ *
+ *   dst[((row * ld) + col) * limb_count + limb]
+ *
+ * The reconstructed centered integer must fit the fixed-width signed range
+ * [-2^(64 * limb_count - 1), 2^(64 * limb_count - 1) - 1]. Successful exports
+ * use two's-complement representation in exactly the requested width. Too few
+ * limbs return RNS8_RANGE_ERROR. This API is separate from bounded i64/u64
+ * export and from strict mod 2^64 wraparound byte-limb export.
+ */
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -207,6 +221,18 @@ RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     int64_t ld,
     uint32_t limb_count);
 
+/* Export persistent RNS output for RNS8_EXACT_WIDE_UNSIGNED only.
+ *
+ * Layout matches rns8_export_exact_wide_signed_limbs: row-major elements,
+ * element-stride `ld`, and exactly `limb_count` little-endian uint64_t limbs per
+ * element at dst[((row * ld) + col) * limb_count + limb].
+ *
+ * The reconstructed canonical integer must fit the fixed-width unsigned range
+ * [0, 2^(64 * limb_count) - 1]. Successful exports use magnitude limbs in
+ * exactly the requested width. Too few limbs return RNS8_RANGE_ERROR. This API
+ * is separate from bounded i64/u64 export and from strict mod 2^64 wraparound
+ * byte-limb export.
+ */
 RNS8_API rns8_status rns8_export_exact_wide_unsigned_limbs(
     rns8_context* ctx,
     const rns8_plan* plan,

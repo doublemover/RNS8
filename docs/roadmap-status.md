@@ -44,9 +44,11 @@ disagree, the spec remains the target and this file identifies the gap.
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
   Boost.Multiprecision residue oracles. CPU little-endian limb export is
-  implemented for signed two's-complement and unsigned magnitude output. Direct
-  HIP exports signed and unsigned exact-wide limbs from device-resident RNS
-  matrices without synchronizing host residue storage.
+  implemented for fixed-width signed two's-complement and unsigned magnitude
+  output, with `ld` interpreted as an element stride and `limb_count` as the
+  per-element width. Direct HIP exports signed and unsigned exact-wide limbs
+  from device-resident RNS matrices without synchronizing host residue storage
+  and reports range errors when the requested fixed width is too small.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
@@ -59,10 +61,10 @@ disagree, the spec remains the target and this file identifies the gap.
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the
   CPU byte-limb reference, and padded host export layouts are tested. The GEMM
-  kernel is now a one-thread-per-output byte-GEMM36 correctness path that sums
-  low-product byte diagonals with device-side signed-INT8 correction and then
-  carries into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
-  accelerator path.
+  kernel is now an inspectable tiled byte-limb correctness path that sums the
+  same low-product byte diagonals with device-side signed-INT8 correction and
+  then carries into the low 64 bits; it is not an optimized matrix-engine
+  byte-GEMM accelerator path.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
   `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
@@ -117,13 +119,15 @@ disagree, the spec remains the target and this file identifies the gap.
    implemented as named status milestones with CPU and Windows HIP tests,
    including a literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9` contract check.
 6. Exact-wide CPU output/export semantics: implemented separately from bounded
-   i64/u64 and wrap64 semantics. Signed export uses fixed-width two's-complement
-   limbs; unsigned export uses fixed-width magnitude limbs; padded CPU host
-   layouts are tested.
+   i64/u64 and wrap64 semantics. Signed export uses fixed-width
+   two's-complement limbs over the centered exact integer; unsigned export uses
+   fixed-width magnitude limbs over the canonical nonnegative integer. The ABI
+   treats `ld` as an element stride, stores `limb_count` contiguous limbs per
+   element, and reports range errors instead of truncating.
 7. Strict `mod 2^64`: implemented only through byte-limb storage for CPU and
    direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
-   The direct-HIP byte-GEMM36 path is a correctness kernel, not an optimized
-   matrix-engine accelerator.
+   The direct-HIP tiled byte-limb path is a correctness kernel, not an
+   optimized matrix-engine accelerator.
 8. Linux ROCm and Instinct: represented by presets, readiness gates, target
    coverage metadata, and docs. Validation remains `NOT_APPLICABLE` on this
    Windows host and requires a real supported Linux ROCm host.
@@ -153,10 +157,22 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 58/58 passed; HIP
-  smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 58/58 passed on
-  `gfx1100`.
+- `git diff --check`: passed for the current implementation patch.
+- `cmake --preset windows-msvc-hip-debug`: configured successfully with the
+  vcpkg toolchain from the VS developer environment.
+- `cmake --build --preset windows-debug`: built successfully, including the
+  explicit hipcc direct-HIP and wrap64 HIP kernel objects.
+- `ctest --preset windows-debug --output-on-failure`: 64/64 passed on the
+  Windows HIP debug build.
+- `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
+  verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
+  and wrap64 smoke passed.
+- `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
+- `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json`:
+  current v4 direct-HIP wrap64 fixture validated with the tiled byte-limb
+  selected kernel and event labels.
+- `ctest --test-dir build/cpu-debug --output-on-failure`: prior CPU-only pass
+  reported 58/58 passed; HIP smoke tests skipped in CPU-only build.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
   copied per-tile bound lifetime, wrap64 prefix-zero byte-limb scheduling, and
@@ -183,10 +199,13 @@ disagree, the spec remains the target and this file identifies the gap.
   correction boundary case that compares negative, threshold, and near-zero
   residues against the CPU ring-GEMM reference.
 - The Windows HIP test pass includes
-  `private HIP wrap64 byte-limb GEMM matches CPU reference` and
-  `direct HIP public wrap64 byte-limb path matches CPU reference`, covering both
-  the low-level kernel smoke and the public HIP_DIRECT one-shot/persistent
-  byte-limb APIs against the CPU reference.
+  `private HIP wrap64 byte-limb GEMM matches CPU reference`,
+  `direct HIP public wrap64 byte-limb path matches CPU reference`,
+  `direct HIP public wrap64 tiled byte-limb path matches CPU for random padded
+  layouts`, and `direct HIP wrap64 rejects CRT-style descriptors`, covering the
+  low-level kernel smoke, public HIP_DIRECT one-shot/persistent byte-limb APIs,
+  padded host layouts, full-width random/boundary values, and CRT metadata
+  rejection against the CPU reference.
 - The Windows HIP test pass also includes signed and unsigned exact-wide RNS
   differential checks against CPU residues plus direct HIP exact-wide limb
   export checks for padded host layouts, range errors, and signed
@@ -195,9 +214,6 @@ disagree, the spec remains the target and this file identifies the gap.
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb
   --json`: reported the CPU wrap64 byte-limb reference backend.
-- `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
-  verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
-  and wrap64 smoke passed.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
   Windows host. hipBLASLt was reported as candidate evidence only on this host;
@@ -271,13 +287,14 @@ disagree, the spec remains the target and this file identifies the gap.
   `packed_layout_version=byte_limb_v1`, `gpu_event_timing=true`, and
   wrap64-specific event phases from the older Comba correctness kernel. Current
   schema v4 HIP wrap64 captures report
-  `selected_kernel=direct_hip_wrap64_byte_gemm36_correctness_v1`,
-  `wrap64_byte_gemm36_kernel`, `wrap64_export_kernel`, and
+  `selected_kernel=direct_hip_wrap64_tiled_byte_limb_gemm_v1`,
+  `wrap64_tiled_byte_gemm_kernel`, `wrap64_export_kernel`, and
   `wrap64_export_d2h` event phases. Captures are raw evidence only and do not
   establish a performance claim.
 - `temp\rns8-v4-hip-wrap-u64-byte-gemm36.json` and
   `temp\rns8-v4-hip-wrap-u64-byte-gemm36-repeat.json`: fixed-seed strict
-  wrap64 direct-HIP byte-GEMM36 correctness captures validated as schema v4.
+  wrap64 direct-HIP byte-GEMM36 correctness captures validated as historical
+  schema v4 evidence before the tiled byte-limb kernel rename.
   `tools\result_compare.py --json` reported the same selected kernel, event
   source scope, GPU event phase order, shape, seed, and semantic contract.
   Captures are raw evidence only and do not establish a performance claim.

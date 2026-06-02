@@ -8,6 +8,11 @@ __device__ __constant__ int rns8_default_moduli_device[28] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
+constexpr int kRns8HipTileM = 16;
+constexpr int kRns8HipTileN = 16;
+constexpr int kRns8HipTileK = 64;
+constexpr int kRns8SafeInt32KBlock = 65536;
+
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
   int residue = value % modulus;
   residue += modulus & -static_cast<int>(residue < 0);
@@ -301,21 +306,59 @@ __global__ void rns8_ring_gemm_kernel(
     int ldc,
     int modulus,
     int accumulate) {
-  const int row = blockIdx.y * blockDim.y + threadIdx.y;
-  const int col = blockIdx.x * blockDim.x + threadIdx.x;
-  if (row >= m || col >= n) {
-    return;
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileN];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col = static_cast<int>(threadIdx.x);
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = tile_row + thread_row;
+  const int col = tile_col + thread_col;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output_active = row < m && col < n;
+  int acc = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int global_row = tile_row + local_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int global_col = tile_col + local_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
+    }
+
+    __syncthreads();
+
+    if (output_active) {
+      for (int kk = 0; kk < tile_extent; ++kk) {
+        acc += static_cast<int>(a_tile[thread_row][kk]) * static_cast<int>(b_tile[kk][thread_col]);
+      }
+    }
+
+    __syncthreads();
   }
 
-  int acc = 0;
-  for (int kk = 0; kk < k_block; ++kk) {
-    const int source_k = k_offset + kk;
-    acc += static_cast<int>(A[row * lda + source_k]) * static_cast<int>(B[source_k * ldb + col]);
-  }
-  if (accumulate) {
+  if (output_active && accumulate) {
     acc += static_cast<int>(C[row * ldc + col]);
   }
-  C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
+  if (output_active) {
+    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
+  }
 }
 
 __device__ void rns8_export_i64_cell_device(
@@ -715,13 +758,13 @@ extern "C" int rns8_hip_direct_ring_gemm_i8(
     err = hipMemcpy(d_b, B, bytes_b, hipMemcpyHostToDevice);
   }
   if (err == hipSuccess) {
-    const dim3 block(16, 16);
+    const dim3 block(kRns8HipTileN, kRns8HipTileM);
     const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
     int k_offset = 0;
     int accumulate = 0;
     while (k_offset < k && err == hipSuccess) {
       const int k_remaining = k - k_offset;
-      const int k_block = k_remaining > 65536 ? 65536 : k_remaining;
+      const int k_block = k_remaining > kRns8SafeInt32KBlock ? kRns8SafeInt32KBlock : k_remaining;
       hipLaunchKernelGGL(
           rns8_ring_gemm_kernel,
           grid,
@@ -769,14 +812,14 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus) {
-  const dim3 block(16, 16);
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
   const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
   hipError_t err = hipSuccess;
   int k_offset = 0;
   int accumulate = 0;
   while (k_offset < k && err == hipSuccess) {
     const int k_remaining = k - k_offset;
-    const int k_block = k_remaining > 65536 ? 65536 : k_remaining;
+    const int k_block = k_remaining > kRns8SafeInt32KBlock ? kRns8SafeInt32KBlock : k_remaining;
     hipLaunchKernelGGL(
         rns8_ring_gemm_kernel,
         grid,

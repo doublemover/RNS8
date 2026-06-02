@@ -2,7 +2,7 @@
 
 The local bring-up target is Windows on Radeon RX 7900 XTX / `gfx1100`.
 
-Validated in this slice:
+Recorded Windows validation coverage:
 
 - `tools/check_dependencies.py` detects hipcc, hipInfo, hipconfig, MSVC, vcpkg,
   Python packages, Radeon CLI tools, and optional accelerator headers/libraries.
@@ -25,8 +25,9 @@ Validated in this slice:
 - Debug builds pass the MSVC debug runtime settings through hipcc to avoid CRT
   and iterator-debug-level mismatches.
 - `rns8-verify --hip-smoke` exercises direct HIP residue conversion, ring GEMM,
-  K-block splitting, public bounded signed/unsigned API paths, and the public
-  strict wrap64 byte-limb path against CPU references.
+  K-block splitting, public bounded signed/unsigned API paths, exact-wide
+  signed/unsigned RNS output and limb export, and the public strict wrap64
+  byte-limb path against CPU references.
 
 Current proof command:
 
@@ -41,11 +42,18 @@ build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 The current HIP kernel is a correctness bring-up kernel, not an optimized
 matrix-engine implementation.
 
+Windows `gfx1100` evidence does not validate Linux ROCm, Instinct CDNA, or
+cluster production readiness. Those gates remain represented in presets and
+readiness reports, but they require a supported Linux ROCm host and actual
+target hardware.
+
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected
 accelerators on Windows. `tools/check_dependencies.py` may report discovered
 headers or libraries as candidate evidence, but it does not enable or validate
 those backends. They require compiled capability probes and exact CPU
-differential tests before any backend can be treated as ready.
+differential tests before any backend can be treated as ready. The CMake
+accelerator enable flags intentionally fail fast until those correctness
+backends exist.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:

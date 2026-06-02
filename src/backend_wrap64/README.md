@@ -21,12 +21,13 @@ Current status:
   algebra future accelerator paths must use when unsigned byte products are
   computed through signed INT8 hardware instructions, plus a 36-byte-GEMM
   decomposition oracle for the future optimized GPU path.
-- `wrap64_hip_kernels.hip` contains direct-HIP pack, one-thread-per-output
-  byte-GEMM36 correctness, and export kernels. The GEMM kernel sums the 36
-  low-product byte diagonals with device-side signed-INT8 correction algebra,
-  then performs deterministic carry propagation into the low 64 bits. The
-  public HIP_DIRECT one-shot and persistent wrap64 APIs use matrix-owned device
-  byte-limb storage and are tested against the CPU reference.
+- `wrap64_hip_kernels.hip` contains direct-HIP pack, tiled byte-limb
+  correctness, and export kernels. The GEMM kernel stages 16x16 output tiles
+  through K tiles, sums the 36 low-product byte diagonals with device-side
+  signed-INT8 correction algebra, then performs deterministic carry propagation
+  into the low 64 bits. The public HIP_DIRECT one-shot and persistent wrap64
+  APIs use matrix-owned device byte-limb storage and are tested against the CPU
+  reference.
 - Optimized matrix-engine byte-GEMM kernels and production GPU performance
   evidence are not implemented yet. The signedness correction algebra is
   implemented and tested on CPU and consumed by the direct-HIP correctness

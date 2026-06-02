@@ -59,7 +59,7 @@ The benchmark reports:
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
-either the CPU byte-limb reference backend or the direct-HIP byte-GEMM36
+either the CPU byte-limb reference backend or the direct-HIP tiled byte-limb
 correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound: 0`,
 `prefix: 0`, `packed_layout_version: "byte_limb_v1"`, and `epilogue_type:
 "low64_wrap_export"`. For schema compatibility, wrap captures keep the host
@@ -161,16 +161,16 @@ plus schema-compatible aggregate aliases:
 - `pack_h2d`
 - `pack_kernel`
 - `pack`
-- `wrap64_byte_gemm36_kernel`
+- `wrap64_tiled_byte_gemm_kernel`
 - `rns_gemm`
 - `wrap64_export_kernel`
 - `wrap64_export_d2h`
 - `crt_export`
 
 The wrap64 direct-HIP event source scope is
-`direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups`. It
-describes the one-thread-per-output byte-GEMM36 correctness path, not an
-optimized matrix-engine byte-GEMM backend.
+`direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups`. It
+describes the tiled byte-limb correctness path, not an optimized matrix-engine
+byte-GEMM backend.
 
 Host timings and HIP event timings answer different questions. Host
 `std::chrono::steady_clock` timings include API dispatch, CPU scheduling,

@@ -2,7 +2,8 @@
 
 Linux ROCm remains the production, profiling, multi-GPU, and Instinct
 validation path. The scaffold keeps Linux ROCm presets and toolchain variables
-represented, but this slice was validated on Windows.
+represented, but Windows validation does not validate Linux ROCm, Instinct
+CDNA, profiling, power, or cluster production gates.
 
 `tools/check_dependencies.py` reports Linux readiness separately from Windows
 readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platform
@@ -50,6 +51,9 @@ CMake preset. They keep `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`, and
 `RNS8_ENABLE_ROCWMMA` disabled. Linux production readiness still requires
 target-supported components, compiled capability probes, exact CPU differential
 coverage, and measured performance before enabling advanced backend stages.
+AMDGPU builtin hot kernels follow the same rule: compiler or architecture
+availability is only candidate evidence until a target-specific kernel has exact
+CPU differential coverage.
 
 Before claiming Linux production readiness, run direct HIP parity tests on the
 target ROCm release and actual supported Radeon or Instinct hardware.

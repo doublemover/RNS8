@@ -152,6 +152,10 @@ rns8_status wrap64_hip_gemm_byte_limbs(
   if (!a_limbs || !b_limbs || !c_limbs) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (!checked_matrix_elements_i32(m, n) || !checked_matrix_elements_i32(m, k) ||
+      !checked_matrix_elements_i32(k, n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   std::size_t a_bytes = 0;
   std::size_t b_bytes = 0;
   std::size_t c_bytes = 0;
@@ -286,7 +290,7 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  const hipError_t err = timed_hip_operation("wrap64_byte_gemm36_kernel", [&]() {
+  const hipError_t err = timed_hip_operation("wrap64_tiled_byte_gemm_kernel", [&]() {
     const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
         static_cast<const uint8_t*>(device_a_limbs),
         static_cast<const uint8_t*>(device_b_limbs),
