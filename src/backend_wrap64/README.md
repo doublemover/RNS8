@@ -35,9 +35,11 @@ Current status:
   are intentionally not materialized. Device-side carry propagation writes the
   final low-64-bit byte limbs. The public HIP_DIRECT one-shot and persistent
   wrap64 APIs use matrix-owned device byte-limb storage and are tested against
-  the CPU reference. Persistent HIP GEMM/export require device-current byte
-  limbs from wrap64 pack or GEMM; they do not upload host-current byte limbs as a
-  hidden fallback during GEMM/export. Private HIP pack/export helper tests lock
+  the CPU reference. Newly created HIP wrap matrices are not current until
+  `rns8_pack_u64` populates their device byte limbs. Persistent HIP GEMM/export
+  require device-current, host-not-current byte limbs from wrap64 pack or GEMM;
+  they do not upload host-current byte limbs as a hidden fallback during
+  GEMM/export. Private HIP pack/export helper tests lock
   padded host rows, compact device byte-limb layout, tile-tail dimensions, and
   helper-buffer reuse.
 - Public wrap64 pack, GEMM, and export reject residue-backed matrices, bounded

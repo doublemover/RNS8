@@ -564,9 +564,13 @@ bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind ba
     return false;
   }
   if (backend == RNS8_BACKEND_HIP_DIRECT) {
-    return matrix.hip_byte_limbs != nullptr && matrix.hip_byte_limb_bytes == expected_bytes;
+    return !matrix.host_byte_limbs_current && matrix.hip_byte_limbs != nullptr &&
+           matrix.hip_byte_limb_bytes == expected_bytes;
   }
   return matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0 &&
+         matrix.hip_upload_buffer == nullptr && matrix.hip_upload_bytes == 0 &&
+         matrix.hip_export_buffer == nullptr && matrix.hip_export_bytes == 0 &&
+         matrix.hip_status_buffer == nullptr && matrix.hip_status_bytes == 0 &&
          !matrix.device_byte_limbs_current;
 }
 
@@ -825,8 +829,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
     }
     matrix.host_residues_current = false;
     matrix.device_residues_current = false;
-    matrix.host_byte_limbs_current = true;
-    matrix.device_byte_limbs_current = true;
+    matrix.host_byte_limbs_current = false;
+    matrix.device_byte_limbs_current = false;
     return RNS8_SUCCESS;
   }
   if (matrix.residues.empty()) {

@@ -436,6 +436,147 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(workspace->schedule_fingerprint == snapshot.workspace_schedule_fingerprint);
 }
 
+struct Wrap64HipResidentSnapshot {
+  rns8::detail::hip_direct_allocation_counters allocations{};
+  void* a_byte_limbs = nullptr;
+  void* b_byte_limbs = nullptr;
+  void* c_byte_limbs = nullptr;
+  void* a_upload = nullptr;
+  void* b_upload = nullptr;
+  void* c_upload = nullptr;
+  void* c_export = nullptr;
+  void* c_status = nullptr;
+  void* workspace_scratch = nullptr;
+  std::size_t a_byte_limb_bytes = 0;
+  std::size_t b_byte_limb_bytes = 0;
+  std::size_t c_byte_limb_bytes = 0;
+  std::size_t a_upload_bytes = 0;
+  std::size_t b_upload_bytes = 0;
+  std::size_t c_upload_bytes = 0;
+  std::size_t c_export_bytes = 0;
+  std::size_t c_status_bytes = 0;
+  std::size_t workspace_scratch_bytes = 0;
+  uint64_t workspace_bound = 0;
+  uint32_t workspace_tile_m = 0;
+  uint32_t workspace_tile_n = 0;
+  uint64_t workspace_schedule_tile_rows = 0;
+  uint64_t workspace_schedule_tile_cols = 0;
+  uint64_t workspace_schedule_tile_count = 0;
+  uint32_t workspace_schedule_min_required_prefix = 0;
+  uint32_t workspace_schedule_max_required_prefix = 0;
+  uint32_t workspace_schedule_min_selected_prefix = 0;
+  uint32_t workspace_schedule_max_selected_prefix = 0;
+  uint32_t workspace_schedule_prefix_group_count = 0;
+  uint32_t workspace_schedule_range_bit_length = 0;
+  uint32_t workspace_schedule_adaptive_prefix_active = 0;
+  uint32_t workspace_schedule_adaptive_skip_active = 0;
+  uint32_t workspace_schedule_flags = 0;
+  uint64_t workspace_schedule_fingerprint = 0;
+};
+
+Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    const rns8_matrix* C,
+    const rns8_workspace* workspace) {
+  REQUIRE(A != nullptr);
+  REQUIRE(B != nullptr);
+  REQUIRE(C != nullptr);
+  REQUIRE(workspace != nullptr);
+  Wrap64HipResidentSnapshot snapshot{};
+  snapshot.allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  snapshot.a_byte_limbs = A->hip_byte_limbs;
+  snapshot.b_byte_limbs = B->hip_byte_limbs;
+  snapshot.c_byte_limbs = C->hip_byte_limbs;
+  snapshot.a_upload = A->hip_upload_buffer;
+  snapshot.b_upload = B->hip_upload_buffer;
+  snapshot.c_upload = C->hip_upload_buffer;
+  snapshot.c_export = C->hip_export_buffer;
+  snapshot.c_status = C->hip_status_buffer;
+  snapshot.workspace_scratch = workspace->hip_scratch;
+  snapshot.a_byte_limb_bytes = A->hip_byte_limb_bytes;
+  snapshot.b_byte_limb_bytes = B->hip_byte_limb_bytes;
+  snapshot.c_byte_limb_bytes = C->hip_byte_limb_bytes;
+  snapshot.a_upload_bytes = A->hip_upload_bytes;
+  snapshot.b_upload_bytes = B->hip_upload_bytes;
+  snapshot.c_upload_bytes = C->hip_upload_bytes;
+  snapshot.c_export_bytes = C->hip_export_bytes;
+  snapshot.c_status_bytes = C->hip_status_bytes;
+  snapshot.workspace_scratch_bytes = workspace->hip_scratch_bytes;
+  snapshot.workspace_bound = workspace->bound;
+  snapshot.workspace_tile_m = workspace->tile_m;
+  snapshot.workspace_tile_n = workspace->tile_n;
+  snapshot.workspace_schedule_tile_rows = workspace->schedule_tile_rows;
+  snapshot.workspace_schedule_tile_cols = workspace->schedule_tile_cols;
+  snapshot.workspace_schedule_tile_count = workspace->schedule_tile_count;
+  snapshot.workspace_schedule_min_required_prefix = workspace->schedule_min_required_prefix;
+  snapshot.workspace_schedule_max_required_prefix = workspace->schedule_max_required_prefix;
+  snapshot.workspace_schedule_min_selected_prefix = workspace->schedule_min_selected_prefix;
+  snapshot.workspace_schedule_max_selected_prefix = workspace->schedule_max_selected_prefix;
+  snapshot.workspace_schedule_prefix_group_count = workspace->schedule_prefix_group_count;
+  snapshot.workspace_schedule_range_bit_length = workspace->schedule_range_bit_length;
+  snapshot.workspace_schedule_adaptive_prefix_active = workspace->schedule_adaptive_prefix_active;
+  snapshot.workspace_schedule_adaptive_skip_active = workspace->schedule_adaptive_skip_active;
+  snapshot.workspace_schedule_flags = workspace->schedule_flags;
+  snapshot.workspace_schedule_fingerprint = workspace->schedule_fingerprint;
+  return snapshot;
+}
+
+void check_wrap64_resident_snapshot_unchanged(
+    const Wrap64HipResidentSnapshot& snapshot,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    const rns8_matrix* C,
+    const rns8_workspace* workspace) {
+  const auto repeated = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(repeated.allocate_calls == snapshot.allocations.allocate_calls);
+  CHECK(repeated.free_calls == snapshot.allocations.free_calls);
+  CHECK(repeated.allocated_bytes == snapshot.allocations.allocated_bytes);
+  CHECK(A->hip_residues == nullptr);
+  CHECK(B->hip_residues == nullptr);
+  CHECK(C->hip_residues == nullptr);
+  CHECK(A->hip_byte_limbs == snapshot.a_byte_limbs);
+  CHECK(B->hip_byte_limbs == snapshot.b_byte_limbs);
+  CHECK(C->hip_byte_limbs == snapshot.c_byte_limbs);
+  CHECK(A->hip_upload_buffer == snapshot.a_upload);
+  CHECK(B->hip_upload_buffer == snapshot.b_upload);
+  CHECK(C->hip_upload_buffer == snapshot.c_upload);
+  CHECK(C->hip_export_buffer == snapshot.c_export);
+  CHECK(C->hip_status_buffer == snapshot.c_status);
+  CHECK(workspace->hip_scratch == snapshot.workspace_scratch);
+  CHECK(A->hip_byte_limb_bytes == snapshot.a_byte_limb_bytes);
+  CHECK(B->hip_byte_limb_bytes == snapshot.b_byte_limb_bytes);
+  CHECK(C->hip_byte_limb_bytes == snapshot.c_byte_limb_bytes);
+  CHECK(A->hip_upload_bytes == snapshot.a_upload_bytes);
+  CHECK(B->hip_upload_bytes == snapshot.b_upload_bytes);
+  CHECK(C->hip_upload_bytes == snapshot.c_upload_bytes);
+  CHECK(C->hip_export_bytes == snapshot.c_export_bytes);
+  CHECK(C->hip_status_bytes == snapshot.c_status_bytes);
+  CHECK(workspace->hip_scratch_bytes == snapshot.workspace_scratch_bytes);
+  CHECK(A->device_byte_limbs_current);
+  CHECK(B->device_byte_limbs_current);
+  CHECK(C->device_byte_limbs_current);
+  CHECK_FALSE(A->host_byte_limbs_current);
+  CHECK_FALSE(B->host_byte_limbs_current);
+  CHECK_FALSE(C->host_byte_limbs_current);
+  CHECK(workspace->bound == snapshot.workspace_bound);
+  CHECK(workspace->tile_m == snapshot.workspace_tile_m);
+  CHECK(workspace->tile_n == snapshot.workspace_tile_n);
+  CHECK(workspace->schedule_tile_rows == snapshot.workspace_schedule_tile_rows);
+  CHECK(workspace->schedule_tile_cols == snapshot.workspace_schedule_tile_cols);
+  CHECK(workspace->schedule_tile_count == snapshot.workspace_schedule_tile_count);
+  CHECK(workspace->schedule_min_required_prefix == snapshot.workspace_schedule_min_required_prefix);
+  CHECK(workspace->schedule_max_required_prefix == snapshot.workspace_schedule_max_required_prefix);
+  CHECK(workspace->schedule_min_selected_prefix == snapshot.workspace_schedule_min_selected_prefix);
+  CHECK(workspace->schedule_max_selected_prefix == snapshot.workspace_schedule_max_selected_prefix);
+  CHECK(workspace->schedule_prefix_group_count == snapshot.workspace_schedule_prefix_group_count);
+  CHECK(workspace->schedule_range_bit_length == snapshot.workspace_schedule_range_bit_length);
+  CHECK(workspace->schedule_adaptive_prefix_active == snapshot.workspace_schedule_adaptive_prefix_active);
+  CHECK(workspace->schedule_adaptive_skip_active == snapshot.workspace_schedule_adaptive_skip_active);
+  CHECK(workspace->schedule_flags == snapshot.workspace_schedule_flags);
+  CHECK(workspace->schedule_fingerprint == snapshot.workspace_schedule_fingerprint);
+}
+
 bool has_timing_label(const std::vector<rns8::detail::hip_direct_timing_sample>& samples, const std::string& label) {
   for (const auto& sample : samples) {
     if (sample.label == label) {
@@ -819,7 +960,15 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
   std::size_t bytes = 0;
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, nullptr, limbs.data(), limbs.data(), 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), nullptr, limbs.data(), 1, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0, limbs.data(), limbs.data(), limbs.data(), -1, 1, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 0, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 1, 0, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), limbs.data(), 1, 1, 0) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, limbs.data(), limbs.data(), nullptr, 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
@@ -828,10 +977,28 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
             limbs.data(),
             limbs.data(),
             limbs.data(),
+            static_cast<int64_t>(std::numeric_limits<int>::max()) + 1,
+            1,
+            1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+            0,
+            limbs.data(),
+            limbs.data(),
+            limbs.data(),
             1,
             1,
             static_cast<int64_t>(std::numeric_limits<int>::max()) + 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, nullptr, &buffer, &bytes, limbs.data(), 1, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, nullptr, &bytes, limbs.data(), 1, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, nullptr, limbs.data(), 1, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), 1, 2, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), -1, 1, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, limbs.data(), 0, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_pack_u64_device(0, &src, &buffer, &bytes, nullptr, 1, 1, 1) ==
         RNS8_INVALID_ARGUMENT);
@@ -844,7 +1011,17 @@ TEST_CASE("private HIP wrap64 helpers reject invalid contracts before launch") {
             2,
             1,
             std::numeric_limits<int64_t>::max()) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), nullptr, &bytes, 1, 1, &dst, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, nullptr, 1, 1, &dst, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 1, 1, nullptr, 1) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 1, 2, &dst, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, -1, 1, &dst, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::wrap64_hip_export_u64_device(0, limbs.data(), &buffer, &bytes, 0, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::wrap64_hip_export_u64_device(0, nullptr, &buffer, &bytes, 1, 1, &dst, 1) ==
         RNS8_INVALID_ARGUMENT);
@@ -1212,6 +1389,12 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   CHECK(hip_a->hip_residues == nullptr);
   CHECK(hip_b->hip_residues == nullptr);
   CHECK(hip_out->hip_residues == nullptr);
+  CHECK_FALSE(hip_a->host_byte_limbs_current);
+  CHECK_FALSE(hip_b->host_byte_limbs_current);
+  CHECK_FALSE(hip_out->host_byte_limbs_current);
+  CHECK_FALSE(hip_a->device_byte_limbs_current);
+  CHECK_FALSE(hip_b->device_byte_limbs_current);
+  CHECK_FALSE(hip_out->device_byte_limbs_current);
   void* hip_a_bytes = hip_a->hip_byte_limbs;
   void* hip_b_bytes = hip_b->hip_byte_limbs;
   void* hip_out_bytes = hip_out->hip_byte_limbs;
@@ -1393,6 +1576,12 @@ TEST_CASE("direct HIP public wrap64 tiled byte-limb path matches CPU for random 
   CHECK(hip_a->hip_residues == nullptr);
   CHECK(hip_b->hip_residues == nullptr);
   CHECK(hip_out->hip_residues == nullptr);
+  CHECK_FALSE(hip_a->host_byte_limbs_current);
+  CHECK_FALSE(hip_b->host_byte_limbs_current);
+  CHECK_FALSE(hip_out->host_byte_limbs_current);
+  CHECK_FALSE(hip_a->device_byte_limbs_current);
+  CHECK_FALSE(hip_b->device_byte_limbs_current);
+  CHECK_FALSE(hip_out->device_byte_limbs_current);
   void* hip_a_bytes = hip_a->hip_byte_limbs;
   void* hip_b_bytes = hip_b->hip_byte_limbs;
   void* hip_out_bytes = hip_out->hip_byte_limbs;
@@ -1420,6 +1609,7 @@ TEST_CASE("direct HIP public wrap64 tiled byte-limb path matches CPU for random 
   const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
   REQUIRE(warmed_allocations.allocate_calls > 0);
   REQUIRE(warmed_allocations.allocated_bytes > 0);
+  const auto warmed_snapshot = capture_wrap64_resident_snapshot(hip_a, hip_b, hip_out, hip_workspace);
 
   std::fill(cpu_c.begin(), cpu_c.end(), c_sentinel);
   std::fill(hip_c.begin(), hip_c.end(), c_sentinel);
@@ -1441,6 +1631,7 @@ TEST_CASE("direct HIP public wrap64 tiled byte-limb path matches CPU for random 
   CHECK(repeated_allocations.allocate_calls == warmed_allocations.allocate_calls);
   CHECK(repeated_allocations.free_calls == warmed_allocations.free_calls);
   CHECK(repeated_allocations.allocated_bytes == warmed_allocations.allocated_bytes);
+  check_wrap64_resident_snapshot_unchanged(warmed_snapshot, hip_a, hip_b, hip_out, hip_workspace);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
@@ -1620,6 +1811,7 @@ TEST_CASE("direct HIP public wrap64 resident path is device-current for large pa
   REQUIRE(hip_export != nullptr);
   REQUIRE(warmed_allocations.allocate_calls > 0);
   REQUIRE(warmed_allocations.allocated_bytes > 0);
+  const auto warmed_snapshot = capture_wrap64_resident_snapshot(hip_a, hip_b, hip_out, hip_workspace);
 
   run_persistent(0x7772617036345f32ull, 401, 402);
   CHECK(hip_a->hip_upload_buffer == hip_a_upload);
@@ -1632,6 +1824,7 @@ TEST_CASE("direct HIP public wrap64 resident path is device-current for large pa
   CHECK(repeated_allocations.allocate_calls == warmed_allocations.allocate_calls);
   CHECK(repeated_allocations.free_calls == warmed_allocations.free_calls);
   CHECK(repeated_allocations.allocated_bytes == warmed_allocations.allocated_bytes);
+  check_wrap64_resident_snapshot_unchanged(warmed_snapshot, hip_a, hip_b, hip_out, hip_workspace);
 
   std::vector<uint64_t> cpu_oneshot(static_cast<std::size_t>(m * ldc), c_sentinel);
   std::vector<uint64_t> hip_oneshot(static_cast<std::size_t>(m * ldc), c_sentinel);
@@ -1882,6 +2075,12 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   REQUIRE(rns8_create_matrix(hip, &a_desc, &wrap_a) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &b_desc, &wrap_b) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &c_desc, &wrap_c) == RNS8_SUCCESS);
+  CHECK_FALSE(wrap_a->host_byte_limbs_current);
+  CHECK_FALSE(wrap_b->host_byte_limbs_current);
+  CHECK_FALSE(wrap_c->host_byte_limbs_current);
+  CHECK_FALSE(wrap_a->device_byte_limbs_current);
+  CHECK_FALSE(wrap_b->device_byte_limbs_current);
+  CHECK_FALSE(wrap_c->device_byte_limbs_current);
   const int64_t signed_A[] = {-1};
   uint64_t limbs[] = {0};
   int64_t signed_out[] = {0};
@@ -1894,6 +2093,10 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
 
   REQUIRE(rns8_pack_u64(hip, wrap_a, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, wrap_b, B, n, 2) == RNS8_SUCCESS);
+
+  wrap_a->host_byte_limbs_current = true;
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  wrap_a->host_byte_limbs_current = false;
 
   auto bounded_workspace_desc = unsigned_desc(m, n, k, 2, RNS8_BACKEND_HIP_DIRECT);
   rns8_plan* bounded_plan = nullptr;
@@ -1992,6 +2195,10 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   wrap_c->host_residues_current = true;
   CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
   wrap_c->host_residues_current = false;
+
+  wrap_c->host_byte_limbs_current = true;
+  CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
+  wrap_c->host_byte_limbs_current = false;
 
   wrap_c->host_byte_limbs_current = true;
   wrap_c->device_byte_limbs_current = false;

@@ -225,10 +225,12 @@ Public one-shot descriptors and wrap matrix descriptors also validate stale
 bound, prefix, tile-bound, flag, and layout metadata before backend availability:
 malformed wrap metadata is `RNS8_INVALID_ARGUMENT`, while a valid wrap contract
 on an unavailable backend remains `RNS8_UNSUPPORTED_BACKEND`.
-On HIP, wrap64 GEMM and export require device-current byte limbs. A
-host-current/device-stale wrap matrix is invalid at GEMM/export instead of
-being uploaded implicitly; `rns8_pack_u64` is the public host-to-device ingress
-for strict wrap64 inputs, and GEMM is the device-current producer for outputs.
+On HIP, newly created wrap matrices are non-current until pack. Wrap64 GEMM and
+export require device-current byte limbs. A host-current wrap matrix is invalid
+at GEMM/export, even when device byte limbs are also marked current, instead of
+being uploaded implicitly or treated as a second current copy; `rns8_pack_u64`
+is the public host-to-device ingress for strict wrap64 inputs, and GEMM is the
+device-current producer for outputs.
 
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from

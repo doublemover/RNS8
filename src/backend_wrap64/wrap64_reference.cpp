@@ -60,7 +60,13 @@ bool wrap64_cpu_storage_matches(const rns8_matrix& matrix, int64_t rows, int64_t
          matrix.hip_residues == nullptr &&
          matrix.hip_residue_bytes == 0 &&
          matrix.hip_byte_limbs == nullptr &&
-         matrix.hip_byte_limb_bytes == 0;
+         matrix.hip_byte_limb_bytes == 0 &&
+         matrix.hip_upload_buffer == nullptr &&
+         matrix.hip_upload_bytes == 0 &&
+         matrix.hip_export_buffer == nullptr &&
+         matrix.hip_export_bytes == 0 &&
+         matrix.hip_status_buffer == nullptr &&
+         matrix.hip_status_bytes == 0;
 }
 
 bool wrap64_cpu_plan_metadata_is_clean(const rns8_plan& plan) {
