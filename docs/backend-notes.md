@@ -304,8 +304,8 @@ alone.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP tiled byte-limb correctness path. HIP wrap64 event captures use
-wrap64-specific tiled byte-GEMM/export labels, report
-`selected_kernel=direct_hip_wrap64_tiled_byte_limb_gemm_v1`, and keep
+wrap64-specific byte-GEMM36/export labels, report
+`selected_kernel=direct_hip_wrap64_byte_gemm36_tiled_v2`, and keep
 current aggregate phase labels; they are raw timing evidence for the
 correctness path only, not optimized byte-GEMM performance evidence.
 

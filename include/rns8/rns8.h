@@ -135,7 +135,7 @@ typedef struct rns8_backend_capability_info {
   char enable_flag[64];
   char epilogue_mode[64];
   char workspace_mode[64];
-  char isa_evidence[64];
+  char isa_evidence[128];
   char status[128];
   char detail[256];
 } rns8_backend_capability_info;
@@ -158,7 +158,7 @@ typedef struct rns8_plan_backend_info {
   char capability_status[128];
   char epilogue_mode[64];
   char workspace_mode[64];
-  char isa_evidence[64];
+  char isa_evidence[128];
   char autotune_key[256];
 } rns8_plan_backend_info;
 

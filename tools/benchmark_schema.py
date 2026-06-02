@@ -16,7 +16,7 @@ REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
-    "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups",
+    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
 }
 HIPBLASLT_GPU_EVENT_SCOPES = {
     "hipblaslt_baseline_default_stream_backend_operation_groups",
@@ -447,7 +447,7 @@ class _Validator:
             if bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
             if self.data.get("backend_selected") == "hip-direct":
-                expected_kernel = "direct_hip_wrap64_tiled_byte_limb_gemm_v1"
+                expected_kernel = "direct_hip_wrap64_byte_gemm36_tiled_v2"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
                 if isinstance(backend_metadata, dict):
@@ -455,7 +455,7 @@ class _Validator:
                         self._error("direct-HIP wrap64 captures must use backend_metadata.epilogue_mode=low64_wrap_export")
                     if backend_metadata.get("workspace_mode") != "resident_device_buffers":
                         self._error("direct-HIP wrap64 captures must use backend_metadata.workspace_mode=resident_device_buffers")
-                    expected_isa = "source_level_signed_i8_correction_no_matrix_engine_gate"
+                    expected_isa = "source_level_signed_i8_correction_byte_gemm36_no_matrix_engine_gate"
                     if backend_metadata.get("isa_evidence") != expected_isa:
                         self._error(f"direct-HIP wrap64 captures must use backend_metadata.isa_evidence={expected_isa}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
@@ -477,7 +477,7 @@ class _Validator:
             if self.data.get("backend_selected") == "hip-direct":
                 metadata = self.data.get("timing_metadata")
                 if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
-                    expected_scope = "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups"
+                    expected_scope = "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups"
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"bounded_i64", "bounded_u64"}:

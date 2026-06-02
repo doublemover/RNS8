@@ -1864,6 +1864,13 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
   CHECK(cpu_plan->prefix == 0);
   CHECK(hip_plan->prefix == 0);
+  rns8_plan_backend_info hip_info{};
+  hip_info.struct_size = sizeof(hip_info);
+  hip_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(hip_plan, &hip_info) == RNS8_SUCCESS);
+  CHECK(std::string(hip_info.selected_kernel) == "direct_hip_wrap64_byte_gemm36_tiled_v2");
+  CHECK(std::string(hip_info.isa_evidence) ==
+        "source_level_signed_i8_correction_byte_gemm36_no_matrix_engine_gate");
   REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
 
@@ -1925,7 +1932,7 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   REQUIRE(rns8_gemm_wrap_u64(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
   auto hip_gemm_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
-  CHECK(has_timing_label(hip_gemm_events, "wrap64_tiled_byte_gemm_kernel"));
+  CHECK(has_timing_label(hip_gemm_events, "wrap64_byte_gemm36_tiled_kernel"));
   CHECK(hip_out->hip_byte_limbs == hip_out_bytes);
   CHECK(hip_out->device_byte_limbs_current);
   CHECK_FALSE(hip_out->host_byte_limbs_current);

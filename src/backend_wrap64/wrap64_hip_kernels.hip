@@ -65,20 +65,63 @@ __device__ void rns8_wrap64_store_low64_from_diagonals(uint8_t* dst, const uint6
   }
 }
 
-__device__ void rns8_wrap64_accumulate_low_diagonals_from_packed_cells(
+__device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(
     uint64_t a_value,
     uint64_t b_value,
     uint64_t* diagonals) {
-#pragma unroll
-  for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
-    const uint8_t a = rns8_wrap64_packed_limb_byte(a_value, a_limb);
-#pragma unroll
-    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64LowProductDiagonals; ++b_limb) {
-      const uint8_t b = rns8_wrap64_packed_limb_byte(b_value, b_limb);
-      diagonals[a_limb + b_limb] +=
-          static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a, b));
-    }
-  }
+  const uint8_t a0 = rns8_wrap64_packed_limb_byte(a_value, 0);
+  const uint8_t a1 = rns8_wrap64_packed_limb_byte(a_value, 1);
+  const uint8_t a2 = rns8_wrap64_packed_limb_byte(a_value, 2);
+  const uint8_t a3 = rns8_wrap64_packed_limb_byte(a_value, 3);
+  const uint8_t a4 = rns8_wrap64_packed_limb_byte(a_value, 4);
+  const uint8_t a5 = rns8_wrap64_packed_limb_byte(a_value, 5);
+  const uint8_t a6 = rns8_wrap64_packed_limb_byte(a_value, 6);
+  const uint8_t a7 = rns8_wrap64_packed_limb_byte(a_value, 7);
+  const uint8_t b0 = rns8_wrap64_packed_limb_byte(b_value, 0);
+  const uint8_t b1 = rns8_wrap64_packed_limb_byte(b_value, 1);
+  const uint8_t b2 = rns8_wrap64_packed_limb_byte(b_value, 2);
+  const uint8_t b3 = rns8_wrap64_packed_limb_byte(b_value, 3);
+  const uint8_t b4 = rns8_wrap64_packed_limb_byte(b_value, 4);
+  const uint8_t b5 = rns8_wrap64_packed_limb_byte(b_value, 5);
+  const uint8_t b6 = rns8_wrap64_packed_limb_byte(b_value, 6);
+  const uint8_t b7 = rns8_wrap64_packed_limb_byte(b_value, 7);
+
+  diagonals[0] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b0));
+  diagonals[1] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b1)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b0);
+  diagonals[2] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b2)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b0);
+  diagonals[3] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b3)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b2) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b0);
+  diagonals[4] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b4)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b3) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b2) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b0);
+  diagonals[5] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b5)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b4) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b3) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b2) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b0);
+  diagonals[6] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b6)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b5) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b4) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b3) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b2) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a6, b0);
+  diagonals[7] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b7)) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b6) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b5) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b4) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b3) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b2) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a6, b1) +
+                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a7, b0);
 }
 
 __global__ void rns8_wrap64_pack_u64_kernel(
@@ -97,7 +140,7 @@ __global__ void rns8_wrap64_pack_u64_kernel(
   rns8_store_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
 }
 
-__global__ void rns8_wrap64_tiled_byte_gemm_kernel(
+__global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
     const uint8_t* a_limbs,
     const uint8_t* b_limbs,
     uint8_t* c_limbs,
@@ -152,7 +195,7 @@ __global__ void rns8_wrap64_tiled_byte_gemm_kernel(
       for (int local_k = 0; local_k < k_extent; ++local_k) {
         const uint64_t a = a_tile[static_cast<int>(threadIdx.y) * kWrap64TileK + local_k];
         const uint64_t b = b_tile[local_k * kWrap64TileN + static_cast<int>(threadIdx.x)];
-        rns8_wrap64_accumulate_low_diagonals_from_packed_cells(a, b, diagonals);
+        rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(a, b, diagonals);
       }
     }
 
@@ -219,7 +262,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
   const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
   const dim3 blocks(static_cast<unsigned int>(tile_rows * tile_cols));
   hipLaunchKernelGGL(
-      rns8_wrap64_tiled_byte_gemm_kernel,
+      rns8_wrap64_byte_gemm36_tiled_kernel,
       blocks,
       threads,
       0,
