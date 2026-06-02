@@ -114,6 +114,60 @@ int main() {
 """,
 }
 
+ACCELERATOR_PRIMITIVE_PROBE_SOURCES = {
+    "ck": """#include <cstdint>
+#include <ck/ck.hpp>
+#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp>
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
+    Row, Col, Row, int8_t, int8_t, int8_t, int32_t, int32_t, PassThrough, PassThrough, PassThrough,
+    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+    1, 128, 64, 128, 64, 2, 16, 16, 2, 4,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
+    1, 1, S<1, 32, 1, 4>, 8>;
+
+extern "C" float rns8_ck_i8_wmma_primitive_probe(const int8_t* a, const int8_t* b, int8_t* c) {
+  auto arg = DeviceGemmInstance::MakeArgument(
+      a, b, c, 64, 128, 64, 64, 128, 128, PassThrough{}, PassThrough{}, PassThrough{});
+  if (!DeviceGemmInstance::IsSupportedArgument(arg) || !DeviceGemmInstance::IsValidCompilationParameter()) {
+    return -1.0f;
+  }
+  auto invoker = DeviceGemmInstance::MakeInvoker();
+  return invoker.Run(arg);
+}
+""",
+    "rocwmma": """#include <cstdint>
+#include <rocwmma/rocwmma.hpp>
+
+extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
+    const int8_t* a, const int8_t* b, int32_t* c) {
+  using namespace rocwmma;
+  using FragA = fragment<matrix_a, 16, 16, 32, int8_t, row_major>;
+  using FragB = fragment<matrix_b, 16, 16, 32, int8_t, col_major>;
+  using FragAcc = fragment<accumulator, 16, 16, 32, int32_t>;
+  FragA frag_a;
+  FragB frag_b;
+  FragAcc acc;
+  fill_fragment(acc, 0);
+  load_matrix_sync(frag_a, a, 32);
+  load_matrix_sync(frag_b, b, 32);
+  mma_sync(acc, frag_a, frag_b, acc);
+  store_matrix_sync(c, acc, 16, mem_row_major);
+}
+""",
+}
+
 
 def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None) -> tuple[int, str]:
     try:
@@ -553,6 +607,22 @@ def msvc_probe_command(source: Path, binary: Path, include_root: str, library: s
         return None
 
 
+def command_line_for_report(command: list[str] | str) -> str:
+    if isinstance(command, str):
+        return command
+    return subprocess.list2cmdline(command)
+
+
+def command_with_windows_developer_environment(command: list[str]) -> tuple[list[str] | str | None, str]:
+    if platform.system() != "Windows":
+        return command, command_line_for_report(command)
+    try:
+        wrapped, _ = command_in_msvc_environment(command)
+        return wrapped, command_line_for_report(wrapped)
+    except RuntimeError:
+        return None, ""
+
+
 def python_packages() -> dict[str, str | None]:
     result: dict[str, str | None] = {}
     for package in PYTHON_PACKAGES:
@@ -644,7 +714,10 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "library": None,
             "tool": None,
             "cmake_module": first_existing([modules / "FindRNS8CK.cmake"]),
-            "probe": "repo-local header discovery plus optional hipcc compile probe for gfx1100; no backend correctness validation",
+            "probe": (
+                "repo-local header discovery plus optional hipcc compile/run probe and object-only "
+                "int8 DeviceGemmWmma_CShuffle primitive probe for gfx1100; no backend correctness validation"
+            ),
             "backend_stage": "B5/B6",
             "experiment": "E006",
             "capability": "CK grouped GEMM and custom epilogues",
@@ -658,7 +731,10 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "library": None,
             "tool": None,
             "cmake_module": first_existing([modules / "FindRNS8ROCWMMA.cmake"]),
-            "probe": "repo-local header discovery plus optional hipcc compile probe for gfx1100; no backend correctness validation",
+            "probe": (
+                "repo-local header discovery plus optional hipcc compile/run probe and object-only "
+                "int8 fragment mma_sync primitive probe for gfx1100; no backend correctness validation"
+            ),
             "backend_stage": "B7",
             "experiment": "E007",
             "capability": "rocWMMA target-specific hot kernels",
@@ -814,6 +890,33 @@ def probe_binary_path(probe_dir: Path, name: str) -> Path:
     return probe_dir / f"{name}_probe{suffix}"
 
 
+def primitive_probe_source_path(probe_dir: Path, name: str) -> Path:
+    return probe_dir / f"{name}_primitive_probe.cpp"
+
+
+def primitive_probe_object_path(probe_dir: Path, name: str) -> Path:
+    suffix = ".obj" if platform.system() == "Windows" else ".o"
+    return probe_dir / f"{name}_primitive_probe{suffix}"
+
+
+def primitive_probe_not_run_fields(name: str, probe_dir: Path, status: str, detail: str, requested: bool) -> dict[str, object]:
+    applicable = name in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
+    primitive_status = status if requested and applicable else ("NOT_REQUESTED" if applicable else "NOT_APPLICABLE")
+    primitive_detail = detail if applicable else "no matrix-engine primitive dependency probe is defined for this accelerator"
+    return {
+        "primitive_probe_requested": requested and applicable,
+        "primitive_probe_status": primitive_status,
+        "primitive_probe_ok": False,
+        "primitive_source": str(primitive_probe_source_path(probe_dir, name)) if applicable else "",
+        "primitive_object": str(primitive_probe_object_path(probe_dir, name)) if applicable else "",
+        "primitive_command": [],
+        "primitive_wrapped_command": "",
+        "primitive_exit_code": None,
+        "primitive_output": "",
+        "primitive_detail": primitive_detail,
+    }
+
+
 def not_run_probe(
     name: str,
     probe_dir: Path,
@@ -854,6 +957,80 @@ def not_run_probe(
         "run_output": "",
         "output": "",
         "detail": detail,
+        **primitive_probe_not_run_fields(name, probe_dir, status, detail, requested),
+    }
+
+
+def compile_accelerator_primitive_probe(
+    name: str,
+    component: dict[str, object],
+    root: Path,
+    offload_target: str | None,
+    hipcc: str | None,
+) -> dict[str, object]:
+    if name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_APPLICABLE",
+            "no matrix-engine primitive dependency probe is defined for this accelerator",
+            False,
+        )
+    header = component.get("header")
+    if not isinstance(header, str) or not header:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_RUN_MISSING_HEADER",
+            "component header not discovered",
+            True,
+        )
+    if not hipcc:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_RUN_MISSING_COMPILER",
+            "hipcc not discovered",
+            True,
+        )
+
+    source = primitive_probe_source_path(root, name)
+    obj = primitive_probe_object_path(root, name)
+    source.write_text(ACCELERATOR_PRIMITIVE_PROBE_SOURCES[name], encoding="utf-8")
+    command = [hipcc, "-std=c++17", "-O2"]
+    if offload_target:
+        command.append(f"--offload-arch={offload_target}")
+    command.extend(["-c", str(source)])
+    for include_root in include_roots_for_component(name, component, root):
+        command.extend(["-I", include_root])
+    command.extend(["-o", str(obj)])
+    actual_command, wrapped_command = command_with_windows_developer_environment(command)
+    if actual_command is None:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_RUN_MISSING_COMPILER",
+            "MSVC developer environment could not be discovered automatically",
+            True,
+        )
+    code, output = run(actual_command, timeout=180)
+    ok = code == 0
+    return {
+        "primitive_probe_requested": True,
+        "primitive_probe_status": "OBJECT_COMPILE_PASS" if ok else "OBJECT_COMPILE_FAIL",
+        "primitive_probe_ok": ok,
+        "primitive_source": str(source),
+        "primitive_object": str(obj),
+        "primitive_command": command,
+        "primitive_wrapped_command": wrapped_command,
+        "primitive_exit_code": code,
+        "primitive_output": compact_output(output),
+        "primitive_detail": (
+            "object-only int8 matrix-engine primitive probe compiled for the requested target; "
+            "this is dependency evidence only, not runtime execution or correctness validation"
+            if ok
+            else "object-only int8 matrix-engine primitive probe failed to compile; backend remains disabled"
+        ),
     }
 
 
@@ -934,7 +1111,20 @@ def accelerator_compile_probes(
             if name == "hipblaslt" and isinstance(library, str):
                 command.extend(["-L", str(Path(library).parent), "-lhipblaslt"])
             command.extend(["-o", str(binary)])
-        code, output = run(command, timeout=60)
+        actual_command: list[str] | str | None = command
+        wrapped_command = command_line_for_report(command)
+        if not isinstance(command, str):
+            actual_command, wrapped_command = command_with_windows_developer_environment(command)
+        if actual_command is None:
+            items[name] = not_run_probe(
+                name,
+                root,
+                "NOT_RUN_MISSING_COMPILER",
+                "MSVC developer environment could not be discovered automatically",
+                True,
+            )
+            continue
+        code, output = run(actual_command, timeout=60)
         run_command: list[str] = []
         run_code: int | None = None
         run_output = ""
@@ -953,6 +1143,7 @@ def accelerator_compile_probes(
             status = "COMPILE_LINK_PASS_RUN_PASS"
         else:
             status = "COMPILE_LINK_PASS_RUN_FAIL"
+        primitive_probe = compile_accelerator_primitive_probe(name, component, root, offload_target, hipcc)
         items[name] = {
             "probe_requested": True,
             "requested": True,
@@ -980,6 +1171,7 @@ def accelerator_compile_probes(
             "source": str(source),
             "binary": str(binary),
             "command": command,
+            "wrapped_command": wrapped_command,
             "exit_code": code,
             "run_command": run_command,
             "run_exit_code": run_code,
@@ -992,6 +1184,7 @@ def accelerator_compile_probes(
                 if compiled
                 else "tiny compile/link probe failed; this is optional accelerator evidence only"
             ),
+            **primitive_probe,
         }
     return {
         "requested": True,
@@ -1078,7 +1271,14 @@ def accelerator_gate(
     probe_items = probes.get("items") if isinstance(probes, dict) else {}
     probe = probe_items.get(name) if isinstance(probe_items, dict) else None
     probe_status = probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED"
-    if probe_status == "COMPILE_LINK_PASS_RUN_PASS":
+    primitive_probe_status = (
+        probe.get("primitive_probe_status") if isinstance(probe, dict) else "NOT_REQUESTED"
+    )
+    if primitive_probe_status == "OBJECT_COMPILE_PASS":
+        status = "PRIMITIVE_PROBE_PASS"
+    elif primitive_probe_status == "OBJECT_COMPILE_FAIL":
+        status = "PRIMITIVE_PROBE_FAIL"
+    elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         status = "PROBE_PASS"
     elif probe_status == "COMPILE_LINK_PASS_RUN_FAIL":
         status = "PROBE_RUNTIME_FAIL"
@@ -1098,6 +1298,11 @@ def accelerator_gate(
         detail = (
             "component discovered; hipBLASLt has an opt-in baseline backend, but discovery "
             "is not correctness validation and this checker does not enable the backend"
+        )
+    elif primitive_probe_status == "OBJECT_COMPILE_PASS":
+        detail = (
+            "optional int8 matrix-engine primitive compile evidence exists, but this checker still "
+            "does not enable the backend or prove exactness"
         )
     elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         detail = "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
@@ -1136,6 +1341,7 @@ def accelerator_gate(
             f"runtime library: {item.get('runtime_library') or 'not found'}",
             f"tool: {item.get('tool') or 'not found'}",
             f"compile/link probe: {probe_status}",
+            f"int8 primitive object probe: {primitive_probe_status}",
         ],
         "detail": detail,
         "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
@@ -1176,6 +1382,10 @@ def accelerator_enablement_policy(
             "candidate_evidence_is_correctness_validation": False,
             "component_discovered": bool(component.get("ok")) if isinstance(component, dict) else False,
             "probe_status": probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED",
+            "primitive_probe_status": (
+                probe.get("primitive_probe_status") if isinstance(probe, dict) else "NOT_REQUESTED"
+            ),
+            "primitive_probe_ok": bool(probe.get("primitive_probe_ok")) if isinstance(probe, dict) else False,
             "readiness_effect": "none",
         }
     return {
@@ -1767,6 +1977,7 @@ def print_human(report: dict[str, object]) -> None:
         print(f"[{item['status']}] {name}")
         print(f"  compiled: {item.get('compiled_probe_ok', False)}")
         print(f"  runtime:  {item.get('runtime_probe_ok', False)}")
+        print(f"  primitive: {item.get('primitive_probe_status')} ok={item.get('primitive_probe_ok')}")
         print(f"  backend enablement: {item.get('backend_enablement')}")
         print(f"  enable flag: {item.get('enable_flag')} ({item.get('enable_policy')})")
         print(f"  evidence class: {item.get('evidence_class')}")
@@ -1774,11 +1985,18 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  validated correctness backend: {item.get('validated_correctness_backend')}")
         print(f"  source: {item.get('source')}")
         print(f"  binary: {item.get('binary')}")
+        if item.get("primitive_source"):
+            print(f"  primitive source: {item.get('primitive_source')}")
+        if item.get("primitive_object"):
+            print(f"  primitive object: {item.get('primitive_object')}")
         if item.get("output"):
             print(f"  compile output: {item['output']}")
+        if item.get("primitive_output"):
+            print(f"  primitive output: {item['primitive_output']}")
         if item.get("run_output"):
             print(f"  runtime output: {item['run_output']}")
         print(f"  detail: {item['detail']}")
+        print(f"  primitive detail: {item.get('primitive_detail')}")
     print()
 
     cmake_hip = report["cmake_hip_language"]
@@ -1819,7 +2037,7 @@ def print_human(report: dict[str, object]) -> None:
         print(
             f"  {name}: {item['enable_flag']} -> {item['backend_enablement']} "
             f"({item['probe_status']}, validated={item['validated_correctness_backend']}, "
-            f"evidence_class={item['evidence_class']})"
+            f"primitive={item.get('primitive_probe_status')}, evidence_class={item['evidence_class']})"
         )
     print()
 
@@ -1913,7 +2131,10 @@ def main() -> int:
         "--accelerator-probes",
         "--probe-accelerators",
         action="store_true",
-        help="run optional tiny compile/run probes for discovered accelerator components under temp/",
+        help=(
+            "run optional compile/run probes plus CK/rocWMMA int8 primitive object probes "
+            "for discovered accelerator components under temp/"
+        ),
     )
     parser.add_argument(
         "--accelerator-probe-dir",

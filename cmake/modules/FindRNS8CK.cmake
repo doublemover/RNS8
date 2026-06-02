@@ -25,6 +25,8 @@ set(RNS8_CK_CANDIDATE FALSE)
 set(RNS8_CK_EVIDENCE "not discovered")
 set(RNS8_CK_COMPILE_PROBE_STATUS "not_run_missing_header")
 set(RNS8_CK_COMPILE_PROBE_OUTPUT "")
+set(RNS8_CK_PRIMITIVE_PROBE_STATUS "not_run_missing_header")
+set(RNS8_CK_PRIMITIVE_PROBE_OUTPUT "")
 set(RNS8_CK_GENERATED_INCLUDE_DIR "")
 
 if(RNS8_CK_INCLUDE_DIR)
@@ -120,13 +122,77 @@ if(RNS8_CK_INCLUDE_DIR)
     else()
       set(RNS8_CK_COMPILE_PROBE_STATUS "compile_probe_fail")
     endif()
+
+    set(_RNS8_CK_PRIMITIVE_SOURCE "${_RNS8_CK_PROBE_DIR}/ck_primitive_probe.cpp")
+    if(WIN32)
+      set(_RNS8_CK_PRIMITIVE_OBJECT "${_RNS8_CK_PROBE_DIR}/ck_primitive_probe.obj")
+    else()
+      set(_RNS8_CK_PRIMITIVE_OBJECT "${_RNS8_CK_PROBE_DIR}/ck_primitive_probe.o")
+    endif()
+    file(WRITE "${_RNS8_CK_PRIMITIVE_SOURCE}" [=[
+#include <cstdint>
+#include <ck/ck.hpp>
+#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp>
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
+    Row, Col, Row, int8_t, int8_t, int8_t, int32_t, int32_t, PassThrough, PassThrough, PassThrough,
+    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+    1, 128, 64, 128, 64, 2, 16, 16, 2, 4,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
+    1, 1, S<1, 32, 1, 4>, 8>;
+
+extern "C" float rns8_ck_i8_wmma_primitive_probe(const int8_t* a, const int8_t* b, int8_t* c) {
+  auto arg = DeviceGemmInstance::MakeArgument(
+      a, b, c, 64, 128, 64, 64, 128, 128, PassThrough{}, PassThrough{}, PassThrough{});
+  if (!DeviceGemmInstance::IsSupportedArgument(arg) || !DeviceGemmInstance::IsValidCompilationParameter()) {
+    return -1.0f;
+  }
+  auto invoker = DeviceGemmInstance::MakeInvoker();
+  return invoker.Run(arg);
+}
+]=])
+    execute_process(
+      COMMAND
+        "${RNS8_CK_HIPCC}"
+        "-std=c++17"
+        "-O2"
+        "--offload-arch=${_RNS8_CK_TARGET}"
+        "-c"
+        "${_RNS8_CK_PRIMITIVE_SOURCE}"
+        "-I${RNS8_CK_GENERATED_INCLUDE_DIR}"
+        "-I${RNS8_CK_INCLUDE_DIR}"
+        "-o"
+        "${_RNS8_CK_PRIMITIVE_OBJECT}"
+      RESULT_VARIABLE _RNS8_CK_PRIMITIVE_RESULT
+      OUTPUT_VARIABLE _RNS8_CK_PRIMITIVE_STDOUT
+      ERROR_VARIABLE _RNS8_CK_PRIMITIVE_STDERR
+      TIMEOUT 180
+    )
+    set(RNS8_CK_PRIMITIVE_PROBE_OUTPUT "${_RNS8_CK_PRIMITIVE_STDOUT}${_RNS8_CK_PRIMITIVE_STDERR}")
+    if(_RNS8_CK_PRIMITIVE_RESULT EQUAL 0)
+      set(RNS8_CK_PRIMITIVE_PROBE_STATUS "primitive_object_probe_pass")
+    else()
+      set(RNS8_CK_PRIMITIVE_PROBE_STATUS "primitive_object_probe_fail")
+    endif()
   else()
     set(RNS8_CK_COMPILE_PROBE_STATUS "not_run_missing_hipcc")
+    set(RNS8_CK_PRIMITIVE_PROBE_STATUS "not_run_missing_hipcc")
   endif()
 
   set(
     RNS8_CK_EVIDENCE
-    "header=${RNS8_CK_INCLUDE_DIR};generated_include=${RNS8_CK_GENERATED_INCLUDE_DIR};compile_probe=${RNS8_CK_COMPILE_PROBE_STATUS}"
+    "header=${RNS8_CK_INCLUDE_DIR};generated_include=${RNS8_CK_GENERATED_INCLUDE_DIR};compile_probe=${RNS8_CK_COMPILE_PROBE_STATUS};primitive_probe=${RNS8_CK_PRIMITIVE_PROBE_STATUS}"
   )
 endif()
 

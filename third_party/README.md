@@ -19,6 +19,11 @@ Initialize and probe them with:
 python tools\bootstrap_rocm_accelerators.py --init --probe --target gfx1100
 ```
 
+The bootstrap command compile-probes CK and rocWMMA headers and object-compiles
+RNS8-owned int8 matrix-engine primitive probes for `gfx1100`. That output is
+dependency readiness evidence only; it is not backend execution, differential
+correctness validation, ISA evidence, or performance evidence.
+
 Do not clone these repositories under `C:\` or commit upstream build products.
 Generated dependency artifacts belong under ignored `temp/`, `out/`, or
 `build/` paths.

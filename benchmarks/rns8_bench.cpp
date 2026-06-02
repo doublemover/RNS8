@@ -135,7 +135,7 @@ void mix_checksum(uint64_t& checksum, uint64_t value);
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|wrap64-byte-limb]\n"
+      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
@@ -179,6 +179,8 @@ rns8_backend_kind parse_backend(const std::string& value) {
   if (value == "cpu" || value == "cpu-reference") return RNS8_BACKEND_CPU_REFERENCE;
   if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
   if (value == "hipblaslt" || value == "hipblaslt-baseline") return RNS8_BACKEND_HIPBLASLT;
+  if (value == "ck") return RNS8_BACKEND_CK;
+  if (value == "rocwmma" || value == "wmma" || value == "amdgpu-builtins") return RNS8_BACKEND_WMMA;
   if (value == "wrap64-byte-limb") return RNS8_BACKEND_WRAP64_BYTE_LIMB;
   usage_error("unknown backend: " + value);
 }
@@ -230,7 +232,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|wrap64-byte-limb]\n"
+          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb]\n"
           << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"

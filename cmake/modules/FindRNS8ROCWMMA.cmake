@@ -24,6 +24,8 @@ set(RNS8_ROCWMMA_CANDIDATE FALSE)
 set(RNS8_ROCWMMA_EVIDENCE "not discovered")
 set(RNS8_ROCWMMA_COMPILE_PROBE_STATUS "not_run_missing_header")
 set(RNS8_ROCWMMA_COMPILE_PROBE_OUTPUT "")
+set(RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS "not_run_missing_header")
+set(RNS8_ROCWMMA_PRIMITIVE_PROBE_OUTPUT "")
 
 if(RNS8_ROCWMMA_INCLUDE_DIR)
   set(RNS8_ROCWMMA_CANDIDATE TRUE)
@@ -70,13 +72,63 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     else()
       set(RNS8_ROCWMMA_COMPILE_PROBE_STATUS "compile_probe_fail")
     endif()
+
+    set(_RNS8_ROCWMMA_PRIMITIVE_SOURCE "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_primitive_probe.cpp")
+    if(WIN32)
+      set(_RNS8_ROCWMMA_PRIMITIVE_OBJECT "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_primitive_probe.obj")
+    else()
+      set(_RNS8_ROCWMMA_PRIMITIVE_OBJECT "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_primitive_probe.o")
+    endif()
+    file(WRITE "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}" [=[
+#include <cstdint>
+#include <rocwmma/rocwmma.hpp>
+
+extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
+    const int8_t* a, const int8_t* b, int32_t* c) {
+  using namespace rocwmma;
+  using FragA = fragment<matrix_a, 16, 16, 32, int8_t, row_major>;
+  using FragB = fragment<matrix_b, 16, 16, 32, int8_t, col_major>;
+  using FragAcc = fragment<accumulator, 16, 16, 32, int32_t>;
+  FragA frag_a;
+  FragB frag_b;
+  FragAcc acc;
+  fill_fragment(acc, 0);
+  load_matrix_sync(frag_a, a, 32);
+  load_matrix_sync(frag_b, b, 32);
+  mma_sync(acc, frag_a, frag_b, acc);
+  store_matrix_sync(c, acc, 16, mem_row_major);
+}
+]=])
+    execute_process(
+      COMMAND
+        "${RNS8_ROCWMMA_HIPCC}"
+        "-std=c++17"
+        "-O2"
+        "--offload-arch=${_RNS8_ROCWMMA_TARGET}"
+        "-c"
+        "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}"
+        "-I${RNS8_ROCWMMA_INCLUDE_DIR}"
+        "-o"
+        "${_RNS8_ROCWMMA_PRIMITIVE_OBJECT}"
+      RESULT_VARIABLE _RNS8_ROCWMMA_PRIMITIVE_RESULT
+      OUTPUT_VARIABLE _RNS8_ROCWMMA_PRIMITIVE_STDOUT
+      ERROR_VARIABLE _RNS8_ROCWMMA_PRIMITIVE_STDERR
+      TIMEOUT 120
+    )
+    set(RNS8_ROCWMMA_PRIMITIVE_PROBE_OUTPUT "${_RNS8_ROCWMMA_PRIMITIVE_STDOUT}${_RNS8_ROCWMMA_PRIMITIVE_STDERR}")
+    if(_RNS8_ROCWMMA_PRIMITIVE_RESULT EQUAL 0)
+      set(RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS "primitive_object_probe_pass")
+    else()
+      set(RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS "primitive_object_probe_fail")
+    endif()
   else()
     set(RNS8_ROCWMMA_COMPILE_PROBE_STATUS "not_run_missing_hipcc")
+    set(RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS "not_run_missing_hipcc")
   endif()
 
   set(
     RNS8_ROCWMMA_EVIDENCE
-    "header=${RNS8_ROCWMMA_INCLUDE_DIR};compile_probe=${RNS8_ROCWMMA_COMPILE_PROBE_STATUS}"
+    "header=${RNS8_ROCWMMA_INCLUDE_DIR};compile_probe=${RNS8_ROCWMMA_COMPILE_PROBE_STATUS};primitive_probe=${RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS}"
   )
 endif()
 

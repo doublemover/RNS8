@@ -122,6 +122,10 @@ struct rns8_workspace {
   std::size_t hipblaslt_int32_scratch_bytes = 0;
   void* hipblaslt_workspace = nullptr;
   std::size_t hipblaslt_workspace_bytes = 0;
+  void* accelerator_workspace = nullptr;
+  std::size_t accelerator_workspace_bytes = 0;
+  void* accelerator_auxiliary = nullptr;
+  std::size_t accelerator_auxiliary_bytes = 0;
 };
 
 namespace rns8::detail {

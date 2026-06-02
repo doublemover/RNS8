@@ -596,6 +596,41 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
   }
 }
 
+TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
+  rns8_context* ctx = create_cpu_context();
+  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+
+  for (const rns8_backend_kind backend : backends) {
+    rns8_gemm_desc desc{};
+    desc.struct_size = sizeof(desc);
+    desc.abi_version = RNS8_ABI_VERSION;
+    desc.semantics = RNS8_BOUNDED_I64;
+    desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+    desc.requested_backend = backend;
+    desc.m = 1;
+    desc.n = 1;
+    desc.k = 1;
+    desc.bound = 1;
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+    rns8_plan* plan = nullptr;
+    auto malformed = desc;
+    malformed.flags = 1;
+    CHECK(rns8_create_plan(ctx, &malformed, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+
+    malformed = desc;
+    malformed.m = 0;
+    CHECK(rns8_create_plan(ctx, &malformed, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+  }
+
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("public backend capability info separates correctness and accelerator candidates") {
   rns8_backend_capability_info cpu{};
   cpu.struct_size = sizeof(cpu);
@@ -648,8 +683,26 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     CHECK(capability.exact_differential_validated == 0);
     CHECK(capability.performance_validated == 0);
     CHECK(std::string(capability.status) == "not_implemented_evidence_only");
-    CHECK(std::string(capability.epilogue_mode) == "not_implemented");
     CHECK(std::string(capability.isa_evidence) == "not_validated");
+    if (backend == RNS8_BACKEND_CK) {
+      CHECK(std::string(capability.selected_kernel) == "ck_grouped_fused_int8_i32_residue_pending_v1");
+      CHECK(std::string(capability.epilogue_mode) == "fused_i32_to_centered_residue_pending");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_workspace_pending");
+      CHECK(capability.supports_bounded_rns == 1);
+      CHECK(capability.supports_exact_wide_rns == 1);
+      CHECK(capability.supports_finite_u8 == 1);
+      CHECK(capability.supports_wrap64 == 0);
+    } else if (backend == RNS8_BACKEND_WMMA) {
+      CHECK(std::string(capability.selected_kernel) == "gfx1100_wmma_builtin_fused_residue_pending_v1");
+      CHECK(std::string(capability.epilogue_mode) == "fused_matrix_engine_residue_pending");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_wmma_workspace_pending");
+      CHECK(capability.supports_bounded_rns == 1);
+      CHECK(capability.supports_exact_wide_rns == 1);
+      CHECK(capability.supports_finite_u8 == 1);
+      CHECK(capability.supports_wrap64 == 0);
+    } else {
+      CHECK(std::string(capability.epilogue_mode) == "not_implemented");
+    }
   }
 
   rns8_backend_capability_info bad_abi{};

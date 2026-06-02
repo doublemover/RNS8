@@ -50,8 +50,10 @@ if(RNS8_PROBE_ACCELERATORS)
   message(STATUS "RNS8 hipBLASLt candidate evidence: ${RNS8_HIPBLASLT_EVIDENCE}")
   message(STATUS "RNS8 CK candidate evidence: ${RNS8_CK_EVIDENCE}")
   message(STATUS "RNS8 CK compile probe: ${RNS8_CK_COMPILE_PROBE_STATUS}")
+  message(STATUS "RNS8 CK primitive probe: ${RNS8_CK_PRIMITIVE_PROBE_STATUS}")
   message(STATUS "RNS8 rocWMMA candidate evidence: ${RNS8_ROCWMMA_EVIDENCE}")
   message(STATUS "RNS8 rocWMMA compile probe: ${RNS8_ROCWMMA_COMPILE_PROBE_STATUS}")
+  message(STATUS "RNS8 rocWMMA primitive probe: ${RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS}")
   message(STATUS "RNS8 AMDGPU builtin candidate evidence: disabled until target-specific exact kernels exist")
   message(STATUS "RNS8 accelerator backend enablement: disabled")
 endif()
@@ -73,6 +75,7 @@ set(RNS8_PUBLIC_HEADERS
 )
 
 set(RNS8_SOURCES
+  src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
   src/core/api.cpp
   src/core/moduli.cpp

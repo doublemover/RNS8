@@ -8,6 +8,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
+#include "core/accelerator_backend.hpp"
 
 namespace {
 
@@ -48,9 +49,10 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
       return false;
 #endif
     case RNS8_BACKEND_AUTO:
+      return false;
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_WMMA:
-      return false;
+      return rns8::detail::accelerator_backend_supports_semantics(backend, semantics);
   }
   return false;
 }
@@ -110,7 +112,9 @@ uint32_t hipblaslt_backend_compiled() {
 }
 
 bool hip_resident_rns_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT;
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
+         (rns8::detail::accelerator_backend_kind(backend) &&
+          rns8::detail::accelerator_backend_compiled(backend));
 }
 
 void set_text(char* dst, std::size_t dst_size, const char* text) {
@@ -236,34 +240,10 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
               : "Reserved baseline accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
       break;
     case RNS8_BACKEND_CK:
-      info.requires_feature_detection = 1;
-      info.enable_flag_fail_fast = 1;
-      info.candidate_evidence_only = 1;
-      set_text(info.library_name, sizeof(info.library_name), "Composable Kernel");
-      set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_CK");
-      set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "not_implemented");
-      set_text(info.workspace_mode, sizeof(info.workspace_mode), "not_implemented");
-      set_text(info.isa_evidence, sizeof(info.isa_evidence), "not_validated");
-      set_text(info.status, sizeof(info.status), "not_implemented_evidence_only");
-      set_text(
-          info.detail,
-          sizeof(info.detail),
-          "Reserved grouped/fused accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
+      rns8::detail::fill_disabled_accelerator_capability(backend, info);
       break;
     case RNS8_BACKEND_WMMA:
-      info.requires_feature_detection = 1;
-      info.enable_flag_fail_fast = 1;
-      info.candidate_evidence_only = 1;
-      set_text(info.library_name, sizeof(info.library_name), "rocWMMA/AMDGPU builtins");
-      set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_ROCWMMA/RNS8_ENABLE_AMDGPU_BUILTINS");
-      set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "not_implemented");
-      set_text(info.workspace_mode, sizeof(info.workspace_mode), "not_implemented");
-      set_text(info.isa_evidence, sizeof(info.isa_evidence), "not_validated");
-      set_text(info.status, sizeof(info.status), "not_implemented_evidence_only");
-      set_text(
-          info.detail,
-          sizeof(info.detail),
-          "Reserved architecture hot-kernel path; no discovery-only readiness is accepted.");
+      rns8::detail::fill_disabled_accelerator_capability(backend, info);
       break;
     case RNS8_BACKEND_AUTO:
       break;
@@ -1266,6 +1246,29 @@ rns8_status validate_plan_context_workspace(
              workspace.hipblaslt_workspace || workspace.hipblaslt_workspace_bytes != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (rns8::detail::accelerator_backend_kind(plan.backend)) {
+    if (!rns8::detail::accelerator_backend_compiled(plan.backend)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const std::size_t expected_workspace_bytes =
+        plan.backend_workspace_required_bytes > std::numeric_limits<std::size_t>::max()
+            ? std::numeric_limits<std::size_t>::max()
+            : static_cast<std::size_t>(plan.backend_workspace_required_bytes);
+    if (expected_workspace_bytes != 0) {
+      if (!workspace.accelerator_workspace ||
+          workspace.accelerator_workspace_bytes != expected_workspace_bytes) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+    } else if (workspace.accelerator_workspace || workspace.accelerator_workspace_bytes != 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (workspace.accelerator_auxiliary || workspace.accelerator_auxiliary_bytes != 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+  } else if (workspace.accelerator_workspace || workspace.accelerator_workspace_bytes != 0 ||
+             workspace.accelerator_auxiliary || workspace.accelerator_auxiliary_bytes != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   return RNS8_SUCCESS;
 }
 
@@ -2016,6 +2019,26 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       }
       workspace->hipblaslt_workspace_bytes = workspace_bytes;
     }
+    if (rns8::detail::accelerator_backend_kind(ctx->backend)) {
+      if (!rns8::detail::accelerator_backend_compiled(ctx->backend)) {
+        delete workspace;
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      if (plan->backend_workspace_required_bytes > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+        delete workspace;
+        return RNS8_RANGE_ERROR;
+      }
+      const std::size_t workspace_bytes = static_cast<std::size_t>(plan->backend_workspace_required_bytes);
+      if (workspace_bytes != 0) {
+        rns8_status status =
+            rns8::detail::hip_direct_allocate(ctx->device_id, workspace_bytes, &workspace->accelerator_workspace);
+        if (status != RNS8_SUCCESS) {
+          delete workspace;
+          return status;
+        }
+        workspace->accelerator_workspace_bytes = workspace_bytes;
+      }
+    }
     *out = workspace;
     return RNS8_SUCCESS;
   });
@@ -2051,6 +2074,24 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
       }
       workspace->hipblaslt_workspace = nullptr;
       workspace->hipblaslt_workspace_bytes = 0;
+    }
+    if (workspace->accelerator_auxiliary) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->accelerator_auxiliary);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->accelerator_auxiliary = nullptr;
+      workspace->accelerator_auxiliary_bytes = 0;
+    }
+    if (workspace->accelerator_workspace) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->accelerator_workspace);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->accelerator_workspace = nullptr;
+      workspace->accelerator_workspace_bytes = 0;
     }
     delete workspace;
     return status;
