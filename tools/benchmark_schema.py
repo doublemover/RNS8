@@ -21,6 +21,13 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
 HIPBLASLT_GPU_EVENT_SCOPES = {
     "hipblaslt_baseline_default_stream_backend_operation_groups",
 }
+HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck"}
+CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
+CK_SELECTED_KERNELS = {
+    "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+    "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+    "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+}
 
 
 class BenchmarkSchemaError(ValueError):
@@ -203,7 +210,7 @@ class _Validator:
             for key in ["hipcc_path", "hipcc_version", "version_source"]:
                 if toolchain.get(key) is not None:
                     self._error(f"hip_toolchain.{key} must be null when hip_toolchain.enabled is false")
-        if self.data.get("backend_selected") in {"hip-direct", "hipblaslt"}:
+        if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
             if enabled is not True:
                 self._error("HIP backend captures must set hip_toolchain.enabled=true")
             for key in ["hip_root", "hipcc_path", "hipcc_version", "version_source"]:
@@ -292,7 +299,7 @@ class _Validator:
         if not _is_int(workspace_bytes) or workspace_bytes < 0:
             self._error("backend_metadata.workspace_required_bytes must be a nonnegative integer")
         selected_backend = self.data.get("backend_selected")
-        if selected_backend in {"cpu-reference", "hip-direct", "wrap64-byte-limb"}:
+        if selected_backend in CURRENT_CORRECTNESS_BACKENDS:
             if metadata.get("accelerator_backend") is not False:
                 self._error("current correctness backends must set backend_metadata.accelerator_backend=false")
             if metadata.get("correctness_backend") is not True:
@@ -336,9 +343,40 @@ class _Validator:
                 "separate_i32_scratch_reduce_then_canonical_u8_export",
             }:
                 self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
+        if selected_backend == "ck":
+            expected = {
+                "accelerator_library": "Composable Kernel",
+                "accelerator_version": "repo-local release/rocm-rel-7.1",
+                "capability_status": "implemented_opt_in_ck_backend",
+                "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
+                "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
+            }
+            for key, value in expected.items():
+                if metadata.get(key) != value:
+                    self._error(f"CK captures must use backend_metadata.{key}={value}")
+            if metadata.get("selected_kernel") not in CK_SELECTED_KERNELS:
+                self._error("CK captures must report a known CK selected_kernel")
+            bool_expected = {
+                "accelerator_backend": True,
+                "correctness_backend": True,
+                "matrix_engine_backend": True,
+                "compiled_kernel_available": True,
+                "exact_differential_validated": True,
+                "performance_validated": False,
+            }
+            for key, value in bool_expected.items():
+                if metadata.get(key) is not value:
+                    self._error(f"CK captures must use backend_metadata.{key}={value}")
+            epilogue = metadata.get("epilogue_mode")
+            if epilogue not in {
+                "ck_fused_i32_to_centered_residue_then_crt_export",
+                "ck_fused_i32_to_centered_residue_rns_output",
+                "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
+            }:
+                self._error("CK captures must report a fused CK centered-residue epilogue")
         if selected_backend == "hip-direct" and metadata.get("accelerator_library") != "HIP runtime":
             self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
-        if selected_backend not in {"hip-direct", "hipblaslt"} and metadata.get("accelerator_library") not in {None, ""}:
+        if selected_backend not in HIP_RESIDENT_BACKENDS and metadata.get("accelerator_library") not in {None, ""}:
             self._error("non-HIP correctness captures must not report an accelerator library")
 
     def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
@@ -522,8 +560,8 @@ class _Validator:
                 expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
-                if self.data.get("backend_selected") != "hip-direct":
-                    self._error("per-tile adaptive captures must select hip-direct backend")
+                if self.data.get("backend_selected") not in {"hip-direct", "ck"}:
+                    self._error("per-tile adaptive captures must select hip-direct or ck backend")
                 if self.data.get("bound") != 0:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
@@ -584,8 +622,15 @@ class _Validator:
         selected_kernel = self.data.get("selected_kernel")
         if not isinstance(selected_kernel, str) or not selected_kernel:
             self._error("per-tile adaptive captures must report selected_kernel")
-        elif selected_kernel != "direct_hip_tiled_rns_gemm_v1":
-            self._error("per-tile adaptive captures must use selected_kernel=direct_hip_tiled_rns_gemm_v1")
+        else:
+            selected_backend = self.data.get("backend_selected")
+            expected_kernels = {
+                "hip-direct": "direct_hip_tiled_rns_gemm_v1",
+                "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+            }
+            expected_kernel = expected_kernels.get(selected_backend)
+            if expected_kernel is not None and selected_kernel != expected_kernel:
+                self._error(f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}")
         prefix_group_count = schedule.get("prefix_group_count")
         max_selected = schedule.get("max_selected_prefix")
         min_selected = schedule.get("min_selected_prefix")
@@ -605,24 +650,47 @@ class _Validator:
             self._error("per-tile adaptive captures must apply prefix grouping or prefix skipping")
         metadata = self.data.get("timing_metadata")
         if isinstance(metadata, dict):
-            if metadata.get("gpu_event_timing") is not True:
-                self._error("per-tile adaptive captures must include HIP event timings")
-            expected_scope = "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
-            if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+            if self.data.get("backend_selected") == "hip-direct":
+                if metadata.get("gpu_event_timing") is not True:
+                    self._error("direct-HIP per-tile adaptive captures must include HIP event timings")
+                expected_scope = "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
+                if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+            elif self.data.get("backend_selected") == "ck":
+                if metadata.get("gpu_event_timing") is not False:
+                    self._error("CK per-tile adaptive captures must report unavailable GPU event timings until CK hooks exist")
+                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
+                    self._error(
+                        "CK per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
+                    )
         backend_metadata = self.data.get("backend_metadata")
         if isinstance(backend_metadata, dict):
-            if backend_metadata.get("epilogue_mode") != "fused_centered_residue_then_crt_export":
+            expected_epilogue = (
+                "ck_fused_i32_to_centered_residue_then_crt_export"
+                if self.data.get("backend_selected") == "ck"
+                else "fused_centered_residue_then_crt_export"
+            )
+            if backend_metadata.get("epilogue_mode") != expected_epilogue:
                 self._error(
-                    "per-tile adaptive captures must use backend_metadata.epilogue_mode=fused_centered_residue_then_crt_export"
+                    f"per-tile adaptive captures must use backend_metadata.epilogue_mode={expected_epilogue}"
                 )
-            if backend_metadata.get("workspace_mode") != "resident_device_buffers_with_tiled_schedule":
+            expected_workspace = (
+                "resident_device_buffers_with_ck_canonical_pack_workspace"
+                if self.data.get("backend_selected") == "ck"
+                else "resident_device_buffers_with_tiled_schedule"
+            )
+            if backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(
-                    "per-tile adaptive captures must use backend_metadata.workspace_mode=resident_device_buffers_with_tiled_schedule"
+                    f"per-tile adaptive captures must use backend_metadata.workspace_mode={expected_workspace}"
                 )
-            if backend_metadata.get("isa_evidence") != "rns8_hip_direct_reciprocal_isa_gate":
+            expected_isa = (
+                "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store"
+                if self.data.get("backend_selected") == "ck"
+                else "rns8_hip_direct_reciprocal_isa_gate"
+            )
+            if backend_metadata.get("isa_evidence") != expected_isa:
                 self._error(
-                    "per-tile adaptive captures must use backend_metadata.isa_evidence=rns8_hip_direct_reciprocal_isa_gate"
+                    f"per-tile adaptive captures must use backend_metadata.isa_evidence={expected_isa}"
                 )
 
     def _validate_raw_timings(self) -> dict[str, list[float]]:

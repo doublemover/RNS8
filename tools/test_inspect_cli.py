@@ -58,12 +58,24 @@ def main() -> int:
         expect_text(hipblaslt.stderr, "requested accelerator is evidence-only", "hipblaslt")
         expect_text(hipblaslt.stderr, "real exact correctness backend", "hipblaslt")
 
-    for backend in ["ck", "rocwmma"]:
-        accelerator = run_command(inspect_exe, "--backend", backend)
-        expect_exit(accelerator, 1, backend)
-        expect_text(accelerator.stderr, "unsupported backend", backend)
-        expect_text(accelerator.stderr, "requested accelerator is evidence-only", backend)
-        expect_text(accelerator.stderr, "real exact correctness backend", backend)
+    ck = run_command(inspect_exe, "--backend", "ck")
+    if ck.returncode == 0:
+        expect_text(ck.stdout, "capability_status: implemented_opt_in_ck_backend", "ck")
+        expect_text(ck.stdout, "selected_kernel:   ck_wmma_cshuffle_i8_i32_centered_epilogue_v1", "ck")
+        expect_text(ck.stdout, "exact_validated:   1", "ck")
+        expect_text(ck.stdout, "perf_validated:    0", "ck")
+        expect_text(ck.stdout, "isa_evidence:      ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store", "ck")
+    else:
+        expect_exit(ck, 1, "ck")
+        expect_text(ck.stderr, "unsupported backend", "ck")
+        expect_text(ck.stderr, "requested accelerator is evidence-only", "ck")
+        expect_text(ck.stderr, "real exact correctness backend", "ck")
+
+    rocwmma = run_command(inspect_exe, "--backend", "rocwmma")
+    expect_exit(rocwmma, 1, "rocwmma")
+    expect_text(rocwmma.stderr, "unsupported backend", "rocwmma")
+    expect_text(rocwmma.stderr, "requested accelerator is evidence-only", "rocwmma")
+    expect_text(rocwmma.stderr, "real exact correctness backend", "rocwmma")
 
     cpu = run_command(inspect_exe, "--backend", "cpu-reference", "--json")
     expect_exit(cpu, 0, "cpu-reference json")

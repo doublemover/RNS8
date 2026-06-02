@@ -7,6 +7,7 @@
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
+#include "backend_ck/ck_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/accelerator_backend.hpp"
 
@@ -240,7 +241,37 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
               : "Reserved baseline accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
       break;
     case RNS8_BACKEND_CK:
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+      info.is_available = 1;
+      info.is_correctness_backend = 1;
+      info.requires_feature_detection = 1;
+      info.supports_bounded_rns = 1;
+      info.supports_exact_wide_rns = 1;
+      info.supports_finite_u8 = 1;
+      info.compiled_kernel_available = 1;
+      info.exact_differential_validated = 1;
+      info.is_matrix_engine_backend = 1;
+      set_text(info.selected_kernel, sizeof(info.selected_kernel), "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
+      set_text(info.library_name, sizeof(info.library_name), "Composable Kernel");
+      set_text(info.library_version, sizeof(info.library_version), "repo-local release/rocm-rel-7.1");
+      set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_CK");
+      set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "ck_fused_i32_to_centered_residue");
+      set_text(
+          info.workspace_mode,
+          sizeof(info.workspace_mode),
+          "resident_device_buffers_with_ck_canonical_pack_workspace");
+      set_text(
+          info.isa_evidence,
+          sizeof(info.isa_evidence),
+          "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store");
+      set_text(info.status, sizeof(info.status), "implemented_opt_in_ck_backend");
+      set_text(
+          info.detail,
+          sizeof(info.detail),
+          "Opt-in CK backend using WMMA CShuffle int8 GEMM with fused centered-residue epilogue.");
+#else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
+#endif
       break;
     case RNS8_BACKEND_WMMA:
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
@@ -321,7 +352,7 @@ bool valid_finite_modulus_for_semantics(rns8_semantics semantics, uint16_t modul
 
 bool finite_backend_supports(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT ||
-         backend == RNS8_BACKEND_HIPBLASLT;
+         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK;
 }
 
 rns8_status validate_finite_u8_oneshot_contract(
@@ -661,6 +692,15 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     return "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
   }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    if (!plan.tile_schedule.empty()) {
+      return "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1";
+    }
+    if (uses_finite_storage(plan.desc.semantics)) {
+      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+    }
+    return "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
+  }
   return "not_implemented";
 }
 
@@ -676,6 +716,15 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
       return "separate_i32_scratch_reduce_rns_output";
     }
     return "separate_i32_scratch_reduce_then_crt_export";
+  }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    if (uses_finite_storage(plan.desc.semantics)) {
+      return "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
+    }
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+      return "ck_fused_i32_to_centered_residue_rns_output";
+    }
+    return "ck_fused_i32_to_centered_residue_then_crt_export";
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return "fused_centered_residue_then_canonical_u8_export";
@@ -694,6 +743,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     return "resident_device_buffers_with_hipblaslt_scratch";
   }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    return "resident_device_buffers_with_ck_canonical_pack_workspace";
+  }
   if (plan.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
     return "host_byte_limb_reference_workspace";
   }
@@ -710,6 +762,9 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     return "hipblaslt_library_int8_matmul_baseline";
   }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    return "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store";
+  }
   return "not_applicable_cpu";
 }
 
@@ -725,6 +780,27 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
       return std::numeric_limits<uint64_t>::max();
     }
     return static_cast<uint64_t>(scratch_bytes) + static_cast<uint64_t>(workspace_bytes);
+  }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    int64_t max_m = plan.desc.m;
+    int64_t max_n = plan.desc.n;
+    if (!plan.tile_schedule.empty()) {
+      max_m = 0;
+      max_n = 0;
+      for (const auto& entry : plan.tile_schedule) {
+        max_m = std::max(max_m, entry.row_extent);
+        max_n = std::max(max_n, entry.col_extent);
+      }
+    }
+    std::size_t a_pack_bytes = 0;
+    std::size_t b_pack_bytes = 0;
+    std::size_t temp_c_bytes = 0;
+    std::size_t total_bytes = 0;
+    if (!rns8::detail::ck_workspace_requirements(
+            max_m, max_n, plan.desc.k, a_pack_bytes, b_pack_bytes, temp_c_bytes, total_bytes)) {
+      return 0;
+    }
+    return static_cast<uint64_t>(total_bytes);
   }
   if (plan.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
     return 0;
@@ -1564,8 +1640,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
 }
 
 rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan, rns8_matrix& matrix) {
-  if (ctx.backend != RNS8_BACKEND_HIP_DIRECT || plan.backend != RNS8_BACKEND_HIP_DIRECT ||
-      matrix.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
+  if (ctx.backend != plan.backend || matrix.backend != plan.backend || !hip_resident_rns_backend(plan.backend) ||
+      plan.tile_schedule.empty()) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.tile_bounds.size() != plan.tile_schedule.size() ||
@@ -1700,6 +1776,25 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 #endif
     }
 
+    if (requested == RNS8_BACKEND_CK) {
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+      ctx->backend = RNS8_BACKEND_CK;
+      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      const rns8_status status = rns8::detail::ck_probe(ctx->device_id, ctx->device_info);
+      if (status != RNS8_SUCCESS) {
+        delete ctx;
+        return status;
+      }
+      *out = ctx;
+      return RNS8_SUCCESS;
+#else
+      delete ctx;
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+
     if (requested == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       ctx->backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
       ctx->device_id = -1;
@@ -1777,7 +1872,8 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
-        requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+        requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
+        requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!backend_supports_semantics(requested, desc->semantics)) {
@@ -2481,6 +2577,54 @@ rns8_status rns8_gemm_rns(
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
+    if (plan->backend == RNS8_BACKEND_CK) {
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+      rns8_status status = RNS8_SUCCESS;
+      if (!plan->tile_schedule.empty()) {
+        status = rns8::detail::ck_gemm_rns_tiled_device(
+            ctx->device_id,
+            A->hip_residues,
+            B->hip_residues,
+            C->hip_residues,
+            workspace->accelerator_workspace,
+            workspace->accelerator_workspace_bytes,
+            plan->desc.m,
+            plan->desc.n,
+            plan->desc.k,
+            A->desc.cols,
+            B->desc.cols,
+            C->desc.cols,
+            plan->tile_schedule.data(),
+            static_cast<uint64_t>(plan->tile_schedule.size()));
+      } else {
+        status = rns8::detail::ck_gemm_rns_device(
+            ctx->device_id,
+            A->hip_residues,
+            B->hip_residues,
+            C->hip_residues,
+            workspace->accelerator_workspace,
+            workspace->accelerator_workspace_bytes,
+            plan->desc.m,
+            plan->desc.n,
+            plan->desc.k,
+            A->desc.cols,
+            B->desc.cols,
+            C->desc.cols,
+            plan->prefix);
+      }
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      C->device_residues_current = true;
+      C->host_residues_current = false;
+      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+        C->source_version = gemm_output_source_version(*A, *B);
+      }
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }
@@ -2556,6 +2700,36 @@ rns8_status rns8_gemm_finite_u8(
           workspace->hipblaslt_int32_scratch_bytes,
           workspace->hipblaslt_workspace,
           workspace->hipblaslt_workspace_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          modulus);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      C->host_residues_current = false;
+      C->device_residues_current = true;
+      C->host_byte_limbs_current = false;
+      C->device_byte_limbs_current = false;
+      C->finite_modulus = modulus;
+      C->source_version = gemm_output_source_version(*A, *B);
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+    if (plan->backend == RNS8_BACKEND_CK) {
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+      const rns8_status status = rns8::detail::ck_gemm_finite_u8_device(
+          ctx->device_id,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
+          workspace->accelerator_workspace,
+          workspace->accelerator_workspace_bytes,
           plan->desc.m,
           plan->desc.n,
           plan->desc.k,

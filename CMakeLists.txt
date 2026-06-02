@@ -35,10 +35,14 @@ if(RNS8_ENABLE_HIPBLASLT AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "RNS8_ENABLE_HIPBLASLT requires RNS8_ENABLE_HIP because hipBLASLt uses resident HIP buffers")
 endif()
 
-if(RNS8_ENABLE_CK OR RNS8_ENABLE_ROCWMMA OR RNS8_ENABLE_AMDGPU_BUILTINS)
+if(RNS8_ENABLE_CK AND NOT RNS8_ENABLE_HIP)
+  message(FATAL_ERROR "RNS8_ENABLE_CK requires RNS8_ENABLE_HIP because CK uses resident HIP buffers")
+endif()
+
+if(RNS8_ENABLE_ROCWMMA OR RNS8_ENABLE_AMDGPU_BUILTINS)
   message(
     FATAL_ERROR
-      "CK, rocWMMA, and AMDGPU builtin accelerator backends are not implemented. "
+      "rocWMMA and AMDGPU builtin accelerator backends are not implemented. "
       "Use RNS8_PROBE_ACCELERATORS=ON or tools/check_dependencies.py --accelerator-probes for evidence-only probes."
   )
 endif()
@@ -83,6 +87,7 @@ set(RNS8_SOURCES
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp
   src/backend_hip_direct/hip_backend.cpp
+  src/backend_ck/ck_backend.cpp
   src/backend_wrap64/wrap64_reference.cpp
   src/backend_wrap64/wrap64_hip.cpp
 )
@@ -106,6 +111,16 @@ if(RNS8_ENABLE_HIP)
     )
     list(APPEND RNS8_SOURCES src/backend_hipblaslt/hipblaslt_backend.cpp "${RNS8_HIPBLASLT_KERNEL_OBJECT}")
   endif()
+  if(RNS8_ENABLE_CK)
+    find_package(RNS8CK REQUIRED)
+    set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
+    rns8_compile_hip_source(
+      RNS8_CK_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_ck/ck_backend_kernels.hip"
+    )
+    unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
+    list(APPEND RNS8_SOURCES "${RNS8_CK_KERNEL_OBJECT}")
+  endif()
 endif()
 
 function(rns8_configure_library target_name)
@@ -124,6 +139,7 @@ function(rns8_configure_library target_name)
     PRIVATE
       $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
+      $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>
   )
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
@@ -144,6 +160,9 @@ function(rns8_configure_library target_name)
     else()
       target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_LIBRARY}")
     endif()
+  endif()
+  if(RNS8_ENABLE_CK)
+    target_include_directories(${target_name} PRIVATE "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
   endif()
   target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
 endfunction()
@@ -253,7 +272,7 @@ endif()
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-  set(RNS8_FAIL_FAST_ACCELERATOR_FLAGS RNS8_ENABLE_CK RNS8_ENABLE_ROCWMMA RNS8_ENABLE_AMDGPU_BUILTINS)
+  set(RNS8_FAIL_FAST_ACCELERATOR_FLAGS RNS8_ENABLE_ROCWMMA RNS8_ENABLE_AMDGPU_BUILTINS)
   foreach(RNS8_ACCELERATOR_ENABLE_FLAG ${RNS8_FAIL_FAST_ACCELERATOR_FLAGS})
     string(TOLOWER "${RNS8_ACCELERATOR_ENABLE_FLAG}" RNS8_ACCELERATOR_ENABLE_NAME)
     add_test(
@@ -292,6 +311,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_hip.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_adaptive_hip.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_hipblaslt.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_ck.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_ck.json"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_current_fixtures PROPERTIES LABELS "benchmark;schema")
@@ -332,6 +353,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_wrap64.cpp
     tests/differential/test_hip_direct.cpp
     tests/differential/test_hipblaslt.cpp
+    tests/differential/test_ck.cpp
   )
   target_include_directories(
     rns8_tests
@@ -341,6 +363,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
+  target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
   include(Catch)
   catch_discover_tests(rns8_tests)
@@ -358,5 +381,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     set_tests_properties(hip_direct_kernel_isa_check PROPERTIES LABELS "hip;isa;hard-cut")
+  endif()
+  if(RNS8_ENABLE_CK)
+    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_CK_ISA_CHECK_TARGET)
+    add_test(
+      NAME ck_kernel_matrix_isa_check
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_ck_kernel_isa.py"
+        --object "${RNS8_CK_KERNEL_OBJECT}"
+        --target "${RNS8_CK_ISA_CHECK_TARGET}"
+        --hipcc "${RNS8_HIP_HIPCC}"
+        --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(ck_kernel_matrix_isa_check PROPERTIES LABELS "ck;isa;accelerator")
   endif()
 endif()

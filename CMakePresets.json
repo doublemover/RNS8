@@ -69,6 +69,19 @@
       }
     },
     {
+      "name": "windows-msvc-ck-debug",
+      "displayName": "Windows MSVC + HIP SDK + CK fused accelerator (Debug)",
+      "description": "Windows gfx1100 opt-in CK fused accelerator backend build with repo-local Composable Kernel headers.",
+      "inherits": "windows-msvc-hip-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-ck-debug",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "ON",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
       "name": "linux-rocm-debug",
       "displayName": "Linux ROCm + vcpkg (Debug)",
       "description": "Linux ROCm production/profiling validation preset. Represented only until run on a real Linux ROCm host with supported hardware.",
@@ -133,6 +146,10 @@
       "configurePreset": "windows-msvc-hipblaslt-debug"
     },
     {
+      "name": "windows-ck-debug",
+      "configurePreset": "windows-msvc-ck-debug"
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-rocm-debug"
     },
@@ -163,6 +180,13 @@
     {
       "name": "windows-hipblaslt-debug",
       "configurePreset": "windows-msvc-hipblaslt-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-ck-debug",
+      "configurePreset": "windows-msvc-ck-debug",
       "output": {
         "outputOnFailure": true
       }

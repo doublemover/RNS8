@@ -35,6 +35,8 @@ def main() -> int:
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
     v4_adaptive_i64 = expect_valid("v4_bounded_i64_adaptive_hip.json")
     v4_hipblaslt_i64 = expect_valid("v4_bounded_i64_hipblaslt.json")
+    v4_ck_i64 = expect_valid("v4_bounded_i64_ck.json")
+    v4_ck_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_ck.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
@@ -57,6 +59,24 @@ def main() -> int:
     bad_hipblaslt_scope = copy.deepcopy(v4_hipblaslt_i64)
     bad_hipblaslt_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
     expect_invalid(bad_hipblaslt_scope, "known hipBLASLt scope")
+
+    bad_ck_library = copy.deepcopy(v4_ck_i64)
+    bad_ck_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    expect_invalid(bad_ck_library, "Composable Kernel")
+
+    bad_ck_kernel = copy.deepcopy(v4_ck_adaptive_u64)
+    bad_ck_kernel["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    bad_ck_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    expect_invalid(bad_ck_kernel, "per-tile adaptive ck captures")
+
+    bad_ck_events = copy.deepcopy(v4_ck_adaptive_u64)
+    bad_ck_events["timing_metadata"]["gpu_event_timing"] = True
+    bad_ck_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    bad_ck_events["timing_metadata"]["gpu_event_timing_source_scope"] = "ck_default_stream"
+    bad_ck_events["timing_metadata"]["gpu_event_phase_order"] = ["pack"]
+    bad_ck_events["gpu_event_timings_us"] = {"pack": [1.0, 1.0]}
+    bad_ck_events["gpu_event_timing_summary_us"] = {"pack": {"avg": 1.0, "median": 1.0, "p95": 1.0}}
+    expect_invalid(bad_ck_events, "CK per-tile adaptive captures must report unavailable GPU event timings")
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]

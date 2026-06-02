@@ -581,7 +581,10 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
 }
 
 TEST_CASE("public accelerator backend context kinds fail fast") {
-  std::vector<rns8_backend_kind> backends = {RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  std::vector<rns8_backend_kind> backends = {RNS8_BACKEND_WMMA};
+#if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
+  backends.push_back(RNS8_BACKEND_CK);
+#endif
 #if !defined(RNS8_ENABLE_HIPBLASLT) || !RNS8_ENABLE_HIPBLASLT
   backends.push_back(RNS8_BACKEND_HIPBLASLT);
 #endif
@@ -672,6 +675,27 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.selected_kernel) == "hipblaslt_int8_i32_scratch_reduce_baseline_v1");
       CHECK(std::string(capability.epilogue_mode) == "separate_i32_scratch_residue_reduce");
       CHECK(std::string(capability.isa_evidence) == "hipblaslt_library_int8_matmul_baseline");
+      continue;
+    }
+#endif
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+    if (backend == RNS8_BACKEND_CK) {
+      CHECK(capability.is_correctness_backend == 1);
+      CHECK(capability.requires_feature_detection == 1);
+      CHECK(capability.enable_flag_fail_fast == 0);
+      CHECK(capability.candidate_evidence_only == 0);
+      CHECK(capability.compiled_kernel_available == 1);
+      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.performance_validated == 0);
+      CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
+      CHECK(std::string(capability.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
+      CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_canonical_pack_workspace");
+      CHECK(std::string(capability.isa_evidence) == "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store");
+      CHECK(capability.supports_bounded_rns == 1);
+      CHECK(capability.supports_exact_wide_rns == 1);
+      CHECK(capability.supports_finite_u8 == 1);
+      CHECK(capability.supports_wrap64 == 0);
       continue;
     }
 #endif

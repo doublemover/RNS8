@@ -763,20 +763,27 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "enable_policy": (
                 "explicit_opt_in_baseline_backend_with_exact_differentials"
                 if name == "hipblaslt"
+                else "explicit_opt_in_fused_backend_with_exact_differentials"
+                if name == "ck"
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "backend_enablement": (
                 "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
                 if name == "hipblaslt"
+                else "requires_explicit_RNS8_ENABLE_CK_build"
+                if name == "ck"
                 else "disabled"
             ),
             "correctness_backend": (
                 "implemented_opt_in_baseline_not_validated_by_dependency_report"
                 if name == "hipblaslt"
+                else "implemented_opt_in_fused_not_validated_by_dependency_report"
+                if name == "ck"
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name == "hipblaslt" and bool(item["header"] or item["library"] or item["tool"]),
+            "can_enable_correctness_backend": name in {"hipblaslt", "ck"}
+            and bool(item["header"] or item["library"] or item["tool"]),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
@@ -801,8 +808,13 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                     "candidate evidence only; hipBLASLt backend validation requires the explicit "
                     "windows-hipblaslt-debug build/test preset"
                     if name == "hipblaslt"
-                    else "candidate evidence only; backend remains disabled until a real exact correctness backend "
-                    "has target capability checks and exact CPU differentials"
+                    else (
+                        "candidate evidence only; CK backend validation requires the explicit "
+                        "windows-ck-debug build/test preset"
+                        if name == "ck"
+                        else "candidate evidence only; backend remains disabled until a real exact correctness backend "
+                        "has target capability checks and exact CPU differentials"
+                    )
                 )
                 if bool(item["header"] or item["library"] or item["tool"])
                 else item.get(
@@ -935,16 +947,20 @@ def not_run_probe(
         "backend_enablement": (
             "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
             if name == "hipblaslt"
+            else "requires_explicit_RNS8_ENABLE_CK_build"
+            if name == "ck"
             else "disabled"
         ),
         "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
         "enable_policy": (
             "explicit_opt_in_baseline_backend_with_exact_differentials"
             if name == "hipblaslt"
+            else "explicit_opt_in_fused_backend_with_exact_differentials"
+            if name == "ck"
             else ACCELERATOR_ENABLE_POLICY
         ),
         "validated_correctness_backend": False,
-        "can_enable_correctness_backend": name == "hipblaslt" and requested,
+        "can_enable_correctness_backend": name in {"hipblaslt", "ck"} and requested,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
@@ -1155,16 +1171,20 @@ def accelerator_compile_probes(
             "backend_enablement": (
                 "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
                 if name == "hipblaslt"
+                else "requires_explicit_RNS8_ENABLE_CK_build"
+                if name == "ck"
                 else "disabled"
             ),
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
             "enable_policy": (
                 "explicit_opt_in_baseline_backend_with_exact_differentials"
                 if name == "hipblaslt"
+                else "explicit_opt_in_fused_backend_with_exact_differentials"
+                if name == "ck"
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name == "hipblaslt" and compiled and runtime_ok,
+            "can_enable_correctness_backend": name in {"hipblaslt", "ck"} and compiled and runtime_ok,
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",
@@ -1299,6 +1319,16 @@ def accelerator_gate(
             "component discovered; hipBLASLt has an opt-in baseline backend, but discovery "
             "is not correctness validation and this checker does not enable the backend"
         )
+    elif name == "ck" and primitive_probe_status == "OBJECT_COMPILE_PASS":
+        detail = (
+            "optional int8 matrix-engine primitive compile evidence exists; CK has an opt-in fused backend, "
+            "but this checker still does not enable the backend or prove exactness"
+        )
+    elif name == "ck" and found:
+        detail = (
+            "component discovered; CK has an opt-in fused backend, but discovery is not correctness validation "
+            "and this checker does not enable the backend"
+        )
     elif primitive_probe_status == "OBJECT_COMPILE_PASS":
         detail = (
             "optional int8 matrix-engine primitive compile evidence exists, but this checker still "
@@ -1319,11 +1349,15 @@ def accelerator_gate(
         "backend_enablement": (
             "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
             if name == "hipblaslt"
+            else "requires_explicit_RNS8_ENABLE_CK_build"
+            if name == "ck"
             else "disabled"
         ),
         "correctness_backend": (
             "implemented_opt_in_baseline_not_validated_by_dependency_report"
             if name == "hipblaslt"
+            else "implemented_opt_in_fused_not_validated_by_dependency_report"
+            if name == "ck"
             else "not_implemented"
         ),
         "validated_correctness_backend": False,
@@ -1358,25 +1392,34 @@ def accelerator_enablement_policy(
         component = accelerators.get(name, {})
         probe = probe_items.get(name) if isinstance(probe_items, dict) else None
         is_hipblaslt = name == "hipblaslt"
+        is_ck = name == "ck"
         flags[name] = {
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
             "enable_policy": (
                 "explicit_opt_in_baseline_backend_with_exact_differentials"
                 if is_hipblaslt
+                else "explicit_opt_in_fused_backend_with_exact_differentials"
+                if is_ck
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "backend_enablement": (
                 "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
                 if is_hipblaslt
+                else "requires_explicit_RNS8_ENABLE_CK_build"
+                if is_ck
                 else "disabled"
             ),
             "correctness_backend": (
                 "implemented_opt_in_baseline_not_validated_by_dependency_report"
                 if is_hipblaslt
+                else "implemented_opt_in_fused_not_validated_by_dependency_report"
+                if is_ck
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": is_hipblaslt and bool(component.get("ok")) if isinstance(component, dict) else False,
+            "can_enable_correctness_backend": (
+                (is_hipblaslt or is_ck) and bool(component.get("ok")) if isinstance(component, dict) else False
+            ),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
@@ -1392,13 +1435,13 @@ def accelerator_enablement_policy(
         "backend_enablement": "probe_only_dependency_report",
         "correctness_backends_enabled": False,
         "validated_correctness_backend_count": 0,
-        "enable_flags_fail_fast": "ck_rocwmma_amdgpu_builtins",
+        "enable_flags_fail_fast": "rocwmma_amdgpu_builtins",
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "policy": (
-            "hipBLASLt has an explicit opt-in baseline backend validated by build/test presets; "
-            "CK, rocWMMA, and AMDGPU builtin flags fail fast until real exact correctness "
-            "backends exist; discovery and probes are evidence only"
+            "hipBLASLt and CK have explicit opt-in backends validated by separate build/test presets; "
+            "rocWMMA and AMDGPU builtin flags fail fast until real exact correctness backends exist; "
+            "discovery and probes are evidence only"
         ),
         "flags": flags,
     }
@@ -1415,6 +1458,7 @@ def correctness_backend_validation_status(
     for name in ACCELERATOR_NAMES:
         item = accelerators.get(name, {})
         is_hipblaslt = name == "hipblaslt"
+        is_ck = name == "ck"
         accelerator_summary[name] = {
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "component_discovered": bool(item.get("ok")) if isinstance(item, dict) else False,
@@ -1422,11 +1466,15 @@ def correctness_backend_validation_status(
             "backend_enablement": (
                 "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
                 if is_hipblaslt
+                else "requires_explicit_RNS8_ENABLE_CK_build"
+                if is_ck
                 else "disabled"
             ),
             "correctness_backend": (
                 "implemented_opt_in_baseline_not_validated_by_dependency_report"
                 if is_hipblaslt
+                else "implemented_opt_in_fused_not_validated_by_dependency_report"
+                if is_ck
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
@@ -1463,6 +1511,13 @@ def correctness_backend_validation_status(
                 "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-hipblaslt-debug build and exact CPU/direct-HIP differentials, not dependency discovery",
+            },
+            "ck": {
+                "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_CK",
+                "evidence_class": "implemented_correctness_backend",
+                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "validated_by_this_report": False,
+                "validation_source": "windows-ck-debug build, exact CPU/direct-HIP differentials, CK ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
         },
         "candidate_accelerators": accelerator_summary,
@@ -1689,11 +1744,15 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
         expected_backend = (
             "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
             if name == "hipblaslt"
+            else "requires_explicit_RNS8_ENABLE_CK_build"
+            if name == "ck"
             else "disabled"
         )
         expected_correctness = (
             "implemented_opt_in_baseline_not_validated_by_dependency_report"
             if name == "hipblaslt"
+            else "implemented_opt_in_fused_not_validated_by_dependency_report"
+            if name == "ck"
             else "not_implemented"
         )
         if (
