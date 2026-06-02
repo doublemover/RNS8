@@ -1,0 +1,16 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "linux-rocm-reference",
+      "displayName": "Linux ROCm reference fragment",
+      "description": "Reference preset fragment documenting ROCm variables for production Linux validation.",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx942;gfx950"
+      }
+    }
+  ]
+}
+

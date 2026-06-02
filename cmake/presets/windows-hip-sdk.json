@@ -1,0 +1,16 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-hip-sdk-reference",
+      "displayName": "Windows HIP SDK reference fragment",
+      "description": "Reference preset fragment documenting explicit HIP SDK variables. The root CMakePresets.json keeps the active vcpkg toolchain.",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_HIP_ROOT": "C:/Program Files/AMD/ROCm/7.1",
+        "RNS8_AMDGPU_TARGETS": "gfx1100"
+      }
+    }
+  ]
+}
+

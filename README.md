@@ -11,6 +11,31 @@ full production target remains Linux ROCm for Radeon and Instinct systems. See
 [docs/RNS8_RESEARCH_SPEC.md](docs/RNS8_RESEARCH_SPEC.md) for the full research
 and implementation plan.
 
+## Current Implementation Status
+
+Implemented:
+
+- CMake scaffold for shared/static `rns8`, `rns8-inspect`, `rns8-verify`,
+  `rns8-bench`, and Catch2 tests.
+- Explicit C ABI headers and a C++ RAII wrapper skeleton.
+- CPU reference path for bounded exact signed and unsigned 64-bit GEMM using
+  persistent RNS matrices, centered residues, scalar per-modulus ring GEMM,
+  Boost.Multiprecision CRT/Garner reconstruction, and range-error checks.
+- Default modulus ladder validation, prefix range-bit checks, composite and
+  prime modulus tests, full 64-bit boundary tests, alternating-sign
+  cancellation, and K-block splitting around 65536.
+- Windows direct HIP bring-up through explicit hipcc object compilation for
+  `gfx1100`, HIP device inspection, and a real one-modulus ring-GEMM smoke
+  compared against the CPU reference.
+
+Not implemented yet:
+
+- Optimized fused HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin hot
+  kernels, GPU CRT export, exact-wide export, and strict `mod 2^64` byte-limb
+  GEMM.
+- Performance claims beyond the timing reported by the current CPU benchmark
+  shell.
+
 ## Windows Development Requirements
 
 Required:
@@ -151,11 +176,28 @@ Once the CMake project scaffold exists, use the checked-in presets:
 cmake --list-presets
 cmake --preset windows-msvc-hip-debug
 cmake --build --preset windows-debug
+ctest --preset windows-debug --output-on-failure
 ```
 
 Do not rely on CMake's HIP language support for the Windows path. The Windows
 build should compile HIP sources through the HIP SDK compiler integration used
 by the project CMake files.
+
+Run the current tools:
+
+```powershell
+build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
+build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
+build\windows-msvc-hip-debug\rns8-bench.exe --m 64 --n 64 --k 64 --repeats 5 --seed 1
+```
+
+For CPU-only scaffold validation, configure without HIP:
+
+```powershell
+cmake -S . -B build\cpu-debug -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DRNS8_ENABLE_HIP=OFF
+cmake --build build\cpu-debug
+ctest --test-dir build\cpu-debug --output-on-failure
+```
 
 ## Repository Setup Files
 
@@ -164,8 +206,12 @@ by the project CMake files.
   configure/build/test presets.
 - [vcpkg.json](vcpkg.json) declares the C++ dependency set.
 - [tools/check_dependencies.py](tools/check_dependencies.py) reports the local
-  toolchain, HIP device, Python packages, vcpkg packages, MSVC install, and
-  optional Radeon Developer Tool Suite utilities.
+  toolchain, HIP device, Python packages, vcpkg packages, MSVC install,
+  optional accelerator/reference components, project tools, and optional Radeon
+  Developer Tool Suite utilities.
+- [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
+  explicitly matrix-descriptor based; the ABI does not infer operand role or
+  semantics from C++ types.
 - `temp/` is intentionally ignored and is the place for scratch files, raw
   benchmark captures, downloaded installers, and anything else that should not
   be tracked by git.

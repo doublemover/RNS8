@@ -1,0 +1,10 @@
+RNS8
+Copyright 2026 RNS8 contributors
+
+RNS8 is licensed under the Apache License, Version 2.0.
+
+This project references AMD HIP SDK, ROCm, hipBLASLt, Composable Kernel,
+rocWMMA, Boost.Multiprecision, Catch2, GMP, FLINT, and related exact linear
+algebra research systems. Third-party components remain under their respective
+licenses and are not vendored into this repository.
+
