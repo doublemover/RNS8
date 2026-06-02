@@ -11,6 +11,10 @@ Implemented correctness coverage:
 - Boost.Multiprecision CRT/Garner reconstruction for bounded signed and
   unsigned outputs.
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
+- Plan schedule inspection for output tile grid, exact required prefix,
+  selected prefix, and prefix-group metadata. Current bounded execution uses a
+  fixed selected prefix for every tile; adaptive prefix and skip fields are
+  explicitly inactive.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
   `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs.
 - Public bounded signed and unsigned CPU one-shot GEMM sweeps over all
@@ -61,6 +65,7 @@ Implemented correctness coverage:
 Not yet implemented:
 
 - Per-tile adaptive bounds.
+- Variable-prefix grouped execution and adaptive modulus skipping.
 - Optimized strict `mod 2^64` GPU byte-GEMM kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 

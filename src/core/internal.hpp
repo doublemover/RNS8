@@ -21,6 +21,14 @@ struct rns8_plan {
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   boost::multiprecision::cpp_int modulus_product = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  uint64_t schedule_tile_rows = 0;
+  uint64_t schedule_tile_cols = 0;
+  uint64_t schedule_tile_count = 0;
+  uint32_t schedule_required_prefix = 0;
+  uint32_t schedule_selected_prefix = 0;
+  uint32_t schedule_prefix_group_count = 0;
+  uint32_t schedule_range_bit_length = 0;
+  uint32_t schedule_flags = 0;
 };
 
 struct rns8_matrix {
@@ -73,6 +81,8 @@ void copy_c_string(char* dst, std::size_t dst_size, const std::string& src);
 
 bool default_moduli_pairwise_coprime();
 cpp_int modulus_product(uint32_t prefix);
+uint32_t bit_length(const cpp_int& value);
+uint32_t required_prefix_for_range(const cpp_int& range);
 uint32_t default_prefix_for_semantics(rns8_semantics semantics);
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix);
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix);

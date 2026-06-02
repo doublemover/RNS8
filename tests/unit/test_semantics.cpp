@@ -188,3 +188,29 @@ TEST_CASE("future backend context kinds report unsupported status") {
     CHECK(ctx == nullptr);
   }
 }
+
+TEST_CASE("tile dimensions are powers of two from 64 to 512") {
+  rns8_context* ctx = create_cpu();
+  auto valid = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  valid.tile_m = 256;
+  valid.tile_n = 512;
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &valid, &plan) == RNS8_SUCCESS);
+  rns8_destroy_plan(plan);
+
+  for (const uint32_t bad_tile : {32u, 96u, 513u}) {
+    auto bad_plan = valid;
+    bad_plan.tile_m = bad_tile;
+    plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &bad_plan, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+
+    auto bad_matrix = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    bad_matrix.tile_n = bad_tile;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &bad_matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+
+  rns8_destroy_context(ctx);
+}

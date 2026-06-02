@@ -30,6 +30,10 @@ disagree, the spec remains the target and this file identifies the gap.
   K-block cases.
 - Persistent RNS behavior: public matrix/workspace APIs exercise persistent A/B/C
   storage and verify device pointer stability through pack, GEMM, and export.
+- Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
+  required prefix, selected prefix, and prefix-group metadata through public ABI
+  queries. Current bounded execution still uses one fixed selected prefix for
+  every tile; adaptive per-tile prefix selection remains future work.
 - Exact-wide RNS output: exact-wide signed and unsigned semantics accept
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
@@ -65,8 +69,8 @@ disagree, the spec remains the target and this file identifies the gap.
 
 - Optimized matrix-engine HIP kernels. The direct HIP kernels are correctness
   bring-up kernels, not performance evidence.
-- Per-tile adaptive bounds, per-tile prefix selection, grouped scheduling, and
-  adaptive skip behavior.
+- Per-tile adaptive bounds, variable per-tile selected prefixes, grouped
+  variable-prefix execution, and adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
@@ -80,10 +84,13 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 40/40 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 43/43 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 40/40 passed on
+- `ctest --preset windows-debug --output-on-failure`: 43/43 passed on
   `gfx1100`.
+- The CPU and Windows HIP test passes include plan schedule inspection coverage
+  for fixed-prefix bounded tile groups, wrap64 prefix-zero byte-limb scheduling,
+  and tile-size validation.
 - The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
   export checks against the CPU reference, including `INT64_MIN` and
   `UINT64_MAX` boundary outputs.

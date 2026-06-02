@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 #include "rns8/rns8.h"
 
@@ -86,6 +87,24 @@ class Plan final {
 
   rns8_plan* get() const noexcept { return handle_; }
 
+  rns8_plan_schedule_info schedule_info() const {
+    rns8_plan_schedule_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_plan_schedule_info(handle_, &info));
+    return info;
+  }
+
+  std::vector<rns8_plan_tile_schedule_entry> tile_schedule() const {
+    uint64_t count = 0;
+    check(rns8_get_plan_tile_schedule(handle_, nullptr, 0, &count));
+    std::vector<rns8_plan_tile_schedule_entry> entries(static_cast<std::size_t>(count));
+    if (count != 0) {
+      check(rns8_get_plan_tile_schedule(handle_, entries.data(), count, &count));
+    }
+    return entries;
+  }
+
  private:
   rns8_plan* handle_ = nullptr;
 };
@@ -145,4 +164,3 @@ class Workspace final {
 }  // namespace rns8
 
 #endif
-

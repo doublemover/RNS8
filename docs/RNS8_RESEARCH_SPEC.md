@@ -559,6 +559,16 @@ rns8_status rns8_create_plan(
 
 rns8_status rns8_destroy_plan(rns8_plan* plan);
 
+rns8_status rns8_get_plan_schedule_info(
+    const rns8_plan* plan,
+    rns8_plan_schedule_info* out);
+
+rns8_status rns8_get_plan_tile_schedule(
+    const rns8_plan* plan,
+    rns8_plan_tile_schedule_entry* entries,
+    uint64_t capacity,
+    uint64_t* written);
+
 rns8_status rns8_create_workspace(
     rns8_context* ctx,
     const rns8_plan* plan,
