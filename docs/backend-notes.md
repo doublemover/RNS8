@@ -27,6 +27,14 @@ exist to keep ownership boundaries visible while preserving the rule that no
 accelerator path counts until it has compiled kernels and exact CPU
 differential validation.
 
+Optional accelerator discovery is platform evidence, not backend enablement.
+`tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,
+`FindRNS8CK.cmake`, and `FindRNS8ROCWMMA.cmake` modules can report candidate
+hipBLASLt, CK, and rocWMMA component files. These probes are shallow
+header/library/tool discovery only. They do not compile kernels, link an
+accelerator backend, run device capability checks, or satisfy correctness
+requirements.
+
 The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
 matrix-owned device residue storage. The direct HIP RNS GEMM path consumes those

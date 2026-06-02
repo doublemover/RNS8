@@ -55,6 +55,7 @@
         "RNS8_ENABLE_HIP": "ON",
         "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx1030;gfx1100;gfx1200;gfx1201;gfx90a;gfx942;gfx950",
         "RNS8_ENABLE_GMP": "ON",
         "RNS8_ENABLE_FLINT": "ON"
       }
