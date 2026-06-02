@@ -34,8 +34,7 @@ Not implemented yet:
 - Optimized fused HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin hot
   kernels, GPU CRT export, exact-wide export, and strict `mod 2^64` byte-limb
   GEMM.
-- Performance claims beyond the timing reported by the current CPU benchmark
-  shell.
+- Performance claims beyond the host-timed CPU/direct-HIP benchmark shell.
 
 ## Windows Development Requirements
 
@@ -189,7 +188,8 @@ Run the current tools:
 ```powershell
 build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
-build\windows-msvc-hip-debug\rns8-bench.exe --m 64 --n 64 --k 64 --repeats 5 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 ```
 
 For CPU-only scaffold validation, configure without HIP:

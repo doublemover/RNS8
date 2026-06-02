@@ -111,7 +111,10 @@ if(RNS8_BUILD_TOOLS)
 endif()
 
 if(RNS8_BUILD_BENCHMARKS)
+  set(RNS8_AMDGPU_TARGETS_TEXT "${RNS8_AMDGPU_TARGETS}")
+  string(REPLACE ";" "," RNS8_AMDGPU_TARGETS_TEXT "${RNS8_AMDGPU_TARGETS_TEXT}")
   add_executable(rns8-bench benchmarks/rns8_bench.cpp)
+  target_compile_definitions(rns8-bench PRIVATE RNS8_CONFIGURED_AMDGPU_TARGETS="${RNS8_AMDGPU_TARGETS_TEXT}")
   target_link_libraries(rns8-bench PRIVATE rns8_static)
 endif()
 
