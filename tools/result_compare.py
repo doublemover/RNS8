@@ -19,6 +19,18 @@ TIMING_PHASES = {
     "crt_export": ["avg_crt_export_us"],
     "end_to_end": ["avg_end_to_end_us"],
 }
+GPU_EVENT_PHASES = [
+    "pack_h2d",
+    "pack_kernel",
+    "pack",
+    "rns_gemm_kernel_group",
+    "rns_gemm",
+    "crt_export_status_memset",
+    "crt_export_kernel",
+    "crt_export_status_d2h",
+    "crt_export_d2h",
+    "crt_export",
+]
 CONTRACT_KEYS = ["backend_selected", "semantics", "m", "n", "k", "prefix", "seed"]
 
 
@@ -56,6 +68,76 @@ def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, s
     raise SystemExit(f"{path}: missing numeric timing for phase {phase}; looked for {keys}")
 
 
+def timing_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    metadata = data.get("timing_metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def gpu_event_phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
+    summary = data.get("gpu_event_timing_summary_us")
+    if isinstance(summary, dict):
+        phase_summary = summary.get(phase)
+        if isinstance(phase_summary, dict):
+            value = phase_summary.get("avg")
+            if isinstance(value, (int, float)):
+                return float(value), f"gpu_event_timing_summary_us.{phase}.avg"
+    raise SystemExit(f"{path}: missing numeric GPU event timing for phase {phase}")
+
+
+def compare_gpu_events(
+    baseline: dict[str, Any],
+    candidate: dict[str, Any],
+    baseline_path: Path,
+    candidate_path: Path,
+) -> dict[str, Any]:
+    base_meta = timing_metadata(baseline)
+    cand_meta = timing_metadata(candidate)
+    base_enabled = base_meta.get("gpu_event_timing") is True
+    cand_enabled = cand_meta.get("gpu_event_timing") is True
+    base_source = base_meta.get("gpu_event_timing_source")
+    cand_source = cand_meta.get("gpu_event_timing_source")
+    base_scope = base_meta.get("gpu_event_timing_source_scope")
+    cand_scope = cand_meta.get("gpu_event_timing_source_scope")
+    source_match = base_source == cand_source
+    scope_match = base_scope == cand_scope
+    comparable = base_enabled and cand_enabled and source_match and scope_match
+
+    event_timings = {}
+    if comparable:
+        for phase in GPU_EVENT_PHASES:
+            base, base_source_key = gpu_event_phase_timing(baseline, phase, baseline_path)
+            cand, cand_source_key = gpu_event_phase_timing(candidate, phase, candidate_path)
+            event_timings[phase] = {
+                "baseline": base,
+                "candidate": cand,
+                "delta": cand - base,
+                "ratio": cand / base if base != 0 else None,
+                "baseline_source": base_source_key,
+                "candidate_source": cand_source_key,
+            }
+
+    reason = "comparable"
+    if not comparable:
+        if not base_enabled or not cand_enabled:
+            reason = "gpu_event_timing_not_enabled_for_both_captures"
+        elif not source_match:
+            reason = "gpu_event_timing_source_mismatch"
+        elif not scope_match:
+            reason = "gpu_event_timing_source_scope_mismatch"
+
+    return {
+        "comparable": comparable,
+        "reason": reason,
+        "baseline_enabled": base_enabled,
+        "candidate_enabled": cand_enabled,
+        "baseline_source": base_source,
+        "candidate_source": cand_source,
+        "baseline_source_scope": base_scope,
+        "candidate_source_scope": cand_scope,
+        "timings": event_timings,
+    }
+
+
 def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
     contract = {
         key: {
@@ -88,6 +170,7 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
         "matching_contract": all(item["match"] for item in contract.values()),
         "contract": contract,
         "timings": timings,
+        "gpu_event_timings": compare_gpu_events(baseline, candidate, baseline_path, candidate_path),
     }
 
 
@@ -116,6 +199,17 @@ def print_human(report: dict[str, Any]) -> None:
             f"{phase}: baseline={item['baseline']:.6g} "
             f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}"
         )
+    print()
+    gpu_events = report["gpu_event_timings"]
+    print(f"GPU event timings: {gpu_events['reason']}")
+    if gpu_events["comparable"]:
+        for phase, item in gpu_events["timings"].items():
+            ratio = item["ratio"]
+            ratio_text = "n/a" if ratio is None else f"{ratio:.6g}"
+            print(
+                f"{phase}: baseline={item['baseline']:.6g} "
+                f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}"
+            )
 
 
 def main() -> int:

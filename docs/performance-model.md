@@ -33,7 +33,8 @@ The benchmark reports:
 - comparison baseline and derived TOPS-equivalent when reviewed baselines exist;
   currently `null`,
 - timing source, timing caveat, and structured timing metadata,
-- explicit GPU event timing availability metadata,
+- explicit GPU event timing availability metadata and direct-HIP event timing
+  arrays when backend hooks collect a complete repeat,
 - one-time planning and matrix allocation time,
 - average packing time,
 - average persistent RNS GEMM time,
@@ -67,44 +68,51 @@ kernel launches, fused residue reduction, and GPU bounded export.
 
 ## Direct-HIP event timing status
 
-HIP event timing is not currently available from the benchmark alone. The public
-benchmark phases call `rns8_pack_i64`/`rns8_pack_u64`, `rns8_gemm_rns`, and
-`rns8_export_i64`/`rns8_export_u64`. Those calls hide the direct-HIP backend's
-copies, kernel launches, default-stream use, and internal synchronization. An
-external event pair wrapped around the public call would not identify which
-backend operations were timed, would miss or conflate synchronous host-side copy
-costs depending on runtime behavior, and could not split GEMM launch groups from
-export or scheduling work. The benchmark therefore reports:
+The benchmark enables direct-HIP event timing through internal backend hooks for
+measured repeats. Events are recorded inside the backend around operation groups
+that the public benchmark phase cannot otherwise see: pack upload, pack kernel,
+the per-modulus RNS GEMM kernel group, export status initialization, export
+kernel, export status readback, and export device-to-host copy.
+
+When the selected backend is not direct HIP, or when a complete expected event
+set is not available, event fields remain nullable:
 
 ```json
 "timing_metadata": {
   "gpu_event_timing": false,
-  "gpu_event_timing_reason": "requires_backend_or_public_timing_hooks"
+  "gpu_event_timing_reason": "backend_not_hip_direct"
 },
 "gpu_event_timings_us": null,
 "gpu_event_timing_summary_us": null
 ```
 
-Do not replace these `null` fields with host wall-clock timings or estimates.
+For direct-HIP captures with complete event data, `gpu_event_timing` is `true`,
+`gpu_event_timings_us` contains raw per-repeat arrays, and
+`gpu_event_timing_summary_us` contains average, median, and p95 summaries for:
 
-The minimal focused implementation needed for real direct-HIP event capture is:
+- `pack_h2d`
+- `pack_kernel`
+- `pack`
+- `rns_gemm_kernel_group`
+- `rns_gemm`
+- `crt_export_status_memset`
+- `crt_export_kernel`
+- `crt_export_status_d2h`
+- `crt_export_d2h`
+- `crt_export`
 
-1. Add a backend timing capture object that can be optionally supplied to the
-   direct-HIP helpers without changing exactness decisions or data movement.
-2. Record HIP events inside the backend around each measured operation group:
-   host-to-device upload, pack kernel, per-modulus or grouped RNS GEMM launches,
-   export status initialization, export kernel, status readback, and output
-   device-to-host copy where HIP event timing can validly observe it.
-3. Preserve stable benchmark phase labels: `pack`, `rns_gemm`, `crt_export`,
-   and optional subphase labels such as `pack_h2d`, `pack_kernel`,
-   `rns_gemm_kernel_group`, `crt_export_kernel`, and `crt_export_d2h`.
-4. Expose a benchmark-visible query or internal benchmark hook that drains the
-   last-call timing capture. Unavailable phases must be reported as `null` with
-   a reason, never synthesized from host timings.
-5. Include timing source metadata for each capture: HIP runtime version, stream
-   identity or policy, event timing unit, whether copies were asynchronous
-   stream operations, warmup/repeat index, and selected backend.
+Host timings and HIP event timings answer different questions. Host
+`std::chrono::steady_clock` timings include API dispatch, CPU scheduling,
+allocations, and synchronous host-side overhead. HIP event timings record
+default-stream backend operation groups only. Do not compare event timings to
+host timings as replacements, and do not replace nullable event fields with
+host wall-clock timings or estimates.
 
-Future benchmark work must add those hooks, reduction-specific timing,
-scheduling overhead, raw captures, and comparison baselines before any speedup
-claims are made.
+Future benchmark work must add finer scheduling overhead capture, reviewed raw
+sweeps, comparison baselines, and performance gates before any speedup claims
+are made.
+
+`tools/result_compare.py` compares host timing phases for schema v1/v2 captures.
+It also compares `gpu_event_timing_summary_us` phases only when both captures
+set `timing_metadata.gpu_event_timing=true` and report the same event timing
+source and source scope.

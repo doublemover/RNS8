@@ -137,6 +137,7 @@ if(RNS8_BUILD_BENCHMARKS)
       RNS8_GIT_COMMIT="${RNS8_GIT_COMMIT}"
       RNS8_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
   )
+  target_include_directories(rns8-bench PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(rns8-bench PRIVATE rns8_static)
 endif()
 
