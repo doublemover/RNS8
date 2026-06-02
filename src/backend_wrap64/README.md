@@ -29,8 +29,10 @@ Current status:
   signed-INT8 correction algebra, then performs deterministic carry propagation
   into the low 64 bits. The public HIP_DIRECT one-shot and persistent wrap64
   APIs use matrix-owned device byte-limb storage and are tested against the CPU
-  reference. Private HIP pack/export helper tests lock padded host rows,
-  compact device byte-limb layout, and helper-buffer reuse.
+  reference. Persistent HIP GEMM/export require device-current byte limbs from
+  wrap64 pack or GEMM; they do not upload host-current byte limbs as a hidden
+  fallback during GEMM/export. Private HIP pack/export helper tests lock padded
+  host rows, compact device byte-limb layout, and helper-buffer reuse.
 - Public wrap64 pack, GEMM, and export reject residue-backed matrices, bounded
   metadata, nonzero CRT prefixes, and RNS export/GEMM APIs. A wrap descriptor
   must remain byte-limb-only from matrix creation through export.

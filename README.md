@@ -38,8 +38,9 @@ Implemented:
   `gfx1100`, HIP device inspection, device-resident RNS matrix storage,
   signed/unsigned GPU residue conversion, fused INT32-to-centered-residue
   K-block reduction, bounded i64/u64 GPU CRT export, public strict wrap64
-  byte-limb correctness path, and real one-modulus plus bounded i64/u64 and
-  wrap64 smoke tests compared against the CPU reference.
+  byte-limb correctness path with device-current GEMM/export, and real
+  one-modulus plus bounded i64/u64 and wrap64 smoke tests compared against the
+  CPU reference.
 - Benchmark schema v4 with host wall-clock phase timings, live git commit
   capture, raw timing arrays, summaries, direct-HIP GPU event timing arrays
   when complete, and explicit per-tile adaptive bounded capture metadata.

@@ -63,6 +63,9 @@ export/status buffers. The current centered-range
 correction code uses mask arithmetic instead of source-level `if` branches, but
 the kernel still uses ordinary modulo operations and has not been promoted to a
 reciprocal-reduction or ISA-verified performance kernel.
+Bounded direct-HIP GEMM requires A and B to have current device residues. A
+host-current bounded matrix with stale device residues is rejected by persistent
+GEMM instead of being uploaded implicitly at dispatch time.
 
 Persistent same-shape direct-HIP calls are allocation-observed in tests. The
 first pack/export may grow matrix-owned upload/export/status buffers. A repeated
@@ -114,12 +117,16 @@ CPU export uses explicit fixed-width limbs: signed output reconstructs the
 centered integer and emits two's-complement in exactly `limb_count` limbs,
 while unsigned output reconstructs the canonical nonnegative integer and emits
 magnitude limbs in exactly `limb_count` limbs. Both return `RNS8_RANGE_ERROR`
-when the requested width cannot represent the reconstructed value; no low-limb
-truncation, saturation, bounded i64/u64 export, or strict wrap64 interpretation
-is accepted. Direct HIP exports exact-wide limbs from device-resident RNS
-matrices with the same fixed-width ABI, range-error behavior for too few limbs,
-and strided host layout. CPU Boost.Multiprecision reconstruction remains the
-reference and debug path.
+when the requested width cannot represent the reconstructed value and stage the
+whole export before writing the caller's padded host layout, so range errors
+leave every destination limb untouched. No low-limb truncation, saturation,
+bounded i64/u64 export, or strict wrap64 interpretation is accepted. Direct HIP
+exports exact-wide limbs only from device-current, device-resident RNS matrices
+with the same fixed-width ABI, range-error preservation for too few limbs, and
+strided host layout. A host-current direct-HIP matrix with stale device residues
+is rejected by exact-wide export instead of being uploaded implicitly during
+reconstruction. CPU Boost.Multiprecision reconstruction remains the reference
+and debug path.
 The CPU signed CRT representative uses the centered threshold
 `x >= ceil(P / 2)`, so the exact half-product residue class maps negative for
 even modulus products. Unit coverage pins one-limb signed min/max boundaries,
@@ -158,6 +165,10 @@ currentness, device byte-limb currentness, or bounded per-tile schedule metadata
 The public CPU and direct-HIP wrap64 pack/GEMM/export boundaries reject stale
 RNS residue currentness, CRT prefixes, bounded schedule fields, and residue
 storage before backend dispatch; those fields are not alternate wrap64 routes.
+On HIP, wrap64 GEMM and export require device-current byte limbs. A
+host-current/device-stale wrap matrix is invalid at GEMM/export instead of
+being uploaded implicitly; `rns8_pack_u64` is the public host-to-device ingress
+for strict wrap64 inputs, and GEMM is the device-current producer for outputs.
 
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from

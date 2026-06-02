@@ -187,12 +187,19 @@ disagree, the spec remains the target and this file identifies the gap.
   vcpkg toolchain from the VS developer environment.
 - `cmake --build --preset windows-debug`: built successfully, including the
   explicit hipcc direct-HIP and wrap64 HIP kernel objects.
-- `ctest --preset windows-debug --output-on-failure`: 81/81 passed on the
-  Windows HIP debug build.
+- `ctest --preset windows-debug --output-on-failure`: 121/121 passed on the
+  Windows HIP debug build; the private mismatched-modulus metadata smoke remains
+  intentionally skipped when the low-level direct-HIP device entry point is
+  unavailable to that test process.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   and wrap64 smoke passed.
 - `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
+- Verified post-`9fbc845` implementation patch removes the remaining direct-HIP
+  host wrapper convenience paths and keeps bounded, wrap64, and exact-wide HIP
+  tests on resident device-current storage contracts after the Windows HIP
+  build, CTest pass, HIP smoke, `git diff --check`, and benchmark schema
+  self-test above.
 - `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_i64_adaptive_hip.json`: current

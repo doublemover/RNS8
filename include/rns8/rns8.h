@@ -218,10 +218,12 @@ RNS8_API rns8_status rns8_export_wrap_u64(
  * 2^(64 * limb_count - 1) - 1]. Successful exports use two's-complement
  * representation in exactly the requested width. Too few limbs return
  * RNS8_RANGE_ERROR; invalid handles, invalid leading dimensions, null
- * destinations, and invalid limb counts return RNS8_INVALID_ARGUMENT. The value
- * is never truncated, saturated, or treated as mod 2^64 wraparound. This API is
- * separate from bounded i64/u64 export and from strict mod 2^64 wraparound
- * byte-limb export.
+ * destinations, and invalid limb counts return RNS8_INVALID_ARGUMENT. Range
+ * errors preserve the caller's destination storage. The value is never
+ * truncated, saturated, or treated as mod 2^64 wraparound. This API is separate
+ * from bounded i64/u64 export and from strict mod 2^64 wraparound byte-limb
+ * export. Direct HIP exact-wide export requires device-current resident RNS
+ * output and does not perform an implicit host-to-device upload.
  */
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
@@ -243,9 +245,12 @@ RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
  * [0, 2^(64 * limb_count) - 1]. Successful exports use magnitude limbs in
  * exactly the requested width. Too few limbs return RNS8_RANGE_ERROR; invalid
  * handles, invalid leading dimensions, null destinations, and invalid limb
- * counts return RNS8_INVALID_ARGUMENT. The value is never truncated, saturated,
- * or treated as strict mod 2^64 wraparound. This API is separate from bounded
- * i64/u64 export and from strict mod 2^64 wraparound byte-limb export.
+ * counts return RNS8_INVALID_ARGUMENT. Range errors preserve the caller's
+ * destination storage. The value is never truncated, saturated, or treated as
+ * strict mod 2^64 wraparound. This API is separate from bounded i64/u64 export
+ * and from strict mod 2^64 wraparound byte-limb export. Direct HIP exact-wide
+ * export requires device-current resident RNS output and does not perform an
+ * implicit host-to-device upload.
  */
 RNS8_API rns8_status rns8_export_exact_wide_unsigned_limbs(
     rns8_context* ctx,

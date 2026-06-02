@@ -527,6 +527,11 @@ rns8_status validate_rns_gemm_operands(
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+      (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64) &&
+      (!A.device_residues_current || !B.device_residues_current)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   return RNS8_SUCCESS;
 }
 
@@ -704,24 +709,6 @@ rns8_status ensure_device_residues_current(rns8_matrix& matrix) {
       matrix.hip_device_id, matrix.hip_residues, matrix.residues.data(), matrix.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
     matrix.device_residues_current = true;
-  }
-  return status;
-}
-
-rns8_status ensure_device_byte_limbs_current(rns8_matrix& matrix) {
-  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT) {
-    return RNS8_SUCCESS;
-  }
-  if (matrix.device_byte_limbs_current) {
-    return RNS8_SUCCESS;
-  }
-  if (!matrix.host_byte_limbs_current || !matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes == 0) {
-    return RNS8_INTERNAL_ERROR;
-  }
-  const rns8_status status = rns8::detail::hip_direct_copy_host_to_device(
-      matrix.hip_device_id, matrix.hip_byte_limbs, matrix.byte_limbs.data(), matrix.hip_byte_limb_bytes);
-  if (status == RNS8_SUCCESS) {
-    matrix.device_byte_limbs_current = true;
   }
   return status;
 }
@@ -1228,13 +1215,16 @@ rns8_status rns8_gemm_rns(
       return status;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*A));
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      status = ensure_device_residues_current(const_cast<rns8_matrix&>(*B));
-      if (status != RNS8_SUCCESS) {
-        return status;
+      rns8_status status = RNS8_SUCCESS;
+      if (plan->desc.semantics != RNS8_BOUNDED_I64 && plan->desc.semantics != RNS8_BOUNDED_U64) {
+        status = ensure_device_residues_current(const_cast<rns8_matrix&>(*A));
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+        status = ensure_device_residues_current(const_cast<rns8_matrix&>(*B));
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
       }
       if (!plan->tile_schedule.empty()) {
         status = rns8::detail::hip_direct_gemm_rns_tiled_device(
@@ -1305,15 +1295,7 @@ rns8_status rns8_gemm_wrap_u64(
       return status;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      rns8_status status = ensure_device_byte_limbs_current(const_cast<rns8_matrix&>(*A));
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      status = ensure_device_byte_limbs_current(const_cast<rns8_matrix&>(*B));
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
-      status = rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+      const rns8_status status = rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
           ctx->device_id,
           A->hip_byte_limbs,
           B->hip_byte_limbs,
@@ -1499,10 +1481,6 @@ rns8_status rns8_export_wrap_u64(
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      rns8_status status = ensure_device_byte_limbs_current(const_cast<rns8_matrix&>(*C));
-      if (status != RNS8_SUCCESS) {
-        return status;
-      }
       return rns8::detail::wrap64_hip_export_u64_device(
           ctx->device_id,
           C->hip_byte_limbs,
@@ -1534,9 +1512,8 @@ rns8_status rns8_export_exact_wide_signed_limbs(
       return export_status;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*C));
-      if (status != RNS8_SUCCESS) {
-        return status;
+      if (!C->device_residues_current) {
+        return RNS8_INVALID_ARGUMENT;
       }
       return rns8::detail::hip_direct_export_exact_wide_signed_limbs_device(
           ctx->device_id,
@@ -1601,9 +1578,8 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
       return export_status;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*C));
-      if (status != RNS8_SUCCESS) {
-        return status;
+      if (!C->device_residues_current) {
+        return RNS8_INVALID_ARGUMENT;
       }
       return rns8::detail::hip_direct_export_exact_wide_unsigned_limbs_device(
           ctx->device_id,
