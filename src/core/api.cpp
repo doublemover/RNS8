@@ -468,7 +468,7 @@ bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind bac
 
 bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backend_kind backend) {
   if (backend == RNS8_BACKEND_HIP_DIRECT) {
-    return matrix.host_residues_current || matrix.device_residues_current;
+    return matrix.device_residues_current;
   }
   return matrix.host_residues_current && !matrix.device_residues_current;
 }
@@ -678,11 +678,6 @@ rns8_status validate_rns_gemm_operands(
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
-      (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64) &&
-      (!A.device_residues_current || !B.device_residues_current)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
   return RNS8_SUCCESS;
 }
 
@@ -751,11 +746,6 @@ rns8_status validate_export_matrix(
   if (uses_rns_storage(semantics) &&
       (!rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, prefix) ||
        !rns_residue_state_current_for_backend(C, plan.backend))) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
-      (semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64) &&
-      !C.device_residues_current) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (semantics == RNS8_WRAP_U64_MOD_2_64 &&
@@ -872,24 +862,6 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
   matrix.host_byte_limbs_current = false;
   matrix.device_byte_limbs_current = false;
   return RNS8_SUCCESS;
-}
-
-rns8_status ensure_device_residues_current(rns8_matrix& matrix) {
-  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT) {
-    return RNS8_SUCCESS;
-  }
-  if (matrix.device_residues_current) {
-    return RNS8_SUCCESS;
-  }
-  if (!matrix.host_residues_current || !matrix.hip_residues || matrix.hip_residue_bytes == 0) {
-    return RNS8_INTERNAL_ERROR;
-  }
-  const rns8_status status = rns8::detail::hip_direct_copy_host_to_device(
-      matrix.hip_device_id, matrix.hip_residues, matrix.residues.data(), matrix.hip_residue_bytes);
-  if (status == RNS8_SUCCESS) {
-    matrix.device_residues_current = true;
-  }
-  return status;
 }
 
 rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan, rns8_matrix& matrix) {
@@ -1496,16 +1468,6 @@ rns8_status rns8_gemm_rns(
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       rns8_status status = RNS8_SUCCESS;
-      if (plan->desc.semantics != RNS8_BOUNDED_I64 && plan->desc.semantics != RNS8_BOUNDED_U64) {
-        status = ensure_device_residues_current(const_cast<rns8_matrix&>(*A));
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
-        status = ensure_device_residues_current(const_cast<rns8_matrix&>(*B));
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
-      }
       if (!plan->tile_schedule.empty()) {
         status = rns8::detail::hip_direct_gemm_rns_tiled_device_schedule(
             ctx->device_id,
