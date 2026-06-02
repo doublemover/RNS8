@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 #include "rns8/rns8.h"
 
@@ -113,6 +114,103 @@ TEST_CASE("bounded plan creation rejects insufficient prefix range") {
   rns8_plan* plan = nullptr;
   CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_RANGE_ERROR);
   CHECK(plan == nullptr);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded plan schedule exposes tile grid and fixed prefix groups") {
+  rns8_context* ctx = create_cpu();
+  auto desc = u64_desc(130, 129, 7, 1000);
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.tile_m == 64);
+  CHECK(info.tile_n == 64);
+  CHECK(info.tile_rows == 3);
+  CHECK(info.tile_cols == 3);
+  CHECK(info.tile_count == 9);
+  CHECK(info.min_required_prefix == 2);
+  CHECK(info.max_required_prefix == 2);
+  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.prefix_group_count == 1);
+  CHECK(info.adaptive_prefix_active == 0);
+  CHECK(info.adaptive_skip_active == 0);
+  CHECK(info.range_bit_length == 10);
+
+  uint64_t written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(plan, nullptr, 0, &written) == RNS8_SUCCESS);
+  CHECK(written == 9);
+  std::vector<rns8_plan_tile_schedule_entry> too_small(8);
+  CHECK(rns8_get_plan_tile_schedule(plan, too_small.data(), too_small.size(), &written) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(written == 9);
+
+  std::vector<rns8_plan_tile_schedule_entry> entries(9);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  CHECK(entries.front().tile_row == 0);
+  CHECK(entries.front().tile_col == 0);
+  CHECK(entries.front().row_offset == 0);
+  CHECK(entries.front().col_offset == 0);
+  CHECK(entries.front().row_extent == 64);
+  CHECK(entries.front().col_extent == 64);
+  CHECK(entries.front().required_prefix == 2);
+  CHECK(entries.front().selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(entries.front().group_index == 0);
+  CHECK(entries.front().range_bit_length == 10);
+  CHECK(entries.back().tile_row == 2);
+  CHECK(entries.back().tile_col == 2);
+  CHECK(entries.back().row_offset == 128);
+  CHECK(entries.back().col_offset == 128);
+  CHECK(entries.back().row_extent == 2);
+  CHECK(entries.back().col_extent == 1);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("wrap64 plan schedule reports non-RNS byte-limb scheduling") {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  rns8_context* ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS);
+
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_WRAP_U64_MOD_2_64;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  desc.m = 65;
+  desc.n = 64;
+  desc.k = 3;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.tile_rows == 2);
+  CHECK(info.tile_cols == 1);
+  CHECK(info.tile_count == 2);
+  CHECK(info.min_required_prefix == 0);
+  CHECK(info.max_required_prefix == 0);
+  CHECK(info.min_selected_prefix == 0);
+  CHECK(info.max_selected_prefix == 0);
+  CHECK(info.prefix_group_count == 0);
+  CHECK(info.range_bit_length == 0);
+
+  rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
 

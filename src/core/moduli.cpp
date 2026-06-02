@@ -1,6 +1,7 @@
 #include "core/internal.hpp"
 
 #include <algorithm>
+#include <boost/multiprecision/integer.hpp>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -71,6 +72,10 @@ void fill_wrap64_device_info(rns8_device_info& info) {
   copy_c_string(info.detail, sizeof(info.detail), "strict mod 2^64 byte-limb CPU reference backend");
 }
 
+bool valid_tile_size(uint32_t value) {
+  return value == 0 || ((value >= 64 && value <= 512) && (value & (value - 1u)) == 0);
+}
+
 bool default_moduli_pairwise_coprime() {
   for (uint32_t i = 0; i < RNS8_DEFAULT_MODULUS_COUNT; ++i) {
     for (uint32_t j = i + 1; j < RNS8_DEFAULT_MODULUS_COUNT; ++j) {
@@ -88,6 +93,26 @@ cpp_int modulus_product(uint32_t prefix) {
     product *= kDefaultModuli[i];
   }
   return product;
+}
+
+uint32_t bit_length(const cpp_int& value) {
+  if (value <= 0) {
+    return 0;
+  }
+  const auto width = boost::multiprecision::msb(value) + 1;
+  return width > std::numeric_limits<uint32_t>::max() ? std::numeric_limits<uint32_t>::max()
+                                                      : static_cast<uint32_t>(width);
+}
+
+uint32_t required_prefix_for_range(const cpp_int& range) {
+  cpp_int product = 1;
+  for (uint32_t prefix = 1; prefix <= RNS8_MAX_SUPPORTED_PREFIX; ++prefix) {
+    product *= kDefaultModuli[prefix - 1];
+    if (product > range) {
+      return prefix;
+    }
+  }
+  return 0;
 }
 
 uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
@@ -152,10 +177,10 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.tile_m != 0 && (desc.tile_m < 64 || desc.tile_m > 512)) {
+  if (!valid_tile_size(desc.tile_m)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.tile_n != 0 && (desc.tile_n < 64 || desc.tile_n > 512)) {
+  if (!valid_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
@@ -190,6 +215,9 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
     return RNS8_UNSUPPORTED_BACKEND;
   }
   if (desc.logical_ld != 0 && desc.logical_ld < desc.cols) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!valid_tile_size(desc.tile_m) || !valid_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   switch (desc.semantics) {

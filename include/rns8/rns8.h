@@ -69,6 +69,41 @@ typedef struct rns8_matrix_desc {
   uint32_t flags;
 } rns8_matrix_desc;
 
+typedef struct rns8_plan_schedule_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t tile_m;
+  uint32_t tile_n;
+  uint64_t tile_rows;
+  uint64_t tile_cols;
+  uint64_t tile_count;
+  uint32_t min_required_prefix;
+  uint32_t max_required_prefix;
+  uint32_t min_selected_prefix;
+  uint32_t max_selected_prefix;
+  uint32_t prefix_group_count;
+  uint32_t adaptive_prefix_active;
+  uint32_t adaptive_skip_active;
+  uint32_t range_bit_length;
+  uint32_t flags;
+} rns8_plan_schedule_info;
+
+typedef struct rns8_plan_tile_schedule_entry {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  uint64_t tile_row;
+  uint64_t tile_col;
+  int64_t row_offset;
+  int64_t col_offset;
+  int64_t row_extent;
+  int64_t col_extent;
+  uint32_t required_prefix;
+  uint32_t selected_prefix;
+  uint32_t group_index;
+  uint32_t range_bit_length;
+} rns8_plan_tile_schedule_entry;
+
 RNS8_API rns8_status rns8_create_context(
     int device_id,
     const rns8_context_options* options,
@@ -86,6 +121,16 @@ RNS8_API rns8_status rns8_create_plan(
     rns8_plan** out);
 
 RNS8_API rns8_status rns8_destroy_plan(rns8_plan* plan);
+
+RNS8_API rns8_status rns8_get_plan_schedule_info(
+    const rns8_plan* plan,
+    rns8_plan_schedule_info* out);
+
+RNS8_API rns8_status rns8_get_plan_tile_schedule(
+    const rns8_plan* plan,
+    rns8_plan_tile_schedule_entry* entries,
+    uint64_t capacity,
+    uint64_t* written);
 
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,
