@@ -25,8 +25,10 @@ Backend status:
   `RNS8_BACKEND_HIP_DIRECT` with device-resident byte-limb buffers. Optimized
   matrix-engine byte GEMMs are not implemented.
 - Finite ring/field u8: CPU reference and direct HIP are implemented through
-  explicit modulus APIs for both one-shot calls and persistent resident finite
-  matrices.
+  explicit modulus APIs. Public one-shot calls now construct the same resident
+  finite matrices and workspace used by the persistent API, then pack, GEMM,
+  and export through that path. There is no separate direct-HIP finite one-shot
+  backend route.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.

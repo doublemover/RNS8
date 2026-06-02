@@ -88,14 +88,17 @@ disagree, the spec remains the target and this file identifies the gap.
   accelerator path.
 - Finite ring/field `uint8_t` APIs: CPU reference and direct HIP now implement
   explicit-modulus finite GEMM for both one-shot and persistent resident matrix
-  paths. `RNS8_FINITE_RING_U8` accepts moduli in `[2, 256]`;
+  paths. The public finite one-shot calls hard-cut through resident finite
+  matrices/workspaces and no longer keep a separate ad hoc HIP one-shot GEMM
+  route. `RNS8_FINITE_RING_U8` accepts moduli in `[2, 256]`;
   `RNS8_FINITE_FIELD_U8` requires prime moduli `<= 251`. The finite path uses
   `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile bounds,
   one-plane prefix-zero centered-residue storage for the requested modulus,
   K-split INT8xINT8->INT32 ring GEMM with fused centered reduction, and
   canonical `uint8_t` export. CPU and direct-HIP tests cover composite, prime,
-  modulus-256, padded layout, K-split, cross-modulus rejection, and same-shape
-  resident HIP allocation reuse cases.
+  modulus-256, padded layout, K-split, cross-modulus rejection, finite one-shot
+  resident-kernel timing-label guards, and same-shape resident HIP allocation
+  reuse cases.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
   `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
