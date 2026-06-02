@@ -74,6 +74,22 @@ rns8_gemm_desc unsigned_desc_for_backend(
   return desc;
 }
 
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
+  rns8_matrix_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.rows = rows;
+  desc.cols = cols;
+  desc.logical_ld = cols;
+  desc.semantics = semantics;
+  desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  desc.bound_kind = bound_kind;
+  desc.tile_m = 128;
+  desc.tile_n = 128;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
 bool verify_cpu() {
   if (rns8_validate_default_moduli() != RNS8_SUCCESS) {
     std::cerr << "default modulus ladder is not pairwise coprime\n";
@@ -174,6 +190,82 @@ bool verify_hip_smoke() {
     return false;
   }
 
+  {
+    const int64_t rows = 2;
+    const int64_t cols = 4;
+    const int64_t ld = 5;
+    const std::vector<int64_t> src = {
+        0,
+        1,
+        -1,
+        std::numeric_limits<int64_t>::max(),
+        999,
+        -std::numeric_limits<int64_t>::max(),
+        std::numeric_limits<int64_t>::min(),
+        251,
+        -251,
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    rns8_status cpu_status = rns8_create_matrix(cpu_ctx, &desc, &cpu_matrix);
+    rns8_status hip_status = rns8_create_matrix(hip_ctx, &desc, &hip_matrix);
+    if (cpu_status == RNS8_SUCCESS) {
+      cpu_status = rns8_pack_i64(cpu_ctx, cpu_matrix, src.data(), ld, 1);
+    }
+    if (hip_status == RNS8_SUCCESS) {
+      hip_status = rns8_pack_i64(hip_ctx, hip_matrix, src.data(), ld, 1);
+    }
+    const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+    if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {
+      std::cerr << "direct HIP i64 residue pack smoke failed: CPU=" << rns8_status_string(cpu_status)
+                << " HIP=" << rns8_status_string(hip_status) << "\n";
+      rns8_destroy_context(hip_ctx);
+      rns8_destroy_context(cpu_ctx);
+      return false;
+    }
+  }
+
+  {
+    const int64_t rows = 2;
+    const int64_t cols = 4;
+    const int64_t ld = 5;
+    const std::vector<uint64_t> src = {
+        0,
+        1,
+        127,
+        128,
+        999,
+        255,
+        256,
+        std::numeric_limits<uint64_t>::max(),
+        std::numeric_limits<uint64_t>::max() - 1,
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    rns8_status cpu_status = rns8_create_matrix(cpu_ctx, &desc, &cpu_matrix);
+    rns8_status hip_status = rns8_create_matrix(hip_ctx, &desc, &hip_matrix);
+    if (cpu_status == RNS8_SUCCESS) {
+      cpu_status = rns8_pack_u64(cpu_ctx, cpu_matrix, src.data(), ld, 1);
+    }
+    if (hip_status == RNS8_SUCCESS) {
+      hip_status = rns8_pack_u64(hip_ctx, hip_matrix, src.data(), ld, 1);
+    }
+    const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+    if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {
+      std::cerr << "direct HIP u64 residue pack smoke failed: CPU=" << rns8_status_string(cpu_status)
+                << " HIP=" << rns8_status_string(hip_status) << "\n";
+      rns8_destroy_context(hip_ctx);
+      rns8_destroy_context(cpu_ctx);
+      return false;
+    }
+  }
+
   int64_t cpu_split_c[1] = {};
   int64_t hip_split_c[1] = {};
   auto cpu_split_desc = signed_desc_for_backend(1, 1, split_k, split_bound, RNS8_BACKEND_CPU_REFERENCE);
@@ -240,7 +332,7 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP ring and bounded GEMM smoke: PASS\n";
+    std::cout << "Direct HIP pack, ring, and bounded GEMM smoke: PASS\n";
   }
 
   return 0;

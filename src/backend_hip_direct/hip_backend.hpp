@@ -9,6 +9,22 @@ namespace rns8::detail {
 
 bool hip_direct_compiled();
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
+rns8_status hip_direct_pack_i64(
+    int device_id,
+    const int64_t* src,
+    int8_t* residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix);
+rns8_status hip_direct_pack_u64(
+    int device_id,
+    const uint64_t* src,
+    int8_t* residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix);
 rns8_status hip_direct_ring_gemm_i8(
     int device_id,
     const int8_t* A,
@@ -25,4 +41,3 @@ rns8_status hip_direct_ring_gemm_i8(
 }  // namespace rns8::detail
 
 #endif
-

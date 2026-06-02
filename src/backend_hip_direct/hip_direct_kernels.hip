@@ -4,6 +4,10 @@
 
 namespace {
 
+__device__ __constant__ int rns8_default_moduli_device[28] = {
+    256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
+    193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
+
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
   int residue = value % modulus;
   if (residue < 0) {
@@ -14,6 +18,70 @@ __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
     residue -= modulus;
   }
   return static_cast<int8_t>(residue);
+}
+
+__device__ int8_t rns8_center_i64_device(int64_t value, int modulus) {
+  int64_t residue = value % static_cast<int64_t>(modulus);
+  if (residue < 0) {
+    residue += modulus;
+  }
+  const int64_t threshold = (static_cast<int64_t>(modulus) + 1) / 2;
+  if (residue >= threshold) {
+    residue -= modulus;
+  }
+  return static_cast<int8_t>(residue);
+}
+
+__device__ int8_t rns8_center_u64_device(uint64_t value, int modulus) {
+  uint64_t residue = value % static_cast<uint64_t>(modulus);
+  const uint64_t threshold = (static_cast<uint64_t>(modulus) + 1) / 2;
+  int64_t centered = static_cast<int64_t>(residue);
+  if (residue >= threshold) {
+    centered -= modulus;
+  }
+  return static_cast<int8_t>(centered);
+}
+
+__global__ void rns8_pack_i64_kernel(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= total) {
+    return;
+  }
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t element = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(element / cols);
+  const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  residues[idx] = rns8_center_i64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
+}
+
+__global__ void rns8_pack_u64_kernel(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= total) {
+    return;
+  }
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t element = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(element / cols);
+  const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  residues[idx] = rns8_center_u64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
 }
 
 __global__ void rns8_ring_gemm_kernel(
@@ -47,6 +115,118 @@ __global__ void rns8_ring_gemm_kernel(
 }
 
 }  // namespace
+
+extern "C" int rns8_hip_direct_pack_i64(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const size_t bytes_src = static_cast<size_t>(rows) * static_cast<size_t>(ld) * sizeof(int64_t);
+  const size_t bytes_residues =
+      static_cast<size_t>(prefix) * static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(int8_t);
+
+  int64_t* d_src = nullptr;
+  int8_t* d_residues = nullptr;
+
+  hipError_t err = hipMalloc(&d_src, bytes_src);
+  if (err != hipSuccess) {
+    return static_cast<int>(err);
+  }
+  err = hipMalloc(&d_residues, bytes_residues);
+  if (err != hipSuccess) {
+    (void)hipFree(d_src);
+    return static_cast<int>(err);
+  }
+
+  err = hipMemcpy(d_src, src, bytes_src, hipMemcpyHostToDevice);
+  if (err == hipSuccess) {
+    const int threads = 256;
+    const int64_t total =
+        static_cast<int64_t>(prefix) * static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+    const int blocks = static_cast<int>((total + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        rns8_pack_i64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld,
+        prefix);
+    err = hipGetLastError();
+  }
+  if (err == hipSuccess) {
+    err = hipDeviceSynchronize();
+  }
+  if (err == hipSuccess) {
+    err = hipMemcpy(residues, d_residues, bytes_residues, hipMemcpyDeviceToHost);
+  }
+
+  (void)hipFree(d_residues);
+  (void)hipFree(d_src);
+  return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_pack_u64(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const size_t bytes_src = static_cast<size_t>(rows) * static_cast<size_t>(ld) * sizeof(uint64_t);
+  const size_t bytes_residues =
+      static_cast<size_t>(prefix) * static_cast<size_t>(rows) * static_cast<size_t>(cols) * sizeof(int8_t);
+
+  uint64_t* d_src = nullptr;
+  int8_t* d_residues = nullptr;
+
+  hipError_t err = hipMalloc(&d_src, bytes_src);
+  if (err != hipSuccess) {
+    return static_cast<int>(err);
+  }
+  err = hipMalloc(&d_residues, bytes_residues);
+  if (err != hipSuccess) {
+    (void)hipFree(d_src);
+    return static_cast<int>(err);
+  }
+
+  err = hipMemcpy(d_src, src, bytes_src, hipMemcpyHostToDevice);
+  if (err == hipSuccess) {
+    const int threads = 256;
+    const int64_t total =
+        static_cast<int64_t>(prefix) * static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+    const int blocks = static_cast<int>((total + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        rns8_pack_u64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld,
+        prefix);
+    err = hipGetLastError();
+  }
+  if (err == hipSuccess) {
+    err = hipDeviceSynchronize();
+  }
+  if (err == hipSuccess) {
+    err = hipMemcpy(residues, d_residues, bytes_residues, hipMemcpyDeviceToHost);
+  }
+
+  (void)hipFree(d_residues);
+  (void)hipFree(d_src);
+  return static_cast<int>(err);
+}
 
 extern "C" int rns8_hip_direct_ring_gemm_i8(
     const int8_t* A,

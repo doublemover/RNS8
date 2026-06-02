@@ -18,6 +18,22 @@ extern "C" int rns8_hip_direct_ring_gemm_i8(
     int ldb,
     int ldc,
     int modulus);
+
+extern "C" int rns8_hip_direct_pack_i64(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix);
+
+extern "C" int rns8_hip_direct_pack_u64(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix);
 #endif
 
 namespace rns8::detail {
@@ -70,6 +86,102 @@ rns8_status hip_direct_probe(int device_id, rns8_device_info& out) {
 #else
   (void)device_id;
   copy_c_string(out.detail, sizeof(out.detail), "RNS8 was built without the direct HIP backend");
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_pack_i64(
+    int device_id,
+    const int64_t* src,
+    int8_t* residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!src || !residues || rows <= 0 || cols <= 0 || ld < cols || prefix == 0 ||
+      prefix > RNS8_DEFAULT_MODULUS_COUNT) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (rows > std::numeric_limits<int>::max() || cols > std::numeric_limits<int>::max() ||
+      ld > std::numeric_limits<int>::max() || prefix > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const uint64_t max_pack_elements = static_cast<uint64_t>(std::numeric_limits<int>::max()) * 256u;
+  if (static_cast<uint64_t>(rows) > max_pack_elements / static_cast<uint64_t>(cols) / prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (device_id < 0) {
+    device_id = 0;
+  }
+  hipError_t err = hipSetDevice(device_id);
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  const int code = rns8_hip_direct_pack_i64(
+      src,
+      residues,
+      static_cast<int>(rows),
+      static_cast<int>(cols),
+      static_cast<int>(ld),
+      static_cast<int>(prefix));
+  return code == static_cast<int>(hipSuccess) ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)src;
+  (void)residues;
+  (void)rows;
+  (void)cols;
+  (void)ld;
+  (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_pack_u64(
+    int device_id,
+    const uint64_t* src,
+    int8_t* residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!src || !residues || rows <= 0 || cols <= 0 || ld < cols || prefix == 0 ||
+      prefix > RNS8_DEFAULT_MODULUS_COUNT) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (rows > std::numeric_limits<int>::max() || cols > std::numeric_limits<int>::max() ||
+      ld > std::numeric_limits<int>::max() || prefix > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const uint64_t max_pack_elements = static_cast<uint64_t>(std::numeric_limits<int>::max()) * 256u;
+  if (static_cast<uint64_t>(rows) > max_pack_elements / static_cast<uint64_t>(cols) / prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (device_id < 0) {
+    device_id = 0;
+  }
+  hipError_t err = hipSetDevice(device_id);
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  const int code = rns8_hip_direct_pack_u64(
+      src,
+      residues,
+      static_cast<int>(rows),
+      static_cast<int>(cols),
+      static_cast<int>(ld),
+      static_cast<int>(prefix));
+  return code == static_cast<int>(hipSuccess) ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)src;
+  (void)residues;
+  (void)rows;
+  (void)cols;
+  (void)ld;
+  (void)prefix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

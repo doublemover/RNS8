@@ -13,6 +13,9 @@ Implemented correctness coverage:
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
   `INT64_MAX`, `-INT64_MAX`, and `UINT64_MAX` outputs.
+- Direct HIP signed and unsigned residue packing compared against CPU reference
+  residue storage, including full-width boundary values and padded leading
+  dimensions.
 - A direct HIP one-modulus ring-GEMM smoke test compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible.
 - Direct HIP K-block splitting above 65536, including public bounded signed and

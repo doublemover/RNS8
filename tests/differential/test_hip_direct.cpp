@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -58,6 +59,22 @@ rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rn
   return desc;
 }
 
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
+  rns8_matrix_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.rows = rows;
+  desc.cols = cols;
+  desc.logical_ld = cols;
+  desc.semantics = semantics;
+  desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  desc.bound_kind = bound_kind;
+  desc.tile_m = 128;
+  desc.tile_n = 128;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
 }  // namespace
 
 TEST_CASE("direct HIP ring GEMM matches CPU reference for one modulus") {
@@ -98,6 +115,81 @@ TEST_CASE("direct HIP ring GEMM splits K above the int32 safe block") {
   CHECK(rns8::detail::hip_direct_ring_gemm_i8(0, A.data(), B.data(), gpu.data(), m, n, k, k, n, n, modulus) ==
         RNS8_SUCCESS);
   CHECK(gpu == cpu);
+}
+
+TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP pack smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  {
+    const int64_t rows = 3;
+    const int64_t cols = 4;
+    const int64_t ld = 5;
+    const std::vector<int64_t> src = {
+        0,
+        1,
+        -1,
+        127,
+        999,
+        128,
+        -128,
+        -129,
+        std::numeric_limits<int64_t>::max(),
+        999,
+        -std::numeric_limits<int64_t>::max(),
+        std::numeric_limits<int64_t>::min(),
+        251,
+        -251,
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
+    CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
+    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix->source_version == 11);
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+  }
+
+  {
+    const int64_t rows = 2;
+    const int64_t cols = 5;
+    const int64_t ld = 6;
+    const std::vector<uint64_t> src = {
+        0,
+        1,
+        127,
+        128,
+        255,
+        999,
+        256,
+        257,
+        std::numeric_limits<uint64_t>::max(),
+        std::numeric_limits<uint64_t>::max() - 1,
+        251,
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
+    CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
+    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix->source_version == 19);
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
 }
 
 TEST_CASE("direct HIP bounded oneshot matches CPU for signed and unsigned APIs") {
