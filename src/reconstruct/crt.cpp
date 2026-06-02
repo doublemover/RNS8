@@ -80,13 +80,13 @@ rns8_status reconstruct_unsigned(
     uint32_t prefix,
     uint64_t bound,
     uint64_t& out) {
+  if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX || residues.size() < prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   const rns8_status range_status =
       validate_bound_contract(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, bound, prefix);
   if (range_status != RNS8_SUCCESS) {
     return range_status;
-  }
-  if (residues.size() < prefix) {
-    return RNS8_INVALID_ARGUMENT;
   }
 
   const cpp_int value = reconstruct_canonical(residues, prefix);
@@ -102,13 +102,13 @@ rns8_status reconstruct_signed(
     uint32_t prefix,
     uint64_t bound,
     int64_t& out) {
+  if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX || residues.size() < prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   const rns8_status range_status =
       validate_bound_contract(RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, bound, prefix);
   if (range_status != RNS8_SUCCESS) {
     return range_status;
-  }
-  if (residues.size() < prefix) {
-    return RNS8_INVALID_ARGUMENT;
   }
 
   const cpp_int product = modulus_product(prefix);

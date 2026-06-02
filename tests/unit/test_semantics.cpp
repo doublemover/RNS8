@@ -733,6 +733,75 @@ TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different sema
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("persistent bounded CPU matrices preserve source versions and currentness across reuse") {
+  rns8_context* ctx = create_cpu();
+  auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  desc.m = 2;
+  desc.n = 2;
+  desc.k = 2;
+  desc.bound = 1000;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+  const uint64_t A0[] = {1, 2, 3, 4};
+  const uint64_t B0[] = {5, 6, 7, 8};
+  uint64_t C[4] = {};
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A0, 2, 101) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B0, 2, 202) == RNS8_SUCCESS);
+  CHECK(a_matrix->source_version == 101);
+  CHECK(b_matrix->source_version == 202);
+  CHECK(a_matrix->host_residues_current);
+  CHECK_FALSE(a_matrix->device_residues_current);
+  CHECK(b_matrix->host_residues_current);
+  CHECK_FALSE(b_matrix->device_residues_current);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c_matrix, C, 2) == RNS8_SUCCESS);
+  CHECK(C[0] == 19);
+  CHECK(C[1] == 22);
+  CHECK(C[2] == 43);
+  CHECK(C[3] == 50);
+  CHECK(a_matrix->source_version == 101);
+  CHECK(b_matrix->source_version == 202);
+  CHECK(c_matrix->host_residues_current);
+  CHECK_FALSE(c_matrix->device_residues_current);
+
+  const uint64_t A1[] = {9, 1, 2, 3};
+  const uint64_t B1[] = {4, 5, 6, 7};
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A1, 2, 303) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B1, 2, 404) == RNS8_SUCCESS);
+  CHECK(a_matrix->source_version == 303);
+  CHECK(b_matrix->source_version == 404);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c_matrix, C, 2) == RNS8_SUCCESS);
+  CHECK(C[0] == 42);
+  CHECK(C[1] == 52);
+  CHECK(C[2] == 26);
+  CHECK(C[3] == 31);
+  c_matrix->host_residues_current = false;
+  CHECK(rns8_export_u64(ctx, plan, c_matrix, C, 2) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspaces and matrix tiles") {
   rns8_context* ctx = create_cpu();
   constexpr int64_t m = 65;
