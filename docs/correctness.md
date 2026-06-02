@@ -13,6 +13,12 @@ Implemented correctness coverage:
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
   `INT64_MAX`, `-INT64_MAX`, and `UINT64_MAX` outputs.
+- Public bounded signed and unsigned CPU one-shot GEMM sweeps over all
+  dimensions 1 through 8, with Boost.Multiprecision exact oracles.
+- Fixed-seed random bounded signed and unsigned CPU checks with padded leading
+  dimensions and Boost.Multiprecision exact oracles.
+- Worst-case positive, negative, and unsigned accumulation checks at and just
+  above the 65536 K-block split point.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
