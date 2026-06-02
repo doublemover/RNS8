@@ -39,18 +39,31 @@ struct Wrap64CompactLayout {
   std::size_t byte_limb_bytes = 0;
 };
 
+constexpr uint64_t kWrap64ByteLimbsPerCell = 8;
+constexpr uint64_t kWrap64MaxUnsignedByteProduct = 255ull * 255ull;
+constexpr uint64_t kWrap64MaxLowDiagonalProductsPerK = kWrap64ByteLimbsPerCell;
+constexpr uint64_t kWrap64MaxLowDiagonalColumnPerK =
+    kWrap64MaxLowDiagonalProductsPerK * kWrap64MaxUnsignedByteProduct;
+
+bool checked_diagonal_accumulator_capacity(int64_t k) {
+  if (k <= 0) {
+    return false;
+  }
+  return static_cast<uint64_t>(k) <=
+         std::numeric_limits<uint64_t>::max() / kWrap64MaxLowDiagonalColumnPerK;
+}
+
 bool checked_limb_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {
   if (!bytes || rows <= 0 || cols <= 0) {
     return false;
   }
   const auto u_rows = static_cast<uint64_t>(rows);
   const auto u_cols = static_cast<uint64_t>(cols);
-  constexpr uint64_t limbs_per_cell = 8;
   const uint64_t max_bytes = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
-  if (u_cols != 0 && u_rows > max_bytes / u_cols / limbs_per_cell) {
+  if (u_cols != 0 && u_rows > max_bytes / u_cols / kWrap64ByteLimbsPerCell) {
     return false;
   }
-  *bytes = static_cast<std::size_t>(u_rows * u_cols * limbs_per_cell);
+  *bytes = static_cast<std::size_t>(u_rows * u_cols * kWrap64ByteLimbsPerCell);
   return true;
 }
 
@@ -106,6 +119,7 @@ bool checked_wrap64_gemm_compact_layouts(
     Wrap64CompactLayout* b,
     Wrap64CompactLayout* c) {
   return checked_matrix_elements_i32(m, n) && checked_matrix_elements_i32(m, k) &&
+         checked_diagonal_accumulator_capacity(k) &&
          checked_matrix_elements_i32(k, n) && checked_compact_byte_limb_layout(m, k, a) &&
          checked_compact_byte_limb_layout(k, n, b) && checked_compact_byte_limb_layout(m, n, c);
 }

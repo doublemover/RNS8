@@ -2,8 +2,11 @@
 
 #include "core/internal.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <limits>
+#include <utility>
+#include <vector>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
@@ -264,18 +267,128 @@ bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows
          entry.row_extent <= std::numeric_limits<int>::max() && entry.col_extent <= std::numeric_limits<int>::max();
 }
 
-bool checked_tile_entries(
+struct checked_tile_schedule {
+  std::vector<uint64_t> row_offsets;
+  std::vector<uint64_t> row_extents;
+  std::vector<uint64_t> col_offsets;
+  std::vector<uint64_t> col_extents;
+  std::vector<uint32_t> selected_prefix_groups;
+};
+
+bool collect_unique_sorted_u64(std::vector<uint64_t>& values, uint64_t value) {
+  if (std::find(values.begin(), values.end(), value) == values.end()) {
+    values.push_back(value);
+  }
+  return values.size() <= static_cast<std::size_t>(std::numeric_limits<int>::max());
+}
+
+bool collect_unique_sorted_u32(std::vector<uint32_t>& values, uint32_t value) {
+  if (std::find(values.begin(), values.end(), value) == values.end()) {
+    values.push_back(value);
+  }
+  return values.size() <= static_cast<std::size_t>(std::numeric_limits<uint32_t>::max());
+}
+
+bool checked_tile_axis_coverage(const std::vector<uint64_t>& offsets, const std::vector<uint64_t>& extents, uint64_t total) {
+  uint64_t expected_offset = 0;
+  for (std::size_t index = 0; index < offsets.size(); ++index) {
+    if (expected_offset > total || offsets[index] != expected_offset || extents[index] == 0 ||
+        extents[index] > total - expected_offset) {
+      return false;
+    }
+    expected_offset += extents[index];
+  }
+  return expected_offset == total;
+}
+
+bool checked_tile_schedule_contract(
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count,
     int64_t rows,
-    int64_t cols) {
-  if (!entries || entry_count == 0 || entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    int64_t cols,
+    checked_tile_schedule* out) {
+  if (!entries || entry_count == 0 || entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) ||
+      rows <= 0 || cols <= 0) {
     return false;
   }
+  std::vector<uint64_t> row_ids;
+  std::vector<uint64_t> col_ids;
+  std::vector<uint32_t> selected_prefixes;
   for (uint64_t index = 0; index < entry_count; ++index) {
-    if (!checked_tile_entry(entries[static_cast<std::size_t>(index)], rows, cols)) {
+    const auto& entry = entries[static_cast<std::size_t>(index)];
+    if (!checked_tile_entry(entry, rows, cols) || !collect_unique_sorted_u64(row_ids, entry.tile_row) ||
+        !collect_unique_sorted_u64(col_ids, entry.tile_col) ||
+        !collect_unique_sorted_u32(selected_prefixes, entry.selected_prefix)) {
       return false;
     }
+  }
+  std::sort(row_ids.begin(), row_ids.end());
+  std::sort(col_ids.begin(), col_ids.end());
+  std::sort(selected_prefixes.begin(), selected_prefixes.end());
+  if (row_ids.empty() || col_ids.empty() ||
+      row_ids.size() > static_cast<std::size_t>(std::numeric_limits<uint64_t>::max() / col_ids.size()) ||
+      static_cast<uint64_t>(row_ids.size() * col_ids.size()) != entry_count) {
+    return false;
+  }
+  for (std::size_t row = 0; row < row_ids.size(); ++row) {
+    if (row_ids[row] != row) {
+      return false;
+    }
+  }
+  for (std::size_t col = 0; col < col_ids.size(); ++col) {
+    if (col_ids[col] != col) {
+      return false;
+    }
+  }
+  checked_tile_schedule schedule{};
+  schedule.row_offsets.assign(row_ids.size(), 0);
+  schedule.row_extents.assign(row_ids.size(), 0);
+  schedule.col_offsets.assign(col_ids.size(), 0);
+  schedule.col_extents.assign(col_ids.size(), 0);
+  schedule.selected_prefix_groups = selected_prefixes;
+  std::vector<uint8_t> seen(static_cast<std::size_t>(entry_count), 0);
+  for (uint64_t index = 0; index < entry_count; ++index) {
+    const auto& entry = entries[static_cast<std::size_t>(index)];
+    const std::size_t tile_row = static_cast<std::size_t>(entry.tile_row);
+    const std::size_t tile_col = static_cast<std::size_t>(entry.tile_col);
+    if (tile_row != static_cast<std::size_t>(index / static_cast<uint64_t>(col_ids.size())) ||
+        tile_col != static_cast<std::size_t>(index % static_cast<uint64_t>(col_ids.size()))) {
+      return false;
+    }
+    const std::size_t linear = tile_row * col_ids.size() + tile_col;
+    if (linear >= seen.size() || seen[linear] != 0) {
+      return false;
+    }
+    seen[linear] = 1;
+    const uint64_t row_offset = static_cast<uint64_t>(entry.row_offset);
+    const uint64_t col_offset = static_cast<uint64_t>(entry.col_offset);
+    const uint64_t row_extent = static_cast<uint64_t>(entry.row_extent);
+    const uint64_t col_extent = static_cast<uint64_t>(entry.col_extent);
+    if (schedule.row_extents[tile_row] == 0) {
+      schedule.row_offsets[tile_row] = row_offset;
+      schedule.row_extents[tile_row] = row_extent;
+    } else if (schedule.row_offsets[tile_row] != row_offset || schedule.row_extents[tile_row] != row_extent) {
+      return false;
+    }
+    if (schedule.col_extents[tile_col] == 0) {
+      schedule.col_offsets[tile_col] = col_offset;
+      schedule.col_extents[tile_col] = col_extent;
+    } else if (schedule.col_offsets[tile_col] != col_offset || schedule.col_extents[tile_col] != col_extent) {
+      return false;
+    }
+    const auto group = std::lower_bound(selected_prefixes.begin(), selected_prefixes.end(), entry.selected_prefix);
+    if (group == selected_prefixes.end() || *group != entry.selected_prefix ||
+        entry.group_index != static_cast<uint32_t>(group - selected_prefixes.begin())) {
+      return false;
+    }
+  }
+  if (std::find(seen.begin(), seen.end(), uint8_t{0}) != seen.end() ||
+      !checked_tile_axis_coverage(schedule.row_offsets, schedule.row_extents, static_cast<uint64_t>(rows)) ||
+      !checked_tile_axis_coverage(schedule.col_offsets, schedule.col_extents, static_cast<uint64_t>(cols))) {
+    return false;
+  }
+  if (out) {
+    *out = std::move(schedule);
   }
   return true;
 }
@@ -801,7 +914,8 @@ rns8_status hip_direct_gemm_rns_tiled_device(
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_tile_entries(entries, entry_count, m, n)) {
+  checked_tile_schedule schedule{};
+  if (!checked_tile_schedule_contract(entries, entry_count, m, n, &schedule)) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -812,34 +926,36 @@ rns8_status hip_direct_gemm_rns_tiled_device(
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    for (uint64_t entry_index = 0; entry_index < entry_count; ++entry_index) {
-      const auto& entry = entries[static_cast<std::size_t>(entry_index)];
-      if (!checked_tile_entry(entry, m, n)) {
-        return hipErrorInvalidValue;
-      }
-      for (uint32_t p = 0; p < entry.selected_prefix; ++p) {
+    for (const uint32_t selected_prefix : schedule.selected_prefix_groups) {
+      for (uint32_t p = 0; p < selected_prefix; ++p) {
         const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                      static_cast<std::size_t>(lda);
         const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
                                      static_cast<std::size_t>(ldb);
         const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                      static_cast<std::size_t>(ldc);
-        const hipError_t launch_status = launch_rns_modulus_gemm({
-            a_base + a_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(lda),
-            b_base + b_offset + static_cast<std::size_t>(entry.col_offset),
-            c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
-                static_cast<std::size_t>(entry.col_offset),
-            entry.row_extent,
-            entry.col_extent,
-            k,
-            lda,
-            ldb,
-            ldc,
-            kDefaultModuli[p],
-            p,
-            entry.selected_prefix});
-        if (launch_status != hipSuccess) {
-          return launch_status;
+        for (uint64_t entry_index = 0; entry_index < entry_count; ++entry_index) {
+          const auto& entry = entries[static_cast<std::size_t>(entry_index)];
+          if (entry.selected_prefix != selected_prefix) {
+            continue;
+          }
+          const hipError_t launch_status = launch_rns_modulus_gemm({
+              a_base + a_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(lda),
+              b_base + b_offset + static_cast<std::size_t>(entry.col_offset),
+              c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
+                  static_cast<std::size_t>(entry.col_offset),
+              entry.row_extent,
+              entry.col_extent,
+              k,
+              lda,
+              ldb,
+              ldc,
+              kDefaultModuli[p],
+              p,
+              entry.selected_prefix});
+          if (launch_status != hipSuccess) {
+            return launch_status;
+          }
         }
       }
     }
@@ -977,7 +1093,7 @@ rns8_status hip_direct_export_i64_tiled_device(
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_tile_entries(entries, entry_count, rows, cols)) {
+  if (!checked_tile_schedule_contract(entries, entry_count, rows, cols, nullptr)) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -1003,9 +1119,6 @@ rns8_status hip_direct_export_i64_tiled_device(
   err = timed_hip_operation("crt_export_kernel", [&]() {
     for (uint64_t index = 0; index < entry_count; ++index) {
       const auto& entry = entries[static_cast<std::size_t>(index)];
-      if (!checked_tile_entry(entry, rows, cols)) {
-        return hipErrorInvalidValue;
-      }
       const int code = rns8_hip_direct_export_i64_tile_device(
           static_cast<const int8_t*>(device_residues),
           static_cast<int64_t*>(*export_buffer),
@@ -1180,7 +1293,7 @@ rns8_status hip_direct_export_u64_tiled_device(
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_tile_entries(entries, entry_count, rows, cols)) {
+  if (!checked_tile_schedule_contract(entries, entry_count, rows, cols, nullptr)) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -1206,9 +1319,6 @@ rns8_status hip_direct_export_u64_tiled_device(
   err = timed_hip_operation("crt_export_kernel", [&]() {
     for (uint64_t index = 0; index < entry_count; ++index) {
       const auto& entry = entries[static_cast<std::size_t>(index)];
-      if (!checked_tile_entry(entry, rows, cols)) {
-        return hipErrorInvalidValue;
-      }
       const int code = rns8_hip_direct_export_u64_tile_device(
           static_cast<const int8_t*>(device_residues),
           static_cast<uint64_t*>(*export_buffer),

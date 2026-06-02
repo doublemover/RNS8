@@ -61,6 +61,15 @@ This file describes readiness policy, not a fresh validation record.
 - `RNS8_PROBE_ACCELERATORS=ON` and
   `tools/check_dependencies.py --accelerator-probes` collect evidence only.
   They never enable backends and never satisfy correctness.
+- The dependency checker's JSON readiness object includes
+  `accelerator_enablement`, whose per-flag records keep
+  `backend_enablement=disabled`, `correctness_backend=not_implemented`, and
+  `enable_flags_fail_fast=true` until a real exact correctness backend exists.
+- The same JSON readiness object includes
+  `exact_wide_platform_validation`. On this Windows bring-up host it records
+  Windows `gfx1100` exact-wide evidence scope only and keeps Linux ROCm and
+  Instinct validation false until a real supported Linux ROCm host runs exact
+  CPU differentials.
 - hipBLASLt, CK, and rocWMMA probes may report discovered files or tiny
   compile/run probe status.
 - AMDGPU builtins have no discovery-only readiness path; they remain not ready

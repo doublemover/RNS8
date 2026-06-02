@@ -133,13 +133,16 @@ Implemented correctness coverage:
   schedule parity, signed K-split cancellation under selected-prefix execution,
   and verify skipped residue planes above each tile's selected prefix remain
   untouched on device. Private tiled wrapper tests reject corrupted tile
-  metadata where `required_prefix > selected_prefix` before GEMM launch or
-  export/status buffer allocation. Adaptive per-tile K-split reuse coverage
-  compares against CPU with padded output and mixed selected-prefix groups while
-  checking same-shape resident buffer allocation and workspace schedule-metadata
-  stability after warmup. Direct HIP also rejects same-shape stale per-tile
-  workspace schedules and stale per-tile matrix tile metadata without changing
-  warmed resident allocation counters.
+  metadata where `required_prefix > selected_prefix`, selected-prefix
+  `group_index` is stale, tile coordinates are duplicated or missing, tile
+  extents do not cover the output grid, or prefix metadata is invalid before
+  GEMM launch or export/status buffer allocation. Zero-output tiles may have
+  zero range bits when their prefix metadata is otherwise valid. Adaptive
+  per-tile K-split reuse coverage compares against CPU with padded output and
+  mixed selected-prefix groups while checking same-shape resident buffer
+  allocation and workspace schedule-metadata stability after warmup. Direct HIP
+  also rejects same-shape stale per-tile workspace schedules and stale per-tile
+  matrix tile metadata without changing warmed resident allocation counters.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is

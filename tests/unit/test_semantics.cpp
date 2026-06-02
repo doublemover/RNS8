@@ -506,10 +506,10 @@ TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspa
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
   constexpr int64_t k = 1;
-  const uint64_t bounds_a[4] = {7, 1000, 7000000, 1000000000};
-  const uint64_t bounds_b[4] = {7, 1000, 7000000, 999999999};
+  const uint64_t bounds_a[4] = {0, 0, 7000000, 1000000000};
+  const uint64_t bounds_b[4] = {0, 0, 7000000, 999999999};
   const uint64_t bounds_tile[1] = {1000000000};
-  std::vector<uint64_t> A(static_cast<std::size_t>(m), 1);
+  std::vector<uint64_t> A(static_cast<std::size_t>(m), 0);
   std::vector<uint64_t> B(static_cast<std::size_t>(n), 7);
   A.back() = 1000000;
   B.back() = 1000;
@@ -547,6 +547,8 @@ TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspa
   rns8_matrix* wrong_c_tile = nullptr;
 
   REQUIRE(rns8_create_plan(ctx, &desc_a, &plan_a) == RNS8_SUCCESS);
+  REQUIRE_FALSE(plan_a->tile_schedule.empty());
+  CHECK(plan_a->tile_schedule[0].range_bit_length == 0);
   REQUIRE(rns8_create_plan(ctx, &desc_b, &plan_b) == RNS8_SUCCESS);
   REQUIRE(rns8_create_plan(ctx, &desc_tile, &plan_tile) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(ctx, plan_a, &workspace_a) == RNS8_SUCCESS);

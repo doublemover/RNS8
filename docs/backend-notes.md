@@ -44,6 +44,11 @@ discovery-only readiness path because they require target-specific kernels.
 These probes are shallow header/library/tool discovery only. They do not
 compile kernels, link an accelerator backend, run device capability checks, or
 satisfy correctness requirements.
+The dependency checker's machine-readable readiness object also carries a
+separate `accelerator_enablement` section. Every accelerator enable flag remains
+`fail_fast_until_real_exact_correctness_backend`, every correctness backend is
+`not_implemented`, and `backend_enablement` stays `disabled` regardless of
+component discovery or optional compile/run probe evidence.
 
 The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
@@ -57,9 +62,13 @@ that carries the modulus value, modulus index, selected prefix for that full
 matrix or tile, and the safe K-block cap; the host helper and HIP launch
 entrypoint reject inconsistent metadata before queueing kernels, including
 modulus values that do not match the default ladder entry for the supplied
-index. Tiled GEMM/export wrappers also reject malformed tile entries whose
-required prefix exceeds the selected prefix before launching kernels or growing
-export/status buffers. The current centered-range
+index. Tiled GEMM/export wrappers also require the copied tile schedule to form
+a complete row-major output grid with no duplicate or missing tile coordinates,
+consistent row/column extents, valid prefix metadata, and group indices that
+match the sorted selected-prefix groups. Zero-output tiles may carry zero range
+bits. Malformed schedules are rejected before GEMM launch or export/status
+buffer growth. Tiled GEMM dispatches by those selected-prefix groups while still
+launching only the selected prefix for each tile. The current centered-range
 correction code uses mask arithmetic instead of source-level `if` branches, but
 the kernel still uses ordinary modulo operations and has not been promoted to a
 reciprocal-reduction or ISA-verified performance kernel.
@@ -131,6 +140,10 @@ strided host layout. A host-current direct-HIP matrix with stale device residues
 is rejected by exact-wide export instead of being uploaded implicitly during
 reconstruction. CPU Boost.Multiprecision reconstruction remains the reference
 and debug path.
+Dependency readiness reports expose `exact_wide_platform_validation` separately
+from host dependency gates: Windows `gfx1100` exact-wide evidence is not Linux
+ROCm or Instinct validation, and those targets remain unvalidated until run on a
+real supported Linux ROCm host with exact CPU differentials.
 The CPU signed CRT representative uses the centered threshold
 `x >= ceil(P / 2)`, so the exact half-product residue class maps negative for
 even modulus products. Unit coverage pins one-limb signed min/max boundaries,

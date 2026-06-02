@@ -222,8 +222,11 @@ RNS8_API rns8_status rns8_export_wrap_u64(
  * errors preserve the caller's destination storage. The value is never
  * truncated, saturated, or treated as mod 2^64 wraparound. This API is separate
  * from bounded i64/u64 export and from strict mod 2^64 wraparound byte-limb
- * export. Direct HIP exact-wide export requires device-current resident RNS
- * output and does not perform an implicit host-to-device upload.
+ * export. The plan and matrix handles must both be exact-wide signed,
+ * bound-none RNS handles; bounded, wrap64, stale-prefix, or cross-semantics
+ * handles are malformed for this export surface. Direct HIP exact-wide export
+ * requires device-current resident RNS output and does not perform an implicit
+ * host-to-device upload.
  */
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
@@ -248,9 +251,11 @@ RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
  * counts return RNS8_INVALID_ARGUMENT. Range errors preserve the caller's
  * destination storage. The value is never truncated, saturated, or treated as
  * strict mod 2^64 wraparound. This API is separate from bounded i64/u64 export
- * and from strict mod 2^64 wraparound byte-limb export. Direct HIP exact-wide
- * export requires device-current resident RNS output and does not perform an
- * implicit host-to-device upload.
+ * and from strict mod 2^64 wraparound byte-limb export. The plan and matrix
+ * handles must both be exact-wide unsigned, bound-none RNS handles; bounded,
+ * wrap64, stale-prefix, or cross-semantics handles are malformed for this
+ * export surface. Direct HIP exact-wide export requires device-current
+ * resident RNS output and does not perform an implicit host-to-device upload.
  */
 RNS8_API rns8_status rns8_export_exact_wide_unsigned_limbs(
     rns8_context* ctx,

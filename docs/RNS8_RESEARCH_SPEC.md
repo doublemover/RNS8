@@ -223,6 +223,15 @@ The dependency checker reports:
 - AMDGPU builtin readiness status. This has no shallow discovery-only pass:
   it remains disabled until target-specific exact kernels and ISA evidence
   exist.
+- Accelerator enablement policy as a first-class readiness object. It must
+  report every hipBLASLt, CK, rocWMMA, and AMDGPU builtin enable flag as
+  fail-fast with `backend_enablement=disabled` and
+  `correctness_backend=not_implemented` until a real exact correctness backend
+  exists.
+- Exact-wide platform validation scope as a first-class readiness object.
+  Windows `gfx1100` exact-wide evidence must not be reported as Linux ROCm,
+  Radeon Linux, or Instinct CDNA validation; those entries stay unvalidated
+  until a real supported Linux ROCm host runs exact CPU differentials.
 - Boost, GMP/MPIR, FLINT, NTL, FFLAS-FFPACK, and LinBox discovery.
 - Python package versions.
 
@@ -334,7 +343,7 @@ wraparound backend is:
 
 ```text
 base-256 limbs
-36 low-product byte GEMMs
+36 low-64-relevant byte-product lanes across the low eight Comba diagonals
 Comba diagonal accumulation
 delayed carry propagation
 low 64-bit export
@@ -348,8 +357,9 @@ through `RNS8_BACKEND_HIP_DIRECT`. Both require `RNS8_WRAP_U64_MOD_2_64`,
 `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and `rns8_export_wrap_u64`. The direct
 HIP path owns device byte-limb matrix storage and uses an inspectable tiled
 byte-limb correctness kernel for comparison against the CPU reference. Each
-output still sums the 36 low-product byte diagonals with device-side signed-INT8
-correction algebra and then performs carry propagation into the low 64 bits.
+output sums the low eight Comba product diagonals with device-side signed-INT8
+correction algebra for the 36 byte-product pairs that can affect the low 64
+bits, then performs carry propagation into the low 64 bits.
 Persistent direct-HIP wrap64 GEMM and export require device-current byte limbs:
 `rns8_pack_u64` is the host-to-device ingress for inputs, GEMM is the
 device-current producer for outputs, and GEMM/export must not upload stale
@@ -528,8 +538,12 @@ row-major output-tile bounds with
 array, so the caller only needs to keep it alive through plan creation.
 Current CPU reference and direct HIP plans execute and export with these
 per-tile selected prefixes. Direct HIP support is a correctness path with
-grouped direct tile launches and tile-local device CRT export; optimized matrix
-engine grouped kernels remain a separate validation target.
+grouped direct tile launches and tile-local device CRT export; direct HIP
+tiled wrappers must reject non-covering tile grids, duplicate tile coordinates,
+stale selected-prefix group metadata, and invalid prefix metadata before launch
+or export-buffer growth. Zero-output tiles may have zero range bits and remain
+valid when their required and selected prefixes are otherwise well formed.
+Optimized matrix engine grouped kernels remain a separate validation target.
 
 For each tile:
 

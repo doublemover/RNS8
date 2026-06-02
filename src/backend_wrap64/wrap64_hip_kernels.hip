@@ -8,6 +8,7 @@ constexpr int kWrap64TileM = 16;
 constexpr int kWrap64TileN = 16;
 constexpr int kWrap64TileK = 16;
 constexpr int kWrap64ByteLimbs = 8;
+constexpr int kWrap64LowProductDiagonals = kWrap64ByteLimbs;
 constexpr int kWrap64TileThreads = kWrap64TileM * kWrap64TileN;
 
 __device__ int64_t rns8_wrap64_compact_limb_index(int64_t row, int64_t col, int64_t cols, uint32_t limb) {
@@ -46,7 +47,7 @@ __device__ uint64_t rns8_load_u64_limbs(const uint8_t* src) {
 
 __device__ void rns8_wrap64_store_low64_from_diagonals(uint8_t* dst, const uint64_t* diagonals) {
   uint64_t carry = 0;
-  for (uint32_t diagonal_index = 0; diagonal_index < kWrap64ByteLimbs; ++diagonal_index) {
+  for (uint32_t diagonal_index = 0; diagonal_index < kWrap64LowProductDiagonals; ++diagonal_index) {
     const uint64_t column = diagonals[diagonal_index] + carry;
     dst[diagonal_index] = static_cast<uint8_t>(column & 0xffu);
     carry = column >> 8u;
@@ -58,7 +59,7 @@ __device__ void rns8_wrap64_accumulate_low_diagonals_from_limbs(
     const uint8_t* b,
     uint64_t* diagonals) {
   for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
-    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64ByteLimbs; ++b_limb) {
+    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64LowProductDiagonals; ++b_limb) {
       diagonals[a_limb + b_limb] +=
           static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a[a_limb], b[b_limb]));
     }
@@ -100,8 +101,8 @@ __global__ void rns8_wrap64_tiled_byte_gemm_kernel(
   const int thread_index = static_cast<int>(threadIdx.y) * kWrap64TileN + static_cast<int>(threadIdx.x);
   const bool stores_output = row < m && col < n;
 
-  // Host guards keep k <= INT_MAX; each diagonal has at most eight 255*255 terms per k.
-  uint64_t diagonals[kWrap64ByteLimbs] = {};
+  // Strict mod 2^64 needs only the low eight product diagonals; higher diagonals are multiples of 2^64.
+  uint64_t diagonals[kWrap64LowProductDiagonals] = {};
   for (int64_t k_base = 0; k_base < k; k_base += kWrap64TileK) {
     const int64_t k_extent = k - k_base < kWrap64TileK ? k - k_base : kWrap64TileK;
 

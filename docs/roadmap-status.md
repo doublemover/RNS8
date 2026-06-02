@@ -84,8 +84,9 @@ disagree, the spec remains the target and this file identifies the gap.
   `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
   selected prefixes and tile-local device CRT export. Tests compare signed and
   unsigned output against the CPU reference, cover tile-local range errors,
-  prove skipped high-prefix residue planes remain untouched, and keep matrices
-  device-resident through GEMM/export.
+  prove skipped high-prefix residue planes remain untouched, keep matrices
+  device-resident through GEMM/export, and reject malformed private tiled
+  schedules before GEMM launch or export/status buffer allocation.
 - Benchmark schema v4: benchmark captures include an explicit integer
   `"schema_version": 4`, command line, live git commit, compiler/HIP/device
   metadata, raw timings, summaries, configured HIP toolchain metadata, null
@@ -203,7 +204,7 @@ disagree, the spec remains the target and this file identifies the gap.
   vcpkg toolchain from the VS developer environment.
 - `cmake --build --preset windows-debug`: built successfully, including the
   explicit hipcc direct-HIP and wrap64 HIP kernel objects.
-- `ctest --preset windows-debug --output-on-failure`: 129/129 passed on the
+- `ctest --preset windows-debug --output-on-failure`: 132/132 passed on the
   Windows HIP debug build; the private mismatched-modulus metadata smoke remains
   intentionally skipped when the low-level direct-HIP device entry point is
   unavailable to that test process.
@@ -211,12 +212,16 @@ disagree, the spec remains the target and this file identifies the gap.
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   and wrap64 smoke passed.
 - `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
-- Verified post-`3b8bda7` implementation patch tightens per-tile bounded
-  workspace/matrix schedule identity, adds wrap64 stale-metadata rejection,
-  strengthens exact-wide storage rejection and fixed-width limb boundaries, and
-  registers accelerator enable fail-fast configure tests after the Windows HIP
-  build, CTest pass, HIP smoke, `git diff --check`, and benchmark schema
-  self-test above.
+- Verified post-`8bb336c` implementation patch tightens direct-HIP private
+  tiled schedule rejection and selected-prefix grouping, adds larger padded
+  wrap64 resident tile-tail parity, strengthens exact-wide fixed-width limb
+  stride coverage, and records accelerator enablement plus exact-wide platform
+  validation policy in dependency readiness output after the Windows HIP build,
+  CTest pass, HIP smoke, `git diff --check`, and benchmark schema self-test
+  above.
+- `python tools\check_dependencies.py`: host readiness passed on Windows
+  `gfx1100`; accelerator enable flags remain fail-fast/evidence-only and Linux
+  ROCm/Instinct exact-wide validation remains not applicable on this host.
 - `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_i64_adaptive_hip.json`: current
