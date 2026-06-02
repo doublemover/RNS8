@@ -20,8 +20,8 @@ rns8_status guard_api(Fn&& fn) {
   }
 }
 
-rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind fallback) {
-  return requested == RNS8_BACKEND_AUTO ? fallback : requested;
+rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend) {
+  return requested == RNS8_BACKEND_AUTO ? default_backend : requested;
 }
 
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
@@ -281,6 +281,36 @@ bool matrix_descriptor_matches(
          matrix.desc.logical_ld >= matrix.desc.cols && matrix.prefix == prefix && matrix.desc.max_prefix == prefix;
 }
 
+bool wrap_byte_limb_bytes(int64_t rows, int64_t cols, std::size_t& bytes) {
+  if (rows <= 0 || cols <= 0) {
+    return false;
+  }
+  const auto u_rows = static_cast<uint64_t>(rows);
+  const auto u_cols = static_cast<uint64_t>(cols);
+  constexpr uint64_t limbs_per_cell = 8;
+  const uint64_t max_bytes = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
+  if (u_cols != 0 && u_rows > max_bytes / u_cols / limbs_per_cell) {
+    return false;
+  }
+  bytes = static_cast<std::size_t>(u_rows * u_cols * limbs_per_cell);
+  return true;
+}
+
+bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
+  std::size_t expected_bytes = 0;
+  if (!wrap_byte_limb_bytes(rows, cols, expected_bytes)) {
+    return false;
+  }
+  if (!matrix.residues.empty() || matrix.hip_residues || matrix.hip_residue_bytes != 0 ||
+      matrix.byte_limbs.size() != expected_bytes) {
+    return false;
+  }
+  if (backend == RNS8_BACKEND_HIP_DIRECT) {
+    return matrix.hip_byte_limbs != nullptr && matrix.hip_byte_limb_bytes == expected_bytes;
+  }
+  return matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0;
+}
+
 rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
@@ -347,6 +377,11 @@ rns8_status validate_wrap_gemm_operands(
     return RNS8_INVALID_ARGUMENT;
   }
   if (A.hip_residues || B.hip_residues || C.hip_residues) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!wrap_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k) ||
+      !wrap_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n) ||
+      !wrap_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;
@@ -876,6 +911,9 @@ rns8_status rns8_pack_u64(
       return RNS8_INVALID_ARGUMENT;
     }
     if (matrix->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+      if (!wrap_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols)) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
         rns8::detail::pack_wrap_u64_matrix(*matrix, src, ld);
         matrix->host_residues_current = false;
@@ -1206,6 +1244,9 @@ rns8_status rns8_export_wrap_u64(
         validate_export_matrix(*ctx, *plan, *C, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, 0);
     if (export_status != RNS8_SUCCESS) {
       return export_status;
+    }
+    if (!wrap_matrix_storage_matches(*C, plan->backend, plan->desc.m, plan->desc.n)) {
+      return RNS8_INVALID_ARGUMENT;
     }
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       if (!C->host_byte_limbs_current) {

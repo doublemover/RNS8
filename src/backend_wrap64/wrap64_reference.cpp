@@ -1,6 +1,7 @@
 #include "core/internal.hpp"
 
 #include <array>
+#include <limits>
 
 namespace rns8::detail {
 
@@ -10,6 +11,41 @@ std::size_t wrap_byte_limb_index(const rns8_matrix& matrix, int64_t row, int64_t
   const std::size_t cell = static_cast<std::size_t>(row) * static_cast<std::size_t>(matrix.desc.cols) +
                            static_cast<std::size_t>(col);
   return cell * 8u + limb;
+}
+
+bool expected_wrap_byte_limb_count(int64_t rows, int64_t cols, std::size_t& count) {
+  if (rows <= 0 || cols <= 0) {
+    return false;
+  }
+  const auto u_rows = static_cast<uint64_t>(rows);
+  const auto u_cols = static_cast<uint64_t>(cols);
+  constexpr uint64_t limbs_per_cell = 8;
+  const uint64_t max_count = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
+  if (u_cols != 0 && u_rows > max_count / u_cols / limbs_per_cell) {
+    return false;
+  }
+  count = static_cast<std::size_t>(u_rows * u_cols * limbs_per_cell);
+  return true;
+}
+
+bool wrap64_cpu_storage_matches(const rns8_matrix& matrix, int64_t rows, int64_t cols) {
+  std::size_t expected_limbs = 0;
+  return expected_wrap_byte_limb_count(rows, cols, expected_limbs) &&
+         matrix.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+         matrix.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+         matrix.desc.bound_kind == RNS8_BOUND_NONE &&
+         matrix.desc.rows == rows &&
+         matrix.desc.cols == cols &&
+         matrix.desc.logical_layout == RNS8_LAYOUT_ROW_MAJOR &&
+         matrix.desc.logical_ld >= matrix.desc.cols &&
+         matrix.prefix == 0 &&
+         matrix.desc.max_prefix == 0 &&
+         matrix.residues.empty() &&
+         matrix.byte_limbs.size() == expected_limbs &&
+         matrix.hip_residues == nullptr &&
+         matrix.hip_residue_bytes == 0 &&
+         matrix.hip_byte_limbs == nullptr &&
+         matrix.hip_byte_limb_bytes == 0;
 }
 
 }  // namespace
@@ -115,11 +151,20 @@ uint64_t wrap64_byte_limb_gemm_cell(
 }
 
 rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C) {
-  if (plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 || A.desc.semantics != RNS8_WRAP_U64_MOD_2_64 ||
-      B.desc.semantics != RNS8_WRAP_U64_MOD_2_64 || C.desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
+  if (plan.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB ||
+      plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 ||
+      plan.desc.bound_kind != RNS8_BOUND_NONE ||
+      plan.desc.bound != 0 ||
+      plan.prefix != 0 ||
+      plan.desc.max_prefix != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (A.byte_limbs.empty() || B.byte_limbs.empty() || C.byte_limbs.empty()) {
+  if (!wrap64_cpu_storage_matches(A, plan.desc.m, plan.desc.k) ||
+      !wrap64_cpu_storage_matches(B, plan.desc.k, plan.desc.n) ||
+      !wrap64_cpu_storage_matches(C, plan.desc.m, plan.desc.n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!A.host_byte_limbs_current || !B.host_byte_limbs_current) {
     return RNS8_INVALID_ARGUMENT;
   }
   for (int64_t row = 0; row < plan.desc.m; ++row) {

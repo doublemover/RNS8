@@ -80,11 +80,12 @@ CPU export uses explicit fixed-width limbs: signed output reconstructs the
 centered integer and emits two's-complement in exactly `limb_count` limbs,
 while unsigned output reconstructs the canonical nonnegative integer and emits
 magnitude limbs in exactly `limb_count` limbs. Both return `RNS8_RANGE_ERROR`
-when the requested width cannot represent the reconstructed value. Direct HIP
-exports exact-wide limbs from device-resident RNS matrices with the same
-fixed-width ABI, range-error behavior for too few limbs, and strided host
-layout. CPU Boost.Multiprecision reconstruction remains the reference and debug
-path.
+when the requested width cannot represent the reconstructed value; no low-limb
+truncation, saturation, bounded i64/u64 export, or strict wrap64 interpretation
+is accepted. Direct HIP exports exact-wide limbs from device-resident RNS
+matrices with the same fixed-width ABI, range-error behavior for too few limbs,
+and strided host layout. CPU Boost.Multiprecision reconstruction remains the
+reference and debug path.
 
 Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through byte-limb storage,
 not odd-modulus CRT. `RNS8_BACKEND_WRAP64_BYTE_LIMB` is the CPU reference
@@ -121,5 +122,5 @@ Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP tiled byte-limb correctness path. HIP wrap64 event captures use
 wrap64-specific tiled byte-GEMM/export labels, report
 `selected_kernel=direct_hip_wrap64_tiled_byte_limb_gemm_v1`, and keep
-schema-compatible aggregate aliases; they are raw timing evidence for the
+current aggregate phase labels; they are raw timing evidence for the
 correctness path only, not optimized byte-GEMM performance evidence.

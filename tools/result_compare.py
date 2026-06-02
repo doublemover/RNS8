@@ -12,16 +12,16 @@ from typing import Any
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
 
 
-TIMING_PHASES = {
-    "planning": ["avg_planning_us", "plan_us"],
-    "scheduling": ["avg_scheduling_us", "schedule_query_us"],
-    "matrix_alloc": ["avg_matrix_alloc_us", "matrix_alloc_us"],
-    "pack": ["avg_pack_us"],
-    "rns_gemm": ["avg_rns_gemm_us"],
-    "per_modulus_gemm_estimate": ["avg_per_modulus_gemm_estimate_us"],
-    "crt_export": ["avg_crt_export_us"],
-    "end_to_end": ["avg_end_to_end_us"],
-}
+TIMING_PHASES = [
+    "planning",
+    "scheduling",
+    "matrix_alloc",
+    "pack",
+    "rns_gemm",
+    "per_modulus_gemm_estimate",
+    "crt_export",
+    "end_to_end",
+]
 DEFAULT_GPU_EVENT_PHASES = [
     "pack_h2d",
     "pack_kernel",
@@ -34,7 +34,6 @@ DEFAULT_GPU_EVENT_PHASES = [
     "crt_export_d2h",
     "crt_export",
 ]
-AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
 CONTRACT_KEYS = [
     "benchmark",
     "backend_requested",
@@ -120,6 +119,12 @@ def dotted_get(data: dict[str, Any], path: str) -> Any:
 
 
 def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
+    if phase == "per_modulus_gemm_estimate":
+        value = data.get("avg_per_modulus_gemm_estimate_us")
+        if isinstance(value, (int, float)):
+            return float(value), "avg_per_modulus_gemm_estimate_us"
+        raise SystemExit(f"{path}: missing numeric timing for phase avg_per_modulus_gemm_estimate_us")
+
     summary = data.get("timing_summary_us")
     if isinstance(summary, dict):
         phase_summary = summary.get(phase)
@@ -128,18 +133,10 @@ def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, s
             if isinstance(value, (int, float)):
                 return float(value), f"timing_summary_us.{phase}.avg"
 
-    for key in TIMING_PHASES[phase]:
-        value = data.get(key)
-        if isinstance(value, (int, float)):
-            return float(value), key
-
-    keys = ", ".join([f"timing_summary_us.{phase}.avg", *TIMING_PHASES[phase]])
-    raise SystemExit(f"{path}: missing numeric timing for phase {phase}; looked for {keys}")
+    raise SystemExit(f"{path}: missing numeric timing for phase timing_summary_us.{phase}.avg")
 
 
 def phase_applicable(data: dict[str, Any], phase: str) -> bool:
-    if phase == "scheduling":
-        return schema_version(data) >= 3
     if phase == "per_modulus_gemm_estimate":
         value = data.get("per_modulus_gemm_estimate_applicable")
         return value if isinstance(value, bool) else True
@@ -165,17 +162,9 @@ def gpu_event_phase_timing(data: dict[str, Any], phase: str, path: Path) -> tupl
 def gpu_event_phase_order(data: dict[str, Any]) -> list[str]:
     metadata = timing_metadata(data)
     phase_order = metadata.get("gpu_event_phase_order")
-    phases = (
-        list(phase_order)
-        if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order)
-        else list(DEFAULT_GPU_EVENT_PHASES)
-    )
-    timings = data.get("gpu_event_timings_us")
-    if isinstance(timings, dict):
-        for phase in AGGREGATE_GPU_EVENT_PHASES:
-            if phase in timings and phase not in phases:
-                phases.append(phase)
-    return phases
+    if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order):
+        return list(phase_order)
+    return list(DEFAULT_GPU_EVENT_PHASES)
 
 
 def compare_gpu_events(

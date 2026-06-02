@@ -37,11 +37,11 @@ RADEON_TOOLS = [
     "RadeonDeveloperServiceCLI",
 ]
 SUPPORTED_TARGETS = {
-    "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP fallback and regression"},
+    "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP regression"},
     "gfx1100": {"tier": "W0", "family": "RDNA3", "role": "local Windows bring-up and RDNA3 optimization"},
     "gfx1200": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
     "gfx1201": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
-    "gfx90a": {"tier": "I2", "family": "CDNA2", "role": "legacy cluster compatibility"},
+    "gfx90a": {"tier": "I2", "family": "CDNA2", "role": "supported CDNA2 cluster target"},
     "gfx942": {"tier": "I1", "family": "CDNA3", "role": "previous-generation Instinct production"},
     "gfx950": {"tier": "I0", "family": "CDNA4", "role": "current Instinct production"},
 }

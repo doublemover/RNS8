@@ -2,8 +2,10 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <vector>
 
 #include "core/internal.hpp"
@@ -81,6 +83,22 @@ uint64_t corrected_signed_i8_comba_product(uint64_t a, uint64_t b) {
     carry = column >> 8u;
   }
   return out;
+}
+
+uint64_t expected_wrap_cell(
+    const std::vector<uint64_t>& A,
+    int64_t lda,
+    const std::vector<uint64_t>& B,
+    int64_t ldb,
+    int64_t row,
+    int64_t col,
+    int64_t k) {
+  boost::multiprecision::cpp_int exact = 0;
+  for (int64_t kk = 0; kk < k; ++kk) {
+    exact += boost::multiprecision::cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
+             boost::multiprecision::cpp_int(B[static_cast<std::size_t>(kk * ldb + col)]);
+  }
+  return low64(exact);
 }
 
 }  // namespace
@@ -348,6 +366,160 @@ TEST_CASE("public wrap64 persistent matrices use byte-limb low-64-bit semantics"
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded full-width data") {
+  constexpr int64_t m = 5;
+  constexpr int64_t n = 4;
+  constexpr int64_t k = 9;
+  constexpr int64_t lda = 11;
+  constexpr int64_t ldb = 7;
+  constexpr int64_t ldc = 6;
+  constexpr uint64_t c_sentinel = 0xc0dec0dec0dec0deull;
+  std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), 0xaaaaaaaaaaaaaaaaull);
+  std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), 0xbbbbbbbbbbbbbbbbull);
+  std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), c_sentinel);
+  std::vector<uint64_t> oneshot(static_cast<std::size_t>(m * ldc), c_sentinel);
+  std::mt19937_64 rng(0x7772617036345f63ull);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] = rng();
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] = rng();
+    }
+  }
+  A[0] = 0;
+  A[1] = std::numeric_limits<uint64_t>::max();
+  A[2] = 0x8080808080808080ull;
+  A[static_cast<std::size_t>((m - 1) * lda + (k - 1))] = std::numeric_limits<uint64_t>::max() - 1;
+  B[0] = std::numeric_limits<uint64_t>::max();
+  B[1] = 1;
+  B[2] = 0xfefdfcfbfaf9f8f7ull;
+  B[static_cast<std::size_t>((k - 1) * ldb + (n - 1))] = 0x7f807f807f807f80ull;
+
+  rns8_context* ctx = create_wrap64();
+  auto desc = wrap_desc(m, n, k);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto a_desc = wrap_matrix_desc(m, k);
+  auto b_desc = wrap_matrix_desc(k, n);
+  auto c_desc = wrap_matrix_desc(m, n);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  const auto* a_bytes = a_matrix->byte_limbs.data();
+  const auto* b_bytes = b_matrix->byte_limbs.data();
+  const auto* c_bytes = c_matrix->byte_limbs.data();
+  REQUIRE(a_matrix->byte_limbs.size() == static_cast<std::size_t>(m * k * 8));
+  REQUIRE(b_matrix->byte_limbs.size() == static_cast<std::size_t>(k * n * 8));
+  REQUIRE(c_matrix->byte_limbs.size() == static_cast<std::size_t>(m * n * 8));
+  CHECK(a_matrix->residues.empty());
+  CHECK(b_matrix->residues.empty());
+  CHECK(c_matrix->residues.empty());
+
+  auto run_and_check = [&](uint64_t a_version, uint64_t b_version) {
+    std::fill(C.begin(), C.end(), c_sentinel);
+    std::fill(oneshot.begin(), oneshot.end(), c_sentinel);
+    REQUIRE(rns8_pack_u64(ctx, a_matrix, A.data(), lda, a_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(ctx, b_matrix, B.data(), ldb, b_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_wrap_u64(ctx, plan, c_matrix, C.data(), ldc) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, oneshot.data(), ldc) ==
+            RNS8_SUCCESS);
+    CHECK(a_matrix->byte_limbs.data() == a_bytes);
+    CHECK(b_matrix->byte_limbs.data() == b_bytes);
+    CHECK(c_matrix->byte_limbs.data() == c_bytes);
+    CHECK(a_matrix->source_version == a_version);
+    CHECK(b_matrix->source_version == b_version);
+    CHECK(C == oneshot);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        const std::size_t out_index = static_cast<std::size_t>(row * ldc + col);
+        const uint64_t expected = expected_wrap_cell(A, lda, B, ldb, row, col, k);
+        CHECK(C[out_index] == expected);
+        CHECK(C[out_index] == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+      }
+    }
+  };
+
+  run_and_check(101, 102);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] ^=
+          0x9e3779b97f4a7c15ull + static_cast<uint64_t>(row * 131 + col);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] ^=
+          0xbf58476d1ce4e5b9ull + static_cast<uint64_t>(row * 257 + col);
+    }
+  }
+  run_and_check(201, 202);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("public wrap64 CPU path rejects residue-backed and stale byte-limb matrices") {
+  constexpr int64_t m = 1;
+  constexpr int64_t n = 1;
+  constexpr int64_t k = 1;
+  const uint64_t A[] = {std::numeric_limits<uint64_t>::max()};
+  const uint64_t B[] = {3};
+
+  rns8_context* ctx = create_wrap64();
+  auto desc = wrap_desc(m, n, k);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto a_desc = wrap_matrix_desc(m, k);
+  auto b_desc = wrap_matrix_desc(k, n);
+  auto c_desc = wrap_matrix_desc(m, n);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B, n, 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+  c_matrix->residues.assign(1, 0);
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  c_matrix->residues.clear();
+
+  c_matrix->byte_limbs.clear();
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  c_matrix->byte_limbs.assign(static_cast<std::size_t>(m * n * 8), 0);
+
+  a_matrix->host_byte_limbs_current = false;
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   constexpr int64_t m = 1;
   constexpr int64_t n = 1;
@@ -395,6 +567,38 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(storage == nullptr);
+
+  rns8_plan* valid_plan = nullptr;
+  REQUIRE(rns8_create_plan(wrap_ctx, &desc, &valid_plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(wrap_ctx, valid_plan, &workspace) == RNS8_SUCCESS);
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto a_desc = wrap_matrix_desc(m, k);
+  auto b_desc = wrap_matrix_desc(k, n);
+  auto c_desc = wrap_matrix_desc(m, n);
+  REQUIRE(rns8_create_matrix(wrap_ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wrap_ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wrap_ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  const int64_t signed_A[] = {-1};
+  uint64_t limbs[] = {0};
+  CHECK(rns8_pack_i64(wrap_ctx, a_matrix, signed_A, k, 0) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(wrap_ctx, valid_plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(wrap_ctx, valid_plan, c_matrix, limbs, n, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto bounded_matrix = wrap_matrix_desc(m, n);
+  bounded_matrix.semantics = RNS8_BOUNDED_U64;
+  bounded_matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  bounded_matrix.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  CHECK(rns8_create_matrix(wrap_ctx, &bounded_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(storage == nullptr);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(valid_plan);
 
   rns8_destroy_context(cpu_ctx);
   rns8_destroy_context(wrap_ctx);

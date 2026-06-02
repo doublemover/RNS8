@@ -82,7 +82,7 @@ disagree, the spec remains the target and this file identifies the gap.
   schedule-info query timing, explicit phase-availability metadata for fused or
   not-applicable reduction, direct-HIP per-tile adaptive bounded capture
   metadata, schema validation tooling, and comparison-tool support for
-  v1/v2/v3/v4 plus capture-specific GPU event phase orders. Adaptive captures
+  current schema v4 plus capture-specific GPU event phase orders. Adaptive captures
   are evidence for the direct-HIP tiled correctness path only; they are not
   optimized matrix-engine performance claims.
 - Platform readiness reporting: dependency checker reports host readiness gates,
@@ -246,7 +246,7 @@ disagree, the spec remains the target and this file identifies the gap.
   metadata, one prefix group, and `adaptive_execution_applied=false`.
 - `python tools\result_compare.py --json temp\rns8-hip-bounded-u64.json
   temp\rns8-hip-bounded-u64-repeat.json`: same-contract comparison passed,
-  including matching fixed-prefix schedule metadata and compatible GPU event
+  including matching fixed-prefix schedule metadata and matching GPU event
   timing metadata. Captures are raw evidence only and do not establish a
   performance claim.
 - `python tools\benchmark_schema.py temp\rns8-v3-cpu-bounded-i64.json
@@ -298,10 +298,11 @@ disagree, the spec remains the target and this file identifies the gap.
   `tools\result_compare.py --json` reported the same selected kernel, event
   source scope, GPU event phase order, shape, seed, and semantic contract.
   Captures are raw evidence only and do not establish a performance claim.
-- `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
-  passed, including malformed raw timing length, GPU event summary, invalid
-  schedule metadata, wrap64 prefix, event-nullability, v3 scheduling, v3
-  reduction-availability, and v4 per-tile adaptive contract rejection checks.
-- `python tools\benchmark_schema.py` validated representative v2/v3 CPU,
-  direct HIP, and wrap64 captures under `temp\`, plus synthetic v1/v2/v3/v4
-  fixtures under `tests\fixtures\benchmark_schema\`.
+- `python tools\test_benchmark_schema.py`: current benchmark schema fixture
+  self-test passed, including malformed raw timing length, GPU event summary,
+  invalid schedule metadata, wrap64 prefix, event-nullability, rejected retired
+  schema versions, reduction-availability, and v4 per-tile adaptive contract
+  checks.
+- Current `tools\benchmark_schema.py` accepts schema v4 only. Older v1/v2/v3
+  captures listed above are historical evidence and are not accepted by current
+  tracked fixtures or current comparison tooling.

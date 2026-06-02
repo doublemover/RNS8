@@ -1527,7 +1527,7 @@ void print_json(
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 tiled byte-limb "
                  "path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus "
-                 "schema-compatible rns_gemm/crt_export aggregate aliases\",\n";
+                 "current rns_gemm/crt_export aggregate phase labels\",\n";
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
@@ -1560,7 +1560,7 @@ void print_json(
             << ",\n";
   std::cout << "    \"gpu_event_timing_caveat\": "
             << (wrap64_hip_events
-                    ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and schema-compatible rns_gemm/crt_export aggregate aliases; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
+                    ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
                     : (adaptive_hip_events
                            ? "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
                            : (gpu_events_available
@@ -1580,12 +1580,12 @@ void print_json(
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
   std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
-  std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing; planning remains the legacy aggregate that also includes this query\",\n";
+  std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing\",\n";
   std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent byte-limb matrices\",\n";
-    std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64; key retained for schema compatibility\",\n";
-    std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64; key retained for schema compatibility\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64\",\n";
   } else {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";

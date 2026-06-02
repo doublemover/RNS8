@@ -34,6 +34,38 @@ shape, installed toolchain, or a single AMD GPU generation.
 | D16 | Public APIs are explicit about semantics and never infer signed, unsigned, bounded, wide, or wraparound behavior from a C++ type alone. |
 | D17 | The build system must use portable CMake for host code and explicit HIP compiler integration that works on Windows, where CMake HIP language support is not available. |
 | D18 | License is Apache-2.0, with third-party notices for AMD, academic, and CPU reference dependencies. |
+| D19 | RNS8 development uses hard cutovers only. Retired APIs, schema fields, backend paths, kernels, tests, docs, and tools are deleted or rewritten in-place instead of preserved as legacy, compatibility, fallback, or shim layers. |
+
+### 1.1 Hard-Cutover Discipline
+
+RNS8 is greenfield. Implementation milestones must land as direct hard
+cutovers, not compatibility transitions. When a contract changes, the old
+contract is removed from production code in the same slice that installs the
+new contract.
+
+Forbidden implementation patterns:
+
+- legacy aliases, compatibility wrappers, adapter classes, or forwarding
+  shims for retired APIs,
+- fallback runtime paths that silently preserve old semantics after a new
+  backend, kernel, schema, or storage layout has replaced them,
+- duplicate old/new tests that assert retired behavior continues to work,
+- benchmark-schema compatibility paths that validate obsolete current-version
+  captures,
+- docs that present old behavior as an accepted option after a hard cutover.
+
+Allowed historical artifacts:
+
+- old benchmark captures, logs, and notes may remain under ignored `temp/` or
+  in clearly labeled historical evidence sections,
+- source comments may briefly name a retired behavior only to explain why it was
+  deleted,
+- ABI size/version fields may reject incompatible callers or enable future
+  fields, but they must not keep retired semantics alive.
+
+Unsupported backends, platforms, or semantic contracts fail explicitly with
+their status code. They do not fall through to an older backend, narrower
+semantic interpretation, or hidden compatibility mode.
 
 ## 2. Product Scope
 
@@ -78,10 +110,10 @@ RNS8 targets hardware by capability tier, not by a single launch GPU.
 |---|---|---|---|---|
 | W0 | Radeon RDNA3 | RX 7900 XTX, RX 7900 XT | `gfx1100` | Local Windows bring-up and RDNA3 optimization. |
 | W1 | Radeon RDNA4 | RX 9070 XT, RX 9070, RX 9060 XT | `gfx1201`, `gfx1200` | Current consumer matrix-core target. |
-| W2 | Radeon RDNA2 | RX 6950 XT, RX 6900 XT, RX 6800 XT | `gfx1030` | Functional HIP fallback and regression target where supported. |
+| W2 | Radeon RDNA2 | RX 6950 XT, RX 6900 XT, RX 6800 XT | `gfx1030` | Functional HIP regression target where supported; matrix-core acceleration is not assumed. |
 | I0 | Instinct CDNA4 | MI355X, MI350X | `gfx950` | Current Instinct production target. |
 | I1 | Instinct CDNA3 | MI325X, MI300X, MI300A | `gfx942` | Previous-generation Instinct production target. |
-| I2 | Instinct CDNA2 | MI250X, MI250, MI210 | `gfx90a` | Legacy cluster compatibility target. |
+| I2 | Instinct CDNA2 | MI250X, MI250, MI210 | `gfx90a` | Supported cluster target where the active ROCm release supports it. |
 
 Hardware support is accepted only when the active ROCm or HIP SDK release
 officially supports that GPU and the needed libraries or compiler intrinsics.
@@ -549,8 +581,10 @@ allocations inside hot calls are forbidden after plan creation.
 
 ## 11. Public API Specification
 
-The stable ABI is C. Public structs include `struct_size` and `abi_version`
-fields for forward-compatible extension.
+The ABI is C. Public structs include `struct_size` and `abi_version` fields for
+validation and future extension. These fields are not compatibility shims:
+callers using retired layouts or retired semantics are rejected rather than
+translated.
 
 ```c
 typedef struct rns8_context rns8_context;
@@ -765,7 +799,7 @@ Thread-safety rules:
 | Stage | Backend | Windows | Linux | Production role |
 |---|---|---|---|---|
 | B0 | CPU scalar and multiprecision | required | required | correctness reference |
-| B1 | Direct HIP vector/matrix baseline | required | required | portable GPU correctness and fallback |
+| B1 | Direct HIP vector/matrix baseline | required | required | portable GPU correctness baseline |
 | B2 | Direct HIP fused modulo kernels | required | required | portable fused path |
 | B3 | hipBLASLt INT8 per modulus | optional by feature detection | optional by feature detection | vendor baseline |
 | B4 | hipBLASLt grouped/batched | optional by feature detection | optional by feature detection | launch amortization |
@@ -818,12 +852,11 @@ be hidden inside backend-specific assumptions.
 
 ### 12.4 Target-Specific Notes
 
-- `gfx1030` RDNA2: functional HIP and vector fallback target; matrix-core
-  acceleration is not assumed.
+- `gfx1030` RDNA2: functional HIP/vector target; matrix-core acceleration is
+  not assumed.
 - `gfx1100`, `gfx1101`, `gfx1102` RDNA3: wave32 packing and WMMA paths.
 - `gfx1200`, `gfx1201` RDNA4: wave32 packing and matrix-core hot kernels.
-- `gfx90a` CDNA2: wave64 and MFMA/XDLOPS paths; support is maintained as
-  cluster compatibility where current ROCm supports it.
+- `gfx90a` CDNA2: wave64 and MFMA/XDLOPS paths where current ROCm supports it.
 - `gfx942` CDNA3: primary previous-generation Instinct target.
 - `gfx950` CDNA4: primary current Instinct target.
 
@@ -1090,7 +1123,7 @@ has target-supported capability checks and exact CPU differential validation.
 | E050 | fixed 9-modulus signed GEMM | first correctness milestone |
 | E051 | fixed 9-modulus unsigned GEMM | unsigned milestone |
 | E052 | persistent RNS input/output | production center |
-| E053 | one-shot input/output | adoption wrapper |
+| E053 | one-shot input/output | same-contract convenience API |
 | E054 | CPU Garner reconstruction prefix 4..20 | CPU reference accepted |
 | E055 | GPU bounded reconstruction | target production export gate |
 
@@ -1103,7 +1136,7 @@ has target-supported capability checks and exact CPU differential validation.
 | E072 | Linux RDNA3/RDNA4 ROCm | Radeon Linux gate |
 | E073 | Linux CDNA3 Instinct | previous Instinct gate |
 | E074 | Linux CDNA4 Instinct | current Instinct gate |
-| E075 | Linux CDNA2 Instinct | legacy cluster gate |
+| E075 | Linux CDNA2 Instinct | supported CDNA2 cluster gate |
 
 ### 18.5 Advanced Paths
 

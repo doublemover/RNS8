@@ -40,8 +40,10 @@ Implemented correctness coverage:
   export is fixed-width little-endian two's-complement, unsigned export is
   fixed-width little-endian magnitude, `ld` is an element stride rather than a
   limb stride, both report range errors when too few limbs are supplied, and
-  direct HIP export leaves device-resident residues on device instead of
-  synchronizing host residue storage.
+  neither truncates nor wraps on insufficient width. Descriptor and export
+  tests reject cross-semantic bounded, signed/unsigned exact-wide, and wrap64
+  interpretations. Direct HIP export leaves device-resident residues on device
+  instead of synchronizing host residue storage.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
@@ -108,7 +110,8 @@ Semantic guardrail:
   integer and emits exactly `limb_count` two's-complement limbs; unsigned export
   interprets the canonical nonnegative result and emits exactly `limb_count`
   magnitude limbs. The APIs report `RNS8_RANGE_ERROR` rather than truncating
-  when the requested fixed width is too small.
+  when the requested fixed width is too small, and they reject attempts to use
+  bounded i64/u64 or strict wrap64 export as an exact-wide shortcut.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested
