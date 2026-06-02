@@ -24,11 +24,17 @@ struct rns8_plan {
   uint64_t schedule_tile_rows = 0;
   uint64_t schedule_tile_cols = 0;
   uint64_t schedule_tile_count = 0;
-  uint32_t schedule_required_prefix = 0;
-  uint32_t schedule_selected_prefix = 0;
+  uint32_t schedule_min_required_prefix = 0;
+  uint32_t schedule_max_required_prefix = 0;
+  uint32_t schedule_min_selected_prefix = 0;
+  uint32_t schedule_max_selected_prefix = 0;
   uint32_t schedule_prefix_group_count = 0;
   uint32_t schedule_range_bit_length = 0;
+  uint32_t schedule_adaptive_prefix_active = 0;
+  uint32_t schedule_adaptive_skip_active = 0;
   uint32_t schedule_flags = 0;
+  std::vector<uint64_t> tile_bounds;
+  std::vector<rns8_plan_tile_schedule_entry> tile_schedule;
 };
 
 struct rns8_matrix {
