@@ -108,7 +108,9 @@ nullability or completeness, `gpu_event_phase_order: null` when events are
 unavailable, explicit event phase order for event-enabled captures, exact
 matching of event timing keys to that phase order, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
-also checks schedule metadata.
+also checks schedule metadata. The CTest suite runs the schema self-test, all
+tracked current schema fixtures, and a same-contract `result_compare.py` check
+so retired schemas and stale event labels are not only rejected manually.
 
 Current benchmark inputs are inspectable planning contracts. Global bounded
 captures remain fixed-prefix contracts. With `--bound-mode per-tile`, the

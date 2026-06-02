@@ -211,6 +211,8 @@ if(RNS8_BUILD_BENCHMARKS)
 endif()
 
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
   foreach(
     RNS8_ACCELERATOR_ENABLE_FLAG
     RNS8_ENABLE_HIPBLASLT
@@ -231,6 +233,37 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     )
     set_tests_properties("accelerator_fail_fast_${RNS8_ACCELERATOR_ENABLE_NAME}" PROPERTIES LABELS "accelerator;fail-fast")
   endforeach()
+
+  add_test(
+    NAME benchmark_schema_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_schema_current_fixtures
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_wrap64_hip.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_hip.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_adaptive_hip.json"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_current_fixtures PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_result_compare_same_contract
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tools/result_compare.py"
+      --json
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_hip.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_hip.json"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_result_compare_same_contract PROPERTIES LABELS "benchmark;schema;compare")
 
   find_package(Catch2 3 CONFIG REQUIRED)
   add_executable(

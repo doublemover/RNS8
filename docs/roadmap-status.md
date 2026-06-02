@@ -102,8 +102,9 @@ disagree, the spec remains the target and this file identifies the gap.
   schedule-info query timing, explicit
   phase-availability metadata for fused or not-applicable reduction, direct-HIP
   per-tile adaptive bounded capture
-  metadata, schema validation tooling, and comparison-tool support for
-  current schema v4 plus capture-specific GPU event phase orders. Adaptive captures
+  metadata, schema validation tooling, CTest coverage for schema self-tests,
+  current fixtures, and same-contract result comparison, and comparison-tool
+  support for current schema v4 plus capture-specific GPU event phase orders. Adaptive captures
   are evidence for the direct-HIP tiled correctness path only; they are not
   optimized matrix-engine performance claims.
 - Platform readiness reporting: dependency checker reports host readiness gates,
