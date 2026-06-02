@@ -217,13 +217,15 @@ ctest --test-dir build\cpu-debug --output-on-failure
 
 - [AGENTS.md](AGENTS.md) contains durable instructions for future Codex agents.
 - [CMakePresets.json](CMakePresets.json) defines Windows HIP and Linux ROCm
-  configure/build/test presets.
+  configure/build/test presets plus evidence-only accelerator probe presets.
 - [vcpkg.json](vcpkg.json) declares the C++ dependency set.
 - [tools/check_dependencies.py](tools/check_dependencies.py) reports the local
   toolchain, HIP device, Python packages, `vcpkg.json` manifest packages,
   `CMakePresets.json` Windows/Linux HIP target representation, MSVC install,
   optional accelerator/reference components, project tools, and optional Radeon
-  Developer Tool Suite utilities.
+  Developer Tool Suite utilities. `--accelerator-probes` runs opt-in tiny
+  compile/run probes under `temp/` for discovered accelerator components; these
+  probes are evidence only and do not enable correctness backends.
 - [tools/result_compare.py](tools/result_compare.py) compares two `rns8-bench`
   JSON captures without treating timing deltas as correctness or performance
   claims.

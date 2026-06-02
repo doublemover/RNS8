@@ -43,3 +43,20 @@ accelerators on Windows. `tools/check_dependencies.py` may report discovered
 headers or libraries as candidate evidence, but it does not enable or validate
 those backends. They require compiled capability probes and exact CPU
 differential tests before any backend can be treated as ready.
+
+Opt-in accelerator evidence probes are available without changing backend
+selection:
+
+```powershell
+python tools\check_dependencies.py --accelerator-probes --json
+cmake --preset windows-msvc-hip-accelerator-probe
+```
+
+Both paths are evidence-only. The Python probe writes tiny sources and binaries
+under `temp\accelerator-probes\`, records compile/link/runtime status, and keeps
+`backend_enablement=disabled`. The CMake probe preset sets
+`RNS8_PROBE_ACCELERATORS=ON` while keeping `RNS8_ENABLE_HIPBLASLT`,
+`RNS8_ENABLE_CK`, and `RNS8_ENABLE_ROCWMMA` off. On the current Windows HIP SDK
+install, hipBLASLt is candidate evidence through headers and a
+`libhipblaslt.dll.a` archive, but the opt-in hipcc/lld-link probe does not find
+a linkable `hipblaslt.lib`; this is not a correctness blocker.
