@@ -121,7 +121,10 @@ Exact-wide descriptors must carry no bound value and no tile-bound storage.
 Global bounded descriptors likewise reject stray tile-bound pointers/counts.
 These checks return `RNS8_INVALID_ARGUMENT` for malformed descriptors, while
 valid semantics on unavailable backends still return `RNS8_UNSUPPORTED_BACKEND`.
-That split keeps stale CRT metadata from becoming an implicit alternate route.
+That split also applies to one-shot helpers and keeps stale CRT metadata from
+becoming an implicit alternate route: a malformed descriptor naming a
+future/evidence-only backend is invalid before backend availability is
+considered.
 Exact-wide limb export applies the same split to public ABI arguments: null
 handles, null destinations, invalid `limb_count`, invalid `ld`, and overflowing
 output layout calculations are malformed calls, not unsupported backend cases.

@@ -1874,10 +1874,6 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     if (desc->semantics != RNS8_WRAP_U64_MOD_2_64) {
       return RNS8_INVALID_ARGUMENT;
     }
-    const rns8_backend_kind requested = effective_backend(desc->requested_backend, ctx->backend);
-    if (requested != ctx->backend || !backend_supports_semantics(requested, desc->semantics)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
     if (!valid_matrix_access(desc->m, desc->k, lda) || !valid_matrix_access(desc->k, desc->n, ldb) ||
         !valid_matrix_access(desc->m, desc->n, ldc)) {
       return RNS8_INVALID_ARGUMENT;
