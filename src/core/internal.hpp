@@ -110,6 +110,17 @@ rns8_status reconstruct_signed(
     uint32_t prefix,
     uint64_t bound,
     int64_t& out);
+cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix);
+rns8_status export_exact_wide_unsigned_limbs(
+    const std::vector<int8_t>& residues,
+    uint32_t prefix,
+    uint64_t* out,
+    uint32_t limb_count);
+rns8_status export_exact_wide_signed_limbs(
+    const std::vector<int8_t>& residues,
+    uint32_t prefix,
+    uint64_t* out,
+    uint32_t limb_count);
 
 cpp_int exact_i64_gemm_cell(const int64_t* A, int64_t lda, const int64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
 cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);

@@ -593,6 +593,78 @@ rns8_status rns8_export_u64(
   });
 }
 
+rns8_status rns8_export_exact_wide_signed_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !C || !dst || ld < plan->desc.n || limb_count == 0 ||
+        C->desc.semantics != RNS8_EXACT_WIDE_SIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n || plan->desc.semantics != C->desc.semantics) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != plan->backend || C->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status sync_status = ensure_host_residues_current(*C);
+    if (sync_status != RNS8_SUCCESS) {
+      return sync_status;
+    }
+    for (int64_t row = 0; row < plan->desc.m; ++row) {
+      for (int64_t col = 0; col < plan->desc.n; ++col) {
+        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
+        const rns8_status status = rns8::detail::export_exact_wide_signed_limbs(
+            residues, plan->prefix, dst + (row * ld + col) * limb_count, limb_count);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+      }
+    }
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_export_exact_wide_unsigned_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !C || !dst || ld < plan->desc.n || limb_count == 0 ||
+        C->desc.semantics != RNS8_EXACT_WIDE_UNSIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n || plan->desc.semantics != C->desc.semantics) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != plan->backend || C->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status sync_status = ensure_host_residues_current(*C);
+    if (sync_status != RNS8_SUCCESS) {
+      return sync_status;
+    }
+    for (int64_t row = 0; row < plan->desc.m; ++row) {
+      for (int64_t col = 0; col < plan->desc.n; ++col) {
+        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
+        const rns8_status status = rns8::detail::export_exact_wide_unsigned_limbs(
+            residues, plan->prefix, dst + (row * ld + col) * limb_count, limb_count);
+        if (status != RNS8_SUCCESS) {
+          return status;
+        }
+      }
+    }
+    return RNS8_SUCCESS;
+  });
+}
+
 rns8_status rns8_gemm_i64_oneshot(
     rns8_context* ctx,
     const rns8_gemm_desc* desc,

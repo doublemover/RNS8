@@ -268,8 +268,10 @@ required_bits = 128 + ceil(log2(K)) + margin
 ```
 
 The v1 exact-wide GPU compute path stores RNS output. CPU reconstruction to
-multi-limb integers is supported. GPU reconstruction for exact-wide output is
-a phase-2 feature.
+multi-limb integers is supported through explicit little-endian limb export.
+Signed exact-wide export uses fixed-width two's-complement limbs; unsigned
+exact-wide export uses fixed-width magnitude limbs. GPU reconstruction for
+exact-wide output is a phase-2 feature.
 
 ### 6.4 Strict Wraparound `mod 2^64`
 
@@ -590,6 +592,22 @@ rns8_status rns8_export_u64(
     uint64_t* dst,
     int64_t ld);
 
+rns8_status rns8_export_exact_wide_signed_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
+
+rns8_status rns8_export_exact_wide_unsigned_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
+
 rns8_status rns8_gemm_i64_oneshot(
     rns8_context* ctx,
     const rns8_gemm_desc* desc,
@@ -616,6 +634,19 @@ const char* rns8_status_string(rns8_status status);
 The original plan-only pack sketch was replaced during the Phase 0 scaffold:
 packing needs an explicit matrix descriptor because A, B, and C have different
 dimensions. Hidden pack-role inference is not allowed in the ABI.
+
+Exact-wide limb export layout is row-major by element. For element `(row, col)`,
+the first limb is stored at:
+
+```text
+dst[((row * ld) + col) * limb_count]
+```
+
+Limbs are little-endian. Signed export is two's-complement in exactly
+`limb_count` limbs and returns `RNS8_RANGE_ERROR` when the reconstructed value
+does not fit. Unsigned export is magnitude in exactly `limb_count` limbs and
+also returns `RNS8_RANGE_ERROR` on overflow. These APIs are separate from
+bounded i64/u64 export and strict wraparound semantics.
 
 Required status codes:
 

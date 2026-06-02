@@ -23,8 +23,9 @@ Implemented:
   persistent RNS matrices, centered residues, scalar per-modulus ring GEMM,
   Boost.Multiprecision CRT/Garner reconstruction, and range-error checks.
 - Exact-wide signed and unsigned persistent RNS output with Boost-backed
-  residue oracles. Scalar/multi-limb exact-wide export is still intentionally
-  separate from bounded i64/u64 export.
+  residue oracles and CPU little-endian limb export. Signed exact-wide export
+  uses fixed-width two's-complement limbs; unsigned exact-wide export uses
+  fixed-width magnitude limbs.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
@@ -37,7 +38,7 @@ Implemented:
 Not implemented yet:
 
 - Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
-  hot kernels, exact-wide export, and strict `mod 2^64` byte-limb GEMM.
+  hot kernels, GPU exact-wide export, and strict `mod 2^64` byte-limb GEMM.
 - Performance claims beyond the host-timed CPU/direct-HIP benchmark shell.
 
 ## Windows Development Requirements

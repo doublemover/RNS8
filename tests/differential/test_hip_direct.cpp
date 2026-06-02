@@ -347,6 +347,16 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
               hip_c->hip_device_id, hip_c->residues.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) ==
           RNS8_SUCCESS);
   CHECK(hip_c->residues == cpu_c->residues);
+  constexpr uint32_t limb_count = 3;
+  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), n, limb_count) ==
+          RNS8_SUCCESS);
+  hip_c->host_residues_current = false;
+  REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), n, limb_count) ==
+          RNS8_SUCCESS);
+  CHECK(hip_c->host_residues_current);
+  CHECK(hip_limbs == cpu_limbs);
 
   rns8_destroy_matrix(hip_c);
   rns8_destroy_matrix(hip_b);

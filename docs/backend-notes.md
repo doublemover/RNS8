@@ -39,5 +39,8 @@ HIP kernels are intentionally inspectable and unoptimized; they are correctness
 bring-up kernels, not performance evidence.
 
 Exact-wide signed and unsigned semantics are supported as persistent RNS output
-with `RNS8_BOUND_NONE`. They are not exported through the bounded i64/u64 APIs;
-multi-limb exact-wide export needs a separate ABI contract.
+with `RNS8_BOUND_NONE`. They are not exported through the bounded i64/u64 APIs.
+CPU export uses explicit little-endian limbs: signed output is fixed-width
+two's-complement and unsigned output is fixed-width magnitude. HIP-resident RNS
+matrices use host reconstruction for exact-wide limb export; GPU exact-wide
+export remains unimplemented.
