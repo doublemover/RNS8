@@ -314,7 +314,6 @@ struct BoundedHipResidentSnapshot {
   void* c_upload = nullptr;
   void* c_export = nullptr;
   void* c_status = nullptr;
-  void* workspace_scratch = nullptr;
   std::size_t a_residue_bytes = 0;
   std::size_t b_residue_bytes = 0;
   std::size_t c_residue_bytes = 0;
@@ -323,7 +322,6 @@ struct BoundedHipResidentSnapshot {
   std::size_t c_upload_bytes = 0;
   std::size_t c_export_bytes = 0;
   std::size_t c_status_bytes = 0;
-  std::size_t workspace_scratch_bytes = 0;
   uint64_t workspace_bound = 0;
   uint32_t workspace_tile_m = 0;
   uint32_t workspace_tile_n = 0;
@@ -361,7 +359,6 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   snapshot.c_upload = C->hip_upload_buffer;
   snapshot.c_export = C->hip_export_buffer;
   snapshot.c_status = C->hip_status_buffer;
-  snapshot.workspace_scratch = workspace->hip_scratch;
   snapshot.a_residue_bytes = A->hip_residue_bytes;
   snapshot.b_residue_bytes = B->hip_residue_bytes;
   snapshot.c_residue_bytes = C->hip_residue_bytes;
@@ -370,7 +367,6 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   snapshot.c_upload_bytes = C->hip_upload_bytes;
   snapshot.c_export_bytes = C->hip_export_bytes;
   snapshot.c_status_bytes = C->hip_status_bytes;
-  snapshot.workspace_scratch_bytes = workspace->hip_scratch_bytes;
   snapshot.workspace_bound = workspace->bound;
   snapshot.workspace_tile_m = workspace->tile_m;
   snapshot.workspace_tile_n = workspace->tile_n;
@@ -408,7 +404,6 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(C->hip_upload_buffer == snapshot.c_upload);
   CHECK(C->hip_export_buffer == snapshot.c_export);
   CHECK(C->hip_status_buffer == snapshot.c_status);
-  CHECK(workspace->hip_scratch == snapshot.workspace_scratch);
   CHECK(A->hip_residue_bytes == snapshot.a_residue_bytes);
   CHECK(B->hip_residue_bytes == snapshot.b_residue_bytes);
   CHECK(C->hip_residue_bytes == snapshot.c_residue_bytes);
@@ -417,7 +412,6 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(C->hip_upload_bytes == snapshot.c_upload_bytes);
   CHECK(C->hip_export_bytes == snapshot.c_export_bytes);
   CHECK(C->hip_status_bytes == snapshot.c_status_bytes);
-  CHECK(workspace->hip_scratch_bytes == snapshot.workspace_scratch_bytes);
   CHECK(workspace->bound == snapshot.workspace_bound);
   CHECK(workspace->tile_m == snapshot.workspace_tile_m);
   CHECK(workspace->tile_n == snapshot.workspace_tile_n);
@@ -446,7 +440,6 @@ struct Wrap64HipResidentSnapshot {
   void* c_upload = nullptr;
   void* c_export = nullptr;
   void* c_status = nullptr;
-  void* workspace_scratch = nullptr;
   std::size_t a_byte_limb_bytes = 0;
   std::size_t b_byte_limb_bytes = 0;
   std::size_t c_byte_limb_bytes = 0;
@@ -455,7 +448,6 @@ struct Wrap64HipResidentSnapshot {
   std::size_t c_upload_bytes = 0;
   std::size_t c_export_bytes = 0;
   std::size_t c_status_bytes = 0;
-  std::size_t workspace_scratch_bytes = 0;
   uint64_t workspace_bound = 0;
   uint32_t workspace_tile_m = 0;
   uint32_t workspace_tile_n = 0;
@@ -493,7 +485,6 @@ Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(
   snapshot.c_upload = C->hip_upload_buffer;
   snapshot.c_export = C->hip_export_buffer;
   snapshot.c_status = C->hip_status_buffer;
-  snapshot.workspace_scratch = workspace->hip_scratch;
   snapshot.a_byte_limb_bytes = A->hip_byte_limb_bytes;
   snapshot.b_byte_limb_bytes = B->hip_byte_limb_bytes;
   snapshot.c_byte_limb_bytes = C->hip_byte_limb_bytes;
@@ -502,7 +493,6 @@ Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(
   snapshot.c_upload_bytes = C->hip_upload_bytes;
   snapshot.c_export_bytes = C->hip_export_bytes;
   snapshot.c_status_bytes = C->hip_status_bytes;
-  snapshot.workspace_scratch_bytes = workspace->hip_scratch_bytes;
   snapshot.workspace_bound = workspace->bound;
   snapshot.workspace_tile_m = workspace->tile_m;
   snapshot.workspace_tile_n = workspace->tile_n;
@@ -543,7 +533,6 @@ void check_wrap64_resident_snapshot_unchanged(
   CHECK(C->hip_upload_buffer == snapshot.c_upload);
   CHECK(C->hip_export_buffer == snapshot.c_export);
   CHECK(C->hip_status_buffer == snapshot.c_status);
-  CHECK(workspace->hip_scratch == snapshot.workspace_scratch);
   CHECK(A->hip_byte_limb_bytes == snapshot.a_byte_limb_bytes);
   CHECK(B->hip_byte_limb_bytes == snapshot.b_byte_limb_bytes);
   CHECK(C->hip_byte_limb_bytes == snapshot.c_byte_limb_bytes);
@@ -552,7 +541,6 @@ void check_wrap64_resident_snapshot_unchanged(
   CHECK(C->hip_upload_bytes == snapshot.c_upload_bytes);
   CHECK(C->hip_export_bytes == snapshot.c_export_bytes);
   CHECK(C->hip_status_bytes == snapshot.c_status_bytes);
-  CHECK(workspace->hip_scratch_bytes == snapshot.workspace_scratch_bytes);
   CHECK(A->device_byte_limbs_current);
   CHECK(B->device_byte_limbs_current);
   CHECK(C->device_byte_limbs_current);

@@ -1149,11 +1149,6 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
   if (workspace) {
     rns8_status status = RNS8_SUCCESS;
-    if (workspace->hip_scratch) {
-      status = rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_scratch);
-      workspace->hip_scratch = nullptr;
-      workspace->hip_scratch_bytes = 0;
-    }
     if (workspace->hip_tile_schedule) {
       const rns8_status free_status =
           rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_tile_schedule);
