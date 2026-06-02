@@ -1,13 +1,22 @@
 # rocWMMA And AMDGPU Builtin Backend
 
-Reserved for future target-specific hot kernels using rocWMMA or AMDGPU
-builtins where the active ROCm/HIP SDK supports them.
+Opt-in Windows `gfx1100` rocWMMA accelerator backend plus reserved AMDGPU
+builtin hot-kernel path.
 
-This is not a validated backend. Do not add stubs that report success without a
-compiled kernel and exact CPU differential tests.
+The rocWMMA backend is compiled only with `RNS8_ENABLE_ROCWMMA=ON`. It uses the
+pinned repo-local rocWMMA headers and RNS8-owned HIP kernels to pack centered
+signed residues into 16-aligned panels, execute `int8 x int8 -> int32` WMMA,
+and fuse INT32 accumulators back to centered `int8_t` residues without global
+INT32 scratch output.
 
-`RNS8_ENABLE_ROCWMMA` and `RNS8_ENABLE_AMDGPU_BUILTINS` must keep failing fast
-until real correctness backends exist. rocWMMA component probes are evidence
-only. AMDGPU builtins have no discovery-only readiness path; they need
-target-specific exact kernels, CPU differentials, and ISA evidence before
-enablement.
+The implemented rocWMMA coverage includes fixed-prefix bounded RNS plans,
+adaptive per-tile bounded schedules, exact-wide RNS output, and finite u8. The
+ISA gate requires the expected `v_wmma` instruction and rejects scalar
+divide/remainder/reciprocal mnemonics plus unintended INT32 global stores.
+Benchmark fixtures currently record host wall-clock evidence only, so the
+backend keeps `performance_validated=false` until reviewed captures prove a
+target-shape win.
+
+Dependency discovery and primitive compile probes remain evidence only; they
+do not enable rocWMMA by themselves. `RNS8_ENABLE_AMDGPU_BUILTINS` still fails
+fast because no target-specific builtin correctness kernels have been added.

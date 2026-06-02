@@ -37,6 +37,8 @@ def main() -> int:
     v4_hipblaslt_i64 = expect_valid("v4_bounded_i64_hipblaslt.json")
     v4_ck_i64 = expect_valid("v4_bounded_i64_ck.json")
     v4_ck_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_ck.json")
+    v4_wmma_i64 = expect_valid("v4_bounded_i64_rocwmma.json")
+    v4_wmma_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_rocwmma.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
@@ -77,6 +79,27 @@ def main() -> int:
     bad_ck_events["gpu_event_timings_us"] = {"pack": [1.0, 1.0]}
     bad_ck_events["gpu_event_timing_summary_us"] = {"pack": {"avg": 1.0, "median": 1.0, "p95": 1.0}}
     expect_invalid(bad_ck_events, "CK per-tile adaptive captures must report unavailable GPU event timings")
+
+    bad_wmma_library = copy.deepcopy(v4_wmma_i64)
+    bad_wmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    expect_invalid(bad_wmma_library, "rocWMMA")
+
+    bad_wmma_kernel = copy.deepcopy(v4_wmma_adaptive_u64)
+    bad_wmma_kernel["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    bad_wmma_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    expect_invalid(bad_wmma_kernel, "per-tile adaptive wmma captures")
+
+    bad_wmma_events = copy.deepcopy(v4_wmma_adaptive_u64)
+    bad_wmma_events["timing_metadata"]["gpu_event_timing"] = True
+    bad_wmma_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    bad_wmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
+    bad_wmma_events["timing_metadata"]["gpu_event_phase_order"] = ["pack"]
+    bad_wmma_events["gpu_event_timings_us"] = {"pack": [1.0, 1.0]}
+    bad_wmma_events["gpu_event_timing_summary_us"] = {"pack": {"avg": 1.0, "median": 1.0, "p95": 1.0}}
+    expect_invalid(
+        bad_wmma_events,
+        "rocWMMA per-tile adaptive captures must report unavailable GPU event timings",
+    )
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]

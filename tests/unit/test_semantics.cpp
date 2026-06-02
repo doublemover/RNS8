@@ -730,7 +730,10 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
 }
 
 TEST_CASE("future backend context kinds report unsupported status") {
-  std::vector<rns8_backend_kind> backends = {RNS8_BACKEND_WMMA};
+  std::vector<rns8_backend_kind> backends;
+#if !defined(RNS8_ENABLE_ROCWMMA) || !RNS8_ENABLE_ROCWMMA
+  backends.push_back(RNS8_BACKEND_WMMA);
+#endif
 #if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
   backends.push_back(RNS8_BACKEND_CK);
 #endif

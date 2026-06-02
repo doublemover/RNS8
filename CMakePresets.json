@@ -82,6 +82,19 @@
       }
     },
     {
+      "name": "windows-msvc-rocwmma-debug",
+      "displayName": "Windows MSVC + HIP SDK + rocWMMA hot kernels (Debug)",
+      "description": "Windows gfx1100 opt-in rocWMMA signed-int8 fused accelerator backend build with repo-local rocWMMA headers.",
+      "inherits": "windows-msvc-hip-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-rocwmma-debug",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "ON",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
       "name": "linux-rocm-debug",
       "displayName": "Linux ROCm + vcpkg (Debug)",
       "description": "Linux ROCm production/profiling validation preset. Represented only until run on a real Linux ROCm host with supported hardware.",
@@ -150,6 +163,10 @@
       "configurePreset": "windows-msvc-ck-debug"
     },
     {
+      "name": "windows-rocwmma-debug",
+      "configurePreset": "windows-msvc-rocwmma-debug"
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-rocm-debug"
     },
@@ -187,6 +204,13 @@
     {
       "name": "windows-ck-debug",
       "configurePreset": "windows-msvc-ck-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-rocwmma-debug",
+      "configurePreset": "windows-msvc-rocwmma-debug",
       "output": {
         "outputOnFailure": true
       }
