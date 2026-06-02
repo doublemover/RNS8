@@ -72,13 +72,15 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 37/37 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 38/38 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 37/37 passed on
+- `ctest --preset windows-debug --output-on-failure`: 38/38 passed on
   `gfx1100`.
 - The Windows HIP test pass included
   `private HIP wrap64 byte-limb GEMM matches CPU reference`, which exercises a
   compiled direct-HIP byte-limb Comba smoke kernel against the CPU reference.
+- The Windows HIP test pass also includes signed and unsigned exact-wide RNS
+  differential checks against CPU residues and CPU limb export.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json`:
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb
