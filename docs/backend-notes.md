@@ -86,8 +86,10 @@ evidence.
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from
 the product a signed INT8 accelerator would expose plus a deterministic
-correction term. This is accelerator-readiness algebra only; no signed-INT8
-accelerator backend is enabled by it.
+correction term. It also includes a separate 36-byte-GEMM decomposition oracle
+that sums byte-product diagonals and then performs Comba carry propagation.
+These are accelerator-readiness references only; no signed-INT8 accelerator
+backend is enabled by them.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP Comba correctness path. HIP wrap64 event captures use

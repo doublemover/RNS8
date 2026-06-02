@@ -50,6 +50,10 @@ Implemented correctness coverage:
   verify that the signed-INT8 correction algebra composes through Comba
   diagonals. This is readiness coverage for future signed-INT8 accelerator use,
   not an enabled accelerator backend.
+- A separate CPU 36-byte-GEMM oracle sums the low-product byte diagonals with
+  the signed-INT8 correction helper, performs Comba carry propagation, and is
+  compared against both Boost.Multiprecision low-64-bit results and the existing
+  byte-limb Comba GEMM-cell reference.
 - Public direct HIP strict `mod 2^64` byte-limb one-shot and persistent API
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve

@@ -50,7 +50,9 @@ disagree, the spec remains the target and this file identifies the gap.
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
   from wrap descriptors. The CPU reference also includes an exhaustively tested
   signed-INT8 correction helper for reconstructing unsigned byte products when
-  future accelerator paths expose only signed INT8 products.
+  future accelerator paths expose only signed INT8 products, plus a 36-byte-GEMM
+  decomposition oracle that matches Boost low-64 results and the current Comba
+  reference.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the

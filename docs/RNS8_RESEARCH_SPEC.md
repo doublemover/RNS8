@@ -1321,7 +1321,9 @@ uint64 source
 If a future accelerator exposes only signed INT8 products, unsigned byte
 products must be reconstructed with the tested signed-INT8 correction algebra
 before Comba carry propagation. The current helper is accelerator readiness
-only; it does not enable a signed-INT8 backend by itself.
+only; it does not enable a signed-INT8 backend by itself. The CPU reference also
+has a 36-byte-GEMM decomposition oracle for this production path, separate from
+the current per-product Comba correctness backend.
 
 The central performance thesis is:
 

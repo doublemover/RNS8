@@ -164,6 +164,54 @@ TEST_CASE("wrap64 byte-limb GEMM cell matches multiprecision modulo 2^64") {
   }
 }
 
+TEST_CASE("wrap64 36-byte-GEMM oracle matches Comba and multiprecision") {
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 3;
+  constexpr int64_t k = 4;
+  constexpr int64_t lda = 5;
+  constexpr int64_t ldb = 4;
+  const std::vector<uint64_t> A = {
+      0,
+      std::numeric_limits<uint64_t>::max(),
+      0x8080808080808080ull,
+      0x0102030405060708ull,
+      0xaaaaaaaaaaaaaaaaull,
+      0xfefdfcfbfaf9f8f7ull,
+      17,
+      0x7f807f807f807f80ull,
+      255,
+      0xbbbbbbbbbbbbbbbbull};
+  const std::vector<uint64_t> B = {
+      3,
+      std::numeric_limits<uint64_t>::max(),
+      0x1112131415161718ull,
+      0xccccccccccccccccull,
+      0x8080808080808080ull,
+      31,
+      0xfefdfcfbfaf9f8f7ull,
+      0xddddddddddddddddull,
+      0x0101010101010101ull,
+      37,
+      41,
+      0xeeeeeeeeeeeeeeeeull,
+      43,
+      47,
+      53,
+      0xffffffffffffffffull};
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      boost::multiprecision::cpp_int exact = 0;
+      for (int64_t kk = 0; kk < k; ++kk) {
+        exact += boost::multiprecision::cpp_int(A[row * lda + kk]) * boost::multiprecision::cpp_int(B[kk * ldb + col]);
+      }
+      const uint64_t oracle = rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      CHECK(oracle == low64(exact));
+      CHECK(oracle == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+    }
+  }
+}
+
 TEST_CASE("public wrap64 one-shot uses byte-limb low-64-bit semantics") {
   constexpr int64_t m = 2;
   constexpr int64_t n = 3;
