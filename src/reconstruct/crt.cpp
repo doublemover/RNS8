@@ -44,6 +44,11 @@ cpp_int abs_cpp(const cpp_int& value) {
   return value < 0 ? -value : value;
 }
 
+cpp_int centered_from_canonical(const cpp_int& value, const cpp_int& product) {
+  const cpp_int threshold = (product + 1) / 2;
+  return value >= threshold ? value - product : value;
+}
+
 }  // namespace
 
 cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix) {
@@ -107,10 +112,7 @@ rns8_status reconstruct_signed(
   }
 
   const cpp_int product = modulus_product(prefix);
-  cpp_int value = reconstruct_canonical(residues, prefix);
-  if (value > product / 2) {
-    value -= product;
-  }
+  const cpp_int value = centered_from_canonical(reconstruct_canonical(residues, prefix), product);
   if (!fits_int64(value) || abs_cpp(value) > cpp_int(bound)) {
     return RNS8_RANGE_ERROR;
   }
@@ -149,10 +151,7 @@ rns8_status export_exact_wide_signed_limbs(
     return RNS8_INVALID_ARGUMENT;
   }
   const cpp_int product = modulus_product(prefix);
-  cpp_int value = reconstruct_canonical(residues, prefix);
-  if (value > product / 2) {
-    value -= product;
-  }
+  cpp_int value = centered_from_canonical(reconstruct_canonical(residues, prefix), product);
 
   const uint32_t bits = 64u * limb_count;
   const cpp_int min_value = -(cpp_int(1) << (bits - 1u));

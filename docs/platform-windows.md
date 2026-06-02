@@ -45,7 +45,9 @@ matrix-engine implementation.
 Windows `gfx1100` evidence does not validate Linux ROCm, Instinct CDNA, or
 cluster production readiness. Those gates remain represented in presets and
 readiness reports, but they require a supported Linux ROCm host and actual
-target hardware.
+target hardware. Exact-wide signed/unsigned limb ABI coverage on Windows is
+host and `gfx1100` evidence only; it does not stand in for Linux Radeon or
+Instinct exact-wide validation.
 
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected
 accelerators on Windows. `tools/check_dependencies.py` may report discovered

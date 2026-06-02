@@ -53,6 +53,18 @@ __device__ void rns8_wrap64_store_low64_from_diagonals(uint8_t* dst, const uint6
   }
 }
 
+__device__ void rns8_wrap64_accumulate_low_diagonals_from_limbs(
+    const uint8_t* a,
+    const uint8_t* b,
+    uint64_t* diagonals) {
+  for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
+    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64ByteLimbs; ++b_limb) {
+      diagonals[a_limb + b_limb] +=
+          static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a[a_limb], b[b_limb]));
+    }
+  }
+}
+
 __global__ void rns8_wrap64_pack_u64_kernel(
     const uint64_t* src,
     uint8_t* byte_limbs,
@@ -129,12 +141,7 @@ __global__ void rns8_wrap64_tiled_byte_gemm_kernel(
       for (int local_k = 0; local_k < k_extent; ++local_k) {
         const uint8_t* a = a_tile + ((static_cast<int>(threadIdx.y) * kWrap64TileK + local_k) * kWrap64ByteLimbs);
         const uint8_t* b = b_tile + ((local_k * kWrap64TileN + static_cast<int>(threadIdx.x)) * kWrap64ByteLimbs);
-        for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
-          for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64ByteLimbs; ++b_limb) {
-            diagonals[a_limb + b_limb] +=
-                static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a[a_limb], b[b_limb]));
-          }
-        }
+        rns8_wrap64_accumulate_low_diagonals_from_limbs(a, b, diagonals);
       }
     }
 

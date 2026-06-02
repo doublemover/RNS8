@@ -30,7 +30,10 @@ disagree, the spec remains the target and this file identifies the gap.
   layout.
 - Fixed 9-modulus bounded i64/u64 GEMM: CPU and direct HIP public one-shot
   bounded APIs pass CPU differential tests, including full-width boundary and
-  K-block cases.
+  K-block cases. The CPU/reference source now names the Phase 2 fixed
+  9-modulus milestone explicitly and locks default prefix-9 scheduling,
+  K-split edge behavior around 65536, signed cancellation, unsigned full-width
+  padded output, and signed/unsigned per-tile schedule parity.
 - Persistent RNS behavior: public matrix/workspace APIs exercise persistent A/B/C
   storage and verify device pointer stability through pack, GEMM, and export.
   Workspaces are tagged with backend, shape, prefix, semantics, and bound kind
@@ -125,22 +128,31 @@ disagree, the spec remains the target and this file identifies the gap.
    timed instead of synthesized from GEMM time. No performance claims are made.
 5. Phase 2/3 fixed 9-modulus bounded GEMM and persistent matrix behavior:
    implemented as named status milestones with CPU and Windows HIP tests,
-   including a literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9` contract check.
+   including a literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9` contract check. The
+   CPU/reference milestone is source-covered by Boost.Multiprecision exact
+   differentials for the 65535/65536/65537 K edge, signed cancellation,
+   unsigned full-width padded output, and per-tile selected-prefix parity.
 6. Exact-wide CPU output/export semantics: implemented separately from bounded
    i64/u64 and wrap64 semantics. Signed export uses fixed-width
-   two's-complement limbs over the centered exact integer; unsigned export uses
-   fixed-width magnitude limbs over the canonical nonnegative integer. The ABI
-   treats `ld` as an element stride, stores `limb_count` contiguous limbs per
-   element for `limb_count` in `[1, 32]`, and reports range errors instead of
-   truncating. Invalid widths and stale descriptor metadata are rejected at the
-   API boundary.
+   two's-complement limbs over the centered exact integer, using the same
+   `x >= ceil(P / 2)` negative threshold as centered residue packing; unsigned
+   export uses fixed-width magnitude limbs over the canonical nonnegative
+   integer. The ABI treats `ld` as an element stride, stores `limb_count`
+   contiguous limbs per element for `limb_count` in `[1, 32]`, and reports
+   range errors instead of truncating. Invalid widths, invalid strides, null
+   export handles, stale nonzero bounds, non-none bound kinds, and tile-bound
+   metadata are rejected at the API boundary. Unit coverage pins one-limb
+   signed boundaries, 32-limb sign extension, unsigned overflow rejection,
+   two-limb unsigned success, padded export, descriptor rejection, and wrong
+   export-function rejection.
 7. Strict `mod 2^64`: implemented only through byte-limb storage for CPU and
    direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
    The direct-HIP tiled byte-limb path is a correctness kernel, not an
    optimized matrix-engine accelerator.
 8. Linux ROCm and Instinct: represented by presets, readiness gates, target
    coverage metadata, and docs. Validation remains `NOT_APPLICABLE` on this
-   Windows host and requires a real supported Linux ROCm host.
+   Windows host and requires a real supported Linux ROCm host; Windows evidence
+   is not a substitute for Linux Radeon or Instinct CDNA validation.
 9. hipBLASLt, CK, rocWMMA, and AMDGPU builtins: kept as later feature-detected
    accelerators. Enable flags fail fast because no correctness backend is
    implemented. Python/CMake probes are evidence-only and never become
@@ -151,6 +163,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
   instruction-level validation. The direct HIP kernels are correctness bring-up
   kernels, not performance evidence.
+- Production performance gates for the fixed 9-modulus bounded milestone. The
+  current fixed-prefix CPU and direct-HIP paths are correctness-grade and
+  unoptimized unless a reviewed benchmark capture says otherwise.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Device capability and exact CPU differential probes for hipBLASLt, CK,

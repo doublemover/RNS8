@@ -23,14 +23,19 @@ Implemented correctness coverage:
   dimensions 1 through 8, with Boost.Multiprecision exact oracles.
 - Fixed-seed random bounded signed and unsigned CPU checks with padded leading
   dimensions and Boost.Multiprecision exact oracles.
+- Phase 2 fixed 9-modulus CPU reference milestone checks lock the default
+  prefix-9 schedule, signed cancellation and unsigned accumulation at K values
+  65535, 65536, and 65537, full-width `UINT64_MAX` output with padded leading
+  dimensions, and signed/unsigned per-tile selected-prefix schedule parity.
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
 - Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
   rejects bounded-looking metadata, finite-ring/finite-field/future accelerator
   requests report unsupported, and strict wraparound never falls through to
   bounded CRT behavior.
-- Public API hard-cut tests cover exact-wide invalid limb layout, null output
-  pointers, bounded export shortcuts, wrap export shortcuts, signed/unsigned
+- Public API hard-cut tests cover exact-wide invalid limb layout, null context,
+  plan, matrix, and output pointers, stale bound/tile-bound descriptor
+  metadata, bounded export shortcuts, wrap export shortcuts, signed/unsigned
   exact-wide cross-export attempts, and unsupported accelerator context kinds.
 - Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
   nonzero bounds, global plans carrying tile-bound storage, and matrix
@@ -55,11 +60,22 @@ Implemented correctness coverage:
   bounded, signed/unsigned exact-wide, and wrap64 interpretations. Direct HIP
   export leaves device-resident residues on device instead of synchronizing
   host residue storage.
+- CPU exact-wide fixed-width export tests also pin the signed centered
+  half-product representative, one-limb signed min/max boundaries,
+  negative two's-complement sign extension through 32 limbs, unsigned one-limb
+  overflow rejection, two-limb unsigned success, padded element-stride export,
+  descriptor rejection, null-handle rejection, and wrong export-function
+  rejection.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
   and byte-limb storage, uses separate pack/GEMM/export APIs for persistent
-  matrices, and rejects CRT bounds/prefixes.
+  matrices, and rejects CRT bounds/prefixes. CPU persistent GEMM consumes
+  compact resident byte limbs after pack, not padded host input matrices. CPU
+  and direct-HIP persistent tests also mutate host inputs after pack plus stale
+  residue currentness, stale byte-limb currentness, and bounded schedule
+  metadata to prove those fields are rejected at pack/GEMM/export boundaries
+  instead of ignored.
 - Unsigned byte-limb signedness correction tests cover every byte pair and
   verify that the signed-INT8 correction algebra composes through Comba
   diagonals. This is readiness coverage for future signed-INT8 accelerator use,
@@ -67,41 +83,55 @@ Implemented correctness coverage:
 - A separate CPU 36-byte-GEMM oracle sums the low-product byte diagonals with
   the signed-INT8 correction helper, performs Comba carry propagation, and is
   compared against both Boost.Multiprecision low-64-bit results and the existing
-  byte-limb Comba GEMM-cell reference.
+  byte-limb Comba GEMM-cell reference over boundary and fixed-seed full-width
+  random inputs.
 - Public direct HIP strict `mod 2^64` byte-limb one-shot and persistent API
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
   device pointer stability through pack/GEMM/export, and support padded host
   leading dimensions on pack and export while keeping compact row-major
-  `rows * cols * 8` device byte-limb storage. The HIP GEMM correctness kernel
-  sums the 36 low-product byte diagonals with device-side signed-INT8
-  correction algebra and then performs deterministic carry propagation into the
-  low 64 bits.
+  `rows * cols * 8` device byte-limb storage. Same-shape wrap64 HIP resident
+  tests also check allocation counters across repeat pack/GEMM/export cycles.
+  The HIP GEMM correctness kernel sums the 36 low-product byte diagonals with
+  device-side signed-INT8 correction algebra and then performs deterministic
+  carry propagation into the low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
 - Direct HIP one-modulus ring-GEMM smoke tests compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible, including a
   centered-correction boundary case for negative, positive-threshold, and
-  near-zero residues.
+  near-zero residues. Private direct-HIP launch metadata tests reject a modulus
+  value that does not match the default ladder entry for the supplied modulus
+  index before queueing work.
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
-  reference.
+  reference. Bounded direct-HIP export also covers host-current/device-stale
+  residue matrices and rejects them instead of uploading during export. Signed
+  and unsigned range-error export cases compare CPU and HIP status, preserve
+  caller output sentinels, and check repeated device-current exports reuse
+  matrix-owned export/status buffers without growing upload buffers.
+- Direct HIP bounded persistent tests cover fixed prefix-9 unsigned GEMM at the
+  exact 65536 K-block boundary with padded host input/output layouts, CPU
+  reference comparison, and repeated same-shape allocation reuse.
 - Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
   the CPU reference, cover tile-local range errors, padded host export layouts,
   schedule parity, signed K-split cancellation under selected-prefix execution,
   and verify skipped residue planes above each tile's selected prefix remain
-  untouched on device.
+  untouched on device. Private tiled wrapper tests reject corrupted tile
+  metadata where `required_prefix > selected_prefix` before GEMM launch or
+  export/status buffer allocation.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is
   benchmark evidence metadata for the correctness path, not an optimized GPU
   performance claim.
 - Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
-  low-level coverage. The public and private HIP wrap64 tests are correctness
-  coverage for the tiled byte-limb kernel, not optimized matrix-engine
-  byte-GEMM performance evidence.
+  low-level coverage. Private wrap64 HIP tests also cover padded-host pack and
+  export into compact device byte-limb storage with reusable helper buffers. The
+  public and private HIP wrap64 tests are correctness coverage for the tiled
+  byte-limb kernel, not optimized matrix-engine byte-GEMM performance evidence.
 
 Not yet implemented:
 
@@ -121,13 +151,16 @@ Semantic guardrail:
   reconstruction remains the reference; direct HIP export reconstructs fixed
   limbs on device for correctness validation and copies only the requested limb
   layout to host. Signed export interprets the CRT result as a centered exact
-  integer and emits exactly `limb_count` two's-complement limbs; unsigned export
+  integer and emits exactly `limb_count` two's-complement limbs. The centered
+  representative uses `x >= ceil(P / 2)` as the negative threshold for selected
+  modulus product `P`, matching centered residue packing. Unsigned export
   interprets the canonical nonnegative result and emits exactly `limb_count`
   magnitude limbs. The APIs report `RNS8_RANGE_ERROR` rather than truncating
   when the requested fixed width is too small, and they reject attempts to use
   bounded i64/u64 or strict wrap64 export as an exact-wide shortcut.
-  `limb_count == 0`, `limb_count > 32`, and output leading dimensions smaller
-  than the matrix width are invalid ABI calls.
+  `limb_count == 0`, `limb_count > 32`, null handles, null destinations, and
+  output leading dimensions smaller than the matrix width are invalid ABI
+  calls.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested

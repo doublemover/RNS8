@@ -24,8 +24,10 @@ Implemented:
   Boost.Multiprecision CRT/Garner reconstruction, and range-error checks.
 - Exact-wide signed and unsigned persistent RNS output with Boost-backed
   residue oracles and CPU little-endian limb export. Signed exact-wide export
-  uses fixed-width two's-complement limbs; unsigned exact-wide export uses
-  fixed-width magnitude limbs.
+  uses fixed-width two's-complement limbs over the centered CRT representative
+  with the `x >= ceil(P / 2)` negative threshold; unsigned exact-wide export
+  uses fixed-width magnitude limbs. Both use element-stride `ld`,
+  `limb_count` in `[1, 32]`, and range errors instead of truncation.
 - Strict `mod 2^64` wraparound CPU GEMM through the explicit byte-limb backend,
   including one-shot and persistent byte-limb matrix APIs. This path returns
   low-64-bit `uint64_t` output and does not use odd-modulus CRT.
@@ -235,7 +237,8 @@ ctest --test-dir build\cpu-debug --output-on-failure
   claims.
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
   explicitly matrix-descriptor based; the ABI does not infer operand role or
-  semantics from C++ types.
+  semantics from C++ types. Exact-wide limb export is separate from bounded
+  i64/u64 and strict wrap64 export.
 - `temp/` is intentionally ignored and is the place for scratch files, raw
   benchmark captures, downloaded installers, and anything else that should not
   be tracked by git.

@@ -763,6 +763,12 @@ exactly `limb_count` limbs, where `limb_count` is in `[1, 32]`, and returns
 -2^(64 * limb_count - 1) <= value <= 2^(64 * limb_count - 1) - 1
 ```
 
+The signed centered CRT representative uses the same threshold convention as
+per-modulus centered residues: a canonical reconstruction `x` maps to
+`x - P` when `x >= ceil(P / 2)`, where `P` is the selected modulus product.
+For even products, the exact `P / 2` residue class is therefore represented as
+`-P / 2`, not as a positive value.
+
 Unsigned export is magnitude in exactly `limb_count` limbs, where `limb_count`
 is in `[1, 32]`, and returns `RNS8_RANGE_ERROR` unless the canonical integer
 fits:
@@ -774,6 +780,9 @@ fits:
 These APIs do not truncate, wrap, or infer bounded 64-bit behavior from the
 destination type. They are separate from bounded i64/u64 export and strict
 wraparound semantics.
+Null `ctx`, `plan`, matrix, or destination pointers, `limb_count` outside
+`[1, 32]`, and output leading dimensions smaller than the matrix width are
+malformed ABI calls and return `RNS8_INVALID_ARGUMENT`.
 
 Exact-wide descriptors use `RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound
 storage. Global bounded descriptors also carry no tile-bound pointer/count.

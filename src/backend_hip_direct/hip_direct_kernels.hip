@@ -6,6 +6,10 @@ namespace {
 
 constexpr int kRns8DefaultModulusCount = 28;
 
+constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
+    256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
+    193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
+
 __device__ __constant__ int rns8_default_moduli_device[kRns8DefaultModulusCount] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
@@ -122,6 +126,14 @@ __device__ rns8_u192_device rns8_u192_shr1_device(rns8_u192_device value) {
       (value.limb0 >> 1u) | (value.limb1 << 63u),
       (value.limb1 >> 1u) | (value.limb2 << 63u),
       value.limb2 >> 1u};
+}
+
+__device__ bool rns8_u192_centered_is_negative_device(rns8_u192_device value, rns8_u192_device product) {
+  rns8_u192_device threshold = rns8_u192_shr1_device(product);
+  if ((product.limb0 & 1u) != 0) {
+    threshold = rns8_u192_add_device(threshold, rns8_u192_from_u64_device(1));
+  }
+  return rns8_u192_compare_device(value, threshold) >= 0;
 }
 
 __device__ bool rns8_u192_gt_u64_device(rns8_u192_device value, uint64_t limit) {
@@ -374,9 +386,8 @@ __device__ void rns8_export_i64_cell_device(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
-  const rns8_u192_device half_product = rns8_u192_shr1_device(product);
 
-  if (rns8_u192_compare_device(x, half_product) > 0) {
+  if (rns8_u192_centered_is_negative_device(x, product)) {
     const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
     constexpr uint64_t int64_min_magnitude = 0x8000000000000000ULL;
     if (rns8_u192_gt_u64_device(magnitude, bound) || rns8_u192_gt_u64_device(magnitude, int64_min_magnitude)) {
@@ -535,9 +546,8 @@ __global__ void rns8_export_exact_wide_signed_limbs_kernel(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
-  const rns8_u192_device half_product = rns8_u192_shr1_device(product);
   uint64_t* cell_dst = dst + static_cast<int64_t>(cell) * limb_count;
-  if (rns8_u192_compare_device(x, half_product) > 0) {
+  if (rns8_u192_centered_is_negative_device(x, product)) {
     const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
     if (!rns8_u192_signed_negative_magnitude_fits_limbs_device(magnitude, limb_count)) {
       atomicCAS(status, 0, 5);
@@ -819,7 +829,9 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int safe_k_block) {
   if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus <= 0 ||
       modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
-      selected_prefix > kRns8DefaultModulusCount || safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+      selected_prefix > kRns8DefaultModulusCount ||
+      modulus != rns8_default_moduli_host[modulus_index] ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);

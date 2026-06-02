@@ -20,14 +20,17 @@ Current status:
   from the odd-modulus CRT path. It also contains the signed-INT8 correction
   algebra future accelerator paths must use when unsigned byte products are
   computed through signed INT8 hardware instructions, plus a full byte-diagonal
-  decomposition oracle used by wrap64 correctness tests.
+  decomposition oracle used by wrap64 correctness tests. Persistent CPU GEMM
+  consumes compact resident byte-limb matrices directly after pack, not padded
+  host storage.
 - `wrap64_hip_kernels.hip` contains direct-HIP pack, tiled byte-limb
   correctness, and export kernels. The GEMM kernel stages 16x16 output tiles
   through K tiles, sums the 36 low-product byte diagonals with device-side
   signed-INT8 correction algebra, then performs deterministic carry propagation
   into the low 64 bits. The public HIP_DIRECT one-shot and persistent wrap64
   APIs use matrix-owned device byte-limb storage and are tested against the CPU
-  reference.
+  reference. Private HIP pack/export helper tests lock padded host rows,
+  compact device byte-limb layout, and helper-buffer reuse.
 - Public wrap64 pack, GEMM, and export reject residue-backed matrices, bounded
   metadata, nonzero CRT prefixes, and RNS export/GEMM APIs. A wrap descriptor
   must remain byte-limb-only from matrix creation through export.

@@ -7,7 +7,8 @@ Current core design:
 
 - Public ABI is C with explicit `struct_size` and `abi_version` fields.
 - Semantics are explicit through `rns8_semantics`; bounded signed and unsigned
-  64-bit GEMM are the only implemented production semantics in this slice.
+  64-bit, exact-wide signed/unsigned limb export, and strict wrap64 byte-limb
+  contracts remain separate ABI surfaces.
 - Persistent RNS matrices are created from `rns8_matrix_desc` and store
   modulus-major centered `int8_t` residues.
 - Packing writes into an explicit matrix object. The ABI does not infer whether
@@ -16,6 +17,10 @@ Current core design:
   K into blocks no larger than 65536 before residue reduction.
 - CRT reconstruction uses Boost.Multiprecision incremental Garner/CRT logic
   and checks signed/unsigned range contracts before export.
+- Exact-wide export writes fixed-width little-endian limbs. Signed export uses
+  the centered CRT representative with the same `x >= ceil(P / 2)` negative
+  threshold as centered residue packing; unsigned export uses canonical
+  magnitude limbs. Both report range errors rather than truncating.
 
 Current backend boundary:
 
@@ -24,4 +29,6 @@ Current backend boundary:
   inspection, GPU residue conversion, one-modulus ring-GEMM smoke coverage,
   K-block splitting, and bounded API smoke coverage.
 - hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths are not implemented and must
-  remain feature-detected accelerators, not correctness requirements.
+  remain feature-detected evidence-only accelerators, not correctness
+  requirements. Their enable flags must fail fast until real correctness
+  backends exist.
