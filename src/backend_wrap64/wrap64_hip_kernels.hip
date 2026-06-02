@@ -130,13 +130,11 @@ __global__ void rns8_wrap64_pack_u64_kernel(
     int64_t rows,
     int64_t cols,
     int64_t ld) {
-  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  const int64_t total = rows * cols;
-  if (cell >= total) {
+  const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  if (row >= rows || col >= cols) {
     return;
   }
-  const int64_t row = cell / cols;
-  const int64_t col = cell - row * cols;
   rns8_store_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
 }
 
@@ -151,10 +149,8 @@ __global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
   __shared__ uint64_t a_tile[kWrap64TileM * kWrap64TileK];
   __shared__ uint64_t b_tile[kWrap64TileK * kWrap64TileN];
 
-  const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
-  const int64_t tile_index = static_cast<int64_t>(blockIdx.x);
-  const int64_t tile_row = tile_index / tile_cols;
-  const int64_t tile_col = tile_index - tile_row * tile_cols;
+  const int64_t tile_col = static_cast<int64_t>(blockIdx.x);
+  const int64_t tile_row = static_cast<int64_t>(blockIdx.y);
   const int64_t row = tile_row * kWrap64TileM + threadIdx.y;
   const int64_t col = tile_col * kWrap64TileN + threadIdx.x;
   const int thread_index = static_cast<int>(threadIdx.y) * kWrap64TileN + static_cast<int>(threadIdx.x);
@@ -215,14 +211,12 @@ __global__ void rns8_wrap64_export_u64_kernel(
     uint64_t* dst,
     int64_t rows,
     int64_t cols) {
-  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  const int64_t total = rows * cols;
-  if (cell >= total) {
+  const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  if (row >= rows || col >= cols) {
     return;
   }
-  const int64_t row = cell / cols;
-  const int64_t col = cell - row * cols;
-  dst[cell] = rns8_load_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
+  dst[row * cols + col] = rns8_load_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
 }
 
 }  // namespace
@@ -233,13 +227,16 @@ extern "C" int rns8_wrap64_hip_pack_u64_device(
     int64_t rows,
     int64_t cols,
     int64_t ld) {
-  constexpr int threads = 256;
-  const int64_t total = rows * cols;
-  const int blocks = static_cast<int>((total + threads - 1) / threads);
+  constexpr int threads_x = 16;
+  constexpr int threads_y = 16;
+  const dim3 threads(threads_x, threads_y);
+  const dim3 blocks(
+      static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
+      static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
   hipLaunchKernelGGL(
       rns8_wrap64_pack_u64_kernel,
-      dim3(blocks),
-      dim3(threads),
+      blocks,
+      threads,
       0,
       nullptr,
       src,
@@ -260,7 +257,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
   const dim3 threads(kWrap64TileN, kWrap64TileM);
   const int64_t tile_rows = (m + kWrap64TileM - 1) / kWrap64TileM;
   const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
-  const dim3 blocks(static_cast<unsigned int>(tile_rows * tile_cols));
+  const dim3 blocks(static_cast<unsigned int>(tile_cols), static_cast<unsigned int>(tile_rows));
   hipLaunchKernelGGL(
       rns8_wrap64_byte_gemm36_tiled_kernel,
       blocks,
@@ -281,13 +278,16 @@ extern "C" int rns8_wrap64_hip_export_u64_device(
     uint64_t* dst,
     int64_t rows,
     int64_t cols) {
-  constexpr int threads = 256;
-  const int64_t total = rows * cols;
-  const int blocks = static_cast<int>((total + threads - 1) / threads);
+  constexpr int threads_x = 16;
+  constexpr int threads_y = 16;
+  const dim3 threads(threads_x, threads_y);
+  const dim3 blocks(
+      static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
+      static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
   hipLaunchKernelGGL(
       rns8_wrap64_export_u64_kernel,
-      dim3(blocks),
-      dim3(threads),
+      blocks,
+      threads,
       0,
       nullptr,
       byte_limbs,

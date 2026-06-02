@@ -189,7 +189,7 @@ plus current aggregate phase labels:
 - `pack_h2d`
 - `pack_kernel`
 - `pack`
-- `wrap64_byte_gemm36_tiled_kernel`
+- `wrap64_byte_gemm36_tiled_2d_kernel`
 - `rns_gemm`
 - `wrap64_export_kernel`
 - `wrap64_export_d2h`

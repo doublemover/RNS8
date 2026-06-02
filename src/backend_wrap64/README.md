@@ -47,10 +47,14 @@ Current status:
 - Public wrap64 pack, GEMM, and export reject residue-backed matrices, bounded
   metadata, nonzero CRT prefixes, and RNS export/GEMM APIs. A wrap descriptor
   must remain byte-limb-only from matrix creation through export.
-- Optimized matrix-engine byte-GEMM kernels and production GPU performance
-  evidence are not implemented yet. The signedness correction algebra is
-  implemented and tested on CPU and consumed by the direct-HIP correctness
-  kernel, but no signed-INT8 accelerator backend is enabled by it.
+- The current optimized direct-HIP byte-GEMM36 path is
+  `direct_hip_wrap64_byte_gemm36_tiled_2d_v3`. It uses 2D launch geometry for
+  pack, GEMM tile selection, and export so shape-dependent row/column decoding
+  does not introduce variable reciprocal/divide instructions. The signedness
+  correction algebra is implemented and tested on CPU and consumed by the
+  direct-HIP kernel. Matrix-engine byte-GEMM36 remains intentionally disabled
+  until a compiled unsigned-byte or correctly corrected signed-INT8 matrix
+  instruction path has ISA evidence and exact differentials.
 - Bounded `RNS8_BOUNDED_U64` calls are exact-result calls, not wraparound
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.

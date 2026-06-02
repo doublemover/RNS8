@@ -711,7 +711,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      return "direct_hip_wrap64_byte_gemm36_tiled_v2";
+      return "direct_hip_wrap64_byte_gemm36_tiled_2d_v3";
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       return "direct_hip_tiled_finite_u8_gemm_v1";
@@ -805,7 +805,7 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
 std::string isa_evidence_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      return "source_level_signed_i8_correction_byte_gemm36_no_matrix_engine_gate";
+      return "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine";
     }
     return "rns8_hip_direct_reciprocal_isa_gate";
   }

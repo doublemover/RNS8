@@ -404,6 +404,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     set_tests_properties(hip_direct_kernel_isa_check PROPERTIES LABELS "hip;isa;hard-cut")
+    add_test(
+      NAME wrap64_kernel_isa_check
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_wrap64_kernel_isa.py"
+        --object "${RNS8_WRAP64_HIP_KERNEL_OBJECT}"
+        --target "${RNS8_HIP_ISA_CHECK_TARGET}"
+        --hipcc "${RNS8_HIP_HIPCC}"
+        --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(wrap64_kernel_isa_check PROPERTIES LABELS "hip;isa;wrap64")
   endif()
   if(RNS8_ENABLE_CK)
     list(GET RNS8_AMDGPU_TARGETS 0 RNS8_CK_ISA_CHECK_TARGET)
