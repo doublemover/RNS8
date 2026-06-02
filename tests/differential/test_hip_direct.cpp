@@ -322,6 +322,22 @@ struct BoundedHipResidentSnapshot {
   std::size_t c_export_bytes = 0;
   std::size_t c_status_bytes = 0;
   std::size_t workspace_scratch_bytes = 0;
+  uint64_t workspace_bound = 0;
+  uint32_t workspace_tile_m = 0;
+  uint32_t workspace_tile_n = 0;
+  uint64_t workspace_schedule_tile_rows = 0;
+  uint64_t workspace_schedule_tile_cols = 0;
+  uint64_t workspace_schedule_tile_count = 0;
+  uint32_t workspace_schedule_min_required_prefix = 0;
+  uint32_t workspace_schedule_max_required_prefix = 0;
+  uint32_t workspace_schedule_min_selected_prefix = 0;
+  uint32_t workspace_schedule_max_selected_prefix = 0;
+  uint32_t workspace_schedule_prefix_group_count = 0;
+  uint32_t workspace_schedule_range_bit_length = 0;
+  uint32_t workspace_schedule_adaptive_prefix_active = 0;
+  uint32_t workspace_schedule_adaptive_skip_active = 0;
+  uint32_t workspace_schedule_flags = 0;
+  uint64_t workspace_schedule_fingerprint = 0;
 };
 
 BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
@@ -351,6 +367,22 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   snapshot.c_export_bytes = C->hip_export_bytes;
   snapshot.c_status_bytes = C->hip_status_bytes;
   snapshot.workspace_scratch_bytes = workspace->hip_scratch_bytes;
+  snapshot.workspace_bound = workspace->bound;
+  snapshot.workspace_tile_m = workspace->tile_m;
+  snapshot.workspace_tile_n = workspace->tile_n;
+  snapshot.workspace_schedule_tile_rows = workspace->schedule_tile_rows;
+  snapshot.workspace_schedule_tile_cols = workspace->schedule_tile_cols;
+  snapshot.workspace_schedule_tile_count = workspace->schedule_tile_count;
+  snapshot.workspace_schedule_min_required_prefix = workspace->schedule_min_required_prefix;
+  snapshot.workspace_schedule_max_required_prefix = workspace->schedule_max_required_prefix;
+  snapshot.workspace_schedule_min_selected_prefix = workspace->schedule_min_selected_prefix;
+  snapshot.workspace_schedule_max_selected_prefix = workspace->schedule_max_selected_prefix;
+  snapshot.workspace_schedule_prefix_group_count = workspace->schedule_prefix_group_count;
+  snapshot.workspace_schedule_range_bit_length = workspace->schedule_range_bit_length;
+  snapshot.workspace_schedule_adaptive_prefix_active = workspace->schedule_adaptive_prefix_active;
+  snapshot.workspace_schedule_adaptive_skip_active = workspace->schedule_adaptive_skip_active;
+  snapshot.workspace_schedule_flags = workspace->schedule_flags;
+  snapshot.workspace_schedule_fingerprint = workspace->schedule_fingerprint;
   return snapshot;
 }
 
@@ -380,6 +412,22 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(C->hip_export_bytes == snapshot.c_export_bytes);
   CHECK(C->hip_status_bytes == snapshot.c_status_bytes);
   CHECK(workspace->hip_scratch_bytes == snapshot.workspace_scratch_bytes);
+  CHECK(workspace->bound == snapshot.workspace_bound);
+  CHECK(workspace->tile_m == snapshot.workspace_tile_m);
+  CHECK(workspace->tile_n == snapshot.workspace_tile_n);
+  CHECK(workspace->schedule_tile_rows == snapshot.workspace_schedule_tile_rows);
+  CHECK(workspace->schedule_tile_cols == snapshot.workspace_schedule_tile_cols);
+  CHECK(workspace->schedule_tile_count == snapshot.workspace_schedule_tile_count);
+  CHECK(workspace->schedule_min_required_prefix == snapshot.workspace_schedule_min_required_prefix);
+  CHECK(workspace->schedule_max_required_prefix == snapshot.workspace_schedule_max_required_prefix);
+  CHECK(workspace->schedule_min_selected_prefix == snapshot.workspace_schedule_min_selected_prefix);
+  CHECK(workspace->schedule_max_selected_prefix == snapshot.workspace_schedule_max_selected_prefix);
+  CHECK(workspace->schedule_prefix_group_count == snapshot.workspace_schedule_prefix_group_count);
+  CHECK(workspace->schedule_range_bit_length == snapshot.workspace_schedule_range_bit_length);
+  CHECK(workspace->schedule_adaptive_prefix_active == snapshot.workspace_schedule_adaptive_prefix_active);
+  CHECK(workspace->schedule_adaptive_skip_active == snapshot.workspace_schedule_adaptive_skip_active);
+  CHECK(workspace->schedule_flags == snapshot.workspace_schedule_flags);
+  CHECK(workspace->schedule_fingerprint == snapshot.workspace_schedule_fingerprint);
 }
 
 bool has_timing_label(const std::vector<rns8::detail::hip_direct_timing_sample>& samples, const std::string& label) {
@@ -615,6 +663,65 @@ TEST_CASE("private HIP wrap64 byte-limb GEMM matches CPU reference for carry-hea
     for (int64_t col = 0; col < n; ++col) {
       const uint64_t expected = rns8::detail::wrap64_byte_gemm36_cell(A.data(), k, B.data(), n, row, col, k);
       CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
+    }
+  }
+}
+
+TEST_CASE("private HIP wrap64 byte-limb GEMM covers tile tails and signed-int8 correction") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for private wrap64 HIP tile-tail smoke");
+  }
+
+  constexpr int64_t m = 31;
+  constexpr int64_t n = 30;
+  constexpr int64_t k = 33;
+  std::vector<uint64_t> A(static_cast<std::size_t>(m * k), 0);
+  std::vector<uint64_t> B(static_cast<std::size_t>(k * n), 0);
+  std::mt19937_64 rng(0x7772617036345f74ull);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      uint64_t value = rng();
+      if ((row + col) % 7 == 0) {
+        value = std::numeric_limits<uint64_t>::max();
+      } else if ((row + col) % 7 == 1) {
+        value = 0x8080808080808080ull;
+      } else if ((row + col) % 7 == 2) {
+        value = 0x7f807f807f807f80ull;
+      }
+      A[static_cast<std::size_t>(row * k + col)] = value;
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      uint64_t value = rng();
+      if ((row * 3 + col) % 11 == 0) {
+        value = std::numeric_limits<uint64_t>::max();
+      } else if ((row * 3 + col) % 11 == 1) {
+        value = 0xfefdfcfbfaf9f8f7ull;
+      } else if ((row * 3 + col) % 11 == 2) {
+        value = 0x0102030405060708ull;
+      }
+      B[static_cast<std::size_t>(row * n + col)] = value;
+    }
+  }
+
+  std::vector<uint8_t> a_limbs(static_cast<std::size_t>(m * k * 8));
+  std::vector<uint8_t> b_limbs(static_cast<std::size_t>(k * n * 8));
+  std::vector<uint8_t> c_limbs(static_cast<std::size_t>(m * n * 8), 0xa5);
+  for (int64_t cell = 0; cell < m * k; ++cell) {
+    store_u64_limbs(a_limbs, cell, A[static_cast<std::size_t>(cell)]);
+  }
+  for (int64_t cell = 0; cell < k * n; ++cell) {
+    store_u64_limbs(b_limbs, cell, B[static_cast<std::size_t>(cell)]);
+  }
+
+  run_wrap64_resident_device_gemm(a_limbs, b_limbs, c_limbs, m, n, k);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      const uint64_t expected = rns8::detail::wrap64_byte_gemm36_cell(A.data(), k, B.data(), n, row, col, k);
+      CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
+      CHECK(expected == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k));
     }
   }
 }
@@ -1452,6 +1559,24 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   CHECK(rns8_create_plan(hip, &prefixed, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
+  const uint64_t tile_bound = 1;
+  auto tile_bounded = desc;
+  tile_bounded.tile_bounds = &tile_bound;
+  tile_bounded.tile_bounds_count = 1;
+  CHECK(rns8_gemm_wrap_u64_oneshot(hip, &tile_bounded, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(hip, &tile_bounded, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  auto per_tile_wrap = desc;
+  per_tile_wrap.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  per_tile_wrap.tile_m = 64;
+  per_tile_wrap.tile_n = 64;
+  per_tile_wrap.tile_bounds = &tile_bound;
+  per_tile_wrap.tile_bounds_count = 1;
+  CHECK(rns8_gemm_wrap_u64_oneshot(hip, &per_tile_wrap, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(hip, &per_tile_wrap, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
   auto matrix = matrix_desc(m, n, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
   rns8_matrix* storage = nullptr;
   matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
@@ -1488,6 +1613,15 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   REQUIRE(rns8_pack_u64(hip, wrap_a, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, wrap_b, B, n, 2) == RNS8_SUCCESS);
 
+  auto bounded_workspace_desc = unsigned_desc(m, n, k, 2, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* bounded_plan = nullptr;
+  rns8_workspace* bounded_workspace = nullptr;
+  REQUIRE(rns8_create_plan(hip, &bounded_workspace_desc, &bounded_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, bounded_plan, &bounded_workspace) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, bounded_workspace) == RNS8_INVALID_ARGUMENT);
+  rns8_destroy_workspace(bounded_workspace);
+  rns8_destroy_plan(bounded_plan);
+
   wrap_a->host_residues_current = true;
   CHECK(rns8_pack_u64(hip, wrap_a, A, k, 3) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
@@ -1502,6 +1636,13 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
   wrap_a->host_byte_limbs_current = false;
   wrap_a->device_byte_limbs_current = true;
+
+  valid_plan->desc.tile_bounds = &tile_bound;
+  valid_plan->desc.tile_bounds_count = 1;
+  CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
+  valid_plan->desc.tile_bounds = nullptr;
+  valid_plan->desc.tile_bounds_count = 0;
 
   valid_plan->tile_bounds.push_back(1);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
@@ -2200,6 +2341,119 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
   rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata are part of residency contract") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP bounded per-tile schedule contract smoke");
+  }
+
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  constexpr int64_t lda = 1;
+  constexpr int64_t ldb = n;
+  constexpr int64_t ldc = n;
+  constexpr uint64_t sentinel = 0xdadadadadadadadaull;
+  const std::vector<uint64_t> bounds_a = {7, 1000, 7000000, 1000000000};
+  const std::vector<uint64_t> bounds_b = {7, 1000, 7000000, 999999999};
+  const std::vector<uint64_t> bounds_tile = {1000000000};
+
+  auto make_desc = [&](const std::vector<uint64_t>& bounds, uint32_t tile_m, uint32_t tile_n, rns8_backend_kind backend) {
+    auto desc = unsigned_desc(m, n, k, 0, backend);
+    desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+    desc.tile_m = tile_m;
+    desc.tile_n = tile_n;
+    desc.tile_bounds = bounds.data();
+    desc.tile_bounds_count = static_cast<uint64_t>(bounds.size());
+    return desc;
+  };
+
+  std::vector<uint64_t> A(static_cast<std::size_t>(m), 1);
+  std::vector<uint64_t> B(static_cast<std::size_t>(n), 7);
+  A.back() = 1000000;
+  B.back() = 1000;
+  std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * ldc), sentinel);
+  std::vector<uint64_t> hip_c(static_cast<std::size_t>(m * ldc), sentinel);
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto cpu_desc = make_desc(bounds_a, 64, 64, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = make_desc(bounds_a, 64, 64, RNS8_BACKEND_HIP_DIRECT);
+  auto hip_desc_b = make_desc(bounds_b, 64, 64, RNS8_BACKEND_HIP_DIRECT);
+  auto hip_desc_tile = make_desc(bounds_tile, 128, 128, RNS8_BACKEND_HIP_DIRECT);
+
+  rns8::detail::hip_direct_allocation_counters_reset();
+  rns8_plan* plan = nullptr;
+  rns8_plan* plan_b = nullptr;
+  rns8_plan* plan_tile = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_workspace* workspace_b = nullptr;
+  rns8_workspace* workspace_tile = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* wrong_a_tile = nullptr;
+  rns8_matrix* wrong_c_tile = nullptr;
+
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc_b, &plan_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc_tile, &plan_tile) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, plan_b, &workspace_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, plan_tile, &workspace_tile) == RNS8_SUCCESS);
+
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  a_desc.tile_m = b_desc.tile_m = c_desc.tile_m = 64;
+  a_desc.tile_n = b_desc.tile_n = c_desc.tile_n = 64;
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+  auto wrong_a_desc = a_desc;
+  wrong_a_desc.tile_m = 128;
+  wrong_a_desc.tile_n = 128;
+  auto wrong_c_desc = c_desc;
+  wrong_c_desc.tile_m = 128;
+  wrong_c_desc.tile_n = 128;
+  REQUIRE(rns8_create_matrix(hip, &wrong_a_desc, &wrong_a_tile) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &wrong_c_desc, &wrong_c_tile) == RNS8_SUCCESS);
+
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, wrong_a_tile, A.data(), lda, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
+  CHECK(hip_c == cpu_c);
+
+  const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  CHECK(workspace->schedule_tile_count == bounds_a.size());
+  CHECK(workspace->schedule_prefix_group_count >= 1);
+  CHECK(workspace->schedule_fingerprint != workspace_b->schedule_fingerprint);
+  CHECK(workspace->schedule_fingerprint != workspace_tile->schedule_fingerprint);
+
+  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_b) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_tile) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(hip, plan, wrong_a_tile, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_u64(hip, plan, wrong_c_tile, hip_c.data(), ldc) == RNS8_INVALID_ARGUMENT);
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+
+  rns8_destroy_matrix(wrong_c_tile);
+  rns8_destroy_matrix(wrong_a_tile);
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace_tile);
+  rns8_destroy_workspace(workspace_b);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan_tile);
+  rns8_destroy_plan(plan_b);
   rns8_destroy_plan(plan);
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);

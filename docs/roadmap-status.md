@@ -36,9 +36,12 @@ disagree, the spec remains the target and this file identifies the gap.
   padded output, and signed/unsigned per-tile schedule parity.
 - Persistent RNS behavior: public matrix/workspace APIs exercise persistent A/B/C
   storage and verify device pointer stability through pack, GEMM, and export.
-  Workspaces are tagged with backend, shape, prefix, semantics, and bound kind
-  and reject same-shape reuse across bounded, per-tile bounded, exact-wide, and
-  wrap64 contracts.
+  Workspaces are tagged with backend, shape, prefix, semantics, bound kind,
+  bound value, tile geometry, selected-prefix schedule metadata, and an
+  internal schedule fingerprint, and reject same-shape reuse across bounded,
+  per-tile bounded, exact-wide, wrap64, and different per-tile schedule
+  contracts. Per-tile bounded matrices must carry matching plan tile geometry
+  before GEMM/export dispatch.
 - Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
   required prefix, selected prefix, and prefix-group metadata through public ABI
   queries. Global bounded plans still use one fixed selected prefix for every
@@ -55,8 +58,10 @@ disagree, the spec remains the target and this file identifies the gap.
   per-element width in `[1, 32]`. Direct HIP exports signed and unsigned
   exact-wide limbs from device-resident RNS matrices without synchronizing host
   residue storage and reports range errors when the requested fixed width is too
-  small. Stale nonzero bounds and tile-bound metadata are rejected for
-  exact-wide descriptors.
+  small while preserving destination storage. Stale nonzero bounds, tile-bound
+  metadata, stale-prefix matrices, bounded matrices, wrap64 byte-limb matrices,
+  and signed/unsigned cross-export calls are rejected for exact-wide
+  descriptors and exports.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
@@ -81,15 +86,17 @@ disagree, the spec remains the target and this file identifies the gap.
   unsigned output against the CPU reference, cover tile-local range errors,
   prove skipped high-prefix residue planes remain untouched, and keep matrices
   device-resident through GEMM/export.
-- Benchmark schema v4: benchmark captures include stable schema version, command
-  line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
-  configured HIP toolchain metadata, null placeholders for unavailable fields,
-  direct-HIP GPU event timing arrays when complete, exact `hipEventElapsedTime`
-  source/scope validation for direct-HIP event captures, explicit unavailable
-  metadata when event timing is not applicable, strict wrap64 CPU and direct-HIP
-  byte-limb benchmark metadata, fixed-prefix schedule metadata, measured
-  schedule-info query timing, explicit phase-availability metadata for fused or
-  not-applicable reduction, direct-HIP per-tile adaptive bounded capture
+- Benchmark schema v4: benchmark captures include an explicit integer
+  `"schema_version": 4`, command line, live git commit, compiler/HIP/device
+  metadata, raw timings, summaries, configured HIP toolchain metadata, null
+  placeholders for unavailable fields, direct-HIP GPU event timing arrays when
+  complete, exact `hipEventElapsedTime` source/scope validation for direct-HIP
+  event captures, mandatory declared GPU event phase order with exact timing-key
+  matching, explicit unavailable metadata when event timing is not applicable,
+  strict wrap64 CPU and direct-HIP byte-limb benchmark metadata, fixed-prefix
+  schedule metadata, measured schedule-info query timing, explicit
+  phase-availability metadata for fused or not-applicable reduction, direct-HIP
+  per-tile adaptive bounded capture
   metadata, schema validation tooling, and comparison-tool support for
   current schema v4 plus capture-specific GPU event phase orders. Adaptive captures
   are evidence for the direct-HIP tiled correctness path only; they are not
@@ -103,7 +110,10 @@ disagree, the spec remains the target and this file identifies the gap.
   separate not-ready gate until real target-specific exact kernels exist.
   Opt-in Python and CMake accelerator probe modes record compile/link/runtime
   evidence under `temp/` or probe-only build directories while keeping all
-  accelerator backend enablement disabled.
+  accelerator backend enablement disabled. CTest configure-negative cases pin
+  that `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
+  `RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast until
+  real correctness backends exist.
 
 ## Requirement Audit
 
@@ -111,7 +121,9 @@ disagree, the spec remains the target and this file identifies the gap.
    matrices. Matrix-owned residue, byte-limb, upload, export, and status
    buffers have explicit ownership and teardown. Repeated same-shape persistent
    pack/GEMM/export is now allocation-observed after warmup. Workspace reuse is
-   contract-checked by semantics and bound kind, not only by shape.
+   contract-checked by semantics, bound kind, bound value, tile geometry,
+   selected-prefix schedule metadata, and a copied-schedule fingerprint, not
+   only by shape.
 2. Direct HIP fused INT32-to-centered-residue reduction: implemented in the
    direct correctness kernel. The path writes centered `int8_t` residues and
    does not materialize full INT32 output matrices in global memory. Optimized
@@ -139,11 +151,14 @@ disagree, the spec remains the target and this file identifies the gap.
    export uses fixed-width magnitude limbs over the canonical nonnegative
    integer. The ABI treats `ld` as an element stride, stores `limb_count`
    contiguous limbs per element for `limb_count` in `[1, 32]`, and reports
-   range errors instead of truncating. Invalid widths, invalid strides, null
-   export handles, stale nonzero bounds, non-none bound kinds, and tile-bound
-   metadata are rejected at the API boundary. Unit coverage pins one-limb
-   signed boundaries, 32-limb sign extension, unsigned overflow rejection,
-   two-limb unsigned success, padded export, descriptor rejection, and wrong
+   range errors instead of truncating while preserving destination storage.
+   Invalid widths, invalid strides, null export handles, stale nonzero bounds,
+   non-none bound kinds, tile-bound metadata, stale prefixes, bounded matrix
+   handles, wrap64 byte-limb matrix handles, and cross-semantic export attempts
+   are rejected at the API boundary. Unit coverage pins one-limb signed
+   boundaries, 32-limb sign extension, signed high-bit negative export,
+   unsigned overflow rejection, two-limb unsigned success including high-bit
+   magnitude cases, padded export, descriptor rejection, and wrong
    export-function rejection.
 7. Strict `mod 2^64`: implemented only through byte-limb storage for CPU and
    direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
@@ -156,7 +171,8 @@ disagree, the spec remains the target and this file identifies the gap.
 9. hipBLASLt, CK, rocWMMA, and AMDGPU builtins: kept as later feature-detected
    accelerators. Enable flags fail fast because no correctness backend is
    implemented. Python/CMake probes are evidence-only and never become
-   correctness requirements.
+   correctness requirements. CTest registers configure-negative cases for all
+   four enable flags to prevent accidental placeholder backend acceptance.
 
 ## Not Yet Implemented
 
@@ -187,7 +203,7 @@ disagree, the spec remains the target and this file identifies the gap.
   vcpkg toolchain from the VS developer environment.
 - `cmake --build --preset windows-debug`: built successfully, including the
   explicit hipcc direct-HIP and wrap64 HIP kernel objects.
-- `ctest --preset windows-debug --output-on-failure`: 121/121 passed on the
+- `ctest --preset windows-debug --output-on-failure`: 129/129 passed on the
   Windows HIP debug build; the private mismatched-modulus metadata smoke remains
   intentionally skipped when the low-level direct-HIP device entry point is
   unavailable to that test process.
@@ -195,9 +211,10 @@ disagree, the spec remains the target and this file identifies the gap.
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   and wrap64 smoke passed.
 - `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
-- Verified post-`9fbc845` implementation patch removes the remaining direct-HIP
-  host wrapper convenience paths and keeps bounded, wrap64, and exact-wide HIP
-  tests on resident device-current storage contracts after the Windows HIP
+- Verified post-`3b8bda7` implementation patch tightens per-tile bounded
+  workspace/matrix schedule identity, adds wrap64 stale-metadata rejection,
+  strengthens exact-wide storage rejection and fixed-width limb boundaries, and
+  registers accelerator enable fail-fast configure tests after the Windows HIP
   build, CTest pass, HIP smoke, `git diff --check`, and benchmark schema
   self-test above.
 - `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json

@@ -78,9 +78,13 @@ of being uploaded implicitly during CRT reconstruction.
 
 Workspace ownership is also part of the semantic contract. Workspaces are
 created from a plan and remain tagged with that plan's backend, shape, prefix,
-semantics, and bound kind. A same-shape workspace from exact-wide, bounded
-global, bounded per-tile, or wrap64 semantics is rejected instead of being
-silently reused across contracts.
+semantics, bound kind, bound value, tile geometry, selected-prefix schedule
+metadata, and an internal schedule fingerprint over copied per-tile bounds and
+tile entries. A same-shape workspace from exact-wide, bounded global, bounded
+per-tile, wrap64 semantics, or a different per-tile bounded schedule is rejected
+instead of being silently reused across contracts. Per-tile bounded matrices
+must also carry the plan's tile geometry; stale matrix tile metadata is rejected
+before GEMM/export dispatch.
 
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
@@ -184,7 +188,9 @@ not promote a backend to correctness-ready status. A future accelerator backend
 must have compiled kernels, explicit semantic support, and exact CPU
 differential coverage before enable flags stop failing fast. The fail-fast
 flags are `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
-`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`.
+`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`. CTest registers a
+negative configure case for each flag so accidental placeholder backend
+enablement fails at the integration gate.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP tiled byte-limb correctness path. HIP wrap64 event captures use

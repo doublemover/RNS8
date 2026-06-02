@@ -59,7 +59,9 @@ kernels exist. It does not enable or validate those backends. They require
 compiled capability probes and exact CPU differential tests before any backend
 can be treated as ready. The CMake accelerator enable flags intentionally fail
 fast until real correctness backends exist; discovery evidence is not a bypass
-around the direct HIP correctness path.
+around the direct HIP correctness path. The CTest suite includes
+configure-negative cases for each accelerator enable flag so a placeholder
+backend cannot configure successfully under the current policy.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:

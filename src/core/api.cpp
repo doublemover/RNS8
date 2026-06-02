@@ -54,7 +54,9 @@ rns8_matrix_desc make_matrix_desc(
     int64_t cols,
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
-    uint32_t prefix) {
+    uint32_t prefix,
+    uint32_t tile_m = 128,
+    uint32_t tile_n = 128) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -64,8 +66,8 @@ rns8_matrix_desc make_matrix_desc(
   desc.semantics = semantics;
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   desc.bound_kind = bound_kind;
-  desc.tile_m = 128;
-  desc.tile_n = 128;
+  desc.tile_m = tile_m;
+  desc.tile_n = tile_n;
   desc.max_prefix = prefix;
   return desc;
 }
@@ -291,17 +293,81 @@ uint64_t bound_for_cell(const rns8_plan& plan, int64_t row, int64_t col) {
   return plan.tile_bounds[static_cast<std::size_t>(index)];
 }
 
+uint64_t workspace_fingerprint_mix(uint64_t hash, uint64_t value) {
+  hash ^= value;
+  hash *= 1099511628211ull;
+  return hash;
+}
+
+uint64_t signed_to_fingerprint(int64_t value) {
+  return static_cast<uint64_t>(value);
+}
+
+uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
+  uint64_t hash = 1469598103934665603ull;
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.semantics));
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.bound_kind));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.m));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.n));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.k));
+  hash = workspace_fingerprint_mix(hash, plan.desc.bound);
+  hash = workspace_fingerprint_mix(hash, plan.desc.tile_m);
+  hash = workspace_fingerprint_mix(hash, plan.desc.tile_n);
+  hash = workspace_fingerprint_mix(hash, plan.prefix);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_tile_rows);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_tile_cols);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_tile_count);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_min_required_prefix);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_max_required_prefix);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_min_selected_prefix);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_max_selected_prefix);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_prefix_group_count);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_range_bit_length);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_adaptive_prefix_active);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_adaptive_skip_active);
+  hash = workspace_fingerprint_mix(hash, plan.schedule_flags);
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.tile_bounds.size()));
+  for (const uint64_t bound : plan.tile_bounds) {
+    hash = workspace_fingerprint_mix(hash, bound);
+  }
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.tile_schedule.size()));
+  for (const auto& entry : plan.tile_schedule) {
+    hash = workspace_fingerprint_mix(hash, entry.struct_size);
+    hash = workspace_fingerprint_mix(hash, entry.abi_version);
+    hash = workspace_fingerprint_mix(hash, entry.flags);
+    hash = workspace_fingerprint_mix(hash, entry.tile_row);
+    hash = workspace_fingerprint_mix(hash, entry.tile_col);
+    hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(entry.row_offset));
+    hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(entry.col_offset));
+    hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(entry.row_extent));
+    hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(entry.col_extent));
+    hash = workspace_fingerprint_mix(hash, entry.required_prefix);
+    hash = workspace_fingerprint_mix(hash, entry.selected_prefix);
+    hash = workspace_fingerprint_mix(hash, entry.group_index);
+    hash = workspace_fingerprint_mix(hash, entry.range_bit_length);
+  }
+  return hash == 0 ? 1 : hash;
+}
+
 bool matrix_descriptor_matches(
     const rns8_matrix& matrix,
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
     int64_t rows,
     int64_t cols,
-    uint32_t prefix) {
-  return matrix.desc.semantics == semantics && matrix.desc.bound_kind == bound_kind && matrix.desc.rows == rows &&
-         matrix.desc.cols == cols && matrix.desc.logical_layout == RNS8_LAYOUT_ROW_MAJOR &&
-         matrix.desc.logical_ld >= matrix.desc.cols && matrix.desc.flags == 0 && matrix.prefix == prefix &&
-         matrix.desc.max_prefix == prefix;
+    uint32_t prefix,
+    uint32_t tile_m,
+    uint32_t tile_n) {
+  if (matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
+      matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
+      matrix.desc.logical_ld < matrix.desc.cols || matrix.desc.flags != 0 || matrix.prefix != prefix ||
+      matrix.desc.max_prefix != prefix) {
+    return false;
+  }
+  if (is_per_tile_bound_kind(bound_kind)) {
+    return matrix.desc.tile_m == tile_m && matrix.desc.tile_n == tile_n;
+  }
+  return true;
 }
 
 bool wrap_byte_limb_bytes(int64_t rows, int64_t cols, std::size_t& bytes) {
@@ -491,6 +557,22 @@ rns8_status validate_plan_context_workspace(
       workspace.prefix != plan.prefix) {
     return RNS8_WORKSPACE_TOO_SMALL;
   }
+  if (workspace.bound != plan.desc.bound || workspace.tile_m != plan.desc.tile_m ||
+      workspace.tile_n != plan.desc.tile_n || workspace.schedule_tile_rows != plan.schedule_tile_rows ||
+      workspace.schedule_tile_cols != plan.schedule_tile_cols ||
+      workspace.schedule_tile_count != plan.schedule_tile_count ||
+      workspace.schedule_min_required_prefix != plan.schedule_min_required_prefix ||
+      workspace.schedule_max_required_prefix != plan.schedule_max_required_prefix ||
+      workspace.schedule_min_selected_prefix != plan.schedule_min_selected_prefix ||
+      workspace.schedule_max_selected_prefix != plan.schedule_max_selected_prefix ||
+      workspace.schedule_prefix_group_count != plan.schedule_prefix_group_count ||
+      workspace.schedule_range_bit_length != plan.schedule_range_bit_length ||
+      workspace.schedule_adaptive_prefix_active != plan.schedule_adaptive_prefix_active ||
+      workspace.schedule_adaptive_skip_active != plan.schedule_adaptive_skip_active ||
+      workspace.schedule_flags != plan.schedule_flags ||
+      workspace.schedule_fingerprint != plan_workspace_fingerprint(plan)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && workspace.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -513,9 +595,15 @@ rns8_status validate_rns_gemm_operands(
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_descriptor_matches(A, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.k, plan.prefix) ||
-      !matrix_descriptor_matches(B, plan.desc.semantics, plan.desc.bound_kind, plan.desc.k, plan.desc.n, plan.prefix) ||
-      !matrix_descriptor_matches(C, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.n, plan.prefix)) {
+  if (!matrix_descriptor_matches(
+          A, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.k, plan.prefix, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          B, plan.desc.semantics, plan.desc.bound_kind, plan.desc.k, plan.desc.n, plan.prefix, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          C, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.n, plan.prefix, plan.desc.tile_m,
+          plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, plan.prefix) ||
@@ -551,9 +639,15 @@ rns8_status validate_wrap_gemm_operands(
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_descriptor_matches(A, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.m, plan.desc.k, 0) ||
-      !matrix_descriptor_matches(B, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.k, plan.desc.n, 0) ||
-      !matrix_descriptor_matches(C, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n, 0)) {
+  if (!matrix_descriptor_matches(
+          A, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.m, plan.desc.k, 0, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          B, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.k, plan.desc.n, 0, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          C, RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n, 0, plan.desc.tile_m,
+          plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (A.hip_residues || B.hip_residues || C.hip_residues) {
@@ -587,7 +681,8 @@ rns8_status validate_export_matrix(
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_descriptor_matches(C, semantics, bound_kind, plan.desc.m, plan.desc.n, prefix)) {
+  if (!matrix_descriptor_matches(
+          C, semantics, bound_kind, plan.desc.m, plan.desc.n, prefix, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (uses_rns_storage(semantics) &&
@@ -960,7 +1055,23 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->m = plan->desc.m;
     workspace->n = plan->desc.n;
     workspace->k = plan->desc.k;
+    workspace->bound = plan->desc.bound;
+    workspace->tile_m = plan->desc.tile_m;
+    workspace->tile_n = plan->desc.tile_n;
     workspace->prefix = plan->prefix;
+    workspace->schedule_tile_rows = plan->schedule_tile_rows;
+    workspace->schedule_tile_cols = plan->schedule_tile_cols;
+    workspace->schedule_tile_count = plan->schedule_tile_count;
+    workspace->schedule_min_required_prefix = plan->schedule_min_required_prefix;
+    workspace->schedule_max_required_prefix = plan->schedule_max_required_prefix;
+    workspace->schedule_min_selected_prefix = plan->schedule_min_selected_prefix;
+    workspace->schedule_max_selected_prefix = plan->schedule_max_selected_prefix;
+    workspace->schedule_prefix_group_count = plan->schedule_prefix_group_count;
+    workspace->schedule_range_bit_length = plan->schedule_range_bit_length;
+    workspace->schedule_adaptive_prefix_active = plan->schedule_adaptive_prefix_active;
+    workspace->schedule_adaptive_skip_active = plan->schedule_adaptive_skip_active;
+    workspace->schedule_flags = plan->schedule_flags;
+    workspace->schedule_fingerprint = plan_workspace_fingerprint(*plan);
     workspace->backend = ctx->backend;
     workspace->hip_device_id = ctx->backend == RNS8_BACKEND_HIP_DIRECT ? ctx->device_id : -1;
     *out = workspace;
@@ -1471,7 +1582,7 @@ rns8_status rns8_export_wrap_u64(
     }
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       if (!C->host_byte_limbs_current) {
-        return RNS8_INTERNAL_ERROR;
+        return RNS8_INVALID_ARGUMENT;
       }
       for (int64_t row = 0; row < plan->desc.m; ++row) {
         for (int64_t col = 0; col < plan->desc.n; ++col) {
@@ -1660,11 +1771,14 @@ rns8_status rns8_gemm_i64_oneshot(
     rns8_matrix* c_matrix = nullptr;
     rns8_workspace* workspace = nullptr;
     const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
 
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -1717,11 +1831,14 @@ rns8_status rns8_gemm_u64_oneshot(
     rns8_matrix* c_matrix = nullptr;
     rns8_workspace* workspace = nullptr;
     const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
 
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -1777,11 +1894,14 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     rns8_matrix* c_matrix = nullptr;
     rns8_workspace* workspace = nullptr;
     const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
     const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix);
+        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
+                         plan->desc.tile_n);
 
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);

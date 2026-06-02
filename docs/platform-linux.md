@@ -58,6 +58,8 @@ capability probes, exact CPU differential coverage, and measured performance
 before enabling advanced backend stages. AMDGPU builtin hot kernels follow the
 same rule: compiler or architecture availability is only candidate evidence
 until a target-specific kernel has exact CPU differential coverage.
+The same hard-cut enable policy is covered by CTest configure-negative cases:
+each accelerator enable flag must fail while only evidence probes exist.
 
 Before claiming Linux production readiness, run direct HIP parity tests on the
 target ROCm release and actual supported Radeon or Instinct hardware. Until

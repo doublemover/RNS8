@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
@@ -497,6 +498,100 @@ TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different sema
   rns8_destroy_plan(per_tile_plan);
   rns8_destroy_plan(exact_plan);
   rns8_destroy_plan(bounded_plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("persistent bounded RNS GEMM rejects same-shape stale schedule workspaces and matrix tiles") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  const uint64_t bounds_a[4] = {7, 1000, 7000000, 1000000000};
+  const uint64_t bounds_b[4] = {7, 1000, 7000000, 999999999};
+  const uint64_t bounds_tile[1] = {1000000000};
+  std::vector<uint64_t> A(static_cast<std::size_t>(m), 1);
+  std::vector<uint64_t> B(static_cast<std::size_t>(n), 7);
+  A.back() = 1000000;
+  B.back() = 1000;
+
+  auto desc_a = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  desc_a.m = m;
+  desc_a.n = n;
+  desc_a.k = k;
+  desc_a.bound = 0;
+  desc_a.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc_a.tile_m = 64;
+  desc_a.tile_n = 64;
+  desc_a.tile_bounds = bounds_a;
+  desc_a.tile_bounds_count = 4;
+
+  auto desc_b = desc_a;
+  desc_b.tile_bounds = bounds_b;
+
+  auto desc_tile = desc_a;
+  desc_tile.tile_m = 128;
+  desc_tile.tile_n = 128;
+  desc_tile.tile_bounds = bounds_tile;
+  desc_tile.tile_bounds_count = 1;
+
+  rns8_plan* plan_a = nullptr;
+  rns8_plan* plan_b = nullptr;
+  rns8_plan* plan_tile = nullptr;
+  rns8_workspace* workspace_a = nullptr;
+  rns8_workspace* workspace_b = nullptr;
+  rns8_workspace* workspace_tile = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* wrong_a_tile = nullptr;
+  rns8_matrix* wrong_c_tile = nullptr;
+
+  REQUIRE(rns8_create_plan(ctx, &desc_a, &plan_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx, &desc_b, &plan_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx, &desc_tile, &plan_tile) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan_a, &workspace_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan_b, &workspace_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan_tile, &workspace_tile) == RNS8_SUCCESS);
+
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+  a_desc.tile_m = b_desc.tile_m = c_desc.tile_m = 64;
+  a_desc.tile_n = b_desc.tile_n = c_desc.tile_n = 64;
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B.data(), n, 1) == RNS8_SUCCESS);
+
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_a) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_b) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, c_matrix, workspace_tile) == RNS8_INVALID_ARGUMENT);
+
+  auto wrong_a_desc = a_desc;
+  wrong_a_desc.tile_m = 128;
+  wrong_a_desc.tile_n = 128;
+  auto wrong_c_desc = c_desc;
+  wrong_c_desc.tile_m = 128;
+  wrong_c_desc.tile_n = 128;
+  REQUIRE(rns8_create_matrix(ctx, &wrong_a_desc, &wrong_a_tile) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &wrong_c_desc, &wrong_c_tile) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_rns(ctx, plan_a, wrong_a_tile, b_matrix, c_matrix, workspace_a) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, plan_a, a_matrix, b_matrix, wrong_c_tile, workspace_a) == RNS8_INVALID_ARGUMENT);
+  uint64_t out[4] = {};
+  CHECK(rns8_export_u64(ctx, plan_a, wrong_c_tile, out, n) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(wrong_c_tile);
+  rns8_destroy_matrix(wrong_a_tile);
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace_tile);
+  rns8_destroy_workspace(workspace_b);
+  rns8_destroy_workspace(workspace_a);
+  rns8_destroy_plan(plan_tile);
+  rns8_destroy_plan(plan_b);
+  rns8_destroy_plan(plan_a);
   rns8_destroy_context(ctx);
 }
 

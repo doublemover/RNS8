@@ -589,10 +589,12 @@ tile multiples. Workspace is caller-owned through `rns8_workspace`. Temporary
 allocations inside hot calls are forbidden after plan creation.
 
 Workspaces are bound to the plan contract that created them. Backend, shape,
-prefix, semantics, and bound kind must match before a workspace can be used for
-GEMM. Same-shape workspaces from bounded, exact-wide, per-tile bounded, or
-wrap64 contracts are rejected instead of being reused across semantic
-boundaries.
+prefix, semantics, bound kind, bound value, tile geometry, selected-prefix
+schedule metadata, and copied per-tile schedule identity must match before a
+workspace can be used for GEMM. Same-shape workspaces from bounded, exact-wide,
+per-tile bounded, wrap64, or different per-tile schedule contracts are rejected
+instead of being reused across semantic boundaries. Per-tile bounded matrices
+must also carry the plan's tile geometry before GEMM/export dispatch.
 
 ## 11. Public API Specification
 
@@ -854,7 +856,9 @@ Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA, and
 AMDGPU builtin paths remain accelerator candidates until they have compiled
 kernels, explicit semantic coverage, exact CPU differential tests, and measured
 performance evidence. Configure-time enable flags for those accelerator
-backends must continue to fail fast while only evidence probes exist.
+backends must continue to fail fast while only evidence probes exist. The test
+suite should include configure-negative coverage for every accelerator enable
+flag so discovery probes cannot become placeholder correctness backends.
 
 ### 12.2 Backend Selection Policy
 
