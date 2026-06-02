@@ -2,63 +2,295 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <random>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "rns8/rns8.h"
 
+#ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
+#  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
+#endif
+
 namespace {
+
+enum class BenchSemantics {
+  BoundedI64,
+  BoundedU64,
+};
 
 struct Args {
   int64_t m = 64;
   int64_t n = 64;
   int64_t k = 64;
+  uint32_t warmups = 1;
   uint32_t repeats = 5;
   uint64_t seed = 1;
+  int device_id = std::numeric_limits<int>::min();
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  BenchSemantics semantics = BenchSemantics::BoundedI64;
 };
 
-int64_t parse_i64(const char* text) {
-  return std::strtoll(text, nullptr, 10);
+struct TimingTotals {
+  uint64_t pack_us = 0;
+  uint64_t gemm_us = 0;
+  uint64_t export_us = 0;
+  uint64_t end_to_end_us = 0;
+};
+
+struct BenchmarkResult {
+  uint64_t plan_us = 0;
+  uint64_t matrix_alloc_us = 0;
+  TimingTotals totals{};
+  uint64_t checksum = 0;
+};
+
+uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
+  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+}
+
+[[noreturn]] void usage_error(const std::string& message) {
+  std::cerr << message << "\n";
+  std::cerr
+      << "usage: rns8-bench [--backend cpu|hip-direct] [--semantics bounded-i64|bounded-u64]\n"
+      << "                  [--device N] [--m M] [--n N] [--k K]\n"
+      << "                  [--warmups W] [--repeats R] [--seed S]\n";
+  std::exit(2);
+}
+
+int64_t parse_i64(const char* text, const char* label) {
+  char* end = nullptr;
+  const long long value = std::strtoll(text, &end, 10);
+  if (!end || *end != '\0') {
+    usage_error(std::string("invalid integer for ") + label + ": " + text);
+  }
+  return static_cast<int64_t>(value);
+}
+
+uint32_t parse_u32(const char* text, const char* label) {
+  const int64_t value = parse_i64(text, label);
+  if (value < 0 || value > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
+    usage_error(std::string("out-of-range integer for ") + label + ": " + text);
+  }
+  return static_cast<uint32_t>(value);
+}
+
+uint64_t parse_u64_seed(const char* text) {
+  const int64_t value = parse_i64(text, "--seed");
+  if (value < 0) {
+    usage_error("seed must be non-negative");
+  }
+  return static_cast<uint64_t>(value);
+}
+
+rns8_backend_kind parse_backend(const std::string& value) {
+  if (value == "cpu" || value == "cpu-reference") return RNS8_BACKEND_CPU_REFERENCE;
+  if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
+  usage_error("unknown backend: " + value);
+}
+
+BenchSemantics parse_semantics(const std::string& value) {
+  if (value == "bounded-i64") return BenchSemantics::BoundedI64;
+  if (value == "bounded-u64") return BenchSemantics::BoundedU64;
+  usage_error("unknown semantics: " + value);
 }
 
 Args parse_args(int argc, char** argv) {
   Args args;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
-    if (arg == "--m" && i + 1 < argc) args.m = parse_i64(argv[++i]);
-    else if (arg == "--n" && i + 1 < argc) args.n = parse_i64(argv[++i]);
-    else if (arg == "--k" && i + 1 < argc) args.k = parse_i64(argv[++i]);
-    else if (arg == "--repeats" && i + 1 < argc) args.repeats = static_cast<uint32_t>(parse_i64(argv[++i]));
-    else if (arg == "--seed" && i + 1 < argc) args.seed = static_cast<uint64_t>(parse_i64(argv[++i]));
-    else if (arg == "--help") {
-      std::cout << "usage: rns8-bench [--m M] [--n N] [--k K] [--repeats R] [--seed S]\n";
+    if (arg == "--m" && i + 1 < argc) {
+      args.m = parse_i64(argv[++i], "--m");
+    } else if (arg == "--n" && i + 1 < argc) {
+      args.n = parse_i64(argv[++i], "--n");
+    } else if (arg == "--k" && i + 1 < argc) {
+      args.k = parse_i64(argv[++i], "--k");
+    } else if (arg == "--warmups" && i + 1 < argc) {
+      args.warmups = parse_u32(argv[++i], "--warmups");
+    } else if (arg == "--repeats" && i + 1 < argc) {
+      args.repeats = parse_u32(argv[++i], "--repeats");
+    } else if (arg == "--seed" && i + 1 < argc) {
+      args.seed = parse_u64_seed(argv[++i]);
+    } else if (arg == "--device" && i + 1 < argc) {
+      args.device_id = static_cast<int>(parse_i64(argv[++i], "--device"));
+    } else if (arg == "--backend" && i + 1 < argc) {
+      args.backend = parse_backend(argv[++i]);
+    } else if (arg == "--semantics" && i + 1 < argc) {
+      args.semantics = parse_semantics(argv[++i]);
+    } else if (arg == "--help") {
+      std::cout
+          << "usage: rns8-bench [--backend cpu|hip-direct] [--semantics bounded-i64|bounded-u64]\n"
+          << "                  [--device N] [--m M] [--n N] [--k K]\n"
+          << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
     } else {
-      std::cerr << "unknown argument: " << arg << "\n";
-      std::exit(2);
+      usage_error("unknown or incomplete argument: " + arg);
     }
+  }
+
+  if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
+    usage_error("matrix dimensions must be positive and repeats must be nonzero");
+  }
+  if (args.device_id == std::numeric_limits<int>::min()) {
+    args.device_id = args.backend == RNS8_BACKEND_HIP_DIRECT ? 0 : -1;
   }
   return args;
 }
 
-uint64_t millis_since(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
-  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+const char* backend_name(rns8_backend_kind backend) {
+  switch (backend) {
+    case RNS8_BACKEND_AUTO:
+      return "auto";
+    case RNS8_BACKEND_CPU_REFERENCE:
+      return "cpu-reference";
+    case RNS8_BACKEND_HIP_DIRECT:
+      return "hip-direct";
+    case RNS8_BACKEND_HIPBLASLT:
+      return "hipblaslt";
+    case RNS8_BACKEND_CK:
+      return "ck";
+    case RNS8_BACKEND_WMMA:
+      return "wmma";
+    case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+      return "wrap64-byte-limb";
+  }
+  return "unknown";
 }
 
-rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols) {
+const char* semantics_name(BenchSemantics semantics) {
+  return semantics == BenchSemantics::BoundedI64 ? "bounded_i64" : "bounded_u64";
+}
+
+rns8_semantics c_semantics(BenchSemantics semantics) {
+  return semantics == BenchSemantics::BoundedI64 ? RNS8_BOUNDED_I64 : RNS8_BOUNDED_U64;
+}
+
+rns8_bound_kind bound_kind(BenchSemantics semantics) {
+  return semantics == BenchSemantics::BoundedI64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+}
+
+const char* bound_kind_name(BenchSemantics semantics) {
+  return semantics == BenchSemantics::BoundedI64 ? "global_max_abs" : "global_max_unsigned";
+}
+
+std::string json_escape(const std::string& input) {
+  std::ostringstream out;
+  for (const char ch : input) {
+    switch (ch) {
+      case '\\':
+        out << "\\\\";
+        break;
+      case '"':
+        out << "\\\"";
+        break;
+      case '\n':
+        out << "\\n";
+        break;
+      case '\r':
+        out << "\\r";
+        break;
+      case '\t':
+        out << "\\t";
+        break;
+      default:
+        out << ch;
+        break;
+    }
+  }
+  return out.str();
+}
+
+std::string command_line(int argc, char** argv) {
+  std::ostringstream out;
+  for (int i = 0; i < argc; ++i) {
+    if (i > 0) {
+      out << ' ';
+    }
+    out << argv[i];
+  }
+  return out.str();
+}
+
+std::string compiler_id() {
+#if defined(_MSC_VER)
+  return "msvc";
+#elif defined(__clang__)
+  return "clang";
+#elif defined(__GNUC__)
+  return "gcc";
+#else
+  return "unknown";
+#endif
+}
+
+std::string compiler_version() {
+#if defined(_MSC_VER)
+  return std::to_string(_MSC_VER) + "." + std::to_string(_MSC_FULL_VER);
+#elif defined(__clang__)
+  return std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__) + "." +
+         std::to_string(__clang_patchlevel__);
+#elif defined(__GNUC__)
+  return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
+#else
+  return "unknown";
+#endif
+}
+
+std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
+  const auto u_rows = static_cast<uint64_t>(rows);
+  const auto u_cols = static_cast<uint64_t>(cols);
+  if (u_cols != 0 && u_rows > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_cols) {
+    usage_error(std::string("matrix size overflows size_t for ") + label);
+  }
+  return static_cast<std::size_t>(u_rows * u_cols);
+}
+
+uint64_t benchmark_bound(const Args& args) {
+  const uint64_t max_term = 16u * 16u;
+  const auto u_k = static_cast<uint64_t>(args.k);
+  if (u_k > std::numeric_limits<uint64_t>::max() / max_term) {
+    usage_error("k is too large for the benchmark bound");
+  }
+  const uint64_t bound = u_k * max_term;
+  if (args.semantics == BenchSemantics::BoundedI64 &&
+      bound > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    usage_error("bounded-i64 benchmark bound exceeds int64 output range");
+  }
+  return bound;
+}
+
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, BenchSemantics semantics) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
   desc.rows = rows;
   desc.cols = cols;
   desc.logical_ld = cols;
-  desc.semantics = RNS8_BOUNDED_I64;
+  desc.semantics = c_semantics(semantics);
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
-  desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  desc.bound_kind = bound_kind(semantics);
   desc.tile_m = 128;
   desc.tile_n = 128;
   desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
+rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = c_semantics(args.semantics);
+  desc.bound_kind = bound_kind(args.semantics);
+  desc.requested_backend = args.backend;
+  desc.m = args.m;
+  desc.n = args.n;
+  desc.k = args.k;
+  desc.bound = bound;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.tile_m = 128;
+  desc.tile_n = 128;
   return desc;
 }
 
@@ -67,61 +299,55 @@ void fail_status(const char* label, rns8_status status) {
   std::exit(1);
 }
 
-}  // namespace
+void mix_checksum(uint64_t& checksum, uint64_t value) {
+  checksum ^= value;
+  checksum *= 1099511628211ull;
+}
 
-int main(int argc, char** argv) {
-  const Args args = parse_args(argc, argv);
-  if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
-    std::cerr << "invalid shape or repeat count\n";
-    return 2;
+uint64_t checksum_i64(const std::vector<int64_t>& values) {
+  uint64_t checksum = 1469598103934665603ull;
+  for (const int64_t value : values) {
+    mix_checksum(checksum, static_cast<uint64_t>(value));
   }
+  return checksum;
+}
 
+uint64_t checksum_u64(const std::vector<uint64_t>& values) {
+  uint64_t checksum = 1469598103934665603ull;
+  for (const uint64_t value : values) {
+    mix_checksum(checksum, value);
+  }
+  return checksum;
+}
+
+BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bound) {
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
-  std::vector<int64_t> A(static_cast<std::size_t>(args.m * args.k));
-  std::vector<int64_t> B(static_cast<std::size_t>(args.k * args.n));
-  std::vector<int64_t> C(static_cast<std::size_t>(args.m * args.n));
+  std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
-  rns8_context_options options{};
-  options.struct_size = sizeof(options);
-  options.abi_version = RNS8_ABI_VERSION;
-  options.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
-  rns8_context* ctx = nullptr;
-  rns8_status status = rns8_create_context(-1, &options, &ctx);
-  if (status != RNS8_SUCCESS) {
-    std::cerr << "rns8_create_context: " << rns8_status_string(status) << "\n";
-    return 1;
-  }
-
-  rns8_gemm_desc desc{};
-  desc.struct_size = sizeof(desc);
-  desc.abi_version = RNS8_ABI_VERSION;
-  desc.semantics = RNS8_BOUNDED_I64;
-  desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
-  desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
-  desc.m = args.m;
-  desc.n = args.n;
-  desc.k = args.k;
-  desc.bound = static_cast<uint64_t>(args.k * 16 * 16);
-
+  BenchmarkResult result{};
+  auto desc = gemm_desc(args, bound);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
-  status = rns8_create_plan(ctx, &desc, &plan);
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
   const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k);
-  auto b_desc = matrix_desc(args.k, args.n);
-  auto c_desc = matrix_desc(args.m, args.n);
+  auto a_desc = matrix_desc(args.m, args.k, args.semantics);
+  auto b_desc = matrix_desc(args.k, args.n, args.semantics);
+  auto c_desc = matrix_desc(args.m, args.n, args.semantics);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -129,15 +355,14 @@ int main(int argc, char** argv) {
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
   const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  uint64_t pack_us = 0;
-  uint64_t gemm_us = 0;
-  uint64_t export_us = 0;
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    const auto pack_start = std::chrono::steady_clock::now();
-    status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, r + 1);
+  const auto run_iteration = [&](uint64_t source_version, TimingTotals* totals) {
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
-    status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, r + 1);
+    status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
     const auto pack_end = std::chrono::steady_clock::now();
 
@@ -151,40 +376,203 @@ int main(int argc, char** argv) {
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
     const auto export_end = std::chrono::steady_clock::now();
 
-    pack_us += millis_since(pack_start, pack_end);
-    gemm_us += millis_since(gemm_start, gemm_end);
-    export_us += millis_since(export_start, export_end);
+    if (totals) {
+      totals->pack_us += elapsed_us(pack_start, pack_end);
+      totals->gemm_us += elapsed_us(gemm_start, gemm_end);
+      totals->export_us += elapsed_us(export_start, export_end);
+      totals->end_to_end_us += elapsed_us(repeat_start, export_end);
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.totals);
+  }
+  result.checksum = checksum_i64(C);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
-  rns8_destroy_context(ctx);
+  return result;
+}
 
+BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bound) {
+  std::mt19937_64 rng(args.seed);
+  std::uniform_int_distribution<uint64_t> dist(0, 16);
+  std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = dist(rng);
+  for (auto& value : B) value = dist(rng);
+
+  BenchmarkResult result{};
+  auto desc = gemm_desc(args, bound);
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  rns8_workspace* workspace = nullptr;
+  status = rns8_create_workspace(ctx, plan, &workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  auto a_desc = matrix_desc(args.m, args.k, args.semantics);
+  auto b_desc = matrix_desc(args.k, args.n, args.semantics);
+  auto c_desc = matrix_desc(args.m, args.n, args.semantics);
+  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  const auto run_iteration = [&](uint64_t source_version, TimingTotals* totals) {
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+    status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
+    const auto pack_end = std::chrono::steady_clock::now();
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (totals) {
+      totals->pack_us += elapsed_us(pack_start, pack_end);
+      totals->gemm_us += elapsed_us(gemm_start, gemm_end);
+      totals->export_us += elapsed_us(export_start, export_end);
+      totals->end_to_end_us += elapsed_us(repeat_start, export_end);
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.totals);
+  }
+  result.checksum = checksum_u64(C);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  return result;
+}
+
+void print_json(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result,
+    uint64_t bound,
+    const std::string& cmdline) {
   const double repeats = static_cast<double>(args.repeats);
-  const double avg_pack_us = static_cast<double>(pack_us) / repeats;
-  const double avg_gemm_us = static_cast<double>(gemm_us) / repeats;
-  const double avg_export_us = static_cast<double>(export_us) / repeats;
-  const double avg_total_us = avg_pack_us + avg_gemm_us + avg_export_us;
+  const double avg_pack_us = static_cast<double>(result.totals.pack_us) / repeats;
+  const double avg_gemm_us = static_cast<double>(result.totals.gemm_us) / repeats;
+  const double avg_export_us = static_cast<double>(result.totals.export_us) / repeats;
+  const double avg_end_to_end_us = static_cast<double>(result.totals.end_to_end_us) / repeats;
+  const double avg_per_modulus_gemm_estimate_us = avg_gemm_us / static_cast<double>(RNS8_DEFAULT_BOUNDED_PREFIX);
+
   std::cout << "{\n";
-  std::cout << "  \"benchmark\": \"cpu_reference_bounded_i64\",\n";
-  std::cout << "  \"backend\": \"cpu-reference\",\n";
-  std::cout << "  \"semantics\": \"bounded_i64\",\n";
+  std::cout << "  \"benchmark\": \"rns8_bounded_gemm_persistent_rns\",\n";
+  std::cout << "  \"backend_requested\": \"" << backend_name(args.backend) << "\",\n";
+  std::cout << "  \"backend_selected\": \"" << backend_name(info.backend) << "\",\n";
+  std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
+  std::cout << "  \"bound_kind\": \"" << bound_kind_name(args.semantics) << "\",\n";
+  std::cout << "  \"bound\": " << bound << ",\n";
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
   std::cout << "  \"prefix\": " << RNS8_DEFAULT_BOUNDED_PREFIX << ",\n";
+  std::cout << "  \"tile_m\": 128,\n";
+  std::cout << "  \"tile_n\": 128,\n";
   std::cout << "  \"seed\": " << args.seed << ",\n";
+  std::cout << "  \"warmups\": " << args.warmups << ",\n";
   std::cout << "  \"repeats\": " << args.repeats << ",\n";
+  std::cout << "  \"input_distribution\": \""
+            << (args.semantics == BenchSemantics::BoundedI64 ? "signed_uniform_-16_16"
+                                                             : "unsigned_uniform_0_16")
+            << "\",\n";
+  std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
+  std::cout << "  \"compiler\": {\n";
+  std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
+  std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
+  std::cout << "  },\n";
+  std::cout << "  \"configured_amdgpu_targets\": \"" << json_escape(RNS8_CONFIGURED_AMDGPU_TARGETS) << "\",\n";
+  std::cout << "  \"device\": {\n";
+  std::cout << "    \"device_id\": " << info.device_id << ",\n";
+  std::cout << "    \"name\": \"" << json_escape(info.name) << "\",\n";
+  std::cout << "    \"gcn_arch\": \"" << json_escape(info.gcn_arch) << "\",\n";
+  std::cout << "    \"hip_available\": " << info.hip_available << ",\n";
+  std::cout << "    \"hip_runtime_version\": " << info.hip_runtime_version << ",\n";
+  std::cout << "    \"hip_driver_version\": " << info.hip_driver_version << ",\n";
+  std::cout << "    \"global_mem_bytes\": " << info.global_mem_bytes << "\n";
+  std::cout << "  },\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  std::cout << "  \"plan_us\": " << millis_since(plan_start, plan_end) << ",\n";
-  std::cout << "  \"matrix_alloc_us\": " << millis_since(alloc_start, alloc_end) << ",\n";
+  std::cout << "  \"timing_note\": \"host wall-clock timings; direct-HIP calls include current backend "
+               "synchronization, allocation, copies, kernel launches, and host CRT export\",\n";
+  std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
+  std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
-  std::cout << "  \"avg_per_modulus_gemm_us\": " << avg_gemm_us << ",\n";
+  std::cout << "  \"avg_rns_gemm_us\": " << avg_gemm_us << ",\n";
+  std::cout << "  \"avg_per_modulus_gemm_estimate_us\": " << avg_per_modulus_gemm_estimate_us << ",\n";
   std::cout << "  \"avg_crt_export_us\": " << avg_export_us << ",\n";
-  std::cout << "  \"avg_end_to_end_us\": " << avg_total_us << "\n";
+  std::cout << "  \"avg_end_to_end_us\": " << avg_end_to_end_us << ",\n";
+  std::cout << "  \"checksum_u64\": " << result.checksum << "\n";
   std::cout << "}\n";
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  const Args args = parse_args(argc, argv);
+  const uint64_t bound = benchmark_bound(args);
+  const std::string cmdline = command_line(argc, argv);
+
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = args.backend;
+  rns8_context* ctx = nullptr;
+  rns8_status status = rns8_create_context(args.device_id, &options, &ctx);
+  if (status != RNS8_SUCCESS) {
+    std::cerr << "rns8_create_context: " << rns8_status_string(status) << "\n";
+    return 1;
+  }
+
+  rns8_device_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  status = rns8_get_device_info(ctx, &info);
+  if (status != RNS8_SUCCESS) {
+    rns8_destroy_context(ctx);
+    std::cerr << "rns8_get_device_info: " << rns8_status_string(status) << "\n";
+    return 1;
+  }
+
+  const BenchmarkResult result = args.semantics == BenchSemantics::BoundedI64 ? run_bounded_i64(ctx, args, bound)
+                                                                             : run_bounded_u64(ctx, args, bound);
+  rns8_destroy_context(ctx);
+  print_json(args, info, result, bound, cmdline);
   return 0;
 }
