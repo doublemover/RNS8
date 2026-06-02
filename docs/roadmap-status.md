@@ -47,8 +47,8 @@ disagree, the spec remains the target and this file identifies the gap.
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
   when complete, explicit unavailable metadata when event timing is not
-  applicable, strict wrap64 CPU byte-limb benchmark metadata, and
-  comparison-tool support for v1/v2.
+  applicable, strict wrap64 CPU byte-limb benchmark metadata, schema validation
+  tooling, and comparison-tool support for v1/v2.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only.
@@ -113,3 +113,9 @@ disagree, the spec remains the target and this file identifies the gap.
   `packed_layout_version=byte_limb_v1`, nullable GPU event timing, and successful
   `tools\result_compare.py --json` contract comparison. Captures are raw
   evidence only and do not establish a performance claim.
+- `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
+  passed, including malformed raw timing length, GPU event summary, wrap64
+  prefix, and event-nullability rejection checks.
+- `python tools\benchmark_schema.py` validated representative v2 CPU, direct
+  HIP, and wrap64 captures under `temp\`, plus synthetic v1/v2 fixtures under
+  `tests\fixtures\benchmark_schema\`.
