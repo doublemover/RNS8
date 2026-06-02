@@ -521,7 +521,7 @@ class _Validator:
             if bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
             if self.data.get("backend_selected") == "hip-direct":
-                expected_kernel = "direct_hip_wrap64_byte_gemm36_tiled_v2"
+                expected_kernel = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
                 if isinstance(backend_metadata, dict):
@@ -529,7 +529,7 @@ class _Validator:
                         self._error("direct-HIP wrap64 captures must use backend_metadata.epilogue_mode=low64_wrap_export")
                     if backend_metadata.get("workspace_mode") != "resident_device_buffers":
                         self._error("direct-HIP wrap64 captures must use backend_metadata.workspace_mode=resident_device_buffers")
-                    expected_isa = "source_level_signed_i8_correction_byte_gemm36_no_matrix_engine_gate"
+                    expected_isa = "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine"
                     if backend_metadata.get("isa_evidence") != expected_isa:
                         self._error(f"direct-HIP wrap64 captures must use backend_metadata.isa_evidence={expected_isa}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:

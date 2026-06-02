@@ -495,8 +495,8 @@ current tracked schema contract.
   `packed_layout_version=byte_limb_v1`, `gpu_event_timing=true`, and
   wrap64-specific event phases from the byte-GEMM36 direct-HIP correctness kernel. Current
   schema v4 HIP wrap64 captures report
-  `selected_kernel=direct_hip_wrap64_byte_gemm36_tiled_v2`,
-  `wrap64_byte_gemm36_tiled_kernel`, `wrap64_export_kernel`, and
+  `selected_kernel=direct_hip_wrap64_byte_gemm36_tiled_2d_v3`,
+  `wrap64_byte_gemm36_tiled_2d_kernel`, `wrap64_export_kernel`, and
   `wrap64_export_d2h` event phases. Captures are raw evidence only and do not
   establish a performance claim.
 - `temp\rns8-v4-hip-wrap-u64-byte-gemm36.json` and
