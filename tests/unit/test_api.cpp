@@ -593,6 +593,139 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
   }
 }
 
+TEST_CASE("public backend capability info separates correctness and accelerator candidates") {
+  rns8_backend_capability_info cpu{};
+  cpu.struct_size = sizeof(cpu);
+  cpu.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_backend_capability_info(RNS8_BACKEND_CPU_REFERENCE, &cpu) == RNS8_SUCCESS);
+  CHECK(cpu.backend == RNS8_BACKEND_CPU_REFERENCE);
+  CHECK(cpu.is_accelerator == 0);
+  CHECK(cpu.is_correctness_backend == 1);
+  CHECK(cpu.compiled_kernel_available == 1);
+  CHECK(cpu.exact_differential_validated == 1);
+  CHECK(cpu.performance_validated == 0);
+  CHECK(std::string(cpu.status) == "implemented_correctness_backend");
+  CHECK(std::string(cpu.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
+
+  rns8_backend_capability_info wrap{};
+  wrap.struct_size = sizeof(wrap);
+  wrap.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_backend_capability_info(RNS8_BACKEND_WRAP64_BYTE_LIMB, &wrap) == RNS8_SUCCESS);
+  CHECK(wrap.supports_wrap64 == 1);
+  CHECK(std::string(wrap.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
+
+  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  for (const rns8_backend_kind backend : accelerators) {
+    rns8_backend_capability_info capability{};
+    capability.struct_size = sizeof(capability);
+    capability.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_backend_capability_info(backend, &capability) == RNS8_SUCCESS);
+    CHECK(capability.is_accelerator == 1);
+    CHECK(capability.is_correctness_backend == 0);
+    CHECK(capability.requires_feature_detection == 1);
+    CHECK(capability.enable_flag_fail_fast == 1);
+    CHECK(capability.candidate_evidence_only == 1);
+    CHECK(capability.compiled_kernel_available == 0);
+    CHECK(capability.exact_differential_validated == 0);
+    CHECK(capability.performance_validated == 0);
+    CHECK(std::string(capability.status) == "not_implemented_evidence_only");
+    CHECK(std::string(capability.epilogue_mode) == "not_implemented");
+    CHECK(std::string(capability.isa_evidence) == "not_validated");
+  }
+
+  rns8_backend_capability_info bad_abi{};
+  bad_abi.struct_size = sizeof(bad_abi) - 1;
+  bad_abi.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_backend_capability_info(RNS8_BACKEND_CPU_REFERENCE, &bad_abi) == RNS8_INVALID_ARGUMENT);
+
+  rns8_backend_capability_info unknown{};
+  unknown.struct_size = sizeof(unknown);
+  unknown.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_backend_capability_info(static_cast<rns8_backend_kind>(999), &unknown) == RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("public plan backend info exposes selected kernel and autotune contract") {
+  rns8_context* cpu = create_cpu_context();
+  {
+    rns8_gemm_desc desc{};
+    desc.struct_size = sizeof(desc);
+    desc.abi_version = RNS8_ABI_VERSION;
+    desc.semantics = RNS8_BOUNDED_U64;
+    desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+    desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+    desc.m = 2;
+    desc.n = 3;
+    desc.k = 4;
+    desc.bound = 16;
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(cpu, &desc, &plan) == RNS8_SUCCESS);
+
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+    CHECK(info.is_accelerator == 0);
+    CHECK(info.is_correctness_backend == 1);
+    CHECK(info.is_matrix_engine_backend == 0);
+    CHECK(info.compiled_kernel_available == 1);
+    CHECK(info.exact_differential_validated == 1);
+    CHECK(info.performance_validated == 0);
+    CHECK(info.workspace_required_bytes == 0);
+    CHECK(std::string(info.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
+    CHECK(std::string(info.capability_status) == "implemented_correctness_backend");
+    CHECK(std::string(info.epilogue_mode) == "fused_centered_residue_then_crt_export");
+    CHECK(std::string(info.workspace_mode) == "host_reference_workspace");
+    CHECK(std::string(info.isa_evidence) == "not_applicable_cpu");
+    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;semantics=bounded_u64") == 0);
+    CHECK(std::string(info.autotune_key).find(";kernel=cpu_reference_scalar_rns_gemm_v1;") != std::string::npos);
+
+    rns8_plan_backend_info bad_abi{};
+    bad_abi.struct_size = sizeof(bad_abi) - 1;
+    bad_abi.abi_version = RNS8_ABI_VERSION;
+    CHECK(rns8_get_plan_backend_info(plan, &bad_abi) == RNS8_INVALID_ARGUMENT);
+
+    rns8_destroy_plan(plan);
+  }
+  rns8_destroy_context(cpu);
+
+  rns8_context* wrap_ctx = create_wrap_context();
+  {
+    rns8_gemm_desc desc{};
+    desc.struct_size = sizeof(desc);
+    desc.abi_version = RNS8_ABI_VERSION;
+    desc.semantics = RNS8_WRAP_U64_MOD_2_64;
+    desc.bound_kind = RNS8_BOUND_NONE;
+    desc.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+    desc.m = 2;
+    desc.n = 2;
+    desc.k = 2;
+
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(wrap_ctx, &desc, &plan) == RNS8_SUCCESS);
+
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(info.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB);
+    CHECK(std::string(info.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
+    CHECK(std::string(info.epilogue_mode) == "low64_wrap_export");
+    CHECK(std::string(info.workspace_mode) == "host_byte_limb_reference_workspace");
+    CHECK(std::string(info.autotune_key).find("semantics=wrap_u64_mod_2_64") != std::string::npos);
+
+    rns8_destroy_plan(plan);
+  }
+  rns8_destroy_context(wrap_ctx);
+
+  rns8_plan_backend_info null_info{};
+  null_info.struct_size = sizeof(null_info);
+  null_info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_plan_backend_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
+}
+
 TEST_CASE("public status strings cover every ABI status") {
   struct Case {
     rns8_status status;

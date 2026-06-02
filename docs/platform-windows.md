@@ -38,9 +38,9 @@ Recorded Windows validation coverage:
 Current proof command:
 
 ```powershell
-cmake --preset windows-msvc-hip-debug
-cmake --build --preset windows-debug
-ctest --preset windows-debug --output-on-failure
+python tools\windows_dev.py cmake --preset windows-msvc-hip-debug
+python tools\windows_dev.py cmake --build --preset windows-debug
+python tools\windows_dev.py ctest --preset windows-debug --output-on-failure
 build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 ```
@@ -83,17 +83,24 @@ selection:
 
 ```powershell
 python tools\check_dependencies.py --accelerator-probes --json
-cmake --preset windows-msvc-hip-accelerator-probe
+python tools\windows_dev.py cmake --preset windows-msvc-hip-accelerator-probe
 ```
 
 Both paths are evidence-only. For component-backed accelerators, the Python
 probe writes tiny sources and binaries under `temp\accelerator-probes\`,
-records compile/link/runtime status, and keeps `backend_enablement=disabled`;
-for AMDGPU builtins it records `NOT_RUN_NO_CORRECTNESS_KERNEL` until a real
-target-specific exact kernel exists. The CMake probe preset sets
+loads the Visual Studio developer environment automatically for Windows MSVC
+link probes, records compile/link/runtime status, and keeps
+`backend_enablement=disabled`; for AMDGPU builtins it records
+`NOT_RUN_NO_CORRECTNESS_KERNEL` until a real target-specific exact kernel
+exists. The CMake probe preset sets
 `RNS8_PROBE_ACCELERATORS=ON` while keeping `RNS8_ENABLE_HIPBLASLT`,
 `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
 `RNS8_ENABLE_AMDGPU_BUILTINS` off. On the current Windows HIP SDK install,
-hipBLASLt is candidate evidence through headers and a
-`libhipblaslt.dll.a` archive, but the opt-in hipcc/lld-link probe does not find
-a linkable `hipblaslt.lib`; this is not a correctness blocker.
+hipBLASLt is candidate evidence through AMD's `roc::hipblaslt` CMake target,
+headers, `libhipblaslt.dll.a` import archive, and `libhipblaslt.dll` runtime.
+No separate MSVC `hipblaslt.lib` is required. The opt-in CMake MSVC link probe
+passes when configure is run through `tools\windows_dev.py` or from an already
+initialized Visual Studio developer environment; from a direct plain
+PowerShell `cmake` invocation it reports `not_run_missing_msvc_environment`
+instead of treating missing MSVC standard-library include paths as a hipBLASLt
+failure.

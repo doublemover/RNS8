@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from msvc_env import command_in_msvc_environment, find_visual_studio_installation
+
 
 CORE_COMMANDS = ["cmake", "ninja", "git", "python", "vcpkg"]
 WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
@@ -94,7 +96,7 @@ int main() {
 }
 
 
-def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
+def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None) -> tuple[int, str]:
     try:
         completed = subprocess.run(
             args,
@@ -103,6 +105,8 @@ def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
+            shell=isinstance(args, str),
         )
         return completed.returncode, completed.stdout.strip()
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -405,32 +409,31 @@ def hip_info_report(path: str | None) -> dict[str, object]:
 
 
 def find_msvc() -> str | None:
-    cl = shutil.which("cl")
-    if cl:
-        return cl
+    installation = find_visual_studio_installation()
+    if installation:
+        return str(installation)
+    return shutil.which("cl")
 
-    vswhere_paths = [
-        Path(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"),
+
+def msvc_probe_command(source: Path, binary: Path, include_root: str, library: str) -> list[str] | str | None:
+    obj = binary.with_suffix(".obj")
+    command = [
+        "cl",
+        "/nologo",
+        "/EHsc",
+        "/std:c++17",
+        "/D__HIP_PLATFORM_AMD__=1",
+        f"/I{include_root}",
+        str(source),
+        library,
+        f"/Fo:{obj}",
+        f"/Fe:{binary}",
     ]
-    for vswhere in vswhere_paths:
-        if not vswhere.exists():
-            continue
-        code, output = run(
-            [
-                str(vswhere),
-                "-latest",
-                "-products",
-                "*",
-                "-requires",
-                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-                "-property",
-                "installationPath",
-            ]
-        )
-        if code == 0 and output:
-            return output.splitlines()[0].strip()
-    return None
+    try:
+        wrapped, _ = command_in_msvc_environment(command)
+        return wrapped
+    except RuntimeError:
+        return None
 
 
 def python_packages() -> dict[str, str | None]:
@@ -461,27 +464,58 @@ def installed_vcpkg_packages(vcpkg_path: str | None) -> dict[str, str]:
 def accelerator_components() -> dict[str, dict[str, object]]:
     roots = hip_roots() + vcpkg_roots()
     modules = repo_root() / "cmake" / "modules"
+    hipblaslt_header = find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"])
+    hipblaslt_cmake_config = find_under_roots(
+        roots,
+        [
+            "lib/cmake/hipblaslt/hipblaslt-config.cmake",
+            "lib64/cmake/hipblaslt/hipblaslt-config.cmake",
+        ],
+    )
+    hipblaslt_msvc_import_library = find_under_roots(roots, ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"])
+    hipblaslt_import_archive = find_under_roots(
+        roots,
+        ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
+    )
+    hipblaslt_shared_library = find_under_roots(roots, ["lib/libhipblaslt.so", "lib64/libhipblaslt.so"])
+    hipblaslt_runtime_library = find_under_roots(roots, ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"])
+    hipblaslt_library = (
+        hipblaslt_msvc_import_library
+        or hipblaslt_import_archive
+        or hipblaslt_shared_library
+        or hipblaslt_runtime_library
+    )
+    hipblaslt_library_format = (
+        "msvc_import_library"
+        if hipblaslt_msvc_import_library
+        else "gnu_import_archive"
+        if hipblaslt_import_archive
+        else "shared_library"
+        if hipblaslt_shared_library
+        else "runtime_dll"
+        if hipblaslt_runtime_library
+        else "not_found"
+    )
     components = {
         "hipblaslt": {
-            "header": find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]),
-            "library": find_under_roots(
-                roots,
-                [
-                    "lib/hipblaslt.lib",
-                    "lib64/hipblaslt.lib",
-                    "lib/libhipblaslt.dll.a",
-                    "lib64/libhipblaslt.dll.a",
-                    "lib/libhipblaslt.so",
-                    "lib64/libhipblaslt.so",
-                    "bin/libhipblaslt.dll",
-                ],
-            ),
+            "header": hipblaslt_header,
+            "library": hipblaslt_library,
+            "library_format": hipblaslt_library_format,
+            "cmake_config": hipblaslt_cmake_config,
+            "cmake_target": "roc::hipblaslt" if hipblaslt_cmake_config else None,
+            "msvc_import_library": hipblaslt_msvc_import_library,
+            "import_archive": hipblaslt_import_archive,
+            "runtime_library": hipblaslt_runtime_library,
             "tool": find_under_roots(roots, ["bin/hipblaslt-bench.exe", "bin/hipblaslt-bench"]),
             "cmake_module": first_existing([modules / "FindRNS8HIPBLASLT.cmake"]),
-            "probe": "header/library/tool discovery only; no compile, link, or device capability test",
+            "probe": "header/library/tool/CMake-target discovery only; no correctness backend or device capability test",
             "backend_stage": "B3/B4",
             "experiment": "E005",
             "capability": "hipBLASLt INT8 per-modulus and grouped/batched GEMM",
+            "link_guidance": (
+                "Prefer AMD's roc::hipblaslt CMake target. On Windows HIP SDK 7.1, the official "
+                "import archive is libhipblaslt.dll.a and no separate MSVC hipblaslt.lib is required."
+            ),
         },
         "ck": {
             "header": find_under_roots(roots, ["include/ck/ck.hpp", "include/ck.hpp"]),
@@ -533,12 +567,19 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "candidate_evidence_is_correctness_validation": False,
             "header": item["header"],
             "library": item["library"],
+            "library_format": item.get("library_format"),
+            "cmake_config": item.get("cmake_config"),
+            "cmake_target": item.get("cmake_target"),
+            "msvc_import_library": item.get("msvc_import_library"),
+            "import_archive": item.get("import_archive"),
+            "runtime_library": item.get("runtime_library"),
             "tool": item["tool"],
             "cmake_module": item["cmake_module"],
             "probe": item["probe"],
             "backend_stage": item["backend_stage"],
             "experiment": item["experiment"],
             "capability": item["capability"],
+            "link_guidance": item.get("link_guidance"),
             "readiness": (
                 "candidate evidence only; backend remains disabled until a real exact correctness backend "
                 "has target capability checks and exact CPU differentials"
@@ -644,36 +685,53 @@ def accelerator_compile_probes(
             continue
         header = component.get("header") if isinstance(component, dict) else None
         library = component.get("library") if isinstance(component, dict) else None
+        runtime_library = component.get("runtime_library") if isinstance(component, dict) else None
         if not isinstance(header, str) or not header:
             items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True)
             continue
         if name == "hipblaslt" and (not isinstance(library, str) or not library):
             items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True)
             continue
-        if not hipcc:
-            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True)
-            continue
 
         source = root / f"{name}_probe.cpp"
         binary = probe_binary_path(root, name)
         source.write_text(ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
         include_root = include_root_for_header(header)
-        command = [hipcc, "-std=c++17"]
-        if offload_target:
-            command.append(f"--offload-arch={offload_target}")
-        command.append(str(source))
-        if include_root:
-            command.extend(["-I", include_root])
-        if name == "hipblaslt" and isinstance(library, str):
-            command.extend(["-L", str(Path(library).parent), "-lhipblaslt"])
-        command.extend(["-o", str(binary)])
+        if name == "hipblaslt" and platform.system() == "Windows" and isinstance(library, str):
+            command = msvc_probe_command(source, binary, include_root or "", library)
+            if not command:
+                items[name] = not_run_probe(
+                    name,
+                    root,
+                    "NOT_RUN_MISSING_COMPILER",
+                    "MSVC developer environment could not be discovered automatically",
+                    True,
+                )
+                continue
+        else:
+            if not hipcc:
+                items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True)
+                continue
+            command = [hipcc, "-std=c++17"]
+            if offload_target:
+                command.append(f"--offload-arch={offload_target}")
+            command.append(str(source))
+            if include_root:
+                command.extend(["-I", include_root])
+            if name == "hipblaslt" and isinstance(library, str):
+                command.extend(["-L", str(Path(library).parent), "-lhipblaslt"])
+            command.extend(["-o", str(binary)])
         code, output = run(command, timeout=60)
         run_command: list[str] = []
         run_code: int | None = None
         run_output = ""
         if code == 0:
             run_command = [str(binary)]
-            run_code, run_output = run(run_command, timeout=30)
+            run_env = None
+            if isinstance(runtime_library, str) and runtime_library:
+                run_env = os.environ.copy()
+                run_env["PATH"] = str(Path(runtime_library).parent) + os.pathsep + run_env.get("PATH", "")
+            run_code, run_output = run(run_command, timeout=30, env=run_env)
         compiled = code == 0
         runtime_ok = run_code == 0
         if not compiled:
@@ -829,8 +887,14 @@ def accelerator_gate(
         "evidence": [
             f"probe: {item.get('probe')}",
             f"cmake module: {item.get('cmake_module') or 'not found'}",
+            f"cmake config: {item.get('cmake_config') or 'not found'}",
+            f"cmake target: {item.get('cmake_target') or 'not found'}",
             f"header: {item.get('header') or 'not found'}",
             f"library: {item.get('library') or 'not found'}",
+            f"library format: {item.get('library_format') or 'not found'}",
+            f"msvc import library: {item.get('msvc_import_library') or 'not found'}",
+            f"import archive: {item.get('import_archive') or 'not found'}",
+            f"runtime library: {item.get('runtime_library') or 'not found'}",
             f"tool: {item.get('tool') or 'not found'}",
             f"compile/link probe: {probe_status}",
         ],
@@ -1371,12 +1435,26 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  candidate evidence is correctness validation: {item['candidate_evidence_is_correctness_validation']}")
         print(f"  validated correctness backend: {item['validated_correctness_backend']}")
         print(f"  cmake module: {item.get('cmake_module') or 'not found'}")
+        if item.get("cmake_config"):
+            print(f"  cmake config: {item['cmake_config']}")
+        if item.get("cmake_target"):
+            print(f"  cmake target: {item['cmake_target']}")
         if item.get("header"):
             print(f"  header: {item['header']}")
         if item.get("library"):
             print(f"  library: {item['library']}")
+        if item.get("library_format"):
+            print(f"  library format: {item['library_format']}")
+        if item.get("msvc_import_library"):
+            print(f"  MSVC import library: {item['msvc_import_library']}")
+        if item.get("import_archive"):
+            print(f"  import archive: {item['import_archive']}")
+        if item.get("runtime_library"):
+            print(f"  runtime library: {item['runtime_library']}")
         if item.get("tool"):
             print(f"  tool: {item['tool']}")
+        if item.get("link_guidance"):
+            print(f"  link guidance: {item['link_guidance']}")
         print(f"  readiness: {item['readiness']}")
     print()
 

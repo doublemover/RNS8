@@ -257,8 +257,10 @@ This section records lead-run integration evidence from prior checkpoints. It
 does not promote ignored `temp/` captures or historical schema versions into the
 current tracked schema contract.
 
-- `cmake --build --preset windows-debug`: passed from a Visual Studio
-  developer environment after the reciprocal-reduction and ISA-gate work.
+- `python tools\windows_dev.py cmake --build --preset windows-debug`: passed
+  after the reciprocal-reduction and ISA-gate work; the wrapper loads the
+  Visual Studio developer environment automatically from a plain PowerShell
+  shell.
 - `ctest --preset windows-debug --output-on-failure`: 167/167 passed on the
   Windows HIP debug build. The private mismatched-modulus/wrong-reciprocal
   metadata smoke now runs in HIP builds, and the HIP-only
@@ -374,15 +376,20 @@ current tracked schema contract.
 - `python tools\check_dependencies.py --accelerator-probes --json`: host
   readiness stayed true while accelerator gates stayed `ok=false`. CK and
   rocWMMA probes did not run because headers were not discovered. hipBLASLt was
-  candidate evidence but the tiny Windows hipcc/lld-link probe failed because
-  this HIP SDK install exposes `libhipblaslt.dll.a` rather than a linkable
-  `hipblaslt.lib`; AMDGPU builtin probes reported
+  candidate evidence through AMD's `roc::hipblaslt` CMake target,
+  `libhipblaslt.dll.a` import archive, and `libhipblaslt.dll` runtime; no
+  separate MSVC `hipblaslt.lib` is required. The hipBLASLt tiny host API probe
+  auto-loaded the Visual Studio developer environment, linked the import
+  archive, and ran successfully while remaining
+  `candidate_accelerator_evidence_only`. AMDGPU builtin probes reported
   `NOT_RUN_NO_CORRECTNESS_KERNEL`; backend enablement remained disabled.
-- `cmake --preset windows-msvc-hip-accelerator-probe`: configured successfully,
-  reported hipBLASLt header evidence, CK/rocWMMA not discovered, AMDGPU builtin
-  evidence disabled until target-specific exact kernels exist, and accelerator
-  backend enablement disabled.
-- `cmake --build --preset windows-accelerator-probe --target rns8-inspect`:
+- `python tools\windows_dev.py cmake --preset windows-msvc-hip-accelerator-probe`:
+  configured successfully, reported hipBLASLt
+  imported-target/header/import-archive/DLL evidence with
+  `msvc_link_probe=passed`, CK/rocWMMA not discovered, AMDGPU builtin evidence
+  disabled until target-specific exact kernels exist, and accelerator backend
+  enablement disabled.
+- `python tools\windows_dev.py cmake --build --preset windows-accelerator-probe --target rns8-inspect`:
   built the direct-HIP inspection binary from the probe preset while keeping all
   accelerator backend enablement flags disabled.
 - Benchmark captures are kept under `temp/`:

@@ -109,6 +109,59 @@ typedef struct rns8_plan_tile_schedule_entry {
   uint32_t range_bit_length;
 } rns8_plan_tile_schedule_entry;
 
+typedef struct rns8_backend_capability_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  uint32_t is_accelerator;
+  uint32_t is_available;
+  uint32_t is_correctness_backend;
+  uint32_t is_matrix_engine_backend;
+  uint32_t supports_bounded_rns;
+  uint32_t supports_exact_wide_rns;
+  uint32_t supports_finite_u8;
+  uint32_t supports_wrap64;
+  uint32_t requires_feature_detection;
+  uint32_t enable_flag_fail_fast;
+  uint32_t candidate_evidence_only;
+  uint32_t compiled_kernel_available;
+  uint32_t exact_differential_validated;
+  uint32_t performance_validated;
+  uint32_t flags;
+  char backend_name[64];
+  char selected_kernel[128];
+  char library_name[64];
+  char library_version[64];
+  char enable_flag[64];
+  char epilogue_mode[64];
+  char workspace_mode[64];
+  char isa_evidence[64];
+  char status[128];
+  char detail[256];
+} rns8_backend_capability_info;
+
+typedef struct rns8_plan_backend_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  uint32_t is_accelerator;
+  uint32_t is_correctness_backend;
+  uint32_t is_matrix_engine_backend;
+  uint32_t compiled_kernel_available;
+  uint32_t exact_differential_validated;
+  uint32_t performance_validated;
+  uint32_t flags;
+  uint64_t workspace_required_bytes;
+  char selected_kernel[128];
+  char accelerator_library[64];
+  char accelerator_version[64];
+  char capability_status[128];
+  char epilogue_mode[64];
+  char workspace_mode[64];
+  char isa_evidence[64];
+  char autotune_key[256];
+} rns8_plan_backend_info;
+
 /*
  * Public ABI hard-cut status precedence: invalid struct size/version, reserved
  * flags, unknown semantics/bound/layout enum values, or malformed semantic
@@ -127,6 +180,10 @@ RNS8_API rns8_status rns8_get_device_info(
     rns8_context* ctx,
     rns8_device_info* out);
 
+RNS8_API rns8_status rns8_get_backend_capability_info(
+    rns8_backend_kind backend,
+    rns8_backend_capability_info* out);
+
 RNS8_API rns8_status rns8_create_plan(
     rns8_context* ctx,
     const rns8_gemm_desc* desc,
@@ -143,6 +200,10 @@ RNS8_API rns8_status rns8_get_plan_tile_schedule(
     rns8_plan_tile_schedule_entry* entries,
     uint64_t capacity,
     uint64_t* written);
+
+RNS8_API rns8_status rns8_get_plan_backend_info(
+    const rns8_plan* plan,
+    rns8_plan_backend_info* out);
 
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,

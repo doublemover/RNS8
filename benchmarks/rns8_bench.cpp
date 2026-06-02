@@ -114,6 +114,8 @@ struct BenchmarkResult {
   uint64_t tile_bound_hash = 0;
   rns8_plan_schedule_info schedule_info{};
   bool schedule_info_available = false;
+  rns8_plan_backend_info backend_info{};
+  bool backend_info_available = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
   uint64_t checksum = 0;
@@ -479,6 +481,14 @@ void print_nullable_string(const char* value) {
   }
 }
 
+void print_json_string_or_null(const char* value) {
+  if (value && value[0] != '\0') {
+    std::cout << "\"" << json_escape(value) << "\"";
+  } else {
+    std::cout << "null";
+  }
+}
+
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
   const auto u_rows = static_cast<uint64_t>(rows);
   const auto u_cols = static_cast<uint64_t>(cols);
@@ -761,6 +771,16 @@ void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
   }
   result.schedule_query_us = elapsed_us(start, end);
   result.schedule_info_available = true;
+}
+
+void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
+  result.backend_info.struct_size = sizeof(result.backend_info);
+  result.backend_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status status = rns8_get_plan_backend_info(plan, &result.backend_info);
+  if (status != RNS8_SUCCESS) {
+    fail_status("rns8_get_plan_backend_info", status);
+  }
+  result.backend_info_available = true;
 }
 
 std::vector<std::string> gpu_event_phase_order(const Args& args) {
@@ -1048,6 +1068,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -1150,6 +1171,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -1249,6 +1271,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -1379,6 +1402,9 @@ const char* selected_kernel_name(
     const Args& args,
     const rns8_device_info& info,
     const BenchmarkResult& result) {
+  if (result.backend_info_available && result.backend_info.selected_kernel[0] != '\0') {
+    return result.backend_info.selected_kernel;
+  }
   if (adaptive_execution_applied(args, info, result)) {
     return "direct_hip_tiled_rns_gemm_v1";
   }
@@ -1428,6 +1454,46 @@ void print_json(
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"backend_metadata\": {\n";
+  std::cout << "    \"source\": \"rns8_get_plan_backend_info\",\n";
+  std::cout << "    \"selected_kernel\": ";
+  print_json_string_or_null(result.backend_info.selected_kernel);
+  std::cout << ",\n";
+  std::cout << "    \"accelerator_backend\": "
+            << (result.backend_info.is_accelerator ? "true" : "false") << ",\n";
+  std::cout << "    \"correctness_backend\": "
+            << (result.backend_info.is_correctness_backend ? "true" : "false") << ",\n";
+  std::cout << "    \"matrix_engine_backend\": "
+            << (result.backend_info.is_matrix_engine_backend ? "true" : "false") << ",\n";
+  std::cout << "    \"compiled_kernel_available\": "
+            << (result.backend_info.compiled_kernel_available ? "true" : "false") << ",\n";
+  std::cout << "    \"exact_differential_validated\": "
+            << (result.backend_info.exact_differential_validated ? "true" : "false") << ",\n";
+  std::cout << "    \"performance_validated\": "
+            << (result.backend_info.performance_validated ? "true" : "false") << ",\n";
+  std::cout << "    \"accelerator_library\": ";
+  print_json_string_or_null(result.backend_info.accelerator_library);
+  std::cout << ",\n";
+  std::cout << "    \"accelerator_version\": ";
+  print_json_string_or_null(result.backend_info.accelerator_version);
+  std::cout << ",\n";
+  std::cout << "    \"capability_status\": ";
+  print_json_string_or_null(result.backend_info.capability_status);
+  std::cout << ",\n";
+  std::cout << "    \"epilogue_mode\": ";
+  print_json_string_or_null(result.backend_info.epilogue_mode);
+  std::cout << ",\n";
+  std::cout << "    \"workspace_mode\": ";
+  print_json_string_or_null(result.backend_info.workspace_mode);
+  std::cout << ",\n";
+  std::cout << "    \"workspace_required_bytes\": " << result.backend_info.workspace_required_bytes << ",\n";
+  std::cout << "    \"isa_evidence\": ";
+  print_json_string_or_null(result.backend_info.isa_evidence);
+  std::cout << ",\n";
+  std::cout << "    \"autotune_key\": ";
+  print_json_string_or_null(result.backend_info.autotune_key);
+  std::cout << "\n";
+  std::cout << "  },\n";
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
   std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";

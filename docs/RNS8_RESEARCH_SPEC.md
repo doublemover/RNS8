@@ -955,6 +955,16 @@ as the requested backend name, but they must not reinterpret
 `RNS8_UNSUPPORTED_BACKEND` as successful cross-routing or as evidence that
 an accelerator correctness backend exists.
 
+Backend capability and plan backend metadata are public ABI surfaces. Backend
+capability queries report whether a backend is a correctness backend, an
+accelerator candidate, compiled, exact-differential validated, performance
+validated, feature-detected, fail-fast, or evidence-only. Plan backend metadata
+reports the selected kernel, accelerator library/version, capability status,
+epilogue mode, workspace mode, workspace byte requirement, ISA evidence, and
+autotune key. Workspaces must preserve this metadata from the plan, and runtime
+validation must reject mismatched metadata instead of silently routing through a
+different backend path.
+
 Thread-safety rules:
 
 - Contexts are not internally synchronized.
@@ -1204,6 +1214,7 @@ Benchmark outputs include:
 - clock/power settings when available,
 - selected backend,
 - selected kernel,
+- backend metadata from the public plan backend metadata API,
 - matrix shape,
 - data distribution,
 - semantic contract,
