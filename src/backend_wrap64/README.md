@@ -22,12 +22,15 @@ Current status:
   computed through signed INT8 hardware instructions, plus a 36-byte-GEMM
   decomposition oracle for the future optimized GPU path.
 - `wrap64_hip_kernels.hip` contains direct-HIP pack, one-thread-per-output
-  byte-limb Comba GEMM, and export kernels. The public HIP_DIRECT one-shot and
-  persistent wrap64 APIs use matrix-owned device byte-limb storage and are
-  tested against the CPU reference.
-- Optimized byte-GEMM kernels and production GPU differential coverage are not
-  implemented yet. The signedness correction algebra is implemented and tested
-  as a CPU helper, but no accelerator backend consumes it yet.
+  byte-GEMM36 correctness, and export kernels. The GEMM kernel sums the 36
+  low-product byte diagonals with device-side signed-INT8 correction algebra,
+  then performs deterministic carry propagation into the low 64 bits. The
+  public HIP_DIRECT one-shot and persistent wrap64 APIs use matrix-owned device
+  byte-limb storage and are tested against the CPU reference.
+- Optimized matrix-engine byte-GEMM kernels and production GPU performance
+  evidence are not implemented yet. The signedness correction algebra is
+  implemented and tested on CPU and consumed by the direct-HIP correctness
+  kernel, but no signed-INT8 accelerator backend is enabled by it.
 - Bounded `RNS8_BOUNDED_U64` calls are exact-result calls, not wraparound
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.

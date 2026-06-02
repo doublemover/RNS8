@@ -306,9 +306,10 @@ through `RNS8_BACKEND_HIP_DIRECT`. Both require `RNS8_WRAP_U64_MOD_2_64`,
 `rns8_gemm_wrap_u64_oneshot` and persistent byte-limb matrices with
 `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and `rns8_export_wrap_u64`. The direct
 HIP path owns device byte-limb matrix storage and uses a one-thread-per-output
-Comba kernel for correctness comparison against the CPU reference. Optimized 36
-byte-GEMM kernels and accelerator signedness correction remain later production
-milestones.
+byte-GEMM36 correctness kernel for comparison against the CPU reference. The
+kernel sums the 36 low-product byte diagonals with device-side signed-INT8
+correction algebra and then performs carry propagation into the low 64 bits.
+Optimized matrix-engine byte-GEMM kernels remain later production milestones.
 
 ## 7. Modulus Ladder
 
@@ -1320,10 +1321,10 @@ uint64 source
 
 If a future accelerator exposes only signed INT8 products, unsigned byte
 products must be reconstructed with the tested signed-INT8 correction algebra
-before Comba carry propagation. The current helper is accelerator readiness
-only; it does not enable a signed-INT8 backend by itself. The CPU reference also
-has a 36-byte-GEMM decomposition oracle for this production path, separate from
-the current per-product Comba correctness backend.
+before Comba carry propagation. The CPU reference has a 36-byte-GEMM
+decomposition oracle for this production path, and the direct-HIP correctness
+kernel consumes the same correction algebra at device source level. This still
+does not enable a signed-INT8 matrix-engine backend by itself.
 
 The central performance thesis is:
 

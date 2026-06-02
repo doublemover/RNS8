@@ -356,6 +356,10 @@ class _Validator:
                 self._error("wrap64 captures must select wrap64-byte-limb or hip-direct backend")
             if self.version >= 4 and bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
+            if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+                expected_kernel = "direct_hip_wrap64_byte_gemm36_correctness_v1"
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
                 self._error("wrap64 captures must use bound_kind=none and bound=0")
             if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
@@ -372,6 +376,12 @@ class _Validator:
                         self._error(f"wrap64 captures must use schedule_metadata.{key}=0")
                 if schedule.get("prefix_group_count") != 0:
                     self._error("wrap64 captures must use schedule_metadata.prefix_group_count=0")
+            if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+                metadata = self.data.get("timing_metadata")
+                if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                    expected_scope = "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups"
+                    if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                        self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"bounded_i64", "bounded_u64"}:
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")

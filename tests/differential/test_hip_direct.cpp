@@ -422,7 +422,7 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   REQUIRE(rns8_gemm_wrap_u64(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
   auto hip_gemm_events = rns8::detail::hip_direct_timing_snapshot();
   rns8::detail::hip_direct_timing_set_enabled(false);
-  CHECK(has_timing_label(hip_gemm_events, "wrap64_comba_gemm_kernel"));
+  CHECK(has_timing_label(hip_gemm_events, "wrap64_byte_gemm36_kernel"));
   CHECK(hip_out->hip_byte_limbs == hip_out_bytes);
   CHECK(hip_out->device_byte_limbs_current);
   CHECK_FALSE(hip_out->host_byte_limbs_current);
@@ -451,6 +451,9 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       const uint64_t expected = rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t decomposition =
+          rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      CHECK(decomposition == expected);
       CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] == expected);
     }
     CHECK(hip_c[static_cast<std::size_t>(row * ldc + n)] == 0xdeadbeefdeadbeefull);

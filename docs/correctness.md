@@ -58,7 +58,9 @@ Implemented correctness coverage:
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
   device pointer stability through pack/GEMM/export, and support padded host
-  leading dimensions on export.
+  leading dimensions on export. The HIP GEMM correctness kernel sums the 36
+  low-product byte diagonals with device-side signed-INT8 correction algebra and
+  then performs deterministic carry propagation into the low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -79,9 +81,10 @@ Implemented correctness coverage:
   adaptive execution flags, and aggregate HIP event timing scope. This is
   benchmark evidence metadata for the correctness path, not an optimized GPU
   performance claim.
-- Private direct HIP strict `mod 2^64` byte-limb Comba kernel smoke also
-  remains as low-level coverage. The public and private HIP wrap64 tests are
-  correctness coverage, not optimized 36 byte-GEMM performance evidence.
+- Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
+  low-level coverage. The public and private HIP wrap64 tests are correctness
+  coverage for the one-thread-per-output byte-GEMM36 kernel, not optimized
+  matrix-engine byte-GEMM performance evidence.
 
 Not yet implemented:
 

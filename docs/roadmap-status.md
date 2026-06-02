@@ -56,8 +56,10 @@ disagree, the spec remains the target and this file identifies the gap.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the
-  CPU byte-limb reference, and padded host export layouts are tested. This is a
-  one-thread-per-output Comba correctness path, not an optimized byte-GEMM
+  CPU byte-limb reference, and padded host export layouts are tested. The GEMM
+  kernel is now a one-thread-per-output byte-GEMM36 correctness path that sums
+  low-product byte diagonals with device-side signed-INT8 correction and then
+  carries into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
   accelerator path.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
@@ -194,10 +196,18 @@ disagree, the spec remains the target and this file identifies the gap.
   `temp\rns8-hip-wrap-u64-event-smoke-repeat.json`: fixed-seed strict wrap64
   direct-HIP byte-limb captures with `prefix=0`, `bound_kind=none`,
   `packed_layout_version=byte_limb_v1`, `gpu_event_timing=true`, and
-  wrap64-specific `wrap64_comba_gemm_kernel`, `wrap64_export_kernel`, and
-  `wrap64_export_d2h` event phases. `tools\result_compare.py --json` reported
-  same-contract comparison with comparable GPU event phase order. Captures are
-  raw evidence only and do not establish a performance claim.
+  wrap64-specific event phases from the older Comba correctness kernel. Current
+  schema v4 HIP wrap64 captures report
+  `selected_kernel=direct_hip_wrap64_byte_gemm36_correctness_v1`,
+  `wrap64_byte_gemm36_kernel`, `wrap64_export_kernel`, and
+  `wrap64_export_d2h` event phases. Captures are raw evidence only and do not
+  establish a performance claim.
+- `temp\rns8-v4-hip-wrap-u64-byte-gemm36.json` and
+  `temp\rns8-v4-hip-wrap-u64-byte-gemm36-repeat.json`: fixed-seed strict
+  wrap64 direct-HIP byte-GEMM36 correctness captures validated as schema v4.
+  `tools\result_compare.py --json` reported the same selected kernel, event
+  source scope, GPU event phase order, shape, seed, and semantic contract.
+  Captures are raw evidence only and do not establish a performance claim.
 - `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
   passed, including malformed raw timing length, GPU event summary, invalid
   schedule metadata, wrap64 prefix, event-nullability, v3 scheduling, v3
