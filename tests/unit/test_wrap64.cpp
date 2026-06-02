@@ -841,6 +841,28 @@ TEST_CASE("public wrap64 CPU path rejects residue-backed and stale byte-limb mat
 
   c_matrix->host_byte_limbs_current = false;
   CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
+  c_matrix->host_byte_limbs_current = true;
+
+  a_matrix->hip_upload_buffer = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
+  a_matrix->hip_upload_bytes = 8;
+  CHECK(rns8_pack_u64(ctx, a_matrix, A, k, 4) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  a_matrix->hip_upload_buffer = nullptr;
+  a_matrix->hip_upload_bytes = 0;
+
+  c_matrix->hip_export_buffer = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
+  c_matrix->hip_export_bytes = 8;
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
+  c_matrix->hip_export_buffer = nullptr;
+  c_matrix->hip_export_bytes = 0;
+
+  c_matrix->hip_status_buffer = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
+  c_matrix->hip_status_bytes = 4;
+  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
+  c_matrix->hip_status_buffer = nullptr;
+  c_matrix->hip_status_bytes = 0;
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -882,26 +904,21 @@ TEST_CASE("public wrap64 CPU path rejects stale bounded schedule metadata") {
   stale_entry.abi_version = RNS8_ABI_VERSION;
   stale_entry.required_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   stale_entry.selected_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
-
   auto check_gemm_rejects_plan_mutation = [&](auto mutate, auto restore) {
     mutate();
     CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     restore();
   };
-  check_gemm_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
   check_gemm_rejects_plan_mutation(
       [&] { plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
       [&] { plan->desc.bound_kind = RNS8_BOUND_NONE; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
   check_gemm_rejects_plan_mutation(
       [&] { plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
       [&] { plan->desc.max_prefix = 0; });
   check_gemm_rejects_plan_mutation([&] { plan->desc.flags = 1; }, [&] { plan->desc.flags = 0; });
-  check_gemm_rejects_plan_mutation(
-      [&] { plan->desc.tile_m = original_tile_m + 1; },
-      [&] { plan->desc.tile_m = original_tile_m; });
-  check_gemm_rejects_plan_mutation(
-      [&] { plan->desc.tile_n = original_tile_n + 1; },
-      [&] { plan->desc.tile_n = original_tile_n; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.tile_m = 64; }, [&] { plan->desc.tile_m = original_tile_m; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.tile_n = 64; }, [&] { plan->desc.tile_n = original_tile_n; });
   check_gemm_rejects_plan_mutation([&] { plan->prefix = 1; }, [&] { plan->prefix = 0; });
   check_gemm_rejects_plan_mutation([&] { plan->modulus_product = 1; }, [&] { plan->modulus_product = 0; });
   check_gemm_rejects_plan_mutation([&] { plan->desc.tile_bounds = A; }, [&] { plan->desc.tile_bounds = nullptr; });
@@ -931,20 +948,16 @@ TEST_CASE("public wrap64 CPU path rejects stale bounded schedule metadata") {
     CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
     restore();
   };
-  check_export_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
   check_export_rejects_plan_mutation(
       [&] { plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
       [&] { plan->desc.bound_kind = RNS8_BOUND_NONE; });
+  check_export_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
   check_export_rejects_plan_mutation(
       [&] { plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
       [&] { plan->desc.max_prefix = 0; });
   check_export_rejects_plan_mutation([&] { plan->desc.flags = 1; }, [&] { plan->desc.flags = 0; });
-  check_export_rejects_plan_mutation(
-      [&] { plan->desc.tile_m = original_tile_m + 1; },
-      [&] { plan->desc.tile_m = original_tile_m; });
-  check_export_rejects_plan_mutation(
-      [&] { plan->desc.tile_n = original_tile_n + 1; },
-      [&] { plan->desc.tile_n = original_tile_n; });
+  check_export_rejects_plan_mutation([&] { plan->desc.tile_m = 64; }, [&] { plan->desc.tile_m = original_tile_m; });
+  check_export_rejects_plan_mutation([&] { plan->desc.tile_n = 64; }, [&] { plan->desc.tile_n = original_tile_n; });
   check_export_rejects_plan_mutation([&] { plan->prefix = 1; }, [&] { plan->prefix = 0; });
   check_export_rejects_plan_mutation([&] { plan->modulus_product = 1; }, [&] { plan->modulus_product = 0; });
   check_export_rejects_plan_mutation([&] { plan->desc.tile_bounds = A; }, [&] { plan->desc.tile_bounds = nullptr; });
@@ -995,6 +1008,7 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   int64_t signed_C[] = {0};
   CHECK(rns8_gemm_i64_oneshot(wrap_ctx, &desc, signed_A, k, signed_B, n, signed_C, n) == RNS8_INVALID_ARGUMENT);
 
+  rns8_plan* plan = nullptr;
   auto check_invalid_wrap_descriptor = [&](const rns8_gemm_desc& bad_desc) {
     rns8_plan* rejected_plan = nullptr;
     CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bad_desc, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
@@ -1028,15 +1042,11 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   auto bounded_looking = desc;
   bounded_looking.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   bounded_looking.bound = std::numeric_limits<uint64_t>::max();
-  rns8_plan* plan = nullptr;
   check_invalid_wrap_descriptor(bounded_looking);
 
   auto malformed_with_future_backend = bounded_looking;
   malformed_with_future_backend.requested_backend = RNS8_BACKEND_HIPBLASLT;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &malformed_with_future_backend, A, k, B, n, C, n) ==
-        RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_create_plan(wrap_ctx, &malformed_with_future_backend, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(malformed_with_future_backend);
 
   auto valid_with_future_backend = desc;
   valid_with_future_backend.requested_backend = RNS8_BACKEND_HIPBLASLT;

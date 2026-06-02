@@ -117,9 +117,10 @@ Implemented correctness coverage:
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
   device pointer stability through pack/GEMM/export, and support padded host
   leading dimensions on pack and export while keeping compact row-major
-  `rows * cols * 8` device byte-limb storage. GEMM/export require
-  device-current byte limbs instead of silently uploading host-current wrap
-  matrices. Same-shape wrap64 HIP resident tests also check allocation counters
+  `rows * cols * 8` device byte-limb storage. Newly created HIP wrap matrices
+  are non-current until packed; GEMM/export require
+  device-current, host-not-current byte limbs instead of silently uploading or
+  accepting host-current wrap matrices. Same-shape wrap64 HIP resident tests also check allocation counters
   across repeat pack/GEMM/export cycles, including larger multi-tile padded
   shapes with host inputs mutated after pack. The HIP GEMM correctness kernel
   sums the low eight Comba byte-product diagonals with device-side signed-INT8
