@@ -190,6 +190,7 @@ build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
+python tools\result_compare.py temp\baseline.json temp\candidate.json
 ```
 
 For CPU-only scaffold validation, configure without HIP:
@@ -211,6 +212,9 @@ ctest --test-dir build\cpu-debug --output-on-failure
   `CMakePresets.json` Windows/Linux HIP target representation, MSVC install,
   optional accelerator/reference components, project tools, and optional Radeon
   Developer Tool Suite utilities.
+- [tools/result_compare.py](tools/result_compare.py) compares two `rns8-bench`
+  JSON captures without treating timing deltas as correctness or performance
+  claims.
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
   explicitly matrix-descriptor based; the ABI does not infer operand role or
   semantics from C++ types.

@@ -339,6 +339,7 @@ def project_tools() -> dict[str, dict[str, object]]:
         "rns8-inspect": [root / "tools" / "rns8_inspect.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-inspect.exe"],
         "rns8-verify": [root / "tools" / "rns8_verify.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-verify.exe"],
         "rns8-bench": [root / "benchmarks" / "rns8_bench.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-bench.exe"],
+        "result_compare": [root / "tools" / "result_compare.py"],
     }
     return {
         name: {
