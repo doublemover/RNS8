@@ -147,17 +147,21 @@ Windows build rules:
 
 ### 4.3 Linux ROCm Stack
 
-Required for Linux GPU execution:
+Required for Linux direct-HIP GPU execution:
 
 - ROCm production release matching the supported OS and GPU matrix.
 - HIP compiler and runtime.
 - ROCm LLVM.
+- `rocminfo`, `rocm-smi` or `amd-smi`, and ROCProfiler tooling.
+- CMake, Ninja, Python, and CPU reference dependencies.
+
+Feature-detected production/performance accelerators, enabled only after
+capability probes and exact differentials pass on the target GPU:
+
 - hipBLASLt for baseline INT8 GEMM when supported on the target GPU.
 - Composable Kernel or CK Tile for grouped GEMM and custom epilogues when
   supported on the target GPU.
 - rocWMMA or AMDGPU builtins for custom hot kernels when supported.
-- `rocminfo`, `rocm-smi` or `amd-smi`, and ROCProfiler tooling.
-- CMake, Ninja, Python, and CPU reference dependencies.
 
 Linux is the required platform for full Instinct validation, multi-GPU
 experiments, production profiling, and cluster reproducibility.
@@ -296,15 +300,15 @@ low 64-bit export
 ```
 
 The current public implementation exposes a CPU byte-limb reference backend
-through `RNS8_BACKEND_WRAP64_BYTE_LIMB`. It requires
-`RNS8_WRAP_U64_MOD_2_64`, `RNS8_BOUND_NONE`, no CRT prefix, and the explicit
-wrap backend. The CPU path supports both `rns8_gemm_wrap_u64_oneshot` and
-persistent byte-limb matrices with `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
-`rns8_export_wrap_u64`. HIP byte-limb kernels and accelerator signedness
-correction remain later production milestones. A private direct-HIP byte-limb
-Comba smoke kernel exists only for correctness comparison against the CPU
-reference; it is not public backend support and is not the optimized 36
-byte-GEMM production path.
+through `RNS8_BACKEND_WRAP64_BYTE_LIMB` and a direct-HIP correctness path
+through `RNS8_BACKEND_HIP_DIRECT`. Both require `RNS8_WRAP_U64_MOD_2_64`,
+`RNS8_BOUND_NONE`, and no CRT prefix. They support
+`rns8_gemm_wrap_u64_oneshot` and persistent byte-limb matrices with
+`rns8_pack_u64`, `rns8_gemm_wrap_u64`, and `rns8_export_wrap_u64`. The direct
+HIP path owns device byte-limb matrix storage and uses a one-thread-per-output
+Comba kernel for correctness comparison against the CPU reference. Optimized 36
+byte-GEMM kernels and accelerator signedness correction remain later production
+milestones.
 
 ## 7. Modulus Ladder
 
@@ -722,11 +726,11 @@ Thread-safety rules:
 | B0 | CPU scalar and multiprecision | required | required | correctness reference |
 | B1 | Direct HIP vector/matrix baseline | required | required | portable GPU correctness and fallback |
 | B2 | Direct HIP fused modulo kernels | required | required | portable fused path |
-| B3 | hipBLASLt INT8 per modulus | optional by feature detection | required where supported | vendor baseline |
-| B4 | hipBLASLt grouped/batched | optional by feature detection | required where supported | launch amortization |
-| B5 | CK grouped GEMM | optional by feature detection | required where supported | adaptive scheduling |
-| B6 | CK custom epilogue | optional by feature detection | required where supported | fused reduction |
-| B7 | rocWMMA or AMDGPU builtins | optional by feature detection | required for hot production targets | architecture hot paths |
+| B3 | hipBLASLt INT8 per modulus | optional by feature detection | optional by feature detection | vendor baseline |
+| B4 | hipBLASLt grouped/batched | optional by feature detection | optional by feature detection | launch amortization |
+| B5 | CK grouped GEMM | optional by feature detection | optional by feature detection | adaptive scheduling |
+| B6 | CK custom epilogue | optional by feature detection | optional by feature detection | fused reduction |
+| B7 | rocWMMA or AMDGPU builtins | optional by feature detection | optional for hot production targets | architecture hot paths |
 
 The direct HIP backend exists to prevent the project from being blocked by
 library availability differences between Windows and Linux.
@@ -1121,11 +1125,12 @@ Deliverables:
 - Linux ROCm CMake preset,
 - ROCm package detection,
 - Linux direct HIP parity,
-- Linux hipBLASLt baseline when available.
+- Linux hipBLASLt baseline recorded when available.
 
 Exit gate:
 
-- E003, E005, E072 pass.
+- E003 and E072 pass on a real Linux ROCm host; E005 is recorded and enables
+  B3/B4 only when hipBLASLt is available and validated.
 
 ### Phase 5: Grouped And Adaptive Scheduling
 
@@ -1183,9 +1188,9 @@ Exit gate:
 
 Deliverables:
 
-- exact-wide RNS output,
-- exact-wide CPU and direct HIP export,
-- strict `mod 2^64` byte-limb backend,
+- exact-wide RNS output and CPU/direct-HIP limb export,
+- strict `mod 2^64` CPU and direct-HIP byte-limb correctness backend,
+- optimized strict `mod 2^64` byte-GEMM backend decision,
 - INT4, Strassen, sparsity, and multi-GPU decisions.
 
 Exit gate:

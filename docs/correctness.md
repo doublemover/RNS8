@@ -37,9 +37,14 @@ Implemented correctness coverage:
   device instead of synchronizing host residue storage.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
-  low-64-bit results. The public wrap path requires the explicit byte-limb
-  backend, uses separate pack/GEMM/export APIs for persistent matrices, and
-  rejects CRT bounds/prefixes.
+  low-64-bit results. The public wrap path requires explicit wrap64 semantics
+  and byte-limb storage, uses separate pack/GEMM/export APIs for persistent
+  matrices, and rejects CRT bounds/prefixes.
+- Public direct HIP strict `mod 2^64` byte-limb one-shot and persistent API
+  tests compared against the CPU byte-limb backend. HIP wrap matrices own
+  device-resident byte-limb buffers, do not allocate RNS residues, preserve
+  device pointer stability through pack/GEMM/export, and support padded host
+  leading dimensions on export.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -49,14 +54,14 @@ Implemented correctness coverage:
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
   reference.
-- Private direct HIP strict `mod 2^64` byte-limb Comba smoke test compared
-  against the CPU byte-limb reference. This is not public HIP wrap64 backend
-  support and is not an optimized 36 byte-GEMM path.
+- Private direct HIP strict `mod 2^64` byte-limb Comba kernel smoke also
+  remains as low-level coverage. The public and private HIP wrap64 tests are
+  correctness coverage, not optimized 36 byte-GEMM performance evidence.
 
 Not yet implemented:
 
 - Per-tile adaptive bounds.
-- Public or optimized strict `mod 2^64` GPU byte-limb kernels.
+- Optimized strict `mod 2^64` GPU byte-GEMM kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
 Semantic guardrail:
@@ -74,11 +79,11 @@ Semantic guardrail:
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested
-  directly. The current public surface is a CPU byte-limb backend with one-shot
-  and persistent byte-limb matrix APIs. RNS/CRT GEMM and bounded exports still
-  reject wrap descriptors. A bounded API call is only valid for wrap-like inputs
-  when the exact mathematical result is also within the supplied bounded
-  contract.
+  directly. The current public surface includes the CPU byte-limb backend and a
+  direct HIP correctness path with device-resident byte-limb matrices. RNS/CRT
+  GEMM and bounded exports still reject wrap descriptors. A bounded API call is
+  only valid for wrap-like inputs when the exact mathematical result is also
+  within the supplied bounded contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path.

@@ -22,8 +22,8 @@ Validated in this slice:
 - Debug builds pass the MSVC debug runtime settings through hipcc to avoid CRT
   and iterator-debug-level mismatches.
 - `rns8-verify --hip-smoke` exercises direct HIP residue conversion, ring GEMM,
-  K-block splitting, and public bounded signed/unsigned API paths against the
-  CPU reference.
+  K-block splitting, public bounded signed/unsigned API paths, and the public
+  strict wrap64 byte-limb path against CPU references.
 
 Current proof command:
 
