@@ -44,6 +44,49 @@ def main() -> int:
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
+    v4_cpu_adaptive_i64 = copy.deepcopy(v4_adaptive_i64)
+    v4_cpu_adaptive_i64["backend_requested"] = "cpu-reference"
+    v4_cpu_adaptive_i64["backend_selected"] = "cpu-reference"
+    v4_cpu_adaptive_i64["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
+    v4_cpu_adaptive_i64["backend_metadata"]["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
+    v4_cpu_adaptive_i64["backend_metadata"]["accelerator_library"] = None
+    v4_cpu_adaptive_i64["backend_metadata"]["workspace_mode"] = "host_reference_workspace"
+    v4_cpu_adaptive_i64["backend_metadata"]["workspace_required_bytes"] = 0
+    v4_cpu_adaptive_i64["backend_metadata"]["isa_evidence"] = "not_applicable_cpu"
+    v4_cpu_adaptive_i64["backend_metadata"]["autotune_key"] = (
+        "backend=cpu-reference;semantics=bounded_i64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;"
+        "groups=4;adaptive_prefix=1;adaptive_skip=1;kernel=cpu_reference_scalar_rns_gemm_v1;"
+        "epilogue=fused_centered_residue_then_crt_export"
+    )
+    v4_cpu_adaptive_i64["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_vector_alu_int64",
+        "same_contract_direct_hip_correctness",
+    ]
+    v4_cpu_adaptive_i64["device"] = {
+        "device_id": -1,
+        "name": "CPU reference",
+        "gcn_arch": "none",
+        "hip_available": 0,
+        "hip_runtime_version": 0,
+        "hip_driver_version": 0,
+        "global_mem_bytes": 0,
+    }
+    v4_cpu_adaptive_i64["timing_note"] = (
+        "host wall-clock timings for the CPU adaptive per-tile bounded reference path; no GPU event timing is "
+        "requested for this backend"
+    )
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing"] = False
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_selected_backend"
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_selected_backend"
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_source"] = None
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_source_scope"] = None
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_timing_caveat"] = None
+    v4_cpu_adaptive_i64["timing_metadata"]["gpu_event_phase_order"] = None
+    v4_cpu_adaptive_i64["gpu_event_timings_us"] = None
+    v4_cpu_adaptive_i64["gpu_event_timing_summary_us"] = None
+    validate_capture(v4_cpu_adaptive_i64)
+
     bad_length = copy.deepcopy(bounded)
     bad_length["raw_timings_us"]["pack"].pop()
     expect_invalid(bad_length, "raw_timings_us.pack length")

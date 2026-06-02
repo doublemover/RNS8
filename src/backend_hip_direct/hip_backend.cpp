@@ -1271,7 +1271,7 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   auto* c_base = static_cast<int8_t*>(device_c_residues);
   const auto* schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(device_entries);
   const uint32_t max_selected_prefix = schedule.selected_prefix_groups.back();
-  const hipError_t err = timed_hip_operation("rns_gemm_scheduled_kernel_group", [&]() {
+  const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
     for (uint32_t p = 0; p < max_selected_prefix; ++p) {
       const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                    static_cast<std::size_t>(lda);

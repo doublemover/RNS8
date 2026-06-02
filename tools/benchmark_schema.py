@@ -681,8 +681,17 @@ class _Validator:
                 expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
-                if self.data.get("backend_selected") not in {"hip-direct", "ck", "wmma", "hip-vector-alu-int64"}:
-                    self._error("per-tile adaptive captures must select hip-direct, ck, wmma, or hip-vector-alu-int64 backend")
+                if self.data.get("backend_selected") not in {
+                    "cpu-reference",
+                    "hip-direct",
+                    "ck",
+                    "wmma",
+                    "hip-vector-alu-int64",
+                }:
+                    self._error(
+                        "per-tile adaptive captures must select cpu-reference, hip-direct, ck, wmma, "
+                        "or hip-vector-alu-int64 backend"
+                    )
                 if self.data.get("bound") != 0:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
@@ -822,6 +831,7 @@ class _Validator:
                     f"per-tile adaptive captures must use backend_metadata.epilogue_mode={expected_epilogue}"
                 )
             expected_workspaces = {
+                "cpu-reference": "host_reference_workspace",
                 "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "wmma": "resident_device_buffers_with_rocwmma_pack_workspace",
                 "hip-vector-alu-int64": "benchmark_owned_device_buffers",
@@ -834,6 +844,7 @@ class _Validator:
                     f"per-tile adaptive captures must use backend_metadata.workspace_mode={expected_workspace}"
                 )
             expected_isas = {
+                "cpu-reference": "not_applicable_cpu",
                 "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
                 "wmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
