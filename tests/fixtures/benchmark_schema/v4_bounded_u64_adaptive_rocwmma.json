@@ -92,7 +92,13 @@
     "global_mem_bytes": 25753026560
   },
   "clock_power_settings": null,
-  "comparison_baseline": null,
+  "comparison_baseline": {
+    "status": "required_not_recorded",
+    "speedup_claimed": false,
+    "selected_reference": null,
+    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64", "same_contract_direct_hip_correctness"],
+    "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
+  },
   "derived_tops_equivalent": null,
   "timing_source": "std::chrono::steady_clock",
   "timing_note": "host wall-clock timings for an adaptive per-tile bounded accelerator path; GPU event timing is unavailable until the selected backend exposes event hooks",

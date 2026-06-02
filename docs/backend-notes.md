@@ -94,6 +94,15 @@ runs. `rns8-inspect --autotune-key ...` reports exact-hit versus missing-cache
 rationale; unreviewed raw benchmark captures remain unvalidated and do not
 turn on `performance_validated`.
 
+Benchmark captures make the performance gate explicit with a structured
+`comparison_baseline` object. Unreviewed captures keep
+`status=required_not_recorded` and `speedup_claimed=false`; schema validation
+rejects bounded captures that do not name the same-contract CPU reference and
+direct-HIP vector-ALU baseline prerequisites, rejects wrap64 captures that do
+not name CPU byte-limb and direct-HIP byte-GEMM36 prerequisites, and rejects any
+future `performance_validated=true` capture unless a reviewed same-contract
+baseline is attached.
+
 The CK and rocWMMA backend directories under `src/` now contain opt-in
 correctness backend implementations. The AMDGPU builtin backend path remains a
 reserved ownership boundary. No accelerator path counts from discovery alone:

@@ -54,8 +54,16 @@ The benchmark reports:
   SDK/ROCm root version when available,
 - HIP device identity and runtime metadata when using the direct HIP backend,
 - clock/power settings when available; currently `null`,
-- comparison baseline and derived TOPS-equivalent when reviewed baselines exist;
-  currently `null`,
+- structured comparison-baseline status. Current unreviewed captures use
+  `comparison_baseline.status: "required_not_recorded"` and
+  `speedup_claimed: false`, with explicit prerequisite baseline names for the
+  same semantic contract. Bounded captures require at least
+  `same_contract_cpu_reference` and
+  `same_contract_direct_hip_vector_alu_int64`; accelerator captures also name
+  the same-contract direct-HIP correctness baseline. Strict wrap64 captures
+  require the CPU byte-limb reference and direct-HIP byte-GEMM36 baseline.
+  `derived_tops_equivalent` remains `null` until a reviewed same-contract
+  baseline is attached,
 - timing source, timing caveat, and structured timing metadata,
 - explicit GPU event timing availability metadata and direct-HIP event timing
   arrays when backend hooks collect a complete repeat,

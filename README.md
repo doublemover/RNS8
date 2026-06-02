@@ -250,6 +250,12 @@ build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bou
 python tools\result_compare.py temp\baseline.json temp\candidate.json
 ```
 
+Benchmark JSON includes a structured `comparison_baseline` object. Current raw
+captures deliberately report `status=required_not_recorded` and
+`speedup_claimed=false`; schema validation requires same-contract CPU/reference
+and GPU baseline prerequisites before a capture can ever be promoted to a
+speedup claim.
+
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
 preset, `hipblaslt`, `ck`, and `rocwmma` print `unsupported backend` plus an
