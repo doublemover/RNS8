@@ -19,6 +19,7 @@ The benchmark reports:
 - warmup and repeat counts,
 - prefix count,
 - command line,
+- git commit captured at CMake configure time,
 - compiler version,
 - configured AMDGPU target list,
 - HIP device identity and runtime metadata when using the direct HIP backend,
@@ -28,7 +29,8 @@ The benchmark reports:
 - average persistent RNS GEMM time,
 - average per-modulus GEMM estimate,
 - average CRT export time,
-- average end-to-end time for the measured phases.
+- average end-to-end time for the measured phases,
+- raw per-repeat timing arrays plus average, median, and p95 summaries.
 
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, allocation,

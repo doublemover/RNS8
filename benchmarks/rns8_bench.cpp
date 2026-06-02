@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -12,6 +13,10 @@
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
+#endif
+
+#ifndef RNS8_GIT_COMMIT
+#  define RNS8_GIT_COMMIT "unknown"
 #endif
 
 namespace {
@@ -33,17 +38,17 @@ struct Args {
   BenchSemantics semantics = BenchSemantics::BoundedI64;
 };
 
-struct TimingTotals {
-  uint64_t pack_us = 0;
-  uint64_t gemm_us = 0;
-  uint64_t export_us = 0;
-  uint64_t end_to_end_us = 0;
+struct TimingSamples {
+  std::vector<uint64_t> pack_us;
+  std::vector<uint64_t> gemm_us;
+  std::vector<uint64_t> export_us;
+  std::vector<uint64_t> end_to_end_us;
 };
 
 struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t matrix_alloc_us = 0;
-  TimingTotals totals{};
+  TimingSamples samples{};
   uint64_t checksum = 0;
 };
 
@@ -304,6 +309,46 @@ void mix_checksum(uint64_t& checksum, uint64_t value) {
   checksum *= 1099511628211ull;
 }
 
+double average(const std::vector<uint64_t>& values) {
+  if (values.empty()) {
+    return 0.0;
+  }
+  uint64_t sum = 0;
+  for (const uint64_t value : values) {
+    sum += value;
+  }
+  return static_cast<double>(sum) / static_cast<double>(values.size());
+}
+
+double percentile(std::vector<uint64_t> values, double p) {
+  if (values.empty()) {
+    return 0.0;
+  }
+  std::sort(values.begin(), values.end());
+  const double scaled = p * static_cast<double>(values.size() - 1);
+  const auto index = static_cast<std::size_t>(scaled + 0.999999);
+  return static_cast<double>(values[index]);
+}
+
+void print_u64_array(const std::vector<uint64_t>& values) {
+  std::cout << "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i > 0) {
+      std::cout << ", ";
+    }
+    std::cout << values[i];
+  }
+  std::cout << "]";
+}
+
+void print_timing_summary(const char* name, const std::vector<uint64_t>& values, bool trailing_comma) {
+  std::cout << "    \"" << name << "\": {\n";
+  std::cout << "      \"avg\": " << average(values) << ",\n";
+  std::cout << "      \"median\": " << percentile(values, 0.50) << ",\n";
+  std::cout << "      \"p95\": " << percentile(values, 0.95) << "\n";
+  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+}
+
 uint64_t checksum_i64(const std::vector<int64_t>& values) {
   uint64_t checksum = 1469598103934665603ull;
   for (const int64_t value : values) {
@@ -357,7 +402,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingTotals* totals) {
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
@@ -376,11 +421,11 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
     const auto export_end = std::chrono::steady_clock::now();
 
-    if (totals) {
-      totals->pack_us += elapsed_us(pack_start, pack_end);
-      totals->gemm_us += elapsed_us(gemm_start, gemm_end);
-      totals->export_us += elapsed_us(export_start, export_end);
-      totals->end_to_end_us += elapsed_us(repeat_start, export_end);
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
     }
   };
 
@@ -388,7 +433,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.totals);
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   result.checksum = checksum_i64(C);
 
@@ -437,7 +482,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingTotals* totals) {
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
@@ -456,11 +501,11 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
     const auto export_end = std::chrono::steady_clock::now();
 
-    if (totals) {
-      totals->pack_us += elapsed_us(pack_start, pack_end);
-      totals->gemm_us += elapsed_us(gemm_start, gemm_end);
-      totals->export_us += elapsed_us(export_start, export_end);
-      totals->end_to_end_us += elapsed_us(repeat_start, export_end);
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
     }
   };
 
@@ -468,7 +513,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.totals);
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   result.checksum = checksum_u64(C);
 
@@ -486,11 +531,10 @@ void print_json(
     const BenchmarkResult& result,
     uint64_t bound,
     const std::string& cmdline) {
-  const double repeats = static_cast<double>(args.repeats);
-  const double avg_pack_us = static_cast<double>(result.totals.pack_us) / repeats;
-  const double avg_gemm_us = static_cast<double>(result.totals.gemm_us) / repeats;
-  const double avg_export_us = static_cast<double>(result.totals.export_us) / repeats;
-  const double avg_end_to_end_us = static_cast<double>(result.totals.end_to_end_us) / repeats;
+  const double avg_pack_us = average(result.samples.pack_us);
+  const double avg_gemm_us = average(result.samples.gemm_us);
+  const double avg_export_us = average(result.samples.export_us);
+  const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const double avg_per_modulus_gemm_estimate_us = avg_gemm_us / static_cast<double>(RNS8_DEFAULT_BOUNDED_PREFIX);
 
   std::cout << "{\n";
@@ -514,6 +558,7 @@ void print_json(
                                                              : "unsigned_uniform_0_16")
             << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
+  std::cout << "  \"git_commit\": \"" << json_escape(RNS8_GIT_COMMIT) << "\",\n";
   std::cout << "  \"compiler\": {\n";
   std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
@@ -538,6 +583,26 @@ void print_json(
   std::cout << "  \"avg_per_modulus_gemm_estimate_us\": " << avg_per_modulus_gemm_estimate_us << ",\n";
   std::cout << "  \"avg_crt_export_us\": " << avg_export_us << ",\n";
   std::cout << "  \"avg_end_to_end_us\": " << avg_end_to_end_us << ",\n";
+  std::cout << "  \"raw_timings_us\": {\n";
+  std::cout << "    \"pack\": ";
+  print_u64_array(result.samples.pack_us);
+  std::cout << ",\n";
+  std::cout << "    \"rns_gemm\": ";
+  print_u64_array(result.samples.gemm_us);
+  std::cout << ",\n";
+  std::cout << "    \"crt_export\": ";
+  print_u64_array(result.samples.export_us);
+  std::cout << ",\n";
+  std::cout << "    \"end_to_end\": ";
+  print_u64_array(result.samples.end_to_end_us);
+  std::cout << "\n";
+  std::cout << "  },\n";
+  std::cout << "  \"timing_summary_us\": {\n";
+  print_timing_summary("pack", result.samples.pack_us, true);
+  print_timing_summary("rns_gemm", result.samples.gemm_us, true);
+  print_timing_summary("crt_export", result.samples.export_us, true);
+  print_timing_summary("end_to_end", result.samples.end_to_end_us, false);
+  std::cout << "  },\n";
   std::cout << "  \"checksum_u64\": " << result.checksum << "\n";
   std::cout << "}\n";
 }
