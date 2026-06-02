@@ -2361,6 +2361,12 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   REQUIRE(a_matrix->hip_residues != nullptr);
   REQUIRE(b_matrix->hip_residues != nullptr);
   REQUIRE(c_matrix->hip_residues != nullptr);
+  CHECK_FALSE(a_matrix->host_residues_current);
+  CHECK_FALSE(a_matrix->device_residues_current);
+  CHECK_FALSE(b_matrix->host_residues_current);
+  CHECK_FALSE(b_matrix->device_residues_current);
+  CHECK_FALSE(c_matrix->host_residues_current);
+  CHECK_FALSE(c_matrix->device_residues_current);
   void* a_device_residues = a_matrix->hip_residues;
   void* b_device_residues = b_matrix->hip_residues;
   void* c_device_residues = c_matrix->hip_residues;
