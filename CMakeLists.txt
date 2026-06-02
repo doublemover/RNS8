@@ -44,6 +44,7 @@ set(RNS8_SOURCES
   src/reconstruct/crt.cpp
   src/backend_hip_direct/hip_backend.cpp
   src/backend_wrap64/wrap64_reference.cpp
+  src/backend_wrap64/wrap64_hip.cpp
 )
 
 if(RNS8_ENABLE_HIP)
@@ -52,7 +53,11 @@ if(RNS8_ENABLE_HIP)
     RNS8_HIP_DIRECT_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
-  list(APPEND RNS8_SOURCES "${RNS8_HIP_DIRECT_KERNEL_OBJECT}")
+  rns8_compile_hip_source(
+    RNS8_WRAP64_HIP_KERNEL_OBJECT
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/wrap64_hip_kernels.hip"
+  )
+  list(APPEND RNS8_SOURCES "${RNS8_HIP_DIRECT_KERNEL_OBJECT}" "${RNS8_WRAP64_HIP_KERNEL_OBJECT}")
 endif()
 
 function(rns8_configure_library target_name)

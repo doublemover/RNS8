@@ -35,8 +35,9 @@ Implemented:
 - Windows direct HIP bring-up through explicit hipcc object compilation for
   `gfx1100`, HIP device inspection, device-resident RNS matrix storage,
   signed/unsigned GPU residue conversion, fused INT32-to-centered-residue
-  K-block reduction, bounded i64/u64 GPU CRT export, and real one-modulus plus
-  bounded i64/u64 GEMM smoke tests compared against the CPU reference.
+  K-block reduction, bounded i64/u64 GPU CRT export, private strict wrap64
+  byte-limb correctness smoke, and real one-modulus plus bounded i64/u64 GEMM
+  smoke tests compared against the CPU reference.
 - Benchmark schema v2 with host wall-clock phase timings, live git commit
   capture, raw timing arrays, summaries, and direct-HIP GPU event timing arrays
   when complete.
@@ -44,7 +45,8 @@ Implemented:
 Not implemented yet:
 
 - Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
-  hot kernels, GPU exact-wide export, and GPU strict `mod 2^64` byte-limb GEMM.
+  hot kernels, GPU exact-wide export, and public/optimized GPU strict
+  `mod 2^64` byte-limb GEMM.
 - Performance claims beyond the current host/event-timed benchmark shell.
 
 ## Windows Development Requirements

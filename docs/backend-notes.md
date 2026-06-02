@@ -14,8 +14,10 @@ Backend status:
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
 - Wraparound byte-limb backend: CPU reference implemented for one-shot and
-  persistent byte-limb matrix APIs; HIP byte-limb kernels and accelerator
-  signedness corrections are not implemented.
+  persistent byte-limb matrix APIs. A private direct-HIP byte-limb Comba smoke
+  kernel exists for correctness comparison only; public HIP wrap64 backend
+  support, optimized byte GEMMs, and accelerator signedness corrections are not
+  implemented.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
@@ -54,3 +56,9 @@ Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through the explicit
 uses the byte-limb Comba reference, returns low-64-bit `uint64_t` output, does
 not allocate RNS residue matrices, does not use CRT reconstruction, and rejects
 bounds or prefixes in the descriptor.
+
+The private `wrap64_hip_gemm_byte_limbs` path compiles a direct HIP kernel and
+compares GPU byte-limb output against the CPU reference in the differential
+suite. It is intentionally not wired into public context creation or benchmark
+backend selection. It is a correctness smoke for byte-limb GPU arithmetic, not
+the production 36 byte-GEMM accelerator path.

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_wrap64/wrap64_hip.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
 
@@ -91,6 +92,20 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantic
   return desc;
 }
 
+void store_u64_limbs(std::vector<uint8_t>& dst, int64_t cell, uint64_t value) {
+  for (uint32_t limb = 0; limb < 8; ++limb) {
+    dst[static_cast<std::size_t>(cell * 8 + limb)] = static_cast<uint8_t>((value >> (8u * limb)) & 0xffu);
+  }
+}
+
+uint64_t load_u64_limbs(const std::vector<uint8_t>& src, int64_t cell) {
+  uint64_t value = 0;
+  for (uint32_t limb = 0; limb < 8; ++limb) {
+    value |= static_cast<uint64_t>(src[static_cast<std::size_t>(cell * 8 + limb)]) << (8u * limb);
+  }
+  return value;
+}
+
 }  // namespace
 
 TEST_CASE("direct HIP ring GEMM matches CPU reference for one modulus") {
@@ -131,6 +146,62 @@ TEST_CASE("direct HIP ring GEMM splits K above the int32 safe block") {
   CHECK(rns8::detail::hip_direct_ring_gemm_i8(0, A.data(), B.data(), gpu.data(), m, n, k, k, n, n, modulus) ==
         RNS8_SUCCESS);
   CHECK(gpu == cpu);
+}
+
+TEST_CASE("private HIP wrap64 byte-limb GEMM matches CPU reference") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for private wrap64 HIP smoke");
+  }
+
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 3;
+  constexpr int64_t k = 5;
+  const std::vector<uint64_t> A = {
+      0,
+      1,
+      std::numeric_limits<uint64_t>::max(),
+      0x8080808080808080ull,
+      0x0102030405060708ull,
+      255,
+      256,
+      std::numeric_limits<uint64_t>::max() - 1,
+      0x7f7f7f7f7f7f7f7full,
+      17};
+  const std::vector<uint64_t> B = {
+      3,
+      std::numeric_limits<uint64_t>::max(),
+      0x1112131415161718ull,
+      29,
+      0x8080808080808080ull,
+      31,
+      0x0101010101010101ull,
+      0xfefdfcfbfaf9f8f7ull,
+      37,
+      41,
+      43,
+      47,
+      53,
+      59,
+      61};
+  std::vector<uint8_t> a_limbs(static_cast<std::size_t>(m * k * 8));
+  std::vector<uint8_t> b_limbs(static_cast<std::size_t>(k * n * 8));
+  std::vector<uint8_t> c_limbs(static_cast<std::size_t>(m * n * 8), 0xff);
+  for (int64_t cell = 0; cell < m * k; ++cell) {
+    store_u64_limbs(a_limbs, cell, A[static_cast<std::size_t>(cell)]);
+  }
+  for (int64_t cell = 0; cell < k * n; ++cell) {
+    store_u64_limbs(b_limbs, cell, B[static_cast<std::size_t>(cell)]);
+  }
+
+  REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs(0, a_limbs.data(), b_limbs.data(), c_limbs.data(), m, n, k) ==
+          RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      const uint64_t expected = rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), k, B.data(), n, row, col, k);
+      CHECK(load_u64_limbs(c_limbs, row * n + col) == expected);
+    }
+  }
 }
 
 TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {

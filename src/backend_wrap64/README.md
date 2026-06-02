@@ -17,8 +17,12 @@ Current status:
   low-64-bit product, GEMM-cell behavior, persistent matrix packing, persistent
   GEMM, and low-64-bit export. It keeps strict wraparound arithmetic separate
   from the odd-modulus CRT path.
-- Real byte-limb GPU kernels, accelerator signedness correction, and GPU
-  differential tests are not implemented yet.
+- `wrap64_hip_kernels.hip` contains a private direct-HIP one-thread-per-output
+  byte-limb Comba smoke kernel. It is tested against the CPU reference, but it
+  is not a public backend and is not an optimized byte-GEMM implementation.
+- Public HIP wrap64 backend support, optimized byte-GEMM kernels, accelerator
+  signedness correction, and production GPU differential coverage are not
+  implemented yet.
 - Bounded `RNS8_BOUNDED_U64` calls are exact-result calls, not wraparound
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.

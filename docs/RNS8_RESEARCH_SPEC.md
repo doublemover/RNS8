@@ -299,7 +299,10 @@ through `RNS8_BACKEND_WRAP64_BYTE_LIMB`. It requires
 wrap backend. The CPU path supports both `rns8_gemm_wrap_u64_oneshot` and
 persistent byte-limb matrices with `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
 `rns8_export_wrap_u64`. HIP byte-limb kernels and accelerator signedness
-correction remain later production milestones.
+correction remain later production milestones. A private direct-HIP byte-limb
+Comba smoke kernel exists only for correctness comparison against the CPU
+reference; it is not public backend support and is not the optimized 36
+byte-GEMM production path.
 
 ## 7. Modulus Ladder
 
