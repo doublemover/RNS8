@@ -117,6 +117,16 @@ TEST_CASE("reserved public ABI flags are hard rejected") {
     CHECK(rns8_create_context(-1, &options, &ctx) == RNS8_INVALID_ARGUMENT);
     CHECK(ctx == nullptr);
   }
+  {
+    rns8_context_options options{};
+    options.struct_size = sizeof(options);
+    options.abi_version = RNS8_ABI_VERSION;
+    options.requested_backend = RNS8_BACKEND_HIPBLASLT;
+    options.flags = 1;
+    rns8_context* ctx = nullptr;
+    CHECK(rns8_create_context(0, &options, &ctx) == RNS8_INVALID_ARGUMENT);
+    CHECK(ctx == nullptr);
+  }
 
   rns8_context* ctx = create_cpu();
   {
@@ -160,6 +170,15 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_i64_oneshot(ctx, &signed_desc, signed_a, 2, signed_b, 2, signed_c, 1) ==
         RNS8_INVALID_ARGUMENT);
+  auto malformed_future_signed = signed_desc;
+  malformed_future_signed.requested_backend = RNS8_BACKEND_HIPBLASLT;
+  malformed_future_signed.bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &malformed_future_signed, signed_a, 2, signed_b, 2, signed_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  auto valid_future_signed = signed_desc;
+  valid_future_signed.requested_backend = RNS8_BACKEND_HIPBLASLT;
+  CHECK(rns8_gemm_i64_oneshot(ctx, &valid_future_signed, signed_a, 2, signed_b, 2, signed_c, 2) ==
+        RNS8_UNSUPPORTED_BACKEND);
 
   auto unsigned_desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   unsigned_desc.m = 2;
@@ -176,6 +195,15 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 2, unsigned_b, 2, unsigned_c, 1) ==
         RNS8_INVALID_ARGUMENT);
+  auto malformed_future_unsigned = unsigned_desc;
+  malformed_future_unsigned.requested_backend = RNS8_BACKEND_CK;
+  malformed_future_unsigned.bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &malformed_future_unsigned, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  auto valid_future_unsigned = unsigned_desc;
+  valid_future_unsigned.requested_backend = RNS8_BACKEND_CK;
+  CHECK(rns8_gemm_u64_oneshot(ctx, &valid_future_unsigned, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
+        RNS8_UNSUPPORTED_BACKEND);
 
   rns8_destroy_context(ctx);
 }
@@ -194,6 +222,113 @@ TEST_CASE("unsupported semantic contracts do not fall through to bounded CRT") {
     rns8_matrix* storage = nullptr;
     CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(storage == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("unknown public enum values are invalid before backend routing") {
+  rns8_context* ctx = create_cpu();
+  constexpr auto unknown_semantics = static_cast<rns8_semantics>(0x7fffu);
+  constexpr auto unknown_bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
+  constexpr auto unknown_layout = static_cast<rns8_layout>(0x7fffu);
+  constexpr auto unknown_backend = static_cast<rns8_backend_kind>(0x7fffu);
+
+  {
+    auto desc = gemm_desc(RNS8_BOUNDED_U64, unknown_bound_kind);
+    desc.requested_backend = RNS8_BACKEND_HIPBLASLT;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+  }
+  {
+    auto desc = gemm_desc(unknown_semantics, RNS8_BOUND_NONE);
+    desc.bound = 0;
+    desc.requested_backend = RNS8_BACKEND_CK;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+  }
+  {
+    auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    desc.requested_backend = unknown_backend;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+  }
+  {
+    auto matrix = matrix_desc(RNS8_BOUNDED_U64, unknown_bound_kind);
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+  {
+    auto matrix = matrix_desc(unknown_semantics, RNS8_BOUND_NONE);
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+  {
+    auto matrix = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    matrix.logical_layout = unknown_layout;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+  {
+    auto desc = gemm_desc(RNS8_FINITE_RING_U8, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    desc.requested_backend = RNS8_BACKEND_WMMA;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+  }
+  {
+    auto matrix = matrix_desc(RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    matrix.logical_layout = RNS8_LAYOUT_COLUMN_MAJOR;
+    matrix.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+  {
+    rns8_context_options options{};
+    options.struct_size = sizeof(options);
+    options.abi_version = RNS8_ABI_VERSION;
+    options.requested_backend = unknown_backend;
+    rns8_context* unknown_ctx = nullptr;
+    CHECK(rns8_create_context(0, &options, &unknown_ctx) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(unknown_ctx == nullptr);
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("known but unimplemented descriptor contracts report unsupported status") {
+  rns8_context* ctx = create_cpu();
+  {
+    auto column_major = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    column_major.logical_layout = RNS8_LAYOUT_COLUMN_MAJOR;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &column_major, &storage) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(storage == nullptr);
+  }
+  {
+    auto finite_desc = gemm_desc(RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+    finite_desc.bound = 0;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &finite_desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+
+    auto finite_matrix = matrix_desc(RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &finite_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(storage == nullptr);
+  }
+  for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
+    auto desc = gemm_desc(semantics, RNS8_BOUND_INPUT_RANGE_AND_K);
+    desc.bound = 1;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
   }
   rns8_destroy_context(ctx);
 }
@@ -329,11 +464,36 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
   rns8_plan* plan = nullptr;
   CHECK(rns8_create_plan(auto_ctx, &wrap, &plan) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(plan == nullptr);
+
+  auto exact = gemm_desc(RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  exact.bound = 0;
+  exact.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  exact.requested_backend = RNS8_BACKEND_AUTO;
+  REQUIRE(rns8_create_plan(auto_ctx, &exact, &plan) == RNS8_SUCCESS);
+  rns8_destroy_plan(plan);
+  plan = nullptr;
   rns8_destroy_context(auto_ctx);
 
   rns8_context* wrap_ctx = create_wrap64();
   CHECK(rns8_create_plan(wrap_ctx, &wrap, &plan) == RNS8_SUCCESS);
   rns8_destroy_plan(plan);
+
+  auto bounded = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  bounded.requested_backend = RNS8_BACKEND_AUTO;
+  CHECK(rns8_create_plan(wrap_ctx, &bounded, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+  CHECK(rns8_create_plan(wrap_ctx, &exact, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+
+  auto exact_matrix = matrix_desc(RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  exact_matrix.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  rns8_matrix* storage = nullptr;
+  CHECK(rns8_create_matrix(wrap_ctx, &exact_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(storage == nullptr);
+
+  auto bounded_matrix = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  CHECK(rns8_create_matrix(wrap_ctx, &bounded_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(storage == nullptr);
   rns8_destroy_context(wrap_ctx);
 }
 
@@ -346,6 +506,16 @@ TEST_CASE("future backend context kinds report unsupported status") {
     options.requested_backend = backend;
     rns8_context* ctx = nullptr;
     CHECK(rns8_create_context(0, &options, &ctx) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(ctx == nullptr);
+
+    auto invalid_size = options;
+    invalid_size.struct_size = 0;
+    CHECK(rns8_create_context(0, &invalid_size, &ctx) == RNS8_INVALID_ARGUMENT);
+    CHECK(ctx == nullptr);
+
+    auto invalid_version = options;
+    invalid_version.abi_version = 0;
+    CHECK(rns8_create_context(0, &invalid_version, &ctx) == RNS8_INVALID_ARGUMENT);
     CHECK(ctx == nullptr);
   }
 }

@@ -817,7 +817,9 @@ storage. Global bounded descriptors also carry no tile-bound pointer/count.
 Stale bound metadata is rejected as `RNS8_INVALID_ARGUMENT` rather than ignored
 or reported as an unsupported backend.
 `RNS8_BACKEND_AUTO` selects only the current context's default backend. It does
-not translate valid semantic descriptors across backend families.
+not translate valid semantic descriptors across backend families: CPU AUTO does
+not route wrap64 to byte-limb storage, and wrap64 AUTO does not route bounded or
+exact-wide descriptors to the CPU/RNS path.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a
@@ -840,6 +842,13 @@ Required status codes:
 - `RNS8_BACKEND_FAILURE`
 - `RNS8_VERIFICATION_FAILED`
 - `RNS8_INTERNAL_ERROR`
+
+`rns8_status_string` is the stable user-visible text surface for these status
+codes. It returns lowercase diagnostic strings for every public status and
+`unknown status` for out-of-range status values. CLI tools may add context such
+as the requested backend name, but they must not reinterpret
+`RNS8_UNSUPPORTED_BACKEND` as successful cross-routing or as evidence that
+an accelerator correctness backend exists.
 
 Thread-safety rules:
 

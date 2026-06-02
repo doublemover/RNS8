@@ -38,6 +38,10 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
   return false;
 }
 
+bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+}
+
 void print_usage(std::ostream& out) {
   out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
       << " [--device N] [--json]\n";
@@ -104,7 +108,8 @@ int main(int argc, char** argv) {
     } else if (arg == "--backend" && i + 1 < argc) {
       const std::string value = argv[++i];
       if (!parse_backend(value, backend)) {
-        std::cerr << "invalid backend: " << value << "\n";
+        std::cerr << "invalid backend string: " << value
+                  << " (unknown names are not routed to auto; choose an explicit listed backend)\n";
         print_usage(std::cerr);
         return 2;
       }
@@ -127,7 +132,14 @@ int main(int argc, char** argv) {
   rns8_context* ctx = nullptr;
   rns8_status status = rns8_create_context(device_id, &options, &ctx);
   if (status != RNS8_SUCCESS) {
-    std::cerr << "rns8_create_context: " << rns8_status_string(status) << "\n";
+    std::cerr << "rns8_create_context(" << backend_name(backend) << "): " << rns8_status_string(status) << "\n";
+    if (status == RNS8_UNSUPPORTED_BACKEND && evidence_only_accelerator_backend(backend)) {
+      std::cerr << "requested accelerator is evidence-only; enable flags fail fast until a real exact "
+                   "correctness backend exists\n";
+    } else if (status == RNS8_UNSUPPORTED_BACKEND) {
+      std::cerr << "backend is not available for this context; RNS8_BACKEND_AUTO does not route across "
+                   "bounded, exact-wide, or wrap64 semantic backends\n";
+    }
     return 1;
   }
 

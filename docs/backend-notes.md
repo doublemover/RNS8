@@ -30,6 +30,17 @@ paths that appear to validate GPU behavior.
 `RNS8_BACKEND_AUTO` selects only the current context's default backend at
 context/plan creation time; it does not route valid descriptors across semantic
 backend families such as CPU reference to wrap64 byte-limb.
+Status precedence is part of the public C ABI hard cut: malformed descriptors
+and ABI misuse return `RNS8_INVALID_ARGUMENT` before backend routing, including
+unknown semantics, bound-kind, or layout enum values. Valid descriptors naming
+known but unavailable backend families, future backend enum values, known
+unimplemented column-major layout, or known unimplemented bounded input-range
+contracts report `RNS8_UNSUPPORTED_BACKEND` only after descriptor validation.
+`rns8_status_string` covers every public status code plus out-of-range
+`unknown status`. `rns8-inspect` adds requested-backend context to unsupported
+backend errors and tells users when an accelerator request is evidence-only; it
+does not reinterpret unsupported accelerator requests as working correctness
+backends.
 
 The future backend directories under `src/` are scaffold markers only. They
 exist to keep ownership boundaries visible while preserving the rule that no

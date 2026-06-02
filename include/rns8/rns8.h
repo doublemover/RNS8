@@ -109,6 +109,13 @@ typedef struct rns8_plan_tile_schedule_entry {
   uint32_t range_bit_length;
 } rns8_plan_tile_schedule_entry;
 
+/*
+ * Public ABI hard-cut status precedence: invalid struct size/version, reserved
+ * flags, unknown semantics/bound/layout enum values, or malformed semantic
+ * metadata return RNS8_INVALID_ARGUMENT before backend routing. Valid
+ * descriptors that request unavailable or future backend enum values return
+ * RNS8_UNSUPPORTED_BACKEND.
+ */
 RNS8_API rns8_status rns8_create_context(
     int device_id,
     const rns8_context_options* options,
