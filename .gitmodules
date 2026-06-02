@@ -1,0 +1,8 @@
+[submodule "third_party/rocm/composable_kernel"]
+	path = third_party/rocm/composable_kernel
+	url = https://github.com/ROCm/composable_kernel.git
+	branch = release/rocm-rel-7.1
+[submodule "third_party/rocm/rocWMMA"]
+	path = third_party/rocm/rocWMMA
+	url = https://github.com/ROCm/rocWMMA.git
+	branch = release/rocm-rel-7.1

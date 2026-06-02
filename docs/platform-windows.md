@@ -82,14 +82,18 @@ Opt-in accelerator evidence probes are available without changing backend
 selection:
 
 ```powershell
+python tools\bootstrap_rocm_accelerators.py --init --probe --target gfx1100
 python tools\check_dependencies.py --accelerator-probes --json
 python tools\windows_dev.py cmake --preset windows-msvc-hip-accelerator-probe
 ```
 
-Both paths are evidence-only. For component-backed accelerators, the Python
-probe writes tiny sources and binaries under `temp\accelerator-probes\`,
-loads the Visual Studio developer environment automatically for Windows MSVC
-link probes, records compile/link/runtime status, and keeps
+These paths are evidence-only. `bootstrap_rocm_accelerators.py` initializes the
+pinned repo-local CK and rocWMMA submodules under `third_party\rocm\`, compiles
+their tiny `gfx1100` HIP dependency probes, and writes its record under
+`temp\accelerator-deps\`. `check_dependencies.py --accelerator-probes` writes
+tiny sources and binaries under `temp\accelerator-deps\`, loads the Visual
+Studio developer environment automatically for Windows MSVC link probes,
+records compile/link/runtime status, and keeps
 `backend_enablement=disabled`; for AMDGPU builtins it records
 `NOT_RUN_NO_CORRECTNESS_KERNEL` until a real target-specific exact kernel
 exists. The CMake probe preset sets
