@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <vector>
@@ -19,6 +20,15 @@ rns8_context* create_cpu_context() {
   return rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
 }
 
+rns8_context* create_hip_context() {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+  rns8_context* ctx = nullptr;
+  return rns8_create_context(0, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
+}
+
 rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -33,6 +43,12 @@ rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   return desc;
 }
 
+rns8_gemm_desc signed_desc_for_backend(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+  auto desc = signed_desc(m, n, k, bound);
+  desc.requested_backend = backend;
+  return desc;
+}
+
 rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -44,6 +60,17 @@ rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   desc.n = n;
   desc.k = k;
   desc.bound = bound;
+  return desc;
+}
+
+rns8_gemm_desc unsigned_desc_for_backend(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint64_t bound,
+    rns8_backend_kind backend) {
+  auto desc = unsigned_desc(m, n, k, bound);
+  desc.requested_backend = backend;
   return desc;
 }
 
@@ -132,6 +159,58 @@ bool verify_hip_smoke() {
     std::cerr << "direct HIP ring GEMM smoke failed: " << rns8_status_string(status) << "\n";
     return false;
   }
+
+  const int64_t split_k = static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) + 1;
+  const uint64_t split_bound = static_cast<uint64_t>(split_k) * 127u * 127u;
+  std::vector<int64_t> split_a(static_cast<std::size_t>(split_k), 127);
+  std::vector<int64_t> split_b(static_cast<std::size_t>(split_k), 127);
+
+  rns8_context* cpu_ctx = create_cpu_context();
+  rns8_context* hip_ctx = create_hip_context();
+  if (!cpu_ctx || !hip_ctx) {
+    std::cerr << "failed to create CPU or direct HIP context for bounded smoke\n";
+    rns8_destroy_context(hip_ctx);
+    rns8_destroy_context(cpu_ctx);
+    return false;
+  }
+
+  int64_t cpu_split_c[1] = {};
+  int64_t hip_split_c[1] = {};
+  auto cpu_split_desc = signed_desc_for_backend(1, 1, split_k, split_bound, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_split_desc = signed_desc_for_backend(1, 1, split_k, split_bound, RNS8_BACKEND_HIP_DIRECT);
+  const rns8_status cpu_split_status =
+      rns8_gemm_i64_oneshot(cpu_ctx, &cpu_split_desc, split_a.data(), split_k, split_b.data(), 1, cpu_split_c, 1);
+  const rns8_status hip_split_status =
+      rns8_gemm_i64_oneshot(hip_ctx, &hip_split_desc, split_a.data(), split_k, split_b.data(), 1, hip_split_c, 1);
+  if (cpu_split_status != RNS8_SUCCESS || hip_split_status != RNS8_SUCCESS || cpu_split_c[0] != hip_split_c[0] ||
+      hip_split_c[0] != static_cast<int64_t>(split_bound)) {
+    std::cerr << "direct HIP bounded i64 split smoke failed: CPU=" << rns8_status_string(cpu_split_status)
+              << " HIP=" << rns8_status_string(hip_split_status) << "\n";
+    rns8_destroy_context(hip_ctx);
+    rns8_destroy_context(cpu_ctx);
+    return false;
+  }
+
+  const uint64_t u_a[] = {17, 3, 255, 9, 41, 5};
+  const uint64_t u_b[] = {11, 7, 13, 19, 23, 29};
+  uint64_t cpu_u_c[4] = {};
+  uint64_t hip_u_c[4] = {};
+  auto cpu_u_desc = unsigned_desc_for_backend(2, 2, 3, 20000, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_u_desc = unsigned_desc_for_backend(2, 2, 3, 20000, RNS8_BACKEND_HIP_DIRECT);
+  const rns8_status cpu_u_status = rns8_gemm_u64_oneshot(cpu_ctx, &cpu_u_desc, u_a, 3, u_b, 2, cpu_u_c, 2);
+  const rns8_status hip_u_status = rns8_gemm_u64_oneshot(hip_ctx, &hip_u_desc, u_a, 3, u_b, 2, hip_u_c, 2);
+  if (cpu_u_status != RNS8_SUCCESS || hip_u_status != RNS8_SUCCESS ||
+      std::vector<uint64_t>(std::begin(cpu_u_c), std::end(cpu_u_c)) !=
+          std::vector<uint64_t>(std::begin(hip_u_c), std::end(hip_u_c))) {
+    std::cerr << "direct HIP bounded u64 smoke failed: CPU=" << rns8_status_string(cpu_u_status)
+              << " HIP=" << rns8_status_string(hip_u_status) << "\n";
+    rns8_destroy_context(hip_ctx);
+    rns8_destroy_context(cpu_ctx);
+    return false;
+  }
+
+  rns8_destroy_context(hip_ctx);
+  rns8_destroy_context(cpu_ctx);
   return true;
 }
 
@@ -161,7 +240,7 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP ring GEMM smoke: PASS\n";
+    std::cout << "Direct HIP ring and bounded GEMM smoke: PASS\n";
   }
 
   return 0;

@@ -22,11 +22,13 @@ __global__ void rns8_ring_gemm_kernel(
     int8_t* C,
     int m,
     int n,
-    int k,
+    int k_offset,
+    int k_block,
     int lda,
     int ldb,
     int ldc,
-    int modulus) {
+    int modulus,
+    int accumulate) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
   if (row >= m || col >= n) {
@@ -34,8 +36,12 @@ __global__ void rns8_ring_gemm_kernel(
   }
 
   int acc = 0;
-  for (int kk = 0; kk < k; ++kk) {
-    acc += static_cast<int>(A[row * lda + kk]) * static_cast<int>(B[kk * ldb + col]);
+  for (int kk = 0; kk < k_block; ++kk) {
+    const int source_k = k_offset + kk;
+    acc += static_cast<int>(A[row * lda + source_k]) * static_cast<int>(B[source_k * ldb + col]);
+  }
+  if (accumulate) {
+    acc += static_cast<int>(C[row * ldc + col]);
   }
   C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
 }
@@ -84,8 +90,33 @@ extern "C" int rns8_hip_direct_ring_gemm_i8(
   if (err == hipSuccess) {
     const dim3 block(16, 16);
     const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
-    hipLaunchKernelGGL(rns8_ring_gemm_kernel, grid, block, 0, nullptr, d_a, d_b, d_c, m, n, k, lda, ldb, ldc, modulus);
-    err = hipGetLastError();
+    int k_offset = 0;
+    int accumulate = 0;
+    while (k_offset < k && err == hipSuccess) {
+      const int k_remaining = k - k_offset;
+      const int k_block = k_remaining > 65536 ? 65536 : k_remaining;
+      hipLaunchKernelGGL(
+          rns8_ring_gemm_kernel,
+          grid,
+          block,
+          0,
+          nullptr,
+          d_a,
+          d_b,
+          d_c,
+          m,
+          n,
+          k_offset,
+          k_block,
+          lda,
+          ldb,
+          ldc,
+          modulus,
+          accumulate);
+      err = hipGetLastError();
+      k_offset += k_block;
+      accumulate = 1;
+    }
   }
   if (err == hipSuccess) {
     err = hipDeviceSynchronize();

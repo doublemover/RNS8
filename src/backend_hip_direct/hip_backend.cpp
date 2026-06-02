@@ -91,9 +91,6 @@ rns8_status hip_direct_ring_gemm_i8(
       modulus > 256) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (k > RNS8_SAFE_INT32_K_BLOCK) {
-    return RNS8_ACCUMULATION_OVERFLOW_RISK;
-  }
   if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
       ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
