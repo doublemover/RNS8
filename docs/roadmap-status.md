@@ -48,7 +48,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
-  from wrap descriptors.
+  from wrap descriptors. The CPU reference also includes an exhaustively tested
+  signed-INT8 correction helper for reconstructing unsigned byte products when
+  future accelerator paths expose only signed INT8 products.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the
@@ -88,8 +90,8 @@ disagree, the spec remains the target and this file identifies the gap.
   kernels, not performance evidence.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
-  production GPU differential tests.
+- Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
+  signed-INT8 correction algebra, and production GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.

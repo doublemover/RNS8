@@ -46,6 +46,10 @@ Implemented correctness coverage:
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
   and byte-limb storage, uses separate pack/GEMM/export APIs for persistent
   matrices, and rejects CRT bounds/prefixes.
+- Unsigned byte-limb signedness correction tests cover every byte pair and
+  verify that the signed-INT8 correction algebra composes through Comba
+  diagonals. This is readiness coverage for future signed-INT8 accelerator use,
+  not an enabled accelerator backend.
 - Public direct HIP strict `mod 2^64` byte-limb one-shot and persistent API
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
@@ -78,7 +82,8 @@ Implemented correctness coverage:
 Not yet implemented:
 
 - Optimized strict `mod 2^64` GPU byte-GEMM kernels.
-- Backend signedness corrections for unsigned byte-limb wraparound.
+- Accelerator integration of the signed-INT8 correction algebra for unsigned
+  byte-limb wraparound.
 
 Semantic guardrail:
 
