@@ -87,16 +87,17 @@ that carries the modulus value, modulus index, selected prefix for that full
 matrix or tile, and the safe K-block cap; the host helper and HIP launch
 entrypoint reject inconsistent metadata before queueing kernels, including
 modulus values that do not match the default ladder entry for the supplied
-index. Tiled GEMM/export wrappers also require the copied tile schedule to form
-a complete row-major output grid with no duplicate or missing tile coordinates,
+index, and reciprocal values that do not match the accepted small modulus.
+Tiled GEMM/export wrappers also require the copied tile schedule to form a
+complete row-major output grid with no duplicate or missing tile coordinates,
 consistent row/column extents, valid prefix metadata, and group indices that
 match the sorted selected-prefix groups. Zero-output tiles may carry zero range
 bits. Malformed schedules are rejected before GEMM launch or export/status
 buffer growth. Tiled GEMM dispatches by those selected-prefix groups while still
-launching only the selected prefix for each tile. The current centered-range
-correction code uses mask arithmetic instead of source-level `if` branches, but
-the kernel still uses ordinary modulo operations and has not been promoted to a
-reciprocal-reduction or ISA-verified performance kernel.
+launching only the selected prefix for each tile. GEMM centered reduction uses
+validated reciprocal metadata for the accepted small modulus and mask arithmetic
+for centered-range correction, but the kernel has not been promoted to an
+ISA-verified performance kernel.
 Bounded direct-HIP GEMM requires A and B to have current device residues. A
 host-current bounded matrix with stale device residues is rejected by persistent
 GEMM instead of being uploaded implicitly at dispatch time.
@@ -277,7 +278,8 @@ prefix-zero residue plane and are stamped with the modulus used by
 matrix modulus state. Direct HIP persistent finite matrices own device-resident
 one-plane residues plus matrix-owned upload/export buffers, and the resident
 GEMM calls the inspectable tiled INT8xINT8->INT32 ring kernel with fused
-centered reduction for the explicit modulus. The one-shot direct HIP finite
-path is still available as a convenience surface but does not define a separate
-backend contract. Finite is not an odd-modulus CRT route, not exact-wide export,
-and not strict mod 2^64 wraparound.
+centered reciprocal reduction for the explicit modulus; HIP launch wrappers
+reject stale reciprocal metadata before queueing work. The one-shot direct HIP
+finite path is still available as a convenience surface but does not define a
+separate backend contract. Finite is not an odd-modulus CRT route, not
+exact-wide export, and not strict mod 2^64 wraparound.

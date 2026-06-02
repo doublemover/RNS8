@@ -295,6 +295,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
+  target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
   include(Catch)
   catch_discover_tests(rns8_tests)

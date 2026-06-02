@@ -46,6 +46,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
     int safe_k_block);
@@ -61,6 +62,7 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
@@ -76,6 +78,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
     int safe_k_block);
@@ -493,6 +496,10 @@ struct hip_rns_scheduled_modulus_launch {
   uint32_t selected_prefix = 0;
 };
 
+uint32_t modulus_reciprocal_u32(uint16_t modulus) {
+  return static_cast<uint32_t>((uint64_t{1} << 32u) / static_cast<uint32_t>(modulus));
+}
+
 bool checked_rns_modulus_launch(const hip_rns_modulus_launch& launch) {
   if (!launch.a || !launch.b || !launch.c || launch.m <= 0 || launch.n <= 0 || launch.k <= 0 ||
       launch.lda < launch.k || launch.ldb < launch.n || launch.ldc < launch.n || launch.selected_prefix == 0 ||
@@ -539,6 +546,7 @@ hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
       static_cast<int>(launch.ldb),
       static_cast<int>(launch.ldc),
       static_cast<int>(launch.modulus),
+      modulus_reciprocal_u32(launch.modulus),
       static_cast<int>(launch.modulus_index),
       static_cast<int>(launch.selected_prefix),
       static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
@@ -562,6 +570,7 @@ hipError_t launch_rns_scheduled_modulus_gemm(const hip_rns_scheduled_modulus_lau
       static_cast<int>(launch.ldb),
       static_cast<int>(launch.ldc),
       static_cast<int>(launch.modulus),
+      modulus_reciprocal_u32(launch.modulus),
       static_cast<int>(launch.modulus_index),
       static_cast<int>(launch.selected_prefix),
       static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
@@ -1109,6 +1118,7 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
         static_cast<int>(ldb),
         static_cast<int>(ldc),
         static_cast<int>(modulus),
+        modulus_reciprocal_u32(modulus),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
   });
@@ -2064,6 +2074,7 @@ rns8_status hip_direct_finite_u8_gemm_oneshot_device(
           static_cast<int>(n),
           static_cast<int>(n),
           static_cast<int>(modulus),
+          modulus_reciprocal_u32(modulus),
           static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
       return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
     });

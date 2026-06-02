@@ -29,10 +29,15 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
     int safe_k_block);
 #endif
+
+uint32_t reciprocal_for_modulus(uint16_t modulus) {
+  return static_cast<uint32_t>((uint64_t{1} << 32u) / static_cast<uint32_t>(modulus));
+}
 
 bool hip_available() {
   if (!rns8::detail::hip_direct_compiled()) {
@@ -751,6 +756,66 @@ TEST_CASE("direct HIP ring GEMM matches CPU reference for one modulus") {
   CHECK(gpu == cpu);
 }
 
+TEST_CASE("direct HIP ring GEMM reciprocal reduction matches CPU across supported default moduli") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP reciprocal ladder smoke");
+  }
+
+  const int64_t m = 5;
+  const int64_t n = 7;
+  const int64_t k = 67;
+  const int64_t lda = k + 3;
+  const int64_t ldb = n + 2;
+  const int64_t ldc = n + 4;
+  const int8_t a_sentinel = static_cast<int8_t>(-88);
+  const int8_t b_sentinel = static_cast<int8_t>(99);
+  const int8_t c_sentinel = static_cast<int8_t>(-33);
+  std::vector<int8_t> A(static_cast<std::size_t>(m * lda), a_sentinel);
+  std::vector<int8_t> B(static_cast<std::size_t>(k * ldb), b_sentinel);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t kk = 0; kk < k; ++kk) {
+      const int pattern = static_cast<int>((row * 37 + kk * 19) % 11);
+      const int mixed = static_cast<int>((row + 113 - (2 * kk) % 113) % 113);
+      A[static_cast<std::size_t>(row * lda + kk)] =
+          pattern == 0 ? static_cast<int8_t>(127)
+                       : pattern == 1 ? static_cast<int8_t>(-127)
+                                      : static_cast<int8_t>(mixed - 56);
+    }
+  }
+  for (int64_t kk = 0; kk < k; ++kk) {
+    for (int64_t col = 0; col < n; ++col) {
+      const int pattern = static_cast<int>((kk * 23 + col * 29) % 13);
+      B[static_cast<std::size_t>(kk * ldb + col)] =
+          pattern == 0 ? static_cast<int8_t>(126)
+                       : pattern == 1 ? static_cast<int8_t>(-128)
+                                      : static_cast<int8_t>(((3 * kk + col) % 127) - 63);
+    }
+  }
+
+  for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
+    std::vector<int8_t> cpu(static_cast<std::size_t>(m * ldc), c_sentinel);
+    std::vector<int8_t> gpu(static_cast<std::size_t>(m * ldc), c_sentinel);
+
+    rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, lda, ldb, ldc, modulus);
+    run_resident_ring_gemm(A, B, gpu, m, n, k, lda, ldb, ldc, modulus, p, p + 1);
+
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CAPTURE(p, modulus, row, col);
+        CHECK(gpu[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CAPTURE(p, modulus, row, col);
+        CHECK(cpu[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+        CHECK(gpu[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+      }
+    }
+  }
+}
+
 TEST_CASE("direct HIP ring GEMM covers centered correction boundaries") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP centered-boundary smoke");
@@ -1197,8 +1262,28 @@ TEST_CASE("private HIP ring GEMM rejects mismatched modulus metadata before laun
             1,
             1,
             251,
+            reciprocal_for_modulus(251),
             1,
             RNS8_DEFAULT_BOUNDED_PREFIX,
+            RNS8_SAFE_INT32_K_BLOCK) != 0);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, &out, d_c, bytes) == RNS8_SUCCESS);
+  CHECK(out == sentinel);
+
+  const uint16_t valid_modulus = rns8::detail::kDefaultModuli[0];
+  CHECK(rns8_hip_direct_ring_gemm_i8_device(
+            static_cast<const int8_t*>(d_a),
+            static_cast<const int8_t*>(d_b),
+            static_cast<int8_t*>(d_c),
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            valid_modulus,
+            reciprocal_for_modulus(valid_modulus) + 1u,
+            0,
+            1,
             RNS8_SAFE_INT32_K_BLOCK) != 0);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, &out, d_c, bytes) == RNS8_SUCCESS);
   CHECK(out == sentinel);
