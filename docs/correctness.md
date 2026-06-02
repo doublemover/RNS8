@@ -52,8 +52,10 @@ Implemented correctness coverage:
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
-- A direct HIP one-modulus ring-GEMM smoke test compared against CPU reference
-  on `gfx1100` when HIP is enabled and a device is visible.
+- Direct HIP one-modulus ring-GEMM smoke tests compared against CPU reference
+  on `gfx1100` when HIP is enabled and a device is visible, including a
+  centered-correction boundary case for negative, positive-threshold, and
+  near-zero residues.
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
@@ -91,4 +93,6 @@ Semantic guardrail:
   within the supplied bounded contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
-minimal correctness proof for the Windows HIP compile/run path.
+minimal correctness proof for the Windows HIP compile/run path. Its
+centered-range corrections are source-level branchless, but reciprocal
+reduction and instruction-level validation remain future optimization work.
