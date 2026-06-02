@@ -34,6 +34,11 @@ Implemented:
 - Strict `mod 2^64` wraparound CPU GEMM through the explicit byte-limb backend,
   including one-shot and persistent byte-limb matrix APIs. This path returns
   low-64-bit `uint64_t` output and does not use odd-modulus CRT.
+- Explicit finite-ring and finite-field `uint8_t` one-shot GEMM APIs for CPU
+  reference and direct HIP. Finite-ring calls accept moduli in `[2, 256]`;
+  finite-field calls require prime moduli `<= 251`. These paths do not use the
+  bounded CRT prefix ladder, exact-wide limb export, or strict wrap64 byte-limb
+  backend.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
@@ -52,6 +57,8 @@ Not implemented yet:
 
 - Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
   hot kernels, and optimized GPU strict `mod 2^64` byte-GEMM kernels.
+- Persistent finite-ring/finite-field matrix APIs. The current finite surface is
+  explicit one-shot CPU/direct-HIP only.
 - Reviewed production performance claims; current benchmark captures are raw
   evidence only until baselines and gates are established.
 

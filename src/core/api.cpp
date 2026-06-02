@@ -79,6 +79,100 @@ bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld) {
   return rows <= std::numeric_limits<int64_t>::max() / ld;
 }
 
+bool valid_api_tile_size(uint32_t value) {
+  return value == 0 || ((value >= 64 && value <= 512) && (value & (value - 1u)) == 0);
+}
+
+bool valid_finite_ring_modulus(uint16_t modulus) {
+  return modulus >= 2 && modulus <= 256;
+}
+
+bool valid_finite_field_modulus(uint16_t modulus) {
+  if (modulus < 2 || modulus > 251) {
+    return false;
+  }
+  for (uint16_t divisor = 2; divisor * divisor <= modulus; ++divisor) {
+    if (modulus % divisor == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+uint8_t canonical_u8_from_centered(int8_t residue, uint16_t modulus) {
+  return static_cast<uint8_t>(rns8::detail::canonical_from_centered(residue, modulus));
+}
+
+void finite_u8_gemm_cpu(
+    const rns8_gemm_desc& desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc) {
+  std::vector<int8_t> a(static_cast<std::size_t>(desc.m * desc.k));
+  std::vector<int8_t> b(static_cast<std::size_t>(desc.k * desc.n));
+  std::vector<int8_t> c(static_cast<std::size_t>(desc.m * desc.n), 0);
+
+  for (int64_t row = 0; row < desc.m; ++row) {
+    for (int64_t col = 0; col < desc.k; ++col) {
+      a[static_cast<std::size_t>(row * desc.k + col)] =
+          rns8::detail::centered_residue(boost::multiprecision::cpp_int(A[row * lda + col]), modulus);
+    }
+  }
+  for (int64_t row = 0; row < desc.k; ++row) {
+    for (int64_t col = 0; col < desc.n; ++col) {
+      b[static_cast<std::size_t>(row * desc.n + col)] =
+          rns8::detail::centered_residue(boost::multiprecision::cpp_int(B[row * ldb + col]), modulus);
+    }
+  }
+
+  rns8::detail::ring_gemm_modulus(
+      a.data(), b.data(), c.data(), desc.m, desc.n, desc.k, desc.k, desc.n, desc.n, modulus);
+
+  for (int64_t row = 0; row < desc.m; ++row) {
+    for (int64_t col = 0; col < desc.n; ++col) {
+      C[row * ldc + col] = canonical_u8_from_centered(c[static_cast<std::size_t>(row * desc.n + col)], modulus);
+    }
+  }
+}
+
+bool finite_backend_supports(rns8_backend_kind backend) {
+  return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT;
+}
+
+rns8_status validate_finite_u8_oneshot_contract(
+    const rns8_context& ctx,
+    const rns8_gemm_desc& desc,
+    rns8_semantics expected_semantics,
+    uint16_t modulus,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc) {
+  if (!rns8::detail::valid_abi(desc.struct_size, desc.abi_version, sizeof(desc)) ||
+      desc.semantics != expected_semantics) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const bool valid_modulus = expected_semantics == RNS8_FINITE_FIELD_U8 ? valid_finite_field_modulus(modulus)
+                                                                        : valid_finite_ring_modulus(modulus);
+  if (!valid_modulus || desc.m <= 0 || desc.n <= 0 || desc.k <= 0 || desc.bound_kind != RNS8_BOUND_NONE ||
+      desc.bound != 0 || desc.max_prefix != 0 || desc.flags != 0 || desc.tile_bounds ||
+      desc.tile_bounds_count != 0 || !valid_api_tile_size(desc.tile_m) || !valid_api_tile_size(desc.tile_n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!valid_matrix_access(desc.m, desc.k, lda) || !valid_matrix_access(desc.k, desc.n, ldb) ||
+      !valid_matrix_access(desc.m, desc.n, ldc)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_backend_kind requested = effective_backend(desc.requested_backend, ctx.backend);
+  if (requested != ctx.backend || !finite_backend_supports(requested)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  return RNS8_SUCCESS;
+}
+
 bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
   if (!valid_matrix_access(rows, cols, ld) || limb_count == 0 || limb_count > 32) {
     return false;
@@ -2049,5 +2143,67 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     rns8_destroy_matrix(a_matrix);
     rns8_destroy_plan(plan);
     return status;
+  });
+}
+
+rns8_status rns8_gemm_finite_ring_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !desc || !A || !B || !C) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status preflight =
+        validate_finite_u8_oneshot_contract(*ctx, *desc, RNS8_FINITE_RING_U8, modulus, lda, ldb, ldc);
+    if (preflight != RNS8_SUCCESS) {
+      return preflight;
+    }
+    if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+      finite_u8_gemm_cpu(*desc, modulus, A, lda, B, ldb, C, ldc);
+      return RNS8_SUCCESS;
+    }
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      return rns8::detail::hip_direct_finite_u8_gemm_oneshot_device(
+          ctx->device_id, A, lda, B, ldb, C, ldc, desc->m, desc->n, desc->k, modulus);
+    }
+    return RNS8_UNSUPPORTED_BACKEND;
+  });
+}
+
+rns8_status rns8_gemm_finite_field_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !desc || !A || !B || !C) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status preflight =
+        validate_finite_u8_oneshot_contract(*ctx, *desc, RNS8_FINITE_FIELD_U8, modulus, lda, ldb, ldc);
+    if (preflight != RNS8_SUCCESS) {
+      return preflight;
+    }
+    if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+      finite_u8_gemm_cpu(*desc, modulus, A, lda, B, ldb, C, ldc);
+      return RNS8_SUCCESS;
+    }
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      return rns8::detail::hip_direct_finite_u8_gemm_oneshot_device(
+          ctx->device_id, A, lda, B, ldb, C, ldc, desc->m, desc->n, desc->k, modulus);
+    }
+    return RNS8_UNSUPPORTED_BACKEND;
   });
 }

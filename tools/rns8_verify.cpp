@@ -166,6 +166,25 @@ rns8_gemm_desc wrap_desc_for_backend(int64_t m, int64_t n, int64_t k, rns8_backe
   return desc;
 }
 
+rns8_gemm_desc finite_desc_for_backend(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    rns8_semantics semantics,
+    rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.max_prefix = 0;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -702,6 +721,50 @@ bool verify_hip_smoke() {
     return false;
   }
 
+  {
+    const int64_t finite_m = 2;
+    const int64_t finite_n = 3;
+    const int64_t finite_k = 4;
+    const int64_t finite_ldc = 4;
+    const std::vector<uint8_t> finite_a = {254, 128, 7, 3, 5, 250, 251, 1};
+    const std::vector<uint8_t> finite_b = {2, 3, 4, 250, 11, 9, 13, 17, 19, 23, 29, 31};
+    std::vector<uint8_t> cpu_finite_c(static_cast<std::size_t>(finite_m * finite_ldc), 0xcc);
+    std::vector<uint8_t> hip_finite_c(static_cast<std::size_t>(finite_m * finite_ldc), 0xcc);
+    auto cpu_finite_desc =
+        finite_desc_for_backend(finite_m, finite_n, finite_k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_finite_desc =
+        finite_desc_for_backend(finite_m, finite_n, finite_k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT);
+    const rns8_status cpu_finite_status = rns8_gemm_finite_ring_u8_oneshot(
+        cpu_ctx,
+        &cpu_finite_desc,
+        255,
+        finite_a.data(),
+        finite_k,
+        finite_b.data(),
+        finite_n,
+        cpu_finite_c.data(),
+        finite_ldc);
+    const rns8_status hip_finite_status = rns8_gemm_finite_ring_u8_oneshot(
+        hip_ctx,
+        &hip_finite_desc,
+        255,
+        finite_a.data(),
+        finite_k,
+        finite_b.data(),
+        finite_n,
+        hip_finite_c.data(),
+        finite_ldc);
+    if (cpu_finite_status != RNS8_SUCCESS || hip_finite_status != RNS8_SUCCESS ||
+        cpu_finite_c != hip_finite_c) {
+      std::cerr << "direct HIP finite ring u8 smoke failed: CPU=" << rns8_status_string(cpu_finite_status)
+                << " HIP=" << rns8_status_string(hip_finite_status) << "\n";
+      rns8_destroy_context(wrap_ctx);
+      rns8_destroy_context(hip_ctx);
+      rns8_destroy_context(cpu_ctx);
+      return false;
+    }
+  }
+
   const int64_t wrap_m = 2;
   const int64_t wrap_n = 3;
   const int64_t wrap_k = 4;
@@ -777,7 +840,7 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM, and wrap64 smoke: PASS\n";
+    std::cout << "Direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM, finite u8, and wrap64 smoke: PASS\n";
   }
 
   return 0;

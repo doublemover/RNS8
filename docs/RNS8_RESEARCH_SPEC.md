@@ -379,6 +379,29 @@ metadata, and odd-modulus export paths remain invalid for strict wrap
 descriptors.
 Optimized matrix-engine byte-GEMM kernels remain later production milestones.
 
+### 6.5 Finite Ring And Finite Field `uint8_t`
+
+Finite-ring and finite-field GEMM are explicit one-shot contracts:
+
+```text
+C = A * B mod q
+```
+
+`RNS8_FINITE_RING_U8` accepts an explicit modulus `q` in `[2, 256]`.
+`RNS8_FINITE_FIELD_U8` accepts an explicit prime modulus `q <= 251`. Inputs are
+canonical `uint8_t` values reduced modulo `q`, and outputs are canonical
+`uint8_t` residues. For `q <= 255`, every output is in `[0, q - 1]`; for
+`q = 256`, every byte value is canonical.
+
+The finite one-shot ABI does not use the CRT prefix ladder. Descriptors must use
+`RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile-bound metadata, and the
+matching finite semantic. CPU and direct HIP implementations pack canonical
+bytes to centered residues for the explicit modulus, run the K-split
+INT8xINT8->INT32 ring GEMM with fused centered reduction, and export canonical
+bytes. Persistent finite matrix APIs remain unimplemented until a resident
+finite-storage ABI is defined; `rns8_create_plan` and `rns8_create_matrix`
+continue to reject finite descriptors as unsupported.
+
 ## 7. Modulus Ladder
 
 ### 7.1 Default Ordered Set
@@ -777,6 +800,28 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     uint64_t* C,
     int64_t ldc);
 
+rns8_status rns8_gemm_finite_ring_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc);
+
+rns8_status rns8_gemm_finite_field_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc);
+
 const char* rns8_status_string(rns8_status status);
 ```
 
@@ -847,6 +892,14 @@ carrying bounds or CRT prefixes are rejected instead of being interpreted as
 odd-modulus CRT metadata. Valid descriptors on a backend that does not implement
 the requested semantic return `RNS8_UNSUPPORTED_BACKEND`; malformed descriptors
 return `RNS8_INVALID_ARGUMENT`.
+
+Finite ring/field one-shot output is row-major `uint8_t` with caller-supplied
+leading dimensions. The public finite APIs require an explicit modulus argument;
+`max_prefix` must be zero because the CRT ladder is not a finite-modulus selector.
+Ring moduli outside `[2, 256]`, non-prime field moduli, field moduli above 251,
+stale bounds, tile-bound metadata, and wrong finite semantics return
+`RNS8_INVALID_ARGUMENT`. Valid finite descriptors requesting unsupported
+backends return `RNS8_UNSUPPORTED_BACKEND`.
 
 Required status codes:
 

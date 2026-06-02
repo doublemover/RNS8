@@ -191,6 +191,18 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
     uint64_t* dst,
     int64_t ld,
     uint32_t limb_count);
+rns8_status hip_direct_finite_u8_gemm_oneshot_device(
+    int device_id,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint16_t modulus);
 rns8_status hip_direct_synchronize(int device_id);
 
 }  // namespace rns8::detail

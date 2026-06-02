@@ -43,6 +43,34 @@ rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   return desc;
 }
 
+rns8_gemm_desc finite_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k) {
+  auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.bound = 0;
+  desc.max_prefix = 0;
+  return desc;
+}
+
+uint8_t exact_finite_cell(
+    const std::vector<uint8_t>& A,
+    const std::vector<uint8_t>& B,
+    int64_t lda,
+    int64_t ldb,
+    int64_t k,
+    int64_t row,
+    int64_t col,
+    uint16_t modulus) {
+  uint64_t acc = 0;
+  for (int64_t kk = 0; kk < k; ++kk) {
+    acc += static_cast<uint64_t>(A[static_cast<std::size_t>(row * lda + kk)] % modulus) *
+           static_cast<uint64_t>(B[static_cast<std::size_t>(kk * ldb + col)] % modulus);
+    acc %= modulus;
+  }
+  return static_cast<uint8_t>(acc % modulus);
+}
+
 rns8_gemm_desc bounded_looking_desc(
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
@@ -223,6 +251,85 @@ TEST_CASE("unsupported semantic contracts do not fall through to bounded CRT") {
     CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(storage == nullptr);
   }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("public finite ring and field u8 oneshot use explicit modulus contracts") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 3;
+  constexpr int64_t k = 4;
+  constexpr int64_t lda = 6;
+  constexpr int64_t ldb = 5;
+  constexpr int64_t ldc = 5;
+  const std::vector<uint8_t> A = {
+      254, 128, 7, 3, 0xaa, 0xaa,
+      5, 250, 251, 1, 0xaa, 0xaa,
+  };
+  const std::vector<uint8_t> B = {
+      2, 3, 4, 0xbb, 0xbb,
+      250, 11, 9, 0xbb, 0xbb,
+      13, 17, 19, 0xbb, 0xbb,
+      23, 29, 31, 0xbb, 0xbb,
+  };
+
+  {
+    auto desc = finite_desc(RNS8_FINITE_RING_U8, m, n, k);
+    std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xcc);
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx, &desc, 255, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+            RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == exact_finite_cell(A, B, lda, ldb, k, row, col, 255));
+      }
+      CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xcc);
+    }
+  }
+
+  {
+    auto desc = finite_desc(RNS8_FINITE_FIELD_U8, m, n, k);
+    std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xdd);
+    REQUIRE(rns8_gemm_finite_field_u8_oneshot(ctx, &desc, 251, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+            RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == exact_finite_cell(A, B, lda, ldb, k, row, col, 251));
+      }
+      CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xdd);
+    }
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("finite u8 oneshot descriptors reject stale CRT metadata and invalid fields") {
+  rns8_context* ctx = create_cpu();
+  const uint8_t A[1] = {3};
+  const uint8_t B[1] = {5};
+  uint8_t C[1] = {0};
+
+  auto ring = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 1, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 257, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto field = finite_desc(RNS8_FINITE_FIELD_U8, 1, 1, 1);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 251, A, 0, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto stale_prefix = ring;
+  stale_prefix.max_prefix = 1;
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_prefix, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto stale_bound = ring;
+  stale_bound.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  stale_bound.bound = 15;
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_bound, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+
+  ring.requested_backend = RNS8_BACKEND_CK;
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 255, A, 1, B, 1, C, 1) == RNS8_UNSUPPORTED_BACKEND);
+
   rns8_destroy_context(ctx);
 }
 

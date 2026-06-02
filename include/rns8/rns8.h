@@ -302,6 +302,44 @@ RNS8_API rns8_status rns8_gemm_wrap_u64_oneshot(
     uint64_t* C,
     int64_t ldc);
 
+/*
+ * One-shot finite-ring GEMM over uint8_t storage with an explicit modulus.
+ *
+ * The descriptor must use RNS8_FINITE_RING_U8, RNS8_BOUND_NONE, bound = 0,
+ * max_prefix = 0, no tile bounds, and row-major byte matrices. `modulus` must
+ * be in [2, 256]. Inputs are reduced modulo `modulus`; outputs are canonical
+ * residues in [0, modulus - 1] for modulus <= 255 and full bytes for
+ * modulus == 256. This API is separate from bounded CRT, exact-wide export,
+ * and strict mod 2^64 wraparound.
+ */
+RNS8_API rns8_status rns8_gemm_finite_ring_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc);
+
+/*
+ * One-shot finite-field GEMM over uint8_t storage with an explicit prime
+ * modulus. Contract matches rns8_gemm_finite_ring_u8_oneshot, except
+ * `modulus` must be prime and <= 251, and the descriptor semantics must be
+ * RNS8_FINITE_FIELD_U8.
+ */
+RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc);
+
 #ifdef __cplusplus
 }
 #endif

@@ -153,6 +153,20 @@ rns8_gemm_desc wrap_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind back
   return desc;
 }
 
+rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics, rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.max_prefix = 0;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -744,6 +758,105 @@ TEST_CASE("direct HIP tiled ring GEMM covers shared-memory tile tails with padde
       CHECK(gpu[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
     }
   }
+}
+
+TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field moduli") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP finite u8 smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 33;
+  constexpr int64_t lda = 40;
+  constexpr int64_t ldb = 23;
+  constexpr int64_t ldc = 29;
+  std::vector<uint8_t> A(static_cast<std::size_t>(m * lda), 0xa5);
+  std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0x5a);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] =
+          static_cast<uint8_t>((row * 37 + col * 19 + (row ^ col) * 11) & 0xff);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] =
+          static_cast<uint8_t>((row * 23 + col * 41 + (row + col) * 7) & 0xff);
+    }
+  }
+
+  struct Case {
+    rns8_semantics semantics;
+    uint16_t modulus;
+  };
+  for (const Case item : {
+           Case{RNS8_FINITE_RING_U8, 255},
+           Case{RNS8_FINITE_RING_U8, 256},
+           Case{RNS8_FINITE_FIELD_U8, 251},
+       }) {
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT);
+    std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
+
+    if (item.semantics == RNS8_FINITE_FIELD_U8) {
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
+              RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    } else {
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
+              RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    }
+
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(cpu_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+      }
+    }
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP finite u8 K-split smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  const int64_t k = static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) + 1;
+  std::vector<uint8_t> A(static_cast<std::size_t>(k), 255);
+  std::vector<uint8_t> B(static_cast<std::size_t>(k), 255);
+  uint8_t cpu_out = 0;
+  uint8_t hip_out = 0;
+  auto cpu_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT);
+
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), 1, &cpu_out, 1) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, 256, A.data(), k, B.data(), 1, &hip_out, 1) ==
+          RNS8_SUCCESS);
+  CHECK(hip_out == cpu_out);
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
 }
 
 TEST_CASE("private HIP ring GEMM rejects mismatched modulus metadata before launch") {
