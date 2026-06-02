@@ -198,6 +198,20 @@ developer environment:
 python tools\windows_dev.py where cl
 ```
 
+Initialize and probe repo-local CK and rocWMMA dependencies only when working
+on those accelerator paths:
+
+```powershell
+python tools\bootstrap_rocm_accelerators.py --init --probe --target gfx1100
+```
+
+This command uses the pinned submodules under `third_party\rocm\`, verifies the
+Windows HIP/MSVC toolchain through the automatic developer-environment wrapper,
+compiles tiny CK and rocWMMA HIP probes for `gfx1100`, and writes its JSON
+record under `temp\accelerator-deps\`. Do not clone CK or rocWMMA source trees
+under `C:\`; generated dependency output belongs under ignored `temp\`, `out\`,
+or `build\` paths in this repository.
+
 When configuring CMake with vcpkg, pass the toolchain file explicitly:
 
 ```powershell
@@ -250,13 +264,18 @@ ctest --test-dir build\cpu-debug --output-on-failure
 - [CMakePresets.json](CMakePresets.json) defines Windows HIP and Linux ROCm
   configure/build/test presets plus evidence-only accelerator probe presets.
 - [vcpkg.json](vcpkg.json) declares the C++ dependency set.
+- [tools/bootstrap_rocm_accelerators.py](tools/bootstrap_rocm_accelerators.py)
+  initializes the pinned repo-local CK and rocWMMA submodules and compile-probes
+  them with `hipcc` for the local target. Its output is dependency readiness
+  evidence only and does not enable CK or rocWMMA backends.
 - [tools/check_dependencies.py](tools/check_dependencies.py) reports the local
   toolchain, HIP device, Python packages, `vcpkg.json` manifest packages,
   `CMakePresets.json` Windows/Linux HIP target representation, MSVC install,
-  optional accelerator/reference components, project tools, and optional Radeon
-  Developer Tool Suite utilities. `--accelerator-probes` runs opt-in tiny
-  compile/run probes under `temp/` for discovered accelerator components; these
-  probes are evidence only and do not enable correctness backends. The JSON
+  repo-local CK/rocWMMA submodule state, optional accelerator/reference
+  components, project tools, and optional Radeon Developer Tool Suite utilities.
+  `--accelerator-probes` runs opt-in tiny compile/run probes under
+  `temp\accelerator-deps\` for discovered accelerator components; these probes
+  are evidence only and do not enable correctness backends. The JSON
   report separates implemented correctness backend families from candidate
   accelerator evidence through `readiness.correctness_backend_validation`,
   records exact-wide Windows/Linux/Instinct validation boundaries, keeps

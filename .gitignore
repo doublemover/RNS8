@@ -1,6 +1,9 @@
 temp/
 build/
 out/
+third_party/rocm/*/build/
+third_party/rocm/*/install/
+third_party/rocm/.cache/
 vcpkg_installed/
 CMakeUserPresets.json
 .vs/

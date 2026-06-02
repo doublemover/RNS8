@@ -65,6 +65,20 @@ CHECKER_VALIDATION_SCOPE = (
     "or correctness validation"
 )
 CANDIDATE_ACCELERATOR_EVIDENCE_CLASS = "candidate_accelerator_evidence_only"
+EXPECTED_ROCM_SUBMODULES = {
+    "ck": {
+        "path": "third_party/rocm/composable_kernel",
+        "url": "https://github.com/ROCm/composable_kernel.git",
+        "branch": "release/rocm-rel-7.1",
+        "sha": "d9272218c4c59a58e41d3d346362cdaa707c30ce",
+    },
+    "rocwmma": {
+        "path": "third_party/rocm/rocWMMA",
+        "url": "https://github.com/ROCm/rocWMMA.git",
+        "branch": "release/rocm-rel-7.1",
+        "sha": "1ab208f49945c38626b79e3f0c284d65ac44a781",
+    },
+}
 
 ACCELERATOR_PROBE_SOURCES = {
     "hipblaslt": """#include <hipblaslt/hipblaslt.h>
@@ -82,12 +96,17 @@ int main() {
 }
 """,
     "ck": """#include <ck/ck.hpp>
+#include <ck_tile/core.hpp>
+
+__global__ void rns8_ck_dependency_probe_kernel() {}
 
 int main() {
   return 0;
 }
 """,
     "rocwmma": """#include <rocwmma/rocwmma.hpp>
+
+__global__ void rns8_rocwmma_dependency_probe_kernel() {}
 
 int main() {
   return 0;
@@ -303,6 +322,104 @@ def vcpkg_roots() -> list[Path]:
     return roots
 
 
+def repo_local_accelerator_roots(name: str) -> list[Path]:
+    root = repo_root()
+    if name == "ck":
+        return [
+            root / "third_party" / "rocm" / "composable_kernel",
+            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
+        ]
+    if name == "rocwmma":
+        return [
+            root / "third_party" / "rocm" / "rocWMMA",
+            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "rocWMMA",
+        ]
+    return []
+
+
+def git_text(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
+    command = ["git", *args]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(cwd or repo_root()),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        return completed.returncode, completed.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 1, str(exc)
+
+
+def repo_local_dependency_report(name: str) -> dict[str, object]:
+    spec = EXPECTED_ROCM_SUBMODULES.get(name)
+    if not spec:
+        return {"status": "not_repo_local_dependency", "ok": False}
+    root = repo_root()
+    relative_path = str(spec["path"])
+    path = root / relative_path
+    gitmodules = root / ".gitmodules"
+    configured_url = ""
+    configured_branch = ""
+    if gitmodules.exists():
+        code, configured_url = git_text(
+            ["config", "--file", str(gitmodules), "--get", f"submodule.{relative_path}.url"]
+        )
+        if code != 0:
+            configured_url = ""
+        code, configured_branch = git_text(
+            ["config", "--file", str(gitmodules), "--get", f"submodule.{relative_path}.branch"]
+        )
+        if code != 0:
+            configured_branch = ""
+
+    actual_sha = ""
+    actual_branch = ""
+    actual_url = ""
+    if path.exists():
+        code, actual_sha = git_text(["rev-parse", "HEAD"], cwd=path)
+        if code != 0:
+            actual_sha = ""
+        code, actual_branch = git_text(["branch", "--show-current"], cwd=path)
+        if code != 0:
+            actual_branch = ""
+        code, actual_url = git_text(["remote", "get-url", "origin"], cwd=path)
+        if code != 0:
+            actual_url = ""
+
+    initialized = bool(actual_sha)
+    expected_sha = str(spec["sha"])
+    expected_url = str(spec["url"])
+    expected_branch = str(spec["branch"])
+    return {
+        "status": "present" if initialized else "missing",
+        "ok": initialized,
+        "path": str(path),
+        "relative_path": relative_path,
+        "expected_url": expected_url,
+        "configured_url": configured_url,
+        "actual_url": actual_url,
+        "url_matches": configured_url == expected_url and (not actual_url or actual_url == expected_url),
+        "expected_branch": expected_branch,
+        "configured_branch": configured_branch,
+        "actual_branch": actual_branch,
+        "branch_matches": configured_branch == expected_branch and (not actual_branch or actual_branch == expected_branch),
+        "expected_sha": expected_sha,
+        "actual_sha": actual_sha,
+        "sha_matches": actual_sha == expected_sha,
+        "readiness": (
+            "initialized at expected pinned release SHA"
+            if actual_sha == expected_sha
+            else "run python tools/bootstrap_rocm_accelerators.py --init --probe --target gfx1100"
+        ),
+    }
+
+
 def first_existing(paths: list[Path]) -> str | None:
     for path in paths:
         if path.exists():
@@ -464,6 +581,8 @@ def installed_vcpkg_packages(vcpkg_path: str | None) -> dict[str, str]:
 def accelerator_components() -> dict[str, dict[str, object]]:
     roots = hip_roots() + vcpkg_roots()
     modules = repo_root() / "cmake" / "modules"
+    ck_dependency = repo_local_dependency_report("ck")
+    rocwmma_dependency = repo_local_dependency_report("rocwmma")
     hipblaslt_header = find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"])
     hipblaslt_cmake_config = find_under_roots(
         roots,
@@ -518,24 +637,32 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             ),
         },
         "ck": {
-            "header": find_under_roots(roots, ["include/ck/ck.hpp", "include/ck.hpp"]),
+            "header": find_under_roots(
+                repo_local_accelerator_roots("ck") + roots,
+                ["include/ck/ck.hpp", "include/ck.hpp"],
+            ),
             "library": None,
             "tool": None,
             "cmake_module": first_existing([modules / "FindRNS8CK.cmake"]),
-            "probe": "header discovery only; no compile, link, or device capability test",
+            "probe": "repo-local header discovery plus optional hipcc compile probe for gfx1100; no backend correctness validation",
             "backend_stage": "B5/B6",
             "experiment": "E006",
             "capability": "CK grouped GEMM and custom epilogues",
+            "repo_local_dependency": ck_dependency,
         },
         "rocwmma": {
-            "header": find_under_roots(roots, ["include/rocwmma/rocwmma.hpp"]),
+            "header": find_under_roots(
+                repo_local_accelerator_roots("rocwmma") + roots,
+                ["library/include/rocwmma/rocwmma.hpp", "include/rocwmma/rocwmma.hpp"],
+            ),
             "library": None,
             "tool": None,
             "cmake_module": first_existing([modules / "FindRNS8ROCWMMA.cmake"]),
-            "probe": "header discovery only; no compile, link, or device capability test",
+            "probe": "repo-local header discovery plus optional hipcc compile probe for gfx1100; no backend correctness validation",
             "backend_stage": "B7",
             "experiment": "E007",
             "capability": "rocWMMA target-specific hot kernels",
+            "repo_local_dependency": rocwmma_dependency,
         },
         "amdgpu_builtins": {
             "header": None,
@@ -592,6 +719,7 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "experiment": item["experiment"],
             "capability": item["capability"],
             "link_guidance": item.get("link_guidance"),
+            "repo_local_dependency": item.get("repo_local_dependency"),
             "readiness": (
                 (
                     "candidate evidence only; hipBLASLt backend validation requires the explicit "
@@ -619,6 +747,66 @@ def include_root_for_header(header: str | None) -> str | None:
     if parent.name in {"hipblaslt", "ck", "rocwmma"}:
         return str(parent.parent)
     return str(parent)
+
+
+def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
+    include_dir = root / "generated" / "ck" / "include"
+    ck_dir = include_dir / "ck"
+    ck_dir.mkdir(parents=True, exist_ok=True)
+    (ck_dir / "config.h").write_text(
+        "\n".join(
+            [
+                "#ifndef CK_CONFIG_H_IN",
+                "#define CK_CONFIG_H_IN",
+                "#define CK_ENABLE_INT8 ON",
+                "#define CK_ENABLE_FP8 ON",
+                "#define CK_ENABLE_BF8 ON",
+                "#define CK_ENABLE_FP16 ON",
+                "#define CK_ENABLE_BF16 ON",
+                "#define CK_ENABLE_FP32 ON",
+                "#define CK_ENABLE_FP64 ON",
+                "#define CK_ENABLE_DL_KERNELS ON",
+                "#define CK_ENABLE_DPP_KERNELS ON",
+                "#define CK_USE_WMMA ON",
+                "#endif",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (ck_dir / "version.h").write_text(
+        "\n".join(
+            [
+                "#ifndef CK_VERSION_H_",
+                "#define CK_VERSION_H_",
+                "#define CK_VERSION 1.1.0",
+                "#define CK_VERSION_MAJOR 1",
+                "#define CK_VERSION_MINOR 1",
+                "#define CK_VERSION_PATCH 0",
+                f"#define CK_COMMIT_ID {commit_id or 'unknown'}",
+                "#endif",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return include_dir
+
+
+def include_roots_for_component(name: str, component: dict[str, object], probe_dir: Path) -> list[str]:
+    header = component.get("header")
+    include_root = include_root_for_header(header if isinstance(header, str) else None)
+    roots: list[str] = []
+    if name == "ck":
+        dependency = component.get("repo_local_dependency")
+        commit_id = ""
+        if isinstance(dependency, dict):
+            commit_value = dependency.get("actual_sha") or dependency.get("expected_sha")
+            commit_id = str(commit_value) if commit_value else ""
+        roots.append(str(write_ck_generated_headers(probe_dir, commit_id)))
+    if include_root:
+        roots.append(include_root)
+    return roots
 
 
 def probe_binary_path(probe_dir: Path, name: str) -> Path:
@@ -675,7 +863,7 @@ def accelerator_compile_probes(
     probe_dir: Path | None,
     offload_target: str | None,
 ) -> dict[str, object]:
-    root = probe_dir or (repo_root() / "temp" / "accelerator-probes")
+    root = probe_dir or (repo_root() / "temp" / "accelerator-deps" / "check-dependencies")
     items: dict[str, dict[str, object]] = {}
     if not requested:
         for name in ACCELERATOR_NAMES:
@@ -683,7 +871,7 @@ def accelerator_compile_probes(
                 name,
                 root,
                 "NOT_REQUESTED",
-                "compile/link/run probe not requested; pass --accelerator-probes to run evidence probes under temp/",
+                "compile/link/run probe not requested; pass --accelerator-probes to run evidence probes under temp/accelerator-deps/",
                 False,
             )
         return {
@@ -721,9 +909,9 @@ def accelerator_compile_probes(
         source = root / f"{name}_probe.cpp"
         binary = probe_binary_path(root, name)
         source.write_text(ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
-        include_root = include_root_for_header(header)
+        include_roots = include_roots_for_component(name, component, root)
         if name == "hipblaslt" and platform.system() == "Windows" and isinstance(library, str):
-            command = msvc_probe_command(source, binary, include_root or "", library)
+            command = msvc_probe_command(source, binary, include_roots[0] if include_roots else "", library)
             if not command:
                 items[name] = not_run_probe(
                     name,
@@ -741,7 +929,7 @@ def accelerator_compile_probes(
             if offload_target:
                 command.append(f"--offload-arch={offload_target}")
             command.append(str(source))
-            if include_root:
+            for include_root in include_roots:
                 command.extend(["-I", include_root])
             if name == "hipblaslt" and isinstance(library, str):
                 command.extend(["-L", str(Path(library).parent), "-lhipblaslt"])
@@ -1551,6 +1739,15 @@ def print_human(report: dict[str, object]) -> None:
             print(f"  tool: {item['tool']}")
         if item.get("link_guidance"):
             print(f"  link guidance: {item['link_guidance']}")
+        repo_dependency = item.get("repo_local_dependency")
+        if isinstance(repo_dependency, dict):
+            print(f"  repo-local dependency: {repo_dependency.get('status')}")
+            print(f"    path: {repo_dependency.get('path')}")
+            print(f"    expected branch: {repo_dependency.get('expected_branch')}")
+            print(f"    actual branch: {repo_dependency.get('actual_branch') or 'not initialized'}")
+            print(f"    expected sha: {repo_dependency.get('expected_sha')}")
+            print(f"    actual sha: {repo_dependency.get('actual_sha') or 'not initialized'}")
+            print(f"    readiness: {repo_dependency.get('readiness')}")
         print(f"  readiness: {item['readiness']}")
     print()
 
@@ -1722,7 +1919,7 @@ def main() -> int:
         "--accelerator-probe-dir",
         type=Path,
         default=None,
-        help="directory for optional accelerator probe source and binaries; defaults to temp/accelerator-probes",
+        help="directory for optional accelerator probe source and binaries; defaults to temp/accelerator-deps/check-dependencies",
     )
     args = parser.parse_args()
 

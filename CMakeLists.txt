@@ -24,6 +24,10 @@ option(RNS8_ENABLE_AMDGPU_BUILTINS "Enable target-specific AMDGPU builtin accele
 set(RNS8_AMDGPU_TARGETS "gfx1100" CACHE STRING "Semicolon-separated AMDGPU offload targets for direct HIP sources")
 set(RNS8_HIP_ROOT "" CACHE PATH "AMD HIP SDK or ROCm root used by explicit HIP integration")
 set(RNS8_ROCM_COVERAGE_TARGETS "" CACHE STRING "Source-level ROCm target family coverage metadata; does not add offload architectures")
+set(RNS8_ROCM_DEPS_BUILD_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/build/windows-gfx1100" CACHE PATH "Ignored repo-local build/generated-header root for optional ROCm accelerator dependencies")
+set(RNS8_ROCM_DEPS_INSTALL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/install/windows-gfx1100" CACHE PATH "Ignored repo-local staged install root for optional ROCm accelerator dependencies")
+set(RNS8_CK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/composable_kernel" CACHE PATH "Repo-local Composable Kernel source or install root")
+set(RNS8_ROCWMMA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/rocWMMA" CACHE PATH "Repo-local rocWMMA source or install root")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
@@ -45,7 +49,9 @@ if(RNS8_PROBE_ACCELERATORS)
   find_package(RNS8ROCWMMA QUIET)
   message(STATUS "RNS8 hipBLASLt candidate evidence: ${RNS8_HIPBLASLT_EVIDENCE}")
   message(STATUS "RNS8 CK candidate evidence: ${RNS8_CK_EVIDENCE}")
+  message(STATUS "RNS8 CK compile probe: ${RNS8_CK_COMPILE_PROBE_STATUS}")
   message(STATUS "RNS8 rocWMMA candidate evidence: ${RNS8_ROCWMMA_EVIDENCE}")
+  message(STATUS "RNS8 rocWMMA compile probe: ${RNS8_ROCWMMA_COMPILE_PROBE_STATUS}")
   message(STATUS "RNS8 AMDGPU builtin candidate evidence: disabled until target-specific exact kernels exist")
   message(STATUS "RNS8 accelerator backend enablement: disabled")
 endif()
@@ -266,6 +272,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME dependency_checker_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_dependencies.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(dependency_checker_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
 
   add_test(
     NAME benchmark_schema_current_fixtures
