@@ -267,11 +267,13 @@ M > K * 2^128
 required_bits = 128 + ceil(log2(K)) + margin
 ```
 
-The v1 exact-wide GPU compute path stores RNS output. CPU reconstruction to
+The v1 exact-wide GPU compute path stores RNS output. Reconstruction to
 multi-limb integers is supported through explicit little-endian limb export.
 Signed exact-wide export uses fixed-width two's-complement limbs; unsigned
-exact-wide export uses fixed-width magnitude limbs. GPU reconstruction for
-exact-wide output is a phase-2 feature.
+exact-wide export uses fixed-width magnitude limbs. CPU Boost.Multiprecision
+reconstruction remains the reference path. Direct HIP reconstructs fixed-width
+limbs on device for the supported prefix range and copies only the requested
+host limb layout.
 
 ### 6.4 Strict Wraparound `mod 2^64`
 
@@ -420,8 +422,8 @@ Implementation details:
 - CPU reference uses Boost.Multiprecision.
 - GPU export for bounded `int64_t` and `uint64_t` is required on supported GPU
   targets before a target is considered production-ready.
-- GPU export for exact-wide multi-limb output is implemented after bounded
-  export passes all correctness gates.
+- GPU export for exact-wide multi-limb output uses the same fixed-limb Garner
+  strategy after bounded export passes all correctness gates.
 
 Signed reconstruction:
 
@@ -1182,7 +1184,7 @@ Exit gate:
 Deliverables:
 
 - exact-wide RNS output,
-- exact-wide CPU export,
+- exact-wide CPU and direct HIP export,
 - strict `mod 2^64` byte-limb backend,
 - INT4, Strassen, sparsity, and multi-GPU decisions.
 

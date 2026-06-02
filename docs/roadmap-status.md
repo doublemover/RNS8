@@ -34,7 +34,9 @@ disagree, the spec remains the target and this file identifies the gap.
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
   Boost.Multiprecision residue oracles. CPU little-endian limb export is
-  implemented for signed two's-complement and unsigned magnitude output.
+  implemented for signed two's-complement and unsigned magnitude output. Direct
+  HIP exports signed and unsigned exact-wide limbs from device-resident RNS
+  matrices without synchronizing host residue storage.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
@@ -64,8 +66,6 @@ disagree, the spec remains the target and this file identifies the gap.
   adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Exact-wide GPU export. Current exact-wide HIP export synchronizes residues to
-  host and uses the CPU Boost.Multiprecision limb exporter.
 - Public/optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias
   correction, and production GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
@@ -88,7 +88,9 @@ disagree, the spec remains the target and this file identifies the gap.
   `private HIP wrap64 byte-limb GEMM matches CPU reference`, which exercises a
   compiled direct-HIP byte-limb Comba smoke kernel against the CPU reference.
 - The Windows HIP test pass also includes signed and unsigned exact-wide RNS
-  differential checks against CPU residues and CPU limb export.
+  differential checks against CPU residues plus direct HIP exact-wide limb
+  export checks for padded host layouts, range errors, and signed
+  two's-complement sign extension.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json`:
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb

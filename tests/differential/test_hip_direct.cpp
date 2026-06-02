@@ -433,15 +433,25 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
           RNS8_SUCCESS);
   CHECK(hip_c->residues == cpu_c->residues);
   constexpr uint32_t limb_count = 3;
-  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-  REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), n, limb_count) ==
+  constexpr int64_t limb_ld = 3;
+  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xaaaaaaaaaaaaaaaaull);
+  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xaaaaaaaaaaaaaaaaull);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
   hip_c->host_residues_current = false;
-  REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), n, limb_count) ==
+  REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
-  CHECK(hip_c->host_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  CHECK(hip_c->hip_export_buffer != nullptr);
+  CHECK(hip_c->hip_status_buffer != nullptr);
   CHECK(hip_limbs == cpu_limbs);
+  CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 2) * limb_count)] == 0xaaaaaaaaaaaaaaaaull);
+  CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 1) * limb_count + 2)] == UINT64_MAX);
+  std::vector<uint64_t> too_few_cpu(static_cast<std::size_t>(m * n), 0);
+  std::vector<uint64_t> too_few_hip(static_cast<std::size_t>(m * n), 0);
+  CHECK(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, too_few_cpu.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, too_few_hip.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK_FALSE(hip_c->host_residues_current);
 
   rns8_destroy_matrix(hip_c);
   rns8_destroy_matrix(hip_b);
@@ -512,15 +522,24 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
           RNS8_SUCCESS);
   CHECK(hip_c->residues == cpu_c->residues);
   constexpr uint32_t limb_count = 3;
-  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-  REQUIRE(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), n, limb_count) ==
+  constexpr int64_t limb_ld = 3;
+  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xbbbbbbbbbbbbbbbbull);
+  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xbbbbbbbbbbbbbbbbull);
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
   hip_c->host_residues_current = false;
-  REQUIRE(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, hip_limbs.data(), n, limb_count) ==
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
-  CHECK(hip_c->host_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  CHECK(hip_c->hip_export_buffer != nullptr);
+  CHECK(hip_c->hip_status_buffer != nullptr);
   CHECK(hip_limbs == cpu_limbs);
+  CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 2) * limb_count)] == 0xbbbbbbbbbbbbbbbbull);
+  std::vector<uint64_t> too_few_cpu(static_cast<std::size_t>(m * n), 0);
+  std::vector<uint64_t> too_few_hip(static_cast<std::size_t>(m * n), 0);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, too_few_cpu.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, too_few_hip.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK_FALSE(hip_c->host_residues_current);
 
   rns8_destroy_matrix(hip_c);
   rns8_destroy_matrix(hip_b);
