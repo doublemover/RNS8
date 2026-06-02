@@ -30,6 +30,17 @@ rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   return desc;
 }
 
+rns8_gemm_desc bounded_looking_desc(
+    rns8_semantics semantics,
+    rns8_bound_kind bound_kind,
+    rns8_backend_kind requested_backend = RNS8_BACKEND_CPU_REFERENCE) {
+  auto desc = gemm_desc(semantics, bound_kind);
+  desc.requested_backend = requested_backend;
+  desc.bound = UINT64_MAX;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -40,6 +51,12 @@ rns8_matrix_desc matrix_desc(rns8_semantics semantics, rns8_bound_kind bound_kin
   desc.semantics = semantics;
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   desc.bound_kind = bound_kind;
+  return desc;
+}
+
+rns8_matrix_desc bounded_looking_matrix_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
+  auto desc = matrix_desc(semantics, bound_kind);
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -65,17 +82,71 @@ TEST_CASE("bounded semantics reject bound none explicitly") {
 TEST_CASE("unsupported semantic contracts do not fall through to bounded CRT") {
   rns8_context* ctx = create_cpu();
   for (const rns8_semantics semantics :
-       {RNS8_EXACT_WIDE_SIGNED,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        RNS8_WRAP_U64_MOD_2_64,
-        RNS8_FINITE_RING_U8,
-        RNS8_FINITE_FIELD_U8}) {
+       {RNS8_WRAP_U64_MOD_2_64, RNS8_FINITE_RING_U8, RNS8_FINITE_FIELD_U8}) {
     auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(plan == nullptr);
 
     auto matrix = matrix_desc(semantics, RNS8_BOUND_NONE);
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(storage == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide RNS output accepts only explicit unbounded semantics") {
+  rns8_context* ctx = create_cpu();
+  for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
+    desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_destroy_plan(plan);
+
+    auto matrix = matrix_desc(semantics, RNS8_BOUND_NONE);
+    matrix.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_SUCCESS);
+    rns8_destroy_matrix(storage);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide semantics reject bounded-looking CRT metadata") {
+  rns8_context* ctx = create_cpu();
+  for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    for (const rns8_bound_kind bound_kind :
+         {RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_BOUND_INPUT_RANGE_AND_K}) {
+      auto desc = bounded_looking_desc(semantics, bound_kind);
+      rns8_plan* plan = nullptr;
+      CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(plan == nullptr);
+
+      auto matrix = bounded_looking_matrix_desc(semantics, bound_kind);
+      rns8_matrix* storage = nullptr;
+      CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(storage == nullptr);
+    }
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("strict wraparound is not accepted as bounded odd-modulus CRT") {
+  rns8_context* ctx = create_cpu();
+  for (const rns8_bound_kind bound_kind :
+       {RNS8_BOUND_NONE, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_BOUND_INPUT_RANGE_AND_K}) {
+    auto desc = bounded_looking_desc(RNS8_WRAP_U64_MOD_2_64, bound_kind);
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+
+    desc.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+
+    auto matrix = bounded_looking_matrix_desc(RNS8_WRAP_U64_MOD_2_64, bound_kind);
     rns8_matrix* storage = nullptr;
     CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(storage == nullptr);

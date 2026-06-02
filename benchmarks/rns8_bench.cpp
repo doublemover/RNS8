@@ -21,6 +21,8 @@
 
 namespace {
 
+constexpr uint32_t kBenchmarkSchemaVersion = 2;
+
 enum class BenchSemantics {
   BoundedI64,
   BoundedU64,
@@ -341,11 +343,23 @@ void print_u64_array(const std::vector<uint64_t>& values) {
   std::cout << "]";
 }
 
+void print_single_u64_array(uint64_t value) {
+  std::cout << "[" << value << "]";
+}
+
 void print_timing_summary(const char* name, const std::vector<uint64_t>& values, bool trailing_comma) {
   std::cout << "    \"" << name << "\": {\n";
   std::cout << "      \"avg\": " << average(values) << ",\n";
   std::cout << "      \"median\": " << percentile(values, 0.50) << ",\n";
   std::cout << "      \"p95\": " << percentile(values, 0.95) << "\n";
+  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+}
+
+void print_single_timing_summary(const char* name, uint64_t value, bool trailing_comma) {
+  std::cout << "    \"" << name << "\": {\n";
+  std::cout << "      \"avg\": " << static_cast<double>(value) << ",\n";
+  std::cout << "      \"median\": " << static_cast<double>(value) << ",\n";
+  std::cout << "      \"p95\": " << static_cast<double>(value) << "\n";
   std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
@@ -538,9 +552,11 @@ void print_json(
   const double avg_per_modulus_gemm_estimate_us = avg_gemm_us / static_cast<double>(RNS8_DEFAULT_BOUNDED_PREFIX);
 
   std::cout << "{\n";
+  std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
   std::cout << "  \"benchmark\": \"rns8_bounded_gemm_persistent_rns\",\n";
   std::cout << "  \"backend_requested\": \"" << backend_name(args.backend) << "\",\n";
   std::cout << "  \"backend_selected\": \"" << backend_name(info.backend) << "\",\n";
+  std::cout << "  \"selected_kernel\": null,\n";
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args.semantics) << "\",\n";
   std::cout << "  \"bound\": " << bound << ",\n";
@@ -550,6 +566,11 @@ void print_json(
   std::cout << "  \"prefix\": " << RNS8_DEFAULT_BOUNDED_PREFIX << ",\n";
   std::cout << "  \"tile_m\": 128,\n";
   std::cout << "  \"tile_n\": 128,\n";
+  std::cout << "  \"layout\": \"row_major\",\n";
+  std::cout << "  \"k_block_size\": " << std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK) << ",\n";
+  std::cout << "  \"adaptive_tile_size\": null,\n";
+  std::cout << "  \"epilogue_type\": \"crt_export\",\n";
+  std::cout << "  \"packed_layout_version\": null,\n";
   std::cout << "  \"seed\": " << args.seed << ",\n";
   std::cout << "  \"warmups\": " << args.warmups << ",\n";
   std::cout << "  \"repeats\": " << args.repeats << ",\n";
@@ -573,17 +594,45 @@ void print_json(
   std::cout << "    \"hip_driver_version\": " << info.hip_driver_version << ",\n";
   std::cout << "    \"global_mem_bytes\": " << info.global_mem_bytes << "\n";
   std::cout << "  },\n";
+  std::cout << "  \"clock_power_settings\": null,\n";
+  std::cout << "  \"comparison_baseline\": null,\n";
+  std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   std::cout << "  \"timing_note\": \"host wall-clock timings; direct-HIP calls include current backend "
-               "synchronization, allocation, copies, kernel launches, and host CRT export\",\n";
+               "synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, "
+               "and GPU bounded export when using HIP\",\n";
+  std::cout << "  \"timing_metadata\": {\n";
+  std::cout << "    \"unit\": \"microseconds\",\n";
+  std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
+  std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
+  std::cout << "    \"gpu_event_timing\": false,\n";
+  std::cout << "    \"gpu_event_timing_reason\": \"not_collected_by_this_schema\",\n";
+  std::cout << "    \"phase_order\": [\"planning\", \"matrix_alloc\", \"pack\", \"rns_gemm\", \"crt_export\", \"end_to_end\"],\n";
+  std::cout << "    \"phase_notes\": {\n";
+  std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
+  std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
+  std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
+  std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
+  std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
+  std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
+  std::cout << "    }\n";
+  std::cout << "  },\n";
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
+  std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";
+  std::cout << "  \"avg_matrix_alloc_us\": " << static_cast<double>(result.matrix_alloc_us) << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
   std::cout << "  \"avg_rns_gemm_us\": " << avg_gemm_us << ",\n";
   std::cout << "  \"avg_per_modulus_gemm_estimate_us\": " << avg_per_modulus_gemm_estimate_us << ",\n";
   std::cout << "  \"avg_crt_export_us\": " << avg_export_us << ",\n";
   std::cout << "  \"avg_end_to_end_us\": " << avg_end_to_end_us << ",\n";
   std::cout << "  \"raw_timings_us\": {\n";
+  std::cout << "    \"planning\": ";
+  print_single_u64_array(result.plan_us);
+  std::cout << ",\n";
+  std::cout << "    \"matrix_alloc\": ";
+  print_single_u64_array(result.matrix_alloc_us);
+  std::cout << ",\n";
   std::cout << "    \"pack\": ";
   print_u64_array(result.samples.pack_us);
   std::cout << ",\n";
@@ -598,6 +647,8 @@ void print_json(
   std::cout << "\n";
   std::cout << "  },\n";
   std::cout << "  \"timing_summary_us\": {\n";
+  print_single_timing_summary("planning", result.plan_us, true);
+  print_single_timing_summary("matrix_alloc", result.matrix_alloc_us, true);
   print_timing_summary("pack", result.samples.pack_us, true);
   print_timing_summary("rns_gemm", result.samples.gemm_us, true);
   print_timing_summary("crt_export", result.samples.export_us, true);
