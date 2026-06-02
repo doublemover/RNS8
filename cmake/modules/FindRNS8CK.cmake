@@ -1,0 +1,29 @@
+include(FindPackageHandleStandardArgs)
+
+set(_RNS8_CK_HINTS)
+if(RNS8_HIP_ROOT)
+  list(APPEND _RNS8_CK_HINTS "${RNS8_HIP_ROOT}")
+endif()
+if(DEFINED ENV{ROCM_PATH})
+  list(APPEND _RNS8_CK_HINTS "$ENV{ROCM_PATH}")
+endif()
+if(DEFINED ENV{HIP_PATH})
+  list(APPEND _RNS8_CK_HINTS "$ENV{HIP_PATH}")
+endif()
+if(DEFINED ENV{VCPKG_ROOT})
+  list(APPEND _RNS8_CK_HINTS "$ENV{VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}")
+endif()
+list(APPEND _RNS8_CK_HINTS "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}" "/opt/rocm")
+
+find_path(
+  RNS8_CK_INCLUDE_DIR
+  NAMES ck/ck.hpp ck.hpp
+  HINTS ${_RNS8_CK_HINTS}
+  PATH_SUFFIXES include
+)
+
+find_package_handle_standard_args(RNS8CK REQUIRED_VARS RNS8_CK_INCLUDE_DIR)
+
+if(RNS8CK_FOUND)
+  set(RNS8_CK_INCLUDE_DIRS "${RNS8_CK_INCLUDE_DIR}")
+endif()

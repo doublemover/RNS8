@@ -15,6 +15,11 @@ Backend status:
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
 
+The future backend directories under `src/` are scaffold markers only. They
+exist to keep ownership boundaries visible while preserving the rule that no
+accelerator path counts until it has compiled kernels and exact CPU
+differential validation.
+
 The direct HIP pack kernels convert host `int64_t` and `uint64_t` matrices into
 centered residues and copy the current host-side residue storage back. The
 direct HIP ring-GEMM kernel then copies host residues to device, launches one
