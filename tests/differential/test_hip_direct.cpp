@@ -74,6 +74,20 @@ rns8_gemm_desc exact_signed_desc(int64_t m, int64_t n, int64_t k, rns8_backend_k
   return desc;
 }
 
+rns8_gemm_desc exact_unsigned_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_EXACT_WIDE_UNSIGNED;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -425,6 +439,85 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
           RNS8_SUCCESS);
   hip_c->host_residues_current = false;
   REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), n, limb_count) ==
+          RNS8_SUCCESS);
+  CHECK(hip_c->host_residues_current);
+  CHECK(hip_limbs == cpu_limbs);
+
+  rns8_destroy_matrix(hip_c);
+  rns8_destroy_matrix(hip_b);
+  rns8_destroy_matrix(hip_a);
+  rns8_destroy_workspace(hip_workspace);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_matrix(cpu_c);
+  rns8_destroy_matrix(cpu_b);
+  rns8_destroy_matrix(cpu_a);
+  rns8_destroy_workspace(cpu_workspace);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for exact-wide unsigned direct HIP smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  const int64_t m = 1;
+  const int64_t n = 2;
+  const int64_t k = 2;
+  const uint64_t A[] = {std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint64_t>::max() - 19};
+  const uint64_t B[] = {
+      std::numeric_limits<uint64_t>::max() - 3,
+      std::numeric_limits<uint64_t>::max() - 5,
+      0x8080808080808080ull,
+      0x0102030405060708ull};
+
+  rns8_plan* cpu_plan = nullptr;
+  rns8_workspace* cpu_workspace = nullptr;
+  rns8_matrix* cpu_a = nullptr;
+  rns8_matrix* cpu_b = nullptr;
+  rns8_matrix* cpu_c = nullptr;
+  auto cpu_desc = exact_unsigned_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(cpu, cpu_a, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(cpu, cpu_b, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+
+  rns8_plan* hip_plan = nullptr;
+  rns8_workspace* hip_workspace = nullptr;
+  rns8_matrix* hip_a = nullptr;
+  rns8_matrix* hip_b = nullptr;
+  rns8_matrix* hip_c = nullptr;
+  auto hip_desc = exact_unsigned_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, hip_a, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, hip_b, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
+              hip_c->hip_device_id, hip_c->residues.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) ==
+          RNS8_SUCCESS);
+  CHECK(hip_c->residues == cpu_c->residues);
+  constexpr uint32_t limb_count = 3;
+  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), n, limb_count) ==
+          RNS8_SUCCESS);
+  hip_c->host_residues_current = false;
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, hip_limbs.data(), n, limb_count) ==
           RNS8_SUCCESS);
   CHECK(hip_c->host_residues_current);
   CHECK(hip_limbs == cpu_limbs);
