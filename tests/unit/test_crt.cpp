@@ -28,6 +28,13 @@ TEST_CASE("CRT reconstruction recovers signed and unsigned bounded values") {
   }
 
   {
+    const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 9);
+    int64_t value = 0;
+    CHECK(rns8::detail::reconstruct_signed(residues, 9, 1ull << 63u, value) == RNS8_SUCCESS);
+    CHECK(value == std::numeric_limits<int64_t>::min());
+  }
+
+  {
     const auto residues = residues_for(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 9);
     uint64_t value = 0;
     CHECK(rns8::detail::reconstruct_unsigned(residues, 9, std::numeric_limits<uint64_t>::max(), value) ==
@@ -42,4 +49,3 @@ TEST_CASE("CRT reconstruction reports insufficient range") {
   CHECK(rns8::detail::reconstruct_signed(
             residues, 8, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()), value) == RNS8_RANGE_ERROR);
 }
-

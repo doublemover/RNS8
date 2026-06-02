@@ -50,19 +50,96 @@ __device__ uint32_t rns8_mod_inverse_device(uint32_t a, uint32_t modulus) {
   return static_cast<uint32_t>(t);
 }
 
-__device__ unsigned __int128 rns8_reconstruct_canonical_device(
+struct rns8_u192_device {
+  uint64_t limb0;
+  uint64_t limb1;
+  uint64_t limb2;
+};
+
+__device__ rns8_u192_device rns8_u192_from_u64_device(uint64_t value) {
+  return {value, 0, 0};
+}
+
+__device__ int rns8_u192_compare_device(rns8_u192_device a, rns8_u192_device b) {
+  if (a.limb2 != b.limb2) {
+    return a.limb2 > b.limb2 ? 1 : -1;
+  }
+  if (a.limb1 != b.limb1) {
+    return a.limb1 > b.limb1 ? 1 : -1;
+  }
+  if (a.limb0 != b.limb0) {
+    return a.limb0 > b.limb0 ? 1 : -1;
+  }
+  return 0;
+}
+
+__device__ rns8_u192_device rns8_u192_add_device(rns8_u192_device a, rns8_u192_device b) {
+  rns8_u192_device out{};
+  out.limb0 = a.limb0 + b.limb0;
+  const uint64_t carry0 = out.limb0 < a.limb0 ? 1 : 0;
+  out.limb1 = a.limb1 + b.limb1 + carry0;
+  const uint64_t carry1 = out.limb1 < a.limb1 || (carry0 != 0 && out.limb1 == a.limb1) ? 1 : 0;
+  out.limb2 = a.limb2 + b.limb2 + carry1;
+  return out;
+}
+
+__device__ rns8_u192_device rns8_u192_sub_device(rns8_u192_device a, rns8_u192_device b) {
+  rns8_u192_device out{};
+  out.limb0 = a.limb0 - b.limb0;
+  const uint64_t borrow0 = a.limb0 < b.limb0 ? 1 : 0;
+  out.limb1 = a.limb1 - b.limb1 - borrow0;
+  const uint64_t borrow1 = a.limb1 < b.limb1 || (borrow0 != 0 && a.limb1 == b.limb1) ? 1 : 0;
+  out.limb2 = a.limb2 - b.limb2 - borrow1;
+  return out;
+}
+
+__device__ rns8_u192_device rns8_u192_mul_u32_device(rns8_u192_device value, uint32_t multiplier) {
+  rns8_u192_device out{};
+  unsigned __int128 acc = static_cast<unsigned __int128>(value.limb0) * multiplier;
+  out.limb0 = static_cast<uint64_t>(acc);
+  uint64_t carry = static_cast<uint64_t>(acc >> 64u);
+  acc = static_cast<unsigned __int128>(value.limb1) * multiplier + carry;
+  out.limb1 = static_cast<uint64_t>(acc);
+  carry = static_cast<uint64_t>(acc >> 64u);
+  acc = static_cast<unsigned __int128>(value.limb2) * multiplier + carry;
+  out.limb2 = static_cast<uint64_t>(acc);
+  return out;
+}
+
+__device__ uint32_t rns8_u192_mod_u32_device(rns8_u192_device value, uint32_t modulus) {
+  unsigned __int128 rem = 0;
+  rem = ((rem << 64u) | value.limb2) % modulus;
+  rem = ((rem << 64u) | value.limb1) % modulus;
+  rem = ((rem << 64u) | value.limb0) % modulus;
+  return static_cast<uint32_t>(rem);
+}
+
+__device__ rns8_u192_device rns8_u192_shr1_device(rns8_u192_device value) {
+  return {
+      (value.limb0 >> 1u) | (value.limb1 << 63u),
+      (value.limb1 >> 1u) | (value.limb2 << 63u),
+      value.limb2 >> 1u};
+}
+
+__device__ bool rns8_u192_gt_u64_device(rns8_u192_device value, uint64_t limit) {
+  return value.limb2 != 0 || value.limb1 != 0 || value.limb0 > limit;
+}
+
+__device__ void rns8_reconstruct_canonical_wide_device(
     const int8_t* residues,
     int cell,
     int elements,
-    int prefix) {
-  unsigned __int128 x = 0;
-  unsigned __int128 product = 1;
+    int prefix,
+    rns8_u192_device* out_x,
+    rns8_u192_device* out_product) {
+  rns8_u192_device x = rns8_u192_from_u64_device(0);
+  rns8_u192_device product = rns8_u192_from_u64_device(1);
   for (int i = 0; i < prefix; ++i) {
     const int modulus = rns8_default_moduli_device[i];
     const uint32_t target =
         rns8_canonical_from_centered_device(residues[static_cast<int64_t>(i) * elements + cell], modulus);
-    const uint32_t x_mod = static_cast<uint32_t>(x % static_cast<uint32_t>(modulus));
-    const uint32_t product_mod = static_cast<uint32_t>(product % static_cast<uint32_t>(modulus));
+    const uint32_t x_mod = rns8_u192_mod_u32_device(x, static_cast<uint32_t>(modulus));
+    const uint32_t product_mod = rns8_u192_mod_u32_device(product, static_cast<uint32_t>(modulus));
     const uint32_t inverse = rns8_mod_inverse_device(product_mod, static_cast<uint32_t>(modulus));
     int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     delta_mod %= modulus;
@@ -71,18 +148,11 @@ __device__ unsigned __int128 rns8_reconstruct_canonical_device(
     }
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
-    x += product * static_cast<unsigned __int128>(coefficient);
-    product *= static_cast<unsigned __int128>(modulus);
+    x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+    product = rns8_u192_mul_u32_device(product, static_cast<uint32_t>(modulus));
   }
-  return x;
-}
-
-__device__ unsigned __int128 rns8_modulus_product_device(int prefix) {
-  unsigned __int128 product = 1;
-  for (int i = 0; i < prefix; ++i) {
-    product *= static_cast<unsigned __int128>(rns8_default_moduli_device[i]);
-  }
-  return product;
+  *out_x = x;
+  *out_product = product;
 }
 
 __device__ int8_t rns8_center_i64_device(int64_t value, int modulus) {
@@ -193,26 +263,31 @@ __global__ void rns8_export_i64_kernel(
     return;
   }
 
-  const unsigned __int128 x = rns8_reconstruct_canonical_device(residues, cell, elements, prefix);
-  const unsigned __int128 product = rns8_modulus_product_device(prefix);
-  const unsigned __int128 bound128 = static_cast<unsigned __int128>(bound);
-  const unsigned __int128 int64_max128 = static_cast<unsigned __int128>(0x7fffffffffffffffULL);
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  const rns8_u192_device half_product = rns8_u192_shr1_device(product);
 
-  if (x > product / 2) {
-    const unsigned __int128 magnitude = product - x;
-    if (magnitude > bound128 || magnitude > int64_max128) {
+  if (rns8_u192_compare_device(x, half_product) > 0) {
+    const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
+    constexpr uint64_t int64_min_magnitude = 0x8000000000000000ULL;
+    if (rns8_u192_gt_u64_device(magnitude, bound) || rns8_u192_gt_u64_device(magnitude, int64_min_magnitude)) {
       atomicCAS(status, 0, 5);
       return;
     }
-    dst[cell] = -static_cast<int64_t>(static_cast<uint64_t>(magnitude));
+    if (magnitude.limb0 == int64_min_magnitude) {
+      dst[cell] = (-9223372036854775807LL - 1LL);
+      return;
+    }
+    dst[cell] = -static_cast<int64_t>(magnitude.limb0);
     return;
   }
 
-  if (x > bound128 || x > int64_max128) {
+  if (rns8_u192_gt_u64_device(x, bound) || rns8_u192_gt_u64_device(x, 0x7fffffffffffffffULL)) {
     atomicCAS(status, 0, 5);
     return;
   }
-  dst[cell] = static_cast<int64_t>(static_cast<uint64_t>(x));
+  dst[cell] = static_cast<int64_t>(x.limb0);
 }
 
 __global__ void rns8_export_u64_kernel(
@@ -229,14 +304,14 @@ __global__ void rns8_export_u64_kernel(
     return;
   }
 
-  const unsigned __int128 x = rns8_reconstruct_canonical_device(residues, cell, elements, prefix);
-  const unsigned __int128 bound128 = static_cast<unsigned __int128>(bound);
-  const unsigned __int128 uint64_max128 = static_cast<unsigned __int128>(0xffffffffffffffffULL);
-  if (x > bound128 || x > uint64_max128) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  if (rns8_u192_gt_u64_device(x, bound)) {
     atomicCAS(status, 0, 5);
     return;
   }
-  dst[cell] = static_cast<uint64_t>(x);
+  dst[cell] = x.limb0;
 }
 
 }  // namespace

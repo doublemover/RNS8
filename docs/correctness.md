@@ -12,7 +12,7 @@ Implemented correctness coverage:
   unsigned outputs.
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
-  `INT64_MAX`, `-INT64_MAX`, and `UINT64_MAX` outputs.
+  `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs.
 - Public bounded signed and unsigned CPU one-shot GEMM sweeps over all
   dimensions 1 through 8, with Boost.Multiprecision exact oracles.
 - Fixed-seed random bounded signed and unsigned CPU checks with padded leading
@@ -46,7 +46,8 @@ Implemented correctness coverage:
   on `gfx1100` when HIP is enabled and a device is visible.
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
-  signed/unsigned GPU CRT export smoke tests against the CPU reference.
+  signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
+  reference.
 - Private direct HIP strict `mod 2^64` byte-limb Comba smoke test compared
   against the CPU byte-limb reference. This is not public HIP wrap64 backend
   support and is not an optimized 36 byte-GEMM path.
@@ -55,8 +56,6 @@ Not yet implemented:
 
 - Per-tile adaptive bounds.
 - Exact-wide GPU reconstruction.
-- Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
-  path.
 - Public or optimized strict `mod 2^64` GPU byte-limb kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 

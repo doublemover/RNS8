@@ -122,7 +122,8 @@ rns8_status validate_bound_contract(
       if (bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) {
         return bound_kind == RNS8_BOUND_NONE ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND;
       }
-      if (bound > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      constexpr uint64_t max_signed_magnitude = uint64_t{1} << 63u;
+      if (bound > max_signed_magnitude) {
         return RNS8_INVALID_ARGUMENT;
       }
       const cpp_int required = cpp_int(2) * cpp_int(bound);

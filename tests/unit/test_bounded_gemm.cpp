@@ -88,6 +88,14 @@ TEST_CASE("bounded i64 and u64 oneshot handle full boundary outputs") {
     CHECK(C[0] == -std::numeric_limits<int64_t>::max());
   }
   {
+    const int64_t A[] = {std::numeric_limits<int64_t>::min()};
+    const int64_t B[] = {1};
+    int64_t C[] = {0};
+    auto desc = i64_desc(1, 1, 1, 1ull << 63u);
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A, 1, B, 1, C, 1) == RNS8_SUCCESS);
+    CHECK(C[0] == std::numeric_limits<int64_t>::min());
+  }
+  {
     const uint64_t A[] = {std::numeric_limits<uint64_t>::max()};
     const uint64_t B[] = {1};
     uint64_t C[] = {0};
@@ -104,6 +112,15 @@ TEST_CASE("bounded plan creation rejects insufficient prefix range") {
   desc.max_prefix = 8;
   rns8_plan* plan = nullptr;
   CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_RANGE_ERROR);
+  CHECK(plan == nullptr);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded i64 contract rejects magnitudes beyond int64 min") {
+  rns8_context* ctx = create_cpu();
+  auto desc = i64_desc(1, 1, 1, (1ull << 63u) + 1u);
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
   rns8_destroy_context(ctx);
 }

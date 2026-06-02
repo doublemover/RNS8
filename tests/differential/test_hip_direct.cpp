@@ -578,6 +578,21 @@ TEST_CASE("direct HIP bounded oneshot matches CPU for signed and unsigned APIs")
   }
 
   {
+    const int64_t A[] = {std::numeric_limits<int64_t>::min()};
+    const int64_t B[] = {1};
+    int64_t cpu_c[1] = {};
+    int64_t hip_c[1] = {};
+    auto cpu_desc = signed_desc(1, 1, 1, 1ull << 63u, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = signed_desc(1, 1, 1, 1ull << 63u, RNS8_BACKEND_HIP_DIRECT);
+    cpu_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    hip_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    CHECK(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A, 1, B, 1, cpu_c, 1) == RNS8_SUCCESS);
+    CHECK(rns8_gemm_i64_oneshot(hip, &hip_desc, A, 1, B, 1, hip_c, 1) == RNS8_SUCCESS);
+    CHECK(hip_c[0] == cpu_c[0]);
+    CHECK(hip_c[0] == std::numeric_limits<int64_t>::min());
+  }
+
+  {
     const uint64_t A[] = {17, 3, 255, 9, 41, 5};
     const uint64_t B[] = {11, 7, 13, 19, 23, 29};
     uint64_t cpu_c[4] = {};
@@ -588,6 +603,21 @@ TEST_CASE("direct HIP bounded oneshot matches CPU for signed and unsigned APIs")
     CHECK(rns8_gemm_u64_oneshot(hip, &hip_desc, A, 3, B, 2, hip_c, 2) == RNS8_SUCCESS);
     CHECK(std::vector<uint64_t>(std::begin(hip_c), std::end(hip_c)) ==
           std::vector<uint64_t>(std::begin(cpu_c), std::end(cpu_c)));
+  }
+
+  {
+    const uint64_t A[] = {std::numeric_limits<uint64_t>::max()};
+    const uint64_t B[] = {1};
+    uint64_t cpu_c[1] = {};
+    uint64_t hip_c[1] = {};
+    auto cpu_desc = unsigned_desc(1, 1, 1, std::numeric_limits<uint64_t>::max(), RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = unsigned_desc(1, 1, 1, std::numeric_limits<uint64_t>::max(), RNS8_BACKEND_HIP_DIRECT);
+    cpu_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    hip_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    CHECK(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A, 1, B, 1, cpu_c, 1) == RNS8_SUCCESS);
+    CHECK(rns8_gemm_u64_oneshot(hip, &hip_desc, A, 1, B, 1, hip_c, 1) == RNS8_SUCCESS);
+    CHECK(hip_c[0] == cpu_c[0]);
+    CHECK(hip_c[0] == std::numeric_limits<uint64_t>::max());
   }
 
   rns8_destroy_context(hip);
