@@ -128,7 +128,11 @@ TEST_CASE("exact-wide semantics reject bounded-looking CRT metadata") {
   rns8_context* ctx = create_cpu();
   for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     for (const rns8_bound_kind bound_kind :
-         {RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_BOUND_INPUT_RANGE_AND_K}) {
+         {RNS8_BOUND_GLOBAL_MAX_ABS,
+          RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+          RNS8_BOUND_PER_TILE_MAX_ABS,
+          RNS8_BOUND_PER_TILE_MAX_UNSIGNED,
+          RNS8_BOUND_INPUT_RANGE_AND_K}) {
       auto desc = bounded_looking_desc(semantics, bound_kind);
       rns8_plan* plan = nullptr;
       CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
@@ -146,7 +150,11 @@ TEST_CASE("exact-wide semantics reject bounded-looking CRT metadata") {
 TEST_CASE("strict wraparound is not accepted as bounded odd-modulus CRT") {
   rns8_context* ctx = create_cpu();
   for (const rns8_bound_kind bound_kind :
-       {RNS8_BOUND_NONE, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_BOUND_INPUT_RANGE_AND_K}) {
+       {RNS8_BOUND_NONE,
+        RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+        RNS8_BOUND_PER_TILE_MAX_ABS,
+        RNS8_BOUND_PER_TILE_MAX_UNSIGNED,
+        RNS8_BOUND_INPUT_RANGE_AND_K}) {
     auto desc = bounded_looking_desc(RNS8_WRAP_U64_MOD_2_64, bound_kind);
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);

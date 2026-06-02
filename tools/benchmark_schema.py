@@ -332,7 +332,9 @@ class _Validator:
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
         if schedule.get("adaptive_execution_applied") is True:
-            self._error("schedule_metadata.adaptive_execution_applied must remain false until adaptive execution is implemented")
+            self._error(
+                "schedule_metadata.adaptive_execution_applied must remain false until adaptive benchmark capture support is implemented"
+            )
 
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")

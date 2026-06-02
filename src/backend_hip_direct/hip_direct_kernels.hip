@@ -318,20 +318,14 @@ __global__ void rns8_ring_gemm_kernel(
   C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
 }
 
-__global__ void rns8_export_i64_kernel(
+__device__ void rns8_export_i64_cell_device(
     const int8_t* residues,
     int64_t* dst,
-    int rows,
-    int cols,
+    int cell,
+    int elements,
     int prefix,
     uint64_t bound,
     int* status) {
-  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
-  const int elements = rows * cols;
-  if (cell >= elements) {
-    return;
-  }
-
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
@@ -359,6 +353,40 @@ __global__ void rns8_export_i64_kernel(
   dst[cell] = static_cast<int64_t>(x.limb0);
 }
 
+__device__ void rns8_export_u64_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  if (rns8_u192_gt_u64_device(x, bound)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  dst[cell] = x.limb0;
+}
+
+__global__ void rns8_export_i64_kernel(
+    const int8_t* residues,
+    int64_t* dst,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_i64_cell_device(residues, dst, cell, elements, prefix, bound, status);
+}
+
 __global__ void rns8_export_u64_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -372,15 +400,53 @@ __global__ void rns8_export_u64_kernel(
   if (cell >= elements) {
     return;
   }
+  rns8_export_u64_cell_device(residues, dst, cell, elements, prefix, bound, status);
+}
 
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
-  if (rns8_u192_gt_u64_device(x, bound)) {
-    atomicCAS(status, 0, 5);
+__global__ void rns8_export_i64_tile_kernel(
+    const int8_t* residues,
+    int64_t* dst,
+    int rows,
+    int cols,
+    int row_offset,
+    int col_offset,
+    int row_extent,
+    int col_extent,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int tile_cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int tile_elements = row_extent * col_extent;
+  if (tile_cell >= tile_elements) {
     return;
   }
-  dst[cell] = x.limb0;
+  const int local_row = tile_cell / col_extent;
+  const int local_col = tile_cell - local_row * col_extent;
+  const int global_cell = (row_offset + local_row) * cols + (col_offset + local_col);
+  rns8_export_i64_cell_device(residues, dst, global_cell, rows * cols, prefix, bound, status);
+}
+
+__global__ void rns8_export_u64_tile_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int row_offset,
+    int col_offset,
+    int row_extent,
+    int col_extent,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int tile_cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int tile_elements = row_extent * col_extent;
+  if (tile_cell >= tile_elements) {
+    return;
+  }
+  const int local_row = tile_cell / col_extent;
+  const int local_col = tile_cell - local_row * col_extent;
+  const int global_cell = (row_offset + local_row) * cols + (col_offset + local_col);
+  rns8_export_u64_cell_device(residues, dst, global_cell, rows * cols, prefix, bound, status);
 }
 
 __global__ void rns8_export_exact_wide_unsigned_limbs_kernel(
@@ -763,6 +829,41 @@ extern "C" int rns8_hip_direct_export_i64_device(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_direct_export_i64_tile_device(
+    const int8_t* d_residues,
+    int64_t* d_dst,
+    int rows,
+    int cols,
+    int row_offset,
+    int col_offset,
+    int row_extent,
+    int col_extent,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  const int threads = 256;
+  const int elements = row_extent * col_extent;
+  const int blocks = (elements + threads - 1) / threads;
+  hipLaunchKernelGGL(
+      rns8_export_i64_tile_kernel,
+      dim3(blocks),
+      dim3(threads),
+      0,
+      nullptr,
+      d_residues,
+      d_dst,
+      rows,
+      cols,
+      row_offset,
+      col_offset,
+      row_extent,
+      col_extent,
+      prefix,
+      bound,
+      d_status);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_direct_export_u64_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
@@ -784,6 +885,41 @@ extern "C" int rns8_hip_direct_export_u64_device(
       d_dst,
       rows,
       cols,
+      prefix,
+      bound,
+      d_status);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_u64_tile_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int row_offset,
+    int col_offset,
+    int row_extent,
+    int col_extent,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  const int threads = 256;
+  const int elements = row_extent * col_extent;
+  const int blocks = (elements + threads - 1) / threads;
+  hipLaunchKernelGGL(
+      rns8_export_u64_tile_kernel,
+      dim3(blocks),
+      dim3(threads),
+      0,
+      nullptr,
+      d_residues,
+      d_dst,
+      rows,
+      cols,
+      row_offset,
+      col_offset,
+      row_extent,
+      col_extent,
       prefix,
       bound,
       d_status);

@@ -101,12 +101,13 @@ captures that only expose the older top-level timing fields.
 Current benchmark inputs are an inspectable fixed-prefix planning contract:
 the benchmark CLI supplies global bounded contracts, so bounded captures report
 the single selected prefix used by the CPU/direct-HIP GEMM paths. The CPU
-reference API can execute per-tile adaptive bounded plans when callers provide
-`RNS8_BOUND_PER_TILE_*` bounds, but the benchmark shell does not yet generate
-per-tile bound vectors or adaptive captures. Strict wrap64 captures report
-prefix zero and no RNS prefix groups. `adaptive_execution_applied` remains
-`false` in benchmark JSON until the benchmark has reviewed per-tile adaptive
-capture support.
+reference and direct-HIP APIs can execute per-tile adaptive bounded plans when
+callers provide `RNS8_BOUND_PER_TILE_*` bounds, but the benchmark shell does
+not yet generate per-tile bound vectors or adaptive captures. Strict wrap64
+captures report prefix zero and no RNS prefix groups.
+`adaptive_execution_applied` remains `false` in benchmark JSON until the
+benchmark has reviewed per-tile adaptive capture support and explicit execution
+evidence metadata.
 
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, first-use
