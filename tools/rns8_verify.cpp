@@ -40,6 +40,74 @@ rns8_context* create_wrap64_context() {
   return rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
 }
 
+rns8_status run_hip_resident_ring_gemm(
+    const std::vector<int8_t>& A,
+    const std::vector<int8_t>& B,
+    std::vector<int8_t>& C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint16_t modulus,
+    uint32_t modulus_index,
+    uint32_t selected_prefix) {
+  const std::size_t a_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(lda) * sizeof(int8_t);
+  const std::size_t b_bytes = static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb) * sizeof(int8_t);
+  const std::size_t c_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc) * sizeof(int8_t);
+  if (A.size() * sizeof(int8_t) < a_bytes || B.size() * sizeof(int8_t) < b_bytes ||
+      C.size() * sizeof(int8_t) < c_bytes) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  void* device_a = nullptr;
+  void* device_b = nullptr;
+  void* device_c = nullptr;
+  rns8_status status = rns8::detail::hip_direct_allocate(0, a_bytes, &device_a);
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_allocate(0, b_bytes, &device_b);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_allocate(0, c_bytes, &device_c);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(0, device_a, A.data(), a_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(0, device_b, B.data(), b_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(0, device_c, C.data(), c_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_ring_gemm_i8_device(
+        0,
+        device_a,
+        device_b,
+        device_c,
+        m,
+        n,
+        k,
+        lda,
+        ldb,
+        ldc,
+        modulus,
+        modulus_index,
+        selected_prefix);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_device_to_host(0, C.data(), device_c, c_bytes);
+  }
+  const rns8_status free_c = rns8::detail::hip_direct_free(0, device_c);
+  const rns8_status free_b = rns8::detail::hip_direct_free(0, device_b);
+  const rns8_status free_a = rns8::detail::hip_direct_free(0, device_a);
+  if (status == RNS8_SUCCESS && free_c != RNS8_SUCCESS) status = free_c;
+  if (status == RNS8_SUCCESS && free_b != RNS8_SUCCESS) status = free_b;
+  if (status == RNS8_SUCCESS && free_a != RNS8_SUCCESS) status = free_a;
+  return status;
+}
+
 rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -431,8 +499,7 @@ bool verify_hip_smoke() {
   std::vector<int8_t> cpu(4, 0);
   std::vector<int8_t> gpu(4, 0);
   rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, k, n, n, modulus);
-  const rns8_status status =
-      rns8::detail::hip_direct_ring_gemm_i8(0, A.data(), B.data(), gpu.data(), m, n, k, k, n, n, modulus);
+  const rns8_status status = run_hip_resident_ring_gemm(A, B, gpu, m, n, k, k, n, n, modulus, 3, 4);
   if (status != RNS8_SUCCESS || cpu != gpu) {
     std::cerr << "direct HIP ring GEMM smoke failed: " << rns8_status_string(status) << "\n";
     return false;

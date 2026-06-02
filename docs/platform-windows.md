@@ -46,7 +46,9 @@ Windows `gfx1100` evidence does not validate Linux ROCm, Instinct CDNA, or
 cluster production readiness. Those gates remain represented in presets and
 readiness reports, but they require a supported Linux ROCm host and actual
 target hardware. Exact-wide signed/unsigned limb ABI coverage on Windows is
-host and `gfx1100` evidence only; it does not stand in for Linux Radeon or
+host and `gfx1100` evidence only. Direct-HIP exact-wide export on Windows uses
+device-current resident RNS output and rejects host-current stale device
+residues; that local contract still does not stand in for Linux Radeon or
 Instinct exact-wide validation.
 
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected

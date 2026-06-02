@@ -286,6 +286,43 @@ TEST_CASE("public exact-wide fixed-width exports preserve stride and range contr
   }
 
   {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* A = nullptr;
+    rns8_matrix* B = nullptr;
+    rns8_matrix* C = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+    auto b_desc = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+    auto c_desc = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &A) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &B) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &C) == RNS8_SUCCESS);
+    const int64_t a_value = std::numeric_limits<int64_t>::max();
+    const int64_t b_value = 2;
+    REQUIRE(rns8_pack_i64(ctx, A, &a_value, 1, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, B, &b_value, 1, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx, plan, A, B, C, workspace) == RNS8_SUCCESS);
+
+    uint64_t too_small[1] = {0x3434343434343434ull};
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, C, too_small, 1, 1) == RNS8_RANGE_ERROR);
+    CHECK(too_small[0] == 0x3434343434343434ull);
+
+    uint64_t two_limbs[2] = {};
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, C, two_limbs, 1, 2) == RNS8_SUCCESS);
+    CHECK(two_limbs[0] == 0xfffffffffffffffeull);
+    CHECK(two_limbs[1] == 0);
+
+    rns8_destroy_matrix(C);
+    rns8_destroy_matrix(B);
+    rns8_destroy_matrix(A);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
     auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, 1, 1, 1);
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;

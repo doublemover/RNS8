@@ -350,6 +350,12 @@ HIP path owns device byte-limb matrix storage and uses an inspectable tiled
 byte-limb correctness kernel for comparison against the CPU reference. Each
 output still sums the 36 low-product byte diagonals with device-side signed-INT8
 correction algebra and then performs carry propagation into the low 64 bits.
+Persistent direct-HIP wrap64 GEMM and export require device-current byte limbs:
+`rns8_pack_u64` is the host-to-device ingress for inputs, GEMM is the
+device-current producer for outputs, and GEMM/export must not upload stale
+host-current wrap matrices as a hidden route. RNS residue matrices, bounded CRT
+metadata, and odd-modulus export paths remain invalid for strict wrap
+descriptors.
 Optimized matrix-engine byte-GEMM kernels remain later production milestones.
 
 ## 7. Modulus Ladder
@@ -783,6 +789,12 @@ wraparound semantics.
 Null `ctx`, `plan`, matrix, or destination pointers, `limb_count` outside
 `[1, 32]`, and output leading dimensions smaller than the matrix width are
 malformed ABI calls and return `RNS8_INVALID_ARGUMENT`.
+`RNS8_RANGE_ERROR` is all-or-nothing for the caller's destination: CPU export
+stages reconstructed cells before writing the padded host layout, and direct HIP
+checks device status before copying compact output back to host. Direct HIP
+exact-wide export requires device-current resident RNS output and rejects
+host-current stale device residues instead of using export as a hidden upload
+route.
 
 Exact-wide descriptors use `RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound
 storage. Global bounded descriptors also carry no tile-bound pointer/count.

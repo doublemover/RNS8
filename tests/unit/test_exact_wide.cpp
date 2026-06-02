@@ -157,6 +157,24 @@ TEST_CASE("exact-wide signed CRT export uses centered half-open representative")
   CHECK(boost::multiprecision::cpp_int(bounded) == below_half);
 }
 
+TEST_CASE("exact-wide signed max-prefix half-product export is fixed-width two's-complement") {
+  constexpr uint32_t prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  const boost::multiprecision::cpp_int product = rns8::detail::modulus_product(prefix);
+  const boost::multiprecision::cpp_int half = product / 2;
+  const auto residues = residues_for(half, prefix);
+
+  constexpr uint64_t sentinel = 0xa3a3a3a3a3a3a3a3ull;
+  uint64_t too_few[2] = {sentinel, sentinel};
+  CHECK(rns8::detail::export_exact_wide_signed_limbs(residues, prefix, too_few, 2) == RNS8_RANGE_ERROR);
+  CHECK(too_few[0] == sentinel);
+  CHECK(too_few[1] == sentinel);
+
+  uint64_t limbs[3] = {};
+  REQUIRE(rns8::detail::export_exact_wide_signed_limbs(residues, prefix, limbs, 3) == RNS8_SUCCESS);
+  const auto expected = signed_twos_complement_limbs(-half, 3);
+  CHECK(std::vector<uint64_t>(limbs, limbs + 3) == expected);
+}
+
 TEST_CASE("exact-wide signed fixed-width limb export covers one-limb boundaries") {
   constexpr uint32_t prefix = RNS8_MAX_SUPPORTED_PREFIX;
   uint64_t limbs[32] = {};
@@ -221,6 +239,30 @@ TEST_CASE("exact-wide unsigned fixed-width limb export covers overflow and max w
   CHECK(limbs[0] == 1);
   for (uint32_t limb = 1; limb < 32; ++limb) {
     CHECK(limbs[limb] == 0);
+  }
+}
+
+TEST_CASE("exact-wide unsigned high-bit magnitude export preserves fixed width") {
+  constexpr uint32_t prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  const boost::multiprecision::cpp_int value = boost::multiprecision::cpp_int(1) << 127u;
+  const auto residues = residues_for(value, prefix);
+
+  constexpr uint64_t sentinel = 0xb4b4b4b4b4b4b4b4ull;
+  uint64_t too_few[1] = {sentinel};
+  CHECK(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, too_few, 1) == RNS8_RANGE_ERROR);
+  CHECK(too_few[0] == sentinel);
+
+  uint64_t two_limbs[2] = {};
+  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, two_limbs, 2) == RNS8_SUCCESS);
+  CHECK(two_limbs[0] == 0);
+  CHECK(two_limbs[1] == (uint64_t{1} << 63u));
+
+  uint64_t wide[32] = {};
+  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, wide, 32) == RNS8_SUCCESS);
+  CHECK(wide[0] == 0);
+  CHECK(wide[1] == (uint64_t{1} << 63u));
+  for (uint32_t limb = 2; limb < 32; ++limb) {
+    CHECK(wide[limb] == 0);
   }
 }
 

@@ -56,16 +56,19 @@ Implemented correctness coverage:
   fixed-width little-endian magnitude, `ld` is an element stride rather than a
   limb stride, and `limb_count` must be in [1, 32]. Both report range errors
   when too few limbs are supplied, and neither truncates nor wraps on
-  insufficient width. Descriptor and export tests reject cross-semantic
-  bounded, signed/unsigned exact-wide, and wrap64 interpretations. Direct HIP
-  export leaves device-resident residues on device instead of synchronizing
-  host residue storage.
+  insufficient width. Range-error exports preserve the caller's destination.
+  Descriptor and export tests reject cross-semantic bounded, signed/unsigned
+  exact-wide, and wrap64 interpretations. Direct HIP export requires
+  device-current resident RNS output, rejects host-current stale device
+  residues, and leaves device-resident residues on device instead of
+  synchronizing host residue storage.
 - CPU exact-wide fixed-width export tests also pin the signed centered
-  half-product representative, one-limb signed min/max boundaries,
-  negative two's-complement sign extension through 32 limbs, unsigned one-limb
-  overflow rejection, two-limb unsigned success, padded element-stride export,
-  descriptor rejection, null-handle rejection, and wrong export-function
-  rejection.
+  half-product representative at small and maximum supported prefixes,
+  one-limb signed min/max boundaries, negative two's-complement sign extension
+  through 32 limbs, unsigned one-limb overflow rejection, two-limb unsigned
+  success including a high-bit magnitude case, padded element-stride export,
+  descriptor rejection, stale matrix-state rejection, null-handle rejection,
+  and wrong export-function rejection.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
@@ -90,11 +93,14 @@ Implemented correctness coverage:
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
   device pointer stability through pack/GEMM/export, and support padded host
   leading dimensions on pack and export while keeping compact row-major
-  `rows * cols * 8` device byte-limb storage. Same-shape wrap64 HIP resident
-  tests also check allocation counters across repeat pack/GEMM/export cycles.
-  The HIP GEMM correctness kernel sums the 36 low-product byte diagonals with
-  device-side signed-INT8 correction algebra and then performs deterministic
-  carry propagation into the low 64 bits.
+  `rows * cols * 8` device byte-limb storage. GEMM/export require
+  device-current byte limbs instead of silently uploading host-current wrap
+  matrices. Same-shape wrap64 HIP resident tests also check allocation counters
+  across repeat pack/GEMM/export cycles, including larger multi-tile padded
+  shapes with host inputs mutated after pack. The HIP GEMM correctness kernel
+  sums the 36 low-product byte diagonals with device-side signed-INT8
+  correction algebra and then performs deterministic carry propagation into the
+  low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -107,11 +113,12 @@ Implemented correctness coverage:
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
-  reference. Bounded direct-HIP export also covers host-current/device-stale
-  residue matrices and rejects them instead of uploading during export. Signed
-  and unsigned range-error export cases compare CPU and HIP status, preserve
-  caller output sentinels, and check repeated device-current exports reuse
-  matrix-owned export/status buffers without growing upload buffers.
+  reference. Bounded direct-HIP GEMM and export also cover host-current/
+  device-stale residue matrices and reject them instead of uploading during
+  dispatch. Signed and unsigned range-error export cases compare CPU and HIP
+  status, preserve caller output sentinels, and check repeated device-current
+  exports reuse matrix-owned export/status buffers without growing upload
+  buffers.
 - Direct HIP bounded persistent tests cover fixed prefix-9 unsigned GEMM at the
   exact 65536 K-block boundary with padded host input/output layouts, CPU
   reference comparison, and repeated same-shape allocation reuse.
@@ -121,7 +128,9 @@ Implemented correctness coverage:
   and verify skipped residue planes above each tile's selected prefix remain
   untouched on device. Private tiled wrapper tests reject corrupted tile
   metadata where `required_prefix > selected_prefix` before GEMM launch or
-  export/status buffer allocation.
+  export/status buffer allocation. Adaptive per-tile K-split reuse coverage
+  compares against CPU with padded output and mixed selected-prefix groups while
+  checking same-shape resident buffer allocation stability after warmup.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is
@@ -148,9 +157,11 @@ Semantic guardrail:
 - `RNS8_EXACT_WIDE_SIGNED` and `RNS8_EXACT_WIDE_UNSIGNED` are not aliases for
   bounded 64-bit export with a larger prefix. They support persistent RNS output
   with `RNS8_BOUND_NONE` and explicit little-endian limb export. CPU Boost
-  reconstruction remains the reference; direct HIP export reconstructs fixed
-  limbs on device for correctness validation and copies only the requested limb
-  layout to host. Signed export interprets the CRT result as a centered exact
+  reconstruction remains the reference and CPU public export stages all cells
+  before writing the caller's padded host layout. Direct HIP export reconstructs
+  fixed limbs on device from device-current resident RNS storage and copies only
+  the requested limb layout to host after device status reports success. Signed
+  export interprets the CRT result as a centered exact
   integer and emits exactly `limb_count` two's-complement limbs. The centered
   representative uses `x >= ceil(P / 2)` as the negative threshold for selected
   modulus product `P`, matching centered residue packing. Unsigned export
