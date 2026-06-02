@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 2
-TIMING_PHASES = ["planning", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+SCHEMA_VERSION = 3
+TIMING_PHASES_V2 = ["planning", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+TIMING_PHASES_V3 = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 DEFAULT_GPU_EVENT_PHASES = [
     "pack_h2d",
@@ -96,6 +97,7 @@ class _Validator:
         self.data = data
         self.path = path
         self.errors: list[str] = []
+        self.version = 1
 
     def validate(self) -> None:
         version_value = self.data.get("schema_version", 1)
@@ -106,9 +108,10 @@ class _Validator:
         if version <= 1:
             self._validate_v1_legacy()
             return
-        if version != SCHEMA_VERSION:
-            self._error(f"unsupported schema_version {version}; expected {SCHEMA_VERSION}")
+        if version not in {2, SCHEMA_VERSION}:
+            self._error(f"unsupported schema_version {version}; expected 2 or {SCHEMA_VERSION}")
             return
+        self.version = version
         self._validate_v2()
 
     def _error(self, message: str) -> None:
@@ -183,7 +186,7 @@ class _Validator:
         self._validate_schedule_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
-        self._validate_timing_summaries(raw_timings, "timing_summary_us", TIMING_PHASES)
+        self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
 
@@ -226,14 +229,56 @@ class _Validator:
             if not isinstance(metadata.get("gpu_event_timing"), bool):
                 self._error("timing_metadata.gpu_event_timing must be a boolean")
             phase_order = metadata.get("phase_order")
-            if phase_order != TIMING_PHASES:
-                self._error(f"timing_metadata.phase_order must be {TIMING_PHASES}")
+            expected_phases = self._timing_phases()
+            if phase_order != expected_phases:
+                self._error(f"timing_metadata.phase_order must be {expected_phases}")
+            if self.version >= 3 or "phase_availability" in metadata:
+                self._validate_phase_availability(metadata)
             gpu_phase_order = metadata.get("gpu_event_phase_order")
             if gpu_phase_order is not None:
                 if not isinstance(gpu_phase_order, list) or not all(isinstance(item, str) for item in gpu_phase_order):
                     self._error("timing_metadata.gpu_event_phase_order must be an array of strings")
                 elif len(set(gpu_phase_order)) != len(gpu_phase_order):
                     self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
+
+    def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
+        availability = metadata.get("phase_availability")
+        if not isinstance(availability, dict):
+            self._error("timing_metadata.phase_availability must be an object")
+            return
+        scheduling = availability.get("scheduling")
+        if not isinstance(scheduling, dict):
+            self._error("timing_metadata.phase_availability.scheduling must be an object")
+        else:
+            if scheduling.get("timed") is not True:
+                self._error("timing_metadata.phase_availability.scheduling.timed must be true")
+            if scheduling.get("timing_key") != "scheduling":
+                self._error("timing_metadata.phase_availability.scheduling.timing_key must be scheduling")
+            if scheduling.get("scope") != "one_time_schedule_info_query":
+                self._error("timing_metadata.phase_availability.scheduling.scope must be one_time_schedule_info_query")
+            if not isinstance(scheduling.get("reason"), str) or not scheduling.get("reason"):
+                self._error("timing_metadata.phase_availability.scheduling.reason must be a nonempty string")
+
+        reduction = availability.get("reduction")
+        if not isinstance(reduction, dict):
+            self._error("timing_metadata.phase_availability.reduction must be an object")
+            return
+        if reduction.get("timed") is not False:
+            self._error("timing_metadata.phase_availability.reduction.timed must be false")
+        if reduction.get("timing_key") is not None:
+            self._error("timing_metadata.phase_availability.reduction.timing_key must be null")
+        expected_scope = (
+            "not_applicable_wrap64_byte_limb"
+            if self.data.get("semantics") == "wrap_u64_mod_2_64"
+            else "fused_into_rns_gemm"
+        )
+        if reduction.get("scope") != expected_scope:
+            self._error(f"timing_metadata.phase_availability.reduction.scope must be {expected_scope}")
+        if not isinstance(reduction.get("reason"), str) or not reduction.get("reason"):
+            self._error("timing_metadata.phase_availability.reduction.reason must be a nonempty string")
+
+    def _timing_phases(self) -> list[str]:
+        return TIMING_PHASES_V3 if self.version >= 3 else TIMING_PHASES_V2
 
     def _validate_tile_value(self, key: str, value: Any) -> None:
         if not _is_int(value):
@@ -287,7 +332,7 @@ class _Validator:
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
         if schedule.get("adaptive_execution_applied") is True:
-            self._error("schedule_metadata.adaptive_execution_applied must remain false for schema v2 captures")
+            self._error("schedule_metadata.adaptive_execution_applied must remain false until adaptive execution is implemented")
 
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")
@@ -341,7 +386,7 @@ class _Validator:
         result: dict[str, list[float]] = {}
         if not isinstance(raw, dict) or not _is_int(repeats):
             return result
-        for phase in TIMING_PHASES:
+        for phase in self._timing_phases():
             values = raw.get(phase)
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
@@ -391,18 +436,30 @@ class _Validator:
                     )
 
     def _validate_top_level_averages(self, raw_timings: dict[str, list[float]]) -> None:
-        for field, phase in [
+        fields = [
             ("avg_planning_us", "planning"),
             ("avg_matrix_alloc_us", "matrix_alloc"),
             ("avg_pack_us", "pack"),
             ("avg_rns_gemm_us", "rns_gemm"),
             ("avg_crt_export_us", "crt_export"),
             ("avg_end_to_end_us", "end_to_end"),
-        ]:
+        ]
+        if self.version >= 3:
+            fields.insert(1, ("avg_scheduling_us", "scheduling"))
+        for field, phase in fields:
             value = self._require(field, "number")
             values = raw_timings.get(phase)
             if _is_number(value) and values is not None and not _close(float(value), _average(values)):
                 self._error(f"{field}={value} does not match raw average {_average(values)}")
+        if self.version >= 3:
+            schedule_query = self._require("schedule_query_us", "number")
+            scheduling_values = raw_timings.get("scheduling")
+            if _is_number(schedule_query) and scheduling_values is not None and not _close(
+                float(schedule_query), _average(scheduling_values)
+            ):
+                self._error(
+                    f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}"
+                )
         prefix = self.data.get("prefix")
         per_modulus = self._require("avg_per_modulus_gemm_estimate_us", "number")
         gemm_values = raw_timings.get("rns_gemm")

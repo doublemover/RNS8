@@ -28,7 +28,7 @@
 
 namespace {
 
-constexpr uint32_t kBenchmarkSchemaVersion = 2;
+constexpr uint32_t kBenchmarkSchemaVersion = 3;
 
 enum class BenchSemantics {
   BoundedI64,
@@ -78,6 +78,7 @@ struct GpuEventSamples {
 
 struct BenchmarkResult {
   uint64_t plan_us = 0;
+  uint64_t schedule_query_us = 0;
   uint64_t matrix_alloc_us = 0;
   rns8_plan_schedule_info schedule_info{};
   bool schedule_info_available = false;
@@ -528,10 +529,13 @@ void print_single_u64_array(uint64_t value) {
 void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
   result.schedule_info.struct_size = sizeof(result.schedule_info);
   result.schedule_info.abi_version = RNS8_ABI_VERSION;
+  const auto start = std::chrono::steady_clock::now();
   const rns8_status status = rns8_get_plan_schedule_info(plan, &result.schedule_info);
+  const auto end = std::chrono::steady_clock::now();
   if (status != RNS8_SUCCESS) {
     fail_status("rns8_get_plan_schedule_info", status);
   }
+  result.schedule_query_us = elapsed_us(start, end);
   result.schedule_info_available = true;
 }
 
@@ -1230,12 +1234,15 @@ void print_json(
     print_string_array(result.gpu_events.unavailable_reasons);
     std::cout << ",\n";
   }
-  std::cout << "    \"phase_order\": [\"planning\", \"matrix_alloc\", \"pack\", \"rns_gemm\", \"crt_export\", \"end_to_end\"],\n";
+  std::cout
+      << "    \"phase_order\": [\"planning\", \"scheduling\", \"matrix_alloc\", \"pack\", \"rns_gemm\", "
+         "\"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"gpu_event_phase_order\": ";
   print_string_array(gpu_event_phase_order(args));
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
   std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
+  std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing; planning remains the legacy aggregate that also includes this query\",\n";
   std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent byte-limb matrices\",\n";
@@ -1247,6 +1254,27 @@ void print_json(
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
   std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
+  std::cout << "    },\n";
+  std::cout << "    \"phase_availability\": {\n";
+  std::cout << "      \"scheduling\": {\n";
+  std::cout << "        \"timed\": true,\n";
+  std::cout << "        \"timing_key\": \"scheduling\",\n";
+  std::cout << "        \"scope\": \"one_time_schedule_info_query\",\n";
+  std::cout << "        \"reason\": \"measured with host steady_clock around rns8_get_plan_schedule_info\"\n";
+  std::cout << "      },\n";
+  std::cout << "      \"reduction\": {\n";
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    std::cout << "        \"timed\": false,\n";
+    std::cout << "        \"timing_key\": null,\n";
+    std::cout << "        \"scope\": \"not_applicable_wrap64_byte_limb\",\n";
+    std::cout << "        \"reason\": \"strict wrap64 byte-limb captures do not use centered RNS residue reduction\"\n";
+  } else {
+    std::cout << "        \"timed\": false,\n";
+    std::cout << "        \"timing_key\": null,\n";
+    std::cout << "        \"scope\": \"fused_into_rns_gemm\",\n";
+    std::cout << "        \"reason\": \"current CPU and direct-HIP RNS GEMM paths reduce to centered residues inside rns_gemm, so no separate reduction kernel timing exists\"\n";
+  }
+  std::cout << "      }\n";
   std::cout << "    }\n";
   std::cout << "  },\n";
   if (gpu_events_available) {
@@ -1258,6 +1286,8 @@ void print_json(
   }
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
   std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
+  std::cout << "  \"schedule_query_us\": " << result.schedule_query_us << ",\n";
+  std::cout << "  \"avg_scheduling_us\": " << static_cast<double>(result.schedule_query_us) << ",\n";
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";
   std::cout << "  \"avg_matrix_alloc_us\": " << static_cast<double>(result.matrix_alloc_us) << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
@@ -1270,6 +1300,9 @@ void print_json(
   std::cout << "  \"raw_timings_us\": {\n";
   std::cout << "    \"planning\": ";
   print_single_u64_array(result.plan_us);
+  std::cout << ",\n";
+  std::cout << "    \"scheduling\": ";
+  print_single_u64_array(result.schedule_query_us);
   std::cout << ",\n";
   std::cout << "    \"matrix_alloc\": ";
   print_single_u64_array(result.matrix_alloc_us);
@@ -1289,6 +1322,7 @@ void print_json(
   std::cout << "  },\n";
   std::cout << "  \"timing_summary_us\": {\n";
   print_single_timing_summary("planning", result.plan_us, true);
+  print_single_timing_summary("scheduling", result.schedule_query_us, true);
   print_single_timing_summary("matrix_alloc", result.matrix_alloc_us, true);
   print_timing_summary("pack", result.samples.pack_us, true);
   print_timing_summary("rns_gemm", result.samples.gemm_us, true);

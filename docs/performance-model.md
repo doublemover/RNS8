@@ -42,6 +42,7 @@ The benchmark reports:
 - explicit GPU event timing availability metadata and direct-HIP event timing
   arrays when backend hooks collect a complete repeat,
 - one-time planning and matrix allocation time,
+- one-time schedule metadata query time,
 - average packing time,
 - average persistent RNS GEMM time,
 - average per-modulus GEMM estimate for RNS captures,
@@ -59,12 +60,15 @@ timing keys `rns_gemm` and `crt_export`; their phase notes identify these as
 `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 
-Schema version 2 keeps the legacy top-level average fields, but the preferred
-timing contract is:
+Schema version 3 keeps the legacy top-level average fields and adds a measured
+`scheduling` phase for the public schedule-info query. Schema version 2 captures
+remain valid without this phase. The preferred timing contract for new captures
+is:
 
 ```json
 "raw_timings_us": {
   "planning": [123],
+  "scheduling": [4],
   "matrix_alloc": [456],
   "pack": [10, 11],
   "rns_gemm": [20, 21],
@@ -73,14 +77,23 @@ timing contract is:
 },
 "timing_summary_us": {
   "planning": {"avg": 123, "median": 123, "p95": 123},
+  "scheduling": {"avg": 4, "median": 4, "p95": 4},
   "pack": {"avg": 10.5, "median": 11, "p95": 11}
 }
 ```
 
+Schema v3 also includes `timing_metadata.phase_availability`. The current RNS
+bounded paths report `reduction.timed=false` with
+`scope: "fused_into_rns_gemm"` because centered residue reduction happens inside
+the `rns_gemm` phase. Strict wrap64 byte-limb captures report
+`scope: "not_applicable_wrap64_byte_limb"`. Do not synthesize a reduction timing
+from GEMM time.
+
 Use `tools\benchmark_schema.py` to validate benchmark captures before using
-them as comparison evidence. The validator enforces schema v2 required fields,
-raw timing array lengths against `repeats`, average/median/p95 consistency,
-GPU event timing nullability or completeness, and the strict wrap64
+them as comparison evidence. The validator enforces schema v2/v3 required
+fields, raw timing array lengths against `repeats`, average/median/p95
+consistency, v3 phase-availability metadata, GPU event timing nullability or
+completeness, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
 also checks schedule metadata and keeps a compatibility check for legacy v1
 captures that only expose the older top-level timing fields.
@@ -153,12 +166,11 @@ default-stream backend operation groups only. Do not compare event timings to
 host timings as replacements, and do not replace nullable event fields with
 host wall-clock timings or estimates.
 
-Future benchmark work must add finer scheduling overhead capture, reviewed raw
-sweeps, comparison baselines, and performance gates before any speedup claims
-are made.
+Future benchmark work must add deeper scheduler internals, reviewed raw sweeps,
+comparison baselines, and performance gates before any speedup claims are made.
 
 `tools/result_compare.py` validates both captures before comparing host timing
-phases for schema v1/v2 captures. Its contract check includes backend,
+phases for schema v1/v2/v3 captures. Its contract check includes backend,
 semantics, bounds, shape, prefix, seed, warmups/repeats, input distribution,
 timing source, epilogue, packed layout, schedule metadata, compiler, configured
 target, and HIP device/runtime fields when present. It also compares
