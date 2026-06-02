@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "backend_hip_direct/hip_backend.hpp"
 #include "rns8/rns8.h"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -53,10 +54,27 @@ struct TimingSamples {
   std::vector<uint64_t> end_to_end_us;
 };
 
+struct GpuEventSamples {
+  bool requested = false;
+  bool complete = true;
+  std::vector<std::string> unavailable_reasons;
+  std::vector<double> pack_h2d_us;
+  std::vector<double> pack_kernel_us;
+  std::vector<double> pack_us;
+  std::vector<double> rns_gemm_kernel_group_us;
+  std::vector<double> rns_gemm_us;
+  std::vector<double> crt_export_status_memset_us;
+  std::vector<double> crt_export_kernel_us;
+  std::vector<double> crt_export_status_d2h_us;
+  std::vector<double> crt_export_d2h_us;
+  std::vector<double> crt_export_us;
+};
+
 struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t matrix_alloc_us = 0;
   TimingSamples samples{};
+  GpuEventSamples gpu_events{};
   uint64_t checksum = 0;
 };
 
@@ -382,6 +400,27 @@ double percentile(std::vector<uint64_t> values, double p) {
   return static_cast<double>(values[index]);
 }
 
+double average_double(const std::vector<double>& values) {
+  if (values.empty()) {
+    return 0.0;
+  }
+  double sum = 0.0;
+  for (const double value : values) {
+    sum += value;
+  }
+  return sum / static_cast<double>(values.size());
+}
+
+double percentile_double(std::vector<double> values, double p) {
+  if (values.empty()) {
+    return 0.0;
+  }
+  std::sort(values.begin(), values.end());
+  const double scaled = p * static_cast<double>(values.size() - 1);
+  const auto index = static_cast<std::size_t>(scaled + 0.999999);
+  return values[index];
+}
+
 void print_u64_array(const std::vector<uint64_t>& values) {
   std::cout << "[";
   for (std::size_t i = 0; i < values.size(); ++i) {
@@ -389,6 +428,28 @@ void print_u64_array(const std::vector<uint64_t>& values) {
       std::cout << ", ";
     }
     std::cout << values[i];
+  }
+  std::cout << "]";
+}
+
+void print_double_array(const std::vector<double>& values) {
+  std::cout << "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i > 0) {
+      std::cout << ", ";
+    }
+    std::cout << values[i];
+  }
+  std::cout << "]";
+}
+
+void print_string_array(const std::vector<std::string>& values) {
+  std::cout << "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i > 0) {
+      std::cout << ", ";
+    }
+    std::cout << "\"" << json_escape(values[i]) << "\"";
   }
   std::cout << "]";
 }
@@ -413,6 +474,50 @@ void print_single_timing_summary(const char* name, uint64_t value, bool trailing
   std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
+void print_gpu_event_summary(const char* name, const std::vector<double>& values, bool trailing_comma) {
+  std::cout << "    \"" << name << "\": {\n";
+  std::cout << "      \"avg\": " << average_double(values) << ",\n";
+  std::cout << "      \"median\": " << percentile_double(values, 0.50) << ",\n";
+  std::cout << "      \"p95\": " << percentile_double(values, 0.95) << "\n";
+  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+}
+
+void print_named_gpu_event_array(const char* name, const std::vector<double>& values, bool trailing_comma) {
+  std::cout << "    \"" << name << "\": ";
+  print_double_array(values);
+  std::cout << (trailing_comma ? "," : "") << "\n";
+}
+
+void print_gpu_event_timings(const GpuEventSamples& events) {
+  std::cout << "  \"gpu_event_timings_us\": {\n";
+  print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
+  print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
+  print_named_gpu_event_array("pack", events.pack_us, true);
+  print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+  print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
+  print_named_gpu_event_array("crt_export_status_memset", events.crt_export_status_memset_us, true);
+  print_named_gpu_event_array("crt_export_kernel", events.crt_export_kernel_us, true);
+  print_named_gpu_event_array("crt_export_status_d2h", events.crt_export_status_d2h_us, true);
+  print_named_gpu_event_array("crt_export_d2h", events.crt_export_d2h_us, true);
+  print_named_gpu_event_array("crt_export", events.crt_export_us, false);
+  std::cout << "  },\n";
+}
+
+void print_gpu_event_timing_summary(const GpuEventSamples& events) {
+  std::cout << "  \"gpu_event_timing_summary_us\": {\n";
+  print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
+  print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
+  print_gpu_event_summary("pack", events.pack_us, true);
+  print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+  print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
+  print_gpu_event_summary("crt_export_status_memset", events.crt_export_status_memset_us, true);
+  print_gpu_event_summary("crt_export_kernel", events.crt_export_kernel_us, true);
+  print_gpu_event_summary("crt_export_status_d2h", events.crt_export_status_d2h_us, true);
+  print_gpu_event_summary("crt_export_d2h", events.crt_export_d2h_us, true);
+  print_gpu_event_summary("crt_export", events.crt_export_us, false);
+  std::cout << "  },\n";
+}
+
 uint64_t checksum_i64(const std::vector<int64_t>& values) {
   uint64_t checksum = 1469598103934665603ull;
   for (const int64_t value : values) {
@@ -429,6 +534,96 @@ uint64_t checksum_u64(const std::vector<uint64_t>& values) {
   return checksum;
 }
 
+bool gpu_event_capture_requested(const Args& args) {
+  return args.backend == RNS8_BACKEND_HIP_DIRECT;
+}
+
+void add_unavailable_reason(GpuEventSamples& events, const std::string& reason) {
+  events.complete = false;
+  if (std::find(events.unavailable_reasons.begin(), events.unavailable_reasons.end(), reason) ==
+      events.unavailable_reasons.end()) {
+    events.unavailable_reasons.push_back(reason);
+  }
+}
+
+double sum_event_label(
+    GpuEventSamples& events,
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    const char* phase,
+    const char* label) {
+  bool found = false;
+  double total = 0.0;
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      found = true;
+      total += sample.microseconds;
+    }
+  }
+  if (!found) {
+    add_unavailable_reason(events, std::string(phase) + " missing backend HIP event label " + label);
+  }
+  return total;
+}
+
+void collect_pack_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double h2d = sum_event_label(events, samples, "pack", "pack_h2d");
+  const double kernel = sum_event_label(events, samples, "pack", "pack_kernel");
+  if (events.complete) {
+    events.pack_h2d_us.push_back(h2d);
+    events.pack_kernel_us.push_back(kernel);
+    events.pack_us.push_back(h2d + kernel);
+  }
+}
+
+void collect_gemm_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  if (events.complete) {
+    events.rns_gemm_kernel_group_us.push_back(kernel_group);
+    events.rns_gemm_us.push_back(kernel_group);
+  }
+}
+
+void collect_export_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double status_memset = sum_event_label(events, samples, "crt_export", "crt_export_status_memset");
+  const double kernel = sum_event_label(events, samples, "crt_export", "crt_export_kernel");
+  const double status_d2h = sum_event_label(events, samples, "crt_export", "crt_export_status_d2h");
+  const double d2h = sum_event_label(events, samples, "crt_export", "crt_export_d2h");
+  if (events.complete) {
+    events.crt_export_status_memset_us.push_back(status_memset);
+    events.crt_export_kernel_us.push_back(kernel);
+    events.crt_export_status_d2h_us.push_back(status_d2h);
+    events.crt_export_d2h_us.push_back(d2h);
+    events.crt_export_us.push_back(status_memset + kernel + status_d2h + d2h);
+  }
+}
+
+void begin_gpu_event_phase(bool collect) {
+  if (!collect) {
+    return;
+  }
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+}
+
+void end_gpu_event_phase(bool collect) {
+  if (!collect) {
+    return;
+  }
+  rns8::detail::hip_direct_timing_set_enabled(false);
+}
+
+bool gpu_event_timing_available(const BenchmarkResult& result) {
+  if (!result.gpu_events.requested || !result.gpu_events.complete) {
+    return false;
+  }
+  const std::size_t repeats = result.samples.pack_us.size();
+  return repeats > 0 && result.gpu_events.pack_us.size() == repeats &&
+         result.gpu_events.rns_gemm_us.size() == repeats && result.gpu_events.crt_export_us.size() == repeats;
+}
+
 BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bound) {
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
@@ -439,6 +634,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   for (auto& value : B) value = dist(rng);
 
   BenchmarkResult result{};
+  result.gpu_events.requested = gpu_event_capture_requested(args);
   auto desc = gemm_desc(args, bound);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
@@ -467,22 +663,38 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
     status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
+    if (collect_gpu_events) {
+      collect_pack_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    if (collect_gpu_events) {
+      collect_gemm_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
     const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
@@ -519,6 +731,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   for (auto& value : B) value = dist(rng);
 
   BenchmarkResult result{};
+  result.gpu_events.requested = gpu_event_capture_requested(args);
   auto desc = gemm_desc(args, bound);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
@@ -547,22 +760,38 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
+    if (collect_gpu_events) {
+      collect_pack_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    if (collect_gpu_events) {
+      collect_gemm_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
     const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
     status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
@@ -600,6 +829,15 @@ void print_json(
   const double avg_export_us = average(result.samples.export_us);
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const double avg_per_modulus_gemm_estimate_us = avg_gemm_us / static_cast<double>(RNS8_DEFAULT_BOUNDED_PREFIX);
+  const bool gpu_events_available = gpu_event_timing_available(result);
+  const char* gpu_event_reason = gpu_events_available
+                                     ? "captured_by_direct_hip_backend_hooks"
+                                     : (result.gpu_events.requested ? "backend_event_capture_incomplete"
+                                                                    : "backend_not_hip_direct");
+  const char* gpu_event_status = gpu_events_available
+                                     ? "available"
+                                     : (result.gpu_events.requested ? "unavailable_missing_expected_events"
+                                                                    : "not_requested_for_selected_backend");
 
   std::cout << "{\n";
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
@@ -655,19 +893,25 @@ void print_json(
   std::cout << "    \"unit\": \"microseconds\",\n";
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
-  std::cout << "    \"gpu_event_timing\": false,\n";
-  std::cout << "    \"gpu_event_timing_reason\": \"requires_backend_or_public_timing_hooks\",\n";
-  std::cout << "    \"gpu_event_timing_status\": \"unavailable_without_wrapping_backend_launches_and_copies\",\n";
-  std::cout << "    \"gpu_event_timing_audit\": {\n";
-  std::cout << "      \"public_api_wrapping_rejected\": true,\n";
-  std::cout << "      \"public_api_wrapping_reason\": \"rns8 public calls currently hide direct-HIP copies, kernel launches, default stream selection, and internal synchronization; external events would not produce complete per-phase GPU timings\",\n";
-  std::cout << "      \"minimum_required_hooks\": [\n";
-  std::cout << "        \"backend timing capture around each direct-HIP memcpy, memset, kernel-launch group, and synchronization point\",\n";
-  std::cout << "        \"stable phase labels for pack, rns_gemm, crt_export, and optional subphases\",\n";
-  std::cout << "        \"benchmark-visible timing query that reports unavailable phases as null instead of synthesized values\"\n";
-  std::cout << "      ]\n";
-  std::cout << "    },\n";
+  std::cout << "    \"gpu_event_timing\": " << (gpu_events_available ? "true" : "false") << ",\n";
+  std::cout << "    \"gpu_event_timing_reason\": \"" << gpu_event_reason << "\",\n";
+  std::cout << "    \"gpu_event_timing_status\": \"" << gpu_event_status << "\",\n";
+  std::cout << "    \"gpu_event_timing_source\": "
+            << (gpu_events_available ? "\"hipEventElapsedTime\"" : "null") << ",\n";
+  std::cout << "    \"gpu_event_timing_source_scope\": "
+            << (gpu_events_available ? "\"direct_hip_default_stream_backend_operation_groups\"" : "null") << ",\n";
+  std::cout << "    \"gpu_event_timing_caveat\": "
+            << (gpu_events_available
+                    ? "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead not represented on the HIP stream\""
+                    : "null")
+            << ",\n";
+  if (!gpu_events_available && !result.gpu_events.unavailable_reasons.empty()) {
+    std::cout << "    \"gpu_event_timing_unavailable_reasons\": ";
+    print_string_array(result.gpu_events.unavailable_reasons);
+    std::cout << ",\n";
+  }
   std::cout << "    \"phase_order\": [\"planning\", \"matrix_alloc\", \"pack\", \"rns_gemm\", \"crt_export\", \"end_to_end\"],\n";
+  std::cout << "    \"gpu_event_phase_order\": [\"pack_h2d\", \"pack_kernel\", \"rns_gemm_kernel_group\", \"crt_export_status_memset\", \"crt_export_kernel\", \"crt_export_status_d2h\", \"crt_export_d2h\"],\n";
   std::cout << "    \"phase_notes\": {\n";
   std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
   std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
@@ -677,8 +921,13 @@ void print_json(
   std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
   std::cout << "    }\n";
   std::cout << "  },\n";
-  std::cout << "  \"gpu_event_timings_us\": null,\n";
-  std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
+  if (gpu_events_available) {
+    print_gpu_event_timings(result.gpu_events);
+    print_gpu_event_timing_summary(result.gpu_events);
+  } else {
+    std::cout << "  \"gpu_event_timings_us\": null,\n";
+    std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
+  }
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
   std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";

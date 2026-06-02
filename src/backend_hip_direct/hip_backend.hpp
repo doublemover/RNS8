@@ -3,12 +3,23 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
 
+struct hip_direct_timing_sample {
+  std::string label;
+  double microseconds = 0.0;
+};
+
 bool hip_direct_compiled();
+void hip_direct_timing_set_enabled(bool enabled);
+bool hip_direct_timing_enabled();
+void hip_direct_timing_reset();
+std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
 rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);
 rns8_status hip_direct_free(int device_id, void* ptr);
