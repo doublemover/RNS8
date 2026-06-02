@@ -66,6 +66,23 @@ rns8_matrix_desc wrap_matrix_desc(int64_t rows, int64_t cols) {
   return desc;
 }
 
+uint64_t corrected_signed_i8_comba_product(uint64_t a, uint64_t b) {
+  uint64_t out = 0;
+  uint64_t carry = 0;
+  for (uint32_t diagonal = 0; diagonal < 8; ++diagonal) {
+    uint64_t column = carry;
+    for (uint32_t i = 0; i <= diagonal; ++i) {
+      const uint32_t j = diagonal - i;
+      const auto a_byte = static_cast<uint8_t>((a >> (8u * i)) & 0xffu);
+      const auto b_byte = static_cast<uint8_t>((b >> (8u * j)) & 0xffu);
+      column += rns8::detail::wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte);
+    }
+    out |= (column & 0xffu) << (8u * diagonal);
+    carry = column >> 8u;
+  }
+  return out;
+}
+
 }  // namespace
 
 TEST_CASE("wrap64 byte-limb product matches low 64-bit multiprecision product") {
@@ -83,6 +100,36 @@ TEST_CASE("wrap64 byte-limb product matches low 64-bit multiprecision product") 
     for (const uint64_t b : values) {
       const uint64_t expected = low64(boost::multiprecision::cpp_int(a) * boost::multiprecision::cpp_int(b));
       CHECK(rns8::detail::wrap64_byte_limb_product(a, b) == expected);
+    }
+  }
+}
+
+TEST_CASE("wrap64 signed-int8 byte correction recovers unsigned byte products") {
+  for (uint32_t a = 0; a <= 0xffu; ++a) {
+    for (uint32_t b = 0; b <= 0xffu; ++b) {
+      const auto a_byte = static_cast<uint8_t>(a);
+      const auto b_byte = static_cast<uint8_t>(b);
+      const int32_t signed_product =
+          static_cast<int32_t>(static_cast<int8_t>(a_byte)) * static_cast<int32_t>(static_cast<int8_t>(b_byte));
+      const int32_t corrected = signed_product + rns8::detail::wrap64_signed_i8_product_correction(a_byte, b_byte);
+      CHECK(corrected == static_cast<int32_t>(a * b));
+      CHECK(rns8::detail::wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte) == a * b);
+    }
+  }
+}
+
+TEST_CASE("wrap64 signed-int8 correction composes through Comba diagonals") {
+  const std::vector<uint64_t> values = {
+      0x0000000000000000ull,
+      0x00000000000000ffull,
+      0x8080808080808080ull,
+      0x7f807f807f807f80ull,
+      0xfefdfcfbfaf9f8f7ull,
+      std::numeric_limits<uint64_t>::max()};
+
+  for (const uint64_t a : values) {
+    for (const uint64_t b : values) {
+      CHECK(corrected_signed_i8_comba_product(a, b) == rns8::detail::wrap64_byte_limb_product(a, b));
     }
   }
 }

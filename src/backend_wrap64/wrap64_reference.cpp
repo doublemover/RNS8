@@ -12,6 +12,20 @@ std::size_t wrap_byte_limb_index(const rns8_matrix& matrix, int64_t row, int64_t
 
 }  // namespace
 
+int32_t wrap64_signed_i8_product_correction(uint8_t a, uint8_t b) {
+  const int32_t unsigned_product = static_cast<int32_t>(a) * static_cast<int32_t>(b);
+  const int32_t signed_a = static_cast<int32_t>(static_cast<int8_t>(a));
+  const int32_t signed_b = static_cast<int32_t>(static_cast<int8_t>(b));
+  return unsigned_product - signed_a * signed_b;
+}
+
+uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b) {
+  const int32_t signed_a = static_cast<int32_t>(static_cast<int8_t>(a));
+  const int32_t signed_b = static_cast<int32_t>(static_cast<int8_t>(b));
+  const int32_t corrected = signed_a * signed_b + wrap64_signed_i8_product_correction(a, b);
+  return static_cast<uint32_t>(corrected);
+}
+
 uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b) {
   uint64_t out = 0;
   uint64_t carry = 0;
