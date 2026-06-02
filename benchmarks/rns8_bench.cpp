@@ -96,7 +96,7 @@ struct GpuEventSamples {
   std::vector<double> hipblaslt_pack_transpose_centered_us;
   std::vector<double> hipblaslt_int8_i32_matmul_us;
   std::vector<double> hipblaslt_i32_to_residue_reduce_us;
-  std::vector<double> wrap64_tiled_byte_gemm_kernel_us;
+  std::vector<double> wrap64_byte_gemm36_tiled_kernel_us;
   std::vector<double> rns_gemm_us;
   std::vector<double> crt_export_status_memset_us;
   std::vector<double> crt_export_kernel_us;
@@ -793,7 +793,7 @@ std::vector<std::string> gpu_event_phase_order(const Args& args) {
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "wrap64_tiled_byte_gemm_kernel",
+        "wrap64_byte_gemm36_tiled_kernel",
         "rns_gemm",
         "wrap64_export_kernel",
         "wrap64_export_d2h",
@@ -863,7 +863,7 @@ void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
     print_named_gpu_event_array("pack", events.pack_us, true);
-    print_named_gpu_event_array("wrap64_tiled_byte_gemm_kernel", events.wrap64_tiled_byte_gemm_kernel_us, true);
+    print_named_gpu_event_array("wrap64_byte_gemm36_tiled_kernel", events.wrap64_byte_gemm36_tiled_kernel_us, true);
     print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
     print_named_gpu_event_array("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_named_gpu_event_array("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -904,7 +904,7 @@ void print_gpu_event_timing_summary(const Args& args, const GpuEventSamples& eve
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
     print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
     print_gpu_event_summary("pack", events.pack_us, true);
-    print_gpu_event_summary("wrap64_tiled_byte_gemm_kernel", events.wrap64_tiled_byte_gemm_kernel_us, true);
+    print_gpu_event_summary("wrap64_byte_gemm36_tiled_kernel", events.wrap64_byte_gemm36_tiled_kernel_us, true);
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_gpu_event_summary("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -1028,9 +1028,9 @@ void collect_rns_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
 
 void collect_wrap64_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double kernel = sum_event_label(events, samples, "rns_gemm", "wrap64_tiled_byte_gemm_kernel");
+  const double kernel = sum_event_label(events, samples, "rns_gemm", "wrap64_byte_gemm36_tiled_kernel");
   if (events.complete) {
-    events.wrap64_tiled_byte_gemm_kernel_us.push_back(kernel);
+    events.wrap64_byte_gemm36_tiled_kernel_us.push_back(kernel);
     events.rns_gemm_us.push_back(kernel);
   }
 }
@@ -1086,7 +1086,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return false;
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
-    return result.gpu_events.wrap64_tiled_byte_gemm_kernel_us.size() == repeats &&
+    return result.gpu_events.wrap64_byte_gemm36_tiled_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_d2h_us.size() == repeats;
   }
@@ -1487,7 +1487,7 @@ const char* selected_kernel_name(
     return "direct_hip_tiled_rns_gemm_v1";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
-    return "direct_hip_wrap64_tiled_byte_limb_gemm_v1";
+    return "direct_hip_wrap64_byte_gemm36_tiled_v2";
   }
   return nullptr;
 }
@@ -1704,7 +1704,7 @@ void print_json(
                     ? (hipblaslt_events
                            ? "\"hipblaslt_baseline_default_stream_backend_operation_groups\""
                            : (wrap64_hip_events
-                           ? "\"direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups\""
+                           ? "\"direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups\""
                            : (adaptive_hip_events
                                   ? "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\""
                                   : "\"direct_hip_default_stream_backend_operation_groups\"")))

@@ -179,14 +179,14 @@ plus current aggregate phase labels:
 - `pack_h2d`
 - `pack_kernel`
 - `pack`
-- `wrap64_tiled_byte_gemm_kernel`
+- `wrap64_byte_gemm36_tiled_kernel`
 - `rns_gemm`
 - `wrap64_export_kernel`
 - `wrap64_export_d2h`
 - `crt_export`
 
 The wrap64 direct-HIP event source scope is
-`direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups`. It
+`direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups`. It
 describes the tiled byte-limb correctness path, not an optimized matrix-engine
 byte-GEMM backend.
 
