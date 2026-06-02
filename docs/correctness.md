@@ -154,7 +154,10 @@ Implemented correctness coverage:
   centered-correction boundary case for negative, positive-threshold, and
   near-zero residues. Private direct-HIP launch metadata tests reject a modulus
   value that does not match the default ladder entry for the supplied modulus
-  index before queueing work.
+  index before queueing work. The direct HIP reciprocal-reduction differential
+  covers every currently supported default-prefix modulus with padded layouts,
+  and private metadata tests reject a wrong reciprocal for an otherwise valid
+  modulus before queueing work.
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
@@ -250,5 +253,6 @@ Semantic guardrail:
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path. Its
-centered-range corrections are source-level branchless, but reciprocal
-reduction and instruction-level validation remain future optimization work.
+centered-range corrections are source-level branchless and its GEMM reduction
+uses validated exact reciprocal metadata, but instruction-level validation and
+architecture-tuned kernels remain future optimization work.

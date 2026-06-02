@@ -41,12 +41,32 @@ static_assert(
     kRns8HipTileM * kRns8HipTileN == 256,
     "bounded direct HIP GEMM uses one 16x16 output tile per block");
 
-__device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
-  int residue = value % modulus;
-  residue += modulus & -static_cast<int>(residue < 0);
-  const int threshold = (modulus + 1) / 2;
-  residue -= modulus & -static_cast<int>(residue >= threshold);
-  return static_cast<int8_t>(residue);
+constexpr uint64_t kRns8ReciprocalScale = 1ull << 32u;
+
+uint32_t rns8_modulus_reciprocal_host(int modulus) {
+  return static_cast<uint32_t>(kRns8ReciprocalScale / static_cast<uint32_t>(modulus));
+}
+
+__device__ uint32_t rns8_reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
+  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
+  uint32_t residue = value - quotient * modulus;
+  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
+  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
+  return residue;
+}
+
+__device__ int8_t rns8_reduce_to_centered_device(int value, int modulus, uint32_t reciprocal) {
+  const uint32_t unsigned_modulus = static_cast<uint32_t>(modulus);
+  const uint32_t magnitude =
+      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
+  uint32_t residue = rns8_reduce_u32_small_modulus_device(magnitude, unsigned_modulus, reciprocal);
+  const uint32_t negative_nonzero =
+      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
+  const uint32_t negative_mask = 0u - negative_nonzero;
+  residue = (residue & ~negative_mask) | ((unsigned_modulus - residue) & negative_mask);
+  const uint32_t threshold = (unsigned_modulus + 1u) / 2u;
+  residue -= unsigned_modulus & (0u - static_cast<uint32_t>(residue >= threshold));
+  return static_cast<int8_t>(static_cast<int32_t>(residue));
 }
 
 __device__ uint32_t rns8_canonical_from_centered_device(int8_t residue, int modulus) {
@@ -365,6 +385,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int accumulate) {
   __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
   __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
@@ -417,7 +438,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
+    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
   }
 }
 
@@ -433,6 +454,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int accumulate) {
   const int entry_index = static_cast<int>(blockIdx.z);
@@ -503,7 +525,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
+    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
   }
 }
 
@@ -837,6 +859,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
     int safe_k_block) {
@@ -844,6 +867,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
       modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
       selected_prefix > kRns8DefaultModulusCount ||
       modulus != rns8_default_moduli_host[modulus_index] ||
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
       safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
@@ -872,6 +896,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
         ldb,
         ldc,
         modulus,
+        modulus_reciprocal,
         accumulate);
     err = hipGetLastError();
     k_offset += k_block;
@@ -891,9 +916,11 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int safe_k_block) {
   if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus < 2 ||
-      modulus > 256 || safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+      modulus > 256 || modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);
@@ -921,6 +948,7 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
         ldb,
         ldc,
         modulus,
+        modulus_reciprocal,
         accumulate);
     err = hipGetLastError();
     k_offset += k_block;
@@ -942,6 +970,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     int ldb,
     int ldc,
     int modulus,
+    uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
     int safe_k_block) {
@@ -950,6 +979,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
       modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
       selected_prefix > kRns8DefaultModulusCount ||
       modulus != rns8_default_moduli_host[modulus_index] ||
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
       safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
@@ -978,6 +1008,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
         ldb,
         ldc,
         modulus,
+        modulus_reciprocal,
         modulus_index,
         accumulate);
     err = hipGetLastError();

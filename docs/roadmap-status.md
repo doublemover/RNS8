@@ -155,8 +155,10 @@ disagree, the spec remains the target and this file identifies the gap.
    only by shape.
 2. Direct HIP fused INT32-to-centered-residue reduction: implemented in the
    direct correctness kernel. The path writes centered `int8_t` residues and
-   does not materialize full INT32 output matrices in global memory. Optimized
-   reciprocal-reduction and ISA-level validation remain future performance work.
+   does not materialize full INT32 output matrices in global memory. GEMM
+   reduction now uses exact small-modulus reciprocal metadata validated by the
+   host launch boundary. ISA-level validation and architecture-tuned matrix
+   kernels remain future performance work.
 3. GPU bounded i64/u64 CRT/export: implemented for direct HIP with device-side
    Garner reconstruction, range-error status reporting, signed `INT64_MIN`
    handling, unsigned `UINT64_MAX` handling, per-tile bounds, and CPU
@@ -214,9 +216,10 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Not Yet Implemented
 
-- Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
-  instruction-level validation. The direct HIP kernels are correctness bring-up
-  kernels, not performance evidence.
+- Optimized matrix-engine HIP kernels and instruction-level validation. The
+  direct HIP kernels are correctness bring-up kernels, not performance
+  evidence, even though their GEMM reduction now uses validated exact
+  reciprocal metadata.
 - Production performance gates for the fixed 9-modulus bounded milestone. The
   current fixed-prefix CPU and direct-HIP paths are correctness-grade and
   unoptimized unless a reviewed benchmark capture says otherwise.
