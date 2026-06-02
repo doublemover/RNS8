@@ -111,7 +111,7 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 53/53 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 58/58 passed; HIP
   smoke tests skipped in CPU-only build.
 - `ctest --preset windows-debug --output-on-failure`: 53/53 passed on
   `gfx1100`.
@@ -119,6 +119,10 @@ disagree, the spec remains the target and this file identifies the gap.
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
   copied per-tile bound lifetime, wrap64 prefix-zero byte-limb scheduling, and
   tile-size validation.
+- The CPU test pass includes literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9`
+  contract coverage, bounded signed/unsigned range errors for too-small but
+  otherwise valid global and per-tile bounds, and padded exact-wide signed and
+  unsigned limb export sentinel checks.
 - The CPU test pass includes bounded signed and unsigned one-shot GEMMs over
   2x2 output tile grids whose tiles use selected prefixes 1, 2, 3, and 4 and
   export against tile-local bounds.
