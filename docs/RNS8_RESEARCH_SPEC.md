@@ -276,11 +276,14 @@ required_bits = 128 + ceil(log2(K)) + margin
 
 The v1 exact-wide GPU compute path stores RNS output. Reconstruction to
 multi-limb integers is supported through explicit little-endian limb export.
-Signed exact-wide export uses fixed-width two's-complement limbs; unsigned
-exact-wide export uses fixed-width magnitude limbs. CPU Boost.Multiprecision
-reconstruction remains the reference path. Direct HIP reconstructs fixed-width
-limbs on device for the supported prefix range and copies only the requested
-host limb layout.
+Signed exact-wide export interprets the CRT result as a centered exact integer
+and uses fixed-width two's-complement limbs. Unsigned exact-wide export
+interprets the canonical nonnegative CRT result and uses fixed-width magnitude
+limbs. Both export exactly the caller-requested limb width and return
+`RNS8_RANGE_ERROR` if that width cannot represent the reconstructed value. CPU
+Boost.Multiprecision reconstruction remains the reference path. Direct HIP
+reconstructs fixed-width limbs on device for the supported prefix range and
+copies only the requested host limb layout.
 
 ### 6.4 Strict Wraparound `mod 2^64`
 
@@ -308,9 +311,9 @@ through `RNS8_BACKEND_HIP_DIRECT`. Both require `RNS8_WRAP_U64_MOD_2_64`,
 `RNS8_BOUND_NONE`, and no CRT prefix. They support
 `rns8_gemm_wrap_u64_oneshot` and persistent byte-limb matrices with
 `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and `rns8_export_wrap_u64`. The direct
-HIP path owns device byte-limb matrix storage and uses a one-thread-per-output
-byte-GEMM36 correctness kernel for comparison against the CPU reference. The
-kernel sums the 36 low-product byte diagonals with device-side signed-INT8
+HIP path owns device byte-limb matrix storage and uses an inspectable tiled
+byte-limb correctness kernel for comparison against the CPU reference. Each
+output still sums the 36 low-product byte diagonals with device-side signed-INT8
 correction algebra and then performs carry propagation into the low 64 bits.
 Optimized matrix-engine byte-GEMM kernels remain later production milestones.
 
@@ -701,18 +704,32 @@ The original plan-only pack sketch was replaced during the Phase 0 scaffold:
 packing needs an explicit matrix descriptor because A, B, and C have different
 dimensions. Hidden pack-role inference is not allowed in the ABI.
 
-Exact-wide limb export layout is row-major by element. For element `(row, col)`,
-the first limb is stored at:
+Exact-wide limb export layout is row-major by element. `ld` is a leading
+dimension in matrix elements, not in limbs. For element `(row, col)`, limb
+`limb` is stored at:
 
 ```text
-dst[((row * ld) + col) * limb_count]
+dst[((row * ld) + col) * limb_count + limb]
 ```
 
-Limbs are little-endian. Signed export is two's-complement in exactly
-`limb_count` limbs and returns `RNS8_RANGE_ERROR` when the reconstructed value
-does not fit. Unsigned export is magnitude in exactly `limb_count` limbs and
-also returns `RNS8_RANGE_ERROR` on overflow. These APIs are separate from
-bounded i64/u64 export and strict wraparound semantics.
+Limb `0` is the least significant 64 bits. Signed export is two's-complement in
+exactly `limb_count` limbs and returns `RNS8_RANGE_ERROR` unless the centered
+integer fits:
+
+```text
+-2^(64 * limb_count - 1) <= value <= 2^(64 * limb_count - 1) - 1
+```
+
+Unsigned export is magnitude in exactly `limb_count` limbs and returns
+`RNS8_RANGE_ERROR` unless the canonical integer fits:
+
+```text
+0 <= value <= 2^(64 * limb_count) - 1
+```
+
+These APIs do not truncate, wrap, or infer bounded 64-bit behavior from the
+destination type. They are separate from bounded i64/u64 export and strict
+wraparound semantics.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a
@@ -758,6 +775,12 @@ Thread-safety rules:
 
 The direct HIP backend exists to prevent the project from being blocked by
 library availability differences between Windows and Linux.
+
+Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA, and
+AMDGPU builtin paths remain accelerator candidates until they have compiled
+kernels, explicit semantic coverage, exact CPU differential tests, and measured
+performance evidence. Configure-time enable flags for those accelerator
+backends must continue to fail fast while only evidence probes exist.
 
 ### 12.2 Backend Selection Policy
 

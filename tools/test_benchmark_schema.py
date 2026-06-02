@@ -120,7 +120,7 @@ def main() -> int:
 
     bad_v4_wrap64_kernel = copy.deepcopy(v4_wrap64_hip)
     bad_v4_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_comba_correctness_v1"
-    expect_invalid(bad_v4_wrap64_kernel, "byte_gemm36")
+    expect_invalid(bad_v4_wrap64_kernel, "tiled_byte_limb")
 
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}

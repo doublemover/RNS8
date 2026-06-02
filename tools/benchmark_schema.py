@@ -31,6 +31,7 @@ AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
     "direct_hip_wrap64_comba_default_stream_backend_operation_groups",
 }
@@ -390,7 +391,7 @@ class _Validator:
             if self.version >= 4 and bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
             if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
-                expected_kernel = "direct_hip_wrap64_byte_gemm36_correctness_v1"
+                expected_kernel = "direct_hip_wrap64_tiled_byte_limb_gemm_v1"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
@@ -412,7 +413,7 @@ class _Validator:
             if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
                 metadata = self.data.get("timing_metadata")
                 if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
-                    expected_scope = "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups"
+                    expected_scope = "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups"
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"bounded_i64", "bounded_u64"}:
