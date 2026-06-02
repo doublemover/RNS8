@@ -67,6 +67,18 @@ bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld) {
   return rows <= std::numeric_limits<int64_t>::max() / ld;
 }
 
+bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
+  if (!valid_matrix_access(rows, cols, ld) || limb_count == 0 || limb_count > 32) {
+    return false;
+  }
+  const auto max = std::numeric_limits<int64_t>::max();
+  if (ld > max / static_cast<int64_t>(limb_count)) {
+    return false;
+  }
+  const int64_t limb_ld = ld * static_cast<int64_t>(limb_count);
+  return rows <= max / limb_ld;
+}
+
 uint64_t ceil_div_i64_u32(int64_t value, uint32_t divisor) {
   const auto unsigned_value = static_cast<uint64_t>(value);
   return (unsigned_value + static_cast<uint64_t>(divisor) - 1u) / static_cast<uint64_t>(divisor);
@@ -296,6 +308,32 @@ bool wrap_byte_limb_bytes(int64_t rows, int64_t cols, std::size_t& bytes) {
   return true;
 }
 
+bool matrix_cell_count(int64_t rows, int64_t cols, std::size_t& cells) {
+  if (rows <= 0 || cols <= 0) {
+    return false;
+  }
+  const auto u_rows = static_cast<uint64_t>(rows);
+  const auto u_cols = static_cast<uint64_t>(cols);
+  const uint64_t max_cells = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
+  if (u_cols != 0 && u_rows > max_cells / u_cols) {
+    return false;
+  }
+  cells = static_cast<std::size_t>(u_rows * u_cols);
+  return true;
+}
+
+bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t& residues) {
+  std::size_t cells = 0;
+  if (prefix == 0 || !matrix_cell_count(rows, cols, cells)) {
+    return false;
+  }
+  if (cells > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(prefix)) {
+    return false;
+  }
+  residues = cells * static_cast<std::size_t>(prefix);
+  return true;
+}
+
 bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
   std::size_t expected_bytes = 0;
   if (!wrap_byte_limb_bytes(rows, cols, expected_bytes)) {
@@ -316,6 +354,9 @@ rns8_status validate_plan_context_workspace(
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
   if (ctx.backend != plan.backend || workspace.backend != plan.backend) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (workspace.semantics != plan.desc.semantics || workspace.bound_kind != plan.desc.bound_kind) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (workspace.m != plan.desc.m || workspace.n != plan.desc.n || workspace.k != plan.desc.k ||
@@ -759,6 +800,8 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     if (!workspace) {
       return RNS8_INTERNAL_ERROR;
     }
+    workspace->semantics = plan->desc.semantics;
+    workspace->bound_kind = plan->desc.bound_kind;
     workspace->m = plan->desc.m;
     workspace->n = plan->desc.n;
     workspace->k = plan->desc.k;
@@ -816,15 +859,22 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     }
     matrix->prefix = prefix;
     if (matrix->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      const auto elements = static_cast<std::size_t>(desc->rows) * static_cast<std::size_t>(desc->cols) * 8u;
-      matrix->byte_limbs.assign(elements, 0);
+      std::size_t bytes = 0;
+      if (!wrap_byte_limb_bytes(desc->rows, desc->cols, bytes)) {
+        delete matrix;
+        return RNS8_RANGE_ERROR;
+      }
+      matrix->byte_limbs.assign(bytes, 0);
       matrix->host_residues_current = false;
       matrix->device_residues_current = false;
       matrix->host_byte_limbs_current = true;
       matrix->device_byte_limbs_current = false;
     } else {
-      const auto elements = static_cast<std::size_t>(prefix) * static_cast<std::size_t>(desc->rows) *
-                            static_cast<std::size_t>(desc->cols);
+      std::size_t elements = 0;
+      if (!rns_residue_count(desc->rows, desc->cols, prefix, elements)) {
+        delete matrix;
+        return RNS8_RANGE_ERROR;
+      }
       matrix->residues.assign(elements, 0);
       matrix->host_byte_limbs_current = false;
       matrix->device_byte_limbs_current = false;
@@ -1286,7 +1336,7 @@ rns8_status rns8_export_exact_wide_signed_limbs(
     int64_t ld,
     uint32_t limb_count) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld) || limb_count == 0) {
+    if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status export_status =
@@ -1339,7 +1389,7 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     int64_t ld,
     uint32_t limb_count) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld) || limb_count == 0) {
+    if (!ctx || !plan || !C || !dst || !valid_limb_export_access(plan->desc.m, plan->desc.n, ld, limb_count)) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status export_status =

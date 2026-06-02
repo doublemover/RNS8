@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
+#include <limits>
 
 #include "rns8/rns8.h"
 
@@ -124,6 +125,7 @@ TEST_CASE("exact-wide RNS output accepts only explicit unbounded semantics") {
   rns8_context* ctx = create_cpu();
   for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
+    desc.bound = 0;
     desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
@@ -135,6 +137,38 @@ TEST_CASE("exact-wide RNS output accepts only explicit unbounded semantics") {
     CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_SUCCESS);
     rns8_destroy_matrix(storage);
   }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("unbounded semantic descriptors reject stale bound metadata") {
+  rns8_context* ctx = create_cpu();
+  for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
+    desc.bound = 1;
+    desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("global descriptors reject stray per-tile bound storage") {
+  rns8_context* ctx = create_cpu();
+  const uint64_t stale_bound = 100;
+  auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  desc.tile_bounds = &stale_bound;
+  desc.tile_bounds_count = 1;
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  auto exact = gemm_desc(RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  exact.bound = 0;
+  exact.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  exact.tile_bounds_count = 1;
+  CHECK(rns8_create_plan(ctx, &exact, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
   rns8_destroy_context(ctx);
 }
 
@@ -296,6 +330,72 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different semantic contracts") {
+  rns8_context* ctx = create_cpu();
+
+  auto bounded = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  bounded.m = 2;
+  bounded.n = 2;
+  bounded.k = 1;
+  bounded.bound = 100;
+  bounded.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+
+  auto exact = gemm_desc(RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  exact.m = bounded.m;
+  exact.n = bounded.n;
+  exact.k = bounded.k;
+  exact.bound = 0;
+  exact.max_prefix = bounded.max_prefix;
+
+  const uint64_t tile_bound = 100;
+  auto per_tile = bounded;
+  per_tile.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  per_tile.bound = 0;
+  per_tile.tile_m = 64;
+  per_tile.tile_n = 64;
+  per_tile.tile_bounds = &tile_bound;
+  per_tile.tile_bounds_count = 1;
+
+  rns8_plan* bounded_plan = nullptr;
+  rns8_plan* exact_plan = nullptr;
+  rns8_plan* per_tile_plan = nullptr;
+  rns8_workspace* bounded_workspace = nullptr;
+  rns8_workspace* exact_workspace = nullptr;
+  rns8_workspace* per_tile_workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+
+  REQUIRE(rns8_create_plan(ctx, &bounded, &bounded_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx, &exact, &exact_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx, &per_tile, &per_tile_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, bounded_plan, &bounded_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, exact_plan, &exact_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, per_tile_plan, &per_tile_workspace) == RNS8_SUCCESS);
+
+  auto a_desc = matrix_desc(2, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
+  auto b_desc = matrix_desc(1, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
+  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_MAX_SUPPORTED_PREFIX);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, bounded_workspace) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, exact_workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(ctx, bounded_plan, a_matrix, b_matrix, c_matrix, per_tile_workspace) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(per_tile_workspace);
+  rns8_destroy_workspace(exact_workspace);
+  rns8_destroy_workspace(bounded_workspace);
+  rns8_destroy_plan(per_tile_plan);
+  rns8_destroy_plan(exact_plan);
+  rns8_destroy_plan(bounded_plan);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("persistent bounded export rejects output matrices outside the plan contract") {
   rns8_context* ctx = create_cpu();
   auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
@@ -327,4 +427,32 @@ TEST_CASE("persistent bounded export rejects output matrices outside the plan co
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
+}
+
+TEST_CASE("matrix creation rejects descriptor sizes that overflow owned storage") {
+  {
+    rns8_context* ctx = create_cpu();
+    auto desc = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    desc.rows = std::numeric_limits<int64_t>::max() / 2;
+    desc.cols = 8;
+    desc.logical_ld = desc.cols;
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &desc, &storage) == RNS8_RANGE_ERROR);
+    CHECK(storage == nullptr);
+    rns8_destroy_context(ctx);
+  }
+
+  {
+    rns8_context* ctx = create_wrap64();
+    auto desc = matrix_desc(RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
+    desc.rows = std::numeric_limits<int64_t>::max() / 2;
+    desc.cols = 8;
+    desc.logical_ld = desc.cols;
+    desc.max_prefix = 0;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &desc, &storage) == RNS8_RANGE_ERROR);
+    CHECK(storage == nullptr);
+    rns8_destroy_context(ctx);
+  }
 }

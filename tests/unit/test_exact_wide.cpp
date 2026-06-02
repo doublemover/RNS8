@@ -448,3 +448,53 @@ TEST_CASE("exact-wide CPU descriptors reject bounded metadata") {
 
   rns8_destroy_context(ctx);
 }
+
+TEST_CASE("exact-wide CPU export rejects invalid fixed-width ABI parameters") {
+  rns8_context* ctx = create_cpu();
+  const int64_t m = 1;
+  const int64_t n = 2;
+  const int64_t k = 1;
+  constexpr uint64_t sentinel = 0x4d4d4d4d4d4d4d4dull;
+  std::vector<uint64_t> limbs(66, sentinel);
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n - 1, 2) == RNS8_INVALID_ARGUMENT);
+    for (const uint64_t limb : limbs) {
+      CHECK(limb == sentinel);
+    }
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n - 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
+    for (const uint64_t limb : limbs) {
+      CHECK(limb == sentinel);
+    }
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(ctx);
+}

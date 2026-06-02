@@ -48,7 +48,7 @@ SUPPORTED_TARGETS = {
 LINUX_ROCM_COVERAGE_TARGETS = tuple(SUPPORTED_TARGETS)
 LINUX_RDNA_TARGETS = {"gfx1030", "gfx1100", "gfx1200", "gfx1201"}
 LINUX_CDNA_TARGETS = {"gfx90a", "gfx942", "gfx950"}
-ACCELERATOR_NAMES = ("hipblaslt", "ck", "rocwmma")
+ACCELERATOR_NAMES = ("hipblaslt", "ck", "rocwmma", "amdgpu_builtins")
 
 ACCELERATOR_PROBE_SOURCES = {
     "hipblaslt": """#include <hipblaslt/hipblaslt.h>
@@ -487,7 +487,21 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "probe": "header discovery only; no compile, link, or device capability test",
             "backend_stage": "B7",
             "experiment": "E007",
-            "capability": "rocWMMA or AMDGPU builtin hot kernels",
+            "capability": "rocWMMA target-specific hot kernels",
+        },
+        "amdgpu_builtins": {
+            "header": None,
+            "library": None,
+            "tool": None,
+            "cmake_module": None,
+            "probe": "no shallow discovery probe; requires real target-specific kernels and exact CPU differential validation",
+            "backend_stage": "B7",
+            "experiment": "E008",
+            "capability": "AMDGPU builtin target-specific hot kernels",
+            "not_ready_detail": (
+                "AMDGPU builtin path has no discovery-only readiness; backend remains disabled until "
+                "target-specific kernels, exact CPU differentials, and ISA evidence exist"
+            ),
         },
     }
     return {
@@ -505,7 +519,10 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "readiness": (
                 "candidate evidence only; backend remains disabled until compiled capability and exact correctness probes pass"
                 if bool(item["header"] or item["library"] or item["tool"])
-                else "not discovered; optional on Windows and required on Linux only where officially supported"
+                else item.get(
+                    "not_ready_detail",
+                    "not discovered; optional on Windows and required on Linux only where officially supported",
+                )
             ),
         }
         for name, item in components.items()
@@ -584,6 +601,15 @@ def accelerator_compile_probes(
     root.mkdir(parents=True, exist_ok=True)
     for name in ACCELERATOR_NAMES:
         component = accelerators.get(name, {})
+        if name == "amdgpu_builtins":
+            items[name] = not_run_probe(
+                name,
+                root,
+                "NOT_RUN_NO_CORRECTNESS_KERNEL",
+                "AMDGPU builtin probes are disabled until a real target-specific exact kernel exists",
+                True,
+            )
+            continue
         header = component.get("header") if isinstance(component, dict) else None
         library = component.get("library") if isinstance(component, dict) else None
         if not isinstance(header, str) or not header:
@@ -741,6 +767,15 @@ def accelerator_gate(
         status = "PROBE_COMPILE_FAIL"
     else:
         status = "CANDIDATE" if found else "NOT_READY"
+    if name == "amdgpu_builtins":
+        status = "NOT_READY"
+        detail = item["readiness"]
+    elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
+        detail = "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
+    elif found:
+        detail = "component discovered, but this checker does not enable the backend without a compiled capability probe"
+    else:
+        detail = "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
     return {
         "status": status,
         "ok": False,
@@ -754,15 +789,7 @@ def accelerator_gate(
             f"tool: {item.get('tool') or 'not found'}",
             f"compile/link probe: {probe_status}",
         ],
-        "detail": (
-            "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
-            if probe_status == "COMPILE_LINK_PASS_RUN_PASS"
-            else (
-                "component discovered, but this checker does not enable the backend without a compiled capability probe"
-                if found
-                else "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
-            )
-        ),
+        "detail": detail,
         "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
     }
 
@@ -871,8 +898,9 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "hipblaslt", accelerators, host_is_windows, accelerator_probes
         ),
         "E006_ck_capability": accelerator_gate("ck", accelerators, host_is_windows, accelerator_probes),
-        "E007_rocwmma_or_builtin_capability": accelerator_gate(
-            "rocwmma", accelerators, host_is_windows, accelerator_probes
+        "E007_rocwmma_capability": accelerator_gate("rocwmma", accelerators, host_is_windows, accelerator_probes),
+        "E008_amdgpu_builtin_capability": accelerator_gate(
+            "amdgpu_builtins", accelerators, host_is_windows, accelerator_probes
         ),
     }
 

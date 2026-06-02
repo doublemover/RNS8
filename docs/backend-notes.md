@@ -36,10 +36,11 @@ differential validation.
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,
 `FindRNS8CK.cmake`, and `FindRNS8ROCWMMA.cmake` modules can report candidate
-hipBLASLt, CK, and rocWMMA component files. These probes are shallow
-header/library/tool discovery only. They do not compile kernels, link an
-accelerator backend, run device capability checks, or satisfy correctness
-requirements.
+hipBLASLt, CK, and rocWMMA component files. AMDGPU builtins have no
+discovery-only readiness path because they require target-specific kernels.
+These probes are shallow header/library/tool discovery only. They do not
+compile kernels, link an accelerator backend, run device capability checks, or
+satisfy correctness requirements.
 
 The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
@@ -58,6 +59,12 @@ pack/GEMM/export cycle over the same persistent matrices must leave the direct
 HIP allocation counters, device residue pointers, upload buffers, export buffer,
 and status buffer unchanged.
 
+Workspace ownership is also part of the semantic contract. Workspaces are
+created from a plan and remain tagged with that plan's backend, shape, prefix,
+semantics, and bound kind. A same-shape workspace from exact-wide, bounded
+global, bounded per-tile, or wrap64 semantics is rejected instead of being
+silently reused across contracts.
+
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
 a device status for range errors, and copies the compact output to the caller's
@@ -73,8 +80,13 @@ Exact-wide signed and unsigned semantics are supported as persistent RNS output
 with `RNS8_BOUND_NONE`. They are not exported through the bounded i64/u64 APIs,
 and they are not strict low-64-bit wraparound. The limb export ABI treats `ld`
 as a leading dimension in output elements, not limbs. Each element owns exactly
-`limb_count` contiguous little-endian `uint64_t` limbs at
+`limb_count` contiguous little-endian `uint64_t` limbs, with `limb_count` in
+`[1, 32]`, at
 `dst[((row * ld) + col) * limb_count + limb]`.
+
+Exact-wide descriptors must carry no bound value and no tile-bound storage.
+Global bounded descriptors likewise reject stray tile-bound pointers/counts.
+These checks keep stale CRT metadata from becoming an implicit alternate route.
 
 CPU export uses explicit fixed-width limbs: signed output reconstructs the
 centered integer and emits two's-complement in exactly `limb_count` limbs,
@@ -116,7 +128,9 @@ hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain accelerator candidates
 only. Shallow discovery, compile/link probes, or builtin availability notes do
 not promote a backend to correctness-ready status. A future accelerator backend
 must have compiled kernels, explicit semantic support, and exact CPU
-differential coverage before enable flags stop failing fast.
+differential coverage before enable flags stop failing fast. The fail-fast
+flags are `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
+`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP tiled byte-limb correctness path. HIP wrap64 event captures use

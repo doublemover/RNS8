@@ -49,12 +49,13 @@ target hardware.
 
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected
 accelerators on Windows. `tools/check_dependencies.py` may report discovered
-headers or libraries as candidate evidence, but it does not enable or validate
-those backends. They require compiled capability probes and exact CPU
-differential tests before any backend can be treated as ready. The CMake
-accelerator enable flags intentionally fail fast until real correctness
-backends exist; discovery evidence is not a bypass around the
-direct HIP correctness path.
+headers or libraries as candidate evidence for component-backed accelerators,
+and reports AMDGPU builtin readiness as not ready until target-specific exact
+kernels exist. It does not enable or validate those backends. They require
+compiled capability probes and exact CPU differential tests before any backend
+can be treated as ready. The CMake accelerator enable flags intentionally fail
+fast until real correctness backends exist; discovery evidence is not a bypass
+around the direct HIP correctness path.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:
@@ -64,11 +65,14 @@ python tools\check_dependencies.py --accelerator-probes --json
 cmake --preset windows-msvc-hip-accelerator-probe
 ```
 
-Both paths are evidence-only. The Python probe writes tiny sources and binaries
-under `temp\accelerator-probes\`, records compile/link/runtime status, and keeps
-`backend_enablement=disabled`. The CMake probe preset sets
+Both paths are evidence-only. For component-backed accelerators, the Python
+probe writes tiny sources and binaries under `temp\accelerator-probes\`,
+records compile/link/runtime status, and keeps `backend_enablement=disabled`;
+for AMDGPU builtins it records `NOT_RUN_NO_CORRECTNESS_KERNEL` until a real
+target-specific exact kernel exists. The CMake probe preset sets
 `RNS8_PROBE_ACCELERATORS=ON` while keeping `RNS8_ENABLE_HIPBLASLT`,
-`RNS8_ENABLE_CK`, and `RNS8_ENABLE_ROCWMMA` off. On the current Windows HIP SDK
-install, hipBLASLt is candidate evidence through headers and a
+`RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
+`RNS8_ENABLE_AMDGPU_BUILTINS` off. On the current Windows HIP SDK install,
+hipBLASLt is candidate evidence through headers and a
 `libhipblaslt.dll.a` archive, but the opt-in hipcc/lld-link probe does not find
 a linkable `hipblaslt.lib`; this is not a correctness blocker.

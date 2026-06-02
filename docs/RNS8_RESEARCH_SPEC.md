@@ -579,6 +579,12 @@ Device allocations are 256-byte aligned. Packed panels are padded to backend
 tile multiples. Workspace is caller-owned through `rns8_workspace`. Temporary
 allocations inside hot calls are forbidden after plan creation.
 
+Workspaces are bound to the plan contract that created them. Backend, shape,
+prefix, semantics, and bound kind must match before a workspace can be used for
+GEMM. Same-shape workspaces from bounded, exact-wide, per-tile bounded, or
+wrap64 contracts are rejected instead of being reused across semantic
+boundaries.
+
 ## 11. Public API Specification
 
 The ABI is C. Public structs include `struct_size` and `abi_version` fields for
@@ -747,15 +753,16 @@ dst[((row * ld) + col) * limb_count + limb]
 ```
 
 Limb `0` is the least significant 64 bits. Signed export is two's-complement in
-exactly `limb_count` limbs and returns `RNS8_RANGE_ERROR` unless the centered
-integer fits:
+exactly `limb_count` limbs, where `limb_count` is in `[1, 32]`, and returns
+`RNS8_RANGE_ERROR` unless the centered integer fits:
 
 ```text
 -2^(64 * limb_count - 1) <= value <= 2^(64 * limb_count - 1) - 1
 ```
 
-Unsigned export is magnitude in exactly `limb_count` limbs and returns
-`RNS8_RANGE_ERROR` unless the canonical integer fits:
+Unsigned export is magnitude in exactly `limb_count` limbs, where `limb_count`
+is in `[1, 32]`, and returns `RNS8_RANGE_ERROR` unless the canonical integer
+fits:
 
 ```text
 0 <= value <= 2^(64 * limb_count) - 1
@@ -764,6 +771,10 @@ Unsigned export is magnitude in exactly `limb_count` limbs and returns
 These APIs do not truncate, wrap, or infer bounded 64-bit behavior from the
 destination type. They are separate from bounded i64/u64 export and strict
 wraparound semantics.
+
+Exact-wide descriptors use `RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound
+storage. Global bounded descriptors also carry no tile-bound pointer/count.
+Stale bound metadata is rejected rather than ignored.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a

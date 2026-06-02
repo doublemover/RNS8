@@ -29,6 +29,13 @@ Implemented correctness coverage:
   rejects bounded-looking metadata, finite-ring/finite-field/future accelerator
   requests report unsupported, and strict wraparound never falls through to
   bounded CRT behavior.
+- Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
+  nonzero bounds, global plans carrying tile-bound storage, and matrix
+  descriptors whose owned RNS or byte-limb storage would overflow the host
+  allocation size.
+- Persistent workspace guard tests reject same-shape workspaces from different
+  semantic contracts or bound kinds, so workspace reuse cannot silently route a
+  bounded, exact-wide, per-tile, or wrap64 plan through another contract.
 - Negative semantic tests that exact-wide signed/unsigned and strict
   `mod 2^64` wraparound reject bounded-looking metadata, including explicit
   global bounds and input-range bounds. A bounded prefix alone is not a license
@@ -39,11 +46,12 @@ Implemented correctness coverage:
 - Exact-wide signed and unsigned CPU and direct HIP limb export tests. Signed
   export is fixed-width little-endian two's-complement, unsigned export is
   fixed-width little-endian magnitude, `ld` is an element stride rather than a
-  limb stride, both report range errors when too few limbs are supplied, and
-  neither truncates nor wraps on insufficient width. Descriptor and export
-  tests reject cross-semantic bounded, signed/unsigned exact-wide, and wrap64
-  interpretations. Direct HIP export leaves device-resident residues on device
-  instead of synchronizing host residue storage.
+  limb stride, and `limb_count` must be in [1, 32]. Both report range errors
+  when too few limbs are supplied, and neither truncates nor wraps on
+  insufficient width. Descriptor and export tests reject cross-semantic
+  bounded, signed/unsigned exact-wide, and wrap64 interpretations. Direct HIP
+  export leaves device-resident residues on device instead of synchronizing
+  host residue storage.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
@@ -112,6 +120,8 @@ Semantic guardrail:
   magnitude limbs. The APIs report `RNS8_RANGE_ERROR` rather than truncating
   when the requested fixed width is too small, and they reject attempts to use
   bounded i64/u64 or strict wrap64 export as an exact-wide shortcut.
+  `limb_count == 0`, `limb_count > 32`, and output leading dimensions smaller
+  than the matrix width are invalid ABI calls.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested

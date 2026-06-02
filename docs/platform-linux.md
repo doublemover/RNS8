@@ -39,21 +39,25 @@ correctness:
 The checker and CMake find modules report hipBLASLt, CK, and rocWMMA discovery
 as candidate evidence only. The hipBLASLt shallow probe looks for headers,
 libraries, and the optional `hipblaslt-bench` utility; CK and rocWMMA shallow
-probes look for their headers. Optional compiled evidence can be requested with:
+probes look for their headers. AMDGPU builtin readiness has no shallow
+discovery-only pass; it remains not ready until target-specific exact kernels
+exist. Optional compiled evidence can be requested with:
 
 ```bash
 python tools/check_dependencies.py --accelerator-probes --json
 cmake --preset linux-rocm-accelerator-probe
 ```
 
-These probes write scratch evidence under `temp/` or configure an evidence-only
-CMake preset. They keep `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`, and
-`RNS8_ENABLE_ROCWMMA` disabled. Linux production readiness still requires
-target-supported components, compiled capability probes, exact CPU differential
-coverage, and measured performance before enabling advanced backend stages.
-AMDGPU builtin hot kernels follow the same rule: compiler or architecture
-availability is only candidate evidence until a target-specific kernel has exact
-CPU differential coverage.
+Component probes write scratch evidence under `temp/` or configure an
+evidence-only CMake preset. AMDGPU builtin probes report
+`NOT_RUN_NO_CORRECTNESS_KERNEL` until a real target-specific exact kernel
+exists. They keep `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
+`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` disabled. Linux
+production readiness still requires target-supported components, compiled
+capability probes, exact CPU differential coverage, and measured performance
+before enabling advanced backend stages. AMDGPU builtin hot kernels follow the
+same rule: compiler or architecture availability is only candidate evidence
+until a target-specific kernel has exact CPU differential coverage.
 
 Before claiming Linux production readiness, run direct HIP parity tests on the
 target ROCm release and actual supported Radeon or Instinct hardware. Until

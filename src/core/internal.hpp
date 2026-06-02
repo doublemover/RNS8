@@ -63,6 +63,8 @@ struct rns8_matrix {
 
 struct rns8_workspace {
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  rns8_bound_kind bound_kind = RNS8_BOUND_NONE;
   int64_t m = 0;
   int64_t n = 0;
   int64_t k = 0;
