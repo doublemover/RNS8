@@ -299,4 +299,19 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
   include(Catch)
   catch_discover_tests(rns8_tests)
+  if(RNS8_ENABLE_HIP)
+    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_HIP_ISA_CHECK_TARGET)
+    add_test(
+      NAME hip_direct_kernel_isa_check
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_hip_kernel_isa.py"
+        --object "${RNS8_HIP_DIRECT_KERNEL_OBJECT}"
+        --target "${RNS8_HIP_ISA_CHECK_TARGET}"
+        --hipcc "${RNS8_HIP_HIPCC}"
+        --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(hip_direct_kernel_isa_check PROPERTIES LABELS "hip;isa;hard-cut")
+  endif()
 endif()

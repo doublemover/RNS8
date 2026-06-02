@@ -157,8 +157,11 @@ disagree, the spec remains the target and this file identifies the gap.
    direct correctness kernel. The path writes centered `int8_t` residues and
    does not materialize full INT32 output matrices in global memory. GEMM
    reduction now uses exact small-modulus reciprocal metadata validated by the
-   host launch boundary. ISA-level validation and architecture-tuned matrix
-   kernels remain future performance work.
+   host launch boundary. The Windows HIP CTest gate extracts the compiled
+   `gfx1100` code object and checks that the direct HIP RNS GEMM kernels contain
+   reciprocal multiply-high instructions and no divide/remainder/rcp mnemonics.
+   Architecture-tuned matrix kernels and broader ISA validation remain future
+   performance work.
 3. GPU bounded i64/u64 CRT/export: implemented for direct HIP with device-side
    Garner reconstruction, range-error status reporting, signed `INT64_MIN`
    handling, unsigned `UINT64_MAX` handling, per-tile bounds, and CPU
@@ -216,10 +219,10 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Not Yet Implemented
 
-- Optimized matrix-engine HIP kernels and instruction-level validation. The
-  direct HIP kernels are correctness bring-up kernels, not performance
-  evidence, even though their GEMM reduction now uses validated exact
-  reciprocal metadata.
+- Optimized matrix-engine HIP kernels and broader instruction-level validation
+  beyond the current no-divide reciprocal GEMM gate. The direct HIP kernels are
+  correctness bring-up kernels, not performance evidence, even though their GEMM
+  reduction now uses validated exact reciprocal metadata.
 - Production performance gates for the fixed 9-modulus bounded milestone. The
   current fixed-prefix CPU and direct-HIP paths are correctness-grade and
   unoptimized unless a reviewed benchmark capture says otherwise.
@@ -247,15 +250,20 @@ does not promote ignored `temp/` captures or historical schema versions into the
 current tracked schema contract.
 
 - `cmake --build --preset windows-debug`: passed from a Visual Studio
-  developer environment after the persistent finite `uint8_t` implementation.
-- `ctest --preset windows-debug --output-on-failure`: 165/165 passed on the
-  Windows HIP debug build. The private mismatched-modulus metadata smoke remains
-  intentionally skipped when the low-level direct-HIP device entry point is
-  unavailable to that test process.
+  developer environment after the reciprocal-reduction and ISA-gate work.
+- `ctest --preset windows-debug --output-on-failure`: 167/167 passed on the
+  Windows HIP debug build. The private mismatched-modulus/wrong-reciprocal
+  metadata smoke now runs in HIP builds, and the HIP-only
+  `hip_direct_kernel_isa_check` extracts the `gfx1100` code object and verifies
+  the direct RNS GEMM kernels contain `v_mul_hi_u32` with no divide/remainder/rcp
+  mnemonics.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   finite `uint8_t`, and wrap64 smoke passed, including resident finite CPU/HIP
   parity.
+- Recent pushed hard-cut commits through `c25b481` add persistent finite
+  `uint8_t` CPU/direct-HIP support and exact reciprocal metadata validation for
+  direct HIP RNS GEMM reduction.
 - Recent pushed hard-cut commits through `6fbccd9` add device-current direct-HIP
   RNS input/export enforcement, matrix-owned bounded export schedule/bounds
   metadata, tiled wrap64 compact-cell staging, removal of retired host-residue
