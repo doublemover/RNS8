@@ -38,7 +38,10 @@ Implemented correctness coverage:
   metadata, stale-prefix matrix handles, bounded matrix handles, wrap byte-limb
   matrix handles, bounded export shortcuts, wrap export shortcuts,
   signed/unsigned exact-wide cross-export attempts, and unsupported accelerator
-  context kinds.
+  context kinds. One-shot helpers preserve the same status precedence as plan
+  creation: malformed descriptors return `RNS8_INVALID_ARGUMENT` even when they
+  name future/evidence-only backends, while valid descriptors for unavailable
+  backends return `RNS8_UNSUPPORTED_BACKEND`.
 - Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
   nonzero bounds, global plans carrying tile-bound storage, and matrix
   descriptors whose owned RNS or byte-limb storage would overflow the host

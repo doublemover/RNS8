@@ -954,6 +954,26 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   CHECK(rns8_create_plan(wrap_ctx, &bounded_looking, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
+  auto malformed_with_future_backend = bounded_looking;
+  malformed_with_future_backend.requested_backend = RNS8_BACKEND_HIPBLASLT;
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &malformed_with_future_backend, A, k, B, n, C, n) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(wrap_ctx, &malformed_with_future_backend, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  auto valid_with_future_backend = desc;
+  valid_with_future_backend.requested_backend = RNS8_BACKEND_HIPBLASLT;
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &valid_with_future_backend, A, k, B, n, C, n) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_create_plan(wrap_ctx, &valid_with_future_backend, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+
+  auto auto_backend = desc;
+  auto_backend.requested_backend = RNS8_BACKEND_AUTO;
+  CHECK(rns8_gemm_wrap_u64_oneshot(cpu_ctx, &auto_backend, A, k, B, n, C, n) == RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &auto_backend, A, k, B, n, C, n) == RNS8_SUCCESS);
+  CHECK(C[0] == std::numeric_limits<uint64_t>::max() - 1u);
+
   auto prefixed = desc;
   prefixed.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &prefixed, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
