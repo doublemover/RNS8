@@ -871,25 +871,6 @@ rns8_status ensure_device_residues_current(rns8_matrix& matrix) {
   return status;
 }
 
-rns8_status ensure_host_residues_current(const rns8_matrix& const_matrix) {
-  auto& matrix = const_cast<rns8_matrix&>(const_matrix);
-  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT) {
-    return RNS8_SUCCESS;
-  }
-  if (matrix.host_residues_current) {
-    return RNS8_SUCCESS;
-  }
-  if (!matrix.device_residues_current || !matrix.hip_residues || matrix.hip_residue_bytes == 0) {
-    return RNS8_INTERNAL_ERROR;
-  }
-  const rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
-      matrix.hip_device_id, matrix.residues.data(), matrix.hip_residues, matrix.hip_residue_bytes);
-  if (status == RNS8_SUCCESS) {
-    matrix.host_residues_current = true;
-  }
-  return status;
-}
-
 }  // namespace
 
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
@@ -1579,10 +1560,6 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           dst,
           ld);
     }
-    const rns8_status sync_status = ensure_host_residues_current(*C);
-    if (sync_status != RNS8_SUCCESS) {
-      return sync_status;
-    }
     std::vector<int64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
@@ -1654,10 +1631,6 @@ rns8_status rns8_export_u64(
           plan->desc.bound,
           dst,
           ld);
-    }
-    const rns8_status sync_status = ensure_host_residues_current(*C);
-    if (sync_status != RNS8_SUCCESS) {
-      return sync_status;
     }
     std::vector<uint64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
@@ -1760,10 +1733,6 @@ rns8_status rns8_export_exact_wide_signed_limbs(
           ld,
           limb_count);
     }
-    const rns8_status sync_status = ensure_host_residues_current(*C);
-    if (sync_status != RNS8_SUCCESS) {
-      return sync_status;
-    }
     std::vector<uint64_t> staged(
         static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n) *
             static_cast<std::size_t>(limb_count),
@@ -1825,10 +1794,6 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
           dst,
           ld,
           limb_count);
-    }
-    const rns8_status sync_status = ensure_host_residues_current(*C);
-    if (sync_status != RNS8_SUCCESS) {
-      return sync_status;
     }
     std::vector<uint64_t> staged(
         static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n) *
