@@ -21,6 +21,7 @@ typedef struct rns8_context_options {
   uint64_t struct_size;
   uint32_t abi_version;
   rns8_backend_kind requested_backend;
+  /* Reserved for future hard-cut ABI versions. Must be zero. */
   uint32_t flags;
 } rns8_context_options;
 
@@ -51,6 +52,7 @@ typedef struct rns8_gemm_desc {
   uint32_t max_prefix;
   uint32_t tile_m;
   uint32_t tile_n;
+  /* Reserved for future hard-cut ABI versions. Must be zero. */
   uint32_t flags;
   const uint64_t* tile_bounds;
   uint64_t tile_bounds_count;
@@ -68,6 +70,7 @@ typedef struct rns8_matrix_desc {
   uint32_t tile_m;
   uint32_t tile_n;
   uint32_t max_prefix;
+  /* Reserved for future hard-cut ABI versions. Must be zero. */
   uint32_t flags;
 } rns8_matrix_desc;
 
@@ -209,12 +212,16 @@ RNS8_API rns8_status rns8_export_wrap_u64(
  *
  * `limb_count` is the fixed output width and must be in [1, 32].
  *
- * The reconstructed centered integer must fit the fixed-width signed range
- * [-2^(64 * limb_count - 1), 2^(64 * limb_count - 1) - 1]. Successful exports
- * use two's-complement representation in exactly the requested width. Too few
- * limbs return RNS8_RANGE_ERROR; the value is never truncated, saturated, or
- * treated as mod 2^64 wraparound. This API is separate from bounded i64/u64
- * export and from strict mod 2^64 wraparound byte-limb export.
+ * The reconstructed centered integer uses the selected modulus product P and
+ * maps canonical CRT value x to x - P when x >= ceil(P / 2). It must fit the
+ * fixed-width signed range [-2^(64 * limb_count - 1),
+ * 2^(64 * limb_count - 1) - 1]. Successful exports use two's-complement
+ * representation in exactly the requested width. Too few limbs return
+ * RNS8_RANGE_ERROR; invalid handles, invalid leading dimensions, null
+ * destinations, and invalid limb counts return RNS8_INVALID_ARGUMENT. The value
+ * is never truncated, saturated, or treated as mod 2^64 wraparound. This API is
+ * separate from bounded i64/u64 export and from strict mod 2^64 wraparound
+ * byte-limb export.
  */
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
@@ -234,10 +241,11 @@ RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
  *
  * The reconstructed canonical integer must fit the fixed-width unsigned range
  * [0, 2^(64 * limb_count) - 1]. Successful exports use magnitude limbs in
- * exactly the requested width. Too few limbs return RNS8_RANGE_ERROR; the value
- * is never truncated, saturated, or treated as strict mod 2^64 wraparound. This
- * API is separate from bounded i64/u64 export and from strict mod 2^64
- * wraparound byte-limb export.
+ * exactly the requested width. Too few limbs return RNS8_RANGE_ERROR; invalid
+ * handles, invalid leading dimensions, null destinations, and invalid limb
+ * counts return RNS8_INVALID_ARGUMENT. The value is never truncated, saturated,
+ * or treated as strict mod 2^64 wraparound. This API is separate from bounded
+ * i64/u64 export and from strict mod 2^64 wraparound byte-limb export.
  */
 RNS8_API rns8_status rns8_export_exact_wide_unsigned_limbs(
     rns8_context* ctx,

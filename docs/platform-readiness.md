@@ -21,13 +21,26 @@ This file describes readiness policy, not a fresh validation record.
 - `ld` is a leading dimension in matrix elements, not limbs.
 - `limb_count` is the fixed output width and must be in `[1, 32]`.
 - Signed export emits fixed-width little-endian two's-complement limbs for the
-  centered exact integer.
+  centered exact integer. The centered threshold is `x >= ceil(P / 2)` for the
+  selected modulus product `P`, so an even-product half residue class is
+  represented as negative.
 - Unsigned export emits fixed-width little-endian magnitude limbs for the
   canonical nonnegative integer.
 - Too-small widths return `RNS8_RANGE_ERROR`; invalid width, stride, or null
   pointers return `RNS8_INVALID_ARGUMENT`.
 - Exact-wide export is not bounded `i64/u64` export and is not strict
   `mod 2^64` wraparound.
+
+## Requirement Audit
+
+| Requirement | Current contract |
+|---|---|
+| Explicit bound-none exact-wide descriptors | Exact-wide plan descriptors require `RNS8_BOUND_NONE`, `bound = 0`, and no `tile_bounds` pointer or count. Exact-wide matrix descriptors also require `RNS8_BOUND_NONE`. Stale bound metadata is malformed input and returns `RNS8_INVALID_ARGUMENT`, not an accelerator or alternate route. |
+| Fixed-width signed limbs | Signed export reconstructs the centered exact integer with the `x >= ceil(P / 2)` negative threshold and emits exactly `limb_count` little-endian two's-complement limbs. Too-small widths return `RNS8_RANGE_ERROR`; no low-limb truncation or wrap interpretation is accepted. |
+| Fixed-width unsigned limbs | Unsigned export reconstructs the canonical nonnegative integer and emits exactly `limb_count` little-endian magnitude limbs. Too-small widths return `RNS8_RANGE_ERROR`; no low-limb truncation or wrap interpretation is accepted. |
+| Public export ABI | `ld` is an element stride, `limb_count` must be in `[1, 32]`, and null `ctx`, `plan`, `matrix`, or `dst` arguments are invalid API calls. |
+| Accelerator enablement | hipBLASLt, CK, rocWMMA, and AMDGPU builtin enable flags intentionally fail fast until real correctness backends exist. Probes collect candidate evidence only. |
+| Linux ROCm and Instinct | Linux ROCm, Radeon Linux, and Instinct CDNA gates are represented by presets, target metadata, and dependency reports. Windows evidence does not validate them; they require a real Linux ROCm host with supported hardware. |
 
 ## Accelerator Gates
 

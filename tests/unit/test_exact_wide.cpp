@@ -105,7 +105,124 @@ std::vector<uint64_t> signed_twos_complement_limbs(boost::multiprecision::cpp_in
   return unsigned_limbs(value, limb_count);
 }
 
+std::vector<int8_t> residues_for(boost::multiprecision::cpp_int value, uint32_t prefix) {
+  std::vector<int8_t> residues(prefix);
+  for (uint32_t p = 0; p < prefix; ++p) {
+    residues[p] = rns8::detail::centered_residue(value, rns8::detail::kDefaultModuli[p]);
+  }
+  return residues;
+}
+
+void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::multiprecision::cpp_int>& values) {
+  REQUIRE(matrix != nullptr);
+  REQUIRE(values.size() == static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols));
+  std::vector<std::vector<int8_t>> residues;
+  residues.reserve(values.size());
+  for (const auto& value : values) {
+    residues.push_back(residues_for(value, matrix->prefix));
+  }
+  for (uint32_t p = 0; p < matrix->prefix; ++p) {
+    for (int64_t row = 0; row < matrix->desc.rows; ++row) {
+      for (int64_t col = 0; col < matrix->desc.cols; ++col) {
+        const std::size_t value_index = static_cast<std::size_t>(row * matrix->desc.cols + col);
+        const std::size_t residue_index = rns8::detail::residue_index(*matrix, p, row, col);
+        matrix->residues[residue_index] = residues[value_index][p];
+      }
+    }
+  }
+  matrix->host_residues_current = true;
+  matrix->device_residues_current = false;
+  matrix->host_byte_limbs_current = false;
+  matrix->device_byte_limbs_current = false;
+}
+
 }  // namespace
+
+TEST_CASE("exact-wide signed CRT export uses centered half-open representative") {
+  constexpr uint32_t prefix = 3;
+  const boost::multiprecision::cpp_int product = rns8::detail::modulus_product(prefix);
+  const boost::multiprecision::cpp_int half = product / 2;
+  const auto residues = residues_for(half, prefix);
+
+  uint64_t limb = 0;
+  REQUIRE(rns8::detail::export_exact_wide_signed_limbs(residues, prefix, &limb, 1) == RNS8_SUCCESS);
+  const auto expected = signed_twos_complement_limbs(-half, 1);
+  CHECK(limb == expected[0]);
+
+  int64_t bounded = 0;
+  const boost::multiprecision::cpp_int below_half = half - 1;
+  const auto bounded_residues = residues_for(below_half, prefix);
+  CHECK(rns8::detail::reconstruct_signed(
+            bounded_residues, prefix, static_cast<uint64_t>(below_half), bounded) == RNS8_SUCCESS);
+  CHECK(boost::multiprecision::cpp_int(bounded) == below_half);
+}
+
+TEST_CASE("exact-wide signed fixed-width limb export covers one-limb boundaries") {
+  constexpr uint32_t prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  uint64_t limbs[32] = {};
+
+  auto export_signed = [&](boost::multiprecision::cpp_int value, uint32_t limb_count) {
+    const auto residues = residues_for(value, prefix);
+    return rns8::detail::export_exact_wide_signed_limbs(residues, prefix, limbs, limb_count);
+  };
+
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::max()), 1) == RNS8_SUCCESS);
+  CHECK(limbs[0] == 0x7fffffffffffffffull);
+
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 1) == RNS8_SUCCESS);
+  CHECK(limbs[0] == 0x8000000000000000ull);
+
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(-1), 1) == RNS8_SUCCESS);
+  CHECK(limbs[0] == std::numeric_limits<uint64_t>::max());
+
+  constexpr uint64_t sentinel = 0x8787878787878787ull;
+  for (uint64_t& limb : limbs) {
+    limb = sentinel;
+  }
+  CHECK(export_signed(boost::multiprecision::cpp_int(1) << 63u, 1) == RNS8_RANGE_ERROR);
+  CHECK(limbs[0] == sentinel);
+
+  for (uint64_t& limb : limbs) {
+    limb = sentinel;
+  }
+  CHECK(export_signed(-((boost::multiprecision::cpp_int(1) << 63u) + 1), 1) == RNS8_RANGE_ERROR);
+  CHECK(limbs[0] == sentinel);
+
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(-1), 32) == RNS8_SUCCESS);
+  for (uint64_t limb : limbs) {
+    CHECK(limb == std::numeric_limits<uint64_t>::max());
+  }
+}
+
+TEST_CASE("exact-wide unsigned fixed-width limb export covers overflow and max width") {
+  constexpr uint32_t prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  uint64_t limbs[32] = {};
+
+  auto export_unsigned = [&](boost::multiprecision::cpp_int value, uint32_t limb_count) {
+    const auto residues = residues_for(value, prefix);
+    return rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, limbs, limb_count);
+  };
+
+  REQUIRE(export_unsigned(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 1) == RNS8_SUCCESS);
+  CHECK(limbs[0] == std::numeric_limits<uint64_t>::max());
+
+  constexpr uint64_t sentinel = 0x9696969696969696ull;
+  for (uint64_t& limb : limbs) {
+    limb = sentinel;
+  }
+  CHECK(export_unsigned(boost::multiprecision::cpp_int(1) << 64u, 1) == RNS8_RANGE_ERROR);
+  CHECK(limbs[0] == sentinel);
+
+  REQUIRE(export_unsigned(boost::multiprecision::cpp_int(1) << 64u, 2) == RNS8_SUCCESS);
+  CHECK(limbs[0] == 0);
+  CHECK(limbs[1] == 1);
+
+  REQUIRE(export_unsigned(boost::multiprecision::cpp_int(1), 32) == RNS8_SUCCESS);
+  CHECK(limbs[0] == 1);
+  for (uint32_t limb = 1; limb < 32; ++limb) {
+    CHECK(limbs[limb] == 0);
+  }
+}
 
 TEST_CASE("exact-wide signed CPU RNS output matches multiprecision residues") {
   rns8_context* ctx = create_cpu();
@@ -410,6 +527,116 @@ TEST_CASE("exact-wide unsigned CPU limb export preserves padded destination cell
   rns8_destroy_matrix(a_matrix);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide CPU range errors preserve every destination cell") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 1;
+  constexpr int64_t n = 2;
+  constexpr int64_t k = 1;
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    fill_exact_residue_matrix(
+        c_matrix,
+        {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 63u});
+
+    constexpr uint64_t sentinel = 0x3131313131313131ull;
+    std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n), sentinel);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+    CHECK(limbs == std::vector<uint64_t>(static_cast<std::size_t>(m * n), sentinel));
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    fill_exact_residue_matrix(
+        c_matrix,
+        {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 64u});
+
+    constexpr uint64_t sentinel = 0x4141414141414141ull;
+    std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n), sentinel);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+    CHECK(limbs == std::vector<uint64_t>(static_cast<std::size_t>(m * n), sentinel));
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide CPU export rejects stale or non-RNS matrix state") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 1;
+  constexpr int64_t n = 1;
+  constexpr int64_t k = 1;
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(-1)});
+
+    uint64_t limbs[2] = {0x5151515151515151ull, 0x5252525252525252ull};
+    c_matrix->host_residues_current = false;
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0x5151515151515151ull);
+    CHECK(limbs[1] == 0x5252525252525252ull);
+    c_matrix->host_residues_current = true;
+
+    c_matrix->byte_limbs.push_back(0);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0x5151515151515151ull);
+    CHECK(limbs[1] == 0x5252525252525252ull);
+    c_matrix->byte_limbs.clear();
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(1)});
+
+    uint64_t limbs[2] = {0x6161616161616161ull, 0x6262626262626262ull};
+    c_matrix->host_residues_current = false;
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0x6161616161616161ull);
+    CHECK(limbs[1] == 0x6262626262626262ull);
+    c_matrix->host_residues_current = true;
+
+    c_matrix->host_byte_limbs_current = true;
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(limbs[0] == 0x6161616161616161ull);
+    CHECK(limbs[1] == 0x6262626262626262ull);
+    c_matrix->host_byte_limbs_current = false;
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_plan(plan);
+  }
+
   rns8_destroy_context(ctx);
 }
 

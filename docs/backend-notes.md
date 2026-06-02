@@ -53,11 +53,15 @@ and reduces each INT32 K-block sum to a centered residue in the kernel without
 materializing INT32 output matrices. For K above 65536, it launches multiple
 block kernels and accumulates the centered residue on device. The resident RNS
 GEMM host path routes every per-modulus launch through one metadata contract
-that carries the modulus index, the selected prefix for that full matrix or
-tile, and the safe K-block cap; the HIP launch entrypoint rejects inconsistent
-metadata before queueing kernels. The current centered-range correction code
-uses mask arithmetic instead of source-level `if` branches, but the kernel still
-uses ordinary modulo operations and has not been promoted to a
+that carries the modulus value, modulus index, selected prefix for that full
+matrix or tile, and the safe K-block cap; the host helper and HIP launch
+entrypoint reject inconsistent metadata before queueing kernels, including
+modulus values that do not match the default ladder entry for the supplied
+index. Tiled GEMM/export wrappers also reject malformed tile entries whose
+required prefix exceeds the selected prefix before launching kernels or growing
+export/status buffers. The current centered-range
+correction code uses mask arithmetic instead of source-level `if` branches, but
+the kernel still uses ordinary modulo operations and has not been promoted to a
 reciprocal-reduction or ISA-verified performance kernel.
 
 Persistent same-shape direct-HIP calls are allocation-observed in tests. The
@@ -65,6 +69,9 @@ first pack/export may grow matrix-owned upload/export/status buffers. A repeated
 pack/GEMM/export cycle over the same persistent matrices must leave the direct
 HIP allocation counters, device residue pointers, upload buffers, export buffer,
 and status buffer unchanged.
+Bounded direct-HIP exports require current device residues. A host-current
+matrix with stale device residues is rejected by bounded i64/u64 export instead
+of being uploaded implicitly during CRT reconstruction.
 
 Workspace ownership is also part of the semantic contract. Workspaces are
 created from a plan and remain tagged with that plan's backend, shape, prefix,
@@ -75,7 +82,10 @@ silently reused across contracts.
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
 a device status for range errors, and copies the compact output to the caller's
-host layout. Per-tile bounded export uses the same device reconstruction
+host layout only after the device status reports success. Range-error exports
+leave the caller's host output untouched and reuse the same matrix-owned
+export/status buffers on repeated same-shape calls; no upload buffer is grown by
+bounded export. Per-tile bounded export uses the same device reconstruction
 helpers with full-matrix residue strides, each tile's selected prefix, and each
 tile's copied bound. Signed export supports the full `int64_t` range, including
 `INT64_MIN` when the bounded contract supplies magnitude `2^63`. CPU
@@ -96,6 +106,9 @@ Global bounded descriptors likewise reject stray tile-bound pointers/counts.
 These checks return `RNS8_INVALID_ARGUMENT` for malformed descriptors, while
 valid semantics on unavailable backends still return `RNS8_UNSUPPORTED_BACKEND`.
 That split keeps stale CRT metadata from becoming an implicit alternate route.
+Exact-wide limb export applies the same split to public ABI arguments: null
+handles, null destinations, invalid `limb_count`, invalid `ld`, and overflowing
+output layout calculations are malformed calls, not unsupported backend cases.
 
 CPU export uses explicit fixed-width limbs: signed output reconstructs the
 centered integer and emits two's-complement in exactly `limb_count` limbs,
@@ -107,6 +120,12 @@ is accepted. Direct HIP exports exact-wide limbs from device-resident RNS
 matrices with the same fixed-width ABI, range-error behavior for too few limbs,
 and strided host layout. CPU Boost.Multiprecision reconstruction remains the
 reference and debug path.
+The CPU signed CRT representative uses the centered threshold
+`x >= ceil(P / 2)`, so the exact half-product residue class maps negative for
+even modulus products. Unit coverage pins one-limb signed min/max boundaries,
+negative two's-complement sign extension through 32 limbs, unsigned one-limb
+overflow rejection, two-limb unsigned success, padded element-stride export,
+descriptor rejection, and wrong export-function rejection.
 
 Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through byte-limb storage,
 not odd-modulus CRT. `RNS8_BACKEND_WRAP64_BYTE_LIMB` is the CPU reference
@@ -131,7 +150,14 @@ pack/export accept padded host layouts, but persistent byte-limb matrices and
 device buffers are compact row-major `rows * cols * 8` storage. The direct-HIP
 wrapper validates that compact byte-limb layout separately from padded host
 pitch so wrap64 cannot route through RNS residue storage or treat host padding
-as device limbs.
+as device limbs. CPU wrap64 GEMM consumes the same compact resident byte-limb
+layout and accumulates the low 36 byte-product diagonals with the signed-INT8
+correction helper before carry export; it does not reread padded host matrices
+after pack. CPU wrap64 GEMM also rejects matrices carrying stale residue
+currentness, device byte-limb currentness, or bounded per-tile schedule metadata.
+The public CPU and direct-HIP wrap64 pack/GEMM/export boundaries reject stale
+RNS residue currentness, CRT prefixes, bounded schedule fields, and residue
+storage before backend dispatch; those fields are not alternate wrap64 routes.
 
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from

@@ -242,6 +242,86 @@ TEST_CASE("bounded CPU reference matches fixed-seed random signed and unsigned c
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("phase 2 fixed 9-modulus CPU reference covers K-split edge cancellation") {
+  rns8_context* ctx = create_cpu();
+  for (int64_t k : {static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) - 1,
+                    static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK),
+                    static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) + 1}) {
+    {
+      constexpr int64_t m = 1;
+      constexpr int64_t n = 2;
+      const int64_t lda = k + 1;
+      constexpr int64_t ldb = 3;
+      std::vector<int64_t> A(static_cast<std::size_t>(m * lda), INT64_C(0x5a5a5a5a));
+      std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), INT64_C(-0x1234567));
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(kk)] = kk % 2 == 0 ? 127 : -127;
+        B[static_cast<std::size_t>(kk * ldb)] = 127;
+        B[static_cast<std::size_t>(kk * ldb + 1)] = -127;
+      }
+      assert_i64_public_matches_exact(ctx, m, n, k, A, lda, B, ldb);
+    }
+
+    {
+      constexpr int64_t m = 1;
+      constexpr int64_t n = 2;
+      const int64_t lda = k + 1;
+      constexpr int64_t ldb = 3;
+      std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), 0xfeedfacefeedfaceull);
+      std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), 0xdeadbeefdeadbeefull);
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(kk)] = 255;
+        B[static_cast<std::size_t>(kk * ldb)] = 1;
+        B[static_cast<std::size_t>(kk * ldb + 1)] = 255;
+      }
+      assert_u64_public_matches_exact(ctx, m, n, k, A, lda, B, ldb);
+    }
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width u64 outputs with padding") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 2;
+  constexpr int64_t k = 2;
+  constexpr int64_t lda = 3;
+  constexpr int64_t ldb = 3;
+  constexpr int64_t ldc = 3;
+  constexpr uint64_t sentinel = 0xaaaaaaaaaaaaaaaaull;
+  std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), sentinel);
+  std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), sentinel);
+  std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+  A[0] = std::numeric_limits<uint64_t>::max();
+  A[1] = std::numeric_limits<uint64_t>::max() - 1u;
+  A[lda] = 0;
+  A[lda + 1] = 1;
+  B[0] = 1;
+  B[1] = 0;
+  B[ldb] = 0;
+  B[ldb + 1] = 1;
+
+  auto desc = u64_desc(m, n, k, std::numeric_limits<uint64_t>::max());
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  rns8_destroy_plan(plan);
+
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  CHECK(C[0] == std::numeric_limits<uint64_t>::max());
+  CHECK(C[1] == std::numeric_limits<uint64_t>::max() - 1u);
+  CHECK(C[2] == sentinel);
+  CHECK(C[ldc] == 0);
+  CHECK(C[ldc + 1] == 1);
+  CHECK(C[ldc + 2] == sentinel);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded i64 CPU reference handles worst-case centered accumulation around K block") {
   rns8_context* ctx = create_cpu();
   for (int64_t k : {static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK),

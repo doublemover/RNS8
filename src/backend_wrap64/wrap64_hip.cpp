@@ -162,79 +162,9 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   return op_status;
 }
 
-rns8_status free_if_allocated(int device_id, void* ptr) {
-  return ptr ? hip_direct_free(device_id, ptr) : RNS8_SUCCESS;
-}
 #endif
 
 }  // namespace
-
-rns8_status wrap64_hip_gemm_byte_limbs(
-    int device_id,
-    const uint8_t* a_limbs,
-    const uint8_t* b_limbs,
-    uint8_t* c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
-  if (!a_limbs || !b_limbs || !c_limbs) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  Wrap64CompactLayout a_layout;
-  Wrap64CompactLayout b_layout;
-  Wrap64CompactLayout c_layout;
-  if (!checked_wrap64_gemm_compact_layouts(m, n, k, &a_layout, &b_layout, &c_layout)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-#if RNS8_ENABLE_HIP
-  void* d_a = nullptr;
-  void* d_b = nullptr;
-  void* d_c = nullptr;
-  rns8_status status = hip_direct_allocate(device_id, a_layout.byte_limb_bytes, &d_a);
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_allocate(device_id, b_layout.byte_limb_bytes, &d_b);
-  }
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_allocate(device_id, c_layout.byte_limb_bytes, &d_c);
-  }
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_host_to_device(device_id, d_a, a_limbs, a_layout.byte_limb_bytes);
-  }
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_host_to_device(device_id, d_b, b_limbs, b_layout.byte_limb_bytes);
-  }
-  if (status == RNS8_SUCCESS) {
-    const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
-        static_cast<const uint8_t*>(d_a),
-        static_cast<const uint8_t*>(d_b),
-        static_cast<uint8_t*>(d_c),
-        m,
-        n,
-        k);
-    status = code == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-  }
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_synchronize(device_id);
-  }
-  if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_device_to_host(device_id, c_limbs, d_c, c_layout.byte_limb_bytes);
-  }
-
-  const rns8_status free_c = free_if_allocated(device_id, d_c);
-  const rns8_status free_b = free_if_allocated(device_id, d_b);
-  const rns8_status free_a = free_if_allocated(device_id, d_a);
-  if (status == RNS8_SUCCESS && free_c != RNS8_SUCCESS) status = free_c;
-  if (status == RNS8_SUCCESS && free_b != RNS8_SUCCESS) status = free_b;
-  if (status == RNS8_SUCCESS && free_a != RNS8_SUCCESS) status = free_a;
-  return status;
-#else
-  (void)device_id;
-  (void)a_layout;
-  (void)b_layout;
-  (void)c_layout;
-  return RNS8_UNSUPPORTED_BACKEND;
-#endif
-}
 
 rns8_status wrap64_hip_pack_u64_device(
     int device_id,

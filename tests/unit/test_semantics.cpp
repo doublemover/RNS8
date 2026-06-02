@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "core/internal.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -101,6 +102,80 @@ TEST_CASE("bounded semantics reject bound none explicitly") {
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
   }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("reserved public ABI flags are hard rejected") {
+  {
+    rns8_context_options options{};
+    options.struct_size = sizeof(options);
+    options.abi_version = RNS8_ABI_VERSION;
+    options.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+    options.flags = 1;
+    rns8_context* ctx = nullptr;
+    CHECK(rns8_create_context(-1, &options, &ctx) == RNS8_INVALID_ARGUMENT);
+    CHECK(ctx == nullptr);
+  }
+
+  rns8_context* ctx = create_cpu();
+  {
+    auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    desc.flags = 1;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(plan == nullptr);
+  }
+  {
+    auto matrix = matrix_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    matrix.flags = 1;
+    rns8_matrix* storage = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before dispatch") {
+  rns8_context* ctx = create_cpu();
+  int64_t signed_a[4] = {1, 2, 3, 4};
+  int64_t signed_b[4] = {5, 6, 7, 8};
+  int64_t signed_c[4] = {};
+  uint64_t unsigned_a[4] = {1, 2, 3, 4};
+  uint64_t unsigned_b[4] = {5, 6, 7, 8};
+  uint64_t unsigned_c[4] = {};
+
+  auto signed_desc = gemm_desc(RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  signed_desc.m = 2;
+  signed_desc.n = 2;
+  signed_desc.k = 2;
+  signed_desc.bound = 100;
+  auto invalid_signed_abi = signed_desc;
+  invalid_signed_abi.struct_size = 0;
+  CHECK(rns8_gemm_i64_oneshot(ctx, &invalid_signed_abi, signed_a, 2, signed_b, 2, signed_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &signed_desc, signed_a, 1, signed_b, 2, signed_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &signed_desc, signed_a, 2, signed_b, 1, signed_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &signed_desc, signed_a, 2, signed_b, 2, signed_c, 1) ==
+        RNS8_INVALID_ARGUMENT);
+
+  auto unsigned_desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  unsigned_desc.m = 2;
+  unsigned_desc.n = 2;
+  unsigned_desc.k = 2;
+  unsigned_desc.bound = 100;
+  auto invalid_unsigned_abi = unsigned_desc;
+  invalid_unsigned_abi.abi_version = 0;
+  CHECK(rns8_gemm_u64_oneshot(ctx, &invalid_unsigned_abi, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 1, unsigned_b, 2, unsigned_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 2, unsigned_b, 1, unsigned_c, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 2, unsigned_b, 2, unsigned_c, 1) ==
+        RNS8_INVALID_ARGUMENT);
+
   rns8_destroy_context(ctx);
 }
 
@@ -422,6 +497,60 @@ TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different sema
   rns8_destroy_plan(per_tile_plan);
   rns8_destroy_plan(exact_plan);
   rns8_destroy_plan(bounded_plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("persistent RNS APIs reject stale plan schedule metadata before dispatch") {
+  rns8_context* ctx = create_cpu();
+  auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  desc.m = 1;
+  desc.n = 1;
+  desc.k = 1;
+  desc.bound = 100;
+
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+
+  plan->schedule_prefix_group_count = 0;
+  CHECK(rns8_get_plan_schedule_info(plan, &info) == RNS8_INVALID_ARGUMENT);
+  uint64_t written = 0;
+  CHECK(rns8_get_plan_tile_schedule(plan, nullptr, 0, &written) == RNS8_INVALID_ARGUMENT);
+  rns8_workspace* workspace = nullptr;
+  CHECK(rns8_create_workspace(ctx, plan, &workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(workspace == nullptr);
+  plan->schedule_prefix_group_count = 1;
+
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto a_desc = matrix_desc(1, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  auto b_desc = matrix_desc(1, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  auto c_desc = matrix_desc(1, 1, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  const uint64_t a = 3;
+  const uint64_t b = 5;
+  uint64_t c = 0;
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, &a, 1, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, &b, 1, 1) == RNS8_SUCCESS);
+
+  const uint32_t saved_min_selected = plan->schedule_min_selected_prefix;
+  plan->schedule_min_selected_prefix = 0;
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_u64(ctx, plan, c_matrix, &c, 1) == RNS8_INVALID_ARGUMENT);
+  plan->schedule_min_selected_prefix = saved_min_selected;
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
 

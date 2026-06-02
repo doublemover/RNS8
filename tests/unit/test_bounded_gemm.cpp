@@ -275,6 +275,89 @@ TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("phase 2 fixed 9-modulus per-tile schedules preserve signed and unsigned parity") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  const std::vector<uint64_t> unsigned_bounds = {7, 1000, 7000000, 1000000000};
+  const std::vector<uint64_t> signed_bounds = {6, 2000, 3000000, 1000000000};
+
+  auto unsigned_desc = u64_desc(m, n, k, 0);
+  unsigned_desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  unsigned_desc.tile_m = 64;
+  unsigned_desc.tile_n = 64;
+  unsigned_desc.tile_bounds = unsigned_bounds.data();
+  unsigned_desc.tile_bounds_count = unsigned_bounds.size();
+  auto signed_desc = i64_desc(m, n, k, 0);
+  signed_desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+  signed_desc.tile_m = 64;
+  signed_desc.tile_n = 64;
+  signed_desc.tile_bounds = signed_bounds.data();
+  signed_desc.tile_bounds_count = signed_bounds.size();
+
+  rns8_plan* unsigned_plan = nullptr;
+  rns8_plan* signed_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &unsigned_desc, &unsigned_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx, &signed_desc, &signed_plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info unsigned_info{};
+  unsigned_info.struct_size = sizeof(unsigned_info);
+  unsigned_info.abi_version = RNS8_ABI_VERSION;
+  rns8_plan_schedule_info signed_info{};
+  signed_info.struct_size = sizeof(signed_info);
+  signed_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(unsigned_plan, &unsigned_info) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_schedule_info(signed_plan, &signed_info) == RNS8_SUCCESS);
+  CHECK(unsigned_info.tile_rows == 2);
+  CHECK(unsigned_info.tile_cols == 2);
+  CHECK(unsigned_info.tile_count == 4);
+  CHECK(signed_info.tile_rows == unsigned_info.tile_rows);
+  CHECK(signed_info.tile_cols == unsigned_info.tile_cols);
+  CHECK(signed_info.tile_count == unsigned_info.tile_count);
+  CHECK(unsigned_info.min_selected_prefix == 1);
+  CHECK(unsigned_info.max_selected_prefix == 4);
+  CHECK(signed_info.min_selected_prefix == unsigned_info.min_selected_prefix);
+  CHECK(signed_info.max_selected_prefix == unsigned_info.max_selected_prefix);
+  CHECK(unsigned_info.prefix_group_count == 4);
+  CHECK(signed_info.prefix_group_count == unsigned_info.prefix_group_count);
+  CHECK(unsigned_info.adaptive_prefix_active == 1);
+  CHECK(signed_info.adaptive_prefix_active == 1);
+  CHECK(unsigned_info.adaptive_skip_active == 1);
+  CHECK(signed_info.adaptive_skip_active == 1);
+
+  uint64_t unsigned_written = 0;
+  uint64_t signed_written = 0;
+  std::vector<rns8_plan_tile_schedule_entry> unsigned_entries(4);
+  std::vector<rns8_plan_tile_schedule_entry> signed_entries(4);
+  REQUIRE(rns8_get_plan_tile_schedule(
+              unsigned_plan, unsigned_entries.data(), unsigned_entries.size(), &unsigned_written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(signed_plan, signed_entries.data(), signed_entries.size(), &signed_written) ==
+          RNS8_SUCCESS);
+  REQUIRE(unsigned_written == unsigned_entries.size());
+  REQUIRE(signed_written == signed_entries.size());
+
+  const uint32_t expected_prefixes[] = {1, 2, 3, 4};
+  for (std::size_t index = 0; index < unsigned_entries.size(); ++index) {
+    CHECK(unsigned_entries[index].tile_row == signed_entries[index].tile_row);
+    CHECK(unsigned_entries[index].tile_col == signed_entries[index].tile_col);
+    CHECK(unsigned_entries[index].row_offset == signed_entries[index].row_offset);
+    CHECK(unsigned_entries[index].col_offset == signed_entries[index].col_offset);
+    CHECK(unsigned_entries[index].row_extent == signed_entries[index].row_extent);
+    CHECK(unsigned_entries[index].col_extent == signed_entries[index].col_extent);
+    CHECK(unsigned_entries[index].required_prefix == expected_prefixes[index]);
+    CHECK(unsigned_entries[index].selected_prefix == expected_prefixes[index]);
+    CHECK(signed_entries[index].required_prefix == expected_prefixes[index]);
+    CHECK(signed_entries[index].selected_prefix == expected_prefixes[index]);
+    CHECK(unsigned_entries[index].group_index == index);
+    CHECK(signed_entries[index].group_index == index);
+  }
+
+  rns8_destroy_plan(signed_plan);
+  rns8_destroy_plan(unsigned_plan);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile bounds") {
   rns8_context* ctx = create_cpu();
   constexpr int64_t m = 65;

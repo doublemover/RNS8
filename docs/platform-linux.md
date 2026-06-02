@@ -63,3 +63,6 @@ Before claiming Linux production readiness, run direct HIP parity tests on the
 target ROCm release and actual supported Radeon or Instinct hardware. Until
 that happens, the Linux and Instinct entries are represented roadmap targets,
 not validated substitutes for the Windows `gfx1100` direct HIP evidence.
+Exact-wide signed/unsigned limb export must be validated on the same real Linux
+host before claiming Linux or Instinct parity; Windows fixed-width limb ABI
+evidence is not portable validation evidence.

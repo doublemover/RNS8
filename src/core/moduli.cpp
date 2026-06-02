@@ -191,6 +191,9 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (desc.flags != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (!valid_tile_size(desc.tile_m)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -228,6 +231,9 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.rows <= 0 || desc.cols <= 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (desc.flags != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR) {

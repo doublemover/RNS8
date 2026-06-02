@@ -278,8 +278,10 @@ bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {
 }
 
 bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows, int64_t cols) {
-  if (entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 || entry.col_extent <= 0 ||
-      entry.selected_prefix == 0 || entry.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+  if (entry.struct_size != sizeof(rns8_plan_tile_schedule_entry) || entry.abi_version != RNS8_ABI_VERSION ||
+      entry.flags != 0 || entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 ||
+      entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
+      entry.required_prefix > entry.selected_prefix || entry.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return false;
   }
   if (entry.row_offset > rows || entry.col_offset > cols) {
@@ -288,6 +290,22 @@ bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows
   return entry.row_extent <= rows - entry.row_offset && entry.col_extent <= cols - entry.col_offset &&
          entry.row_offset <= std::numeric_limits<int>::max() && entry.col_offset <= std::numeric_limits<int>::max() &&
          entry.row_extent <= std::numeric_limits<int>::max() && entry.col_extent <= std::numeric_limits<int>::max();
+}
+
+bool checked_tile_entries(
+    const rns8_plan_tile_schedule_entry* entries,
+    uint64_t entry_count,
+    int64_t rows,
+    int64_t cols) {
+  if (!entries || entry_count == 0 || entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    return false;
+  }
+  for (uint64_t index = 0; index < entry_count; ++index) {
+    if (!checked_tile_entry(entries[static_cast<std::size_t>(index)], rows, cols)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 struct hip_rns_modulus_launch {
@@ -300,6 +318,7 @@ struct hip_rns_modulus_launch {
   int64_t lda = 0;
   int64_t ldb = 0;
   int64_t ldc = 0;
+  uint16_t modulus = 0;
   uint32_t modulus_index = 0;
   uint32_t selected_prefix = 0;
 };
@@ -307,7 +326,9 @@ struct hip_rns_modulus_launch {
 bool checked_rns_modulus_launch(const hip_rns_modulus_launch& launch) {
   if (!launch.a || !launch.b || !launch.c || launch.m <= 0 || launch.n <= 0 || launch.k <= 0 ||
       launch.lda < launch.k || launch.ldb < launch.n || launch.ldc < launch.n || launch.selected_prefix == 0 ||
-      launch.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX || launch.modulus_index >= launch.selected_prefix) {
+      launch.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX || launch.modulus_index >= launch.selected_prefix ||
+      launch.modulus_index >= RNS8_DEFAULT_MODULUS_COUNT ||
+      launch.modulus != kDefaultModuli[launch.modulus_index]) {
     return false;
   }
   return launch.m <= std::numeric_limits<int>::max() && launch.n <= std::numeric_limits<int>::max() &&
@@ -330,7 +351,7 @@ hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
       static_cast<int>(launch.lda),
       static_cast<int>(launch.ldb),
       static_cast<int>(launch.ldc),
-      static_cast<int>(kDefaultModuli[launch.modulus_index]),
+      static_cast<int>(launch.modulus),
       static_cast<int>(launch.modulus_index),
       static_cast<int>(launch.selected_prefix),
       static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
@@ -832,6 +853,7 @@ rns8_status hip_direct_gemm_rns_device(
           lda,
           ldb,
           ldc,
+          kDefaultModuli[p],
           p,
           prefix});
       if (launch_status != hipSuccess) {
@@ -881,6 +903,9 @@ rns8_status hip_direct_gemm_rns_tiled_device(
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (!checked_tile_entries(entries, entry_count, m, n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
     return device_status;
@@ -912,6 +937,7 @@ rns8_status hip_direct_gemm_rns_tiled_device(
             lda,
             ldb,
             ldc,
+            kDefaultModuli[p],
             p,
             entry.selected_prefix});
         if (launch_status != hipSuccess) {
@@ -1051,6 +1077,9 @@ rns8_status hip_direct_export_i64_tiled_device(
       !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
       !checked_output_bytes(rows, cols, sizeof(int64_t)) || entry_count == 0 ||
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!checked_tile_entries(entries, entry_count, rows, cols)) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -1251,6 +1280,9 @@ rns8_status hip_direct_export_u64_tiled_device(
       !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
       !checked_output_bytes(rows, cols, sizeof(uint64_t)) || entry_count == 0 ||
       entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!checked_tile_entries(entries, entry_count, rows, cols)) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
