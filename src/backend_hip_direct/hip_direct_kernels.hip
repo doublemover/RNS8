@@ -35,6 +35,7 @@ constexpr int kRns8HipTileN = 16;
 constexpr int kRns8HipTileK = 64;
 constexpr int kRns8HipTileNPadded = kRns8HipTileN + 1;
 constexpr int kRns8SafeInt32KBlock = 65536;
+constexpr int kRns8MaxInt = 2147483647;
 
 static_assert(
     kRns8HipTileM * kRns8HipTileN == 256,
@@ -566,50 +567,80 @@ __global__ void rns8_export_u64_kernel(
   rns8_export_u64_cell_device(residues, dst, cell, elements, prefix, bound, status);
 }
 
-__global__ void rns8_export_i64_tile_kernel(
+__global__ void rns8_export_i64_scheduled_kernel(
     const int8_t* residues,
     int64_t* dst,
+    const rns8_plan_tile_schedule_entry* schedule,
+    const uint64_t* bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* status) {
-  const int tile_cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int blocks_per_tile = (max_tile_elements + static_cast<int>(blockDim.x) - 1) / static_cast<int>(blockDim.x);
+  if (blocks_per_tile <= 0) {
+    return;
+  }
+  const int entry_index = static_cast<int>(blockIdx.x) / blocks_per_tile;
+  if (entry_index >= entry_count) {
+    return;
+  }
+  const int tile_block = static_cast<int>(blockIdx.x) - entry_index * blocks_per_tile;
+  const int tile_cell = tile_block * static_cast<int>(blockDim.x) + static_cast<int>(threadIdx.x);
+  if (tile_cell >= max_tile_elements) {
+    return;
+  }
+  const rns8_plan_tile_schedule_entry entry = schedule[entry_index];
+  const int row_extent = static_cast<int>(entry.row_extent);
+  const int col_extent = static_cast<int>(entry.col_extent);
   const int tile_elements = row_extent * col_extent;
   if (tile_cell >= tile_elements) {
     return;
   }
   const int local_row = tile_cell / col_extent;
   const int local_col = tile_cell - local_row * col_extent;
-  const int global_cell = (row_offset + local_row) * cols + (col_offset + local_col);
-  rns8_export_i64_cell_device(residues, dst, global_cell, rows * cols, prefix, bound, status);
+  const int global_cell =
+      (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  rns8_export_i64_cell_device(
+      residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
 
-__global__ void rns8_export_u64_tile_kernel(
+__global__ void rns8_export_u64_scheduled_kernel(
     const int8_t* residues,
     uint64_t* dst,
+    const rns8_plan_tile_schedule_entry* schedule,
+    const uint64_t* bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* status) {
-  const int tile_cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int blocks_per_tile = (max_tile_elements + static_cast<int>(blockDim.x) - 1) / static_cast<int>(blockDim.x);
+  if (blocks_per_tile <= 0) {
+    return;
+  }
+  const int entry_index = static_cast<int>(blockIdx.x) / blocks_per_tile;
+  if (entry_index >= entry_count) {
+    return;
+  }
+  const int tile_block = static_cast<int>(blockIdx.x) - entry_index * blocks_per_tile;
+  const int tile_cell = tile_block * static_cast<int>(blockDim.x) + static_cast<int>(threadIdx.x);
+  if (tile_cell >= max_tile_elements) {
+    return;
+  }
+  const rns8_plan_tile_schedule_entry entry = schedule[entry_index];
+  const int row_extent = static_cast<int>(entry.row_extent);
+  const int col_extent = static_cast<int>(entry.col_extent);
   const int tile_elements = row_extent * col_extent;
   if (tile_cell >= tile_elements) {
     return;
   }
   const int local_row = tile_cell / col_extent;
   const int local_col = tile_cell - local_row * col_extent;
-  const int global_cell = (row_offset + local_row) * cols + (col_offset + local_col);
-  rns8_export_u64_cell_device(residues, dst, global_cell, rows * cols, prefix, bound, status);
+  const int global_cell =
+      (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  rns8_export_u64_cell_device(
+      residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
 
 __global__ void rns8_export_exact_wide_unsigned_limbs_kernel(
@@ -864,37 +895,40 @@ extern "C" int rns8_hip_direct_export_i64_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_i64_tile_device(
+extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     const int8_t* d_residues,
     int64_t* d_dst,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* d_status) {
+  if (!d_residues || !d_dst || !d_schedule || !d_bounds || !d_status || entry_count <= 0 ||
+      max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
   const int threads = 256;
-  const int elements = row_extent * col_extent;
-  const int blocks = (elements + threads - 1) / threads;
+  const int blocks = (max_tile_elements + threads - 1) / threads;
+  if (entry_count > kRns8MaxInt / blocks) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int total_blocks = entry_count * blocks;
   hipLaunchKernelGGL(
-      rns8_export_i64_tile_kernel,
-      dim3(blocks),
+      rns8_export_i64_scheduled_kernel,
+      dim3(total_blocks),
       dim3(threads),
       0,
       nullptr,
       d_residues,
       d_dst,
+      d_schedule,
+      d_bounds,
+      entry_count,
+      max_tile_elements,
       rows,
       cols,
-      row_offset,
-      col_offset,
-      row_extent,
-      col_extent,
-      prefix,
-      bound,
       d_status);
   return static_cast<int>(hipGetLastError());
 }
@@ -926,37 +960,40 @@ extern "C" int rns8_hip_direct_export_u64_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_u64_tile_device(
+extern "C" int rns8_hip_direct_export_u64_scheduled_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* d_status) {
+  if (!d_residues || !d_dst || !d_schedule || !d_bounds || !d_status || entry_count <= 0 ||
+      max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
   const int threads = 256;
-  const int elements = row_extent * col_extent;
-  const int blocks = (elements + threads - 1) / threads;
+  const int blocks = (max_tile_elements + threads - 1) / threads;
+  if (entry_count > kRns8MaxInt / blocks) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int total_blocks = entry_count * blocks;
   hipLaunchKernelGGL(
-      rns8_export_u64_tile_kernel,
-      dim3(blocks),
+      rns8_export_u64_scheduled_kernel,
+      dim3(total_blocks),
       dim3(threads),
       0,
       nullptr,
       d_residues,
       d_dst,
+      d_schedule,
+      d_bounds,
+      entry_count,
+      max_tile_elements,
       rows,
       cols,
-      row_offset,
-      col_offset,
-      row_extent,
-      col_extent,
-      prefix,
-      bound,
       d_status);
   return static_cast<int>(hipGetLastError());
 }
