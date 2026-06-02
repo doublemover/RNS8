@@ -132,14 +132,14 @@ Install the Radeon Developer Tool Suite by extracting the AMD zip into a stable
 local tools directory. The current local setup uses:
 
 ```text
-C:\Users\sneak\Tools\RadeonDeveloperToolSuite-2026-02-02-1757
+~\Tools\RadeonDeveloperToolSuite-2026-02-02-1757
 ```
 
 Add that directory to PATH if you want `rga.exe` and the Radeon tools to be
 discoverable from a shell:
 
 ```powershell
-$rdts = 'C:\Users\sneak\Tools\RadeonDeveloperToolSuite-2026-02-02-1757'
+$rdts = '~\Tools\RadeonDeveloperToolSuite-2026-02-02-1757'
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $parts = @($userPath -split ';' | Where-Object { $_ })
 if ($parts -notcontains $rdts) {
