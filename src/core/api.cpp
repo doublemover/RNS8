@@ -789,6 +789,25 @@ rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
     matrix.hip_export_buffer = nullptr;
     matrix.hip_export_bytes = 0;
   }
+  if (matrix.hip_export_tile_bounds) {
+    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_export_tile_bounds);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_export_tile_bounds = nullptr;
+    matrix.hip_export_tile_bounds_bytes = 0;
+    matrix.hip_export_tile_bounds_count = 0;
+  }
+  if (matrix.hip_export_tile_schedule) {
+    const rns8_status free_status =
+        rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_export_tile_schedule);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_export_tile_schedule = nullptr;
+    matrix.hip_export_tile_schedule_bytes = 0;
+    matrix.hip_export_tile_schedule_count = 0;
+  }
   if (matrix.hip_residues) {
     const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_residues);
     if (status == RNS8_SUCCESS) {
@@ -805,6 +824,8 @@ rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
     matrix.hip_byte_limbs = nullptr;
     matrix.hip_byte_limb_bytes = 0;
   }
+  matrix.hip_export_schedule_fingerprint = 0;
+  matrix.hip_export_tile_max_elements = 0;
   matrix.device_residues_current = false;
   matrix.device_byte_limbs_current = false;
   return status;
@@ -869,6 +890,74 @@ rns8_status ensure_device_residues_current(rns8_matrix& matrix) {
     matrix.device_residues_current = true;
   }
   return status;
+}
+
+rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan, rns8_matrix& matrix) {
+  if (ctx.backend != RNS8_BACKEND_HIP_DIRECT || plan.backend != RNS8_BACKEND_HIP_DIRECT ||
+      matrix.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (plan.tile_bounds.size() != plan.tile_schedule.size() ||
+      plan.tile_schedule.size() > std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry) ||
+      plan.tile_bounds.size() > std::numeric_limits<std::size_t>::max() / sizeof(uint64_t)) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  uint64_t max_tile_elements = 0;
+  for (const auto& entry : plan.tile_schedule) {
+    if (entry.row_extent <= 0 || entry.col_extent <= 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const uint64_t row_extent = static_cast<uint64_t>(entry.row_extent);
+    const uint64_t col_extent = static_cast<uint64_t>(entry.col_extent);
+    if (col_extent != 0 && row_extent > std::numeric_limits<uint64_t>::max() / col_extent) {
+      return RNS8_RANGE_ERROR;
+    }
+    max_tile_elements = std::max(max_tile_elements, row_extent * col_extent);
+  }
+  if (max_tile_elements == 0 || max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+    return RNS8_RANGE_ERROR;
+  }
+  const uint64_t fingerprint = plan_workspace_fingerprint(plan);
+  const uint64_t entry_count = static_cast<uint64_t>(plan.tile_schedule.size());
+  const std::size_t schedule_bytes = plan.tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry);
+  const std::size_t bounds_bytes = plan.tile_bounds.size() * sizeof(uint64_t);
+  const bool metadata_current =
+      matrix.hip_export_schedule_fingerprint == fingerprint &&
+      matrix.hip_export_tile_schedule != nullptr &&
+      matrix.hip_export_tile_schedule_bytes >= schedule_bytes &&
+      matrix.hip_export_tile_schedule_count == entry_count &&
+      matrix.hip_export_tile_bounds != nullptr &&
+      matrix.hip_export_tile_bounds_bytes >= bounds_bytes &&
+      matrix.hip_export_tile_bounds_count == entry_count &&
+      matrix.hip_export_tile_max_elements == max_tile_elements;
+  if (metadata_current) {
+    return RNS8_SUCCESS;
+  }
+  rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
+      ctx.device_id, schedule_bytes, &matrix.hip_export_tile_schedule, &matrix.hip_export_tile_schedule_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = rns8::detail::hip_direct_ensure_upload_buffer(
+      ctx.device_id, bounds_bytes, &matrix.hip_export_tile_bounds, &matrix.hip_export_tile_bounds_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = rns8::detail::hip_direct_copy_host_to_device(
+      ctx.device_id, matrix.hip_export_tile_schedule, plan.tile_schedule.data(), schedule_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = rns8::detail::hip_direct_copy_host_to_device(
+      ctx.device_id, matrix.hip_export_tile_bounds, plan.tile_bounds.data(), bounds_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  matrix.hip_export_tile_schedule_count = entry_count;
+  matrix.hip_export_tile_bounds_count = entry_count;
+  matrix.hip_export_schedule_fingerprint = fingerprint;
+  matrix.hip_export_tile_max_elements = max_tile_elements;
+  return RNS8_SUCCESS;
 }
 
 }  // namespace
@@ -1526,18 +1615,24 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
         }
+        auto* mutable_c = const_cast<rns8_matrix*>(C);
+        const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+        if (metadata_status != RNS8_SUCCESS) {
+          return metadata_status;
+        }
         return rns8::detail::hip_direct_export_i64_tiled_device(
             ctx->device_id,
             C->hip_residues,
-            &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-            &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-            &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-            &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+            &mutable_c->hip_export_buffer,
+            &mutable_c->hip_export_bytes,
+            &mutable_c->hip_status_buffer,
+            &mutable_c->hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            plan->tile_schedule.data(),
-            plan->tile_bounds.data(),
-            static_cast<uint64_t>(plan->tile_schedule.size()),
+            mutable_c->hip_export_tile_schedule,
+            mutable_c->hip_export_tile_bounds,
+            mutable_c->hip_export_tile_schedule_count,
+            mutable_c->hip_export_tile_max_elements,
             dst,
             ld);
       }
@@ -1598,18 +1693,24 @@ rns8_status rns8_export_u64(
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
         }
+        auto* mutable_c = const_cast<rns8_matrix*>(C);
+        const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+        if (metadata_status != RNS8_SUCCESS) {
+          return metadata_status;
+        }
         return rns8::detail::hip_direct_export_u64_tiled_device(
             ctx->device_id,
             C->hip_residues,
-            &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-            &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-            &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-            &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+            &mutable_c->hip_export_buffer,
+            &mutable_c->hip_export_bytes,
+            &mutable_c->hip_status_buffer,
+            &mutable_c->hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            plan->tile_schedule.data(),
-            plan->tile_bounds.data(),
-            static_cast<uint64_t>(plan->tile_schedule.size()),
+            mutable_c->hip_export_tile_schedule,
+            mutable_c->hip_export_tile_bounds,
+            mutable_c->hip_export_tile_schedule_count,
+            mutable_c->hip_export_tile_max_elements,
             dst,
             ld);
       }

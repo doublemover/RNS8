@@ -4600,10 +4600,7 @@ TEST_CASE("direct HIP private tiled bounded wrappers reject malformed selected-p
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
   constexpr int64_t k = 1;
-  constexpr int64_t ldc = n + 1;
   constexpr int8_t residue_sentinel = -91;
-  constexpr uint64_t u64_sentinel = 0x9191919191919191ull;
-  constexpr int64_t i64_sentinel = INT64_C(-0x191919191919);
   const std::vector<uint64_t> bounds = {7, 1000, 7000000, 1000000000};
 
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
@@ -4652,47 +4649,6 @@ TEST_CASE("direct HIP private tiled bounded wrappers reject malformed selected-p
       return value == residue_sentinel;
     }));
 
-    std::vector<uint64_t> u64_out(static_cast<std::size_t>(m * ldc), u64_sentinel);
-    CHECK(rns8::detail::hip_direct_export_u64_tiled_device(
-              hip->device_id,
-              hip_c->hip_residues,
-              &hip_c->hip_export_buffer,
-              &hip_c->hip_export_bytes,
-              &hip_c->hip_status_buffer,
-              &hip_c->hip_status_bytes,
-              m,
-              n,
-              bad_entries.data(),
-              bounds.data(),
-              bad_entries.size(),
-              u64_out.data(),
-              ldc) == RNS8_INVALID_ARGUMENT);
-    CHECK(hip_c->hip_export_buffer == nullptr);
-    CHECK(hip_c->hip_status_buffer == nullptr);
-    CHECK(std::all_of(u64_out.begin(), u64_out.end(), [&](uint64_t value) {
-      return value == u64_sentinel;
-    }));
-
-    std::vector<int64_t> i64_out(static_cast<std::size_t>(m * ldc), i64_sentinel);
-    CHECK(rns8::detail::hip_direct_export_i64_tiled_device(
-              hip->device_id,
-              hip_c->hip_residues,
-              &hip_c->hip_export_buffer,
-              &hip_c->hip_export_bytes,
-              &hip_c->hip_status_buffer,
-              &hip_c->hip_status_bytes,
-              m,
-              n,
-              bad_entries.data(),
-              bounds.data(),
-              bad_entries.size(),
-              i64_out.data(),
-              ldc) == RNS8_INVALID_ARGUMENT);
-    CHECK(hip_c->hip_export_buffer == nullptr);
-    CHECK(hip_c->hip_status_buffer == nullptr);
-    CHECK(std::all_of(i64_out.begin(), i64_out.end(), [&](int64_t value) {
-      return value == i64_sentinel;
-    }));
     const auto repeated_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
     CHECK(repeated_allocations.allocate_calls == initial_allocations.allocate_calls);
     CHECK(repeated_allocations.free_calls == initial_allocations.free_calls);

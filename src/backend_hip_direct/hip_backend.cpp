@@ -68,17 +68,15 @@ extern "C" int rns8_hip_direct_export_i64_device(
     uint64_t bound,
     int* d_status);
 
-extern "C" int rns8_hip_direct_export_i64_tile_device(
+extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     const int8_t* d_residues,
     int64_t* d_dst,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* d_status);
 
 extern "C" int rns8_hip_direct_export_u64_device(
@@ -90,17 +88,15 @@ extern "C" int rns8_hip_direct_export_u64_device(
     uint64_t bound,
     int* d_status);
 
-extern "C" int rns8_hip_direct_export_u64_tile_device(
+extern "C" int rns8_hip_direct_export_u64_scheduled_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds,
+    int entry_count,
+    int max_tile_elements,
     int rows,
     int cols,
-    int row_offset,
-    int col_offset,
-    int row_extent,
-    int col_extent,
-    int prefix,
-    uint64_t bound,
     int* d_status);
 
 extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
@@ -1201,9 +1197,8 @@ rns8_status hip_direct_export_i64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  int zero_status = 0;
   hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
-    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+    return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -1272,19 +1267,25 @@ rns8_status hip_direct_export_i64_tiled_device(
     std::size_t* status_bytes,
     int64_t rows,
     int64_t cols,
-    const rns8_plan_tile_schedule_entry* entries,
-    const uint64_t* bounds,
+    const void* device_entries,
+    const void* device_bounds,
     uint64_t entry_count,
+    uint64_t max_tile_elements,
     int64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !entries || !bounds ||
+  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !device_entries ||
+      !device_bounds ||
       !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
       !checked_output_bytes(rows, cols, sizeof(int64_t)) || entry_count == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
+      max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_tile_schedule_contract(entries, entry_count, rows, cols, nullptr)) {
+  constexpr uint64_t export_threads = 256;
+  const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
+  if (blocks_per_tile == 0 ||
+      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -1300,31 +1301,25 @@ rns8_status hip_direct_export_i64_tiled_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  int zero_status = 0;
   hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
-    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+    return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
   err = timed_hip_operation("crt_export_kernel", [&]() {
-    for (uint64_t index = 0; index < entry_count; ++index) {
-      const auto& entry = entries[static_cast<std::size_t>(index)];
-      const int code = rns8_hip_direct_export_i64_tile_device(
-          static_cast<const int8_t*>(device_residues),
-          static_cast<int64_t*>(*export_buffer),
-          static_cast<int>(rows),
-          static_cast<int>(cols),
-          static_cast<int>(entry.row_offset),
-          static_cast<int>(entry.col_offset),
-          static_cast<int>(entry.row_extent),
-          static_cast<int>(entry.col_extent),
-          static_cast<int>(entry.selected_prefix),
-          bounds[static_cast<std::size_t>(index)],
-          static_cast<int*>(*status_buffer));
-      if (code != static_cast<int>(hipSuccess)) {
-        return static_cast<hipError_t>(code);
-      }
+    const int code = rns8_hip_direct_export_i64_scheduled_device(
+        static_cast<const int8_t*>(device_residues),
+        static_cast<int64_t*>(*export_buffer),
+        static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
+        static_cast<const uint64_t*>(device_bounds),
+        static_cast<int>(entry_count),
+        static_cast<int>(max_tile_elements),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int*>(*status_buffer));
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
     }
     return hipDeviceSynchronize();
   });
@@ -1361,9 +1356,10 @@ rns8_status hip_direct_export_i64_tiled_device(
   (void)status_bytes;
   (void)rows;
   (void)cols;
-  (void)entries;
-  (void)bounds;
+  (void)device_entries;
+  (void)device_bounds;
   (void)entry_count;
+  (void)max_tile_elements;
   (void)dst;
   (void)ld;
   return RNS8_UNSUPPORTED_BACKEND;
@@ -1401,9 +1397,8 @@ rns8_status hip_direct_export_u64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  int zero_status = 0;
   hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
-    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+    return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -1472,19 +1467,25 @@ rns8_status hip_direct_export_u64_tiled_device(
     std::size_t* status_bytes,
     int64_t rows,
     int64_t cols,
-    const rns8_plan_tile_schedule_entry* entries,
-    const uint64_t* bounds,
+    const void* device_entries,
+    const void* device_bounds,
     uint64_t entry_count,
+    uint64_t max_tile_elements,
     uint64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !entries || !bounds ||
+  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !device_entries ||
+      !device_bounds ||
       !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
       !checked_output_bytes(rows, cols, sizeof(uint64_t)) || entry_count == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
+      max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_tile_schedule_contract(entries, entry_count, rows, cols, nullptr)) {
+  constexpr uint64_t export_threads = 256;
+  const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
+  if (blocks_per_tile == 0 ||
+      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -1500,31 +1501,25 @@ rns8_status hip_direct_export_u64_tiled_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  int zero_status = 0;
   hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
-    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+    return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
   err = timed_hip_operation("crt_export_kernel", [&]() {
-    for (uint64_t index = 0; index < entry_count; ++index) {
-      const auto& entry = entries[static_cast<std::size_t>(index)];
-      const int code = rns8_hip_direct_export_u64_tile_device(
-          static_cast<const int8_t*>(device_residues),
-          static_cast<uint64_t*>(*export_buffer),
-          static_cast<int>(rows),
-          static_cast<int>(cols),
-          static_cast<int>(entry.row_offset),
-          static_cast<int>(entry.col_offset),
-          static_cast<int>(entry.row_extent),
-          static_cast<int>(entry.col_extent),
-          static_cast<int>(entry.selected_prefix),
-          bounds[static_cast<std::size_t>(index)],
-          static_cast<int*>(*status_buffer));
-      if (code != static_cast<int>(hipSuccess)) {
-        return static_cast<hipError_t>(code);
-      }
+    const int code = rns8_hip_direct_export_u64_scheduled_device(
+        static_cast<const int8_t*>(device_residues),
+        static_cast<uint64_t*>(*export_buffer),
+        static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
+        static_cast<const uint64_t*>(device_bounds),
+        static_cast<int>(entry_count),
+        static_cast<int>(max_tile_elements),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int*>(*status_buffer));
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
     }
     return hipDeviceSynchronize();
   });
@@ -1561,9 +1556,10 @@ rns8_status hip_direct_export_u64_tiled_device(
   (void)status_bytes;
   (void)rows;
   (void)cols;
-  (void)entries;
-  (void)bounds;
+  (void)device_entries;
+  (void)device_bounds;
   (void)entry_count;
+  (void)max_tile_elements;
   (void)dst;
   (void)ld;
   return RNS8_UNSUPPORTED_BACKEND;

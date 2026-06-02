@@ -131,9 +131,10 @@ rns8_status hip_direct_export_i64_tiled_device(
     std::size_t* status_bytes,
     int64_t rows,
     int64_t cols,
-    const rns8_plan_tile_schedule_entry* entries,
-    const uint64_t* bounds,
+    const void* device_entries,
+    const void* device_bounds,
     uint64_t entry_count,
+    uint64_t max_tile_elements,
     int64_t* dst,
     int64_t ld);
 rns8_status hip_direct_export_u64_device(
@@ -158,9 +159,10 @@ rns8_status hip_direct_export_u64_tiled_device(
     std::size_t* status_bytes,
     int64_t rows,
     int64_t cols,
-    const rns8_plan_tile_schedule_entry* entries,
-    const uint64_t* bounds,
+    const void* device_entries,
+    const void* device_bounds,
     uint64_t entry_count,
+    uint64_t max_tile_elements,
     uint64_t* dst,
     int64_t ld);
 rns8_status hip_direct_export_exact_wide_signed_limbs_device(

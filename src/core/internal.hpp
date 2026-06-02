@@ -59,6 +59,14 @@ struct rns8_matrix {
   std::size_t hip_export_bytes = 0;
   void* hip_status_buffer = nullptr;
   std::size_t hip_status_bytes = 0;
+  void* hip_export_tile_schedule = nullptr;
+  std::size_t hip_export_tile_schedule_bytes = 0;
+  uint64_t hip_export_tile_schedule_count = 0;
+  void* hip_export_tile_bounds = nullptr;
+  std::size_t hip_export_tile_bounds_bytes = 0;
+  uint64_t hip_export_tile_bounds_count = 0;
+  uint64_t hip_export_schedule_fingerprint = 0;
+  uint64_t hip_export_tile_max_elements = 0;
 };
 
 struct rns8_workspace {
