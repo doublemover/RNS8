@@ -21,7 +21,7 @@ Current backend boundary:
 
 - `RNS8_BACKEND_CPU_REFERENCE` is the deterministic correctness backend.
 - `RNS8_BACKEND_HIP_DIRECT` is a real Windows HIP bring-up path with device
-  inspection and one-modulus ring-GEMM smoke coverage.
+  inspection, one-modulus ring-GEMM smoke coverage, K-block splitting, and
+  bounded API smoke coverage.
 - hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths are not implemented and must
   remain feature-detected accelerators, not correctness requirements.
-

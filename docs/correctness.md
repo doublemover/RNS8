@@ -15,6 +15,8 @@ Implemented correctness coverage:
   `INT64_MAX`, `-INT64_MAX`, and `UINT64_MAX` outputs.
 - A direct HIP one-modulus ring-GEMM smoke test compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible.
+- Direct HIP K-block splitting above 65536, including public bounded signed and
+  unsigned API smoke tests against the CPU reference.
 
 Not yet implemented:
 
@@ -26,4 +28,3 @@ Not yet implemented:
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path.
-

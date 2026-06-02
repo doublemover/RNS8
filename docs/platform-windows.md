@@ -15,6 +15,8 @@ Validated in this slice:
   `amdhip64`.
 - Debug builds pass the MSVC debug runtime settings through hipcc to avoid CRT
   and iterator-debug-level mismatches.
+- `rns8-verify --hip-smoke` exercises direct HIP ring GEMM, K-block splitting,
+  and public bounded signed/unsigned API paths against the CPU reference.
 
 Current proof command:
 
@@ -28,4 +30,3 @@ build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 
 The current HIP kernel is a correctness bring-up kernel, not an optimized
 matrix-engine implementation.
-

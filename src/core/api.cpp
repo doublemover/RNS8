@@ -299,9 +299,6 @@ rns8_status rns8_gemm_rns(
       return rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      if (plan->desc.k > RNS8_SAFE_INT32_K_BLOCK) {
-        return RNS8_ACCUMULATION_OVERFLOW_RISK;
-      }
       if (A->desc.rows != plan->desc.m || A->desc.cols != plan->desc.k || B->desc.rows != plan->desc.k ||
           B->desc.cols != plan->desc.n || C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
         return RNS8_INVALID_ARGUMENT;
@@ -483,4 +480,3 @@ rns8_status rns8_gemm_u64_oneshot(
     return status;
   });
 }
-
