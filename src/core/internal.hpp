@@ -86,8 +86,6 @@ struct rns8_workspace {
   uint32_t schedule_flags = 0;
   uint64_t schedule_fingerprint = 0;
   int hip_device_id = -1;
-  void* hip_scratch = nullptr;
-  std::size_t hip_scratch_bytes = 0;
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
   uint64_t hip_tile_schedule_count = 0;
