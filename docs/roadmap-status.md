@@ -20,9 +20,10 @@ disagree, the spec remains the target and this file identifies the gap.
   pack/GEMM/export reuses warmed matrix-owned buffers without additional
   direct-HIP allocation or free calls.
 - Direct HIP fused INT32-to-centered-residue reduction: the correctness kernel
-  reduces each K block to the centered residue in the kernel and does not write
-  full INT32 output matrices to global memory. Centered-range correction uses
-  source-level mask arithmetic instead of source-level `if` branches.
+  stages 16x16 output tiles with shared A/B residue tiles, reduces each K block
+  to the centered residue in the kernel, and does not write full INT32 output
+  matrices to global memory. Centered-range correction uses source-level mask
+  arithmetic instead of source-level `if` branches.
 - Bounded i64/u64 GPU export: direct HIP reconstructs bounded i64/u64 output on
   device with a fixed three-limb Garner path for prefixes up to 20, reports
   range errors through device status, handles the full signed output range
@@ -230,6 +231,11 @@ disagree, the spec remains the target and this file identifies the gap.
   readiness output. The dependency report now exposes explicit false
   correctness-backend validation fields and explicit false Windows-to-Linux /
   Windows-to-Instinct validation claims.
+- Verified bounded direct-HIP tiled-kernel hardening with an incremental Windows
+  HIP build that recompiled `hip_direct_kernels.hip` and targeted CTest for the
+  shared-memory tiled-tail ring GEMM, per-tile workspace/matrix residency
+  contract, mixed-prefix K-split resident reuse, and prefix-9 K-block boundary
+  coverage.
 - `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
   tests\fixtures\benchmark_schema\v4_bounded_i64_adaptive_hip.json`: current
