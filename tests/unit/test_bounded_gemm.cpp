@@ -107,6 +107,46 @@ TEST_CASE("bounded i64 and u64 oneshot handle full boundary outputs") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("bounded defaults keep the fixed 9-modulus contract") {
+  CHECK(RNS8_DEFAULT_BOUNDED_PREFIX == 9u);
+
+  rns8_context* ctx = create_cpu();
+  auto desc = u64_desc(2, 2, 3, 1000);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.min_selected_prefix == 9u);
+  CHECK(info.max_selected_prefix == 9u);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU export reports range errors for too-small valid global bounds") {
+  rns8_context* ctx = create_cpu();
+  {
+    const int64_t A[] = {6};
+    const int64_t B[] = {7};
+    int64_t C[] = {-1};
+    auto desc = i64_desc(1, 1, 1, 41);
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A, 1, B, 1, C, 1) == RNS8_RANGE_ERROR);
+    CHECK(C[0] == -1);
+  }
+  {
+    const uint64_t A[] = {6};
+    const uint64_t B[] = {7};
+    uint64_t C[] = {99};
+    auto desc = u64_desc(1, 1, 1, 41);
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A, 1, B, 1, C, 1) == RNS8_RANGE_ERROR);
+    CHECK(C[0] == 99);
+  }
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded plan creation rejects insufficient prefix range") {
   rns8_context* ctx = create_cpu();
   auto desc = i64_desc(1, 1, 1, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
@@ -232,6 +272,42 @@ TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
   CHECK(entries[8].col_extent == 1);
 
   rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile bounds") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  {
+    const std::vector<uint64_t> bounds = {5, 10, 10, 10};
+    std::vector<int64_t> A(m * k, 2);
+    std::vector<int64_t> B(k * n, 3);
+    std::vector<int64_t> C(m * n, -99);
+    auto desc = i64_desc(m, n, k, 0);
+    desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+    desc.tile_m = 64;
+    desc.tile_n = 64;
+    desc.tile_bounds = bounds.data();
+    desc.tile_bounds_count = bounds.size();
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_RANGE_ERROR);
+    CHECK(C[0] == -99);
+  }
+  {
+    const std::vector<uint64_t> bounds = {5, 10, 10, 10};
+    std::vector<uint64_t> A(m * k, 2);
+    std::vector<uint64_t> B(k * n, 3);
+    std::vector<uint64_t> C(m * n, 123);
+    auto desc = u64_desc(m, n, k, 0);
+    desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+    desc.tile_m = 64;
+    desc.tile_n = 64;
+    desc.tile_bounds = bounds.data();
+    desc.tile_bounds_count = bounds.size();
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_RANGE_ERROR);
+    CHECK(C[0] == 123);
+  }
   rns8_destroy_context(ctx);
 }
 
