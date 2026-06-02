@@ -1,0 +1,214 @@
+{
+  "schema_version": 4,
+  "benchmark": "rns8_bounded_gemm_persistent_rns",
+  "backend_requested": "wmma",
+  "backend_selected": "wmma",
+  "selected_kernel": "rocwmma_i8_i32_signed_hot_residue_v1",
+  "backend_metadata": {
+    "source": "rns8_get_plan_backend_info",
+    "selected_kernel": "rocwmma_i8_i32_signed_hot_residue_v1",
+    "accelerator_backend": true,
+    "correctness_backend": true,
+    "matrix_engine_backend": true,
+    "compiled_kernel_available": true,
+    "exact_differential_validated": true,
+    "performance_validated": false,
+    "accelerator_library": "rocWMMA",
+    "accelerator_version": "repo-local release/rocm-rel-7.1",
+    "capability_status": "implemented_opt_in_rocwmma_backend",
+    "epilogue_mode": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+    "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
+    "workspace_required_bytes": 12288,
+    "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+    "autotune_key": "backend=wmma;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=rocwmma_i8_i32_signed_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_crt_export"
+  },
+  "semantics": "bounded_i64",
+  "bound_kind": "global_max_abs",
+  "bound_mode": "global",
+  "bound": 16384,
+  "m": 64,
+  "n": 128,
+  "k": 64,
+  "prefix": 9,
+  "tile_m": 128,
+  "tile_n": 128,
+  "layout": "row_major",
+  "k_block_size": 64,
+  "adaptive_tile_size": null,
+  "tile_bounds_u64": null,
+  "schedule_metadata": {
+    "source": "rns8_get_plan_schedule_info",
+    "tile_m": 128,
+    "tile_n": 128,
+    "tile_rows": 1,
+    "tile_cols": 1,
+    "tile_count": 1,
+    "min_required_prefix": 2,
+    "max_required_prefix": 2,
+    "min_selected_prefix": 9,
+    "max_selected_prefix": 9,
+    "prefix_group_count": 1,
+    "adaptive_prefix_active": false,
+    "adaptive_skip_active": false,
+    "adaptive_execution_applied": false,
+    "range_bit_length": 16
+  },
+  "epilogue_type": "crt_export",
+  "packed_layout_version": null,
+  "seed": 23,
+  "warmups": 1,
+  "repeats": 2,
+  "input_distribution": "signed_uniform_-16_16",
+  "command_line": "rns8-bench --backend rocwmma --semantics bounded-i64 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 23",
+  "git_commit": "fixture",
+  "compiler": {
+    "id": "msvc",
+    "version": "1944.194435227"
+  },
+  "configured_amdgpu_targets": "gfx1100",
+  "hip_toolchain": {
+    "enabled": true,
+    "hip_root": "C:/Program Files/AMD/ROCm/7.1",
+    "hipcc_path": "C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe",
+    "hipcc_version": "HIP version: 7.1.51803-d3a86bd04 | clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/Program Files/AMD/ROCm/7.1/bin",
+    "hip_sdk_or_rocm_version": "7.1",
+    "version_source": "hipcc --version"
+  },
+  "device": {
+    "device_id": 0,
+    "name": "AMD Radeon RX 7900 XTX",
+    "gcn_arch": "gfx1100",
+    "hip_available": 1,
+    "hip_runtime_version": 70260201,
+    "hip_driver_version": 70260201,
+    "global_mem_bytes": 25753026560
+  },
+  "clock_power_settings": null,
+  "comparison_baseline": null,
+  "derived_tops_equivalent": null,
+  "timing_source": "std::chrono::steady_clock",
+  "timing_note": "host wall-clock timings; direct-HIP calls include current backend synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, and GPU bounded export when using HIP",
+  "timing_metadata": {
+    "unit": "microseconds",
+    "source": "std::chrono::steady_clock",
+    "source_scope": "host_wall_clock",
+    "gpu_event_timing": false,
+    "gpu_event_timing_reason": "backend_has_no_gpu_event_hooks",
+    "gpu_event_timing_status": "not_requested_for_selected_backend",
+    "gpu_event_timing_source": null,
+    "gpu_event_timing_source_scope": null,
+    "gpu_event_timing_caveat": null,
+    "phase_order": [
+      "planning",
+      "scheduling",
+      "matrix_alloc",
+      "pack",
+      "rns_gemm",
+      "crt_export",
+      "end_to_end"
+    ],
+    "gpu_event_phase_order": null,
+    "phase_notes": {
+      "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
+      "scheduling": "one-time rns8_get_plan_schedule_info host timing",
+      "matrix_alloc": "one-time persistent matrix allocation host timing",
+      "pack": "per-repeat host timing for packing A and B into persistent RNS matrices",
+      "rns_gemm": "per-repeat host timing for rns8_gemm_rns",
+      "crt_export": "per-repeat host timing for export/reconstruction into logical output",
+      "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
+    },
+    "phase_availability": {
+      "scheduling": {
+        "timed": true,
+        "timing_key": "scheduling",
+        "scope": "one_time_schedule_info_query",
+        "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "reduction": {
+        "timed": false,
+        "timing_key": null,
+        "scope": "fused_into_rns_gemm",
+        "reason": "current CPU and direct-HIP RNS GEMM paths reduce to centered residues inside rns_gemm, so no separate reduction kernel timing exists"
+      }
+    }
+  },
+  "gpu_event_timings_us": null,
+  "gpu_event_timing_summary_us": null,
+  "plan_us": 187071,
+  "avg_planning_us": 187071,
+  "schedule_query_us": 26,
+  "avg_scheduling_us": 26,
+  "matrix_alloc_us": 24788,
+  "avg_matrix_alloc_us": 24788,
+  "avg_pack_us": 2501.5,
+  "avg_rns_gemm_us": 1201.5,
+  "per_modulus_gemm_estimate_applicable": true,
+  "avg_per_modulus_gemm_estimate_us": 133.5,
+  "avg_crt_export_us": 9098.5,
+  "avg_end_to_end_us": 12802.5,
+  "raw_timings_us": {
+    "planning": [
+      187071
+    ],
+    "scheduling": [
+      26
+    ],
+    "matrix_alloc": [
+      24788
+    ],
+    "pack": [
+      4553,
+      450
+    ],
+    "rns_gemm": [
+      2214,
+      189
+    ],
+    "crt_export": [
+      13014,
+      5183
+    ],
+    "end_to_end": [
+      19782,
+      5823
+    ]
+  },
+  "timing_summary_us": {
+    "planning": {
+      "avg": 187071,
+      "median": 187071,
+      "p95": 187071
+    },
+    "scheduling": {
+      "avg": 26,
+      "median": 26,
+      "p95": 26
+    },
+    "matrix_alloc": {
+      "avg": 24788,
+      "median": 24788,
+      "p95": 24788
+    },
+    "pack": {
+      "avg": 2501.5,
+      "median": 4553,
+      "p95": 4553
+    },
+    "rns_gemm": {
+      "avg": 1201.5,
+      "median": 2214,
+      "p95": 2214
+    },
+    "crt_export": {
+      "avg": 9098.5,
+      "median": 13014,
+      "p95": 13014
+    },
+    "end_to_end": {
+      "avg": 12802.5,
+      "median": 19782,
+      "p95": 19782
+    }
+  },
+  "checksum_u64": 17530256363858709665
+}

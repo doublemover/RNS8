@@ -21,12 +21,17 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
 HIPBLASLT_GPU_EVENT_SCOPES = {
     "hipblaslt_baseline_default_stream_backend_operation_groups",
 }
-HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck"}
+HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
 CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+}
+WMMA_SELECTED_KERNELS = {
+    "rocwmma_i8_i32_signed_hot_residue_v1",
+    "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+    "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
 }
 
 
@@ -374,6 +379,37 @@ class _Validator:
                 "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
             }:
                 self._error("CK captures must report a fused CK centered-residue epilogue")
+        if selected_backend == "wmma":
+            expected = {
+                "accelerator_library": "rocWMMA",
+                "accelerator_version": "repo-local release/rocm-rel-7.1",
+                "capability_status": "implemented_opt_in_rocwmma_backend",
+                "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
+                "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+            }
+            for key, value in expected.items():
+                if metadata.get(key) != value:
+                    self._error(f"rocWMMA captures must use backend_metadata.{key}={value}")
+            if metadata.get("selected_kernel") not in WMMA_SELECTED_KERNELS:
+                self._error("rocWMMA captures must report a known rocWMMA selected_kernel")
+            bool_expected = {
+                "accelerator_backend": True,
+                "correctness_backend": True,
+                "matrix_engine_backend": True,
+                "compiled_kernel_available": True,
+                "exact_differential_validated": True,
+                "performance_validated": False,
+            }
+            for key, value in bool_expected.items():
+                if metadata.get(key) is not value:
+                    self._error(f"rocWMMA captures must use backend_metadata.{key}={value}")
+            epilogue = metadata.get("epilogue_mode")
+            if epilogue not in {
+                "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+                "rocwmma_fused_i32_to_centered_residue_rns_output",
+                "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
+            }:
+                self._error("rocWMMA captures must report a fused rocWMMA centered-residue epilogue")
         if selected_backend == "hip-direct" and metadata.get("accelerator_library") != "HIP runtime":
             self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
         if selected_backend not in HIP_RESIDENT_BACKENDS and metadata.get("accelerator_library") not in {None, ""}:
@@ -560,8 +596,8 @@ class _Validator:
                 expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
-                if self.data.get("backend_selected") not in {"hip-direct", "ck"}:
-                    self._error("per-tile adaptive captures must select hip-direct or ck backend")
+                if self.data.get("backend_selected") not in {"hip-direct", "ck", "wmma"}:
+                    self._error("per-tile adaptive captures must select hip-direct, ck, or wmma backend")
                 if self.data.get("bound") != 0:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
@@ -627,6 +663,7 @@ class _Validator:
             expected_kernels = {
                 "hip-direct": "direct_hip_tiled_rns_gemm_v1",
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+                "wmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
             }
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:
@@ -663,30 +700,45 @@ class _Validator:
                     self._error(
                         "CK per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
                     )
+            elif self.data.get("backend_selected") == "wmma":
+                if metadata.get("gpu_event_timing") is not False:
+                    self._error(
+                        "rocWMMA per-tile adaptive captures must report unavailable GPU event timings until rocWMMA hooks exist"
+                    )
+                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
+                    self._error(
+                        "rocWMMA per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
+                    )
         backend_metadata = self.data.get("backend_metadata")
         if isinstance(backend_metadata, dict):
-            expected_epilogue = (
-                "ck_fused_i32_to_centered_residue_then_crt_export"
-                if self.data.get("backend_selected") == "ck"
-                else "fused_centered_residue_then_crt_export"
+            expected_epilogues = {
+                "ck": "ck_fused_i32_to_centered_residue_then_crt_export",
+                "wmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+            }
+            expected_epilogue = expected_epilogues.get(
+                self.data.get("backend_selected"), "fused_centered_residue_then_crt_export"
             )
             if backend_metadata.get("epilogue_mode") != expected_epilogue:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.epilogue_mode={expected_epilogue}"
                 )
-            expected_workspace = (
-                "resident_device_buffers_with_ck_canonical_pack_workspace"
-                if self.data.get("backend_selected") == "ck"
-                else "resident_device_buffers_with_tiled_schedule"
+            expected_workspaces = {
+                "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
+                "wmma": "resident_device_buffers_with_rocwmma_pack_workspace",
+            }
+            expected_workspace = expected_workspaces.get(
+                self.data.get("backend_selected"), "resident_device_buffers_with_tiled_schedule"
             )
             if backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.workspace_mode={expected_workspace}"
                 )
-            expected_isa = (
-                "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store"
-                if self.data.get("backend_selected") == "ck"
-                else "rns8_hip_direct_reciprocal_isa_gate"
+            expected_isas = {
+                "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
+                "wmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+            }
+            expected_isa = expected_isas.get(
+                self.data.get("backend_selected"), "rns8_hip_direct_reciprocal_isa_gate"
             )
             if backend_metadata.get("isa_evidence") != expected_isa:
                 self._error(

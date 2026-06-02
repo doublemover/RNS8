@@ -47,7 +47,7 @@ This file describes readiness policy, not a fresh validation record.
 | Public export ABI | `ld` is an element stride, `limb_count` must be in `[1, 32]`, null `ctx`, `plan`, `matrix`, or `dst` arguments are invalid API calls, and range-error exports preserve the caller's destination. |
 | Public storage rejection | Exact-wide exports reject stale-prefix RNS matrices, bounded RNS matrices, wrap64 byte-limb matrices, and signed/unsigned cross-export calls. None of those handles are alternate routes into exact-wide limbs. |
 | Direct HIP currentness | Exact-wide direct-HIP export requires device-current resident RNS output. Host-current stale device residues are rejected; export does not perform an implicit hot-path upload. |
-| Accelerator enablement | hipBLASLt has an opt-in Windows `gfx1100` baseline backend under `RNS8_ENABLE_HIPBLASLT=ON`; CK, rocWMMA, and AMDGPU builtin enable flags intentionally fail fast until real correctness backends exist. Probes collect candidate evidence only. CTest negative configure cases pin the fail-fast message for still-disabled accelerators and for hipBLASLt when it is not enabled by the dedicated preset. |
+| Accelerator enablement | hipBLASLt, CK, and rocWMMA have opt-in Windows `gfx1100` correctness backends under their dedicated enable flags and presets. Probes collect candidate evidence only and do not enable those backends by themselves. AMDGPU builtin enablement intentionally fails fast until real correctness kernels exist. CTest negative configure cases pin the fail-fast message for still-disabled accelerators and for accelerators when they are not enabled by a dedicated preset. |
 | Linux ROCm and Instinct | Linux ROCm, Radeon Linux, and Instinct CDNA gates are represented by presets, target metadata, and dependency reports. Windows evidence does not validate them; they require a real Linux ROCm host with supported hardware. |
 
 ## Readiness Output Classes
@@ -73,9 +73,11 @@ This file describes readiness policy, not a fresh validation record.
 - `RNS8_ENABLE_HIPBLASLT` builds the opt-in hipBLASLt baseline only in HIP
   presets where the backend is explicitly enabled and validated. It is not
   enabled from discovery evidence alone.
-- `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
-  `RNS8_ENABLE_AMDGPU_BUILTINS` intentionally fail fast until real correctness
-  backends exist.
+- `RNS8_ENABLE_CK` and `RNS8_ENABLE_ROCWMMA` build opt-in correctness backends
+  only in presets where the backend is explicitly enabled and validated. They
+  are not enabled from discovery evidence alone.
+- `RNS8_ENABLE_AMDGPU_BUILTINS` intentionally fails fast until real
+  target-specific correctness kernels exist.
 - The CTest suite registers configure-negative tests for still-disabled
   accelerator flags, and for hipBLASLt in presets where it is not explicitly
   enabled. Each scratch configure must fail before any placeholder backend is

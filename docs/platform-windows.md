@@ -72,11 +72,13 @@ accelerators on Windows. `tools/check_dependencies.py` may report discovered
 headers or libraries as candidate evidence for component-backed accelerators,
 and reports AMDGPU builtin readiness as not ready until target-specific exact
 kernels exist. Discovery does not enable or validate a backend by itself.
-hipBLASLt is the current opt-in baseline exception: `RNS8_ENABLE_HIPBLASLT=ON`
-builds a real INT8-to-INT32 scratch-and-reduce backend when HIP and hipBLASLt
-are present, and the `windows-hipblaslt-debug` tests run exact CPU/direct-HIP
-differentials. CK, rocWMMA, and AMDGPU builtin enable flags intentionally fail
-fast until their real correctness backends exist.
+hipBLASLt, CK, and rocWMMA are current opt-in correctness backends:
+`RNS8_ENABLE_HIPBLASLT=ON` builds a real INT8-to-INT32 scratch-and-reduce
+backend when HIP and hipBLASLt are present, `RNS8_ENABLE_CK=ON` builds the CK
+fused backend, and `RNS8_ENABLE_ROCWMMA=ON` builds the rocWMMA fused backend.
+Their dedicated Windows presets run exact CPU/direct-HIP differentials.
+AMDGPU builtin enablement intentionally fails fast until real target-specific
+correctness kernels exist.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:

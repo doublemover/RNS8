@@ -33,6 +33,9 @@ Current backend boundary:
   K-block splitting, and bounded API smoke coverage.
 - hipBLASLt is implemented as an opt-in baseline backend under
   `RNS8_ENABLE_HIPBLASLT=ON`; it is not a correctness requirement and is not
-  performance-validated. CK, rocWMMA, and AMDGPU builtin paths remain
-  feature-detected evidence-only accelerators. Their enable flags must fail
-  fast until real correctness backends exist.
+  performance-validated.
+- CK and rocWMMA are implemented as opt-in Windows `gfx1100` correctness
+  backends under their explicit presets. They are not correctness requirements
+  and are not performance-validated.
+- AMDGPU builtin paths remain feature-detected evidence-only accelerators.
+  Their enable flags must fail fast until real correctness backends exist.

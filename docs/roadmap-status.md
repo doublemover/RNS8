@@ -122,12 +122,32 @@ disagree, the spec remains the target and this file identifies the gap.
   byte-limb benchmark metadata, fixed-prefix schedule metadata, measured
   schedule-info query timing, explicit
   phase-availability metadata for fused or not-applicable reduction, direct-HIP
-  per-tile adaptive bounded capture
-  metadata, schema validation tooling, CTest coverage for schema self-tests,
-  current fixtures, and same-contract result comparison, and comparison-tool
-  support for current schema v4 plus capture-specific GPU event phase orders.
-  Adaptive captures are evidence for the direct-HIP tiled correctness path only;
-  they are not optimized matrix-engine performance claims.
+  per-tile adaptive bounded capture metadata, hipBLASLt/CK/rocWMMA accelerator
+  selected-kernel metadata, schema validation tooling, CTest coverage for
+  schema self-tests, current fixtures, and same-contract result comparison, and
+  comparison-tool support for current schema v4 plus capture-specific GPU event
+  phase orders. Adaptive captures are evidence for the selected correctness
+  path only; they are not optimized matrix-engine performance claims.
+- hipBLASLt baseline accelerator: opt-in Windows `gfx1100` correctness backend
+  under `RNS8_ENABLE_HIPBLASLT=ON`, using hipBLASLt INT8-to-INT32 GEMM,
+  padded INT32 scratch, and separate centered-residue reduction. CPU/direct-HIP
+  differentials cover bounded, exact-wide RNS output, finite u8, K splits, tile
+  tails, and adaptive-schedule rejection. Captures remain baseline evidence and
+  report `performance_validated=false`.
+- CK fused accelerator: opt-in Windows `gfx1100` correctness backend under
+  `RNS8_ENABLE_CK=ON`, using repo-local CK headers plus RNS8-owned HIP
+  pack/output kernels. It supports fixed-prefix bounded, adaptive per-tile
+  bounded, exact-wide RNS output, and finite u8 with fused centered-residue
+  output. CPU/direct-HIP differentials, benchmark schema fixtures, and ISA
+  evidence are present; fastest-backend promotion is not.
+- rocWMMA fused accelerator: opt-in Windows `gfx1100` correctness backend under
+  `RNS8_ENABLE_ROCWMMA=ON`, using repo-local rocWMMA headers and RNS8-owned
+  HIP kernels. It supports fixed-prefix bounded, adaptive per-tile bounded,
+  exact-wide RNS output, and finite u8 with signed INT8 WMMA and fused
+  centered-residue output. CPU/direct-HIP differentials, benchmark schema
+  fixtures, and an ISA gate requiring `v_wmma` with no scalar
+  divide/remainder/reciprocal mnemonics or unintended INT32 global stores are
+  present; fastest-backend promotion is not.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -145,9 +165,9 @@ disagree, the spec remains the target and this file identifies the gap.
   evidence separate from backend enablement. Readiness output also separates
   correctness-backend validation from candidate accelerator evidence and reports
   hard-cut self-check metadata so discovery cannot be read as enabled backend
-  validation. CTest configure-negative cases pin that `RNS8_ENABLE_CK`,
-  `RNS8_ENABLE_ROCWMMA`, `RNS8_ENABLE_AMDGPU_BUILTINS`, and non-enabled
-  hipBLASLt configurations fail fast until real correctness backends exist.
+  validation. CTest configure-negative cases pin that
+  `RNS8_ENABLE_AMDGPU_BUILTINS` and non-enabled accelerator configurations fail
+  fast until real correctness backends exist.
   Report-level `hard_cut_self_checks` keep accelerator evidence, backend
   enablement, and Windows/Linux/Instinct validation boundaries
   machine-readable.
@@ -223,8 +243,17 @@ disagree, the spec remains the target and this file identifies the gap.
    pack buffers, hipBLASLt INT8-to-INT32 GEMM, padded INT32 scratch, and a
    separate HIP centered-residue reduction. CPU/direct-HIP differentials cover
    bounded, exact-wide RNS output, finite u8, K splits, tail padding, and
-   adaptive-schedule rejection. CK, rocWMMA, and AMDGPU builtins remain later
-   feature-detected accelerators with fail-fast enable flags.
+   adaptive-schedule rejection. It remains baseline-only, with
+   `performance_validated=false`.
+10. CK fused accelerator: implemented as an opt-in Windows `gfx1100`
+    correctness backend under `RNS8_ENABLE_CK=ON`. It has compiled kernels,
+    CPU/direct-HIP differentials, schema fixtures, and ISA evidence for fixed
+    bounded, adaptive bounded, exact-wide RNS output, and finite u8.
+11. rocWMMA fused accelerator: implemented as an opt-in Windows `gfx1100`
+    correctness backend under `RNS8_ENABLE_ROCWMMA=ON`. It has compiled
+    kernels, CPU/direct-HIP differentials, schema fixtures, and ISA evidence
+    for fixed bounded, adaptive bounded, exact-wide RNS output, and finite u8.
+    AMDGPU builtins remain fail-fast.
 
 ## Not Yet Implemented
 
@@ -235,12 +264,12 @@ disagree, the spec remains the target and this file identifies the gap.
 - Production performance gates for the fixed 9-modulus bounded milestone. The
   current fixed-prefix CPU and direct-HIP paths are correctness-grade and
   unoptimized unless a reviewed benchmark capture says otherwise.
-- CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
-  feature-detected future paths and are not correctness requirements.
-- Device capability and exact CPU differential probes for CK, rocWMMA, or
-  AMDGPU builtin backends. Current opt-in probes are compile/link and tiny
-  runtime evidence only. hipBLASLt has a local opt-in correctness baseline but
-  still lacks reviewed performance evidence.
+- AMDGPU builtin accelerator backends. They remain feature-detected future
+  paths and are not correctness requirements.
+- Performance-fastest promotion for hipBLASLt, CK, or rocWMMA. Current opt-in
+  backends have exact correctness evidence and schema fixtures, but captures
+  remain local Windows `gfx1100` evidence with `performance_validated=false`
+  until reviewed baselines and timing gates promote a target shape.
 - Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
   signed-INT8 correction algebra, and broader production-host/device validation
   beyond the current Windows direct-HIP CPU differentials.
@@ -380,10 +409,10 @@ current tracked schema contract.
   --json`: reported the CPU wrap64 byte-limb reference backend.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
-  Windows host. hipBLASLt dependency discovery remains candidate evidence until
-  the explicit backend preset is built and tested; CK, rocWMMA, and AMDGPU
-  builtins remained not ready, and none were promoted to correctness
-  requirements or correctness-backend validation by discovery alone.
+  Windows host. Accelerator dependency discovery remains candidate evidence
+  until an explicit backend preset is built and tested. CK, rocWMMA, and
+  hipBLASLt are not promoted to correctness requirements or correctness-backend
+  validation by discovery alone; AMDGPU builtins remain not ready.
 - `python tools\check_dependencies.py --accelerator-probes --json`: host
   readiness stayed true while accelerator gates stayed `ok=false`. CK and
   rocWMMA probes did not run because headers were not discovered. hipBLASLt was

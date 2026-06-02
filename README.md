@@ -53,11 +53,17 @@ Implemented:
 - Benchmark schema v4 with host wall-clock phase timings, live git commit
   capture, raw timing arrays, summaries, direct-HIP GPU event timing arrays
   when complete, and explicit per-tile adaptive bounded capture metadata.
+- Opt-in Windows `gfx1100` accelerator correctness backends for hipBLASLt, CK,
+  and rocWMMA. hipBLASLt is a baseline INT8-to-INT32 path with separate residue
+  reduction. CK and rocWMMA use matrix-engine INT8 GEMM with fused centered
+  residue output and exact CPU/direct-HIP differential coverage. All three
+  still report `performance_validated=false` until reviewed captures prove
+  target-shape wins.
 
 Not implemented yet:
 
-- Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
-  hot kernels, and optimized GPU strict `mod 2^64` byte-GEMM kernels.
+- Validated-fastest accelerator promotion, AMDGPU builtin hot kernels, and
+  optimized GPU strict `mod 2^64` byte-GEMM kernels.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Reviewed production performance claims; current benchmark captures are raw
@@ -249,6 +255,9 @@ strings are rejected instead of being routed to `auto`. In the default HIP
 preset, `hipblaslt`, `ck`, and `rocwmma` print `unsupported backend` plus an
 evidence-only accelerator note. In the opt-in hipBLASLt preset, `hipblaslt`
 reports the compiled baseline backend while `ck` and `rocwmma` remain
+unsupported. In the opt-in CK or rocWMMA presets, the selected backend reports
+compiled correctness support, selected kernel, workspace mode, exact
+differential validation, and ISA evidence while unselected accelerators remain
 unsupported. Inspect output includes the public backend capability metadata so
 accelerator fail-fast state is visible without requiring benchmark execution.
 
@@ -272,6 +281,28 @@ host wall-clock timings only; CK-specific HIP event phase hooks, stricter
 no-rcp ISA cleanup, and performance-fastest validation are still separate
 readiness items.
 
+rocWMMA is an opt-in Windows `gfx1100` accelerator build:
+
+```powershell
+python tools\windows_dev.py cmake --preset windows-msvc-rocwmma-debug
+python tools\windows_dev.py cmake --build --preset windows-rocwmma-debug
+python tools\windows_dev.py ctest --preset windows-rocwmma-debug --output-on-failure
+build\windows-msvc-rocwmma-debug\rns8-bench.exe --backend rocwmma --semantics bounded-i64 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 23
+build\windows-msvc-rocwmma-debug\rns8-bench.exe --backend rocwmma --semantics bounded-u64 --bound-mode per-tile --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 2 --seed 29 --require-adaptive-execution
+```
+
+The rocWMMA backend uses repo-local rocWMMA headers and RNS8-owned HIP kernels
+to pack signed centered residues into 16-aligned panels, execute
+`int8 x int8 -> int32` WMMA on `gfx1100`, and fuse INT32 reduction back to
+centered `int8_t` residues without global INT32 scratch output. It supports
+fixed-prefix bounded plans, adaptive per-tile bounded plans, exact-wide RNS
+output, and finite u8. The ISA gate requires the expected `v_wmma` instruction
+and rejects scalar divide/remainder/reciprocal mnemonics plus unintended INT32
+global stores. rocWMMA benchmark captures currently report host wall-clock
+timings only; backend-specific HIP event phase hooks and performance-fastest
+validation remain separate readiness items. `RNS8_ENABLE_AMDGPU_BUILTINS`
+still fails fast until target-specific builtin kernels exist.
+
 For CPU-only scaffold validation, configure without HIP:
 
 ```powershell
@@ -290,7 +321,7 @@ ctest --test-dir build\cpu-debug --output-on-failure
   initializes the pinned repo-local CK and rocWMMA submodules, compile-probes
   their headers, and object-compiles RNS8-owned int8 matrix-engine primitive
   probes with `hipcc` for the local target. Its output is dependency readiness
-  evidence only and does not enable CK or rocWMMA backends.
+  evidence only and does not enable CK or rocWMMA backends by itself.
 - [tools/check_dependencies.py](tools/check_dependencies.py) reports the local
   toolchain, HIP device, Python packages, `vcpkg.json` manifest packages,
   `CMakePresets.json` Windows/Linux HIP target representation, MSVC install,
@@ -299,7 +330,7 @@ ctest --test-dir build\cpu-debug --output-on-failure
   `--accelerator-probes` runs opt-in compile/run probes plus CK/rocWMMA int8
   primitive object probes under `temp\accelerator-deps\` for discovered
   accelerator components; these probes are evidence only and do not enable
-  correctness backends. The JSON
+  correctness backends by themselves. The JSON
   report separates implemented correctness backend families from candidate
   accelerator evidence through `readiness.correctness_backend_validation`,
   records exact-wide Windows/Linux/Instinct validation boundaries, keeps

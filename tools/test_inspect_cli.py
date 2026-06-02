@@ -72,10 +72,21 @@ def main() -> int:
         expect_text(ck.stderr, "real exact correctness backend", "ck")
 
     rocwmma = run_command(inspect_exe, "--backend", "rocwmma")
-    expect_exit(rocwmma, 1, "rocwmma")
-    expect_text(rocwmma.stderr, "unsupported backend", "rocwmma")
-    expect_text(rocwmma.stderr, "requested accelerator is evidence-only", "rocwmma")
-    expect_text(rocwmma.stderr, "real exact correctness backend", "rocwmma")
+    if rocwmma.returncode == 0:
+        expect_text(rocwmma.stdout, "capability_status: implemented_opt_in_rocwmma_backend", "rocwmma")
+        expect_text(rocwmma.stdout, "selected_kernel:   rocwmma_i8_i32_signed_hot_residue_v1", "rocwmma")
+        expect_text(rocwmma.stdout, "exact_validated:   1", "rocwmma")
+        expect_text(rocwmma.stdout, "perf_validated:    0", "rocwmma")
+        expect_text(
+            rocwmma.stdout,
+            "isa_evidence:      rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+            "rocwmma",
+        )
+    else:
+        expect_exit(rocwmma, 1, "rocwmma")
+        expect_text(rocwmma.stderr, "unsupported backend", "rocwmma")
+        expect_text(rocwmma.stderr, "requested accelerator is evidence-only", "rocwmma")
+        expect_text(rocwmma.stderr, "real exact correctness backend", "rocwmma")
 
     cpu = run_command(inspect_exe, "--backend", "cpu-reference", "--json")
     expect_exit(cpu, 0, "cpu-reference json")

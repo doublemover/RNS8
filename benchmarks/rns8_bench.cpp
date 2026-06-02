@@ -263,8 +263,9 @@ Args parse_args(int argc, char** argv) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
-    if (args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK) {
-      usage_error("--bound-mode per-tile currently captures direct HIP or CK adaptive paths");
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
+        args.backend != RNS8_BACKEND_WMMA) {
+      usage_error("--bound-mode per-tile currently captures direct HIP, CK, or rocWMMA adaptive paths");
     }
   }
   if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
@@ -273,7 +274,7 @@ Args parse_args(int argc, char** argv) {
   if (args.device_id == std::numeric_limits<int>::min()) {
     args.device_id =
         (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
-         args.backend == RNS8_BACKEND_CK)
+         args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA)
             ? 0
             : -1;
   }
@@ -1497,7 +1498,8 @@ bool adaptive_execution_applied(
     const rns8_device_info& info,
     const BenchmarkResult& result) {
   return args.bound_mode == BoundMode::PerTile &&
-         (info.backend == RNS8_BACKEND_HIP_DIRECT || info.backend == RNS8_BACKEND_CK) &&
+         (info.backend == RNS8_BACKEND_HIP_DIRECT || info.backend == RNS8_BACKEND_CK ||
+          info.backend == RNS8_BACKEND_WMMA) &&
          schedule_uses_adaptive_work(result);
 }
 
