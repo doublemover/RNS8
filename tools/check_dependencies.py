@@ -27,7 +27,8 @@ WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
 LINUX_ROCM_COMMANDS = ["hipcc", "hipconfig", "rocminfo"]
 LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
 PYTHON_PACKAGES = ["numpy", "pandas", "matplotlib", "pytest", "scipy"]
-OPTIONAL_CPP_PACKAGES = ["ntl", "fflas-ffpack", "linbox"]
+CORE_VCPKG_PACKAGES = ["boost-multiprecision", "catch2"]
+OPTIONAL_CPP_PACKAGES = ["gmp", "flint", "ntl", "fflas-ffpack", "linbox"]
 RADEON_TOOLS = [
     "rga",
     "RadeonGPUProfiler",
@@ -707,6 +708,14 @@ def vcpkg_ok(vcpkg_report: dict[str, str | None], names: list[str]) -> bool:
     return all(vcpkg_report.get(name) is not None for name in names)
 
 
+def vcpkg_package_role(name: str) -> str:
+    if name in CORE_VCPKG_PACKAGES:
+        return "host-required"
+    if name in OPTIONAL_CPP_PACKAGES:
+        return "optional-reference"
+    return "manifest-tracked"
+
+
 def status_label(ok: bool, applicable: bool = True) -> str:
     if not applicable:
         return "NOT_APPLICABLE"
@@ -787,7 +796,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     core_host_ok = (
         all(command_ok(commands, name) for name in CORE_COMMANDS)
         and packages_ok(py_packages, PYTHON_PACKAGES)
-        and vcpkg_ok(vcpkg_packages, ["boost-multiprecision", "catch2"])
+        and vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES)
     )
     windows_hip_ok = (
         host_is_windows
@@ -817,7 +826,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
                 "vcpkg core: "
                 + ", ".join(
                     f"{name}={'OK' if vcpkg_packages.get(name) else 'MISSING'}"
-                    for name in ["boost-multiprecision", "catch2"]
+                    for name in CORE_VCPKG_PACKAGES
                 ),
             ],
             "detail": "Phase 0 host/reference readiness; optional differential libraries are reported separately",
@@ -945,11 +954,11 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
     for package in vcpkg_packages:
         version = vcpkg_installed.get(package)
         vcpkg_report[package] = version
-        if version is None:
+        if package in CORE_VCPKG_PACKAGES and version is None:
             missing_required = True
 
     msvc = find_msvc()
-    if not msvc:
+    if host_system == "Windows" and not msvc:
         missing_required = True
 
     hip_info = hip_info_report(find_command("hipInfo"))
@@ -968,6 +977,7 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
             "path": str(repo_root() / "vcpkg.json"),
             "packages": vcpkg_packages,
         },
+        "vcpkg_package_roles": {package: vcpkg_package_role(package) for package in vcpkg_packages},
         "vcpkg_packages": vcpkg_report,
         "hip_info": hip_info,
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
@@ -1063,7 +1073,8 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(vcpkg_packages, dict)
     for name in manifest_packages:
         version = vcpkg_packages[name]
-        print(f"[{'OK' if version else 'MISSING'}] {name}: {version or 'not installed'}")
+        role = vcpkg_package_role(name)
+        print(f"[{'OK' if version else 'MISSING'}] {name} ({role}): {version or 'not installed'}")
     print()
 
     print("Optional CPU reference packages")

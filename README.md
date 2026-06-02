@@ -62,7 +62,9 @@ Required:
 - Git.
 - Python 3.11 or newer.
 - vcpkg at `C:\vcpkg`.
-- vcpkg packages declared in [vcpkg.json](vcpkg.json):
+- vcpkg packages declared in [vcpkg.json](vcpkg.json). The dependency checker
+  marks only current host-required packages as readiness blockers; optional
+  reference/planned packages are reported without enabling backends:
   - `benchmark`
   - `boost-multiprecision`
   - `catch2`
@@ -84,6 +86,8 @@ Python packages for benchmark orchestration and result analysis:
 
 Optional comparison libraries that are not required for Windows bring-up:
 
+- GMP
+- FLINT
 - NTL
 - FFLAS-FFPACK
 - LinBox

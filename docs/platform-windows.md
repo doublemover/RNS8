@@ -12,6 +12,9 @@ Validated in this slice:
   - `E004` GPU architecture detection.
   - `E070` Windows RDNA3 direct HIP readiness for the local `gfx1100` bring-up
     target.
+- Its process exit status follows host-required readiness gates. Optional
+  reference/planned manifest packages and accelerator probes are reported as
+  evidence, not as correctness or Windows bring-up blockers.
 - `cmake --preset windows-msvc-hip-debug` configures with vcpkg and
   `RNS8_ENABLE_HIP=ON`.
 - HIP sources are compiled by explicit hipcc custom commands. The build does
