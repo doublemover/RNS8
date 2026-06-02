@@ -44,10 +44,25 @@ contracts report `RNS8_UNSUPPORTED_BACKEND` only after descriptor validation.
 `rns8_status_string` covers every public status code plus out-of-range
 `unknown status`. `rns8-inspect` adds requested-backend context to unsupported
 backend errors and tells users when an accelerator request is evidence-only; it
-does not reinterpret unsupported accelerator requests as working correctness
-backends. CTest runs `tools/test_inspect_cli.py` against the built
+also reports the public backend capability status, selected kernel, enable flag,
+epilogue mode, workspace mode, and ISA-evidence state. It does not reinterpret
+unsupported accelerator requests as working correctness backends. CTest runs
+`tools/test_inspect_cli.py` against the built
 `rns8-inspect` executable to pin invalid backend-string rejection and
 evidence-only accelerator diagnostics.
+
+The public C ABI exposes accelerator readiness through
+`rns8_get_backend_capability_info` and plan-selected backend metadata through
+`rns8_get_plan_backend_info`. Current implemented correctness backends report
+compiled kernels and exact differential validation, but no performance
+validation. hipBLASLt, CK, and WMMA/builtin backend kinds report
+`not_implemented_evidence_only`, `enable_flag_fail_fast`, no compiled kernel,
+no exact differential validation, and no performance validation. Plan backend
+metadata includes selected kernel, accelerator library/version, capability
+status, epilogue mode, workspace mode, workspace byte requirement, ISA evidence,
+and an autotune key. Workspaces copy those fields from the plan, and workspace
+validation treats them as part of the same deterministic contract as schedule
+metadata.
 
 The future backend directories under `src/` are scaffold markers only. They
 exist to keep ownership boundaries visible while preserving the rule that no
@@ -59,9 +74,13 @@ Optional accelerator discovery is platform evidence, not backend enablement.
 `FindRNS8CK.cmake`, and `FindRNS8ROCWMMA.cmake` modules can report candidate
 hipBLASLt, CK, and rocWMMA component files. AMDGPU builtins have no
 discovery-only readiness path because they require target-specific kernels.
-These probes are shallow header/library/tool discovery only. They do not
-compile kernels, link an accelerator backend, run device capability checks, or
-satisfy correctness requirements.
+These probes are shallow header/library/tool discovery only; hipBLASLt
+discovery also records AMD's `roc::hipblaslt` CMake target when the installed
+HIP SDK exposes it. On Windows, opt-in hipBLASLt compile/link evidence loads
+the Visual Studio developer environment automatically and links the installed
+`libhipblaslt.dll.a` import archive. The probes still do not compile production
+kernels, link an accelerator backend, run device capability checks, or satisfy
+correctness requirements.
 The dependency checker's machine-readable readiness object also carries a
 separate `accelerator_enablement` section. Every accelerator enable flag remains
 `fail_fast_until_real_exact_correctness_backend`, every correctness backend is

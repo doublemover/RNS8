@@ -164,6 +164,7 @@ class _Validator:
             self._require(key, "int")
         self._validate_nonnegative_ints()
         self._validate_nested_metadata()
+        self._validate_backend_metadata()
         self._validate_schedule_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
@@ -246,6 +247,67 @@ class _Validator:
                     self._error("timing_metadata.gpu_event_phase_order must be an array of strings")
                 elif len(set(gpu_phase_order)) != len(gpu_phase_order):
                     self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
+
+    def _validate_backend_metadata(self) -> None:
+        metadata = self._require("backend_metadata", "dict")
+        if not isinstance(metadata, dict):
+            return
+        if metadata.get("source") != "rns8_get_plan_backend_info":
+            self._error("backend_metadata.source must be rns8_get_plan_backend_info")
+        selected_kernel = metadata.get("selected_kernel")
+        if not isinstance(selected_kernel, str) or not selected_kernel:
+            self._error("backend_metadata.selected_kernel must be a nonempty string")
+        if self.data.get("selected_kernel") != selected_kernel:
+            self._error("selected_kernel must match backend_metadata.selected_kernel")
+        for key in [
+            "accelerator_backend",
+            "correctness_backend",
+            "matrix_engine_backend",
+            "compiled_kernel_available",
+            "exact_differential_validated",
+            "performance_validated",
+        ]:
+            if not isinstance(metadata.get(key), bool):
+                self._error(f"backend_metadata.{key} must be a boolean")
+        for key in [
+            "accelerator_library",
+            "accelerator_version",
+            "capability_status",
+            "epilogue_mode",
+            "workspace_mode",
+            "isa_evidence",
+            "autotune_key",
+        ]:
+            value = metadata.get(key)
+            if value is not None and not isinstance(value, str):
+                self._error(f"backend_metadata.{key} must be a string or null")
+        for key in ["capability_status", "epilogue_mode", "workspace_mode", "isa_evidence", "autotune_key"]:
+            value = metadata.get(key)
+            if not isinstance(value, str) or not value:
+                self._error(f"backend_metadata.{key} must be a nonempty string")
+        workspace_bytes = metadata.get("workspace_required_bytes")
+        if not _is_int(workspace_bytes) or workspace_bytes < 0:
+            self._error("backend_metadata.workspace_required_bytes must be a nonnegative integer")
+        selected_backend = self.data.get("backend_selected")
+        if selected_backend in {"cpu-reference", "hip-direct", "wrap64-byte-limb"}:
+            if metadata.get("accelerator_backend") is not False:
+                self._error("current correctness backends must set backend_metadata.accelerator_backend=false")
+            if metadata.get("correctness_backend") is not True:
+                self._error("current correctness backends must set backend_metadata.correctness_backend=true")
+            if metadata.get("matrix_engine_backend") is not False:
+                self._error("current correctness backends must set backend_metadata.matrix_engine_backend=false")
+            if metadata.get("compiled_kernel_available") is not True:
+                self._error("current correctness backends must set backend_metadata.compiled_kernel_available=true")
+            if metadata.get("exact_differential_validated") is not True:
+                self._error("current correctness backends must set backend_metadata.exact_differential_validated=true")
+            if metadata.get("performance_validated") is not False:
+                self._error("current correctness backends must set backend_metadata.performance_validated=false")
+            if metadata.get("capability_status") != "implemented_correctness_backend":
+                self._error("current correctness backends must use capability_status=implemented_correctness_backend")
+        if selected_backend == "hip-direct" and metadata.get("accelerator_library") != "HIP runtime":
+            self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
+        if selected_backend != "hip-direct" and metadata.get("accelerator_library") not in {None, ""}:
+            self._error("non-HIP correctness captures must not report an accelerator library")
 
     def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
         availability = metadata.get("phase_availability")
@@ -342,6 +404,7 @@ class _Validator:
         prefix = self.data.get("prefix")
         packed_layout = self.data.get("packed_layout_version")
         schedule = self.data.get("schedule_metadata")
+        backend_metadata = self.data.get("backend_metadata")
         bound_mode = self.data.get("bound_mode", "global")
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
@@ -354,6 +417,14 @@ class _Validator:
                 expected_kernel = "direct_hip_wrap64_tiled_byte_limb_gemm_v1"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
+                if isinstance(backend_metadata, dict):
+                    if backend_metadata.get("epilogue_mode") != "low64_wrap_export":
+                        self._error("direct-HIP wrap64 captures must use backend_metadata.epilogue_mode=low64_wrap_export")
+                    if backend_metadata.get("workspace_mode") != "resident_device_buffers":
+                        self._error("direct-HIP wrap64 captures must use backend_metadata.workspace_mode=resident_device_buffers")
+                    expected_isa = "source_level_signed_i8_correction_no_matrix_engine_gate"
+                    if backend_metadata.get("isa_evidence") != expected_isa:
+                        self._error(f"direct-HIP wrap64 captures must use backend_metadata.isa_evidence={expected_isa}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
                 self._error("wrap64 captures must use bound_kind=none and bound=0")
             if self.data.get("tile_bounds_u64") is not None:
@@ -494,6 +565,20 @@ class _Validator:
             expected_scope = "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
             if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                 self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+        backend_metadata = self.data.get("backend_metadata")
+        if isinstance(backend_metadata, dict):
+            if backend_metadata.get("epilogue_mode") != "fused_centered_residue_then_crt_export":
+                self._error(
+                    "per-tile adaptive captures must use backend_metadata.epilogue_mode=fused_centered_residue_then_crt_export"
+                )
+            if backend_metadata.get("workspace_mode") != "resident_device_buffers_with_tiled_schedule":
+                self._error(
+                    "per-tile adaptive captures must use backend_metadata.workspace_mode=resident_device_buffers_with_tiled_schedule"
+                )
+            if backend_metadata.get("isa_evidence") != "rns8_hip_direct_reciprocal_isa_gate":
+                self._error(
+                    "per-tile adaptive captures must use backend_metadata.isa_evidence=rns8_hip_direct_reciprocal_isa_gate"
+                )
 
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")

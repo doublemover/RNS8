@@ -24,8 +24,12 @@ The benchmark reports:
 
 - stable `schema_version` metadata,
 - requested and selected backend,
-- selected kernel when a backend can report it; direct-HIP adaptive per-tile
-  bounded captures report `direct_hip_tiled_rns_gemm_v1`,
+- selected kernel reported by the plan backend metadata API,
+- `backend_metadata` from `rns8_get_plan_backend_info`, including selected
+  kernel, accelerator/correctness/matrix-engine booleans, compiled/exact/perf
+  validation booleans, accelerator library/version, capability status,
+  epilogue mode, workspace mode, workspace byte requirement, ISA evidence, and
+  autotune key,
 - semantic contract,
 - bound mode plus per-tile bound source/order/min/max/hash metadata when the
   capture uses `RNS8_BOUND_PER_TILE_*`,
@@ -77,8 +81,11 @@ be normalized into bounded i64/u64 or strict wrap64 timing contracts.
 
 Schema version 4 is the only accepted tracked capture schema. Current captures
 must carry an explicit integer `"schema_version": 4`; missing version fields are
-rejected instead of inferred. Schema v4 includes a measured `scheduling` phase
-for the public schedule-info query. The timing contract is:
+rejected instead of inferred. Schema v4 requires `backend_metadata` to mirror
+the top-level `selected_kernel`, so accelerator readiness and selected-kernel
+claims are tied to the public plan API instead of free-form benchmark text.
+Schema v4 also includes a measured `scheduling` phase for the public
+schedule-info query. The timing contract is:
 
 ```json
 "raw_timings_us": {

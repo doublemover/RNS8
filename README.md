@@ -190,10 +190,12 @@ Verify the development environment:
 python tools/check_dependencies.py
 ```
 
-Verify MSVC from a developer shell:
+Verify MSVC from a plain PowerShell shell. The wrapper locates Visual Studio
+and loads `VsDevCmd.bat` automatically when the current shell is not already a
+developer environment:
 
 ```powershell
-cmd /c "call ""C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 -host_arch=x64 && cl /Bv"
+python tools\windows_dev.py where cl
 ```
 
 When configuring CMake with vcpkg, pass the toolchain file explicitly:
@@ -206,9 +208,9 @@ Once the CMake project scaffold exists, use the checked-in presets:
 
 ```powershell
 cmake --list-presets
-cmake --preset windows-msvc-hip-debug
-cmake --build --preset windows-debug
-ctest --preset windows-debug --output-on-failure
+python tools\windows_dev.py cmake --preset windows-msvc-hip-debug
+python tools\windows_dev.py cmake --build --preset windows-debug
+python tools\windows_dev.py ctest --preset windows-debug --output-on-failure
 ```
 
 Do not rely on CMake's HIP language support for the Windows path. The Windows
@@ -228,7 +230,9 @@ python tools\result_compare.py temp\baseline.json temp\candidate.json
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`; `hipblaslt`, `ck`, and
 `rocwmma` print `unsupported backend` plus an evidence-only accelerator note
-until real correctness backends exist.
+until real correctness backends exist. Inspect output includes the public
+backend capability metadata so accelerator fail-fast state is visible without
+requiring benchmark execution.
 
 For CPU-only scaffold validation, configure without HIP:
 
@@ -263,7 +267,9 @@ ctest --test-dir build\cpu-debug --output-on-failure
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
   explicitly matrix-descriptor based; the ABI does not infer operand role or
   semantics from C++ types. Exact-wide limb export is separate from bounded
-  i64/u64 and strict wrap64 export.
+  i64/u64 and strict wrap64 export. Backend capability and plan backend
+  metadata APIs expose selected kernels, accelerator readiness, workspace mode,
+  ISA evidence, and autotune keys without enabling evidence-only accelerators.
 - `temp/` is intentionally ignored and is the place for scratch files, raw
   benchmark captures, downloaded installers, and anything else that should not
   be tracked by git.

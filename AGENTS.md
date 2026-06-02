@@ -89,10 +89,11 @@ cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystem
 cmake --build build
 ```
 
-When MSVC is required from a plain shell, load the VS developer environment:
+When MSVC is required from a plain shell, use the wrapper that loads the VS
+developer environment automatically:
 
 ```powershell
-cmd /c "call ""C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 -host_arch=x64 && cl /Bv"
+python tools\windows_dev.py where cl
 ```
 
 Expected local tools:
