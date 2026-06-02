@@ -585,6 +585,7 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   auto hip_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
   REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A, k, B, n, cpu_c, n) == RNS8_SUCCESS);
 
+  rns8::detail::hip_direct_allocation_counters_reset();
   rns8_plan* plan = nullptr;
   rns8_workspace* workspace = nullptr;
   rns8_matrix* a_matrix = nullptr;
@@ -622,6 +623,33 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   CHECK_FALSE(c_matrix->host_residues_current);
   CHECK(c_matrix->hip_export_buffer != nullptr);
   CHECK(c_matrix->hip_status_buffer != nullptr);
+  CHECK(std::vector<int64_t>(std::begin(hip_c), std::end(hip_c)) ==
+        std::vector<int64_t>(std::begin(cpu_c), std::end(cpu_c)));
+
+  void* a_upload = a_matrix->hip_upload_buffer;
+  void* b_upload = b_matrix->hip_upload_buffer;
+  void* c_export = c_matrix->hip_export_buffer;
+  void* c_status = c_matrix->hip_status_buffer;
+  const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  REQUIRE(warmed_allocations.allocate_calls > 0);
+  REQUIRE(warmed_allocations.allocated_bytes > 0);
+  std::fill(std::begin(hip_c), std::end(hip_c), int64_t{0});
+
+  REQUIRE(rns8_pack_i64(hip, a_matrix, A, k, 3) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, b_matrix, B, n, 4) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hip, plan, c_matrix, hip_c, n) == RNS8_SUCCESS);
+  const auto repeated_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(repeated_allocations.allocate_calls == warmed_allocations.allocate_calls);
+  CHECK(repeated_allocations.free_calls == warmed_allocations.free_calls);
+  CHECK(repeated_allocations.allocated_bytes == warmed_allocations.allocated_bytes);
+  CHECK(a_matrix->hip_residues == a_device_residues);
+  CHECK(b_matrix->hip_residues == b_device_residues);
+  CHECK(c_matrix->hip_residues == c_device_residues);
+  CHECK(a_matrix->hip_upload_buffer == a_upload);
+  CHECK(b_matrix->hip_upload_buffer == b_upload);
+  CHECK(c_matrix->hip_export_buffer == c_export);
+  CHECK(c_matrix->hip_status_buffer == c_status);
   CHECK(std::vector<int64_t>(std::begin(hip_c), std::end(hip_c)) ==
         std::vector<int64_t>(std::begin(cpu_c), std::end(cpu_c)));
 

@@ -16,7 +16,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - Device-resident direct HIP RNS matrices: HIP matrices own device residue
   buffers, upload buffers, export buffers, and status buffers; `rns8_gemm_rns`
   consumes device residues directly instead of copying host residues in the hot
-  GEMM path.
+  GEMM path. Internal allocation counters prove repeated same-shape persistent
+  pack/GEMM/export reuses warmed matrix-owned buffers without additional
+  direct-HIP allocation or free calls.
 - Direct HIP fused INT32-to-centered-residue reduction: the correctness kernel
   reduces each K block to the centered residue in the kernel and does not write
   full INT32 output matrices to global memory. Centered-range correction uses
@@ -91,6 +93,45 @@ disagree, the spec remains the target and this file identifies the gap.
   probe-only build directories while keeping all accelerator backend enablement
   disabled.
 
+## Requirement Audit
+
+1. Direct HIP residency and lifetime: implemented for persistent RNS and wrap64
+   matrices. Matrix-owned residue, byte-limb, upload, export, and status
+   buffers have explicit ownership and teardown. Repeated same-shape persistent
+   pack/GEMM/export is now allocation-observed after warmup.
+2. Direct HIP fused INT32-to-centered-residue reduction: implemented in the
+   direct correctness kernel. The path writes centered `int8_t` residues and
+   does not materialize full INT32 output matrices in global memory. Optimized
+   reciprocal-reduction and ISA-level validation remain future performance work.
+3. GPU bounded i64/u64 CRT/export: implemented for direct HIP with device-side
+   Garner reconstruction, range-error status reporting, signed `INT64_MIN`
+   handling, unsigned `UINT64_MAX` handling, per-tile bounds, and CPU
+   differential tests. CPU Boost.Multiprecision CRT remains the reference path.
+4. Benchmarking: schema v4 covers fixed seeds, command line, live git commit,
+   compiler and HIP toolchain metadata, GPU identity, backend/shape/semantics,
+   prefix and schedule metadata, warmups/repeats, raw timings, medians/p95s,
+   HIP event timings where complete, comparison tooling, and raw captures under
+   ignored `temp/`. Fused reduction is represented as explicitly not separately
+   timed instead of synthesized from GEMM time. No performance claims are made.
+5. Phase 2/3 fixed 9-modulus bounded GEMM and persistent matrix behavior:
+   implemented as named status milestones with CPU and Windows HIP tests,
+   including a literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9` contract check.
+6. Exact-wide CPU output/export semantics: implemented separately from bounded
+   i64/u64 and wrap64 semantics. Signed export uses fixed-width two's-complement
+   limbs; unsigned export uses fixed-width magnitude limbs; padded CPU host
+   layouts are tested.
+7. Strict `mod 2^64`: implemented only through byte-limb storage for CPU and
+   direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
+   The direct-HIP byte-GEMM36 path is a correctness kernel, not an optimized
+   matrix-engine accelerator.
+8. Linux ROCm and Instinct: represented by presets, readiness gates, target
+   coverage metadata, and docs. Validation remains `NOT_APPLICABLE` on this
+   Windows host and requires a real supported Linux ROCm host.
+9. hipBLASLt, CK, rocWMMA, and AMDGPU builtins: kept as later feature-detected
+   accelerators. Enable flags fail fast because no correctness backend is
+   implemented. Python/CMake probes are evidence-only and never become
+   correctness requirements.
+
 ## Not Yet Implemented
 
 - Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
@@ -120,6 +161,10 @@ disagree, the spec remains the target and this file identifies the gap.
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
   copied per-tile bound lifetime, wrap64 prefix-zero byte-limb scheduling, and
   tile-size validation.
+- The Windows HIP test pass includes persistent direct-HIP allocation-reuse
+  coverage: after warmup, repeated persistent pack/GEMM/export leaves
+  allocation/free counters and device/upload/export/status buffer pointers
+  unchanged.
 - The CPU test pass includes literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9`
   contract coverage, bounded signed/unsigned range errors for too-small but
   otherwise valid global and per-tile bounds, and padded exact-wide signed and

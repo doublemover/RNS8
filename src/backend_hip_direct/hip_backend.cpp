@@ -2,6 +2,7 @@
 
 #include "core/internal.hpp"
 
+#include <atomic>
 #include <limits>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -132,6 +133,9 @@ namespace {
 
 thread_local bool g_hip_direct_timing_enabled = false;
 thread_local std::vector<hip_direct_timing_sample> g_hip_direct_timing_samples;
+std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
+std::atomic<uint64_t> g_hip_direct_free_calls{0};
+std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 
 }  // namespace
 
@@ -159,6 +163,20 @@ void hip_direct_timing_record_sample(const char* label, double microseconds) {
 
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot() {
   return g_hip_direct_timing_samples;
+}
+
+void hip_direct_allocation_counters_reset() {
+  g_hip_direct_allocate_calls.store(0, std::memory_order_relaxed);
+  g_hip_direct_free_calls.store(0, std::memory_order_relaxed);
+  g_hip_direct_allocated_bytes.store(0, std::memory_order_relaxed);
+}
+
+hip_direct_allocation_counters hip_direct_allocation_counters_snapshot() {
+  hip_direct_allocation_counters counters{};
+  counters.allocate_calls = g_hip_direct_allocate_calls.load(std::memory_order_relaxed);
+  counters.free_calls = g_hip_direct_free_calls.load(std::memory_order_relaxed);
+  counters.allocated_bytes = g_hip_direct_allocated_bytes.load(std::memory_order_relaxed);
+  return counters;
 }
 
 namespace {
@@ -339,6 +357,8 @@ rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out) {
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
+  g_hip_direct_allocate_calls.fetch_add(1, std::memory_order_relaxed);
+  g_hip_direct_allocated_bytes.fetch_add(static_cast<uint64_t>(bytes), std::memory_order_relaxed);
   *out = ptr;
   return RNS8_SUCCESS;
 #else
@@ -359,7 +379,11 @@ rns8_status hip_direct_free(int device_id, void* ptr) {
     return device_status;
   }
   const hipError_t err = hipFree(ptr);
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  g_hip_direct_free_calls.fetch_add(1, std::memory_order_relaxed);
+  return RNS8_SUCCESS;
 #else
   (void)device_id;
   (void)ptr;

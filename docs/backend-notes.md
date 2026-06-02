@@ -11,7 +11,10 @@ Backend status:
   Public bounded GEMM can execute the direct HIP pack, RNS GEMM, and export
   path, with K split into blocks no larger than 65536 before centered residue
   reduction. Per-tile bounded plans use grouped tile launches over only each
-  tile's selected prefix and tile-local device CRT export.
+  tile's selected prefix and tile-local device CRT export. Internal allocation
+  counters and differential tests verify that repeated same-shape persistent
+  pack/GEMM/export calls reuse warmed matrix-owned buffers without additional
+  direct-HIP allocation or free calls.
 - hipBLASLt: not implemented.
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
@@ -47,6 +50,12 @@ residue on device. The current centered-range correction code uses mask
 arithmetic instead of source-level `if` branches, but the kernel still uses
 ordinary modulo operations and has not been promoted to a reciprocal-reduction
 or ISA-verified performance kernel.
+
+Persistent same-shape direct-HIP calls are allocation-observed in tests. The
+first pack/export may grow matrix-owned upload/export/status buffers. A repeated
+pack/GEMM/export cycle over the same persistent matrices must leave the direct
+HIP allocation counters, device residue pointers, upload buffers, export buffer,
+and status buffer unchanged.
 
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
