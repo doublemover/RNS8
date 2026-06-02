@@ -45,6 +45,14 @@
   "git_commit": "000000000000",
   "compiler": {"id": "msvc", "version": "1944.35213"},
   "configured_amdgpu_targets": "gfx1100",
+  "hip_toolchain": {
+    "enabled": true,
+    "hip_root": "C:/Program Files/AMD/ROCm/7.1",
+    "hipcc_path": "C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe",
+    "hipcc_version": "HIP version: 7.1.0",
+    "hip_sdk_or_rocm_version": "7.1",
+    "version_source": "hipcc --version"
+  },
   "device": {
     "device_id": 0,
     "name": "AMD Radeon RX 7900 XTX",

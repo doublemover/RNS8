@@ -38,6 +38,9 @@ The benchmark reports:
   unavailable,
 - compiler version,
 - configured AMDGPU target list,
+- configured HIP toolchain metadata, including HIP enablement, HIP SDK/ROCm
+  root, hipcc path, hipcc version captured from `hipcc --version`, and parsed
+  SDK/ROCm root version when available,
 - HIP device identity and runtime metadata when using the direct HIP backend,
 - clock/power settings when available; currently `null`,
 - comparison baseline and derived TOPS-equivalent when reviewed baselines exist;
@@ -89,7 +92,8 @@ is:
 Schema v3 added `timing_metadata.phase_availability`. Schema v4 keeps v1/v2/v3
 compatibility and adds per-tile adaptive bounded capture metadata:
 `bound_mode`, `tile_bounds_u64`, non-null `selected_kernel`, strict adaptive
-schedule consistency, and an adaptive direct-HIP event timing source scope. The
+schedule consistency, configured HIP toolchain metadata, and exact direct-HIP
+event timing source/scope validation. The
 current RNS bounded paths report `reduction.timed=false` with
 `scope: "fused_into_rns_gemm"` because centered residue reduction happens inside
 the `rns_gemm` phase. Strict wrap64 byte-limb captures report

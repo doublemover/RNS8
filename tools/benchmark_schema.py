@@ -28,6 +28,12 @@ DEFAULT_GPU_EVENT_PHASES = [
     "crt_export",
 ]
 AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
+DIRECT_HIP_GPU_EVENT_SCOPES = {
+    "direct_hip_default_stream_backend_operation_groups",
+    "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
+    "direct_hip_wrap64_comba_default_stream_backend_operation_groups",
+}
 
 
 class BenchmarkSchemaError(ValueError):
@@ -210,12 +216,39 @@ class _Validator:
         if _is_int(repeats) and repeats <= 0:
             self._error("repeats must be positive")
 
+    def _validate_hip_toolchain(self) -> None:
+        toolchain = self._require("hip_toolchain", "dict")
+        if not isinstance(toolchain, dict):
+            return
+        enabled = toolchain.get("enabled")
+        if not isinstance(enabled, bool):
+            self._error("hip_toolchain.enabled must be a boolean")
+        for key in ["hip_root", "hipcc_path", "hipcc_version", "hip_sdk_or_rocm_version", "version_source"]:
+            value = toolchain.get(key)
+            if value is not None and not isinstance(value, str):
+                self._error(f"hip_toolchain.{key} must be a string or null")
+        if enabled is False:
+            for key in ["hipcc_path", "hipcc_version", "version_source"]:
+                if toolchain.get(key) is not None:
+                    self._error(f"hip_toolchain.{key} must be null when hip_toolchain.enabled is false")
+        if self.data.get("backend_selected") == "hip-direct":
+            if enabled is not True:
+                self._error("hip-direct captures must set hip_toolchain.enabled=true")
+            for key in ["hip_root", "hipcc_path", "hipcc_version", "version_source"]:
+                value = toolchain.get(key)
+                if not isinstance(value, str) or not value:
+                    self._error(f"hip-direct captures must include nonempty hip_toolchain.{key}")
+            if toolchain.get("version_source") != "hipcc --version":
+                self._error("hip-direct captures must use hip_toolchain.version_source=hipcc --version")
+
     def _validate_nested_metadata(self) -> None:
         compiler = self._require("compiler", "dict")
         if isinstance(compiler, dict):
             for key in ["id", "version"]:
                 if not isinstance(compiler.get(key), str):
                     self._error(f"compiler.{key} must be a string")
+        if self.version >= 4:
+            self._validate_hip_toolchain()
         device = self._require("device", "dict")
         if isinstance(device, dict):
             for key in ["device_id", "hip_available", "hip_runtime_version", "hip_driver_version", "global_mem_bytes"]:
@@ -395,6 +428,12 @@ class _Validator:
                     self._error(f"{semantics} captures must use bound_kind={expected_bound_kind}")
                 if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
                     self._error(f"{semantics} global captures must use tile_bounds_u64=null")
+                if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+                    metadata = self.data.get("timing_metadata")
+                    if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                        expected_scope = "direct_hip_default_stream_backend_operation_groups"
+                        if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                            self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
                 if isinstance(schedule, dict) and _is_int(prefix):
                     if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                         self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
@@ -611,10 +650,17 @@ class _Validator:
             if metadata.get("gpu_event_timing_source_scope") is not None:
                 self._error("timing_metadata.gpu_event_timing_source_scope must be null when events are unavailable")
             return
-        if not isinstance(metadata.get("gpu_event_timing_source"), str):
+        source = metadata.get("gpu_event_timing_source")
+        scope = metadata.get("gpu_event_timing_source_scope")
+        if not isinstance(source, str):
             self._error("timing_metadata.gpu_event_timing_source must be a string when events are available")
-        if not isinstance(metadata.get("gpu_event_timing_source_scope"), str):
+        elif source != "hipEventElapsedTime":
+            self._error("timing_metadata.gpu_event_timing_source must be hipEventElapsedTime")
+        if not isinstance(scope, str):
             self._error("timing_metadata.gpu_event_timing_source_scope must be a string when events are available")
+        elif self.data.get("backend_selected") == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
+            expected = ", ".join(sorted(DIRECT_HIP_GPU_EVENT_SCOPES))
+            self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}")
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return

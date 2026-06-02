@@ -49,6 +49,14 @@ def main() -> int:
     bad_summary["gpu_event_timing_summary_us"]["crt_export"]["avg"] = 999.0
     expect_invalid(bad_summary, "gpu_event_timing_summary_us.crt_export.avg")
 
+    bad_event_source = copy.deepcopy(bounded)
+    bad_event_source["timing_metadata"]["gpu_event_timing_source"] = "std::chrono::steady_clock"
+    expect_invalid(bad_event_source, "gpu_event_timing_source must be hipEventElapsedTime")
+
+    bad_event_scope = copy.deepcopy(bounded)
+    bad_event_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_unknown_scope"
+    expect_invalid(bad_event_scope, "known direct-HIP scope")
+
     bad_schedule_tile = copy.deepcopy(bounded)
     bad_schedule_tile["tile_m"] = 96
     bad_schedule_tile["schedule_metadata"]["tile_m"] = 96
@@ -97,6 +105,14 @@ def main() -> int:
     bad_v4_per_modulus = copy.deepcopy(v4_adaptive_u64)
     bad_v4_per_modulus["per_modulus_gemm_estimate_applicable"] = True
     expect_invalid(bad_v4_per_modulus, "fixed-prefix contract")
+
+    bad_v4_toolchain = copy.deepcopy(v4_adaptive_u64)
+    del bad_v4_toolchain["hip_toolchain"]
+    expect_invalid(bad_v4_toolchain, "missing required field hip_toolchain")
+
+    bad_v4_toolchain_enabled = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_toolchain_enabled["hip_toolchain"]["enabled"] = False
+    expect_invalid(bad_v4_toolchain_enabled, "hip-direct captures must set hip_toolchain.enabled=true")
 
     bad_v4_scope = copy.deepcopy(v4_adaptive_u64)
     bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
