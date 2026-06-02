@@ -52,6 +52,8 @@ typedef struct rns8_gemm_desc {
   uint32_t tile_m;
   uint32_t tile_n;
   uint32_t flags;
+  const uint64_t* tile_bounds;
+  uint64_t tile_bounds_count;
 } rns8_gemm_desc;
 
 typedef struct rns8_matrix_desc {

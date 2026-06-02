@@ -112,6 +112,34 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
     return RNS8_INVALID_ARGUMENT;
   }
 
+  if (!plan.tile_schedule.empty()) {
+    for (const auto& entry : plan.tile_schedule) {
+      for (uint32_t p = 0; p < entry.selected_prefix; ++p) {
+        const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(A.desc.rows) *
+                                     static_cast<std::size_t>(A.desc.cols);
+        const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(B.desc.rows) *
+                                     static_cast<std::size_t>(B.desc.cols);
+        const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(C.desc.rows) *
+                                     static_cast<std::size_t>(C.desc.cols);
+        ring_gemm_modulus(
+            A.residues.data() + a_offset + static_cast<std::size_t>(entry.row_offset) *
+                                      static_cast<std::size_t>(A.desc.cols),
+            B.residues.data() + b_offset + static_cast<std::size_t>(entry.col_offset),
+            C.residues.data() + c_offset + static_cast<std::size_t>(entry.row_offset) *
+                                      static_cast<std::size_t>(C.desc.cols) +
+                                      static_cast<std::size_t>(entry.col_offset),
+            entry.row_extent,
+            entry.col_extent,
+            plan.desc.k,
+            A.desc.cols,
+            B.desc.cols,
+            C.desc.cols,
+            kDefaultModuli[p]);
+      }
+    }
+    return RNS8_SUCCESS;
+  }
+
   for (uint32_t p = 0; p < plan.prefix; ++p) {
     const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(A.desc.rows) *
                                  static_cast<std::size_t>(A.desc.cols);

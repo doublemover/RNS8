@@ -33,8 +33,10 @@ disagree, the spec remains the target and this file identifies the gap.
   storage and verify device pointer stability through pack, GEMM, and export.
 - Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
   required prefix, selected prefix, and prefix-group metadata through public ABI
-  queries. Current bounded execution still uses one fixed selected prefix for
-  every tile; adaptive per-tile prefix selection remains future work.
+  queries. Global bounded plans still use one fixed selected prefix for every
+  tile. CPU reference per-tile bounded plans copy tile bounds into the plan,
+  select variable exact prefixes, report adaptive prefix/skip metadata, execute
+  only selected per-tile prefixes, and export with tile-local bounds.
 - Exact-wide RNS output: exact-wide signed and unsigned semantics accept
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
@@ -73,8 +75,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
   instruction-level validation. The direct HIP kernels are correctness bring-up
   kernels, not performance evidence.
-- Per-tile adaptive bounds, variable per-tile selected prefixes, grouped
-  variable-prefix execution, and adaptive skip behavior.
+- Direct-HIP per-tile adaptive bounds, grouped variable-prefix execution, and
+  adaptive skip behavior. CPU reference per-tile adaptive bounds are
+  implemented for exact differential coverage; they are not yet a GPU path.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
@@ -88,13 +91,17 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 44/44 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 48/48 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 44/44 passed on
+- `ctest --preset windows-debug --output-on-failure`: 48/48 passed on
   `gfx1100`.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
-  for fixed-prefix bounded tile groups, wrap64 prefix-zero byte-limb scheduling,
-  and tile-size validation.
+  for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
+  copied per-tile bound lifetime, wrap64 prefix-zero byte-limb scheduling, and
+  tile-size validation.
+- The CPU test pass includes bounded signed and unsigned one-shot GEMMs over
+  2x2 output tile grids whose tiles use selected prefixes 1, 2, 3, and 4 and
+  export against tile-local bounds.
 - The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
   export checks against the CPU reference, including `INT64_MIN` and
   `UINT64_MAX` boundary outputs.

@@ -174,6 +174,167 @@ TEST_CASE("bounded plan schedule exposes tile grid and fixed prefix groups") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
+  rns8_context* ctx = create_cpu();
+  std::vector<uint64_t> bounds = {1, 1000, 1000000, uint64_t{1} << 40u, 5,
+                                  2000, 70000,  uint64_t{1} << 20u, uint64_t{1} << 32u};
+  auto desc = u64_desc(130, 129, 7, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  bounds[3] = 1;
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.tile_m == 64);
+  CHECK(info.tile_n == 64);
+  CHECK(info.tile_rows == 3);
+  CHECK(info.tile_cols == 3);
+  CHECK(info.tile_count == 9);
+  CHECK(info.min_required_prefix == 1);
+  CHECK(info.max_required_prefix == 6);
+  CHECK(info.min_selected_prefix == 1);
+  CHECK(info.max_selected_prefix == 6);
+  CHECK(info.prefix_group_count == 5);
+  CHECK(info.adaptive_prefix_active == 1);
+  CHECK(info.adaptive_skip_active == 1);
+  CHECK(info.range_bit_length == 41);
+
+  uint64_t written = 0;
+  std::vector<rns8_plan_tile_schedule_entry> entries(9);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  CHECK(entries[0].required_prefix == 1);
+  CHECK(entries[0].selected_prefix == 1);
+  CHECK(entries[0].group_index == 0);
+  CHECK(entries[1].required_prefix == 2);
+  CHECK(entries[1].selected_prefix == 2);
+  CHECK(entries[1].group_index == 1);
+  CHECK(entries[2].required_prefix == 3);
+  CHECK(entries[2].selected_prefix == 3);
+  CHECK(entries[2].group_index == 2);
+  CHECK(entries[3].required_prefix == 6);
+  CHECK(entries[3].selected_prefix == 6);
+  CHECK(entries[3].group_index == 4);
+  CHECK(entries[8].required_prefix == 5);
+  CHECK(entries[8].selected_prefix == 5);
+  CHECK(entries[8].group_index == 3);
+  CHECK(entries[8].row_offset == 128);
+  CHECK(entries[8].col_offset == 128);
+  CHECK(entries[8].row_extent == 2);
+  CHECK(entries[8].col_extent == 1);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU oneshot executes and exports per-tile unsigned prefixes") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  std::vector<uint64_t> A(m * k);
+  std::vector<uint64_t> B(k * n);
+  std::vector<uint64_t> C(m * n, 0);
+  for (int64_t row = 0; row < m; ++row) {
+    A[row] = row < 64 ? 1 : 1000000;
+  }
+  for (int64_t col = 0; col < n; ++col) {
+    B[col] = col < 64 ? 7 : 1000;
+  }
+
+  const std::vector<uint64_t> bounds = {7, 1000, 7000000, 1000000000};
+  auto desc = u64_desc(m, n, k, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(C[row * n + col] == A[row] * B[col]);
+    }
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU oneshot executes and exports per-tile signed prefixes") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  std::vector<int64_t> A(m * k);
+  std::vector<int64_t> B(k * n);
+  std::vector<int64_t> C(m * n, 0);
+  for (int64_t row = 0; row < m; ++row) {
+    A[row] = row < 64 ? -2 : -1000000;
+  }
+  for (int64_t col = 0; col < n; ++col) {
+    B[col] = col < 64 ? 3 : -1000;
+  }
+
+  const std::vector<uint64_t> bounds = {6, 2000, 3000000, 1000000000};
+  auto desc = i64_desc(m, n, k, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(C[row * n + col] == A[row] * B[col]);
+    }
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded per-tile bound contracts reject missing or inconsistent bounds") {
+  rns8_context* ctx = create_cpu();
+  auto desc = u64_desc(65, 65, 1, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  const std::vector<uint64_t> too_few = {7, 1000, 7000000};
+  desc.tile_bounds = too_few.data();
+  desc.tile_bounds_count = too_few.size();
+  CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  const std::vector<uint64_t> bounds = {7, 1000, 7000000, 1000000000};
+  desc.bound = 1;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  auto signed_desc = i64_desc(1, 1, 1, 0);
+  signed_desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+  const std::vector<uint64_t> too_large = {std::numeric_limits<uint64_t>::max()};
+  signed_desc.tile_bounds = too_large.data();
+  signed_desc.tile_bounds_count = too_large.size();
+  CHECK(rns8_create_plan(ctx, &signed_desc, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("wrap64 plan schedule reports non-RNS byte-limb scheduling") {
   rns8_context_options options{};
   options.struct_size = sizeof(options);

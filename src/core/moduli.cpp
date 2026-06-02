@@ -144,6 +144,9 @@ rns8_status validate_bound_contract(
   const cpp_int product = modulus_product(prefix);
   switch (semantics) {
     case RNS8_BOUNDED_I64: {
+      if (bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
+        return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+      }
       if (bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) {
         return bound_kind == RNS8_BOUND_NONE ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND;
       }
@@ -155,6 +158,9 @@ rns8_status validate_bound_contract(
       return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
     }
     case RNS8_BOUNDED_U64: {
+      if (bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+        return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+      }
       if (bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) {
         return bound_kind == RNS8_BOUND_NONE ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND;
       }
@@ -225,12 +231,16 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
       if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
         return RNS8_INVALID_ARGUMENT;
       }
-      return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+      return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS || desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS
+                 ? RNS8_SUCCESS
+                 : RNS8_INVALID_ARGUMENT;
     case RNS8_BOUNDED_U64:
       if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
         return RNS8_INVALID_ARGUMENT;
       }
-      return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+      return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED || desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED
+                 ? RNS8_SUCCESS
+                 : RNS8_INVALID_ARGUMENT;
     case RNS8_EXACT_WIDE_SIGNED:
     case RNS8_EXACT_WIDE_UNSIGNED:
       if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {

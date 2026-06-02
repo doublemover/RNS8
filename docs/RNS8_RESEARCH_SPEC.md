@@ -473,6 +473,15 @@ Rules:
 The default adaptive bound tile is `128 x 128` output elements. The tile size
 is configurable in powers of two from 64 to 512.
 
+For `RNS8_BOUND_PER_TILE_MAX_ABS` and `RNS8_BOUND_PER_TILE_MAX_UNSIGNED`,
+`rns8_gemm_desc.bound` must be zero and `rns8_gemm_desc.tile_bounds` points to
+row-major output-tile bounds with
+`ceil(m / tile_m) * ceil(n / tile_n)` entries. `rns8_create_plan` copies this
+array, so the caller only needs to keep it alive through plan creation.
+Current CPU reference plans execute and export with these per-tile selected
+prefixes. GPU grouped per-tile execution remains a separate validation target
+and must not be implied by CPU schedule support alone.
+
 For each tile:
 
 ```text
