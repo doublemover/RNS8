@@ -47,8 +47,9 @@ satisfy correctness requirements.
 The dependency checker's machine-readable readiness object also carries a
 separate `accelerator_enablement` section. Every accelerator enable flag remains
 `fail_fast_until_real_exact_correctness_backend`, every correctness backend is
-`not_implemented`, and `backend_enablement` stays `disabled` regardless of
-component discovery or optional compile/run probe evidence.
+`not_implemented`, `validated_correctness_backend` is false, and
+`backend_enablement` stays `disabled` regardless of component discovery or
+optional compile/run probe evidence.
 
 The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
@@ -153,6 +154,11 @@ even modulus products. Unit coverage pins one-limb signed min/max boundaries,
 negative two's-complement sign extension through 32 limbs, unsigned one-limb
 overflow rejection, two-limb unsigned success, padded element-stride export,
 descriptor rejection, and wrong export-function rejection.
+Direct-HIP differential coverage additionally compares CPU and resident-device
+export for max-width 32-limb padded layouts, negative centered signed values,
+unsigned high-bit magnitudes, destination-preserving range errors, wrong
+signed/unsigned export functions, and hard rejection of bounded or wrap64
+matrix handles under exact-wide plans.
 
 Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through byte-limb storage,
 not odd-modulus CRT. `RNS8_BACKEND_WRAP64_BYTE_LIMB` is the CPU reference

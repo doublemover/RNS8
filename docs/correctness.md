@@ -69,7 +69,10 @@ Implemented correctness coverage:
   exact-wide, and wrap64 interpretations. Direct HIP export requires
   device-current resident RNS output, rejects host-current stale device
   residues, and leaves device-resident residues on device instead of
-  synchronizing host residue storage.
+  synchronizing host residue storage. Direct HIP differential tests also compare
+  CPU and HIP fixed-width export at `limb_count == 32` with padded element
+  strides, negative centered signed values, unsigned high-bit magnitudes, and
+  exact-wide plans paired with bounded or wrap64 matrix handles.
 - CPU exact-wide fixed-width export tests also pin the signed centered
   half-product representative at small and maximum supported prefixes,
   one-limb signed min/max boundaries, negative two's-complement sign extension
