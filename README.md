@@ -248,6 +248,8 @@ build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-vector-alu-int64 --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics finite-u8-ring --modulus 255 --m 64 --n 64 --k 64 --warmups 1 --repeats 3 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics finite-u8-field --modulus 251 --m 64 --n 64 --k 64 --warmups 1 --repeats 3 --seed 1
 python tools\result_compare.py temp\baseline.json temp\candidate.json
 ```
 
@@ -269,18 +271,45 @@ Run small Windows `gfx1100` benchmark sweeps and review reports under ignored
 
 ```powershell
 python tools\benchmark_sweep.py --bench build\windows-msvc-hip-debug\rns8-bench.exe --out-root temp\benchmark-sweeps\windows-gfx1100 --shape 64 --backend cpu --backend hip-direct --backend hip-vector-alu-int64 --warmups 1 --repeats 3 --seed 1
-python tools\benchmark_sweep.py --review-only --out-root temp\benchmark-sweeps\windows-gfx1100-reviewed --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-cpu.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-hip-direct.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-hip-vector-alu-int64.json
+python tools\benchmark_sweep.py --bench build\windows-msvc-hip-debug\rns8-bench.exe --out-root temp\benchmark-sweeps\windows-gfx1100-finite --semantics finite-u8-ring --modulus 251 --modulus 255 --case small:64,64,64 --backend cpu --backend hip-direct --warmups 1 --repeats 3 --seed 1
+python tools\benchmark_sweep.py --review-only --out-root temp\benchmark-sweeps\windows-gfx1100-reviewed --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-shape-64x64x64-64x64x64-cpu.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-shape-64x64x64-64x64x64-hip-direct.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-shape-64x64x64-64x64x64-hip-vector-alu-int64.json
 ```
 
 The review report groups captures by semantic input contract, reports CPU,
-direct-HIP, and vector-ALU baseline coverage, and marks accelerator entries
-promotable only when they beat the same-contract direct-HIP and vector-ALU GPU
-baselines. Raw `rns8-bench --write-autotune-cache` writes are refused unless the
-capture is already performance-validated by reviewed promotion tooling. Use
-`tools\benchmark_sweep.py --bench-for ck=build\windows-msvc-ck-debug\rns8-bench.exe`
-style overrides when a sweep combines captures from opt-in accelerator build
-directories, and `--write-autotune-cache` only after reviewing the generated
-report.
+direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. finite-u8
+reviews require CPU and direct-HIP baselines; vector-ALU is not applicable.
+Accelerator entries are promotable only when they beat the required
+same-contract GPU baselines, and only the fastest promotable accelerator in a
+contract group is written to the autotune cache. Raw
+`rns8-bench --write-autotune-cache` writes are refused unless the capture is
+already performance-validated by reviewed promotion tooling. Use
+`tools\benchmark_sweep.py --bench-for ck=build\windows-msvc-ck-release\rns8-bench.exe`
+style overrides when a release sweep combines captures from opt-in accelerator
+build directories, and `--write-autotune-cache --autotune-cache temp\reviewed-autotune.json`
+until the generated report has been reviewed.
+
+Release performance promotion uses release opt-in presets, not debug captures:
+
+```powershell
+python tools\windows_dev.py cmake --preset windows-msvc-hipblaslt-release
+python tools\windows_dev.py cmake --build --preset windows-hipblaslt-release
+python tools\windows_dev.py ctest --preset windows-hipblaslt-release --output-on-failure
+python tools\windows_dev.py cmake --preset windows-msvc-ck-release
+python tools\windows_dev.py cmake --build --preset windows-ck-release
+python tools\windows_dev.py ctest --preset windows-ck-release --output-on-failure
+python tools\windows_dev.py cmake --preset windows-msvc-rocwmma-release
+python tools\windows_dev.py cmake --build --preset windows-rocwmma-release
+python tools\windows_dev.py ctest --preset windows-rocwmma-release --output-on-failure
+python tools\benchmark_sweep.py --bench build\windows-msvc-hip-release\rns8-bench.exe --bench-for hipblaslt=build\windows-msvc-hipblaslt-release\rns8-bench.exe --bench-for ck=build\windows-msvc-ck-release\rns8-bench.exe --bench-for rocwmma=build\windows-msvc-rocwmma-release\rns8-bench.exe --out-root temp\benchmark-sweeps\windows-gfx1100-release-reviewed --release-matrix --include-default-adaptive --semantics bounded-i64 --semantics bounded-u64 --warmups 3 --repeats 9 --seed 1
+```
+
+Large `2048`, `4096`, and `8192` shapes can be added with
+`--include-exploratory-large`; they remain exploratory unless the same-contract
+CPU/reference baselines complete and the review report marks the group
+promotable. AMDGPU builtin and wrap64 matrix-engine paths stay disabled unless
+reviewed captures prove a concrete candidate beats the current CK/rocWMMA or
+`direct_hip_wrap64_byte_gemm36_tiled_2d_v3` path with exact differentials and
+ISA evidence.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
@@ -301,6 +330,7 @@ python tools\windows_dev.py cmake --build --preset windows-ck-debug
 python tools\windows_dev.py ctest --preset windows-ck-debug --output-on-failure
 build\windows-msvc-ck-debug\rns8-bench.exe --backend ck --semantics bounded-i64 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 13
 build\windows-msvc-ck-debug\rns8-bench.exe --backend ck --semantics bounded-u64 --bound-mode per-tile --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 2 --seed 7 --require-adaptive-execution
+build\windows-msvc-ck-debug\rns8-bench.exe --backend ck --semantics finite-u8-ring --modulus 255 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 13
 ```
 
 The CK backend uses repo-local Composable Kernel headers and RNS8-owned HIP
@@ -321,6 +351,7 @@ python tools\windows_dev.py cmake --build --preset windows-rocwmma-debug
 python tools\windows_dev.py ctest --preset windows-rocwmma-debug --output-on-failure
 build\windows-msvc-rocwmma-debug\rns8-bench.exe --backend rocwmma --semantics bounded-i64 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 23
 build\windows-msvc-rocwmma-debug\rns8-bench.exe --backend rocwmma --semantics bounded-u64 --bound-mode per-tile --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 2 --seed 29 --require-adaptive-execution
+build\windows-msvc-rocwmma-debug\rns8-bench.exe --backend rocwmma --semantics finite-u8-field --modulus 251 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 23
 ```
 
 The rocWMMA backend uses repo-local rocWMMA headers and RNS8-owned HIP kernels
@@ -373,9 +404,11 @@ ctest --test-dir build\cpu-debug --output-on-failure
   JSON captures without treating timing deltas as correctness or performance
   claims. Backend and selected-kernel differences are reported separately from
   the same semantic contract.
-- [tools/benchmark_sweep.py](tools/benchmark_sweep.py) runs fixed command
-  matrices and writes reviewed same-contract baseline reports under ignored
-  `temp\benchmark-sweeps\`.
+- [tools/benchmark_sweep.py](tools/benchmark_sweep.py) runs fixed or explicit
+  command matrices for bounded, adaptive bounded, finite-u8, and wrap64
+  captures, writes JSON/Markdown review reports under ignored
+  `temp\benchmark-sweeps\`, and writes autotune cache entries only for fastest
+  reviewed same-contract accelerator winners.
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
   explicitly matrix-descriptor based; the ABI does not infer operand role or
   semantics from C++ types. Exact-wide limb export is separate from bounded
