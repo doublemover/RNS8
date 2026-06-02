@@ -101,6 +101,14 @@ uint64_t expected_wrap_cell(
   return low64(exact);
 }
 
+uint64_t load_compact_u64_limbs(const std::vector<uint8_t>& limbs, int64_t cell) {
+  uint64_t value = 0;
+  for (uint32_t limb = 0; limb < 8; ++limb) {
+    value |= static_cast<uint64_t>(limbs[static_cast<std::size_t>(cell * 8 + limb)]) << (8u * limb);
+  }
+  return value;
+}
+
 }  // namespace
 
 TEST_CASE("wrap64 byte-limb product matches low 64-bit multiprecision product") {
@@ -626,6 +634,140 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
     }
   }
   run_and_check(201, 202);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("public wrap64 CPU resident path covers large padded tile-tail full-width data") {
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 33;
+  constexpr int64_t lda = 41;
+  constexpr int64_t ldb = 29;
+  constexpr int64_t ldc = 23;
+  constexpr uint64_t a_padding = 0xaaaaaaaaaaaaaaaaull;
+  constexpr uint64_t b_padding = 0xbbbbbbbbbbbbbbbbull;
+  constexpr uint64_t c_sentinel = 0xcdcdcdcdcdcdcdcdull;
+  std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), a_padding);
+  std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), b_padding);
+  std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), c_sentinel);
+  std::vector<uint64_t> oneshot(static_cast<std::size_t>(m * ldc), c_sentinel);
+
+  auto fill_inputs = [&](uint64_t salt) {
+    std::mt19937_64 rng(0x7772617036345f6cull ^ salt);
+    std::fill(A.begin(), A.end(), a_padding ^ salt);
+    std::fill(B.begin(), B.end(), b_padding ^ (salt << 1u));
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        uint64_t value = rng() ^ (salt + static_cast<uint64_t>(row * 131 + col * 17));
+        if ((row + col) % 13 == 0) {
+          value = std::numeric_limits<uint64_t>::max();
+        } else if ((row + col) % 13 == 1) {
+          value = 0;
+        } else if ((row + col) % 13 == 2) {
+          value = 0x8080808080808080ull;
+        } else if ((row + col) % 13 == 3) {
+          value = 0x7f807f807f807f80ull;
+        }
+        A[static_cast<std::size_t>(row * lda + col)] = value;
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        uint64_t value = rng() ^ (salt + static_cast<uint64_t>(row * 257 + col * 29));
+        if ((row * 3 + col) % 17 == 0) {
+          value = std::numeric_limits<uint64_t>::max() - 1;
+        } else if ((row * 3 + col) % 17 == 1) {
+          value = 1;
+        } else if ((row * 3 + col) % 17 == 2) {
+          value = 0xfefdfcfbfaf9f8f7ull;
+        } else if ((row * 3 + col) % 17 == 3) {
+          value = 0x0102030405060708ull;
+        }
+        B[static_cast<std::size_t>(row * ldb + col)] = value;
+      }
+    }
+  };
+
+  rns8_context* ctx = create_wrap64();
+  auto desc = wrap_desc(m, n, k);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto a_desc = wrap_matrix_desc(m, k);
+  auto b_desc = wrap_matrix_desc(k, n);
+  auto c_desc = wrap_matrix_desc(m, n);
+  a_desc.logical_ld = lda;
+  b_desc.logical_ld = ldb;
+  c_desc.logical_ld = ldc;
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  const auto* a_bytes = a_matrix->byte_limbs.data();
+  const auto* b_bytes = b_matrix->byte_limbs.data();
+  const auto* c_bytes = c_matrix->byte_limbs.data();
+  REQUIRE(a_matrix->byte_limbs.size() == static_cast<std::size_t>(m * k * 8));
+  REQUIRE(b_matrix->byte_limbs.size() == static_cast<std::size_t>(k * n * 8));
+  REQUIRE(c_matrix->byte_limbs.size() == static_cast<std::size_t>(m * n * 8));
+  CHECK(a_matrix->residues.empty());
+  CHECK(b_matrix->residues.empty());
+  CHECK(c_matrix->residues.empty());
+
+  auto run_and_check = [&](uint64_t a_version, uint64_t b_version) {
+    std::fill(C.begin(), C.end(), c_sentinel);
+    std::fill(oneshot.begin(), oneshot.end(), c_sentinel);
+    REQUIRE(rns8_pack_u64(ctx, a_matrix, A.data(), lda, a_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(ctx, b_matrix, B.data(), ldb, b_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_wrap_u64(ctx, plan, c_matrix, C.data(), ldc) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_wrap_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, oneshot.data(), ldc) ==
+            RNS8_SUCCESS);
+    CHECK(a_matrix->byte_limbs.data() == a_bytes);
+    CHECK(b_matrix->byte_limbs.data() == b_bytes);
+    CHECK(c_matrix->byte_limbs.data() == c_bytes);
+    CHECK(a_matrix->source_version == a_version);
+    CHECK(b_matrix->source_version == b_version);
+    CHECK(C == oneshot);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t kk = 0; kk < k; ++kk) {
+        CHECK(load_compact_u64_limbs(a_matrix->byte_limbs, row * k + kk) ==
+              A[static_cast<std::size_t>(row * lda + kk)]);
+      }
+    }
+    for (int64_t kk = 0; kk < k; ++kk) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(load_compact_u64_limbs(b_matrix->byte_limbs, kk * n + col) ==
+              B[static_cast<std::size_t>(kk * ldb + col)]);
+      }
+    }
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        const std::size_t out_index = static_cast<std::size_t>(row * ldc + col);
+        const uint64_t expected = expected_wrap_cell(A, lda, B, ldb, row, col, k);
+        CHECK(C[out_index] == expected);
+        CHECK(C[out_index] == rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k));
+        CHECK(C[out_index] ==
+              rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+      }
+    }
+  };
+
+  fill_inputs(0x1234);
+  run_and_check(301, 302);
+  fill_inputs(0x5678);
+  run_and_check(401, 402);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);

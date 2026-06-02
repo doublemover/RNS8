@@ -10,6 +10,10 @@ readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platfor
 matrix gates are reported as not applicable rather than as Windows blockers.
 On Linux, `hipcc`, `hipconfig`, `rocminfo`, and either `rocm-smi` or `amd-smi`
 are treated as the ROCm capability-inspection command set.
+The JSON readiness report also carries `exact_wide_platform_validation` so
+Windows `gfx1100` exact-wide limb evidence remains separate from Linux ROCm,
+Radeon Linux, and Instinct CDNA validation. Those fields stay unvalidated until
+the exact CPU differential suite is run on real supported Linux ROCm hardware.
 
 Expected Linux configure path:
 

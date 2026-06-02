@@ -49,6 +49,13 @@ LINUX_ROCM_COVERAGE_TARGETS = tuple(SUPPORTED_TARGETS)
 LINUX_RDNA_TARGETS = {"gfx1030", "gfx1100", "gfx1200", "gfx1201"}
 LINUX_CDNA_TARGETS = {"gfx90a", "gfx942", "gfx950"}
 ACCELERATOR_NAMES = ("hipblaslt", "ck", "rocwmma", "amdgpu_builtins")
+ACCELERATOR_ENABLE_FLAGS = {
+    "hipblaslt": "RNS8_ENABLE_HIPBLASLT",
+    "ck": "RNS8_ENABLE_CK",
+    "rocwmma": "RNS8_ENABLE_ROCWMMA",
+    "amdgpu_builtins": "RNS8_ENABLE_AMDGPU_BUILTINS",
+}
+ACCELERATOR_ENABLE_POLICY = "fail_fast_until_real_exact_correctness_backend"
 
 ACCELERATOR_PROBE_SOURCES = {
     "hipblaslt": """#include <hipblaslt/hipblaslt.h>
@@ -508,6 +515,11 @@ def accelerator_components() -> dict[str, dict[str, object]]:
         name: {
             "ok": bool(item["header"] or item["library"] or item["tool"]),
             "required": False,
+            "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
+            "enable_policy": ACCELERATOR_ENABLE_POLICY,
+            "backend_enablement": "disabled",
+            "correctness_backend": "not_implemented",
+            "feature_detection": "evidence_only",
             "header": item["header"],
             "library": item["library"],
             "tool": item["tool"],
@@ -560,6 +572,8 @@ def not_run_probe(
         "runtime_probe_ok": False,
         "device_capability_ok": False,
         "backend_enablement": "disabled",
+        "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
+        "enable_policy": ACCELERATOR_ENABLE_POLICY,
         "readiness_effect": "none",
         "source": str(probe_dir / f"{name}_probe.cpp"),
         "binary": str(probe_binary_path(probe_dir, name)),
@@ -659,6 +673,8 @@ def accelerator_compile_probes(
             "runtime_probe_ok": runtime_ok,
             "device_capability_ok": False,
             "backend_enablement": "disabled",
+            "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
+            "enable_policy": ACCELERATOR_ENABLE_POLICY,
             "readiness_effect": "none",
             "source": str(source),
             "binary": str(binary),
@@ -791,6 +807,61 @@ def accelerator_gate(
         ],
         "detail": detail,
         "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
+    }
+
+
+def accelerator_enablement_policy(
+    accelerators: dict[str, dict[str, object]],
+    probes: dict[str, object],
+) -> dict[str, object]:
+    probe_items = probes.get("items") if isinstance(probes, dict) else {}
+    flags: dict[str, dict[str, object]] = {}
+    for name in ACCELERATOR_NAMES:
+        component = accelerators.get(name, {})
+        probe = probe_items.get(name) if isinstance(probe_items, dict) else None
+        flags[name] = {
+            "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
+            "enable_policy": ACCELERATOR_ENABLE_POLICY,
+            "backend_enablement": "disabled",
+            "correctness_backend": "not_implemented",
+            "feature_detection": "evidence_only",
+            "component_discovered": bool(component.get("ok")) if isinstance(component, dict) else False,
+            "probe_status": probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED",
+            "readiness_effect": "none",
+        }
+    return {
+        "backend_enablement": "disabled",
+        "correctness_backends_enabled": False,
+        "enable_flags_fail_fast": True,
+        "policy": (
+            "hipBLASLt, CK, rocWMMA, and AMDGPU builtin flags fail fast until real exact "
+            "correctness backends exist; discovery and probes are evidence only"
+        ),
+        "flags": flags,
+    }
+
+
+def exact_wide_platform_validation_status(host_system: str, hip_info: dict[str, object]) -> dict[str, object]:
+    target = hip_info.get("target")
+    return {
+        "host": host_system,
+        "current_host_target": target or "not parsed",
+        "windows_gfx1100_scope": (
+            "local direct-HIP bring-up evidence only"
+            if host_system == "Windows" and target == "gfx1100"
+            else "not current host evidence"
+        ),
+        "linux_rocm_validated_by_this_host": False,
+        "instinct_validated_by_this_host": False,
+        "policy": (
+            "exact-wide Windows evidence does not validate Linux ROCm, Radeon Linux, or Instinct CDNA; "
+            "those gates require a real supported Linux ROCm host and exact CPU differential runs"
+        ),
+        "required_linux_gates": [
+            "E003_linux_rocm_detection",
+            "E072_linux_rdna2_rdna3_rdna4_rocm",
+            "E073_E074_E075_linux_instinct_rocm",
+        ],
     }
 
 
@@ -942,6 +1013,8 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         "policy": "optional accelerators are never promoted to enabled backends by this checker",
         "gates": gates,
         "platform_gates": platform_gates,
+        "accelerator_enablement": accelerator_enablement_policy(accelerators, accelerator_probes),
+        "exact_wide_platform_validation": exact_wide_platform_validation_status(host_system, hip_info),
     }
 
 
@@ -1123,6 +1196,8 @@ def print_human(report: dict[str, object]) -> None:
         status = "OK" if item["ok"] else "MISSING"
         print(f"[{status}] {name} ({item['backend_stage']}, {item['experiment']}, optional)")
         print(f"  probe: {item['probe']}")
+        print(f"  enable flag: {item['enable_flag']} ({item['enable_policy']})")
+        print(f"  backend enablement: {item['backend_enablement']}")
         print(f"  cmake module: {item.get('cmake_module') or 'not found'}")
         if item.get("header"):
             print(f"  header: {item['header']}")
@@ -1148,6 +1223,7 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  compiled: {item.get('compiled_probe_ok', False)}")
         print(f"  runtime:  {item.get('runtime_probe_ok', False)}")
         print(f"  backend enablement: {item.get('backend_enablement')}")
+        print(f"  enable flag: {item.get('enable_flag')} ({item.get('enable_policy')})")
         print(f"  source: {item.get('source')}")
         print(f"  binary: {item.get('binary')}")
         if item.get("output"):
@@ -1176,6 +1252,22 @@ def print_human(report: dict[str, object]) -> None:
 
     readiness = report["readiness"]
     assert isinstance(readiness, dict)
+
+    print("Accelerator enablement policy")
+    accelerator_enablement = readiness["accelerator_enablement"]
+    assert isinstance(accelerator_enablement, dict)
+    print(f"backend enablement: {accelerator_enablement['backend_enablement']}")
+    print(f"correctness backends enabled: {accelerator_enablement['correctness_backends_enabled']}")
+    print(f"enable flags fail fast: {accelerator_enablement['enable_flags_fail_fast']}")
+    print(f"policy: {accelerator_enablement['policy']}")
+    accelerator_flags = accelerator_enablement["flags"]
+    assert isinstance(accelerator_flags, dict)
+    for name in sorted(accelerator_flags):
+        item = accelerator_flags[name]
+        assert isinstance(item, dict)
+        print(f"  {name}: {item['enable_flag']} -> {item['backend_enablement']} ({item['probe_status']})")
+    print()
+
     print("Readiness gates")
     print(f"host readiness: {'OK' if readiness['host_readiness_ok'] else 'NOT READY'}")
     print(f"policy: {readiness['policy']}")
@@ -1195,6 +1287,17 @@ def print_human(report: dict[str, object]) -> None:
         req = "host-required" if gate["required_for_host_readiness"] else "not host-required"
         print(f"[{gate['status']}] {name} ({req})")
         print(f"  detail: {gate['detail']}")
+    print()
+
+    print("Exact-wide platform validation")
+    exact_wide_platform = readiness["exact_wide_platform_validation"]
+    assert isinstance(exact_wide_platform, dict)
+    print(f"host: {exact_wide_platform['host']}")
+    print(f"current host target: {exact_wide_platform['current_host_target']}")
+    print(f"Windows gfx1100 scope: {exact_wide_platform['windows_gfx1100_scope']}")
+    print(f"Linux ROCm validated by this host: {exact_wide_platform['linux_rocm_validated_by_this_host']}")
+    print(f"Instinct validated by this host: {exact_wide_platform['instinct_validated_by_this_host']}")
+    print(f"policy: {exact_wide_platform['policy']}")
     print()
 
     print("Project tools")
