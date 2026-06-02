@@ -26,9 +26,9 @@ Implemented:
   residue oracles and CPU little-endian limb export. Signed exact-wide export
   uses fixed-width two's-complement limbs; unsigned exact-wide export uses
   fixed-width magnitude limbs.
-- Strict `mod 2^64` wraparound CPU one-shot GEMM through the explicit
-  byte-limb backend. This path returns low-64-bit `uint64_t` output and does not
-  use odd-modulus CRT.
+- Strict `mod 2^64` wraparound CPU GEMM through the explicit byte-limb backend,
+  including one-shot and persistent byte-limb matrix APIs. This path returns
+  low-64-bit `uint64_t` output and does not use odd-modulus CRT.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.

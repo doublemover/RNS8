@@ -102,7 +102,7 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
     case RNS8_EXACT_WIDE_UNSIGNED:
       return RNS8_MAX_SUPPORTED_PREFIX;
     case RNS8_WRAP_U64_MOD_2_64:
-      return RNS8_DEFAULT_BOUNDED_PREFIX;
+      return 0;
   }
   return 0;
 }
@@ -169,6 +169,12 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
         cpp_int(desc.k) * (cpp_int(1) << (desc.semantics == RNS8_EXACT_WIDE_SIGNED ? 127 : 128));
     return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
   }
+  if (desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    return RNS8_SUCCESS;
+  }
   return validate_bound_contract(desc.semantics, desc.bound_kind, desc.bound, prefix);
 }
 
@@ -185,17 +191,25 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
   if (desc.logical_ld != 0 && desc.logical_ld < desc.cols) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-    return RNS8_INVALID_ARGUMENT;
-  }
   switch (desc.semantics) {
     case RNS8_BOUNDED_I64:
+      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
     case RNS8_BOUNDED_U64:
+      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
     case RNS8_EXACT_WIDE_SIGNED:
     case RNS8_EXACT_WIDE_UNSIGNED:
+      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       return desc.bound_kind == RNS8_BOUND_NONE ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
+    case RNS8_WRAP_U64_MOD_2_64:
+      return desc.bound_kind == RNS8_BOUND_NONE && prefix == 0 ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
     default:
       return RNS8_UNSUPPORTED_BACKEND;
   }

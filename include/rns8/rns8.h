@@ -123,6 +123,14 @@ RNS8_API rns8_status rns8_gemm_rns(
     rns8_matrix* C,
     rns8_workspace* workspace);
 
+RNS8_API rns8_status rns8_gemm_wrap_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
 RNS8_API rns8_status rns8_export_i64(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -131,6 +139,13 @@ RNS8_API rns8_status rns8_export_i64(
     int64_t ld);
 
 RNS8_API rns8_status rns8_export_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld);
+
+RNS8_API rns8_status rns8_export_wrap_u64(
     rns8_context* ctx,
     const rns8_plan* plan,
     const rns8_matrix* C,
