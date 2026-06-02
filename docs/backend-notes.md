@@ -106,7 +106,9 @@ tile entries. A same-shape workspace from exact-wide, bounded global, bounded
 per-tile, wrap64 semantics, or a different per-tile bounded schedule is rejected
 instead of being silently reused across contracts. Per-tile bounded matrices
 must also carry the plan's tile geometry; stale matrix tile metadata is rejected
-before GEMM/export dispatch.
+before GEMM/export dispatch. Successful bounded RNS GEMM stamps the output
+matrix source version from the packed A/B source versions; rejected dispatch
+leaves the existing output version unchanged.
 
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
@@ -114,7 +116,8 @@ a device status for range errors, and copies the compact output to the caller's
 host layout only after the device status reports success. Range-error exports
 leave the caller's host output untouched and reuse the same matrix-owned
 export/status buffers on repeated same-shape calls; no upload buffer is grown by
-bounded export. Per-tile bounded export uses the same device reconstruction
+bounded export, and C does not gain an upload buffer through GEMM/export.
+Per-tile bounded export uses the same device reconstruction
 helpers with full-matrix residue strides, each tile's selected prefix, and each
 tile's copied bound. Signed export supports the full `int64_t` range, including
 `INT64_MIN` when the bounded contract supplies magnitude `2^63`. CPU

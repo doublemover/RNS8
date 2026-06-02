@@ -2519,15 +2519,19 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
 
   void* a_upload = a_matrix->hip_upload_buffer;
   void* b_upload = b_matrix->hip_upload_buffer;
+  void* c_upload = c_matrix->hip_upload_buffer;
   void* c_export = c_matrix->hip_export_buffer;
   void* c_status = c_matrix->hip_status_buffer;
   const std::size_t a_upload_bytes = a_matrix->hip_upload_bytes;
   const std::size_t b_upload_bytes = b_matrix->hip_upload_bytes;
+  const std::size_t c_upload_bytes = c_matrix->hip_upload_bytes;
   const std::size_t c_export_bytes = c_matrix->hip_export_bytes;
   const std::size_t c_status_bytes = c_matrix->hip_status_bytes;
   const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
   REQUIRE(a_upload != nullptr);
   REQUIRE(b_upload != nullptr);
+  CHECK(c_upload == nullptr);
+  CHECK(c_upload_bytes == 0);
   REQUIRE(c_export != nullptr);
   REQUIRE(c_status != nullptr);
   REQUIRE(warmed_allocations.allocate_calls > 0);
@@ -2552,10 +2556,12 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   CHECK(c_matrix->hip_residues == c_device_residues);
   CHECK(a_matrix->hip_upload_buffer == a_upload);
   CHECK(b_matrix->hip_upload_buffer == b_upload);
+  CHECK(c_matrix->hip_upload_buffer == c_upload);
   CHECK(c_matrix->hip_export_buffer == c_export);
   CHECK(c_matrix->hip_status_buffer == c_status);
   CHECK(a_matrix->hip_upload_bytes == a_upload_bytes);
   CHECK(b_matrix->hip_upload_bytes == b_upload_bytes);
+  CHECK(c_matrix->hip_upload_bytes == c_upload_bytes);
   CHECK(c_matrix->hip_export_bytes == c_export_bytes);
   CHECK(c_matrix->hip_status_bytes == c_status_bytes);
 
@@ -2657,6 +2663,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   CHECK(hip_c == cpu_c);
 
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  const uint64_t warmed_output_version = c_matrix->source_version;
+  CHECK(warmed_output_version != 0);
   CHECK(warmed_snapshot.c_upload == nullptr);
   CHECK(warmed_snapshot.c_upload_bytes == 0);
   CHECK(workspace->schedule_tile_count == bounds_a.size());
@@ -2669,6 +2677,7 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   CHECK(rns8_gemm_rns(hip, plan, wrong_a_tile, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_export_u64(hip, plan, wrong_c_tile, hip_c.data(), ldc) == RNS8_INVALID_ARGUMENT);
   check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  CHECK(c_matrix->source_version == warmed_output_version);
 
   rns8_destroy_matrix(wrong_c_tile);
   rns8_destroy_matrix(wrong_a_tile);
@@ -2776,6 +2785,10 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   compare_outputs();
+  const uint64_t first_output_version = c_matrix->source_version;
+  CHECK(first_output_version != 0);
+  CHECK(first_output_version != a_matrix->source_version);
+  CHECK(first_output_version != b_matrix->source_version);
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
@@ -2795,6 +2808,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   compare_outputs();
+  CHECK(c_matrix->source_version != 0);
+  CHECK(c_matrix->source_version != first_output_version);
   check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
   CHECK(a_matrix->device_residues_current);
   CHECK_FALSE(a_matrix->host_residues_current);
@@ -2901,15 +2916,19 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
 
   void* a_upload = a_matrix->hip_upload_buffer;
   void* b_upload = b_matrix->hip_upload_buffer;
+  void* c_upload = c_matrix->hip_upload_buffer;
   void* c_export = c_matrix->hip_export_buffer;
   void* c_status = c_matrix->hip_status_buffer;
   const std::size_t a_upload_bytes = a_matrix->hip_upload_bytes;
   const std::size_t b_upload_bytes = b_matrix->hip_upload_bytes;
+  const std::size_t c_upload_bytes = c_matrix->hip_upload_bytes;
   const std::size_t c_export_bytes = c_matrix->hip_export_bytes;
   const std::size_t c_status_bytes = c_matrix->hip_status_bytes;
   const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
   REQUIRE(a_upload != nullptr);
   REQUIRE(b_upload != nullptr);
+  CHECK(c_upload == nullptr);
+  CHECK(c_upload_bytes == 0);
   REQUIRE(c_export != nullptr);
   REQUIRE(c_status != nullptr);
   REQUIRE(warmed_allocations.allocate_calls > 0);
@@ -2934,10 +2953,12 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   CHECK(c_matrix->hip_residues == c_device_residues);
   CHECK(a_matrix->hip_upload_buffer == a_upload);
   CHECK(b_matrix->hip_upload_buffer == b_upload);
+  CHECK(c_matrix->hip_upload_buffer == c_upload);
   CHECK(c_matrix->hip_export_buffer == c_export);
   CHECK(c_matrix->hip_status_buffer == c_status);
   CHECK(a_matrix->hip_upload_bytes == a_upload_bytes);
   CHECK(b_matrix->hip_upload_bytes == b_upload_bytes);
+  CHECK(c_matrix->hip_upload_bytes == c_upload_bytes);
   CHECK(c_matrix->hip_export_bytes == c_export_bytes);
   CHECK(c_matrix->hip_status_bytes == c_status_bytes);
 
@@ -3036,6 +3057,10 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   compare_outputs();
+  const uint64_t first_output_version = c_matrix->source_version;
+  CHECK(first_output_version != 0);
+  CHECK(first_output_version != a_matrix->source_version);
+  CHECK(first_output_version != b_matrix->source_version);
 
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
@@ -3056,6 +3081,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   compare_outputs();
+  CHECK(c_matrix->source_version != 0);
+  CHECK(c_matrix->source_version != first_output_version);
 
   check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
   CHECK(a_matrix->hip_residues == a_device_residues);

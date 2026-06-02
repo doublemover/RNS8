@@ -605,6 +605,68 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("persistent bounded RNS GEMM stamps output source versions from packed inputs") {
+  rns8_context* ctx = create_cpu();
+  auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  desc.m = 2;
+  desc.n = 2;
+  desc.k = 2;
+  desc.bound = 1000;
+
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_workspace* wrong_workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto smaller_desc = desc;
+  smaller_desc.k = 1;
+  rns8_plan* smaller_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &smaller_desc, &smaller_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, smaller_plan, &wrong_workspace) == RNS8_SUCCESS);
+
+  auto a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  auto b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  auto c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+  const uint64_t A0[] = {1, 2, 3, 4};
+  const uint64_t B0[] = {5, 6, 7, 8};
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A0, 2, 17) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B0, 2, 23) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  const uint64_t first_output_version = c_matrix->source_version;
+  CHECK(first_output_version != 0);
+  CHECK(first_output_version != a_matrix->source_version);
+  CHECK(first_output_version != b_matrix->source_version);
+
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  CHECK(c_matrix->source_version == first_output_version);
+
+  const uint64_t B1[] = {8, 7, 6, 5};
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B1, 2, 24) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  const uint64_t second_output_version = c_matrix->source_version;
+  CHECK(second_output_version != 0);
+  CHECK(second_output_version != first_output_version);
+
+  CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, wrong_workspace) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(c_matrix->source_version == second_output_version);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(wrong_workspace);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(smaller_plan);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("persistent RNS GEMM rejects same-shape workspaces from different semantic contracts") {
   rns8_context* ctx = create_cpu();
 

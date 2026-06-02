@@ -768,6 +768,10 @@ const char* rns8_status_string(rns8_status status);
 The original plan-only pack sketch was replaced during the Phase 0 scaffold:
 packing needs an explicit matrix descriptor because A, B, and C have different
 dimensions. Hidden pack-role inference is not allowed in the ABI.
+For bounded RNS matrices, `source_version` is caller-supplied pack metadata.
+Successful bounded persistent GEMM writes an internal deterministic output
+version to C from the packed A/B source versions, and rejected GEMM dispatch
+must not mutate C's existing version.
 
 Exact-wide limb export layout is row-major by element. `ld` is a leading
 dimension in matrix elements, not in limbs. For element `(row, col)`, limb

@@ -25,8 +25,10 @@ Implemented correctness coverage:
   dimensions and Boost.Multiprecision exact oracles.
 - Phase 2 fixed 9-modulus CPU reference milestone checks lock the default
   prefix-9 schedule, signed cancellation and unsigned accumulation at K values
-  65535, 65536, and 65537, full-width `UINT64_MAX` output with padded leading
-  dimensions, and signed/unsigned per-tile selected-prefix schedule parity.
+  65535, 65536, and 65537, active-output and padding preservation at those
+  K-split edges, full-width `INT64_MIN`/`INT64_MAX`/`UINT64_MAX` output with
+  padded leading dimensions, and signed/unsigned per-tile selected-prefix
+  schedule parity.
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
 - Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
@@ -140,10 +142,11 @@ Implemented correctness coverage:
   dispatch. Signed and unsigned range-error export cases compare CPU and HIP
   status, preserve caller output sentinels, and check repeated device-current
   exports reuse matrix-owned export/status buffers without growing upload
-  buffers.
+  buffers or creating a C upload buffer.
 - Direct HIP bounded persistent tests cover fixed prefix-9 unsigned GEMM at the
   exact 65536 K-block boundary with padded host input/output layouts, CPU
-  reference comparison, and repeated same-shape allocation reuse. The private
+  reference comparison, repeated same-shape allocation reuse, and output
+  source-version changes when packed input source versions change. The private
   ring GEMM differential also covers non-multiple 16x16 output tile tails,
   partial K tiles, and padded leading dimensions against the CPU ring reference.
 - Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
@@ -160,7 +163,8 @@ Implemented correctness coverage:
   mixed selected-prefix groups while checking same-shape resident buffer
   allocation and workspace schedule-metadata stability after warmup. Direct HIP
   also rejects same-shape stale per-tile workspace schedules and stale per-tile
-  matrix tile metadata without changing warmed resident allocation counters.
+  matrix tile metadata without changing warmed resident allocation counters or
+  the last successful output source version.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is

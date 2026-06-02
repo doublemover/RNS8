@@ -303,6 +303,13 @@ uint64_t signed_to_fingerprint(int64_t value) {
   return static_cast<uint64_t>(value);
 }
 
+uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B) {
+  uint64_t hash = 1469598103934665603ull;
+  hash = workspace_fingerprint_mix(hash, A.source_version);
+  hash = workspace_fingerprint_mix(hash, B.source_version);
+  return hash == 0 ? 1 : hash;
+}
+
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   uint64_t hash = 1469598103934665603ull;
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.semantics));
@@ -1322,6 +1329,9 @@ rns8_status rns8_gemm_rns(
         C->device_residues_current = false;
         C->host_byte_limbs_current = false;
         C->device_byte_limbs_current = false;
+        if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+          C->source_version = gemm_output_source_version(*A, *B);
+        }
       }
       return status;
     }
@@ -1370,6 +1380,9 @@ rns8_status rns8_gemm_rns(
       }
       C->device_residues_current = true;
       C->host_residues_current = false;
+      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+        C->source_version = gemm_output_source_version(*A, *B);
+      }
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;
