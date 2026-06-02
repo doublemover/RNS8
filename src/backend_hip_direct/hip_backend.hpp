@@ -95,6 +95,20 @@ rns8_status hip_direct_gemm_rns_tiled_device(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count);
+rns8_status hip_direct_gemm_rns_tiled_device_schedule(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    const rns8_plan_tile_schedule_entry* host_entries,
+    const void* device_entries,
+    uint64_t entry_count);
 rns8_status hip_direct_export_i64_device(
     int device_id,
     const void* device_residues,

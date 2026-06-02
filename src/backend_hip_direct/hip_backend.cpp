@@ -42,6 +42,23 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int selected_prefix,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    int entry_count,
+    int max_tile_row_blocks,
+    int max_tile_col_blocks,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_export_i64_device(
     const int8_t* d_residues,
     int64_t* d_dst,
@@ -393,12 +410,55 @@ bool checked_tile_schedule_contract(
   return true;
 }
 
+bool scheduled_tile_block_shape(
+    const rns8_plan_tile_schedule_entry* entries,
+    uint64_t entry_count,
+    int* max_row_blocks,
+    int* max_col_blocks) {
+  if (!entries || entry_count == 0 || !max_row_blocks || !max_col_blocks) {
+    return false;
+  }
+  uint64_t row_blocks = 0;
+  uint64_t col_blocks = 0;
+  for (uint64_t index = 0; index < entry_count; ++index) {
+    const auto& entry = entries[static_cast<std::size_t>(index)];
+    const uint64_t entry_row_blocks = (static_cast<uint64_t>(entry.row_extent) + 15u) / 16u;
+    const uint64_t entry_col_blocks = (static_cast<uint64_t>(entry.col_extent) + 15u) / 16u;
+    row_blocks = std::max(row_blocks, entry_row_blocks);
+    col_blocks = std::max(col_blocks, entry_col_blocks);
+  }
+  if (row_blocks == 0 || col_blocks == 0 || row_blocks > static_cast<uint64_t>(std::numeric_limits<int>::max()) ||
+      col_blocks > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+    return false;
+  }
+  *max_row_blocks = static_cast<int>(row_blocks);
+  *max_col_blocks = static_cast<int>(col_blocks);
+  return true;
+}
+
 struct hip_rns_modulus_launch {
   const int8_t* a = nullptr;
   const int8_t* b = nullptr;
   int8_t* c = nullptr;
   int64_t m = 0;
   int64_t n = 0;
+  int64_t k = 0;
+  int64_t lda = 0;
+  int64_t ldb = 0;
+  int64_t ldc = 0;
+  uint16_t modulus = 0;
+  uint32_t modulus_index = 0;
+  uint32_t selected_prefix = 0;
+};
+
+struct hip_rns_scheduled_modulus_launch {
+  const int8_t* a = nullptr;
+  const int8_t* b = nullptr;
+  int8_t* c = nullptr;
+  const rns8_plan_tile_schedule_entry* device_entries = nullptr;
+  uint64_t entry_count = 0;
+  int max_tile_row_blocks = 0;
+  int max_tile_col_blocks = 0;
   int64_t k = 0;
   int64_t lda = 0;
   int64_t ldb = 0;
@@ -422,6 +482,23 @@ bool checked_rns_modulus_launch(const hip_rns_modulus_launch& launch) {
          RNS8_SAFE_INT32_K_BLOCK <= static_cast<uint32_t>(std::numeric_limits<int>::max());
 }
 
+bool checked_scheduled_modulus_launch(const hip_rns_scheduled_modulus_launch& launch) {
+  if (!launch.a || !launch.b || !launch.c || !launch.device_entries || launch.entry_count == 0 ||
+      launch.max_tile_row_blocks <= 0 || launch.max_tile_col_blocks <= 0 || launch.k <= 0 ||
+      launch.lda < launch.k || launch.ldb <= 0 || launch.ldc <= 0 || launch.selected_prefix == 0 ||
+      launch.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX || launch.modulus_index >= launch.selected_prefix ||
+      launch.modulus_index >= RNS8_DEFAULT_MODULUS_COUNT ||
+      launch.modulus != kDefaultModuli[launch.modulus_index]) {
+    return false;
+  }
+  return launch.entry_count <= static_cast<uint64_t>(std::numeric_limits<int>::max()) &&
+         launch.max_tile_row_blocks <= std::numeric_limits<int>::max() &&
+         launch.max_tile_col_blocks <= std::numeric_limits<int>::max() &&
+         launch.k <= std::numeric_limits<int>::max() && launch.lda <= std::numeric_limits<int>::max() &&
+         launch.ldb <= std::numeric_limits<int>::max() && launch.ldc <= std::numeric_limits<int>::max() &&
+         RNS8_SAFE_INT32_K_BLOCK <= static_cast<uint32_t>(std::numeric_limits<int>::max());
+}
+
 hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
   if (!checked_rns_modulus_launch(launch)) {
     return hipErrorInvalidValue;
@@ -432,6 +509,29 @@ hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
       launch.c,
       static_cast<int>(launch.m),
       static_cast<int>(launch.n),
+      static_cast<int>(launch.k),
+      static_cast<int>(launch.lda),
+      static_cast<int>(launch.ldb),
+      static_cast<int>(launch.ldc),
+      static_cast<int>(launch.modulus),
+      static_cast<int>(launch.modulus_index),
+      static_cast<int>(launch.selected_prefix),
+      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+  return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
+}
+
+hipError_t launch_rns_scheduled_modulus_gemm(const hip_rns_scheduled_modulus_launch& launch) {
+  if (!checked_scheduled_modulus_launch(launch)) {
+    return hipErrorInvalidValue;
+  }
+  const int code = rns8_hip_direct_ring_gemm_i8_scheduled_device(
+      launch.a,
+      launch.b,
+      launch.c,
+      launch.device_entries,
+      static_cast<int>(launch.entry_count),
+      launch.max_tile_row_blocks,
+      launch.max_tile_col_blocks,
       static_cast<int>(launch.k),
       static_cast<int>(launch.lda),
       static_cast<int>(launch.ldb),
@@ -974,6 +1074,97 @@ rns8_status hip_direct_gemm_rns_tiled_device(
   (void)ldb;
   (void)ldc;
   (void)entries;
+  (void)entry_count;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_rns_tiled_device_schedule(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    const rns8_plan_tile_schedule_entry* host_entries,
+    const void* device_entries,
+    uint64_t entry_count) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries || !device_entries ||
+      entry_count == 0 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
+      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max() ||
+      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  checked_tile_schedule schedule{};
+  if (!checked_tile_schedule_contract(host_entries, entry_count, m, n, &schedule)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  int max_tile_row_blocks = 0;
+  int max_tile_col_blocks = 0;
+  if (!scheduled_tile_block_shape(host_entries, entry_count, &max_tile_row_blocks, &max_tile_col_blocks)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const auto* a_base = static_cast<const int8_t*>(device_a_residues);
+  const auto* b_base = static_cast<const int8_t*>(device_b_residues);
+  auto* c_base = static_cast<int8_t*>(device_c_residues);
+  const auto* schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(device_entries);
+  const uint32_t max_selected_prefix = schedule.selected_prefix_groups.back();
+  const hipError_t err = timed_hip_operation("rns_gemm_scheduled_kernel_group", [&]() {
+    for (uint32_t p = 0; p < max_selected_prefix; ++p) {
+      const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
+                                   static_cast<std::size_t>(lda);
+      const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
+                                   static_cast<std::size_t>(ldb);
+      const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
+                                   static_cast<std::size_t>(ldc);
+      const hipError_t launch_status = launch_rns_scheduled_modulus_gemm({
+          a_base + a_offset,
+          b_base + b_offset,
+          c_base + c_offset,
+          schedule_base,
+          entry_count,
+          max_tile_row_blocks,
+          max_tile_col_blocks,
+          k,
+          lda,
+          ldb,
+          ldc,
+          kDefaultModuli[p],
+          p,
+          max_selected_prefix});
+      if (launch_status != hipSuccess) {
+        return launch_status;
+      }
+    }
+    return hipDeviceSynchronize();
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_a_residues;
+  (void)device_b_residues;
+  (void)device_c_residues;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)lda;
+  (void)ldb;
+  (void)ldc;
+  (void)host_entries;
+  (void)device_entries;
   (void)entry_count;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif

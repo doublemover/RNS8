@@ -4,6 +4,22 @@
 
 namespace {
 
+struct rns8_plan_tile_schedule_entry {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  uint64_t tile_row;
+  uint64_t tile_col;
+  int64_t row_offset;
+  int64_t col_offset;
+  int64_t row_extent;
+  int64_t col_extent;
+  uint32_t required_prefix;
+  uint32_t selected_prefix;
+  uint32_t group_index;
+  uint32_t range_bit_length;
+};
+
 constexpr int kRns8DefaultModulusCount = 28;
 
 constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
@@ -380,6 +396,92 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
   }
 }
 
+__global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_i8_i32_scheduled_kernel(
+    const int8_t* A,
+    const int8_t* B,
+    int8_t* C,
+    const rns8_plan_tile_schedule_entry* schedule,
+    int entry_count,
+    int k_offset,
+    int k_block,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    int modulus_index,
+    int accumulate) {
+  const int entry_index = static_cast<int>(blockIdx.z);
+  if (entry_index >= entry_count) {
+    return;
+  }
+  const rns8_plan_tile_schedule_entry entry = schedule[entry_index];
+  if (modulus_index >= static_cast<int>(entry.selected_prefix)) {
+    return;
+  }
+
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col = static_cast<int>(threadIdx.x);
+  const int tile_local_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_local_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = static_cast<int>(entry.row_offset) + tile_local_row + thread_row;
+  const int col = static_cast<int>(entry.col_offset) + tile_local_col + thread_col;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output_active =
+      tile_local_row + thread_row < static_cast<int>(entry.row_extent) &&
+      tile_local_col + thread_col < static_cast<int>(entry.col_extent);
+  int32_t acc = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int local_output_row = tile_local_row + local_row;
+      const int global_row = static_cast<int>(entry.row_offset) + local_output_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          local_output_row < static_cast<int>(entry.row_extent) && local_k < tile_extent
+              ? A[global_row * lda + source_k]
+              : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int local_output_col = tile_local_col + local_col;
+      const int global_col = static_cast<int>(entry.col_offset) + local_output_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && local_output_col < static_cast<int>(entry.col_extent)
+              ? B[source_k * ldb + global_col]
+              : 0;
+    }
+
+    __syncthreads();
+
+    if (output_active) {
+      for (int kk = 0; kk < tile_extent; ++kk) {
+        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
+      }
+    }
+
+    __syncthreads();
+  }
+
+  if (output_active && accumulate) {
+    acc += static_cast<int32_t>(C[row * ldc + col]);
+  }
+  if (output_active) {
+    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
+  }
+}
+
 __device__ void rns8_export_i64_cell_device(
     const int8_t* residues,
     int64_t* dst,
@@ -669,6 +771,64 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
         ldb,
         ldc,
         modulus,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_schedule,
+    int entry_count,
+    int max_tile_row_blocks,
+    int max_tile_col_blocks,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || !d_schedule || entry_count <= 0 || max_tile_row_blocks <= 0 ||
+      max_tile_col_blocks <= 0 || k <= 0 || lda < k || ldb <= 0 || ldc <= 0 || modulus <= 0 ||
+      modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
+      selected_prefix > kRns8DefaultModulusCount ||
+      modulus != rns8_default_moduli_host[modulus_index] ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid(max_tile_col_blocks, max_tile_row_blocks, entry_count);
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_ring_gemm_i8_i32_scheduled_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        d_schedule,
+        entry_count,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        modulus,
+        modulus_index,
         accumulate);
     err = hipGetLastError();
     k_offset += k_block;
