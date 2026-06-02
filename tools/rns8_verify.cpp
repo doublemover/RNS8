@@ -197,7 +197,10 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantic
   desc.bound_kind = bound_kind;
   desc.tile_m = 128;
   desc.tile_n = 128;
-  desc.max_prefix = semantics == RNS8_WRAP_U64_MOD_2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix = semantics == RNS8_WRAP_U64_MOD_2_64 || semantics == RNS8_FINITE_RING_U8 ||
+                            semantics == RNS8_FINITE_FIELD_U8
+                        ? 0
+                        : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -763,6 +766,107 @@ bool verify_hip_smoke() {
       rns8_destroy_context(cpu_ctx);
       return false;
     }
+
+    rns8_plan* cpu_finite_plan = nullptr;
+    rns8_plan* hip_finite_plan = nullptr;
+    rns8_workspace* cpu_finite_workspace = nullptr;
+    rns8_workspace* hip_finite_workspace = nullptr;
+    rns8_matrix* cpu_finite_a = nullptr;
+    rns8_matrix* cpu_finite_b = nullptr;
+    rns8_matrix* cpu_finite_out = nullptr;
+    rns8_matrix* hip_finite_a = nullptr;
+    rns8_matrix* hip_finite_b = nullptr;
+    rns8_matrix* hip_finite_out = nullptr;
+    auto cleanup_finite_resident = [&]() {
+      rns8_destroy_matrix(hip_finite_out);
+      rns8_destroy_matrix(hip_finite_b);
+      rns8_destroy_matrix(hip_finite_a);
+      rns8_destroy_matrix(cpu_finite_out);
+      rns8_destroy_matrix(cpu_finite_b);
+      rns8_destroy_matrix(cpu_finite_a);
+      rns8_destroy_workspace(hip_finite_workspace);
+      rns8_destroy_workspace(cpu_finite_workspace);
+      rns8_destroy_plan(hip_finite_plan);
+      rns8_destroy_plan(cpu_finite_plan);
+    };
+    const rns8_matrix_desc finite_a_desc =
+        matrix_desc(finite_m, finite_k, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+    const rns8_matrix_desc finite_b_desc =
+        matrix_desc(finite_k, finite_n, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+    const rns8_matrix_desc finite_c_desc =
+        matrix_desc(finite_m, finite_n, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+    std::vector<uint8_t> cpu_finite_resident_c(static_cast<std::size_t>(finite_m * finite_ldc), 0xdd);
+    std::vector<uint8_t> hip_finite_resident_c(static_cast<std::size_t>(finite_m * finite_ldc), 0xdd);
+    rns8_status finite_resident_status = rns8_create_plan(cpu_ctx, &cpu_finite_desc, &cpu_finite_plan);
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_plan(hip_ctx, &hip_finite_desc, &hip_finite_plan);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_workspace(cpu_ctx, cpu_finite_plan, &cpu_finite_workspace);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_workspace(hip_ctx, hip_finite_plan, &hip_finite_workspace);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(cpu_ctx, &finite_a_desc, &cpu_finite_a);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(cpu_ctx, &finite_b_desc, &cpu_finite_b);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(cpu_ctx, &finite_c_desc, &cpu_finite_out);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(hip_ctx, &finite_a_desc, &hip_finite_a);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(hip_ctx, &finite_b_desc, &hip_finite_b);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_create_matrix(hip_ctx, &finite_c_desc, &hip_finite_out);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_pack_finite_u8(cpu_ctx, cpu_finite_a, 255, finite_a.data(), finite_k, 1);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_pack_finite_u8(cpu_ctx, cpu_finite_b, 255, finite_b.data(), finite_n, 2);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status =
+          rns8_gemm_finite_u8(cpu_ctx, cpu_finite_plan, 255, cpu_finite_a, cpu_finite_b, cpu_finite_out,
+                              cpu_finite_workspace);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status =
+          rns8_export_finite_u8(cpu_ctx, cpu_finite_plan, 255, cpu_finite_out, cpu_finite_resident_c.data(),
+                                finite_ldc);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_pack_finite_u8(hip_ctx, hip_finite_a, 255, finite_a.data(), finite_k, 1);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status = rns8_pack_finite_u8(hip_ctx, hip_finite_b, 255, finite_b.data(), finite_n, 2);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status =
+          rns8_gemm_finite_u8(hip_ctx, hip_finite_plan, 255, hip_finite_a, hip_finite_b, hip_finite_out,
+                              hip_finite_workspace);
+    }
+    if (finite_resident_status == RNS8_SUCCESS) {
+      finite_resident_status =
+          rns8_export_finite_u8(hip_ctx, hip_finite_plan, 255, hip_finite_out, hip_finite_resident_c.data(),
+                                finite_ldc);
+    }
+    if (finite_resident_status != RNS8_SUCCESS || cpu_finite_resident_c != hip_finite_resident_c) {
+      std::cerr << "direct HIP resident finite ring u8 smoke failed: "
+                << rns8_status_string(finite_resident_status) << "\n";
+      cleanup_finite_resident();
+      rns8_destroy_context(wrap_ctx);
+      rns8_destroy_context(hip_ctx);
+      rns8_destroy_context(cpu_ctx);
+      return false;
+    }
+    cleanup_finite_resident();
   }
 
   const int64_t wrap_m = 2;

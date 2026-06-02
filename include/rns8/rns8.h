@@ -172,6 +172,24 @@ RNS8_API rns8_status rns8_pack_u64(
     int64_t ld,
     uint64_t source_version);
 
+/*
+ * Pack persistent finite-ring or finite-field uint8_t host storage into a
+ * resident finite matrix. The matrix descriptor semantics select ring versus
+ * field validation. The modulus is explicit on every finite persistent call:
+ * RNS8_FINITE_RING_U8 accepts moduli in [2, 256], while RNS8_FINITE_FIELD_U8
+ * accepts prime moduli <= 251. The matrix descriptor must use
+ * RNS8_BOUND_NONE, max_prefix = 0, row-major layout, and no CRT/bounded
+ * metadata. Successful pack stamps the resident matrix with this modulus;
+ * later finite GEMM/export calls reject mismatched input or output modulus.
+ */
+RNS8_API rns8_status rns8_pack_finite_u8(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    uint16_t modulus,
+    const uint8_t* src,
+    int64_t ld,
+    uint64_t source_version);
+
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -183,6 +201,24 @@ RNS8_API rns8_status rns8_gemm_rns(
 RNS8_API rns8_status rns8_gemm_wrap_u64(
     rns8_context* ctx,
     const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+/*
+ * Persistent finite-ring/finite-field GEMM over resident uint8_t matrices.
+ * The plan and all matrices must have matching finite semantics,
+ * RNS8_BOUND_NONE, max_prefix = 0, row-major resident storage, and an explicit
+ * modulus valid for that semantic. Inputs must already be packed with the same
+ * modulus. Output is resident centered finite residues and must be exported
+ * with rns8_export_finite_u8 using the same modulus. This API does not route
+ * through bounded CRT, exact-wide export, or strict mod 2^64 byte-limb paths.
+ */
+RNS8_API rns8_status rns8_gemm_finite_u8(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
     const rns8_matrix* A,
     const rns8_matrix* B,
     rns8_matrix* C,
@@ -207,6 +243,20 @@ RNS8_API rns8_status rns8_export_wrap_u64(
     const rns8_plan* plan,
     const rns8_matrix* C,
     uint64_t* dst,
+    int64_t ld);
+
+/* Export persistent finite-ring/finite-field output as canonical uint8_t
+ * residues. The output matrix must be resident-current and stamped with the
+ * same explicit modulus supplied here. For modulus <= 255, every output byte is
+ * in [0, modulus - 1]; for modulus 256, the full byte is the canonical
+ * representative. Padded host output columns outside plan->n are preserved.
+ */
+RNS8_API rns8_status rns8_export_finite_u8(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_matrix* C,
+    uint8_t* dst,
     int64_t ld);
 
 /* Export persistent RNS output for RNS8_EXACT_WIDE_SIGNED only.

@@ -41,6 +41,7 @@ struct rns8_matrix {
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  uint16_t finite_modulus = 0;
   uint64_t source_version = 0;
   std::vector<int8_t> residues;
   std::vector<uint8_t> byte_limbs;
@@ -133,6 +134,8 @@ int8_t reduce_to_centered(int64_t value, uint16_t modulus);
 std::size_t residue_index(const rns8_matrix& matrix, uint32_t modulus_index, int64_t row, int64_t col);
 void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld);
 void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld);
+void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, uint16_t modulus);
+void export_finite_u8_matrix(const rns8_matrix& matrix, uint8_t* dst, int64_t ld, uint16_t modulus);
 void pack_wrap_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld);
 uint64_t wrap_u64_matrix_cell(const rns8_matrix& matrix, int64_t row, int64_t col);
 void set_wrap_u64_matrix_cell(rns8_matrix& matrix, int64_t row, int64_t col, uint64_t value);
@@ -150,6 +153,12 @@ void ring_gemm_modulus(
     uint16_t modulus);
 
 rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
+rns8_status cpu_gemm_finite_u8(
+    const rns8_plan& plan,
+    uint16_t modulus,
+    const rns8_matrix& A,
+    const rns8_matrix& B,
+    rns8_matrix& C);
 rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
 
 rns8_status reconstruct_unsigned(

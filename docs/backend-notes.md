@@ -24,8 +24,9 @@ Backend status:
   byte-limb correctness path for `RNS8_WRAP_U64_MOD_2_64` under
   `RNS8_BACKEND_HIP_DIRECT` with device-resident byte-limb buffers. Optimized
   matrix-engine byte GEMMs are not implemented.
-- Finite ring/field u8 one-shot: CPU reference and direct HIP are implemented
-  through explicit modulus APIs. Persistent finite matrices are not implemented.
+- Finite ring/field u8: CPU reference and direct HIP are implemented through
+  explicit modulus APIs for both one-shot calls and persistent resident finite
+  matrices.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
@@ -262,16 +263,21 @@ wrap64-specific tiled byte-GEMM/export labels, report
 current aggregate phase labels; they are raw timing evidence for the
 correctness path only, not optimized byte-GEMM performance evidence.
 
-Finite `uint8_t` one-shot GEMM uses explicit modulus arguments rather than the
-CRT prefix ladder. `rns8_gemm_finite_ring_u8_oneshot` accepts moduli in
-`[2, 256]`; `rns8_gemm_finite_field_u8_oneshot` requires a prime modulus
-`<= 251`. Both require descriptors with `RNS8_BOUND_NONE`, `bound = 0`,
-`max_prefix = 0`, no tile-bound metadata, and matching finite semantics. CPU
-packs canonical bytes to centered residues for the requested modulus, runs the
-same K-split ring GEMM reference, and exports canonical byte residues. Direct
-HIP uploads byte inputs, packs to centered residues on device, runs the
-inspectable tiled INT8xINT8->INT32 ring kernel with fused centered reduction for
-the explicit modulus, exports compact canonical bytes on device, and scatters
-only logical columns into the caller's padded host layout. The finite path is
-not an odd-modulus CRT route, not exact-wide export, and not strict mod 2^64
-wraparound.
+Finite `uint8_t` GEMM uses explicit modulus arguments rather than the CRT
+prefix ladder. `RNS8_FINITE_RING_U8` accepts moduli in `[2, 256]`;
+`RNS8_FINITE_FIELD_U8` requires a prime modulus `<= 251`. Finite descriptors
+require `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile-bound
+metadata, and matching finite semantics.
+
+CPU finite one-shot and persistent paths pack canonical bytes to centered
+residues for the requested modulus, run the same K-split ring GEMM reference,
+and export canonical byte residues. Persistent finite matrices own one
+prefix-zero residue plane and are stamped with the modulus used by
+`rns8_pack_finite_u8`; resident finite GEMM/export reject mismatched or stale
+matrix modulus state. Direct HIP persistent finite matrices own device-resident
+one-plane residues plus matrix-owned upload/export buffers, and the resident
+GEMM calls the inspectable tiled INT8xINT8->INT32 ring kernel with fused
+centered reduction for the explicit modulus. The one-shot direct HIP finite
+path is still available as a convenience surface but does not define a separate
+backend contract. Finite is not an odd-modulus CRT route, not exact-wide export,
+and not strict mod 2^64 wraparound.

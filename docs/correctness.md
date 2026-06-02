@@ -40,10 +40,10 @@ Implemented correctness coverage:
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
 - Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
-  rejects bounded-looking metadata, finite persistent descriptors and future
-  accelerator requests report unsupported, public finite one-shot calls reject
-  stale CRT/bound metadata, and strict wraparound never falls through to bounded
-  CRT behavior.
+  rejects bounded-looking metadata, finite one-shot and persistent APIs reject
+  stale CRT/bound metadata and cross-modulus resident matrices, future
+  accelerator requests report unsupported, and strict wraparound never falls
+  through to bounded CRT behavior.
 - Public API hard-cut tests cover exact-wide invalid limb layout, null context,
   plan, matrix, and output pointers, stale bound/tile-bound descriptor
   metadata, stale-prefix matrix handles, bounded matrix handles, wrap byte-limb
@@ -54,13 +54,16 @@ Implemented correctness coverage:
   name future/evidence-only backends, while valid descriptors for unavailable
   backends return `RNS8_UNSUPPORTED_BACKEND`. Unknown public enum values for
   semantics, bound kinds, and layouts are malformed ABI input; known but
-  unimplemented contracts such as column-major layout, finite-ring/field
-  persistent semantics, input-range bounded contracts, or future backend enums
-  remain unsupported backend requests after descriptor validation succeeds.
-- Public finite `uint8_t` one-shot tests cover composite ring modulus 255,
-  prime field modulus 251, explicit rejection of invalid/composite field
-  moduli, stale CRT prefix metadata, stale bounds, wrong finite export surface,
-  unsupported accelerator routing, and padded output preservation.
+  unimplemented contracts such as column-major layout, input-range bounded
+  contracts, or future backend enums remain unsupported backend requests after
+  descriptor validation succeeds.
+- Public finite `uint8_t` tests cover composite ring modulus 255, ring modulus
+  256, prime field modulus 251, explicit rejection of invalid/composite field
+  moduli, stale CRT prefix metadata, stale bounds, wrong finite export
+  surfaces, unsupported accelerator routing, padded output preservation,
+  persistent plan/matrix schedule prefix-zero contracts, cross-modulus
+  resident matrix rejection, direct-HIP CPU differentials, K-split behavior,
+  and same-shape resident allocation reuse.
 - User-visible diagnostic tests pin `rns8_status_string` for every public
   status code and the out-of-range `unknown status` case. API guard tests also
   pin `RNS8_BACKEND_AUTO` as a context-default selector only: CPU AUTO accepts
@@ -238,12 +241,12 @@ Semantic guardrail:
   or invalid layout metadata are rejected as invalid before backend dispatch. A
   bounded API call is only valid for wrap-like inputs when the exact
   mathematical result is also within the supplied bounded contract.
-- `RNS8_FINITE_RING_U8` and `RNS8_FINITE_FIELD_U8` are public one-shot
-  contracts only. They use explicit modulus arguments, require
-  `RNS8_BOUND_NONE` and `max_prefix = 0`, and return canonical `uint8_t`
-  residues. Ring moduli must be in `[2, 256]`; field moduli must be prime and
-  `<= 251`. Persistent finite plan/matrix descriptors remain unsupported until a
-  resident finite-storage ABI is defined.
+- `RNS8_FINITE_RING_U8` and `RNS8_FINITE_FIELD_U8` use explicit modulus
+  arguments, require `RNS8_BOUND_NONE` and `max_prefix = 0`, and return
+  canonical `uint8_t` residues. Ring moduli must be in `[2, 256]`; field moduli
+  must be prime and `<= 251`. Persistent finite matrices store one
+  prefix-zero centered-residue plane, stamp the pack modulus, and reject
+  resident GEMM/export calls with mismatched modulus state.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path. Its
