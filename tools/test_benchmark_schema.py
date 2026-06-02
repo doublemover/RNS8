@@ -44,6 +44,15 @@ def main() -> int:
     bad_summary["gpu_event_timing_summary_us"]["crt_export"]["avg"] = 999.0
     expect_invalid(bad_summary, "gpu_event_timing_summary_us.crt_export.avg")
 
+    bad_schedule_tile = copy.deepcopy(bounded)
+    bad_schedule_tile["tile_m"] = 96
+    bad_schedule_tile["schedule_metadata"]["tile_m"] = 96
+    expect_invalid(bad_schedule_tile, "tile_m must be a power of two")
+
+    bad_schedule_prefix = copy.deepcopy(bounded)
+    bad_schedule_prefix["schedule_metadata"]["min_selected_prefix"] = 8
+    expect_invalid(bad_schedule_prefix, "fixed selected schedule prefix equal to prefix")
+
     bad_wrap_prefix = copy.deepcopy(wrap64)
     bad_wrap_prefix["prefix"] = 9
     expect_invalid(bad_wrap_prefix, "wrap64 captures must use prefix=0")

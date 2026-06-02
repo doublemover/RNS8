@@ -10,6 +10,7 @@ build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i6
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semantics wrap-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 5 --seed 7
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 1
 ```
 
 The benchmark reports:
@@ -21,6 +22,9 @@ The benchmark reports:
 - matrix shape,
 - layout, K-block size, tile size, epilogue type, and packed layout version
   when exposed,
+- schedule metadata from `rns8_get_plan_schedule_info`, including tile grid,
+  required prefix, selected prefix, prefix group count, and explicit inactive
+  adaptive-prefix/skip flags,
 - fixed seed,
 - warmup and repeat counts,
 - prefix count,
@@ -78,8 +82,14 @@ them as comparison evidence. The validator enforces schema v2 required fields,
 raw timing array lengths against `repeats`, average/median/p95 consistency,
 GPU event timing nullability or completeness, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
-also keeps a compatibility check for legacy v1 captures that only expose the
-older top-level timing fields.
+also checks schedule metadata and keeps a compatibility check for legacy v1
+captures that only expose the older top-level timing fields.
+
+Current schedule metadata is an inspectable fixed-prefix planning contract.
+Bounded captures report the single selected prefix actually used by the current
+CPU/direct-HIP GEMM paths; strict wrap64 captures report prefix zero and no RNS
+prefix groups. `adaptive_execution_applied` remains `false` until variable
+per-tile prefix execution or adaptive skip is implemented and validated.
 
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, first-use
@@ -150,8 +160,8 @@ are made.
 `tools/result_compare.py` validates both captures before comparing host timing
 phases for schema v1/v2 captures. Its contract check includes backend,
 semantics, bounds, shape, prefix, seed, warmups/repeats, input distribution,
-timing source, epilogue, packed layout, compiler, configured target, and HIP
-device/runtime fields when present. It also compares
+timing source, epilogue, packed layout, schedule metadata, compiler, configured
+target, and HIP device/runtime fields when present. It also compares
 `gpu_event_timing_summary_us` phases only when both captures set
 `timing_metadata.gpu_event_timing=true` and report the same event timing source,
 source scope, and GPU event phase order. Per-modulus timing rows are flagged as
