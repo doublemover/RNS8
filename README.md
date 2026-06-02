@@ -269,13 +269,18 @@ Run small Windows `gfx1100` benchmark sweeps and review reports under ignored
 
 ```powershell
 python tools\benchmark_sweep.py --bench build\windows-msvc-hip-debug\rns8-bench.exe --out-root temp\benchmark-sweeps\windows-gfx1100 --shape 64 --backend cpu --backend hip-direct --backend hip-vector-alu-int64 --warmups 1 --repeats 3 --seed 1
+python tools\benchmark_sweep.py --review-only --out-root temp\benchmark-sweeps\windows-gfx1100-reviewed --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-cpu.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-hip-direct.json --capture temp\benchmark-sweeps\windows-gfx1100\bounded-i64-64-hip-vector-alu-int64.json
 ```
 
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage, and marks accelerator entries
 promotable only when they beat the same-contract direct-HIP and vector-ALU GPU
 baselines. Raw `rns8-bench --write-autotune-cache` writes are refused unless the
-capture is already performance-validated by reviewed promotion tooling.
+capture is already performance-validated by reviewed promotion tooling. Use
+`tools\benchmark_sweep.py --bench-for ck=build\windows-msvc-ck-debug\rns8-bench.exe`
+style overrides when a sweep combines captures from opt-in accelerator build
+directories, and `--write-autotune-cache` only after reviewing the generated
+report.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
