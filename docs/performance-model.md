@@ -104,9 +104,9 @@ Use `tools\benchmark_schema.py` to validate benchmark captures before using
 them as comparison evidence. The validator enforces schema v4 required fields,
 raw timing array lengths against `repeats`, average/median/p95 consistency,
 phase-availability metadata, per-tile adaptive metadata, GPU event timing
-nullability or completeness, explicit event phase order for event-enabled
-captures, exact matching of event timing keys to that phase order, and the
-strict wrap64
+nullability or completeness, `gpu_event_phase_order: null` when events are
+unavailable, explicit event phase order for event-enabled captures, exact
+matching of event timing keys to that phase order, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
 also checks schedule metadata.
 

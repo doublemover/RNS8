@@ -600,6 +600,8 @@ class _Validator:
                 self._error("gpu_event_timings_us must be null when gpu_event_timing is false")
             if summary is not None:
                 self._error("gpu_event_timing_summary_us must be null when gpu_event_timing is false")
+            if metadata.get("gpu_event_phase_order") is not None:
+                self._error("timing_metadata.gpu_event_phase_order must be null when events are unavailable")
             if metadata.get("gpu_event_timing_source") is not None:
                 self._error("timing_metadata.gpu_event_timing_source must be null when events are unavailable")
             if metadata.get("gpu_event_timing_source_scope") is not None:
