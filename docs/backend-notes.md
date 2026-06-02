@@ -27,6 +27,9 @@ Backend status:
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
+`RNS8_BACKEND_AUTO` selects only the current context's default backend at
+context/plan creation time; it does not route valid descriptors across semantic
+backend families such as CPU reference to wrap64 byte-limb.
 
 The future backend directories under `src/` are scaffold markers only. They
 exist to keep ownership boundaries visible while preserving the rule that no
@@ -48,10 +51,14 @@ matrix-owned device residue storage. The direct HIP RNS GEMM path consumes those
 device residues directly, launches inspectable 16x16 output tiles per modulus,
 and reduces each INT32 K-block sum to a centered residue in the kernel without
 materializing INT32 output matrices. For K above 65536, it launches multiple
-block kernels and accumulates the centered residue on device. The current
-centered-range correction code uses mask arithmetic instead of source-level
-`if` branches, but the kernel still uses ordinary modulo operations and has not
-been promoted to a reciprocal-reduction or ISA-verified performance kernel.
+block kernels and accumulates the centered residue on device. The resident RNS
+GEMM host path routes every per-modulus launch through one metadata contract
+that carries the modulus index, the selected prefix for that full matrix or
+tile, and the safe K-block cap; the HIP launch entrypoint rejects inconsistent
+metadata before queueing kernels. The current centered-range correction code
+uses mask arithmetic instead of source-level `if` branches, but the kernel still
+uses ordinary modulo operations and has not been promoted to a
+reciprocal-reduction or ISA-verified performance kernel.
 
 Persistent same-shape direct-HIP calls are allocation-observed in tests. The
 first pack/export may grow matrix-owned upload/export/status buffers. A repeated
@@ -86,7 +93,9 @@ as a leading dimension in output elements, not limbs. Each element owns exactly
 
 Exact-wide descriptors must carry no bound value and no tile-bound storage.
 Global bounded descriptors likewise reject stray tile-bound pointers/counts.
-These checks keep stale CRT metadata from becoming an implicit alternate route.
+These checks return `RNS8_INVALID_ARGUMENT` for malformed descriptors, while
+valid semantics on unavailable backends still return `RNS8_UNSUPPORTED_BACKEND`.
+That split keeps stale CRT metadata from becoming an implicit alternate route.
 
 CPU export uses explicit fixed-width limbs: signed output reconstructs the
 centered integer and emits two's-complement in exactly `limb_count` limbs,
@@ -106,7 +115,8 @@ semantics. Both support `rns8_gemm_wrap_u64_oneshot` and persistent byte-limb
 matrices via `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
 `rns8_export_wrap_u64`. The paths return low-64-bit `uint64_t` output, do not
 allocate RNS residue matrices for wrap descriptors, do not use CRT
-reconstruction, and reject bounds or prefixes in the descriptor.
+reconstruction, and reject bounds or prefixes in the descriptor as invalid
+arguments.
 
 The direct HIP wrap64 path is a tiled byte-limb correctness kernel. It stages
 16x16 output tiles through K tiles while each output still sums the 36
@@ -115,6 +125,13 @@ CPU oracle, performs one deterministic carry pass into the low 64 bits, keeps
 A/B/C byte-limb storage device-resident across pack/GEMM/export, and is tested
 against the CPU byte-limb reference. It is not an optimized matrix-engine
 byte-GEMM accelerator path, and it is not performance evidence.
+
+Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
+pack/export accept padded host layouts, but persistent byte-limb matrices and
+device buffers are compact row-major `rows * cols * 8` storage. The direct-HIP
+wrapper validates that compact byte-limb layout separately from padded host
+pitch so wrap64 cannot route through RNS residue storage or treat host padding
+as device limbs.
 
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from

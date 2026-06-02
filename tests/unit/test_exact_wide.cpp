@@ -421,13 +421,13 @@ TEST_CASE("exact-wide CPU descriptors reject bounded metadata") {
     desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
     desc.bound = 1;
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
 
     auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
     matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
     rns8_matrix* out = nullptr;
-    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_INVALID_ARGUMENT);
     CHECK(out == nullptr);
   }
 
@@ -436,13 +436,13 @@ TEST_CASE("exact-wide CPU descriptors reject bounded metadata") {
     desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
     desc.bound = 1;
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
 
     auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_UNSIGNED);
     matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
     rns8_matrix* out = nullptr;
-    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_INVALID_ARGUMENT);
     CHECK(out == nullptr);
   }
 

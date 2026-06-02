@@ -147,8 +147,12 @@ rns8_status validate_bound_contract(
       if (bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
         return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
       }
+      if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
+          bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       if (bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) {
-        return bound_kind == RNS8_BOUND_NONE ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND;
+        return RNS8_UNSUPPORTED_BACKEND;
       }
       constexpr uint64_t max_signed_magnitude = uint64_t{1} << 63u;
       if (bound > max_signed_magnitude) {
@@ -161,8 +165,12 @@ rns8_status validate_bound_contract(
       if (bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
         return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
       }
+      if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
+          bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
+        return RNS8_INVALID_ARGUMENT;
+      }
       if (bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) {
-        return bound_kind == RNS8_BOUND_NONE ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND;
+        return RNS8_UNSUPPORTED_BACKEND;
       }
       return product > cpp_int(bound) ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
     }
@@ -196,7 +204,7 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0) {
-      return RNS8_UNSUPPORTED_BACKEND;
+      return RNS8_INVALID_ARGUMENT;
     }
     if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
       return RNS8_INVALID_ARGUMENT;
@@ -208,7 +216,7 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   }
   if (desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0) {
-      return RNS8_UNSUPPORTED_BACKEND;
+      return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;
   }
@@ -251,9 +259,9 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
       if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
         return RNS8_INVALID_ARGUMENT;
       }
-      return desc.bound_kind == RNS8_BOUND_NONE ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
+      return desc.bound_kind == RNS8_BOUND_NONE ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
     case RNS8_WRAP_U64_MOD_2_64:
-      return desc.bound_kind == RNS8_BOUND_NONE && prefix == 0 ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
+      return desc.bound_kind == RNS8_BOUND_NONE && prefix == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
     default:
       return RNS8_UNSUPPORTED_BACKEND;
   }

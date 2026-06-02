@@ -374,6 +374,7 @@ TEST_CASE("public wrap64 persistent matrices use byte-limb low-64-bit semantics"
   auto a_desc = wrap_matrix_desc(m, k);
   auto b_desc = wrap_matrix_desc(k, n);
   auto c_desc = wrap_matrix_desc(m, n);
+  c_desc.logical_ld = ldc;
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
@@ -456,6 +457,9 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
   auto a_desc = wrap_matrix_desc(m, k);
   auto b_desc = wrap_matrix_desc(k, n);
   auto c_desc = wrap_matrix_desc(m, n);
+  a_desc.logical_ld = lda;
+  b_desc.logical_ld = ldb;
+  c_desc.logical_ld = ldc;
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
@@ -465,6 +469,9 @@ TEST_CASE("public wrap64 CPU path reuses resident byte-limb storage for padded f
   REQUIRE(a_matrix->byte_limbs.size() == static_cast<std::size_t>(m * k * 8));
   REQUIRE(b_matrix->byte_limbs.size() == static_cast<std::size_t>(k * n * 8));
   REQUIRE(c_matrix->byte_limbs.size() == static_cast<std::size_t>(m * n * 8));
+  CHECK(a_matrix->desc.logical_ld == lda);
+  CHECK(b_matrix->desc.logical_ld == ldb);
+  CHECK(c_matrix->desc.logical_ld == ldc);
   CHECK(a_matrix->residues.empty());
   CHECK(b_matrix->residues.empty());
   CHECK(c_matrix->residues.empty());
@@ -592,18 +599,24 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   auto bounded_looking = desc;
   bounded_looking.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   bounded_looking.bound = std::numeric_limits<uint64_t>::max();
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bounded_looking, A, k, B, n, C, n) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bounded_looking, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
   rns8_plan* plan = nullptr;
-  CHECK(rns8_create_plan(wrap_ctx, &bounded_looking, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_create_plan(wrap_ctx, &bounded_looking, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
   auto prefixed = desc;
   prefixed.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &prefixed, A, k, B, n, C, n) == RNS8_UNSUPPORTED_BACKEND);
-  CHECK(rns8_create_plan(wrap_ctx, &prefixed, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &prefixed, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(wrap_ctx, &prefixed, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
   CHECK(rns8_create_plan(cpu_ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+
+  auto bound_only = desc;
+  bound_only.bound = 1;
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bound_only, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(wrap_ctx, &bound_only, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
   rns8_gemm_desc bounded_desc{};
@@ -633,7 +646,11 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   CHECK(rns8_create_matrix(cpu_ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(storage == nullptr);
   matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
-  CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
+  CHECK(storage == nullptr);
+  matrix.bound_kind = RNS8_BOUND_NONE;
+  matrix.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
   CHECK(storage == nullptr);
 
   rns8_plan* valid_plan = nullptr;

@@ -220,6 +220,9 @@ The dependency checker reports:
   enablement status.
 - rocWMMA shallow discovery, optional compile/run probe evidence, and backend
   enablement status.
+- AMDGPU builtin readiness status. This has no shallow discovery-only pass:
+  it remains disabled until target-specific exact kernels and ISA evidence
+  exist.
 - Boost, GMP/MPIR, FLINT, NTL, FFLAS-FFPACK, and LinBox discovery.
 - Python package versions.
 
@@ -774,13 +777,18 @@ wraparound semantics.
 
 Exact-wide descriptors use `RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound
 storage. Global bounded descriptors also carry no tile-bound pointer/count.
-Stale bound metadata is rejected rather than ignored.
+Stale bound metadata is rejected as `RNS8_INVALID_ARGUMENT` rather than ignored
+or reported as an unsupported backend.
+`RNS8_BACKEND_AUTO` selects only the current context's default backend. It does
+not translate valid semantic descriptors across backend families.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a
 finite-ring low-64-bit result and does not report CRT range errors. Descriptors
 carrying bounds or CRT prefixes are rejected instead of being interpreted as
-odd-modulus CRT metadata.
+odd-modulus CRT metadata. Valid descriptors on a backend that does not implement
+the requested semantic return `RNS8_UNSUPPORTED_BACKEND`; malformed descriptors
+return `RNS8_INVALID_ARGUMENT`.
 
 Required status codes:
 
@@ -968,6 +976,7 @@ rns8-gemm/
     design.md
     platform-windows.md
     platform-linux.md
+    platform-readiness.md
     performance-model.md
     correctness.md
     backend-notes.md
@@ -1109,12 +1118,16 @@ at least 1.55x speedup for 8192 square bounded GEMM.
 | E004 | GPU architecture detection | target-specific backend set selected |
 | E005 | hipBLASLt INT8 capability | B3/B4 enabled only after pass |
 | E006 | CK capability | B5/B6 enabled only after pass |
-| E007 | rocWMMA or AMDGPU builtin capability | B7 enabled only after pass |
-| E008 | signed and unsigned INT8 behavior | backend accepted after exact match |
+| E007 | rocWMMA capability | B7 enabled only after pass |
+| E008 | AMDGPU builtin capability | B7 enabled only after pass |
+| E009 | signed and unsigned INT8 behavior | backend accepted after exact match |
 
-E005 through E007 require more than file discovery. Shallow headers, libraries,
-tools, and opt-in tiny compile/run probes are evidence only until a backend also
-has target-supported capability checks and exact CPU differential validation.
+E005 through E008 require more than file discovery. Shallow headers, libraries,
+tools, opt-in tiny compile/run probes, and builtin availability notes are
+evidence only until a backend also has target-supported capability checks and
+exact CPU differential validation. E008 has no discovery-only readiness path:
+AMDGPU builtin kernels are not enabled until real target-specific exact kernels
+exist.
 
 ### 18.2 Core Correctness
 
@@ -1269,7 +1282,8 @@ Deliverables:
 
 Exit gate:
 
-- E007, E092 pass and architecture-family performance gates are evaluated.
+- E007, E008, E092 pass and architecture-family performance gates are
+  evaluated.
 
 ### Phase 8: Instinct Production
 

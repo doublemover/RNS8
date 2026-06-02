@@ -109,6 +109,7 @@ TEST_CASE("unsupported semantic contracts do not fall through to bounded CRT") {
   for (const rns8_semantics semantics :
        {RNS8_WRAP_U64_MOD_2_64, RNS8_FINITE_RING_U8, RNS8_FINITE_FIELD_U8}) {
     auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
+    desc.bound = 0;
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(plan == nullptr);
@@ -147,7 +148,7 @@ TEST_CASE("unbounded semantic descriptors reject stale bound metadata") {
     desc.bound = 1;
     desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
   }
   rns8_destroy_context(ctx);
@@ -183,12 +184,12 @@ TEST_CASE("exact-wide semantics reject bounded-looking CRT metadata") {
           RNS8_BOUND_INPUT_RANGE_AND_K}) {
       auto desc = bounded_looking_desc(semantics, bound_kind);
       rns8_plan* plan = nullptr;
-      CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
       CHECK(plan == nullptr);
 
       auto matrix = bounded_looking_matrix_desc(semantics, bound_kind);
       rns8_matrix* storage = nullptr;
-      CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
       CHECK(storage == nullptr);
     }
   }
@@ -205,16 +206,16 @@ TEST_CASE("strict wraparound is not accepted as bounded odd-modulus CRT") {
         RNS8_BOUND_INPUT_RANGE_AND_K}) {
     auto desc = bounded_looking_desc(RNS8_WRAP_U64_MOD_2_64, bound_kind);
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
 
     desc.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
 
     auto matrix = bounded_looking_matrix_desc(RNS8_WRAP_U64_MOD_2_64, bound_kind);
     rns8_matrix* storage = nullptr;
-    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_matrix(ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
     CHECK(storage == nullptr);
   }
   rns8_destroy_context(ctx);
@@ -230,6 +231,34 @@ TEST_CASE("wrap64 byte-limb context reports explicit CPU reference backend") {
   CHECK(info.device_id == -1);
   CHECK(info.hip_available == 0);
   rns8_destroy_context(ctx);
+}
+
+TEST_CASE("auto backend selection never routes across explicit semantic backends") {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_context* auto_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &options, &auto_ctx) == RNS8_SUCCESS);
+
+  rns8_device_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_device_info(auto_ctx, &info) == RNS8_SUCCESS);
+  CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+
+  auto wrap = gemm_desc(RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
+  wrap.bound = 0;
+  wrap.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(auto_ctx, &wrap, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+  rns8_destroy_context(auto_ctx);
+
+  rns8_context* wrap_ctx = create_wrap64();
+  CHECK(rns8_create_plan(wrap_ctx, &wrap, &plan) == RNS8_SUCCESS);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(wrap_ctx);
 }
 
 TEST_CASE("future backend context kinds report unsupported status") {

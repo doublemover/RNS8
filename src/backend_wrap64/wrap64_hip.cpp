@@ -35,6 +35,10 @@ namespace rns8::detail {
 
 namespace {
 
+struct Wrap64CompactLayout {
+  std::size_t byte_limb_bytes = 0;
+};
+
 bool checked_limb_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {
   if (!bytes || rows <= 0 || cols <= 0) {
     return false;
@@ -47,6 +51,18 @@ bool checked_limb_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {
     return false;
   }
   *bytes = static_cast<std::size_t>(u_rows * u_cols * limbs_per_cell);
+  return true;
+}
+
+bool checked_compact_byte_limb_layout(int64_t rows, int64_t cols, Wrap64CompactLayout* layout) {
+  if (!layout) {
+    return false;
+  }
+  std::size_t bytes = 0;
+  if (!checked_limb_bytes(rows, cols, &bytes)) {
+    return false;
+  }
+  layout->byte_limb_bytes = bytes;
   return true;
 }
 
@@ -80,6 +96,18 @@ bool checked_u64_compact_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {
   }
   *bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols) * sizeof(uint64_t);
   return true;
+}
+
+bool checked_wrap64_gemm_compact_layouts(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    Wrap64CompactLayout* a,
+    Wrap64CompactLayout* b,
+    Wrap64CompactLayout* c) {
+  return checked_matrix_elements_i32(m, n) && checked_matrix_elements_i32(m, k) &&
+         checked_matrix_elements_i32(k, n) && checked_compact_byte_limb_layout(m, k, a) &&
+         checked_compact_byte_limb_layout(k, n, b) && checked_compact_byte_limb_layout(m, n, c);
 }
 
 #if RNS8_ENABLE_HIP
@@ -152,33 +180,28 @@ rns8_status wrap64_hip_gemm_byte_limbs(
   if (!a_limbs || !b_limbs || !c_limbs) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!checked_matrix_elements_i32(m, n) || !checked_matrix_elements_i32(m, k) ||
-      !checked_matrix_elements_i32(k, n)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  std::size_t a_bytes = 0;
-  std::size_t b_bytes = 0;
-  std::size_t c_bytes = 0;
-  if (!checked_limb_bytes(m, k, &a_bytes) || !checked_limb_bytes(k, n, &b_bytes) ||
-      !checked_limb_bytes(m, n, &c_bytes)) {
+  Wrap64CompactLayout a_layout;
+  Wrap64CompactLayout b_layout;
+  Wrap64CompactLayout c_layout;
+  if (!checked_wrap64_gemm_compact_layouts(m, n, k, &a_layout, &b_layout, &c_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
   void* d_a = nullptr;
   void* d_b = nullptr;
   void* d_c = nullptr;
-  rns8_status status = hip_direct_allocate(device_id, a_bytes, &d_a);
+  rns8_status status = hip_direct_allocate(device_id, a_layout.byte_limb_bytes, &d_a);
   if (status == RNS8_SUCCESS) {
-    status = hip_direct_allocate(device_id, b_bytes, &d_b);
+    status = hip_direct_allocate(device_id, b_layout.byte_limb_bytes, &d_b);
   }
   if (status == RNS8_SUCCESS) {
-    status = hip_direct_allocate(device_id, c_bytes, &d_c);
+    status = hip_direct_allocate(device_id, c_layout.byte_limb_bytes, &d_c);
   }
   if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_host_to_device(device_id, d_a, a_limbs, a_bytes);
+    status = hip_direct_copy_host_to_device(device_id, d_a, a_limbs, a_layout.byte_limb_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_host_to_device(device_id, d_b, b_limbs, b_bytes);
+    status = hip_direct_copy_host_to_device(device_id, d_b, b_limbs, b_layout.byte_limb_bytes);
   }
   if (status == RNS8_SUCCESS) {
     const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
@@ -194,7 +217,7 @@ rns8_status wrap64_hip_gemm_byte_limbs(
     status = hip_direct_synchronize(device_id);
   }
   if (status == RNS8_SUCCESS) {
-    status = hip_direct_copy_device_to_host(device_id, c_limbs, d_c, c_bytes);
+    status = hip_direct_copy_device_to_host(device_id, c_limbs, d_c, c_layout.byte_limb_bytes);
   }
 
   const rns8_status free_c = free_if_allocated(device_id, d_c);
@@ -206,9 +229,9 @@ rns8_status wrap64_hip_gemm_byte_limbs(
   return status;
 #else
   (void)device_id;
-  (void)a_bytes;
-  (void)b_bytes;
-  (void)c_bytes;
+  (void)a_layout;
+  (void)b_layout;
+  (void)c_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -226,9 +249,9 @@ rns8_status wrap64_hip_pack_u64_device(
     return RNS8_INVALID_ARGUMENT;
   }
   std::size_t source_bytes = 0;
-  std::size_t limb_bytes = 0;
+  Wrap64CompactLayout compact_layout;
   if (!checked_matrix_elements_i32(rows, cols) || !checked_u64_row_pitch_bytes(rows, ld, &source_bytes) ||
-      !checked_limb_bytes(rows, cols, &limb_bytes)) {
+      !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
@@ -268,7 +291,7 @@ rns8_status wrap64_hip_pack_u64_device(
   (void)upload_bytes;
   (void)device_byte_limbs;
   (void)source_bytes;
-  (void)limb_bytes;
+  (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -281,8 +304,11 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
     int64_t m,
     int64_t n,
     int64_t k) {
-  if (!device_a_limbs || !device_b_limbs || !device_c_limbs || !checked_matrix_elements_i32(m, n) ||
-      !checked_matrix_elements_i32(m, k) || !checked_matrix_elements_i32(k, n)) {
+  Wrap64CompactLayout a_layout;
+  Wrap64CompactLayout b_layout;
+  Wrap64CompactLayout c_layout;
+  if (!device_a_limbs || !device_b_limbs || !device_c_limbs ||
+      !checked_wrap64_gemm_compact_layouts(m, n, k, &a_layout, &b_layout, &c_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
@@ -306,6 +332,9 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
+  (void)a_layout;
+  (void)b_layout;
+  (void)c_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -325,8 +354,10 @@ rns8_status wrap64_hip_export_u64_device(
   }
   std::size_t output_bytes = 0;
   std::size_t destination_bytes = 0;
+  Wrap64CompactLayout compact_layout;
   if (!checked_u64_compact_bytes(rows, cols, &output_bytes) ||
-      !checked_u64_row_pitch_bytes(rows, ld, &destination_bytes)) {
+      !checked_u64_row_pitch_bytes(rows, ld, &destination_bytes) ||
+      !checked_compact_byte_limb_layout(rows, cols, &compact_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
@@ -366,6 +397,7 @@ rns8_status wrap64_hip_export_u64_device(
   (void)export_bytes;
   (void)output_bytes;
   (void)destination_bytes;
+  (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

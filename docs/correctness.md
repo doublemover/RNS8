@@ -29,6 +29,9 @@ Implemented correctness coverage:
   rejects bounded-looking metadata, finite-ring/finite-field/future accelerator
   requests report unsupported, and strict wraparound never falls through to
   bounded CRT behavior.
+- Public API hard-cut tests cover exact-wide invalid limb layout, null output
+  pointers, bounded export shortcuts, wrap export shortcuts, signed/unsigned
+  exact-wide cross-export attempts, and unsupported accelerator context kinds.
 - Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
   nonzero bounds, global plans carrying tile-bound storage, and matrix
   descriptors whose owned RNS or byte-limb storage would overflow the host
@@ -69,9 +72,11 @@ Implemented correctness coverage:
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
   device pointer stability through pack/GEMM/export, and support padded host
-  leading dimensions on export. The HIP GEMM correctness kernel sums the 36
-  low-product byte diagonals with device-side signed-INT8 correction algebra and
-  then performs deterministic carry propagation into the low 64 bits.
+  leading dimensions on pack and export while keeping compact row-major
+  `rows * cols * 8` device byte-limb storage. The HIP GEMM correctness kernel
+  sums the 36 low-product byte diagonals with device-side signed-INT8
+  correction algebra and then performs deterministic carry propagation into the
+  low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -85,8 +90,9 @@ Implemented correctness coverage:
   reference.
 - Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
   the CPU reference, cover tile-local range errors, padded host export layouts,
-  schedule parity, and verify skipped residue planes above each tile's selected
-  prefix remain untouched on device.
+  schedule parity, signed K-split cancellation under selected-prefix execution,
+  and verify skipped residue planes above each tile's selected prefix remain
+  untouched on device.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is
