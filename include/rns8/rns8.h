@@ -207,6 +207,8 @@ RNS8_API rns8_status rns8_export_wrap_u64(
  *
  *   dst[((row * ld) + col) * limb_count + limb]
  *
+ * `limb_count` is the fixed output width and must be in [1, 32].
+ *
  * The reconstructed centered integer must fit the fixed-width signed range
  * [-2^(64 * limb_count - 1), 2^(64 * limb_count - 1) - 1]. Successful exports
  * use two's-complement representation in exactly the requested width. Too few
@@ -227,6 +229,8 @@ RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
  * Layout matches rns8_export_exact_wide_signed_limbs: row-major elements,
  * element-stride `ld`, and exactly `limb_count` little-endian uint64_t limbs per
  * element at dst[((row * ld) + col) * limb_count + limb].
+ *
+ * `limb_count` is the fixed output width and must be in [1, 32].
  *
  * The reconstructed canonical integer must fit the fixed-width unsigned range
  * [0, 2^(64 * limb_count) - 1]. Successful exports use magnitude limbs in

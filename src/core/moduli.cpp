@@ -189,8 +189,13 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (!valid_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const bool per_tile_bounds =
+      desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS || desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  if (!per_tile_bounds && (desc.tile_bounds || desc.tile_bounds_count != 0)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
-    if (desc.bound_kind != RNS8_BOUND_NONE) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {

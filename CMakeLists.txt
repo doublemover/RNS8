@@ -19,6 +19,7 @@ option(RNS8_PROBE_ACCELERATORS "Run CMake evidence-only discovery for optional a
 option(RNS8_ENABLE_HIPBLASLT "Enable hipBLASLt accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_CK "Enable CK accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_ROCWMMA "Enable rocWMMA accelerator backend after validated implementation" OFF)
+option(RNS8_ENABLE_AMDGPU_BUILTINS "Enable target-specific AMDGPU builtin accelerator kernels after validated implementation" OFF)
 
 set(RNS8_AMDGPU_TARGETS "gfx1100" CACHE STRING "Semicolon-separated AMDGPU offload targets for direct HIP sources")
 set(RNS8_HIP_ROOT "" CACHE PATH "AMD HIP SDK or ROCm root used by explicit HIP integration")
@@ -26,10 +27,10 @@ set(RNS8_ROCM_COVERAGE_TARGETS "" CACHE STRING "Source-level ROCm target family 
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
-if(RNS8_ENABLE_HIPBLASLT OR RNS8_ENABLE_CK OR RNS8_ENABLE_ROCWMMA)
+if(RNS8_ENABLE_HIPBLASLT OR RNS8_ENABLE_CK OR RNS8_ENABLE_ROCWMMA OR RNS8_ENABLE_AMDGPU_BUILTINS)
   message(
     FATAL_ERROR
-      "hipBLASLt, CK, and rocWMMA accelerator backends are not implemented. "
+      "hipBLASLt, CK, rocWMMA, and AMDGPU builtin accelerator backends are not implemented. "
       "Use RNS8_PROBE_ACCELERATORS=ON or tools/check_dependencies.py --accelerator-probes for evidence-only probes."
   )
 endif()
@@ -41,6 +42,7 @@ if(RNS8_PROBE_ACCELERATORS)
   message(STATUS "RNS8 hipBLASLt candidate evidence: ${RNS8_HIPBLASLT_EVIDENCE}")
   message(STATUS "RNS8 CK candidate evidence: ${RNS8_CK_EVIDENCE}")
   message(STATUS "RNS8 rocWMMA candidate evidence: ${RNS8_ROCWMMA_EVIDENCE}")
+  message(STATUS "RNS8 AMDGPU builtin candidate evidence: disabled until target-specific exact kernels exist")
   message(STATUS "RNS8 accelerator backend enablement: disabled")
 endif()
 

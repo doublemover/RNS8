@@ -33,6 +33,9 @@ disagree, the spec remains the target and this file identifies the gap.
   K-block cases.
 - Persistent RNS behavior: public matrix/workspace APIs exercise persistent A/B/C
   storage and verify device pointer stability through pack, GEMM, and export.
+  Workspaces are tagged with backend, shape, prefix, semantics, and bound kind
+  and reject same-shape reuse across bounded, per-tile bounded, exact-wide, and
+  wrap64 contracts.
 - Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
   required prefix, selected prefix, and prefix-group metadata through public ABI
   queries. Global bounded plans still use one fixed selected prefix for every
@@ -46,9 +49,11 @@ disagree, the spec remains the target and this file identifies the gap.
   Boost.Multiprecision residue oracles. CPU little-endian limb export is
   implemented for fixed-width signed two's-complement and unsigned magnitude
   output, with `ld` interpreted as an element stride and `limb_count` as the
-  per-element width. Direct HIP exports signed and unsigned exact-wide limbs
-  from device-resident RNS matrices without synchronizing host residue storage
-  and reports range errors when the requested fixed width is too small.
+  per-element width in `[1, 32]`. Direct HIP exports signed and unsigned
+  exact-wide limbs from device-resident RNS matrices without synchronizing host
+  residue storage and reports range errors when the requested fixed width is too
+  small. Stale nonzero bounds and tile-bound metadata are rejected for
+  exact-wide descriptors.
 - Strict wraparound byte-limb backend: CPU one-shot and persistent `mod 2^64`
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
@@ -60,11 +65,12 @@ disagree, the spec remains the target and this file identifies the gap.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the
-  CPU byte-limb reference, and padded host export layouts are tested. The GEMM
-  kernel is now an inspectable tiled byte-limb correctness path that sums the
-  same low-product byte diagonals with device-side signed-INT8 correction and
-  then carries into the low 64 bits; it is not an optimized matrix-engine
-  byte-GEMM accelerator path.
+  CPU byte-limb reference, padded host export layouts are tested, and repeated
+  same-shape export reuses the matrix-owned export buffer. The GEMM kernel is
+  now an inspectable tiled byte-limb correctness path that sums the same
+  low-product byte diagonals with device-side signed-INT8 correction and then
+  carries into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
+  accelerator path.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
   `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
@@ -90,17 +96,19 @@ disagree, the spec remains the target and this file identifies the gap.
   optional accelerator components as candidate evidence only. Linux presets keep
   active offload targets separate from RDNA/CDNA coverage metadata, and shallow
   hipBLASLt/CK/rocWMMA probes report headers, libraries, tools, and CMake module
-  evidence without enabling accelerator backends. Opt-in Python and CMake
-  accelerator probe modes record compile/link/runtime evidence under `temp/` or
-  probe-only build directories while keeping all accelerator backend enablement
-  disabled.
+  evidence without enabling accelerator backends. AMDGPU builtin readiness is a
+  separate not-ready gate until real target-specific exact kernels exist.
+  Opt-in Python and CMake accelerator probe modes record compile/link/runtime
+  evidence under `temp/` or probe-only build directories while keeping all
+  accelerator backend enablement disabled.
 
 ## Requirement Audit
 
 1. Direct HIP residency and lifetime: implemented for persistent RNS and wrap64
    matrices. Matrix-owned residue, byte-limb, upload, export, and status
    buffers have explicit ownership and teardown. Repeated same-shape persistent
-   pack/GEMM/export is now allocation-observed after warmup.
+   pack/GEMM/export is now allocation-observed after warmup. Workspace reuse is
+   contract-checked by semantics and bound kind, not only by shape.
 2. Direct HIP fused INT32-to-centered-residue reduction: implemented in the
    direct correctness kernel. The path writes centered `int8_t` residues and
    does not materialize full INT32 output matrices in global memory. Optimized
@@ -123,7 +131,9 @@ disagree, the spec remains the target and this file identifies the gap.
    two's-complement limbs over the centered exact integer; unsigned export uses
    fixed-width magnitude limbs over the canonical nonnegative integer. The ABI
    treats `ld` as an element stride, stores `limb_count` contiguous limbs per
-   element, and reports range errors instead of truncating.
+   element for `limb_count` in `[1, 32]`, and reports range errors instead of
+   truncating. Invalid widths and stale descriptor metadata are rejected at the
+   API boundary.
 7. Strict `mod 2^64`: implemented only through byte-limb storage for CPU and
    direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
    The direct-HIP tiled byte-limb path is a correctness kernel, not an
@@ -162,15 +172,20 @@ disagree, the spec remains the target and this file identifies the gap.
   vcpkg toolchain from the VS developer environment.
 - `cmake --build --preset windows-debug`: built successfully, including the
   explicit hipcc direct-HIP and wrap64 HIP kernel objects.
-- `ctest --preset windows-debug --output-on-failure`: 64/64 passed on the
+- `ctest --preset windows-debug --output-on-failure`: 81/81 passed on the
   Windows HIP debug build.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   and wrap64 smoke passed.
 - `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
-- `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json`:
-  current v4 direct-HIP wrap64 fixture validated with the tiled byte-limb
-  selected kernel and event labels.
+- `python tools\benchmark_schema.py tests\fixtures\benchmark_schema\v4_wrap64_hip.json
+  tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
+  tests\fixtures\benchmark_schema\v4_bounded_i64_adaptive_hip.json`: current
+  tracked v4 direct-HIP fixtures validated.
+- `python tools\result_compare.py
+  tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json
+  tests\fixtures\benchmark_schema\v4_bounded_u64_adaptive_hip.json`: same-contract
+  comparison passed with comparable direct-HIP GPU event phase order.
 - `ctest --test-dir build/cpu-debug --output-on-failure`: prior CPU-only pass
   reported 58/58 passed; HIP smoke tests skipped in CPU-only build.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
@@ -180,7 +195,12 @@ disagree, the spec remains the target and this file identifies the gap.
 - The Windows HIP test pass includes persistent direct-HIP allocation-reuse
   coverage: after warmup, repeated persistent pack/GEMM/export leaves
   allocation/free counters and device/upload/export/status buffer pointers
-  unchanged.
+  unchanged. The new bounded signed K-split case covers padded `lda/ldb/ldc`
+  and a repeated same-shape direct-HIP persistent path.
+- The CPU and Windows HIP test pass includes hard-cut descriptor and workspace
+  guards for stale exact-wide bounds, stray tile-bound storage on global
+  descriptors, oversized matrix-owned storage, invalid exact-wide limb widths,
+  and same-shape workspaces from the wrong semantic or bound-kind contract.
 - The CPU test pass includes literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9`
   contract coverage, bounded signed/unsigned range errors for too-small but
   otherwise valid global and per-tile bounds, and padded exact-wide signed and
@@ -205,7 +225,10 @@ disagree, the spec remains the target and this file identifies the gap.
   layouts`, and `direct HIP wrap64 rejects CRT-style descriptors`, covering the
   low-level kernel smoke, public HIP_DIRECT one-shot/persistent byte-limb APIs,
   padded host layouts, full-width random/boundary values, and CRT metadata
-  rejection against the CPU reference.
+  rejection against the CPU reference. Additional carry-heavy tiled wrap64
+  cases compare CPU and direct-HIP output against the byte-diagonal oracle, and
+  repeated export proves matrix-owned HIP export-buffer reuse while preserving
+  padded host sentinels.
 - The Windows HIP test pass also includes signed and unsigned exact-wide RNS
   differential checks against CPU residues plus direct HIP exact-wide limb
   export checks for padded host layouts, range errors, and signed
@@ -217,17 +240,19 @@ disagree, the spec remains the target and this file identifies the gap.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
   Windows host. hipBLASLt was reported as candidate evidence only on this host;
-  CK and rocWMMA remained not ready, and none were promoted to correctness
-  requirements.
+  CK, rocWMMA, and AMDGPU builtins remained not ready, and none were promoted
+  to correctness requirements.
 - `python tools\check_dependencies.py --accelerator-probes --json`: host
   readiness stayed true while accelerator gates stayed `ok=false`. CK and
   rocWMMA probes did not run because headers were not discovered. hipBLASLt was
   candidate evidence but the tiny Windows hipcc/lld-link probe failed because
   this HIP SDK install exposes `libhipblaslt.dll.a` rather than a linkable
-  `hipblaslt.lib`; backend enablement remained disabled.
+  `hipblaslt.lib`; AMDGPU builtin probes reported
+  `NOT_RUN_NO_CORRECTNESS_KERNEL`; backend enablement remained disabled.
 - `cmake --preset windows-msvc-hip-accelerator-probe`: configured successfully,
-  reported hipBLASLt header evidence, CK/rocWMMA not discovered, and
-  accelerator backend enablement disabled.
+  reported hipBLASLt header evidence, CK/rocWMMA not discovered, AMDGPU builtin
+  evidence disabled until target-specific exact kernels exist, and accelerator
+  backend enablement disabled.
 - `cmake --build --preset windows-accelerator-probe --target rns8-inspect`:
   built the direct-HIP inspection binary from the probe preset while keeping all
   accelerator backend enablement flags disabled.

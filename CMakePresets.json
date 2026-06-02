@@ -46,7 +46,8 @@
         "RNS8_PROBE_ACCELERATORS": "ON",
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
-        "RNS8_ENABLE_ROCWMMA": "OFF"
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
       }
     },
     {
@@ -90,7 +91,8 @@
         "RNS8_PROBE_ACCELERATORS": "ON",
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
-        "RNS8_ENABLE_ROCWMMA": "OFF"
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
       }
     }
   ],

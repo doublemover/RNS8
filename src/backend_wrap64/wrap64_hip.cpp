@@ -324,7 +324,9 @@ rns8_status wrap64_hip_export_u64_device(
     return RNS8_INVALID_ARGUMENT;
   }
   std::size_t output_bytes = 0;
-  if (!checked_u64_compact_bytes(rows, cols, &output_bytes)) {
+  std::size_t destination_bytes = 0;
+  if (!checked_u64_compact_bytes(rows, cols, &output_bytes) ||
+      !checked_u64_row_pitch_bytes(rows, ld, &destination_bytes)) {
     return RNS8_INVALID_ARGUMENT;
   }
 #if RNS8_ENABLE_HIP
@@ -363,6 +365,7 @@ rns8_status wrap64_hip_export_u64_device(
   (void)export_buffer;
   (void)export_bytes;
   (void)output_bytes;
+  (void)destination_bytes;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
