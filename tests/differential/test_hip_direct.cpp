@@ -3503,6 +3503,110 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP exact-wide GEMM rejects host-current stale device inputs") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for exact-wide stale-input GEMM rejection smoke");
+  }
+
+  constexpr int64_t m = 1;
+  constexpr int64_t n = 1;
+  constexpr int64_t k = 2;
+  constexpr int8_t c_sentinel = -41;
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  {
+    auto desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(hip, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+    auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(hip, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(-3), boost::multiprecision::cpp_int(5)});
+    fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(7), boost::multiprecision::cpp_int(-11)});
+    upload_exact_residues_to_hip(b_matrix);
+    std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
+                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
+            RNS8_SUCCESS);
+    c_matrix->host_residues_current = false;
+    c_matrix->device_residues_current = true;
+
+    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(a_matrix->host_residues_current);
+    CHECK_FALSE(a_matrix->device_residues_current);
+    CHECK_FALSE(b_matrix->host_residues_current);
+    CHECK(b_matrix->device_residues_current);
+    REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
+                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues, c_matrix->hip_residue_bytes) ==
+            RNS8_SUCCESS);
+    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(), [&](int8_t value) {
+      return value == c_sentinel;
+    }));
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = exact_unsigned_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(hip, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+    auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(hip, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(13), boost::multiprecision::cpp_int(17)});
+    fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(19), boost::multiprecision::cpp_int(23)});
+    upload_exact_residues_to_hip(a_matrix);
+    std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
+                hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
+            RNS8_SUCCESS);
+    c_matrix->host_residues_current = false;
+    c_matrix->device_residues_current = true;
+
+    CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK_FALSE(a_matrix->host_residues_current);
+    CHECK(a_matrix->device_residues_current);
+    CHECK(b_matrix->host_residues_current);
+    CHECK_FALSE(b_matrix->device_residues_current);
+    REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
+                hip->device_id, c_matrix->residues.data(), c_matrix->hip_residues, c_matrix->hip_residue_bytes) ==
+            RNS8_SUCCESS);
+    CHECK(std::all_of(c_matrix->residues.begin(), c_matrix->residues.end(), [&](int8_t value) {
+      return value == c_sentinel;
+    }));
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(hip);
+}
+
 TEST_CASE("direct HIP exact-wide signed export matches CPU fixed-width boundary ABI") {
   if (!hip_available()) {
     SKIP("no HIP device available for exact-wide signed export boundary smoke");
