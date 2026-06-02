@@ -85,14 +85,16 @@ disagree, the spec remains the target and this file identifies the gap.
   the 36 byte-product pairs that can affect the low 64 bits and then carries
   into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
   accelerator path.
-- Finite ring/field `uint8_t` one-shot APIs: CPU reference and direct HIP now
-  implement explicit-modulus finite GEMM. `RNS8_FINITE_RING_U8` accepts moduli
-  in `[2, 256]`; `RNS8_FINITE_FIELD_U8` requires prime moduli `<= 251`. The
-  finite path uses `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile
-  bounds, centered-residue packing for the requested modulus, K-split
-  INT8xINT8->INT32 ring GEMM with fused centered reduction, and canonical
-  `uint8_t` export. CPU and direct-HIP tests cover composite, prime, modulus-256,
-  padded layout, and K-split cases.
+- Finite ring/field `uint8_t` APIs: CPU reference and direct HIP now implement
+  explicit-modulus finite GEMM for both one-shot and persistent resident matrix
+  paths. `RNS8_FINITE_RING_U8` accepts moduli in `[2, 256]`;
+  `RNS8_FINITE_FIELD_U8` requires prime moduli `<= 251`. The finite path uses
+  `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile bounds,
+  one-plane prefix-zero centered-residue storage for the requested modulus,
+  K-split INT8xINT8->INT32 ring GEMM with fused centered reduction, and
+  canonical `uint8_t` export. CPU and direct-HIP tests cover composite, prime,
+  modulus-256, padded layout, K-split, cross-modulus rejection, and same-shape
+  resident HIP allocation reuse cases.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
   `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
@@ -191,11 +193,12 @@ disagree, the spec remains the target and this file identifies the gap.
    direct HIP. Odd-modulus CRT remains fenced off from wraparound descriptors.
    The direct-HIP tiled byte-limb path is a correctness kernel, not an
    optimized matrix-engine accelerator.
-7a. Finite ring/field `uint8_t`: implemented as explicit one-shot CPU and
-    direct-HIP APIs. Persistent finite plan/matrix descriptors remain
-    unsupported until a resident finite-storage ABI is defined; finite one-shot
-    calls do not use CRT prefixes, bounded export, exact-wide export, or wrap64
-    byte-limb routing.
+7a. Finite ring/field `uint8_t`: implemented as explicit one-shot and
+    persistent resident CPU/direct-HIP APIs. Finite matrices own one
+    prefix-zero centered-residue plane and stamp the explicit pack modulus;
+    resident GEMM/export reject mismatched modulus state. Finite calls do not
+    use CRT prefixes, bounded export, exact-wide export, or wrap64 byte-limb
+    routing.
 8. Linux ROCm and Instinct: represented by presets, readiness gates, target
    coverage metadata, and docs. Validation remains `NOT_APPLICABLE` on this
    Windows host and requires a real supported Linux ROCm host; Windows evidence
@@ -225,8 +228,8 @@ disagree, the spec remains the target and this file identifies the gap.
 - Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
   signed-INT8 correction algebra, and broader production-host/device validation
   beyond the current Windows direct-HIP CPU differentials.
-- Persistent finite-ring/finite-field matrix APIs and optimized finite-field
-  algorithms. The current finite support is explicit one-shot CPU/direct-HIP.
+- Optimized finite-field algorithms beyond the explicit-modulus
+  correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -240,18 +243,16 @@ This section records lead-run integration evidence from prior checkpoints. It
 does not promote ignored `temp/` captures or historical schema versions into the
 current tracked schema contract.
 
-- `ctest --preset windows-debug --output-on-failure`: 161/161 passed on the
-  Windows HIP debug build after the finite `uint8_t` one-shot implementation.
-  The private mismatched-modulus metadata smoke remains intentionally skipped
-  when the low-level direct-HIP device entry point is unavailable to that test
-  process.
+- `cmake --build --preset windows-debug`: passed from a Visual Studio
+  developer environment after the persistent finite `uint8_t` implementation.
+- `ctest --preset windows-debug --output-on-failure`: 165/165 passed on the
+  Windows HIP debug build. The private mismatched-modulus metadata smoke remains
+  intentionally skipped when the low-level direct-HIP device entry point is
+  unavailable to that test process.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
-  finite `uint8_t`, and wrap64 smoke passed.
-- `cmake --build --preset windows-debug`: passed from a Visual Studio
-  developer environment after the finite `uint8_t` slice. A plain-shell build
-  attempt failed before compilation because the MSVC standard include path was
-  not initialized.
+  finite `uint8_t`, and wrap64 smoke passed, including resident finite CPU/HIP
+  parity.
 - Recent pushed hard-cut commits through `6fbccd9` add device-current direct-HIP
   RNS input/export enforcement, matrix-owned bounded export schedule/bounds
   metadata, tiled wrap64 compact-cell staging, removal of retired host-residue

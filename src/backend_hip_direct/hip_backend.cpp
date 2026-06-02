@@ -884,6 +884,64 @@ rns8_status hip_direct_pack_u64_device(
 #endif
 }
 
+rns8_status hip_direct_pack_finite_u8_device(
+    int device_id,
+    const uint8_t* src,
+    void** upload_buffer,
+    std::size_t* upload_bytes,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint16_t modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!src || !upload_buffer || !upload_bytes || !device_residues || modulus < 2 || modulus > 256 ||
+      rows <= 0 || cols <= 0 || ld < cols || rows > std::numeric_limits<int>::max() ||
+      cols > std::numeric_limits<int>::max() || ld > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!checked_output_bytes(rows, ld, sizeof(uint8_t)) || !checked_output_bytes(rows, cols, sizeof(int8_t))) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const std::size_t source_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * sizeof(uint8_t);
+  rns8_status status = hip_direct_ensure_upload_buffer(device_id, source_bytes, upload_buffer, upload_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  hipError_t err = timed_hip_operation(
+      "finite_pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  err = timed_hip_operation("finite_pack_kernel", [&]() {
+    const int code = rns8_hip_direct_pack_u8_modulus_device(
+        static_cast<const uint8_t*>(*upload_buffer),
+        static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(ld),
+        static_cast<int>(modulus));
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)src;
+  (void)upload_buffer;
+  (void)upload_bytes;
+  (void)device_residues;
+  (void)rows;
+  (void)cols;
+  (void)ld;
+  (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_ring_gemm_i8_device(
     int device_id,
     const void* device_a_residues,
@@ -1011,6 +1069,62 @@ rns8_status hip_direct_gemm_rns_device(
   (void)ldb;
   (void)ldc;
   (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_finite_u8_resident_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint16_t modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
+      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
+      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const hipError_t err = timed_hip_operation("finite_resident_gemm_kernel", [&]() {
+    const int code = rns8_hip_direct_finite_ring_gemm_i8_device(
+        static_cast<const int8_t*>(device_a_residues),
+        static_cast<const int8_t*>(device_b_residues),
+        static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m),
+        static_cast<int>(n),
+        static_cast<int>(k),
+        static_cast<int>(lda),
+        static_cast<int>(ldb),
+        static_cast<int>(ldc),
+        static_cast<int>(modulus),
+        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_a_residues;
+  (void)device_b_residues;
+  (void)device_c_residues;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)lda;
+  (void)ldb;
+  (void)ldc;
+  (void)modulus;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
@@ -1589,6 +1703,69 @@ rns8_status hip_direct_export_u64_tiled_device(
   (void)device_bounds;
   (void)entry_count;
   (void)max_tile_elements;
+  (void)dst;
+  (void)ld;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_export_finite_u8_device(
+    int device_id,
+    const void* device_residues,
+    void** export_buffer,
+    std::size_t* export_bytes,
+    int64_t rows,
+    int64_t cols,
+    uint16_t modulus,
+    uint8_t* dst,
+    int64_t ld) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_residues || !export_buffer || !export_bytes || !dst || modulus < 2 || modulus > 256 ||
+      ld < cols || !checked_matrix_elements_i32(rows, cols) ||
+      !checked_output_bytes(rows, cols, sizeof(uint8_t)) || !checked_output_bytes(rows, ld, sizeof(uint8_t))) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const std::size_t output_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols) * sizeof(uint8_t);
+  rns8_status status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  hipError_t err = timed_hip_operation("finite_export_kernel", [&]() {
+    const int code = rns8_hip_direct_export_u8_modulus_device(
+        static_cast<const int8_t*>(device_residues),
+        static_cast<uint8_t*>(*export_buffer),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(cols),
+        static_cast<int>(modulus));
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  err = timed_hip_operation("finite_export_d2h", [&]() {
+    return hipMemcpy2D(
+        dst,
+        static_cast<std::size_t>(ld) * sizeof(uint8_t),
+        *export_buffer,
+        static_cast<std::size_t>(cols) * sizeof(uint8_t),
+        static_cast<std::size_t>(cols) * sizeof(uint8_t),
+        static_cast<std::size_t>(rows),
+        hipMemcpyDeviceToHost);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_residues;
+  (void)export_buffer;
+  (void)export_bytes;
+  (void)rows;
+  (void)cols;
+  (void)modulus;
   (void)dst;
   (void)ld;
   return RNS8_UNSUPPORTED_BACKEND;

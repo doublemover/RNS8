@@ -381,7 +381,7 @@ Optimized matrix-engine byte-GEMM kernels remain later production milestones.
 
 ### 6.5 Finite Ring And Finite Field `uint8_t`
 
-Finite-ring and finite-field GEMM are explicit one-shot contracts:
+Finite-ring and finite-field GEMM are explicit-modulus contracts:
 
 ```text
 C = A * B mod q
@@ -393,14 +393,19 @@ canonical `uint8_t` values reduced modulo `q`, and outputs are canonical
 `uint8_t` residues. For `q <= 255`, every output is in `[0, q - 1]`; for
 `q = 256`, every byte value is canonical.
 
-The finite one-shot ABI does not use the CRT prefix ladder. Descriptors must use
+Finite APIs do not use the CRT prefix ladder. Descriptors must use
 `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile-bound metadata, and the
 matching finite semantic. CPU and direct HIP implementations pack canonical
 bytes to centered residues for the explicit modulus, run the K-split
 INT8xINT8->INT32 ring GEMM with fused centered reduction, and export canonical
-bytes. Persistent finite matrix APIs remain unimplemented until a resident
-finite-storage ABI is defined; `rns8_create_plan` and `rns8_create_matrix`
-continue to reject finite descriptors as unsupported.
+bytes.
+
+Persistent finite matrices use one resident centered-residue plane with the
+modulus supplied explicitly to pack, GEMM, and export. Successful pack stamps
+the matrix with that modulus; resident GEMM and export reject cross-modulus
+inputs or stale outputs. Finite resident storage is prefix-zero storage and is
+not an odd-modulus CRT route, exact-wide export route, or strict `mod 2^64`
+byte-limb route.
 
 ## 7. Modulus Ladder
 
@@ -800,6 +805,31 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     uint64_t* C,
     int64_t ldc);
 
+rns8_status rns8_pack_finite_u8(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    uint16_t modulus,
+    const uint8_t* src,
+    int64_t ld,
+    uint64_t source_version);
+
+rns8_status rns8_gemm_finite_u8(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+rns8_status rns8_export_finite_u8(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_matrix* C,
+    uint8_t* dst,
+    int64_t ld);
+
 rns8_status rns8_gemm_finite_ring_u8_oneshot(
     rns8_context* ctx,
     const rns8_gemm_desc* desc,
@@ -893,11 +923,14 @@ odd-modulus CRT metadata. Valid descriptors on a backend that does not implement
 the requested semantic return `RNS8_UNSUPPORTED_BACKEND`; malformed descriptors
 return `RNS8_INVALID_ARGUMENT`.
 
-Finite ring/field one-shot output is row-major `uint8_t` with caller-supplied
-leading dimensions. The public finite APIs require an explicit modulus argument;
-`max_prefix` must be zero because the CRT ladder is not a finite-modulus selector.
+Finite ring/field output is row-major `uint8_t` with caller-supplied leading
+dimensions. The public finite APIs require an explicit modulus argument;
+`max_prefix` must be zero because the CRT ladder is not a finite-modulus
+selector. Persistent finite pack stamps matrices with the explicit modulus, and
+persistent finite GEMM/export reject mismatched or stale matrix modulus state.
 Ring moduli outside `[2, 256]`, non-prime field moduli, field moduli above 251,
-stale bounds, tile-bound metadata, and wrong finite semantics return
+stale bounds, tile-bound metadata, wrong finite semantics, and attempts to use
+finite handles through bounded RNS/CRT or wrap64 APIs return
 `RNS8_INVALID_ARGUMENT`. Valid finite descriptors requesting unsupported
 backends return `RNS8_UNSUPPORTED_BACKEND`.
 

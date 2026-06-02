@@ -56,6 +56,16 @@ rns8_status hip_direct_pack_u64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix);
+rns8_status hip_direct_pack_finite_u8_device(
+    int device_id,
+    const uint8_t* src,
+    void** upload_buffer,
+    std::size_t* upload_bytes,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint16_t modulus);
 rns8_status hip_direct_ring_gemm_i8_device(
     int device_id,
     const void* device_a_residues,
@@ -109,6 +119,18 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     const rns8_plan_tile_schedule_entry* host_entries,
     const void* device_entries,
     uint64_t entry_count);
+rns8_status hip_direct_gemm_finite_u8_resident_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint16_t modulus);
 rns8_status hip_direct_export_i64_device(
     int device_id,
     const void* device_residues,
@@ -164,6 +186,16 @@ rns8_status hip_direct_export_u64_tiled_device(
     uint64_t entry_count,
     uint64_t max_tile_elements,
     uint64_t* dst,
+    int64_t ld);
+rns8_status hip_direct_export_finite_u8_device(
+    int device_id,
+    const void* device_residues,
+    void** export_buffer,
+    std::size_t* export_bytes,
+    int64_t rows,
+    int64_t cols,
+    uint16_t modulus,
+    uint8_t* dst,
     int64_t ld);
 rns8_status hip_direct_export_exact_wide_signed_limbs_device(
     int device_id,

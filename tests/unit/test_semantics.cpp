@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include "core/internal.hpp"
@@ -238,8 +239,7 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
 
 TEST_CASE("unsupported semantic contracts do not fall through to bounded CRT") {
   rns8_context* ctx = create_cpu();
-  for (const rns8_semantics semantics :
-       {RNS8_WRAP_U64_MOD_2_64, RNS8_FINITE_RING_U8, RNS8_FINITE_FIELD_U8}) {
+  for (const rns8_semantics semantics : {RNS8_WRAP_U64_MOD_2_64}) {
     auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
     desc.bound = 0;
     rns8_plan* plan = nullptr;
@@ -302,6 +302,77 @@ TEST_CASE("public finite ring and field u8 oneshot use explicit modulus contract
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("public finite ring and field u8 persistent matrices use explicit modulus contracts") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 3;
+  constexpr int64_t k = 4;
+  constexpr int64_t lda = 6;
+  constexpr int64_t ldb = 5;
+  constexpr int64_t ldc = 5;
+  const std::vector<uint8_t> A = {
+      254, 128, 7, 3, 0xaa, 0xaa,
+      5, 250, 251, 1, 0xaa, 0xaa,
+  };
+  const std::vector<uint8_t> B = {
+      2, 3, 4, 0xbb, 0xbb,
+      250, 11, 9, 0xbb, 0xbb,
+      13, 17, 19, 0xbb, 0xbb,
+      23, 29, 31, 0xbb, 0xbb,
+  };
+
+  for (const auto item : {std::pair{RNS8_FINITE_RING_U8, uint16_t{255}},
+                          std::pair{RNS8_FINITE_FIELD_U8, uint16_t{251}}}) {
+    auto desc = finite_desc(item.first, m, n, k);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_schedule_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(info.min_required_prefix == 0);
+    CHECK(info.max_selected_prefix == 0);
+    CHECK(info.prefix_group_count == 0);
+
+    auto a_desc = matrix_desc(m, k, item.first, RNS8_BOUND_NONE);
+    auto b_desc = matrix_desc(k, n, item.first, RNS8_BOUND_NONE);
+    auto c_desc = matrix_desc(m, n, item.first, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_finite_u8(ctx, a_matrix, item.second, A.data(), lda, 11) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_finite_u8(ctx, b_matrix, item.second, B.data(), ldb, 12) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_finite_u8(ctx, plan, item.second, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+    std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xcc);
+    REQUIRE(rns8_export_finite_u8(ctx, plan, item.second, c_matrix, C.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
+              exact_finite_cell(A, B, lda, ldb, k, row, col, item.second));
+      }
+      CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xcc);
+    }
+
+    std::vector<uint64_t> wrong_export(static_cast<std::size_t>(m * ldc), 0);
+    CHECK(rns8_export_u64(ctx, plan, c_matrix, wrong_export.data(), ldc) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("finite u8 oneshot descriptors reject stale CRT metadata and invalid fields") {
   rns8_context* ctx = create_cpu();
   const uint8_t A[1] = {3};
@@ -330,6 +401,70 @@ TEST_CASE("finite u8 oneshot descriptors reject stale CRT metadata and invalid f
   ring.requested_backend = RNS8_BACKEND_CK;
   CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 255, A, 1, B, 1, C, 1) == RNS8_UNSUPPORTED_BACKEND);
 
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("finite u8 persistent descriptors reject stale CRT metadata and modulus mismatches") {
+  rns8_context* ctx = create_cpu();
+  const uint8_t A[1] = {3};
+  const uint8_t B[1] = {5};
+  uint8_t C[1] = {0};
+
+  auto stale_prefix = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
+  stale_prefix.max_prefix = 1;
+  rns8_plan* rejected_plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &stale_prefix, &rejected_plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_plan == nullptr);
+
+  auto stale_matrix_desc = matrix_desc(1, 1, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+  stale_matrix_desc.max_prefix = 1;
+  rns8_matrix* rejected_matrix = nullptr;
+  CHECK(rns8_create_matrix(ctx, &stale_matrix_desc, &rejected_matrix) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_matrix == nullptr);
+
+  auto accelerator = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
+  accelerator.requested_backend = RNS8_BACKEND_CK;
+  CHECK(rns8_create_plan(ctx, &accelerator, &rejected_plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rejected_plan == nullptr);
+
+  auto desc = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  auto matrix = matrix_desc(1, 1, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &matrix, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &matrix, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &matrix, &c_matrix) == RNS8_SUCCESS);
+
+  CHECK(rns8_export_finite_u8(ctx, plan, 255, c_matrix, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_pack_finite_u8(ctx, a_matrix, 1, A, 1, 1) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_pack_finite_u8(ctx, a_matrix, 255, A, 1, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_finite_u8(ctx, b_matrix, 255, B, 1, 1) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_finite_u8(ctx, plan, 251, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_gemm_finite_u8(ctx, plan, 255, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  CHECK(rns8_export_finite_u8(ctx, plan, 251, c_matrix, C, 1) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_export_finite_u8(ctx, plan, 255, c_matrix, C, 1) == RNS8_SUCCESS);
+  CHECK(C[0] == 15);
+
+  auto field_desc = finite_desc(RNS8_FINITE_FIELD_U8, 1, 1, 1);
+  rns8_plan* field_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &field_desc, &field_plan) == RNS8_SUCCESS);
+  auto field_matrix_desc = matrix_desc(1, 1, RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
+  rns8_matrix* field_matrix = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &field_matrix_desc, &field_matrix) == RNS8_SUCCESS);
+  CHECK(rns8_pack_finite_u8(ctx, field_matrix, 255, A, 1, 1) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(field_matrix);
+  rns8_destroy_plan(field_plan);
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
 
@@ -419,23 +554,13 @@ TEST_CASE("known but unimplemented descriptor contracts report unsupported statu
     CHECK(storage == nullptr);
   }
   {
-    auto finite_desc = gemm_desc(RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
-    finite_desc.bound = 0;
-    rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &finite_desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
-    CHECK(plan == nullptr);
-
-    auto finite_matrix = matrix_desc(RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
-    rns8_matrix* storage = nullptr;
-    CHECK(rns8_create_matrix(ctx, &finite_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
-    CHECK(storage == nullptr);
-  }
-  for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
-    auto desc = gemm_desc(semantics, RNS8_BOUND_INPUT_RANGE_AND_K);
-    desc.bound = 1;
-    rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
-    CHECK(plan == nullptr);
+    for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
+      auto desc = gemm_desc(semantics, RNS8_BOUND_INPUT_RANGE_AND_K);
+      desc.bound = 1;
+      rns8_plan* plan = nullptr;
+      CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(plan == nullptr);
+    }
   }
   rns8_destroy_context(ctx);
 }

@@ -156,13 +156,12 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
     case RNS8_BOUNDED_I64:
     case RNS8_BOUNDED_U64:
       return RNS8_DEFAULT_BOUNDED_PREFIX;
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
-      return 1;
     case RNS8_EXACT_WIDE_SIGNED:
     case RNS8_EXACT_WIDE_UNSIGNED:
       return RNS8_MAX_SUPPORTED_PREFIX;
     case RNS8_WRAP_U64_MOD_2_64:
+    case RNS8_FINITE_RING_U8:
+    case RNS8_FINITE_FIELD_U8:
       return 0;
   }
   return 0;
@@ -266,10 +265,10 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     return RNS8_SUCCESS;
   }
   if (desc.semantics == RNS8_FINITE_RING_U8 || desc.semantics == RNS8_FINITE_FIELD_U8) {
-    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 || prefix != 0) {
       return RNS8_INVALID_ARGUMENT;
     }
-    return RNS8_UNSUPPORTED_BACKEND;
+    return RNS8_SUCCESS;
   }
   return validate_bound_contract(desc.semantics, desc.bound_kind, desc.bound, prefix);
 }
@@ -327,10 +326,10 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
       return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
     case RNS8_FINITE_RING_U8:
     case RNS8_FINITE_FIELD_U8:
-      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX || desc.bound_kind != RNS8_BOUND_NONE) {
+      if (prefix != 0 || desc.max_prefix != 0 || desc.bound_kind != RNS8_BOUND_NONE) {
         return RNS8_INVALID_ARGUMENT;
       }
-      return RNS8_UNSUPPORTED_BACKEND;
+      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
   }
   return RNS8_INVALID_ARGUMENT;
 }

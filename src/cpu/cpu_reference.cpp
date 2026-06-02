@@ -72,6 +72,24 @@ void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
   }
 }
 
+void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, uint16_t modulus) {
+  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
+      matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)] =
+          centered_residue(cpp_int(src[row * ld + col]), modulus);
+    }
+  }
+}
+
+void export_finite_u8_matrix(const rns8_matrix& matrix, uint8_t* dst, int64_t ld, uint16_t modulus) {
+  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
+      dst[row * ld + col] = static_cast<uint8_t>(
+          canonical_from_centered(matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)], modulus));
+    }
+  }
+}
+
 void ring_gemm_modulus(
     const int8_t* A,
     const int8_t* B,
@@ -159,6 +177,33 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
         C.desc.cols,
         kDefaultModuli[p]);
   }
+  return RNS8_SUCCESS;
+}
+
+rns8_status cpu_gemm_finite_u8(
+    const rns8_plan& plan,
+    uint16_t modulus,
+    const rns8_matrix& A,
+    const rns8_matrix& B,
+    rns8_matrix& C) {
+  if (A.desc.rows != plan.desc.m || A.desc.cols != plan.desc.k || B.desc.rows != plan.desc.k ||
+      B.desc.cols != plan.desc.n || C.desc.rows != plan.desc.m || C.desc.cols != plan.desc.n ||
+      A.residues.size() != static_cast<std::size_t>(A.desc.rows * A.desc.cols) ||
+      B.residues.size() != static_cast<std::size_t>(B.desc.rows * B.desc.cols) ||
+      C.residues.size() != static_cast<std::size_t>(C.desc.rows * C.desc.cols)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  ring_gemm_modulus(
+      A.residues.data(),
+      B.residues.data(),
+      C.residues.data(),
+      plan.desc.m,
+      plan.desc.n,
+      plan.desc.k,
+      A.desc.cols,
+      B.desc.cols,
+      C.desc.cols,
+      modulus);
   return RNS8_SUCCESS;
 }
 
