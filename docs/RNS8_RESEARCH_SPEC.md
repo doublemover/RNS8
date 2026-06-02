@@ -293,11 +293,13 @@ delayed carry propagation
 low 64-bit export
 ```
 
-The current public implementation exposes a CPU byte-limb reference one-shot
-through `rns8_gemm_wrap_u64_oneshot`. It requires
-`RNS8_WRAP_U64_MOD_2_64`, `RNS8_BOUND_NONE`, no CRT prefix, and the
-`RNS8_BACKEND_WRAP64_BYTE_LIMB` context/backend. Persistent byte-limb matrix
-storage and HIP byte-limb kernels are later production milestones.
+The current public implementation exposes a CPU byte-limb reference backend
+through `RNS8_BACKEND_WRAP64_BYTE_LIMB`. It requires
+`RNS8_WRAP_U64_MOD_2_64`, `RNS8_BOUND_NONE`, no CRT prefix, and the explicit
+wrap backend. The CPU path supports both `rns8_gemm_wrap_u64_oneshot` and
+persistent byte-limb matrices with `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
+`rns8_export_wrap_u64`. HIP byte-limb kernels and accelerator signedness
+correction remain later production milestones.
 
 ## 7. Modulus Ladder
 
@@ -598,6 +600,21 @@ rns8_status rns8_export_u64(
     uint64_t* dst,
     int64_t ld);
 
+rns8_status rns8_gemm_wrap_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+rns8_status rns8_export_wrap_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld);
+
 rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -664,10 +681,11 @@ does not fit. Unsigned export is magnitude in exactly `limb_count` limbs and
 also returns `RNS8_RANGE_ERROR` on overflow. These APIs are separate from
 bounded i64/u64 export and strict wraparound semantics.
 
-Strict wrap one-shot output is row-major `uint64_t` with caller-supplied `ldc`.
-It is a finite-ring low-64-bit result and does not report CRT range errors.
-Descriptors carrying bounds or CRT prefixes are rejected instead of being
-interpreted as odd-modulus CRT metadata.
+Strict wrap output is row-major `uint64_t` with caller-supplied leading
+dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a
+finite-ring low-64-bit result and does not report CRT range errors. Descriptors
+carrying bounds or CRT prefixes are rejected instead of being interpreted as
+odd-modulus CRT metadata.
 
 Required status codes:
 

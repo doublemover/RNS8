@@ -34,9 +34,11 @@ Implemented correctness coverage:
   fixed-width little-endian two's-complement, unsigned export is fixed-width
   little-endian magnitude, and both report range errors when too few limbs are
   supplied.
-- Strict `mod 2^64` byte-limb product, GEMM-cell, and public CPU one-shot tests
-  compared against Boost.Multiprecision low-64-bit results. The public one-shot
-  requires the explicit byte-limb backend and rejects CRT bounds/prefixes.
+- Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
+  persistent byte-limb matrix tests compared against Boost.Multiprecision
+  low-64-bit results. The public wrap path requires the explicit byte-limb
+  backend, uses separate pack/GEMM/export APIs for persistent matrices, and
+  rejects CRT bounds/prefixes.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -52,7 +54,7 @@ Not yet implemented:
 - Exact-wide GPU reconstruction.
 - Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
   path.
-- Persistent strict `mod 2^64` byte-limb matrix storage and GPU kernels.
+- Strict `mod 2^64` GPU byte-limb kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
 Semantic guardrail:
@@ -68,10 +70,11 @@ Semantic guardrail:
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested
-  directly. The current public surface is a CPU one-shot byte-limb backend; RNS
-  matrix APIs and bounded exports still reject wrap descriptors. A bounded API
-  call is only valid for wrap-like inputs when the exact mathematical result is
-  also within the supplied bounded contract.
+  directly. The current public surface is a CPU byte-limb backend with one-shot
+  and persistent byte-limb matrix APIs. RNS/CRT GEMM and bounded exports still
+  reject wrap descriptors. A bounded API call is only valid for wrap-like inputs
+  when the exact mathematical result is also within the supplied bounded
+  contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path.

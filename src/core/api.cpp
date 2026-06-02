@@ -23,6 +23,16 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_ki
   return requested == RNS8_BACKEND_AUTO ? fallback : requested;
 }
 
+bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+  if (semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return backend == RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  }
+  if (backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+    return false;
+  }
+  return true;
+}
+
 rns8_matrix_desc make_matrix_desc(
     int64_t rows,
     int64_t cols,
@@ -251,7 +261,11 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested != ctx->backend) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT) {
+    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
+        requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (!backend_supports_semantics(requested, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
 
@@ -268,7 +282,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       plan->desc.tile_n = 128;
     }
     plan->prefix = prefix;
-    plan->modulus_product = rns8::detail::modulus_product(prefix);
+    plan->modulus_product = prefix == 0 ? 0 : rns8::detail::modulus_product(prefix);
     plan->backend = requested;
     *out = plan;
     return RNS8_SUCCESS;
@@ -286,6 +300,9 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if (ctx->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
     auto* workspace = new (std::nothrow) rns8_workspace();
     if (!workspace) {
       return RNS8_INTERNAL_ERROR;
@@ -326,6 +343,9 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (validation != RNS8_SUCCESS) {
       return validation;
     }
+    if (!backend_supports_semantics(ctx->backend, desc->semantics)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
     auto* matrix = new (std::nothrow) rns8_matrix();
     if (!matrix) {
       return RNS8_INTERNAL_ERROR;
@@ -343,9 +363,16 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       matrix->desc.tile_n = 128;
     }
     matrix->prefix = prefix;
-    const auto elements = static_cast<std::size_t>(prefix) * static_cast<std::size_t>(desc->rows) *
-                          static_cast<std::size_t>(desc->cols);
-    matrix->residues.assign(elements, 0);
+    if (matrix->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+      const auto elements = static_cast<std::size_t>(desc->rows) * static_cast<std::size_t>(desc->cols) * 8u;
+      matrix->byte_limbs.assign(elements, 0);
+      matrix->host_residues_current = false;
+      matrix->device_residues_current = false;
+    } else {
+      const auto elements = static_cast<std::size_t>(prefix) * static_cast<std::size_t>(desc->rows) *
+                            static_cast<std::size_t>(desc->cols);
+      matrix->residues.assign(elements, 0);
+    }
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
       const rns8_status status = allocate_hip_matrix_storage(*ctx, *matrix);
       if (status != RNS8_SUCCESS) {
@@ -417,16 +444,24 @@ rns8_status rns8_pack_u64(
     int64_t ld,
     uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !src || ld < matrix->desc.cols) {
+    if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (matrix->desc.semantics != RNS8_BOUNDED_U64 && matrix->desc.semantics != RNS8_EXACT_WIDE_UNSIGNED) {
+    if (matrix->desc.semantics != RNS8_BOUNDED_U64 && matrix->desc.semantics != RNS8_EXACT_WIDE_UNSIGNED &&
+        matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (matrix->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+      if (ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      rns8::detail::pack_wrap_u64_matrix(*matrix, src, ld);
+      matrix->host_residues_current = false;
+      matrix->device_residues_current = false;
+    } else if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
       const rns8_status status = rns8::detail::hip_direct_pack_u64_device(
           ctx->device_id,
           src,
@@ -471,6 +506,9 @@ rns8_status rns8_gemm_rns(
         B->backend != plan->backend || C->backend != plan->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (plan->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+      return RNS8_INVALID_ARGUMENT;
+    }
     if (A->desc.semantics != plan->desc.semantics || B->desc.semantics != plan->desc.semantics ||
         C->desc.semantics != plan->desc.semantics) {
       return RNS8_INVALID_ARGUMENT;
@@ -511,6 +549,41 @@ rns8_status rns8_gemm_rns(
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;
+  });
+}
+
+rns8_status rns8_gemm_wrap_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !A || !B || !C || !workspace) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->desc.semantics != RNS8_WRAP_U64_MOD_2_64 || plan->prefix != 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB || plan->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB ||
+        workspace->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB || A->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB ||
+        B->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB || C->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (workspace->m != plan->desc.m || workspace->n != plan->desc.n || workspace->k != plan->desc.k ||
+        workspace->prefix != 0) {
+      return RNS8_WORKSPACE_TOO_SMALL;
+    }
+    if (A->desc.semantics != RNS8_WRAP_U64_MOD_2_64 || B->desc.semantics != RNS8_WRAP_U64_MOD_2_64 ||
+        C->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (A->desc.rows != plan->desc.m || A->desc.cols != plan->desc.k || B->desc.rows != plan->desc.k ||
+        B->desc.cols != plan->desc.n || C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return rns8::detail::cpu_gemm_wrap_u64(*plan, *A, *B, *C);
   });
 }
 
@@ -605,6 +678,36 @@ rns8_status rns8_export_u64(
           return status;
         }
         dst[row * ld + col] = value;
+      }
+    }
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_export_wrap_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->desc.semantics != RNS8_WRAP_U64_MOD_2_64 || C->desc.semantics != RNS8_WRAP_U64_MOD_2_64 ||
+        plan->prefix != 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB || plan->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB ||
+        C->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    for (int64_t row = 0; row < plan->desc.m; ++row) {
+      for (int64_t col = 0; col < plan->desc.n; ++col) {
+        dst[row * ld + col] = rns8::detail::wrap_u64_matrix_cell(*C, row, col);
       }
     }
     return RNS8_SUCCESS;
