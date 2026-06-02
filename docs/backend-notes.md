@@ -109,6 +109,10 @@ kernel, not a throughput claim.
 Bounded direct-HIP GEMM requires A and B to have current device residues. A
 host-current bounded matrix with stale device residues is rejected by persistent
 GEMM instead of being uploaded implicitly at dispatch time.
+Public bounded, wrap64, and finite one-shot GEMM APIs share the same internal
+resident one-shot owner: they create a plan, resident A/B/C matrices, and a
+matching workspace, then pack, dispatch the corresponding persistent GEMM API,
+and export. There are no semantic-specific one-shot lifetime paths.
 
 Persistent same-shape direct-HIP calls are allocation-observed in tests. The
 first pack/export may grow matrix-owned upload/export/status buffers. A repeated

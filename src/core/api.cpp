@@ -148,6 +148,52 @@ rns8_status validate_finite_u8_oneshot_contract(
   return RNS8_SUCCESS;
 }
 
+struct resident_oneshot_state {
+  rns8_plan* plan = nullptr;
+  rns8_matrix* A = nullptr;
+  rns8_matrix* B = nullptr;
+  rns8_matrix* C = nullptr;
+  rns8_workspace* workspace = nullptr;
+
+  resident_oneshot_state() = default;
+  resident_oneshot_state(const resident_oneshot_state&) = delete;
+  resident_oneshot_state& operator=(const resident_oneshot_state&) = delete;
+
+  ~resident_oneshot_state() {
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_matrix(C);
+    rns8_destroy_matrix(B);
+    rns8_destroy_matrix(A);
+    rns8_destroy_plan(plan);
+  }
+};
+
+rns8_status create_resident_oneshot_state(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    resident_oneshot_state& state) {
+  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+
+  const rns8_matrix_desc a_desc =
+      make_matrix_desc(desc.m, desc.k, desc.semantics, desc.bound_kind, state.plan->prefix,
+                       state.plan->desc.tile_m, state.plan->desc.tile_n);
+  const rns8_matrix_desc b_desc =
+      make_matrix_desc(desc.k, desc.n, desc.semantics, desc.bound_kind, state.plan->prefix,
+                       state.plan->desc.tile_m, state.plan->desc.tile_n);
+  const rns8_matrix_desc c_desc =
+      make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, state.plan->prefix,
+                       state.plan->desc.tile_m, state.plan->desc.tile_n);
+
+  status = rns8_create_matrix(ctx, &a_desc, &state.A);
+  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &state.B);
+  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &state.C);
+  if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, state.plan, &state.workspace);
+  return status;
+}
+
 rns8_status finite_u8_oneshot_resident(
     rns8_context* ctx,
     const rns8_gemm_desc& desc,
@@ -158,42 +204,14 @@ rns8_status finite_u8_oneshot_resident(
     int64_t ldb,
     uint8_t* C,
     int64_t ldc) {
-  rns8_plan* plan = nullptr;
-  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-
-  rns8_matrix* a_matrix = nullptr;
-  rns8_matrix* b_matrix = nullptr;
-  rns8_matrix* c_matrix = nullptr;
-  rns8_workspace* workspace = nullptr;
-  const rns8_matrix_desc a_desc =
-      make_matrix_desc(desc.m, desc.k, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
-                       plan->desc.tile_n);
-  const rns8_matrix_desc b_desc =
-      make_matrix_desc(desc.k, desc.n, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
-                       plan->desc.tile_n);
-  const rns8_matrix_desc c_desc =
-      make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
-                       plan->desc.tile_n);
-
-  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-  if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, plan, &workspace);
-  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, a_matrix, modulus, A, lda, 1);
-  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, b_matrix, modulus, B, ldb, 2);
+  resident_oneshot_state state;
+  rns8_status status = create_resident_oneshot_state(ctx, desc, state);
+  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, state.A, modulus, A, lda, 1);
+  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, state.B, modulus, B, ldb, 2);
   if (status == RNS8_SUCCESS) {
-    status = rns8_gemm_finite_u8(ctx, plan, modulus, a_matrix, b_matrix, c_matrix, workspace);
+    status = rns8_gemm_finite_u8(ctx, state.plan, modulus, state.A, state.B, state.C, state.workspace);
   }
-  if (status == RNS8_SUCCESS) status = rns8_export_finite_u8(ctx, plan, modulus, c_matrix, C, ldc);
-
-  rns8_destroy_workspace(workspace);
-  rns8_destroy_matrix(c_matrix);
-  rns8_destroy_matrix(b_matrix);
-  rns8_destroy_matrix(a_matrix);
-  rns8_destroy_plan(plan);
+  if (status == RNS8_SUCCESS) status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   return status;
 }
 
@@ -2275,40 +2293,12 @@ rns8_status rns8_gemm_i64_oneshot(
       return preflight;
     }
 
-    rns8_plan* plan = nullptr;
-    rns8_status status = rns8_create_plan(ctx, desc, &plan);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-
-    rns8_matrix* a_matrix = nullptr;
-    rns8_matrix* b_matrix = nullptr;
-    rns8_matrix* c_matrix = nullptr;
-    rns8_workspace* workspace = nullptr;
-    const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-
-    status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, plan, &workspace);
-    if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, a_matrix, A, lda, 1);
-    if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, b_matrix, B, ldb, 1);
-    if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status == RNS8_SUCCESS) status = rns8_export_i64(ctx, plan, c_matrix, C, ldc);
-
-    rns8_destroy_workspace(workspace);
-    rns8_destroy_matrix(c_matrix);
-    rns8_destroy_matrix(b_matrix);
-    rns8_destroy_matrix(a_matrix);
-    rns8_destroy_plan(plan);
+    resident_oneshot_state state;
+    rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
+    if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.A, A, lda, 1);
+    if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.B, B, ldb, 1);
+    if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, state.plan, state.A, state.B, state.C, state.workspace);
+    if (status == RNS8_SUCCESS) status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
     return status;
   });
 }
@@ -2332,40 +2322,12 @@ rns8_status rns8_gemm_u64_oneshot(
       return preflight;
     }
 
-    rns8_plan* plan = nullptr;
-    rns8_status status = rns8_create_plan(ctx, desc, &plan);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-
-    rns8_matrix* a_matrix = nullptr;
-    rns8_matrix* b_matrix = nullptr;
-    rns8_matrix* c_matrix = nullptr;
-    rns8_workspace* workspace = nullptr;
-    const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-
-    status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, plan, &workspace);
-    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, a_matrix, A, lda, 1);
-    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, b_matrix, B, ldb, 1);
-    if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status == RNS8_SUCCESS) status = rns8_export_u64(ctx, plan, c_matrix, C, ldc);
-
-    rns8_destroy_workspace(workspace);
-    rns8_destroy_matrix(c_matrix);
-    rns8_destroy_matrix(b_matrix);
-    rns8_destroy_matrix(a_matrix);
-    rns8_destroy_plan(plan);
+    resident_oneshot_state state;
+    rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
+    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.A, A, lda, 1);
+    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.B, B, ldb, 1);
+    if (status == RNS8_SUCCESS) status = rns8_gemm_rns(ctx, state.plan, state.A, state.B, state.C, state.workspace);
+    if (status == RNS8_SUCCESS) status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
     return status;
   });
 }
@@ -2389,40 +2351,14 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
       return preflight;
     }
 
-    rns8_plan* plan = nullptr;
-    rns8_status status = rns8_create_plan(ctx, desc, &plan);
-    if (status != RNS8_SUCCESS) {
-      return status;
+    resident_oneshot_state state;
+    rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
+    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.A, A, lda, 1);
+    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.B, B, ldb, 1);
+    if (status == RNS8_SUCCESS) {
+      status = rns8_gemm_wrap_u64(ctx, state.plan, state.A, state.B, state.C, state.workspace);
     }
-
-    rns8_matrix* a_matrix = nullptr;
-    rns8_matrix* b_matrix = nullptr;
-    rns8_matrix* c_matrix = nullptr;
-    rns8_workspace* workspace = nullptr;
-    const rns8_matrix_desc a_desc =
-        make_matrix_desc(desc->m, desc->k, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc b_desc =
-        make_matrix_desc(desc->k, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-    const rns8_matrix_desc c_desc =
-        make_matrix_desc(desc->m, desc->n, desc->semantics, desc->bound_kind, plan->prefix, plan->desc.tile_m,
-                         plan->desc.tile_n);
-
-    status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-    if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, plan, &workspace);
-    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, a_matrix, A, lda, 1);
-    if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, b_matrix, B, ldb, 1);
-    if (status == RNS8_SUCCESS) status = rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status == RNS8_SUCCESS) status = rns8_export_wrap_u64(ctx, plan, c_matrix, C, ldc);
-
-    rns8_destroy_workspace(workspace);
-    rns8_destroy_matrix(c_matrix);
-    rns8_destroy_matrix(b_matrix);
-    rns8_destroy_matrix(a_matrix);
-    rns8_destroy_plan(plan);
+    if (status == RNS8_SUCCESS) status = rns8_export_wrap_u64(ctx, state.plan, state.C, C, ldc);
     return status;
   });
 }
