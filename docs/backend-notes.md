@@ -14,10 +14,10 @@ Backend status:
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
 - Wraparound byte-limb backend: CPU reference implemented for one-shot and
-  persistent byte-limb matrix APIs. A private direct-HIP byte-limb Comba smoke
-  kernel exists for correctness comparison only; public HIP wrap64 backend
-  support, optimized byte GEMMs, and accelerator signedness corrections are not
-  implemented.
+  persistent byte-limb matrix APIs. Direct HIP supports a public correctness
+  path for `RNS8_WRAP_U64_MOD_2_64` under `RNS8_BACKEND_HIP_DIRECT` with
+  device-resident byte-limb buffers. Optimized byte GEMMs and accelerator
+  signedness corrections are not implemented.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
@@ -61,16 +61,21 @@ fixed-width ABI, range-error behavior for too few limbs, and strided host
 layout. CPU Boost.Multiprecision reconstruction remains the reference and debug
 path.
 
-Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through the explicit
-`RNS8_BACKEND_WRAP64_BYTE_LIMB` CPU reference backend. It supports both
-`rns8_gemm_wrap_u64_oneshot` and persistent byte-limb matrices via
-`rns8_pack_u64`, `rns8_gemm_wrap_u64`, and `rns8_export_wrap_u64`. The backend
-uses the byte-limb Comba reference, returns low-64-bit `uint64_t` output, does
-not allocate RNS residue matrices, does not use CRT reconstruction, and rejects
-bounds or prefixes in the descriptor.
+Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through byte-limb storage,
+not odd-modulus CRT. `RNS8_BACKEND_WRAP64_BYTE_LIMB` is the CPU reference
+backend; `RNS8_BACKEND_HIP_DIRECT` owns device byte-limb buffers for the same
+semantics. Both support `rns8_gemm_wrap_u64_oneshot` and persistent byte-limb
+matrices via `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
+`rns8_export_wrap_u64`. The paths return low-64-bit `uint64_t` output, do not
+allocate RNS residue matrices for wrap descriptors, do not use CRT
+reconstruction, and reject bounds or prefixes in the descriptor.
 
-The private `wrap64_hip_gemm_byte_limbs` path compiles a direct HIP kernel and
-compares GPU byte-limb output against the CPU reference in the differential
-suite. It is intentionally not wired into public context creation or benchmark
-backend selection. It is a correctness smoke for byte-limb GPU arithmetic, not
-the production 36 byte-GEMM accelerator path.
+The direct HIP wrap64 path is a correctness Comba path with one thread per
+output element. It keeps A/B/C byte-limb storage device-resident across
+pack/GEMM/export and is tested against the CPU byte-limb reference. It is not
+the production 36 byte-GEMM accelerator path, and it is not performance
+evidence.
+
+Current wrap64 benchmark captures remain CPU byte-limb captures. A direct-HIP
+wrap64 benchmark/event-capture path should be added explicitly before recording
+GPU timing evidence for this semantic.

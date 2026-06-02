@@ -41,9 +41,11 @@ disagree, the spec remains the target and this file identifies the gap.
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
   from wrap descriptors.
-- Private direct-HIP strict wrap64 byte-limb smoke: a compiled direct HIP
-  one-thread-per-output Comba kernel matches the CPU byte-limb reference. This
-  is not public HIP wrap64 backend support and is not an optimized byte-GEMM
+- Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
+  matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
+  without RNS residue allocation, public one-shot and persistent APIs match the
+  CPU byte-limb reference, and padded host export layouts are tested. This is a
+  one-thread-per-output Comba correctness path, not an optimized byte-GEMM
   accelerator path.
 - Benchmark schema v2: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
@@ -66,8 +68,10 @@ disagree, the spec remains the target and this file identifies the gap.
   adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Public/optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias
-  correction, and production GPU differential tests.
+- Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
+  production GPU differential tests.
+- Direct-HIP wrap64 benchmark/event captures. Current strict wrap64 benchmark
+  evidence remains CPU byte-limb only.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -77,16 +81,18 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 39/39 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 40/40 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 39/39 passed on
+- `ctest --preset windows-debug --output-on-failure`: 40/40 passed on
   `gfx1100`.
 - The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
   export checks against the CPU reference, including `INT64_MIN` and
   `UINT64_MAX` boundary outputs.
-- The Windows HIP test pass included
-  `private HIP wrap64 byte-limb GEMM matches CPU reference`, which exercises a
-  compiled direct-HIP byte-limb Comba smoke kernel against the CPU reference.
+- The Windows HIP test pass includes
+  `private HIP wrap64 byte-limb GEMM matches CPU reference` and
+  `direct HIP public wrap64 byte-limb path matches CPU reference`, covering both
+  the low-level kernel smoke and the public HIP_DIRECT one-shot/persistent
+  byte-limb APIs against the CPU reference.
 - The Windows HIP test pass also includes signed and unsigned exact-wide RNS
   differential checks against CPU residues plus direct HIP exact-wide limb
   export checks for padded host layouts, range errors, and signed
@@ -96,7 +102,7 @@ disagree, the spec remains the target and this file identifies the gap.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb
   --json`: reported the CPU wrap64 byte-limb reference backend.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
-  verification and direct HIP smoke passed.
+  verification and direct HIP pack, ring, bounded GEMM, and wrap64 smoke passed.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
   Windows host. hipBLASLt was reported as candidate evidence only on this host;

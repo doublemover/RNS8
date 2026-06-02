@@ -32,9 +32,13 @@ struct rns8_matrix {
   std::vector<uint8_t> byte_limbs;
   bool host_residues_current = true;
   bool device_residues_current = false;
+  bool host_byte_limbs_current = false;
+  bool device_byte_limbs_current = false;
   int hip_device_id = -1;
   void* hip_residues = nullptr;
   std::size_t hip_residue_bytes = 0;
+  void* hip_byte_limbs = nullptr;
+  std::size_t hip_byte_limb_bytes = 0;
   void* hip_upload_buffer = nullptr;
   std::size_t hip_upload_bytes = 0;
   void* hip_export_buffer = nullptr;

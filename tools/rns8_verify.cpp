@@ -31,6 +31,15 @@ rns8_context* create_hip_context() {
   return rns8_create_context(0, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
 }
 
+rns8_context* create_wrap64_context() {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  rns8_context* ctx = nullptr;
+  return rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
+}
+
 rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -76,6 +85,19 @@ rns8_gemm_desc unsigned_desc_for_backend(
   return desc;
 }
 
+rns8_gemm_desc wrap_desc_for_backend(int64_t m, int64_t n, int64_t k, rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_WRAP_U64_MOD_2_64;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -88,7 +110,7 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantic
   desc.bound_kind = bound_kind;
   desc.tile_m = 128;
   desc.tile_n = 128;
-  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix = semantics == RNS8_WRAP_U64_MOD_2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -423,8 +445,10 @@ bool verify_hip_smoke() {
 
   rns8_context* cpu_ctx = create_cpu_context();
   rns8_context* hip_ctx = create_hip_context();
-  if (!cpu_ctx || !hip_ctx) {
-    std::cerr << "failed to create CPU or direct HIP context for bounded smoke\n";
+  rns8_context* wrap_ctx = create_wrap64_context();
+  if (!cpu_ctx || !hip_ctx || !wrap_ctx) {
+    std::cerr << "failed to create CPU, wrap64, or direct HIP context for smoke\n";
+    rns8_destroy_context(wrap_ctx);
     rns8_destroy_context(hip_ctx);
     rns8_destroy_context(cpu_ctx);
     return false;
@@ -469,6 +493,7 @@ bool verify_hip_smoke() {
     if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {
       std::cerr << "direct HIP i64 residue pack smoke failed: CPU=" << rns8_status_string(cpu_status)
                 << " HIP=" << rns8_status_string(hip_status) << "\n";
+      rns8_destroy_context(wrap_ctx);
       rns8_destroy_context(hip_ctx);
       rns8_destroy_context(cpu_ctx);
       return false;
@@ -514,6 +539,7 @@ bool verify_hip_smoke() {
     if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {
       std::cerr << "direct HIP u64 residue pack smoke failed: CPU=" << rns8_status_string(cpu_status)
                 << " HIP=" << rns8_status_string(hip_status) << "\n";
+      rns8_destroy_context(wrap_ctx);
       rns8_destroy_context(hip_ctx);
       rns8_destroy_context(cpu_ctx);
       return false;
@@ -532,6 +558,7 @@ bool verify_hip_smoke() {
       hip_split_c[0] != static_cast<int64_t>(split_bound)) {
     std::cerr << "direct HIP bounded i64 split smoke failed: CPU=" << rns8_status_string(cpu_split_status)
               << " HIP=" << rns8_status_string(hip_split_status) << "\n";
+    rns8_destroy_context(wrap_ctx);
     rns8_destroy_context(hip_ctx);
     rns8_destroy_context(cpu_ctx);
     return false;
@@ -550,11 +577,56 @@ bool verify_hip_smoke() {
           std::vector<uint64_t>(std::begin(hip_u_c), std::end(hip_u_c))) {
     std::cerr << "direct HIP bounded u64 smoke failed: CPU=" << rns8_status_string(cpu_u_status)
               << " HIP=" << rns8_status_string(hip_u_status) << "\n";
+    rns8_destroy_context(wrap_ctx);
     rns8_destroy_context(hip_ctx);
     rns8_destroy_context(cpu_ctx);
     return false;
   }
 
+  const int64_t wrap_m = 2;
+  const int64_t wrap_n = 3;
+  const int64_t wrap_k = 4;
+  const int64_t wrap_ldc = 4;
+  const std::vector<uint64_t> wrap_a = {
+      0,
+      1,
+      std::numeric_limits<uint64_t>::max(),
+      0x8080808080808080ull,
+      255,
+      256,
+      std::numeric_limits<uint64_t>::max() - 1,
+      0x0102030405060708ull};
+  const std::vector<uint64_t> wrap_b = {
+      3,
+      std::numeric_limits<uint64_t>::max(),
+      0x1112131415161718ull,
+      29,
+      0x8080808080808080ull,
+      31,
+      37,
+      41,
+      43,
+      47,
+      53,
+      59};
+  std::vector<uint64_t> cpu_wrap_c(static_cast<std::size_t>(wrap_m * wrap_ldc), 0xfeedfacefeedfaceull);
+  std::vector<uint64_t> hip_wrap_c(static_cast<std::size_t>(wrap_m * wrap_ldc), 0xfeedfacefeedfaceull);
+  auto cpu_wrap_desc = wrap_desc_for_backend(wrap_m, wrap_n, wrap_k, RNS8_BACKEND_WRAP64_BYTE_LIMB);
+  auto hip_wrap_desc = wrap_desc_for_backend(wrap_m, wrap_n, wrap_k, RNS8_BACKEND_HIP_DIRECT);
+  const rns8_status cpu_wrap_status = rns8_gemm_wrap_u64_oneshot(
+      wrap_ctx, &cpu_wrap_desc, wrap_a.data(), wrap_k, wrap_b.data(), wrap_n, cpu_wrap_c.data(), wrap_ldc);
+  const rns8_status hip_wrap_status = rns8_gemm_wrap_u64_oneshot(
+      hip_ctx, &hip_wrap_desc, wrap_a.data(), wrap_k, wrap_b.data(), wrap_n, hip_wrap_c.data(), wrap_ldc);
+  if (cpu_wrap_status != RNS8_SUCCESS || hip_wrap_status != RNS8_SUCCESS || cpu_wrap_c != hip_wrap_c) {
+    std::cerr << "direct HIP wrap64 byte-limb smoke failed: CPU=" << rns8_status_string(cpu_wrap_status)
+              << " HIP=" << rns8_status_string(hip_wrap_status) << "\n";
+    rns8_destroy_context(wrap_ctx);
+    rns8_destroy_context(hip_ctx);
+    rns8_destroy_context(cpu_ctx);
+    return false;
+  }
+
+  rns8_destroy_context(wrap_ctx);
   rns8_destroy_context(hip_ctx);
   rns8_destroy_context(cpu_ctx);
   return true;
@@ -586,7 +658,7 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP pack, ring, and bounded GEMM smoke: PASS\n";
+    std::cout << "Direct HIP pack, ring, bounded GEMM, and wrap64 smoke: PASS\n";
   }
 
   return 0;
