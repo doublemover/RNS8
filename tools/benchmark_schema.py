@@ -13,19 +13,6 @@ from typing import Any
 SCHEMA_VERSION = 4
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
-DEFAULT_GPU_EVENT_PHASES = [
-    "pack_h2d",
-    "pack_kernel",
-    "pack",
-    "rns_gemm_kernel_group",
-    "rns_gemm",
-    "crt_export_status_memset",
-    "crt_export_kernel",
-    "crt_export_status_d2h",
-    "crt_export_d2h",
-    "crt_export",
-]
-AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -49,9 +36,11 @@ def load_capture(path: Path) -> dict[str, Any]:
 
 
 def schema_version(data: dict[str, Any]) -> int:
-    value = data.get("schema_version", 1)
+    if "schema_version" not in data:
+        raise BenchmarkSchemaError("missing required field schema_version")
+    value = data["schema_version"]
     if not _is_int(value):
-        raise BenchmarkSchemaError("schema_version must be an integer when present")
+        raise BenchmarkSchemaError("schema_version must be an integer")
     return int(value)
 
 
@@ -104,9 +93,12 @@ class _Validator:
         self.version = 1
 
     def validate(self) -> None:
-        version_value = self.data.get("schema_version", 1)
+        if "schema_version" not in self.data:
+            self._error("missing required field schema_version")
+            return
+        version_value = self.data["schema_version"]
         if not _is_int(version_value):
-            self._error("schema_version must be an integer when present")
+            self._error("schema_version must be an integer")
             return
         version = int(version_value)
         if version != SCHEMA_VERSION:
@@ -627,7 +619,23 @@ class _Validator:
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return
-        phases = self._gpu_event_phases(metadata, timings)
+        phases = self._gpu_event_phases(metadata)
+        if not phases:
+            return
+        phase_set = set(phases)
+        timing_keys = set(timings.keys())
+        if timing_keys != phase_set:
+            for phase in sorted(phase_set - timing_keys):
+                self._error(f"gpu_event_timings_us.{phase} must be an array")
+            for phase in sorted(timing_keys - phase_set):
+                self._error(f"gpu_event_timings_us contains undeclared phase {phase}")
+        if isinstance(summary, dict):
+            summary_keys = set(summary.keys())
+            if summary_keys != phase_set:
+                for phase in sorted(phase_set - summary_keys):
+                    self._error(f"gpu_event_timing_summary_us.{phase} must be an object")
+                for phase in sorted(summary_keys - phase_set):
+                    self._error(f"gpu_event_timing_summary_us contains undeclared phase {phase}")
         parsed: dict[str, list[float]] = {}
         for phase in phases:
             values = timings.get(phase)
@@ -645,16 +653,15 @@ class _Validator:
             parsed[phase] = parsed_values
         self._validate_timing_summaries(parsed, "gpu_event_timing_summary_us", phases)
 
-    def _gpu_event_phases(self, metadata: dict[str, Any], timings: dict[str, Any]) -> list[str]:
+    def _gpu_event_phases(self, metadata: dict[str, Any]) -> list[str]:
         phase_order = metadata.get("gpu_event_phase_order")
-        if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order):
-            phases = list(phase_order)
-        else:
-            phases = list(DEFAULT_GPU_EVENT_PHASES)
-        for phase in AGGREGATE_GPU_EVENT_PHASES:
-            if phase in timings and phase not in phases:
-                phases.append(phase)
-        return phases
+        if not isinstance(phase_order, list) or not all(isinstance(item, str) for item in phase_order):
+            self._error("timing_metadata.gpu_event_phase_order must be an array of strings when events are available")
+            return []
+        if len(set(phase_order)) != len(phase_order):
+            self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
+            return []
+        return list(phase_order)
 
 
 def main() -> int:

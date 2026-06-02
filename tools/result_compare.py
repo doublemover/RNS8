@@ -22,18 +22,6 @@ TIMING_PHASES = [
     "crt_export",
     "end_to_end",
 ]
-DEFAULT_GPU_EVENT_PHASES = [
-    "pack_h2d",
-    "pack_kernel",
-    "pack",
-    "rns_gemm_kernel_group",
-    "rns_gemm",
-    "crt_export_status_memset",
-    "crt_export_kernel",
-    "crt_export_status_d2h",
-    "crt_export_d2h",
-    "crt_export",
-]
 CONTRACT_KEYS = [
     "benchmark",
     "backend_requested",
@@ -164,7 +152,7 @@ def gpu_event_phase_order(data: dict[str, Any]) -> list[str]:
     phase_order = metadata.get("gpu_event_phase_order")
     if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order):
         return list(phase_order)
-    return list(DEFAULT_GPU_EVENT_PHASES)
+    return []
 
 
 def compare_gpu_events(
