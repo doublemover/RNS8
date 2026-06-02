@@ -989,6 +989,8 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
       REQUIRE(rns8_gemm_finite_field_u8_oneshot(
                   cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
               RNS8_SUCCESS);
+      rns8::detail::hip_direct_timing_set_enabled(true);
+      rns8::detail::hip_direct_timing_reset();
       REQUIRE(rns8_gemm_finite_field_u8_oneshot(
                   hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) ==
               RNS8_SUCCESS);
@@ -996,10 +998,18 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
       REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
                   cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
               RNS8_SUCCESS);
+      rns8::detail::hip_direct_timing_set_enabled(true);
+      rns8::detail::hip_direct_timing_reset();
       REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
                   hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) ==
               RNS8_SUCCESS);
     }
+    const auto hip_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(hip_events, "finite_pack_kernel"));
+    CHECK(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
+    CHECK(has_timing_label(hip_events, "finite_export_kernel"));
+    CHECK_FALSE(has_timing_label(hip_events, "finite_ring_gemm_kernel"));
 
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t col = 0; col < n; ++col) {

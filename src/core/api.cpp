@@ -115,46 +115,6 @@ bool valid_finite_modulus_for_semantics(rns8_semantics semantics, uint16_t modul
   return false;
 }
 
-uint8_t canonical_u8_from_centered(int8_t residue, uint16_t modulus) {
-  return static_cast<uint8_t>(rns8::detail::canonical_from_centered(residue, modulus));
-}
-
-void finite_u8_gemm_cpu(
-    const rns8_gemm_desc& desc,
-    uint16_t modulus,
-    const uint8_t* A,
-    int64_t lda,
-    const uint8_t* B,
-    int64_t ldb,
-    uint8_t* C,
-    int64_t ldc) {
-  std::vector<int8_t> a(static_cast<std::size_t>(desc.m * desc.k));
-  std::vector<int8_t> b(static_cast<std::size_t>(desc.k * desc.n));
-  std::vector<int8_t> c(static_cast<std::size_t>(desc.m * desc.n), 0);
-
-  for (int64_t row = 0; row < desc.m; ++row) {
-    for (int64_t col = 0; col < desc.k; ++col) {
-      a[static_cast<std::size_t>(row * desc.k + col)] =
-          rns8::detail::centered_residue(boost::multiprecision::cpp_int(A[row * lda + col]), modulus);
-    }
-  }
-  for (int64_t row = 0; row < desc.k; ++row) {
-    for (int64_t col = 0; col < desc.n; ++col) {
-      b[static_cast<std::size_t>(row * desc.n + col)] =
-          rns8::detail::centered_residue(boost::multiprecision::cpp_int(B[row * ldb + col]), modulus);
-    }
-  }
-
-  rns8::detail::ring_gemm_modulus(
-      a.data(), b.data(), c.data(), desc.m, desc.n, desc.k, desc.k, desc.n, desc.n, modulus);
-
-  for (int64_t row = 0; row < desc.m; ++row) {
-    for (int64_t col = 0; col < desc.n; ++col) {
-      C[row * ldc + col] = canonical_u8_from_centered(c[static_cast<std::size_t>(row * desc.n + col)], modulus);
-    }
-  }
-}
-
 bool finite_backend_supports(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT;
 }
@@ -186,6 +146,55 @@ rns8_status validate_finite_u8_oneshot_contract(
     return RNS8_UNSUPPORTED_BACKEND;
   }
   return RNS8_SUCCESS;
+}
+
+rns8_status finite_u8_oneshot_resident(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc) {
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  rns8_workspace* workspace = nullptr;
+  const rns8_matrix_desc a_desc =
+      make_matrix_desc(desc.m, desc.k, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
+                       plan->desc.tile_n);
+  const rns8_matrix_desc b_desc =
+      make_matrix_desc(desc.k, desc.n, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
+                       plan->desc.tile_n);
+  const rns8_matrix_desc c_desc =
+      make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, plan->prefix, plan->desc.tile_m,
+                       plan->desc.tile_n);
+
+  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+  if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
+  if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, plan, &workspace);
+  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, a_matrix, modulus, A, lda, 1);
+  if (status == RNS8_SUCCESS) status = rns8_pack_finite_u8(ctx, b_matrix, modulus, B, ldb, 2);
+  if (status == RNS8_SUCCESS) {
+    status = rns8_gemm_finite_u8(ctx, plan, modulus, a_matrix, b_matrix, c_matrix, workspace);
+  }
+  if (status == RNS8_SUCCESS) status = rns8_export_finite_u8(ctx, plan, modulus, c_matrix, C, ldc);
+
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_plan(plan);
+  return status;
 }
 
 bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
@@ -2437,15 +2446,7 @@ rns8_status rns8_gemm_finite_ring_u8_oneshot(
     if (preflight != RNS8_SUCCESS) {
       return preflight;
     }
-    if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
-      finite_u8_gemm_cpu(*desc, modulus, A, lda, B, ldb, C, ldc);
-      return RNS8_SUCCESS;
-    }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
-      return rns8::detail::hip_direct_finite_u8_gemm_oneshot_device(
-          ctx->device_id, A, lda, B, ldb, C, ldc, desc->m, desc->n, desc->k, modulus);
-    }
-    return RNS8_UNSUPPORTED_BACKEND;
+    return finite_u8_oneshot_resident(ctx, *desc, modulus, A, lda, B, ldb, C, ldc);
   });
 }
 
@@ -2468,14 +2469,6 @@ rns8_status rns8_gemm_finite_field_u8_oneshot(
     if (preflight != RNS8_SUCCESS) {
       return preflight;
     }
-    if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
-      finite_u8_gemm_cpu(*desc, modulus, A, lda, B, ldb, C, ldc);
-      return RNS8_SUCCESS;
-    }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
-      return rns8::detail::hip_direct_finite_u8_gemm_oneshot_device(
-          ctx->device_id, A, lda, B, ldb, C, ldc, desc->m, desc->n, desc->k, modulus);
-    }
-    return RNS8_UNSUPPORTED_BACKEND;
+    return finite_u8_oneshot_resident(ctx, *desc, modulus, A, lda, B, ldb, C, ldc);
   });
 }
