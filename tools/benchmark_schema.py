@@ -18,6 +18,9 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
     "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups",
 }
+HIPBLASLT_GPU_EVENT_SCOPES = {
+    "hipblaslt_baseline_default_stream_backend_operation_groups",
+}
 
 
 class BenchmarkSchemaError(ValueError):
@@ -200,15 +203,15 @@ class _Validator:
             for key in ["hipcc_path", "hipcc_version", "version_source"]:
                 if toolchain.get(key) is not None:
                     self._error(f"hip_toolchain.{key} must be null when hip_toolchain.enabled is false")
-        if self.data.get("backend_selected") == "hip-direct":
+        if self.data.get("backend_selected") in {"hip-direct", "hipblaslt"}:
             if enabled is not True:
-                self._error("hip-direct captures must set hip_toolchain.enabled=true")
+                self._error("HIP backend captures must set hip_toolchain.enabled=true")
             for key in ["hip_root", "hipcc_path", "hipcc_version", "version_source"]:
                 value = toolchain.get(key)
                 if not isinstance(value, str) or not value:
-                    self._error(f"hip-direct captures must include nonempty hip_toolchain.{key}")
+                    self._error(f"HIP backend captures must include nonempty hip_toolchain.{key}")
             if toolchain.get("version_source") != "hipcc --version":
-                self._error("hip-direct captures must use hip_toolchain.version_source=hipcc --version")
+                self._error("HIP backend captures must use hip_toolchain.version_source=hipcc --version")
 
     def _validate_nested_metadata(self) -> None:
         compiler = self._require("compiler", "dict")
@@ -304,9 +307,38 @@ class _Validator:
                 self._error("current correctness backends must set backend_metadata.performance_validated=false")
             if metadata.get("capability_status") != "implemented_correctness_backend":
                 self._error("current correctness backends must use capability_status=implemented_correctness_backend")
+        if selected_backend == "hipblaslt":
+            expected = {
+                "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_baseline_v1",
+                "accelerator_library": "hipBLASLt",
+                "capability_status": "implemented_baseline_backend",
+                "workspace_mode": "resident_device_buffers_with_hipblaslt_scratch",
+                "isa_evidence": "hipblaslt_library_int8_matmul_baseline",
+            }
+            for key, value in expected.items():
+                if metadata.get(key) != value:
+                    self._error(f"hipBLASLt captures must use backend_metadata.{key}={value}")
+            bool_expected = {
+                "accelerator_backend": True,
+                "correctness_backend": True,
+                "matrix_engine_backend": True,
+                "compiled_kernel_available": True,
+                "exact_differential_validated": True,
+                "performance_validated": False,
+            }
+            for key, value in bool_expected.items():
+                if metadata.get(key) is not value:
+                    self._error(f"hipBLASLt captures must use backend_metadata.{key}={value}")
+            epilogue = metadata.get("epilogue_mode")
+            if epilogue not in {
+                "separate_i32_scratch_reduce_then_crt_export",
+                "separate_i32_scratch_reduce_rns_output",
+                "separate_i32_scratch_reduce_then_canonical_u8_export",
+            }:
+                self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
         if selected_backend == "hip-direct" and metadata.get("accelerator_library") != "HIP runtime":
             self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
-        if selected_backend != "hip-direct" and metadata.get("accelerator_library") not in {None, ""}:
+        if selected_backend not in {"hip-direct", "hipblaslt"} and metadata.get("accelerator_library") not in {None, ""}:
             self._error("non-HIP correctness captures must not report an accelerator library")
 
     def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
@@ -335,11 +367,12 @@ class _Validator:
             self._error("timing_metadata.phase_availability.reduction.timed must be false")
         if reduction.get("timing_key") is not None:
             self._error("timing_metadata.phase_availability.reduction.timing_key must be null")
-        expected_scope = (
-            "not_applicable_wrap64_byte_limb"
-            if self.data.get("semantics") == "wrap_u64_mod_2_64"
-            else "fused_into_rns_gemm"
-        )
+        if self.data.get("semantics") == "wrap_u64_mod_2_64":
+            expected_scope = "not_applicable_wrap64_byte_limb"
+        elif self.data.get("backend_selected") == "hipblaslt":
+            expected_scope = "separate_hipblaslt_i32_scratch_residue_reduce"
+        else:
+            expected_scope = "fused_into_rns_gemm"
         if reduction.get("scope") != expected_scope:
             self._error(f"timing_metadata.phase_availability.reduction.scope must be {expected_scope}")
         if not isinstance(reduction.get("reason"), str) or not reduction.get("reason"):
@@ -466,6 +499,18 @@ class _Validator:
                         expected_scope = "direct_hip_default_stream_backend_operation_groups"
                         if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                if self.data.get("backend_selected") == "hipblaslt":
+                    metadata = self.data.get("timing_metadata")
+                    if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                        expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
+                        if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                            self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    if isinstance(backend_metadata, dict):
+                        if backend_metadata.get("epilogue_mode") != "separate_i32_scratch_reduce_then_crt_export":
+                            self._error(
+                                "hipBLASLt bounded captures must use "
+                                "backend_metadata.epilogue_mode=separate_i32_scratch_reduce_then_crt_export"
+                            )
                 if isinstance(schedule, dict) and _is_int(prefix):
                     if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                         self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
@@ -703,6 +748,9 @@ class _Validator:
         elif self.data.get("backend_selected") == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(DIRECT_HIP_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}")
+        elif self.data.get("backend_selected") == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
+            expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
+            self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return

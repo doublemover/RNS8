@@ -228,11 +228,13 @@ python tools\result_compare.py temp\baseline.json temp\candidate.json
 ```
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
-strings are rejected instead of being routed to `auto`; `hipblaslt`, `ck`, and
-`rocwmma` print `unsupported backend` plus an evidence-only accelerator note
-until real correctness backends exist. Inspect output includes the public
-backend capability metadata so accelerator fail-fast state is visible without
-requiring benchmark execution.
+strings are rejected instead of being routed to `auto`. In the default HIP
+preset, `hipblaslt`, `ck`, and `rocwmma` print `unsupported backend` plus an
+evidence-only accelerator note. In the opt-in hipBLASLt preset,
+`hipblaslt` reports the compiled baseline backend while `ck` and `rocwmma`
+remain unsupported. Inspect output includes the public backend capability
+metadata so accelerator fail-fast state is visible without requiring benchmark
+execution.
 
 For CPU-only scaffold validation, configure without HIP:
 

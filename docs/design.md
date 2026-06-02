@@ -31,7 +31,8 @@ Current backend boundary:
 - `RNS8_BACKEND_HIP_DIRECT` is a real Windows HIP bring-up path with device
   inspection, GPU residue conversion, one-modulus ring-GEMM smoke coverage,
   K-block splitting, and bounded API smoke coverage.
-- hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths are not implemented and must
-  remain feature-detected evidence-only accelerators, not correctness
-  requirements. Their enable flags must fail fast until real correctness
-  backends exist.
+- hipBLASLt is implemented as an opt-in baseline backend under
+  `RNS8_ENABLE_HIPBLASLT=ON`; it is not a correctness requirement and is not
+  performance-validated. CK, rocWMMA, and AMDGPU builtin paths remain
+  feature-detected evidence-only accelerators. Their enable flags must fail
+  fast until real correctness backends exist.

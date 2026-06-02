@@ -223,11 +223,13 @@ The dependency checker reports:
 - AMDGPU builtin readiness status. This has no shallow discovery-only pass:
   it remains disabled until target-specific exact kernels and ISA evidence
   exist.
-- Accelerator enablement policy as a first-class readiness object. It must
-  report every hipBLASLt, CK, rocWMMA, and AMDGPU builtin enable flag as
-  fail-fast with `backend_enablement=disabled` and
-  `correctness_backend=not_implemented` until a real exact correctness backend
-  exists.
+- Accelerator enablement policy as a first-class readiness object. hipBLASLt
+  must report as an explicit opt-in baseline backend only after the dedicated
+  build/test preset validates exact CPU/direct-HIP differentials; dependency
+  discovery alone remains evidence-only. CK, rocWMMA, and AMDGPU builtin enable
+  flags must continue to report fail-fast with `backend_enablement=disabled`
+  and `correctness_backend=not_implemented` until real exact correctness
+  backends exist.
 - Correctness-backend validation as a separate readiness object. Candidate
   accelerator evidence must report
   `candidate_evidence_is_correctness_validation=false`, and discovery or tiny
@@ -990,13 +992,15 @@ Thread-safety rules:
 The direct HIP backend exists to prevent the project from being blocked by
 library availability differences between Windows and Linux.
 
-Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA, and
-AMDGPU builtin paths remain accelerator candidates until they have compiled
-kernels, explicit semantic coverage, exact CPU differential tests, and measured
-performance evidence. Configure-time enable flags for those accelerator
-backends must continue to fail fast while only evidence probes exist. The test
-suite should include configure-negative coverage for every accelerator enable
-flag so discovery probes cannot become placeholder correctness backends.
+Feature detection does not enable a backend. hipBLASLt is the current
+correctness-baseline exception only under the explicit
+`RNS8_ENABLE_HIPBLASLT=ON` build/test preset; discovery still remains
+candidate evidence. CK, rocWMMA, and AMDGPU builtin paths remain accelerator
+candidates until they have compiled kernels, explicit semantic coverage, exact
+CPU differential tests, and measured performance evidence. Configure-time
+enable flags for those accelerator backends must continue to fail fast while
+only evidence probes exist. The test suite should include configure-negative
+coverage so discovery probes cannot become placeholder correctness backends.
 
 ### 12.2 Backend Selection Policy
 
@@ -1016,7 +1020,7 @@ The default sequence is:
 CPU reference for verification
 direct HIP correctness backend
 direct HIP fused backend
-hipBLASLt only after a real exact correctness backend exists and is faster
+hipBLASLt baseline after explicit exact CPU/direct-HIP differentials
 CK only after a real exact correctness backend exists and is faster
 rocWMMA/builtins only after target-specific exact hot kernels exist
 ```

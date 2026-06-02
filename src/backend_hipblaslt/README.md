@@ -1,12 +1,28 @@
 # hipBLASLt Backend
 
-Reserved for the future feature-detected hipBLASLt accelerator path.
+Feature-detected hipBLASLt baseline accelerator path.
 
-No hipBLASLt code is implemented in the current Phase 0/1 scaffold. Adding code
-here must not make hipBLASLt a correctness requirement, and every accepted path
-must have CPU differential coverage before performance claims.
+`RNS8_ENABLE_HIPBLASLT=ON` builds an opt-in Windows HIP SDK baseline backend
+when `RNS8_ENABLE_HIP=ON` and AMD's `roc::hipblaslt` target or import archive
+is discoverable. The backend uses resident HIP RNS matrices, packs each selected
+residue plane into 16-aligned transposed INT8 buffers, runs hipBLASLt
+`int8 x int8 -> int32`, and reduces padded INT32 scratch back to centered
+`int8_t` residues with a separate HIP kernel.
 
-`RNS8_ENABLE_HIPBLASLT` must keep failing fast until a real correctness backend
-exists. Dependency checks and probe presets may collect hipBLASLt component
-evidence, but they must not compile a placeholder backend or satisfy
-correctness.
+Supported contracts:
+
+- Fixed-prefix bounded `int64_t` and `uint64_t` RNS GEMM.
+- Exact-wide signed/unsigned RNS output.
+- Finite ring/field `uint8_t` GEMM through explicit centered residues.
+
+Unsupported contracts:
+
+- Adaptive/per-tile bounded schedules.
+- Strict wrap64 byte-limb semantics.
+- Fused hipBLASLt epilogues or performance claims.
+
+This is a correctness baseline only. It remains optional, is not required for
+CPU or direct-HIP correctness, and benchmark metadata reports
+`perf_validated=0` until reviewed captures prove otherwise. CK, rocWMMA, and
+AMDGPU builtin accelerator flags remain fail-fast until their real kernels and
+exact differentials exist.

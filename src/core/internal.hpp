@@ -14,6 +14,8 @@ struct rns8_context {
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   int device_id = -1;
   rns8_device_info device_info{};
+  void* hipblaslt_handle = nullptr;
+  std::string hipblaslt_library_version;
 };
 
 struct rns8_plan {
@@ -116,6 +118,10 @@ struct rns8_workspace {
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
   uint64_t hip_tile_schedule_count = 0;
+  void* hipblaslt_int32_scratch = nullptr;
+  std::size_t hipblaslt_int32_scratch_bytes = 0;
+  void* hipblaslt_workspace = nullptr;
+  std::size_t hipblaslt_workspace_bytes = 0;
 };
 
 namespace rns8::detail {

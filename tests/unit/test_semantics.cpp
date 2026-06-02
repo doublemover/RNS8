@@ -730,8 +730,11 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
 }
 
 TEST_CASE("future backend context kinds report unsupported status") {
-  for (const rns8_backend_kind backend :
-       {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA}) {
+  std::vector<rns8_backend_kind> backends = {RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+#if !defined(RNS8_ENABLE_HIPBLASLT) || !RNS8_ENABLE_HIPBLASLT
+  backends.push_back(RNS8_BACKEND_HIPBLASLT);
+#endif
+  for (const rns8_backend_kind backend : backends) {
     rns8_context_options options{};
     options.struct_size = sizeof(options);
     options.abi_version = RNS8_ABI_VERSION;

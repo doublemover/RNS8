@@ -6,6 +6,7 @@
 #include <string>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 
 namespace {
@@ -38,8 +39,15 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
              semantics == RNS8_FINITE_FIELD_U8;
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return semantics == RNS8_WRAP_U64_MOD_2_64;
-    case RNS8_BACKEND_AUTO:
     case RNS8_BACKEND_HIPBLASLT:
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
+             semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
+             semantics == RNS8_FINITE_RING_U8 || semantics == RNS8_FINITE_FIELD_U8;
+#else
+      return false;
+#endif
+    case RNS8_BACKEND_AUTO:
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_WMMA:
       return false;
@@ -91,6 +99,18 @@ uint32_t direct_hip_compiled() {
 #else
   return 0;
 #endif
+}
+
+uint32_t hipblaslt_backend_compiled() {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+  return 1;
+#else
+  return 0;
+#endif
+}
+
+bool hip_resident_rns_backend(rns8_backend_kind backend) {
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT;
 }
 
 void set_text(char* dst, std::size_t dst_size, const char* text) {
@@ -171,18 +191,49 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       break;
     case RNS8_BACKEND_HIPBLASLT:
       info.requires_feature_detection = 1;
-      info.enable_flag_fail_fast = 1;
-      info.candidate_evidence_only = 1;
+      info.is_available = hipblaslt_backend_compiled();
+      info.is_correctness_backend = hipblaslt_backend_compiled();
+      info.is_matrix_engine_backend = hipblaslt_backend_compiled();
+      info.supports_bounded_rns = hipblaslt_backend_compiled();
+      info.supports_exact_wide_rns = hipblaslt_backend_compiled();
+      info.supports_finite_u8 = hipblaslt_backend_compiled();
+      info.compiled_kernel_available = hipblaslt_backend_compiled();
+      info.exact_differential_validated = hipblaslt_backend_compiled();
+      info.performance_validated = 0;
+      info.enable_flag_fail_fast = hipblaslt_backend_compiled() ? 0u : 1u;
+      info.candidate_evidence_only = hipblaslt_backend_compiled() ? 0u : 1u;
+      set_text(
+          info.selected_kernel,
+          sizeof(info.selected_kernel),
+          hipblaslt_backend_compiled() ? "hipblaslt_int8_i32_scratch_reduce_baseline_v1" : "not_implemented");
       set_text(info.library_name, sizeof(info.library_name), "hipBLASLt");
+      set_text(
+          info.library_version,
+          sizeof(info.library_version),
+          hipblaslt_backend_compiled() ? "runtime_queried_in_context" : "");
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_HIPBLASLT");
-      set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "not_implemented");
-      set_text(info.workspace_mode, sizeof(info.workspace_mode), "not_implemented");
-      set_text(info.isa_evidence, sizeof(info.isa_evidence), "not_validated");
-      set_text(info.status, sizeof(info.status), "not_implemented_evidence_only");
+      set_text(
+          info.epilogue_mode,
+          sizeof(info.epilogue_mode),
+          hipblaslt_backend_compiled() ? "separate_i32_scratch_residue_reduce" : "not_implemented");
+      set_text(
+          info.workspace_mode,
+          sizeof(info.workspace_mode),
+          hipblaslt_backend_compiled() ? "resident_device_buffers_with_hipblaslt_scratch" : "not_implemented");
+      set_text(
+          info.isa_evidence,
+          sizeof(info.isa_evidence),
+          hipblaslt_backend_compiled() ? "hipblaslt_library_int8_matmul_baseline" : "not_validated");
+      set_text(
+          info.status,
+          sizeof(info.status),
+          hipblaslt_backend_compiled() ? "implemented_baseline_backend" : "not_implemented_evidence_only");
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Reserved baseline accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
+          hipblaslt_backend_compiled()
+              ? "hipBLASLt INT8->INT32 GEMM baseline with separate HIP centered-residue reduction; no adaptive per-tile support."
+              : "Reserved baseline accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
       break;
     case RNS8_BACKEND_CK:
       info.requires_feature_detection = 1;
@@ -289,7 +340,8 @@ bool valid_finite_modulus_for_semantics(rns8_semantics semantics, uint16_t modul
 }
 
 bool finite_backend_supports(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT;
+  return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT ||
+         backend == RNS8_BACKEND_HIPBLASLT;
 }
 
 rns8_status validate_finite_u8_oneshot_contract(
@@ -626,12 +678,24 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     }
     return "direct_hip_tiled_rns_gemm_v1";
   }
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    return "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
+  }
   return "not_implemented";
 }
 
 std::string epilogue_mode_for_plan(const rns8_plan& plan) {
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "low64_wrap_export";
+  }
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    if (uses_finite_storage(plan.desc.semantics)) {
+      return "separate_i32_scratch_reduce_then_canonical_u8_export";
+    }
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+      return "separate_i32_scratch_reduce_rns_output";
+    }
+    return "separate_i32_scratch_reduce_then_crt_export";
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return "fused_centered_residue_then_canonical_u8_export";
@@ -647,6 +711,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
     return plan.tile_schedule.empty() ? "resident_device_buffers"
                                       : "resident_device_buffers_with_tiled_schedule";
   }
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    return "resident_device_buffers_with_hipblaslt_scratch";
+  }
   if (plan.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
     return "host_byte_limb_reference_workspace";
   }
@@ -660,14 +727,49 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
     }
     return "rns8_hip_direct_reciprocal_isa_gate";
   }
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    return "hipblaslt_library_int8_matmul_baseline";
+  }
   return "not_applicable_cpu";
 }
 
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    std::size_t scratch_bytes = 0;
+    std::size_t workspace_bytes = 0;
+    if (!rns8::detail::hipblaslt_baseline_workspace_requirements(
+            plan.desc.m, plan.desc.n, plan.desc.k, scratch_bytes, workspace_bytes)) {
+      return 0;
+    }
+    if (scratch_bytes > std::numeric_limits<uint64_t>::max() - workspace_bytes) {
+      return std::numeric_limits<uint64_t>::max();
+    }
+    return static_cast<uint64_t>(scratch_bytes) + static_cast<uint64_t>(workspace_bytes);
+  }
   if (plan.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
     return 0;
   }
   return static_cast<uint64_t>(plan.tile_schedule.size()) * sizeof(rns8_plan_tile_schedule_entry);
+}
+
+bool hipblaslt_scratch_bytes_for_plan(const rns8_plan& plan, std::size_t& bytes) {
+  bytes = 0;
+  if (plan.backend != RNS8_BACKEND_HIPBLASLT) {
+    return false;
+  }
+  std::size_t workspace_bytes = 0;
+  return rns8::detail::hipblaslt_baseline_workspace_requirements(
+      plan.desc.m, plan.desc.n, plan.desc.k, bytes, workspace_bytes);
+}
+
+bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& bytes) {
+  bytes = 0;
+  if (plan.backend != RNS8_BACKEND_HIPBLASLT) {
+    return false;
+  }
+  std::size_t scratch_bytes = 0;
+  return rns8::detail::hipblaslt_baseline_workspace_requirements(
+      plan.desc.m, plan.desc.n, plan.desc.k, scratch_bytes, bytes);
 }
 
 std::string build_autotune_key(const rns8_plan& plan) {
@@ -689,7 +791,15 @@ std::string build_autotune_key(const rns8_plan& plan) {
   return key;
 }
 
-void configure_plan_backend_metadata(rns8_plan& plan) {
+bool backend_library_version_matches_plan(const rns8_plan& plan, const rns8_backend_capability_info& capability) {
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    return plan.backend_library_version.rfind("hipBLASLt ", 0) == 0 ||
+           plan.backend_library_version == capability.library_version;
+  }
+  return plan.backend_library_version == capability.library_version;
+}
+
+void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx = nullptr) {
   rns8_backend_capability_info capability{};
   capability.struct_size = sizeof(capability);
   capability.abi_version = RNS8_ABI_VERSION;
@@ -697,6 +807,9 @@ void configure_plan_backend_metadata(rns8_plan& plan) {
   plan.backend_selected_kernel = selected_kernel_for_plan(plan);
   plan.backend_library = capability.library_name;
   plan.backend_library_version = capability.library_version;
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT && ctx && !ctx->hipblaslt_library_version.empty()) {
+    plan.backend_library_version = ctx->hipblaslt_library_version;
+  }
   plan.backend_capability_status = capability.status;
   plan.backend_epilogue_mode = epilogue_mode_for_plan(plan);
   plan.backend_workspace_mode = workspace_mode_for_plan(plan);
@@ -901,7 +1014,7 @@ bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind bac
     return false;
   }
   const std::size_t expected_bytes = expected_residues * sizeof(int8_t);
-  if (backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (hip_resident_rns_backend(backend)) {
     return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
   return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
@@ -918,14 +1031,14 @@ bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind 
     return false;
   }
   const std::size_t expected_bytes = expected_cells * sizeof(int8_t);
-  if (backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (hip_resident_rns_backend(backend)) {
     return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
   return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
 bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backend_kind backend) {
-  if (backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (hip_resident_rns_backend(backend)) {
     return matrix.device_residues_current;
   }
   return matrix.host_residues_current && !matrix.device_residues_current;
@@ -943,7 +1056,7 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   fill_backend_capability_info(plan.backend, capability);
   if (plan.backend_selected_kernel != selected_kernel_for_plan(plan) ||
       plan.backend_library != capability.library_name ||
-      plan.backend_library_version != capability.library_version ||
+      !backend_library_version_matches_plan(plan, capability) ||
       plan.backend_capability_status != capability.status ||
       plan.backend_epilogue_mode != epilogue_mode_for_plan(plan) ||
       plan.backend_workspace_mode != workspace_mode_for_plan(plan) ||
@@ -1109,7 +1222,7 @@ rns8_status validate_plan_context_workspace(
       workspace.backend_autotune_key != plan.backend_autotune_key) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && workspace.hip_device_id != ctx.device_id) {
+  if (hip_resident_rns_backend(plan.backend) && workspace.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
@@ -1130,6 +1243,28 @@ rns8_status validate_plan_context_workspace(
                workspace.hip_tile_schedule_count != 0) {
       return RNS8_INVALID_ARGUMENT;
     }
+  } else if (workspace.hip_tile_schedule || workspace.hip_tile_schedule_bytes != 0 ||
+             workspace.hip_tile_schedule_count != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    std::size_t expected_scratch_bytes = 0;
+    std::size_t expected_workspace_bytes = 0;
+    if (!hipblaslt_scratch_bytes_for_plan(plan, expected_scratch_bytes)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!hipblaslt_workspace_bytes_for_plan(plan, expected_workspace_bytes)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!workspace.hipblaslt_int32_scratch ||
+        workspace.hipblaslt_int32_scratch_bytes != expected_scratch_bytes ||
+        !workspace.hipblaslt_workspace ||
+        workspace.hipblaslt_workspace_bytes != expected_workspace_bytes) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+  } else if (workspace.hipblaslt_int32_scratch || workspace.hipblaslt_int32_scratch_bytes != 0 ||
+             workspace.hipblaslt_workspace || workspace.hipblaslt_workspace_bytes != 0) {
+    return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;
 }
@@ -1146,7 +1281,7 @@ rns8_status validate_rns_gemm_operands(
   if (A.backend != plan.backend || B.backend != plan.backend || C.backend != plan.backend) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+  if (hip_resident_rns_backend(plan.backend) &&
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -1186,7 +1321,7 @@ rns8_status validate_finite_gemm_operands(
   if (A.backend != plan.backend || B.backend != plan.backend || C.backend != plan.backend) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+  if (hip_resident_rns_backend(plan.backend) &&
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -1226,7 +1361,7 @@ rns8_status validate_wrap_gemm_operands(
   if (A.backend != plan.backend || B.backend != plan.backend || C.backend != plan.backend) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+  if (hip_resident_rns_backend(plan.backend) &&
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -1269,7 +1404,7 @@ rns8_status validate_export_matrix(
   if (ctx.backend != plan.backend || C.backend != plan.backend || plan.desc.semantics != semantics) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && C.hip_device_id != ctx.device_id) {
+  if (hip_resident_rns_backend(plan.backend) && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!matrix_descriptor_matches(
@@ -1301,7 +1436,7 @@ rns8_status validate_finite_export_matrix(
   if (ctx.backend != plan.backend || C.backend != plan.backend) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && C.hip_device_id != ctx.device_id) {
+  if (hip_resident_rns_backend(plan.backend) && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!matrix_descriptor_matches(
@@ -1542,6 +1677,26 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       return RNS8_SUCCESS;
     }
 
+    if (requested == RNS8_BACKEND_HIPBLASLT) {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      ctx->backend = RNS8_BACKEND_HIPBLASLT;
+      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      const rns8_status status = rns8::detail::hipblaslt_create_context(
+          ctx->device_id, ctx->device_info, &ctx->hipblaslt_handle, ctx->hipblaslt_library_version);
+      if (status != RNS8_SUCCESS) {
+        delete ctx;
+        return status;
+      }
+      *out = ctx;
+      return RNS8_SUCCESS;
+#else
+      delete ctx;
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+
     if (requested == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       ctx->backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
       ctx->device_id = -1;
@@ -1558,6 +1713,17 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 }
 
 rns8_status rns8_destroy_context(rns8_context* ctx) {
+  if (ctx && ctx->hipblaslt_handle) {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+    const rns8_status status = rns8::detail::hipblaslt_destroy_context(ctx->device_id, ctx->hipblaslt_handle);
+    ctx->hipblaslt_handle = nullptr;
+    delete ctx;
+    return status;
+#else
+    delete ctx;
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  }
   delete ctx;
   return RNS8_SUCCESS;
 }
@@ -1608,10 +1774,13 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
-        requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+        requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!backend_supports_semantics(requested, desc->semantics)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     auto* plan = new (std::nothrow) rns8_plan();
@@ -1634,7 +1803,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       delete plan;
       return schedule_status;
     }
-    configure_plan_backend_metadata(*plan);
+    configure_plan_backend_metadata(*plan, ctx);
     *out = plan;
     return RNS8_SUCCESS;
   });
@@ -1800,7 +1969,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->backend_isa_evidence = plan->backend_isa_evidence;
     workspace->backend_autotune_key = plan->backend_autotune_key;
     workspace->backend = ctx->backend;
-    workspace->hip_device_id = ctx->backend == RNS8_BACKEND_HIP_DIRECT ? ctx->device_id : -1;
+    workspace->hip_device_id = hip_resident_rns_backend(ctx->backend) ? ctx->device_id : -1;
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT && !plan->tile_schedule.empty()) {
       if (plan->tile_schedule.size() >
           std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
@@ -1824,6 +1993,29 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
         return status;
       }
     }
+    if (ctx->backend == RNS8_BACKEND_HIPBLASLT) {
+      std::size_t scratch_bytes = 0;
+      std::size_t workspace_bytes = 0;
+      if (!hipblaslt_scratch_bytes_for_plan(*plan, scratch_bytes) ||
+          !hipblaslt_workspace_bytes_for_plan(*plan, workspace_bytes)) {
+        delete workspace;
+        return RNS8_RANGE_ERROR;
+      }
+      rns8_status status =
+          rns8::detail::hip_direct_allocate(ctx->device_id, scratch_bytes, &workspace->hipblaslt_int32_scratch);
+      if (status != RNS8_SUCCESS) {
+        delete workspace;
+        return status;
+      }
+      workspace->hipblaslt_int32_scratch_bytes = scratch_bytes;
+      status = rns8::detail::hip_direct_allocate(ctx->device_id, workspace_bytes, &workspace->hipblaslt_workspace);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hipblaslt_int32_scratch);
+        delete workspace;
+        return status;
+      }
+      workspace->hipblaslt_workspace_bytes = workspace_bytes;
+    }
     *out = workspace;
     return RNS8_SUCCESS;
   });
@@ -1841,6 +2033,24 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
       workspace->hip_tile_schedule = nullptr;
       workspace->hip_tile_schedule_bytes = 0;
       workspace->hip_tile_schedule_count = 0;
+    }
+    if (workspace->hipblaslt_int32_scratch) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hipblaslt_int32_scratch);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hipblaslt_int32_scratch = nullptr;
+      workspace->hipblaslt_int32_scratch_bytes = 0;
+    }
+    if (workspace->hipblaslt_workspace) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hipblaslt_workspace);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hipblaslt_workspace = nullptr;
+      workspace->hipblaslt_workspace_bytes = 0;
     }
     delete workspace;
     return status;
@@ -1917,7 +2127,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       matrix->host_byte_limbs_current = false;
       matrix->device_byte_limbs_current = false;
     }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(ctx->backend)) {
       const rns8_status status = allocate_hip_matrix_storage(*ctx, *matrix);
       if (status != RNS8_SUCCESS) {
         delete matrix;
@@ -1958,10 +2168,10 @@ rns8_status rns8_pack_i64(
     if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT && matrix->hip_device_id != ctx->device_id) {
+    if (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(ctx->backend)) {
       const rns8_status status = rns8::detail::hip_direct_pack_i64_device(
           ctx->device_id,
           src,
@@ -2039,7 +2249,7 @@ rns8_status rns8_pack_u64(
       }
     } else if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix)) {
       return RNS8_INVALID_ARGUMENT;
-    } else if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+    } else if (hip_resident_rns_backend(ctx->backend)) {
       if (matrix->hip_device_id != ctx->device_id) {
         return RNS8_INVALID_ARGUMENT;
       }
@@ -2087,7 +2297,7 @@ rns8_status rns8_pack_finite_u8(
         !finite_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(ctx->backend)) {
       if (matrix->hip_device_id != ctx->device_id) {
         return RNS8_INVALID_ARGUMENT;
       }
@@ -2194,6 +2404,42 @@ rns8_status rns8_gemm_rns(
       }
       return RNS8_SUCCESS;
     }
+    if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      if (!ctx->hipblaslt_handle || plan->schedule_adaptive_prefix_active || plan->schedule_adaptive_skip_active ||
+          !plan->tile_schedule.empty()) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status status = rns8::detail::hipblaslt_gemm_rns_device(
+          ctx->device_id,
+          ctx->hipblaslt_handle,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
+          workspace->hipblaslt_int32_scratch,
+          workspace->hipblaslt_int32_scratch_bytes,
+          workspace->hipblaslt_workspace,
+          workspace->hipblaslt_workspace_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          plan->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      C->device_residues_current = true;
+      C->host_residues_current = false;
+      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+        C->source_version = gemm_output_source_version(*A, *B);
+      }
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }
@@ -2253,6 +2499,42 @@ rns8_status rns8_gemm_finite_u8(
       C->finite_modulus = modulus;
       C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
+    }
+    if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+      if (!ctx->hipblaslt_handle) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status status = rns8::detail::hipblaslt_gemm_finite_u8_device(
+          ctx->device_id,
+          ctx->hipblaslt_handle,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
+          workspace->hipblaslt_int32_scratch,
+          workspace->hipblaslt_int32_scratch_bytes,
+          workspace->hipblaslt_workspace,
+          workspace->hipblaslt_workspace_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          modulus);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      C->host_residues_current = false;
+      C->device_residues_current = true;
+      C->host_byte_limbs_current = false;
+      C->device_byte_limbs_current = false;
+      C->finite_modulus = modulus;
+      C->source_version = gemm_output_source_version(*A, *B);
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
     }
     return RNS8_UNSUPPORTED_BACKEND;
   });
@@ -2319,7 +2601,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(plan->backend)) {
       if (!plan->tile_schedule.empty()) {
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
@@ -2397,7 +2679,7 @@ rns8_status rns8_export_u64(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(plan->backend)) {
       if (!plan->tile_schedule.empty()) {
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
@@ -2519,7 +2801,7 @@ rns8_status rns8_export_finite_u8(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(plan->backend)) {
       auto* mutable_c = const_cast<rns8_matrix*>(C);
       return rns8::detail::hip_direct_export_finite_u8_device(
           ctx->device_id,
@@ -2556,7 +2838,7 @@ rns8_status rns8_export_exact_wide_signed_limbs(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(plan->backend)) {
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
       }
@@ -2618,7 +2900,7 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     if (export_status != RNS8_SUCCESS) {
       return export_status;
     }
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (hip_resident_rns_backend(plan->backend)) {
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
       }

@@ -93,6 +93,9 @@ struct GpuEventSamples {
   std::vector<double> pack_kernel_us;
   std::vector<double> pack_us;
   std::vector<double> rns_gemm_kernel_group_us;
+  std::vector<double> hipblaslt_pack_transpose_centered_us;
+  std::vector<double> hipblaslt_int8_i32_matmul_us;
+  std::vector<double> hipblaslt_i32_to_residue_reduce_us;
   std::vector<double> wrap64_tiled_byte_gemm_kernel_us;
   std::vector<double> rns_gemm_us;
   std::vector<double> crt_export_status_memset_us;
@@ -130,7 +133,7 @@ void mix_checksum(uint64_t& checksum, uint64_t value);
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend cpu|hip-direct|wrap64-byte-limb]\n"
+      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|wrap64-byte-limb]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
@@ -172,6 +175,7 @@ bool valid_tile_size(uint32_t value) {
 rns8_backend_kind parse_backend(const std::string& value) {
   if (value == "cpu" || value == "cpu-reference") return RNS8_BACKEND_CPU_REFERENCE;
   if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
+  if (value == "hipblaslt" || value == "hipblaslt-baseline") return RNS8_BACKEND_HIPBLASLT;
   if (value == "wrap64-byte-limb") return RNS8_BACKEND_WRAP64_BYTE_LIMB;
   usage_error("unknown backend: " + value);
 }
@@ -221,7 +225,7 @@ Args parse_args(int argc, char** argv) {
       args.require_adaptive_execution = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend cpu|hip-direct|wrap64-byte-limb]\n"
+          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|wrap64-byte-limb]\n"
           << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
@@ -259,7 +263,7 @@ Args parse_args(int argc, char** argv) {
     usage_error("--require-adaptive-execution requires --bound-mode per-tile");
   }
   if (args.device_id == std::numeric_limits<int>::min()) {
-    args.device_id = args.backend == RNS8_BACKEND_HIP_DIRECT ? 0 : -1;
+    args.device_id = (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT) ? 0 : -1;
   }
   return args;
 }
@@ -795,6 +799,21 @@ std::vector<std::string> gpu_event_phase_order(const Args& args) {
         "wrap64_export_d2h",
         "crt_export"};
   }
+  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+    return {
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "hipblaslt_pack_transpose_centered",
+        "hipblaslt_int8_i32_matmul",
+        "hipblaslt_i32_to_residue_reduce",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export"};
+  }
   return {
       "pack_h2d",
       "pack_kernel",
@@ -849,6 +868,21 @@ void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
     print_named_gpu_event_array("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_named_gpu_event_array("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
     print_named_gpu_event_array("crt_export", events.crt_export_us, false);
+  } else if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+    print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
+    print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
+    print_named_gpu_event_array("pack", events.pack_us, true);
+    print_named_gpu_event_array(
+        "hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+    print_named_gpu_event_array("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+    print_named_gpu_event_array(
+        "hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
+    print_named_gpu_event_array("crt_export_status_memset", events.crt_export_status_memset_us, true);
+    print_named_gpu_event_array("crt_export_kernel", events.crt_export_kernel_us, true);
+    print_named_gpu_event_array("crt_export_status_d2h", events.crt_export_status_d2h_us, true);
+    print_named_gpu_event_array("crt_export_d2h", events.crt_export_d2h_us, true);
+    print_named_gpu_event_array("crt_export", events.crt_export_us, false);
   } else {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
@@ -874,6 +908,19 @@ void print_gpu_event_timing_summary(const Args& args, const GpuEventSamples& eve
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_gpu_event_summary("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
+    print_gpu_event_summary("crt_export", events.crt_export_us, false);
+  } else if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+    print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
+    print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
+    print_gpu_event_summary("pack", events.pack_us, true);
+    print_gpu_event_summary("hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+    print_gpu_event_summary("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+    print_gpu_event_summary("hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
+    print_gpu_event_summary("crt_export_status_memset", events.crt_export_status_memset_us, true);
+    print_gpu_event_summary("crt_export_kernel", events.crt_export_kernel_us, true);
+    print_gpu_event_summary("crt_export_status_d2h", events.crt_export_status_d2h_us, true);
+    print_gpu_event_summary("crt_export_d2h", events.crt_export_d2h_us, true);
     print_gpu_event_summary("crt_export", events.crt_export_us, false);
   } else {
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
@@ -907,7 +954,7 @@ uint64_t checksum_u64(const std::vector<uint64_t>& values) {
 }
 
 bool gpu_event_capture_requested(const Args& args) {
-  return args.backend == RNS8_BACKEND_HIP_DIRECT;
+  return args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT;
 }
 
 void add_unavailable_reason(GpuEventSamples& events, const std::string& reason) {
@@ -954,6 +1001,28 @@ void collect_gemm_gpu_events(GpuEventSamples& events) {
   if (events.complete) {
     events.rns_gemm_kernel_group_us.push_back(kernel_group);
     events.rns_gemm_us.push_back(kernel_group);
+  }
+}
+
+void collect_hipblaslt_gemm_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double pack =
+      sum_event_label(events, samples, "rns_gemm", "hipblaslt_pack_transpose_centered");
+  const double matmul = sum_event_label(events, samples, "rns_gemm", "hipblaslt_int8_i32_matmul");
+  const double reduce = sum_event_label(events, samples, "rns_gemm", "hipblaslt_i32_to_residue_reduce");
+  if (events.complete) {
+    events.hipblaslt_pack_transpose_centered_us.push_back(pack);
+    events.hipblaslt_int8_i32_matmul_us.push_back(matmul);
+    events.hipblaslt_i32_to_residue_reduce_us.push_back(reduce);
+    events.rns_gemm_us.push_back(pack + matmul + reduce);
+  }
+}
+
+void collect_rns_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+    collect_hipblaslt_gemm_gpu_events(events);
+  } else {
+    collect_gemm_gpu_events(events);
   }
 }
 
@@ -1020,6 +1089,15 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return result.gpu_events.wrap64_tiled_byte_gemm_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_d2h_us.size() == repeats;
+  }
+  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+    return result.gpu_events.hipblaslt_pack_transpose_centered_us.size() == repeats &&
+           result.gpu_events.hipblaslt_int8_i32_matmul_us.size() == repeats &&
+           result.gpu_events.hipblaslt_i32_to_residue_reduce_us.size() == repeats &&
+           result.gpu_events.crt_export_status_memset_us.size() == repeats &&
+           result.gpu_events.crt_export_kernel_us.size() == repeats &&
+           result.gpu_events.crt_export_status_d2h_us.size() == repeats &&
+           result.gpu_events.crt_export_d2h_us.size() == repeats;
   }
   return result.gpu_events.rns_gemm_kernel_group_us.size() == repeats &&
          result.gpu_events.crt_export_status_memset_us.size() == repeats &&
@@ -1112,7 +1190,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
     if (collect_gpu_events) {
-      collect_gemm_gpu_events(result.gpu_events);
+      collect_rns_gemm_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -1215,7 +1293,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
     if (collect_gpu_events) {
-      collect_gemm_gpu_events(result.gpu_events);
+      collect_rns_gemm_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -1432,10 +1510,12 @@ void print_json(
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const bool wrap64_hip_events = gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64;
   const bool adaptive_hip_events = gpu_events_available && adaptive_applied;
+  const bool hipblaslt_events = gpu_events_available && info.backend == RNS8_BACKEND_HIPBLASLT;
   const char* gpu_event_reason = gpu_events_available
-                                     ? "captured_by_direct_hip_backend_hooks"
+                                     ? (hipblaslt_events ? "captured_by_hipblaslt_backend_hooks"
+                                                         : "captured_by_direct_hip_backend_hooks")
                                      : (result.gpu_events.requested ? "backend_event_capture_incomplete"
-                                                                    : "backend_not_hip_direct");
+                                                                    : "backend_has_no_gpu_event_hooks");
   const char* gpu_event_status = gpu_events_available
                                      ? "available"
                                      : (result.gpu_events.requested ? "unavailable_missing_expected_events"
@@ -1601,6 +1681,10 @@ void print_json(
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP adaptive per-tile bounded "
                  "correctness path; GPU event timing aggregates all selected-prefix tiled GEMM launches and tiled "
                  "CRT export work into backend operation-group labels\",\n";
+  } else if (info.backend == RNS8_BACKEND_HIPBLASLT) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the hipBLASLt baseline path; GPU event timing "
+                 "separates persistent RNS packing, hipBLASLt INT8-to-INT32 matmul, separate centered-residue "
+                 "reduction, and CRT export operation groups\",\n";
   } else {
     std::cout << "  \"timing_note\": \"host wall-clock timings; direct-HIP calls include current backend "
                  "synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, "
@@ -1617,21 +1701,25 @@ void print_json(
             << (gpu_events_available ? "\"hipEventElapsedTime\"" : "null") << ",\n";
   std::cout << "    \"gpu_event_timing_source_scope\": "
             << (gpu_events_available
-                    ? (wrap64_hip_events
+                    ? (hipblaslt_events
+                           ? "\"hipblaslt_baseline_default_stream_backend_operation_groups\""
+                           : (wrap64_hip_events
                            ? "\"direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups\""
                            : (adaptive_hip_events
                                   ? "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\""
-                                  : "\"direct_hip_default_stream_backend_operation_groups\""))
+                                  : "\"direct_hip_default_stream_backend_operation_groups\"")))
                     : "null")
             << ",\n";
   std::cout << "    \"gpu_event_timing_caveat\": "
-            << (wrap64_hip_events
-                    ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
-                    : (adaptive_hip_events
+            << (hipblaslt_events
+                    ? "\"HIP event timings record hipBLASLt baseline default-stream operation groups only; host wall-clock timings remain required for API dispatch, descriptor setup, allocations, and synchronous host-side overhead not represented on the HIP stream\""
+                    : (wrap64_hip_events
+                           ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
+                           : (adaptive_hip_events
                            ? "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
                            : (gpu_events_available
                                   ? "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead not represented on the HIP stream\""
-                                  : "null")))
+                                  : "null"))))
             << ",\n";
   if (!gpu_events_available && !result.gpu_events.unavailable_reasons.empty()) {
     std::cout << "    \"gpu_event_timing_unavailable_reasons\": ";
@@ -1676,6 +1764,11 @@ void print_json(
     std::cout << "        \"timing_key\": null,\n";
     std::cout << "        \"scope\": \"not_applicable_wrap64_byte_limb\",\n";
     std::cout << "        \"reason\": \"strict wrap64 byte-limb captures do not use centered RNS residue reduction\"\n";
+  } else if (info.backend == RNS8_BACKEND_HIPBLASLT) {
+    std::cout << "        \"timed\": false,\n";
+    std::cout << "        \"timing_key\": null,\n";
+    std::cout << "        \"scope\": \"separate_hipblaslt_i32_scratch_residue_reduce\",\n";
+    std::cout << "        \"reason\": \"hipBLASLt baseline GEMM writes INT32 scratch and runs a separate centered-residue reduction inside rns_gemm\"\n";
   } else {
     std::cout << "        \"timed\": false,\n";
     std::cout << "        \"timing_key\": null,\n";
