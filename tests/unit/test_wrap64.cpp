@@ -131,12 +131,17 @@ TEST_CASE("wrap64 byte-limb product matches low 64-bit multiprecision product") 
 }
 
 TEST_CASE("wrap64 signed-int8 byte correction recovers unsigned byte products") {
+  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x7fu, 0x7fu) == 0);
+  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x80u, 0x7fu) == 256 * 0x7f);
+  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0x7fu, 0x80u) == 256 * 0x7f);
+  CHECK(rns8::detail::wrap64_signed_i8_product_correction(0xffu, 0xffu) == 256 * 0xff + 256 * 0xff - 65536);
+
   for (uint32_t a = 0; a <= 0xffu; ++a) {
     for (uint32_t b = 0; b <= 0xffu; ++b) {
       const auto a_byte = static_cast<uint8_t>(a);
       const auto b_byte = static_cast<uint8_t>(b);
-      const int32_t signed_product =
-          static_cast<int32_t>(static_cast<int8_t>(a_byte)) * static_cast<int32_t>(static_cast<int8_t>(b_byte));
+      const int32_t signed_product = rns8::detail::wrap64_signed_i8_lane_value(a_byte) *
+                                     rns8::detail::wrap64_signed_i8_lane_value(b_byte);
       const int32_t corrected = signed_product + rns8::detail::wrap64_signed_i8_product_correction(a_byte, b_byte);
       CHECK(corrected == static_cast<int32_t>(a * b));
       CHECK(rns8::detail::wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte) == a * b);

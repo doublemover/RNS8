@@ -71,10 +71,11 @@ disagree, the spec remains the target and this file identifies the gap.
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
   from wrap descriptors. The CPU reference also includes an exhaustively tested
-  signed-INT8 correction helper for reconstructing unsigned byte products when
-  future accelerator paths expose only signed INT8 products, plus a
-  36-byte-pair decomposition oracle over the low eight Comba diagonals that
-  matches Boost low-64 results and the current Comba reference.
+  signed-INT8 correction helper for reconstructing unsigned byte products as
+  signed byte product plus explicit high-bit correction terms when future
+  accelerator paths expose only signed INT8 products, plus a 36-byte-pair
+  decomposition oracle over the low eight Comba diagonals that matches Boost
+  low-64 results and the current Comba reference.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the

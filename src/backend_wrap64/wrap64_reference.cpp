@@ -125,16 +125,20 @@ uint64_t wrap64_compact_byte_limb_gemm_cell(
 
 }  // namespace
 
+int32_t wrap64_signed_i8_lane_value(uint8_t value) {
+  return value < 128u ? static_cast<int32_t>(value) : static_cast<int32_t>(value) - 256;
+}
+
 int32_t wrap64_signed_i8_product_correction(uint8_t a, uint8_t b) {
-  const int32_t unsigned_product = static_cast<int32_t>(a) * static_cast<int32_t>(b);
-  const int32_t signed_a = static_cast<int32_t>(static_cast<int8_t>(a));
-  const int32_t signed_b = static_cast<int32_t>(static_cast<int8_t>(b));
-  return unsigned_product - signed_a * signed_b;
+  const int32_t a_high = static_cast<int32_t>(a >> 7u);
+  const int32_t b_high = static_cast<int32_t>(b >> 7u);
+  return a_high * static_cast<int32_t>(b) * 256 + b_high * static_cast<int32_t>(a) * 256 -
+         (a_high & b_high) * 65536;
 }
 
 uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b) {
-  const int32_t signed_a = static_cast<int32_t>(static_cast<int8_t>(a));
-  const int32_t signed_b = static_cast<int32_t>(static_cast<int8_t>(b));
+  const int32_t signed_a = wrap64_signed_i8_lane_value(a);
+  const int32_t signed_b = wrap64_signed_i8_lane_value(b);
   const int32_t corrected = signed_a * signed_b + wrap64_signed_i8_product_correction(a, b);
   return static_cast<uint32_t>(corrected);
 }

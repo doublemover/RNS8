@@ -122,9 +122,10 @@ Implemented correctness coverage:
   metadata to prove those fields are rejected at pack/GEMM/export boundaries
   instead of ignored.
 - Unsigned byte-limb signedness correction tests cover every byte pair and
-  verify that the signed-INT8 correction algebra composes through Comba
-  diagonals. This is readiness coverage for future signed-INT8 accelerator use,
-  not an enabled accelerator backend.
+  verify that signed byte products plus explicit high-bit correction terms
+  recover unsigned byte products and compose through Comba diagonals. This is
+  readiness coverage for future signed-INT8 accelerator use, not an enabled
+  accelerator backend.
 - A separate CPU 36-byte-pair oracle sums the low eight Comba byte-product
   diagonals with the signed-INT8 correction helper, performs carry propagation,
   and is compared against both Boost.Multiprecision low-64-bit results and the

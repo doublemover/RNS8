@@ -24,9 +24,10 @@ __device__ int32_t rns8_wrap64_signed_i8_lane_value(uint8_t value) {
 }
 
 __device__ int32_t rns8_wrap64_signed_i8_product_correction(uint8_t a, uint8_t b) {
-  const int32_t signed_product = rns8_wrap64_signed_i8_lane_value(a) * rns8_wrap64_signed_i8_lane_value(b);
-  const int32_t unsigned_product = static_cast<int32_t>(a) * static_cast<int32_t>(b);
-  return unsigned_product - signed_product;
+  const int32_t a_high = static_cast<int32_t>(a >> 7u);
+  const int32_t b_high = static_cast<int32_t>(b >> 7u);
+  return a_high * static_cast<int32_t>(b) * 256 + b_high * static_cast<int32_t>(a) * 256 -
+         (a_high & b_high) * 65536;
 }
 
 __device__ uint32_t rns8_wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b) {

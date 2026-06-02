@@ -186,6 +186,7 @@ rns8_status export_exact_wide_signed_limbs(
 
 cpp_int exact_i64_gemm_cell(const int64_t* A, int64_t lda, const int64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
 cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
+int32_t wrap64_signed_i8_lane_value(uint8_t value);
 int32_t wrap64_signed_i8_product_correction(uint8_t a, uint8_t b);
 uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b);
 uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b);
