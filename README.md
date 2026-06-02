@@ -247,11 +247,30 @@ python tools\result_compare.py temp\baseline.json temp\candidate.json
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
 preset, `hipblaslt`, `ck`, and `rocwmma` print `unsupported backend` plus an
-evidence-only accelerator note. In the opt-in hipBLASLt preset,
-`hipblaslt` reports the compiled baseline backend while `ck` and `rocwmma`
-remain unsupported. Inspect output includes the public backend capability
-metadata so accelerator fail-fast state is visible without requiring benchmark
-execution.
+evidence-only accelerator note. In the opt-in hipBLASLt preset, `hipblaslt`
+reports the compiled baseline backend while `ck` and `rocwmma` remain
+unsupported. Inspect output includes the public backend capability metadata so
+accelerator fail-fast state is visible without requiring benchmark execution.
+
+CK is an opt-in Windows `gfx1100` accelerator build:
+
+```powershell
+python tools\windows_dev.py cmake --preset windows-msvc-ck-debug
+python tools\windows_dev.py cmake --build --preset windows-ck-debug
+python tools\windows_dev.py ctest --preset windows-ck-debug --output-on-failure
+build\windows-msvc-ck-debug\rns8-bench.exe --backend ck --semantics bounded-i64 --m 64 --n 128 --k 64 --warmups 1 --repeats 2 --seed 13
+build\windows-msvc-ck-debug\rns8-bench.exe --backend ck --semantics bounded-u64 --bound-mode per-tile --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 2 --seed 7 --require-adaptive-execution
+```
+
+The CK backend uses repo-local Composable Kernel headers and RNS8-owned HIP
+packing/output kernels to run fused centered-residue `int8 x int8 -> int32`
+GEMM for fixed-prefix bounded plans, adaptive per-tile bounded plans,
+exact-wide RNS output, and finite u8. It remains opt-in and
+`performance_validated=false` until reviewed captures prove it is the fastest
+accepted backend for a target shape. CK benchmark captures currently report
+host wall-clock timings only; CK-specific HIP event phase hooks, stricter
+no-rcp ISA cleanup, and performance-fastest validation are still separate
+readiness items.
 
 For CPU-only scaffold validation, configure without HIP:
 

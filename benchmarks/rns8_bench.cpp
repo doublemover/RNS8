@@ -263,15 +263,19 @@ Args parse_args(int argc, char** argv) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
-    if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
-      usage_error("--bound-mode per-tile currently captures the direct HIP adaptive path; use --backend hip-direct");
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK) {
+      usage_error("--bound-mode per-tile currently captures direct HIP or CK adaptive paths");
     }
   }
   if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
     usage_error("--require-adaptive-execution requires --bound-mode per-tile");
   }
   if (args.device_id == std::numeric_limits<int>::min()) {
-    args.device_id = (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT) ? 0 : -1;
+    args.device_id =
+        (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
+         args.backend == RNS8_BACKEND_CK)
+            ? 0
+            : -1;
   }
   return args;
 }
@@ -1492,7 +1496,8 @@ bool adaptive_execution_applied(
     const Args& args,
     const rns8_device_info& info,
     const BenchmarkResult& result) {
-  return args.bound_mode == BoundMode::PerTile && info.backend == RNS8_BACKEND_HIP_DIRECT &&
+  return args.bound_mode == BoundMode::PerTile &&
+         (info.backend == RNS8_BACKEND_HIP_DIRECT || info.backend == RNS8_BACKEND_CK) &&
          schedule_uses_adaptive_work(result);
 }
 
@@ -1759,10 +1764,13 @@ void print_json(
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
-  } else if (adaptive_applied) {
+  } else if (adaptive_applied && gpu_events_available) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP adaptive per-tile bounded "
                  "correctness path; GPU event timing aggregates all selected-prefix tiled GEMM launches and tiled "
                  "CRT export work into backend operation-group labels\",\n";
+  } else if (adaptive_applied) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for an adaptive per-tile bounded accelerator path; "
+                 "GPU event timing is unavailable until the selected backend exposes event hooks\",\n";
   } else if (info.backend == RNS8_BACKEND_HIPBLASLT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the hipBLASLt baseline path; GPU event timing "
                  "separates persistent RNS packing, hipBLASLt INT8-to-INT32 matmul, separate centered-residue "
