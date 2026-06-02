@@ -265,6 +265,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(benchmark_result_compare_same_contract PROPERTIES LABELS "benchmark;schema;compare")
 
+  if(TARGET rns8-inspect)
+    add_test(
+      NAME inspect_cli_hard_cut_diagnostics
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_inspect_cli.py" "$<TARGET_FILE:rns8-inspect>"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(inspect_cli_hard_cut_diagnostics PROPERTIES LABELS "tools;cli;hard-cut")
+  endif()
+
   find_package(Catch2 3 CONFIG REQUIRED)
   add_executable(
     rns8_tests
