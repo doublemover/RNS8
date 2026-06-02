@@ -894,8 +894,10 @@ rns8_status hip_direct_export_i64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = timed_hip_operation(
-      "crt_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
+  int zero_status = 0;
+  hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
+    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -988,8 +990,10 @@ rns8_status hip_direct_export_i64_tiled_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = timed_hip_operation(
-      "crt_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
+  int zero_status = 0;
+  hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
+    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -1090,8 +1094,10 @@ rns8_status hip_direct_export_u64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = timed_hip_operation(
-      "crt_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
+  int zero_status = 0;
+  hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
+    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -1184,8 +1190,10 @@ rns8_status hip_direct_export_u64_tiled_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = timed_hip_operation(
-      "crt_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
+  int zero_status = 0;
+  hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
+    return hipMemcpyAsync(*status_buffer, &zero_status, sizeof(zero_status), hipMemcpyHostToDevice, nullptr);
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }

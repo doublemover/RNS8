@@ -9,6 +9,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -28,12 +29,17 @@
 
 namespace {
 
-constexpr uint32_t kBenchmarkSchemaVersion = 3;
+constexpr uint32_t kBenchmarkSchemaVersion = 4;
 
 enum class BenchSemantics {
   BoundedI64,
   BoundedU64,
   WrapU64Mod2_64,
+};
+
+enum class BoundMode {
+  Global,
+  PerTile,
 };
 
 struct Args {
@@ -48,6 +54,8 @@ struct Args {
   int device_id = std::numeric_limits<int>::min();
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   BenchSemantics semantics = BenchSemantics::BoundedI64;
+  BoundMode bound_mode = BoundMode::Global;
+  bool require_adaptive_execution = false;
 };
 
 struct TimingSamples {
@@ -80,6 +88,10 @@ struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t schedule_query_us = 0;
   uint64_t matrix_alloc_us = 0;
+  std::vector<uint64_t> tile_bounds{};
+  uint64_t tile_bound_min = 0;
+  uint64_t tile_bound_max = 0;
+  uint64_t tile_bound_hash = 0;
   rns8_plan_schedule_info schedule_info{};
   bool schedule_info_available = false;
   TimingSamples samples{};
@@ -91,6 +103,8 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
   return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 }
 
+void mix_checksum(uint64_t& checksum, uint64_t value);
+
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
@@ -98,6 +112,8 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
+      << "                  [--bound-mode global|per-tile]\n"
+      << "                  [--require-adaptive-execution]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
 }
@@ -145,6 +161,12 @@ BenchSemantics parse_semantics(const std::string& value) {
   usage_error("unknown semantics: " + value);
 }
 
+BoundMode parse_bound_mode(const std::string& value) {
+  if (value == "global") return BoundMode::Global;
+  if (value == "per-tile" || value == "per_tile") return BoundMode::PerTile;
+  usage_error("unknown bound mode: " + value);
+}
+
 Args parse_args(int argc, char** argv) {
   Args args;
   for (int i = 1; i < argc; ++i) {
@@ -171,12 +193,18 @@ Args parse_args(int argc, char** argv) {
       args.backend = parse_backend(argv[++i]);
     } else if (arg == "--semantics" && i + 1 < argc) {
       args.semantics = parse_semantics(argv[++i]);
+    } else if (arg == "--bound-mode" && i + 1 < argc) {
+      args.bound_mode = parse_bound_mode(argv[++i]);
+    } else if (arg == "--require-adaptive-execution") {
+      args.require_adaptive_execution = true;
     } else if (arg == "--help") {
       std::cout
           << "usage: rns8-bench [--backend cpu|hip-direct|wrap64-byte-limb]\n"
           << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
+          << "                  [--bound-mode global|per-tile]\n"
+          << "                  [--require-adaptive-execution]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
     } else {
@@ -196,6 +224,17 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB && args.semantics != BenchSemantics::WrapU64Mod2_64) {
     usage_error("wrap64-byte-limb backend requires --semantics wrap-u64");
+  }
+  if (args.bound_mode == BoundMode::PerTile) {
+    if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+      usage_error("--bound-mode per-tile is only valid for bounded semantics");
+    }
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
+      usage_error("--bound-mode per-tile currently captures the direct HIP adaptive path; use --backend hip-direct");
+    }
+  }
+  if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
+    usage_error("--require-adaptive-execution requires --bound-mode per-tile");
   }
   if (args.device_id == std::numeric_limits<int>::min()) {
     args.device_id = args.backend == RNS8_BACKEND_HIP_DIRECT ? 0 : -1;
@@ -247,7 +286,7 @@ rns8_semantics c_semantics(BenchSemantics semantics) {
   return RNS8_BOUNDED_I64;
 }
 
-rns8_bound_kind bound_kind(BenchSemantics semantics) {
+rns8_bound_kind global_bound_kind(BenchSemantics semantics) {
   switch (semantics) {
     case BenchSemantics::BoundedI64:
       return RNS8_BOUND_GLOBAL_MAX_ABS;
@@ -259,14 +298,48 @@ rns8_bound_kind bound_kind(BenchSemantics semantics) {
   return RNS8_BOUND_NONE;
 }
 
-const char* bound_kind_name(BenchSemantics semantics) {
-  switch (semantics) {
+rns8_bound_kind bound_kind(const Args& args) {
+  if (args.bound_mode == BoundMode::PerTile) {
+    switch (args.semantics) {
+      case BenchSemantics::BoundedI64:
+        return RNS8_BOUND_PER_TILE_MAX_ABS;
+      case BenchSemantics::BoundedU64:
+        return RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+      case BenchSemantics::WrapU64Mod2_64:
+        return RNS8_BOUND_NONE;
+    }
+  }
+  return global_bound_kind(args.semantics);
+}
+
+const char* bound_kind_name(const Args& args) {
+  if (args.bound_mode == BoundMode::PerTile) {
+    switch (args.semantics) {
+      case BenchSemantics::BoundedI64:
+        return "per_tile_max_abs";
+      case BenchSemantics::BoundedU64:
+        return "per_tile_max_unsigned";
+      case BenchSemantics::WrapU64Mod2_64:
+        return "none";
+    }
+  }
+  switch (args.semantics) {
     case BenchSemantics::BoundedI64:
       return "global_max_abs";
     case BenchSemantics::BoundedU64:
       return "global_max_unsigned";
     case BenchSemantics::WrapU64Mod2_64:
       return "none";
+  }
+  return "unknown";
+}
+
+const char* bound_mode_name(BoundMode mode) {
+  switch (mode) {
+    case BoundMode::Global:
+      return "global";
+    case BoundMode::PerTile:
+      return "per_tile";
   }
   return "unknown";
 }
@@ -387,8 +460,27 @@ std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
   return static_cast<std::size_t>(u_rows * u_cols);
 }
 
+uint64_t ceil_div_i64_u32(int64_t value, uint32_t divisor) {
+  const auto unsigned_value = static_cast<uint64_t>(value);
+  return (unsigned_value + static_cast<uint64_t>(divisor) - 1u) / static_cast<uint64_t>(divisor);
+}
+
+std::size_t row_major_index(int64_t row, int64_t col, int64_t ld, const char* label) {
+  const auto u_row = static_cast<uint64_t>(row);
+  const auto u_col = static_cast<uint64_t>(col);
+  const auto u_ld = static_cast<uint64_t>(ld);
+  if (u_ld != 0 && u_row > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_ld) {
+    usage_error(std::string("matrix index overflows size_t for ") + label);
+  }
+  const uint64_t row_offset = u_row * u_ld;
+  if (u_col > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) - row_offset) {
+    usage_error(std::string("matrix index overflows size_t for ") + label);
+  }
+  return static_cast<std::size_t>(row_offset + u_col);
+}
+
 uint64_t benchmark_bound(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || args.bound_mode == BoundMode::PerTile) {
     return 0;
   }
   const uint64_t max_term = 16u * 16u;
@@ -404,6 +496,102 @@ uint64_t benchmark_bound(const Args& args) {
   return bound;
 }
 
+uint64_t checked_tile_count(const Args& args) {
+  const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
+  const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
+  if (tile_cols != 0 && tile_rows > std::numeric_limits<uint64_t>::max() / tile_cols) {
+    usage_error("tile grid overflows uint64_t");
+  }
+  const uint64_t tile_count = tile_rows * tile_cols;
+  if (tile_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    usage_error("tile grid overflows size_t");
+  }
+  return tile_count;
+}
+
+std::vector<uint64_t> compute_i64_tile_bounds(
+    const Args& args,
+    const std::vector<int64_t>& A,
+    const std::vector<int64_t>& B) {
+  const auto u_k = static_cast<uint64_t>(args.k);
+  if (u_k > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / 256u) {
+    usage_error("bounded-i64 per-tile benchmark k is too large for exact int64 tile-bound prepass");
+  }
+  const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
+  const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
+  std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
+    const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
+    const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
+    for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
+      const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
+      const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
+      for (int64_t row = row_begin; row < row_end; ++row) {
+        for (int64_t col = col_begin; col < col_end; ++col) {
+          int64_t acc = 0;
+          for (int64_t kk = 0; kk < args.k; ++kk) {
+            acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
+          }
+          const uint64_t abs_value = acc < 0 ? static_cast<uint64_t>(-acc) : static_cast<uint64_t>(acc);
+          tile_max = std::max(tile_max, abs_value);
+        }
+      }
+    }
+  }
+  return bounds;
+}
+
+std::vector<uint64_t> compute_u64_tile_bounds(
+    const Args& args,
+    const std::vector<uint64_t>& A,
+    const std::vector<uint64_t>& B) {
+  const auto u_k = static_cast<uint64_t>(args.k);
+  if (u_k > std::numeric_limits<uint64_t>::max() / 256u) {
+    usage_error("bounded-u64 per-tile benchmark k is too large for exact uint64 tile-bound prepass");
+  }
+  const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
+  const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
+  std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
+    const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
+    const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
+    for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
+      const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
+      const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
+      for (int64_t row = row_begin; row < row_end; ++row) {
+        for (int64_t col = col_begin; col < col_end; ++col) {
+          uint64_t acc = 0;
+          for (int64_t kk = 0; kk < args.k; ++kk) {
+            acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
+          }
+          tile_max = std::max(tile_max, acc);
+        }
+      }
+    }
+  }
+  return bounds;
+}
+
+void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
+  result.tile_bounds = std::move(bounds);
+  if (result.tile_bounds.empty()) {
+    result.tile_bound_min = 0;
+    result.tile_bound_max = 0;
+    result.tile_bound_hash = 0;
+    return;
+  }
+  result.tile_bound_min = *std::min_element(result.tile_bounds.begin(), result.tile_bounds.end());
+  result.tile_bound_max = *std::max_element(result.tile_bounds.begin(), result.tile_bounds.end());
+  uint64_t hash = 1469598103934665603ull;
+  mix_checksum(hash, static_cast<uint64_t>(result.tile_bounds.size()));
+  for (const uint64_t bound : result.tile_bounds) {
+    mix_checksum(hash, bound);
+  }
+  result.tile_bound_hash = hash;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -413,19 +601,19 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   desc.logical_ld = cols;
   desc.semantics = c_semantics(args.semantics);
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
-  desc.bound_kind = bound_kind(args.semantics);
+  desc.bound_kind = bound_kind(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
   desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
-rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound) {
+rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uint64_t>* tile_bounds = nullptr) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
   desc.semantics = c_semantics(args.semantics);
-  desc.bound_kind = bound_kind(args.semantics);
+  desc.bound_kind = bound_kind(args);
   desc.requested_backend = args.backend;
   desc.m = args.m;
   desc.n = args.n;
@@ -434,6 +622,14 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound) {
   desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
+  if (args.bound_mode == BoundMode::PerTile) {
+    if (!tile_bounds) {
+      usage_error("per-tile bound mode requires generated tile bounds");
+    }
+    desc.bound = 0;
+    desc.tile_bounds = tile_bounds->data();
+    desc.tile_bounds_count = static_cast<uint64_t>(tile_bounds->size());
+  }
   return desc;
 }
 
@@ -784,6 +980,26 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
          result.gpu_events.crt_export_d2h_us.size() == repeats;
 }
 
+bool schedule_uses_adaptive_work(const BenchmarkResult& result) {
+  return result.schedule_info.adaptive_prefix_active != 0 || result.schedule_info.adaptive_skip_active != 0;
+}
+
+void enforce_per_tile_capture_contract(const Args& args, const BenchmarkResult& result) {
+  if (args.bound_mode != BoundMode::PerTile) {
+    return;
+  }
+  if (result.tile_bounds.empty()) {
+    usage_error("per-tile benchmark capture has no generated tile bounds");
+  }
+  if (!schedule_uses_adaptive_work(result)) {
+    usage_error(
+        "per-tile benchmark capture did not produce adaptive prefix grouping or prefix skipping; adjust shape, seed, or inputs");
+  }
+  if (args.require_adaptive_execution && !schedule_uses_adaptive_work(result)) {
+    usage_error("--require-adaptive-execution was requested but the plan is fixed-prefix");
+  }
+}
+
 BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bound) {
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
@@ -795,12 +1011,16 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
 
   BenchmarkResult result{};
   result.gpu_events.requested = gpu_event_capture_requested(args);
-  auto desc = gemm_desc(args, bound);
+  if (args.bound_mode == BoundMode::PerTile) {
+    record_tile_bounds(result, compute_i64_tile_bounds(args, A, B));
+  }
+  auto desc = gemm_desc(args, bound, &result.tile_bounds);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
+  enforce_per_tile_capture_contract(args, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -893,12 +1113,16 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
   BenchmarkResult result{};
   result.gpu_events.requested = gpu_event_capture_requested(args);
-  auto desc = gemm_desc(args, bound);
+  if (args.bound_mode == BoundMode::PerTile) {
+    record_tile_bounds(result, compute_u64_tile_bounds(args, A, B));
+  }
+  auto desc = gemm_desc(args, bound, &result.tile_bounds);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
+  enforce_per_tile_capture_contract(args, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -1103,6 +1327,36 @@ const char* input_distribution(const Args& args) {
   return "unknown";
 }
 
+const char* tile_bound_pattern(const Args& args) {
+  switch (args.semantics) {
+    case BenchSemantics::BoundedI64:
+      return "exact_output_tile_max_abs_v1";
+    case BenchSemantics::BoundedU64:
+      return "exact_output_tile_max_unsigned_v1";
+    case BenchSemantics::WrapU64Mod2_64:
+      return "none";
+  }
+  return "unknown";
+}
+
+bool adaptive_execution_applied(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result) {
+  return args.bound_mode == BoundMode::PerTile && info.backend == RNS8_BACKEND_HIP_DIRECT &&
+         schedule_uses_adaptive_work(result);
+}
+
+const char* selected_kernel_name(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result) {
+  if (adaptive_execution_applied(args, info, result)) {
+    return "direct_hip_tiled_rns_gemm_v1";
+  }
+  return nullptr;
+}
+
 void print_json(
     const Args& args,
     const rns8_device_info& info,
@@ -1114,11 +1368,13 @@ void print_json(
   const double avg_export_us = average(result.samples.export_us);
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
-  const bool per_modulus_estimate_applicable = prefix > 0;
+  const bool adaptive_applied = adaptive_execution_applied(args, info, result);
+  const bool per_modulus_estimate_applicable = prefix > 0 && !adaptive_applied;
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const bool wrap64_hip_events = gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64;
+  const bool adaptive_hip_events = gpu_events_available && adaptive_applied;
   const char* gpu_event_reason = gpu_events_available
                                      ? "captured_by_direct_hip_backend_hooks"
                                      : (result.gpu_events.requested ? "backend_event_capture_incomplete"
@@ -1133,9 +1389,17 @@ void print_json(
   std::cout << "  \"benchmark\": \"" << benchmark_name(args) << "\",\n";
   std::cout << "  \"backend_requested\": \"" << backend_name(args.backend) << "\",\n";
   std::cout << "  \"backend_selected\": \"" << backend_name(info.backend) << "\",\n";
-  std::cout << "  \"selected_kernel\": null,\n";
+  const char* selected_kernel = selected_kernel_name(args, info, result);
+  std::cout << "  \"selected_kernel\": ";
+  if (selected_kernel) {
+    std::cout << "\"" << selected_kernel << "\"";
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
-  std::cout << "  \"bound_kind\": \"" << bound_kind_name(args.semantics) << "\",\n";
+  std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
+  std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";
   std::cout << "  \"bound\": " << bound << ",\n";
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
@@ -1149,6 +1413,20 @@ void print_json(
                                                                   : std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK))
             << ",\n";
   std::cout << "  \"adaptive_tile_size\": null,\n";
+  std::cout << "  \"tile_bounds_u64\": ";
+  if (args.bound_mode == BoundMode::PerTile) {
+    std::cout << "{\n";
+    std::cout << "    \"source\": \"exact_seeded_input_prepass\",\n";
+    std::cout << "    \"pattern\": \"" << tile_bound_pattern(args) << "\",\n";
+    std::cout << "    \"order\": \"row_major_output_tiles\",\n";
+    std::cout << "    \"count\": " << result.tile_bounds.size() << ",\n";
+    std::cout << "    \"min\": " << result.tile_bound_min << ",\n";
+    std::cout << "    \"max\": " << result.tile_bound_max << ",\n";
+    std::cout << "    \"hash_u64\": " << result.tile_bound_hash << "\n";
+    std::cout << "  },\n";
+  } else {
+    std::cout << "null,\n";
+  }
   std::cout << "  \"schedule_metadata\": {\n";
   std::cout << "    \"source\": \"rns8_get_plan_schedule_info\",\n";
   std::cout << "    \"tile_m\": " << result.schedule_info.tile_m << ",\n";
@@ -1165,7 +1443,7 @@ void print_json(
             << (result.schedule_info.adaptive_prefix_active ? "true" : "false") << ",\n";
   std::cout << "    \"adaptive_skip_active\": "
             << (result.schedule_info.adaptive_skip_active ? "true" : "false") << ",\n";
-  std::cout << "    \"adaptive_execution_applied\": false,\n";
+  std::cout << "    \"adaptive_execution_applied\": " << (adaptive_applied ? "true" : "false") << ",\n";
   std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
   std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";
@@ -1202,6 +1480,10 @@ void print_json(
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
+  } else if (adaptive_applied) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP adaptive per-tile bounded "
+                 "correctness path; GPU event timing aggregates all selected-prefix tiled GEMM launches and tiled "
+                 "CRT export work into backend operation-group labels\",\n";
   } else {
     std::cout << "  \"timing_note\": \"host wall-clock timings; direct-HIP calls include current backend "
                  "synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, "
@@ -1218,16 +1500,21 @@ void print_json(
             << (gpu_events_available ? "\"hipEventElapsedTime\"" : "null") << ",\n";
   std::cout << "    \"gpu_event_timing_source_scope\": "
             << (gpu_events_available
-                    ? (wrap64_hip_events ? "\"direct_hip_wrap64_comba_default_stream_backend_operation_groups\""
-                                         : "\"direct_hip_default_stream_backend_operation_groups\"")
+                    ? (wrap64_hip_events
+                           ? "\"direct_hip_wrap64_comba_default_stream_backend_operation_groups\""
+                           : (adaptive_hip_events
+                                  ? "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\""
+                                  : "\"direct_hip_default_stream_backend_operation_groups\""))
                     : "null")
             << ",\n";
   std::cout << "    \"gpu_event_timing_caveat\": "
             << (wrap64_hip_events
                     ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a one-thread-per-output Comba correctness kernel and schema-compatible rns_gemm/crt_export aggregate aliases; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
-                    : (gpu_events_available
-                           ? "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead not represented on the HIP stream\""
-                           : "null"))
+                    : (adaptive_hip_events
+                           ? "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
+                           : (gpu_events_available
+                                  ? "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead not represented on the HIP stream\""
+                                  : "null")))
             << ",\n";
   if (!gpu_events_available && !result.gpu_events.unavailable_reasons.empty()) {
     std::cout << "    \"gpu_event_timing_unavailable_reasons\": ";

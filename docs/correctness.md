@@ -66,13 +66,17 @@ Implemented correctness coverage:
   the CPU reference, cover tile-local range errors, padded host export layouts,
   schedule parity, and verify skipped residue planes above each tile's selected
   prefix remain untouched on device.
+- Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
+  exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
+  adaptive execution flags, and aggregate HIP event timing scope. This is
+  benchmark evidence metadata for the correctness path, not an optimized GPU
+  performance claim.
 - Private direct HIP strict `mod 2^64` byte-limb Comba kernel smoke also
   remains as low-level coverage. The public and private HIP wrap64 tests are
   correctness coverage, not optimized 36 byte-GEMM performance evidence.
 
 Not yet implemented:
 
-- Benchmark capture/schema support for adaptive per-tile bounded runs.
 - Optimized strict `mod 2^64` GPU byte-GEMM kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
