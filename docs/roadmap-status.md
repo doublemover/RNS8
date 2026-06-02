@@ -72,17 +72,18 @@ disagree, the spec remains the target and this file identifies the gap.
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
   from wrap descriptors. The CPU reference also includes an exhaustively tested
   signed-INT8 correction helper for reconstructing unsigned byte products when
-  future accelerator paths expose only signed INT8 products, plus a 36-byte-GEMM
-  decomposition oracle that matches Boost low-64 results and the current Comba
-  reference.
+  future accelerator paths expose only signed INT8 products, plus a
+  36-byte-pair decomposition oracle over the low eight Comba diagonals that
+  matches Boost low-64 results and the current Comba reference.
 - Public direct-HIP strict wrap64 byte-limb correctness path: HIP_DIRECT wrap
   matrices own device byte-limb buffers, pack/GEMM/export consume those buffers
   without RNS residue allocation, public one-shot and persistent APIs match the
   CPU byte-limb reference, padded host export layouts are tested, and repeated
   same-shape export reuses the matrix-owned export buffer. The GEMM kernel is
   now an inspectable tiled byte-limb correctness path that sums the same
-  low-product byte diagonals with device-side signed-INT8 correction and then
-  carries into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
+  low eight byte-product diagonals with device-side signed-INT8 correction for
+  the 36 byte-product pairs that can affect the low 64 bits and then carries
+  into the low 64 bits; it is not an optimized matrix-engine byte-GEMM
   accelerator path.
 - Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
   plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or

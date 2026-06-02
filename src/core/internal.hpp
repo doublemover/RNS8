@@ -171,7 +171,7 @@ cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, i
 int32_t wrap64_signed_i8_product_correction(uint8_t a, uint8_t b);
 uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b);
 uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b);
-uint64_t wrap64_byte_gemm36_cell(
+uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(
     const uint64_t* A,
     int64_t lda,
     const uint64_t* B,

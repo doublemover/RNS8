@@ -188,12 +188,13 @@ reconstruction, and reject bounds or prefixes in the descriptor as invalid
 arguments.
 
 The direct HIP wrap64 path is a tiled byte-limb correctness kernel. It stages
-16x16 output tiles through K tiles while each output still sums the 36
-low-product byte diagonals with the same signed-INT8 correction algebra as the
-CPU oracle, performs one deterministic carry pass into the low 64 bits, keeps
-A/B/C byte-limb storage device-resident across pack/GEMM/export, and is tested
-against the CPU byte-limb reference. It is not an optimized matrix-engine
-byte-GEMM accelerator path, and it is not performance evidence.
+16x16 output tiles through K tiles while each output sums the low eight Comba
+product diagonals with the same signed-INT8 correction algebra as the CPU
+oracle for the 36 byte-product pairs that can affect the low 64 bits, performs
+one deterministic carry pass into the low 64 bits, keeps A/B/C byte-limb
+storage device-resident across pack/GEMM/export, and is tested against the CPU
+byte-limb reference. It is not an optimized matrix-engine byte-GEMM accelerator
+path, and it is not performance evidence.
 
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and
@@ -201,13 +202,19 @@ device buffers are compact row-major `rows * cols * 8` storage. The direct-HIP
 wrapper validates that compact byte-limb layout separately from padded host
 pitch so wrap64 cannot route through RNS residue storage or treat host padding
 as device limbs. CPU wrap64 GEMM consumes the same compact resident byte-limb
-layout and accumulates the low 36 byte-product diagonals with the signed-INT8
+layout and accumulates only the low eight Comba diagonals, covering the 36
+byte-product pairs that can affect the low 64 bits, with the signed-INT8
 correction helper before carry export; it does not reread padded host matrices
 after pack. CPU wrap64 GEMM also rejects matrices carrying stale residue
 currentness, device byte-limb currentness, or bounded per-tile schedule metadata.
 The public CPU and direct-HIP wrap64 pack/GEMM/export boundaries reject stale
-RNS residue currentness, CRT prefixes, bounded schedule fields, and residue
-storage before backend dispatch; those fields are not alternate wrap64 routes.
+RNS residue currentness, CRT prefixes, bounded schedule fields, stale tile
+geometry, and residue storage before backend dispatch; those fields are not
+alternate wrap64 routes.
+Public one-shot descriptors and wrap matrix descriptors also validate stale
+bound, prefix, tile-bound, flag, and layout metadata before backend availability:
+malformed wrap metadata is `RNS8_INVALID_ARGUMENT`, while a valid wrap contract
+on an unavailable backend remains `RNS8_UNSUPPORTED_BACKEND`.
 On HIP, wrap64 GEMM and export require device-current byte limbs. A
 host-current/device-stale wrap matrix is invalid at GEMM/export instead of
 being uploaded implicitly; `rns8_pack_u64` is the public host-to-device ingress
@@ -216,10 +223,11 @@ for strict wrap64 inputs, and GEMM is the device-current producer for outputs.
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from
 the product a signed INT8 accelerator would expose plus a deterministic
-correction term. It also includes a separate 36-byte-GEMM decomposition oracle
-that sums byte-product diagonals and then performs Comba carry propagation. The
-direct HIP correctness kernel consumes the same correction algebra at device
-source level; no signed-INT8 accelerator backend is enabled by this.
+correction term. It also includes a separate 36-byte-pair decomposition oracle
+that sums the low eight byte-product diagonals and then performs Comba carry
+propagation. The direct HIP correctness kernel consumes the same correction
+algebra at device source level; no signed-INT8 accelerator backend is enabled
+by this.
 
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain accelerator candidates
 only. Shallow discovery, compile/link probes, or builtin availability notes do
