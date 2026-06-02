@@ -95,21 +95,21 @@ disagree, the spec remains the target and this file identifies the gap.
   schedules before GEMM launch or export/status buffer allocation.
 - Benchmark schema v4: benchmark captures include an explicit integer
   `"schema_version": 4`, command line, live git commit, compiler/HIP/device
-  metadata, raw timings, summaries, configured HIP toolchain metadata, null
-  placeholders for unavailable fields, direct-HIP GPU event timing arrays when
-  complete, exact `hipEventElapsedTime` source/scope validation for direct-HIP
-  event captures, mandatory declared GPU event phase order with exact timing-key
-  matching, `gpu_event_phase_order: null` plus explicit unavailable metadata
-  when event timing is not applicable, strict wrap64 CPU and direct-HIP
+  metadata, raw timings, summaries, configured HIP toolchain metadata, explicit
+  null values for unavailable timing sources, direct-HIP GPU event timing arrays
+  when complete, exact `hipEventElapsedTime` source/scope validation for
+  direct-HIP event captures, mandatory declared GPU event phase order with exact
+  timing-key matching, `gpu_event_phase_order: null` plus explicit unavailable
+  metadata when event timing is not applicable, strict wrap64 CPU and direct-HIP
   byte-limb benchmark metadata, fixed-prefix schedule metadata, measured
   schedule-info query timing, explicit
   phase-availability metadata for fused or not-applicable reduction, direct-HIP
   per-tile adaptive bounded capture
   metadata, schema validation tooling, CTest coverage for schema self-tests,
   current fixtures, and same-contract result comparison, and comparison-tool
-  support for current schema v4 plus capture-specific GPU event phase orders. Adaptive captures
-  are evidence for the direct-HIP tiled correctness path only; they are not
-  optimized matrix-engine performance claims.
+  support for current schema v4 plus capture-specific GPU event phase orders.
+  Adaptive captures are evidence for the direct-HIP tiled correctness path only;
+  they are not optimized matrix-engine performance claims.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -210,7 +210,8 @@ disagree, the spec remains the target and this file identifies the gap.
   rocWMMA, or AMDGPU builtin backends. Current opt-in probes are compile/link
   and tiny runtime evidence only.
 - Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
-  signed-INT8 correction algebra, and production GPU differential tests.
+  signed-INT8 correction algebra, and broader production-host/device validation
+  beyond the current Windows direct-HIP CPU differentials.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -224,19 +225,22 @@ This section records lead-run integration evidence from prior checkpoints. It
 does not promote ignored `temp/` captures or historical schema versions into the
 current tracked schema contract.
 
-- `git diff --check`: passed for the current implementation patch.
-- `cmake --preset windows-msvc-hip-debug`: configured successfully with the
-  vcpkg toolchain from the VS developer environment.
-- `cmake --build --preset windows-debug`: built successfully, including the
-  explicit hipcc direct-HIP and wrap64 HIP kernel objects.
-- `ctest --preset windows-debug --output-on-failure`: 132/132 passed on the
-  Windows HIP debug build; the private mismatched-modulus metadata smoke remains
+- `git diff --check`: passed after the current hard-cut integration patch.
+- `ctest --preset windows-debug --output-on-failure`: 157/157 passed on the
+  Windows HIP debug build. The private mismatched-modulus metadata smoke remains
   intentionally skipped when the low-level direct-HIP device entry point is
   unavailable to that test process.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
   and wrap64 smoke passed.
-- `python tools\test_benchmark_schema.py`: benchmark schema self-test passed.
+- Recent pushed hard-cut commits through `6fbccd9` add device-current direct-HIP
+  RNS input/export enforcement, matrix-owned bounded export schedule/bounds
+  metadata, tiled wrap64 compact-cell staging, removal of retired host-residue
+  export synchronization, removal of unused HIP workspace scratch state,
+  exact-wide fixed-width ABI/readiness hardening, and CRT/prefix-9 CPU coverage.
+- Benchmark schema coverage ran inside the Windows CTest pass:
+  `benchmark_schema_self_test`, `benchmark_schema_current_fixtures`, and
+  `benchmark_result_compare_same_contract` all passed.
 - Verified post-`8bb336c` implementation patch tightens direct-HIP private
   tiled schedule rejection and selected-prefix grouping, adds larger padded
   wrap64 resident tile-tail parity, strengthens exact-wide fixed-width limb
