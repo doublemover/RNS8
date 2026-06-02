@@ -19,7 +19,8 @@ Current status:
   GEMM, and low-64-bit export. It keeps strict wraparound arithmetic separate
   from the odd-modulus CRT path. It also contains the signed-INT8 correction
   algebra future accelerator paths must use when unsigned byte products are
-  computed through signed INT8 hardware instructions.
+  computed through signed INT8 hardware instructions, plus a 36-byte-GEMM
+  decomposition oracle for the future optimized GPU path.
 - `wrap64_hip_kernels.hip` contains direct-HIP pack, one-thread-per-output
   byte-limb Comba GEMM, and export kernels. The public HIP_DIRECT one-shot and
   persistent wrap64 APIs use matrix-owned device byte-limb storage and are

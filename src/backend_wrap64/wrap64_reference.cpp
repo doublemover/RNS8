@@ -1,5 +1,7 @@
 #include "core/internal.hpp"
 
+#include <array>
+
 namespace rns8::detail {
 
 namespace {
@@ -38,6 +40,38 @@ uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b) {
       column += a_byte * b_byte;
     }
     out |= (column & 0xffu) << (8u * diagonal);
+    carry = column >> 8u;
+  }
+  return out;
+}
+
+uint64_t wrap64_byte_gemm36_cell(
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    int64_t row,
+    int64_t col,
+    int64_t k) {
+  std::array<cpp_int, 8> diagonals{};
+  for (int64_t kk = 0; kk < k; ++kk) {
+    const uint64_t a_value = A[row * lda + kk];
+    const uint64_t b_value = B[kk * ldb + col];
+    for (uint32_t a_limb = 0; a_limb < 8; ++a_limb) {
+      const auto a_byte = static_cast<uint8_t>((a_value >> (8u * a_limb)) & 0xffu);
+      for (uint32_t b_limb = 0; b_limb + a_limb < 8; ++b_limb) {
+        const auto b_byte = static_cast<uint8_t>((b_value >> (8u * b_limb)) & 0xffu);
+        diagonals[a_limb + b_limb] += wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte);
+      }
+    }
+  }
+
+  uint64_t out = 0;
+  cpp_int carry = 0;
+  for (uint32_t diagonal = 0; diagonal < 8; ++diagonal) {
+    const cpp_int column = diagonals[diagonal] + carry;
+    const uint64_t byte = static_cast<uint64_t>(column & 0xffu);
+    out |= byte << (8u * diagonal);
     carry = column >> 8u;
   }
   return out;
