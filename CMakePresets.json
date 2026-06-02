@@ -1,0 +1,120 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc-hip-debug",
+      "displayName": "Windows MSVC + HIP SDK + vcpkg (Debug)",
+      "description": "Windows Radeon bring-up preset using Ninja, vcpkg, and explicit HIP SDK paths.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-msvc-hip-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_HIP_ROOT": "C:/Program Files/AMD/ROCm/7.1",
+        "RNS8_AMDGPU_TARGETS": "gfx1100",
+        "RNS8_ENABLE_GMP": "ON",
+        "RNS8_ENABLE_FLINT": "ON"
+      }
+    },
+    {
+      "name": "windows-msvc-hip-release",
+      "displayName": "Windows MSVC + HIP SDK + vcpkg (Release)",
+      "inherits": "windows-msvc-hip-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-hip-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-rocm-debug",
+      "displayName": "Linux ROCm + vcpkg (Debug)",
+      "description": "Linux ROCm production/profiling preset. Requires VCPKG_ROOT and ROCm installed on the Linux host.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-rocm-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
+        "RNS8_ENABLE_GMP": "ON",
+        "RNS8_ENABLE_FLINT": "ON"
+      }
+    },
+    {
+      "name": "linux-rocm-release",
+      "displayName": "Linux ROCm + vcpkg (Release)",
+      "inherits": "linux-rocm-debug",
+      "binaryDir": "${sourceDir}/build/linux-rocm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-msvc-hip-debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-msvc-hip-release"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-rocm-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-rocm-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-msvc-hip-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-msvc-hip-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-rocm-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-rocm-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
