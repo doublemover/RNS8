@@ -89,6 +89,22 @@ void check_unsigned_residues(
   }
 }
 
+std::vector<uint64_t> unsigned_limbs(boost::multiprecision::cpp_int value, uint32_t limb_count) {
+  std::vector<uint64_t> limbs(limb_count);
+  for (uint32_t limb = 0; limb < limb_count; ++limb) {
+    limbs[limb] = static_cast<uint64_t>(value & boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()));
+    value >>= 64u;
+  }
+  return limbs;
+}
+
+std::vector<uint64_t> signed_twos_complement_limbs(boost::multiprecision::cpp_int value, uint32_t limb_count) {
+  if (value < 0) {
+    value += boost::multiprecision::cpp_int(1) << (64u * limb_count);
+  }
+  return unsigned_limbs(value, limb_count);
+}
+
 }  // namespace
 
 TEST_CASE("exact-wide signed CPU RNS output matches multiprecision residues") {
@@ -126,6 +142,19 @@ TEST_CASE("exact-wide signed CPU RNS output matches multiprecision residues") {
   REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
 
   check_signed_residues(*c_matrix, A, k, B, n, m, n, k);
+  constexpr uint32_t limb_count = 3;
+  std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, limb_count) == RNS8_SUCCESS);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      const auto exact = rns8::detail::exact_i64_gemm_cell(A, k, B, n, row, col, k);
+      const auto expected = signed_twos_complement_limbs(exact, limb_count);
+      const std::size_t offset = static_cast<std::size_t>((row * n + col) * limb_count);
+      CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
+    }
+  }
+  CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(rns8_export_i64(ctx, plan, c_matrix, reinterpret_cast<int64_t*>(limbs.data()), n) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -166,6 +195,19 @@ TEST_CASE("exact-wide unsigned CPU RNS output matches multiprecision residues") 
   REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
 
   check_unsigned_residues(*c_matrix, A, k, B, n, m, n, k);
+  constexpr uint32_t limb_count = 3;
+  std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, limb_count) == RNS8_SUCCESS);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      const auto exact = rns8::detail::exact_u64_gemm_cell(A, k, B, n, row, col, k);
+      const auto expected = unsigned_limbs(exact, limb_count);
+      const std::size_t offset = static_cast<std::size_t>((row * n + col) * limb_count);
+      CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
+    }
+  }
+  CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(rns8_export_u64(ctx, plan, c_matrix, limbs.data(), n) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);

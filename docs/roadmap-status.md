@@ -32,13 +32,15 @@ disagree, the spec remains the target and this file identifies the gap.
 - Exact-wide RNS output: exact-wide signed and unsigned semantics accept
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
-  Boost.Multiprecision residue oracles.
+  Boost.Multiprecision residue oracles. CPU little-endian limb export is
+  implemented for signed two's-complement and unsigned magnitude output.
 - Strict wraparound reference: internal CPU byte-limb Comba product and GEMM-cell
   reference paths match Boost.Multiprecision low-64-bit results. The public
   wraparound backend remains unsupported.
 - Benchmark schema v2: benchmark captures include stable schema version, command
-  line, git commit, compiler/HIP/device metadata, raw timings, summaries, null
-  placeholders for unavailable fields, and comparison-tool support for v1/v2.
+  line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
+  null placeholders for unavailable fields, explicit GPU event timing
+  unavailable metadata, and comparison-tool support for v1/v2.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only.
@@ -53,7 +55,7 @@ disagree, the spec remains the target and this file identifies the gap.
   adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Exact-wide scalar or multi-limb export ABI, CPU export, or GPU export.
+- Exact-wide GPU export.
 - Public strict `mod 2^64` byte-limb backend, unsigned-byte packing, GPU byte
   GEMMs, signed-INT8 bias correction, and GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
@@ -73,7 +75,12 @@ disagree, the spec remains the target and this file identifies the gap.
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP smoke passed.
+- `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
+  HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
+  Windows host.
 - Benchmark captures are kept under `temp/`:
   `rns8-cpu-bounded-i64.json`, `rns8-cpu-bounded-u64.json`,
-  `rns8-hip-bounded-u64.json`, and `rns8-hip-bounded-u64-repeat.json`.
-  They are raw evidence only and do not establish a performance claim.
+  `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`, and
+  `rns8-hip-bounded-u64-exactwide-limb-export.json`. The latest HIP capture
+  checked schema v2, `gfx1100`, live `git_commit`, and nullable GPU event timing
+  fields. They are raw evidence only and do not establish a performance claim.

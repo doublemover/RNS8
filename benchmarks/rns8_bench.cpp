@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -17,6 +19,10 @@
 
 #ifndef RNS8_GIT_COMMIT
 #  define RNS8_GIT_COMMIT "unknown"
+#endif
+
+#ifndef RNS8_SOURCE_DIR
+#  define RNS8_SOURCE_DIR "."
 #endif
 
 namespace {
@@ -218,6 +224,50 @@ std::string command_line(int argc, char** argv) {
     out << argv[i];
   }
   return out.str();
+}
+
+std::string trim_ascii_whitespace(std::string value) {
+  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' || value.back() == '\t')) {
+    value.pop_back();
+  }
+  std::size_t first = 0;
+  while (first < value.size() && (value[first] == '\n' || value[first] == '\r' || value[first] == ' ' || value[first] == '\t')) {
+    ++first;
+  }
+  if (first > 0) {
+    value.erase(0, first);
+  }
+  return value;
+}
+
+std::string runtime_git_commit() {
+#if defined(_WIN32)
+  const std::string command =
+      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>NUL";
+  FILE* pipe = _popen(command.c_str(), "r");
+#else
+  const std::string command =
+      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>/dev/null";
+  FILE* pipe = popen(command.c_str(), "r");
+#endif
+  if (!pipe) {
+    return RNS8_GIT_COMMIT;
+  }
+  std::array<char, 64> buffer{};
+  std::string output;
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
+    output += buffer.data();
+  }
+#if defined(_WIN32)
+  const int close_status = _pclose(pipe);
+#else
+  const int close_status = pclose(pipe);
+#endif
+  output = trim_ascii_whitespace(output);
+  if (close_status != 0 || output.empty()) {
+    return RNS8_GIT_COMMIT;
+  }
+  return output;
 }
 
 std::string compiler_id() {
@@ -579,7 +629,7 @@ void print_json(
                                                              : "unsigned_uniform_0_16")
             << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
-  std::cout << "  \"git_commit\": \"" << json_escape(RNS8_GIT_COMMIT) << "\",\n";
+  std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
   std::cout << "  \"compiler\": {\n";
   std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
@@ -606,7 +656,17 @@ void print_json(
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"gpu_event_timing\": false,\n";
-  std::cout << "    \"gpu_event_timing_reason\": \"not_collected_by_this_schema\",\n";
+  std::cout << "    \"gpu_event_timing_reason\": \"requires_backend_or_public_timing_hooks\",\n";
+  std::cout << "    \"gpu_event_timing_status\": \"unavailable_without_wrapping_backend_launches_and_copies\",\n";
+  std::cout << "    \"gpu_event_timing_audit\": {\n";
+  std::cout << "      \"public_api_wrapping_rejected\": true,\n";
+  std::cout << "      \"public_api_wrapping_reason\": \"rns8 public calls currently hide direct-HIP copies, kernel launches, default stream selection, and internal synchronization; external events would not produce complete per-phase GPU timings\",\n";
+  std::cout << "      \"minimum_required_hooks\": [\n";
+  std::cout << "        \"backend timing capture around each direct-HIP memcpy, memset, kernel-launch group, and synchronization point\",\n";
+  std::cout << "        \"stable phase labels for pack, rns_gemm, crt_export, and optional subphases\",\n";
+  std::cout << "        \"benchmark-visible timing query that reports unavailable phases as null instead of synthesized values\"\n";
+  std::cout << "      ]\n";
+  std::cout << "    },\n";
   std::cout << "    \"phase_order\": [\"planning\", \"matrix_alloc\", \"pack\", \"rns_gemm\", \"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"phase_notes\": {\n";
   std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
@@ -617,6 +677,8 @@ void print_json(
   std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
   std::cout << "    }\n";
   std::cout << "  },\n";
+  std::cout << "  \"gpu_event_timings_us\": null,\n";
+  std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
   std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";

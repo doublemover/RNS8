@@ -31,6 +31,21 @@ uint32_t mod_inverse(uint32_t a, uint32_t modulus) {
   return static_cast<uint32_t>(t);
 }
 
+bool fits_uint64(const cpp_int& value) {
+  return value >= 0 && value <= cpp_int(std::numeric_limits<uint64_t>::max());
+}
+
+bool fits_int64(const cpp_int& value) {
+  return value >= cpp_int(std::numeric_limits<int64_t>::min()) &&
+         value <= cpp_int(std::numeric_limits<int64_t>::max());
+}
+
+cpp_int abs_cpp(const cpp_int& value) {
+  return value < 0 ? -value : value;
+}
+
+}  // namespace
+
 cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix) {
   cpp_int x = 0;
   cpp_int product = 1;
@@ -54,21 +69,6 @@ cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t pref
   }
   return x;
 }
-
-bool fits_uint64(const cpp_int& value) {
-  return value >= 0 && value <= cpp_int(std::numeric_limits<uint64_t>::max());
-}
-
-bool fits_int64(const cpp_int& value) {
-  return value >= cpp_int(std::numeric_limits<int64_t>::min()) &&
-         value <= cpp_int(std::numeric_limits<int64_t>::max());
-}
-
-cpp_int abs_cpp(const cpp_int& value) {
-  return value < 0 ? -value : value;
-}
-
-}  // namespace
 
 rns8_status reconstruct_unsigned(
     const std::vector<int8_t>& residues,
@@ -118,5 +118,56 @@ rns8_status reconstruct_signed(
   return RNS8_SUCCESS;
 }
 
-}  // namespace rns8::detail
+rns8_status export_exact_wide_unsigned_limbs(
+    const std::vector<int8_t>& residues,
+    uint32_t prefix,
+    uint64_t* out,
+    uint32_t limb_count) {
+  if (!out || residues.size() < prefix || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX || limb_count == 0 ||
+      limb_count > 32) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  cpp_int value = reconstruct_canonical(residues, prefix);
+  const cpp_int limit = cpp_int(1) << (64u * limb_count);
+  if (value < 0 || value >= limit) {
+    return RNS8_RANGE_ERROR;
+  }
+  for (uint32_t limb = 0; limb < limb_count; ++limb) {
+    out[limb] = static_cast<uint64_t>(value & cpp_int(std::numeric_limits<uint64_t>::max()));
+    value >>= 64u;
+  }
+  return RNS8_SUCCESS;
+}
 
+rns8_status export_exact_wide_signed_limbs(
+    const std::vector<int8_t>& residues,
+    uint32_t prefix,
+    uint64_t* out,
+    uint32_t limb_count) {
+  if (!out || residues.size() < prefix || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX || limb_count == 0 ||
+      limb_count > 32) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const cpp_int product = modulus_product(prefix);
+  cpp_int value = reconstruct_canonical(residues, prefix);
+  if (value > product / 2) {
+    value -= product;
+  }
+
+  const uint32_t bits = 64u * limb_count;
+  const cpp_int min_value = -(cpp_int(1) << (bits - 1u));
+  const cpp_int max_value = (cpp_int(1) << (bits - 1u)) - 1;
+  if (value < min_value || value > max_value) {
+    return RNS8_RANGE_ERROR;
+  }
+  if (value < 0) {
+    value += cpp_int(1) << bits;
+  }
+  for (uint32_t limb = 0; limb < limb_count; ++limb) {
+    out[limb] = static_cast<uint64_t>(value & cpp_int(std::numeric_limits<uint64_t>::max()));
+    value >>= 64u;
+  }
+  return RNS8_SUCCESS;
+}
+
+}  // namespace rns8::detail

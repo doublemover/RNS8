@@ -137,6 +137,22 @@ RNS8_API rns8_status rns8_export_u64(
     uint64_t* dst,
     int64_t ld);
 
+RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
+
+RNS8_API rns8_status rns8_export_exact_wide_unsigned_limbs(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* C,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
+
 RNS8_API rns8_status rns8_gemm_i64_oneshot(
     rns8_context* ctx,
     const rns8_gemm_desc* desc,
@@ -162,4 +178,3 @@ RNS8_API rns8_status rns8_gemm_u64_oneshot(
 #endif
 
 #endif
-

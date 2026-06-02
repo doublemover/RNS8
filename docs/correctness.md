@@ -30,6 +30,10 @@ Implemented correctness coverage:
 - Exact-wide signed and unsigned RNS-output tests for CPU and direct HIP,
   including full-width 64-bit inputs that are compared against
   Boost.Multiprecision residue oracles.
+- Exact-wide signed and unsigned CPU limb export tests. Signed export is
+  fixed-width little-endian two's-complement, unsigned export is fixed-width
+  little-endian magnitude, and both report range errors when too few limbs are
+  supplied.
 - Internal strict `mod 2^64` byte-limb product and GEMM-cell reference tests
   compared against Boost.Multiprecision low-64-bit results. The public
   wraparound backend remains unsupported.
@@ -45,7 +49,7 @@ Implemented correctness coverage:
 Not yet implemented:
 
 - Per-tile adaptive bounds.
-- Exact-wide scalar/multi-limb export ABI and GPU reconstruction.
+- Exact-wide GPU reconstruction.
 - Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
   path.
 - Public strict `mod 2^64` byte-limb GEMM backend and GPU kernels.
@@ -59,8 +63,8 @@ Semantic guardrail:
   inside the stated range.
 - `RNS8_EXACT_WIDE_SIGNED` and `RNS8_EXACT_WIDE_UNSIGNED` are not aliases for
   bounded 64-bit export with a larger prefix. They support persistent RNS output
-  with `RNS8_BOUND_NONE`; scalar or multi-limb export remains unsupported until
-  a public ABI/storage contract is added and tested.
+  with `RNS8_BOUND_NONE` and explicit CPU little-endian limb export. GPU
+  exact-wide export remains a separate unsupported milestone.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested
