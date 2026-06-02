@@ -89,7 +89,7 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
     case RNS8_EXACT_WIDE_SIGNED:
     case RNS8_EXACT_WIDE_UNSIGNED:
     case RNS8_WRAP_U64_MOD_2_64:
-      return 0;
+      return RNS8_DEFAULT_BOUNDED_PREFIX;
   }
   return 0;
 }
@@ -174,4 +174,3 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
 }
 
 }  // namespace rns8::detail
-

@@ -148,6 +148,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_crt.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_semantics.cpp
     tests/differential/test_hip_direct.cpp
   )
   target_include_directories(

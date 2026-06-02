@@ -19,6 +19,10 @@ Implemented correctness coverage:
   dimensions and Boost.Multiprecision exact oracles.
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
+- Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, and
+  exact-wide, finite-ring, finite-field, strict wraparound, and future
+  accelerator backend requests report unsupported instead of falling through to
+  bounded CRT behavior.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
