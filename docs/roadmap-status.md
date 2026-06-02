@@ -249,8 +249,11 @@ disagree, the spec remains the target and this file identifies the gap.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
-- Architecture hot kernels, autotune selection, and production performance gate
-  evaluation.
+- Architecture hot kernels, validated fastest-accelerator autotune promotion,
+  and production performance gate evaluation. The local autotune cache can now
+  be written by `rns8-bench --write-autotune-cache` and inspected by
+  `rns8-inspect --autotune-key`, but raw cache entries remain unreviewed until
+  separate validation promotes them.
 - Multi-GPU modulus split experiments.
 
 ## Latest Evidence
@@ -263,6 +266,11 @@ current tracked schema contract.
   after the reciprocal-reduction and ISA-gate work; the wrapper loads the
   Visual Studio developer environment automatically from a plain PowerShell
   shell.
+- `temp\autotune_bench.json` plus `temp\autotune_cache_smoke.json`: fixed-seed
+  strict wrap64 direct-HIP smoke for the side-band autotune cache writer.
+  `tools\benchmark_schema.py` accepted the emitted benchmark JSON, and
+  `rns8-inspect --autotune-key` reported an exact unvalidated cache hit from an
+  isolated `RNS8_AUTOTUNE_CACHE_PATH`.
 - `ctest --preset windows-debug --output-on-failure`: 167/167 passed on the
   Windows HIP debug build. The private mismatched-modulus/wrong-reciprocal
   metadata smoke now runs in HIP builds, and the HIP-only

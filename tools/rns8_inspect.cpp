@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 
+#include "core/autotune_cache.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -44,7 +45,7 @@ bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
 
 void print_usage(std::ostream& out) {
   out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
-      << " [--device N] [--json]\n";
+      << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache]\n";
 }
 
 const char* backend_name(rns8_backend_kind backend) {
@@ -97,6 +98,10 @@ std::string json_escape(const char* input) {
   return escaped;
 }
 
+std::string json_escape(const std::string& input) {
+  return json_escape(input.c_str());
+}
+
 void print_capability_text(const rns8_backend_capability_info& capability) {
   std::cout << "capability_status: " << capability.status << "\n";
   std::cout << "selected_kernel:   " << capability.selected_kernel << "\n";
@@ -114,7 +119,7 @@ void print_capability_text(const rns8_backend_capability_info& capability) {
   std::cout << "capability_detail: " << capability.detail << "\n";
 }
 
-void print_capability_json(const rns8_backend_capability_info& capability) {
+void print_capability_json(const rns8_backend_capability_info& capability, bool trailing_comma) {
   std::cout << "  \"capability\": {\n";
   std::cout << "    \"backend\": \"" << backend_name(capability.backend) << "\",\n";
   std::cout << "    \"backend_name\": \"" << json_escape(capability.backend_name) << "\",\n";
@@ -141,10 +146,95 @@ void print_capability_json(const rns8_backend_capability_info& capability) {
   std::cout << "    \"epilogue_mode\": \"" << json_escape(capability.epilogue_mode) << "\",\n";
   std::cout << "    \"workspace_mode\": \"" << json_escape(capability.workspace_mode) << "\",\n";
   std::cout << "    \"isa_evidence\": \"" << json_escape(capability.isa_evidence) << "\"\n";
+  std::cout << "  }" << (trailing_comma ? "," : "") << "\n";
+}
+
+void print_autotune_text(
+    const rns8::detail::AutotuneCacheSnapshot& snapshot,
+    const std::string& autotune_key,
+    const std::string& selected_backend,
+    bool show_entries) {
+  std::cout << "autotune_cache_path:   " << snapshot.path.string() << "\n";
+  std::cout << "autotune_cache_loaded: " << (snapshot.loaded ? 1 : 0) << "\n";
+  std::cout << "autotune_cache_exists: " << (snapshot.exists ? 1 : 0) << "\n";
+  std::cout << "autotune_entry_count:  " << snapshot.entries.size() << "\n";
+  if (!snapshot.error.empty()) {
+    std::cout << "autotune_cache_error:  " << snapshot.error << "\n";
+  }
+  if (!autotune_key.empty()) {
+    const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
+    std::cout << "autotune_key:          " << autotune_key << "\n";
+    std::cout << "autotune_exact_hit:    " << (hit ? 1 : 0) << "\n";
+    std::cout << "selection_rationale:   "
+              << rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend) << "\n";
+    if (hit) {
+      std::cout << "autotune_backend:      " << hit->selected_backend << "\n";
+      std::cout << "autotune_kernel:       " << hit->selected_kernel << "\n";
+      std::cout << "autotune_median_e2e:   " << hit->measured_median_end_to_end_us << "\n";
+    }
+  }
+  if (show_entries) {
+    for (const auto& entry : snapshot.entries) {
+      std::cout << "autotune_entry:        " << entry.selected_backend << " " << entry.selected_kernel
+                << " " << entry.key << "\n";
+    }
+  }
+}
+
+void print_autotune_json(
+    const rns8::detail::AutotuneCacheSnapshot& snapshot,
+    const std::string& autotune_key,
+    const std::string& selected_backend,
+    bool show_entries) {
+  const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
+  std::cout << "  \"autotune_cache\": {\n";
+  std::cout << "    \"path\": \"" << json_escape(snapshot.path.string()) << "\",\n";
+  std::cout << "    \"loaded\": " << (snapshot.loaded ? "true" : "false") << ",\n";
+  std::cout << "    \"exists\": " << (snapshot.exists ? "true" : "false") << ",\n";
+  std::cout << "    \"schema_version\": " << snapshot.schema_version << ",\n";
+  std::cout << "    \"entry_count\": " << snapshot.entries.size() << ",\n";
+  std::cout << "    \"error\": \"" << json_escape(snapshot.error) << "\",\n";
+  std::cout << "    \"queried_key\": \"" << json_escape(autotune_key) << "\",\n";
+  std::cout << "    \"exact_hit\": " << (hit ? "true" : "false") << ",\n";
+  std::cout << "    \"selection_rationale\": \""
+            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend))
+            << "\"";
+  if (hit) {
+    std::cout << ",\n";
+    std::cout << "    \"entry\": {\n";
+    std::cout << "      \"selected_backend\": \"" << json_escape(hit->selected_backend) << "\",\n";
+    std::cout << "      \"selected_kernel\": \"" << json_escape(hit->selected_kernel) << "\",\n";
+    std::cout << "      \"target_id\": \"" << json_escape(hit->target_id) << "\",\n";
+    std::cout << "      \"validation_status\": \"" << json_escape(hit->validation_status) << "\",\n";
+    std::cout << "      \"performance_validated\": " << (hit->performance_validated ? "true" : "false") << ",\n";
+    std::cout << "      \"measured_median_end_to_end_us\": " << hit->measured_median_end_to_end_us << "\n";
+    std::cout << "    }";
+  }
+  if (show_entries) {
+    std::cout << ",\n";
+    std::cout << "    \"entries\": [";
+    for (std::size_t i = 0; i < snapshot.entries.size(); ++i) {
+      const auto& entry = snapshot.entries[i];
+      std::cout << (i == 0 ? "\n" : ",\n");
+      std::cout << "      {\"key\": \"" << json_escape(entry.key) << "\", \"selected_backend\": \""
+                << json_escape(entry.selected_backend) << "\", \"selected_kernel\": \""
+                << json_escape(entry.selected_kernel) << "\"}";
+    }
+    if (!snapshot.entries.empty()) {
+      std::cout << "\n    ";
+    }
+    std::cout << "]";
+  }
+  std::cout << "\n";
   std::cout << "  }\n";
 }
 
-void print_text(const rns8_device_info& info, const rns8_backend_capability_info& capability) {
+void print_text(
+    const rns8_device_info& info,
+    const rns8_backend_capability_info& capability,
+    const rns8::detail::AutotuneCacheSnapshot* snapshot,
+    const std::string& autotune_key,
+    bool show_autotune_cache) {
   std::cout << "RNS8 inspect\n";
   std::cout << "backend:       " << backend_name(info.backend) << "\n";
   std::cout << "device_id:     " << info.device_id << "\n";
@@ -156,9 +246,17 @@ void print_text(const rns8_device_info& info, const rns8_backend_capability_info
   std::cout << "global_mem:    " << info.global_mem_bytes << "\n";
   std::cout << "detail:        " << info.detail << "\n";
   print_capability_text(capability);
+  if (snapshot) {
+    print_autotune_text(*snapshot, autotune_key, backend_name(info.backend), show_autotune_cache);
+  }
 }
 
-void print_json(const rns8_device_info& info, const rns8_backend_capability_info& capability) {
+void print_json(
+    const rns8_device_info& info,
+    const rns8_backend_capability_info& capability,
+    const rns8::detail::AutotuneCacheSnapshot* snapshot,
+    const std::string& autotune_key,
+    bool show_autotune_cache) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
   std::cout << "  \"device_id\": " << info.device_id << ",\n";
@@ -169,7 +267,10 @@ void print_json(const rns8_device_info& info, const rns8_backend_capability_info
   std::cout << "  \"hip_driver_version\": " << info.hip_driver_version << ",\n";
   std::cout << "  \"global_mem_bytes\": " << info.global_mem_bytes << ",\n";
   std::cout << "  \"detail\": \"" << json_escape(info.detail) << "\",\n";
-  print_capability_json(capability);
+  print_capability_json(capability, snapshot != nullptr);
+  if (snapshot) {
+    print_autotune_json(*snapshot, autotune_key, backend_name(info.backend), show_autotune_cache);
+  }
   std::cout << "}\n";
 }
 
@@ -177,13 +278,19 @@ void print_json(const rns8_device_info& info, const rns8_backend_capability_info
 
 int main(int argc, char** argv) {
   bool json = false;
+  bool show_autotune_cache = false;
   int device_id = -1;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  std::string autotune_key;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--json") {
       json = true;
+    } else if (arg == "--show-autotune-cache") {
+      show_autotune_cache = true;
+    } else if (arg == "--autotune-key" && i + 1 < argc) {
+      autotune_key = argv[++i];
     } else if (arg == "--backend" && i + 1 < argc) {
       const std::string value = argv[++i];
       if (!parse_backend(value, backend)) {
@@ -258,10 +365,16 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  rns8::detail::AutotuneCacheSnapshot snapshot{};
+  const bool inspect_autotune = show_autotune_cache || !autotune_key.empty();
+  if (inspect_autotune) {
+    snapshot = rns8::detail::read_autotune_cache();
+  }
+
   if (json) {
-    print_json(info, selected_capability);
+    print_json(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key, show_autotune_cache);
   } else {
-    print_text(info, selected_capability);
+    print_text(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key, show_autotune_cache);
   }
   return 0;
 }

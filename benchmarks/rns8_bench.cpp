@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "core/autotune_cache.hpp"
 #include "rns8/rns8.h"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -76,6 +77,7 @@ struct Args {
   BenchSemantics semantics = BenchSemantics::BoundedI64;
   BoundMode bound_mode = BoundMode::Global;
   bool require_adaptive_execution = false;
+  bool write_autotune_cache = false;
 };
 
 struct TimingSamples {
@@ -139,6 +141,7 @@ void mix_checksum(uint64_t& checksum, uint64_t value);
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--require-adaptive-execution]\n"
+      << "                  [--write-autotune-cache]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
 }
@@ -223,6 +226,8 @@ Args parse_args(int argc, char** argv) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
+    } else if (arg == "--write-autotune-cache") {
+      args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
           << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|wrap64-byte-limb]\n"
@@ -231,6 +236,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--require-adaptive-execution]\n"
+          << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
     } else {
@@ -694,6 +700,18 @@ double average(const std::vector<uint64_t>& values) {
     sum += value;
   }
   return static_cast<double>(sum) / static_cast<double>(values.size());
+}
+
+double median(std::vector<uint64_t> values) {
+  if (values.empty()) {
+    return 0.0;
+  }
+  std::sort(values.begin(), values.end());
+  const std::size_t middle = values.size() / 2;
+  if ((values.size() & 1u) != 0u) {
+    return static_cast<double>(values[middle]);
+  }
+  return (static_cast<double>(values[middle - 1]) + static_cast<double>(values[middle])) / 2.0;
 }
 
 double percentile(std::vector<uint64_t> values, double p) {
@@ -1492,6 +1510,69 @@ const char* selected_kernel_name(
   return nullptr;
 }
 
+int64_t benchmark_k_block_size(const Args& args) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    return args.k;
+  }
+  return std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK);
+}
+
+std::string schedule_hash_string(const Args& args, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << "tile_rows=" << result.schedule_info.tile_rows << ";tile_cols=" << result.schedule_info.tile_cols
+      << ";groups=" << result.schedule_info.prefix_group_count
+      << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
+      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";tile_bound_hash=" << (args.bound_mode == BoundMode::PerTile ? result.tile_bound_hash : 0);
+  return out.str();
+}
+
+std::string backend_version_for_cache(const BenchmarkResult& result) {
+  if (result.backend_info.accelerator_version[0] != '\0') {
+    return result.backend_info.accelerator_version;
+  }
+  if (RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION[0] != '\0') {
+    return RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION;
+  }
+  if (RNS8_CONFIGURED_HIPCC_VERSION[0] != '\0') {
+    return RNS8_CONFIGURED_HIPCC_VERSION;
+  }
+  return "unknown";
+}
+
+rns8::detail::AutotuneCacheEntry make_autotune_cache_entry(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result) {
+  rns8::detail::AutotuneCacheEntry entry{};
+  entry.key = result.backend_info.autotune_key;
+  entry.selected_backend = backend_name(info.backend);
+  entry.selected_kernel = result.backend_info.selected_kernel;
+  entry.target_id = info.gcn_arch[0] != '\0' ? info.gcn_arch : "cpu";
+  entry.hip_sdk_or_library_version = backend_version_for_cache(result);
+  entry.semantic_contract = semantics_name(args.semantics);
+  entry.m = args.m;
+  entry.n = args.n;
+  entry.k = args.k;
+  entry.layout = "row_major";
+  entry.prefix_schedule_hash = schedule_hash_string(args, result);
+  entry.k_block_size = benchmark_k_block_size(args);
+  entry.tile_m = args.tile_m;
+  entry.tile_n = args.tile_n;
+  entry.epilogue = epilogue_type(args);
+  entry.kernel_family = result.backend_info.selected_kernel;
+  entry.workspace_bytes = result.backend_info.workspace_required_bytes;
+  entry.measured_median_pack_us = median(result.samples.pack_us);
+  entry.measured_median_gemm_us = median(result.samples.gemm_us);
+  entry.measured_median_export_us = median(result.samples.export_us);
+  entry.measured_median_end_to_end_us = median(result.samples.end_to_end_us);
+  entry.performance_validated = result.backend_info.performance_validated != 0;
+  entry.validation_status =
+      entry.performance_validated ? "performance_validated" : "schema_v4_capture_emitted_unreviewed";
+  entry.schema_version = 1;
+  return entry;
+}
+
 void print_json(
     const Args& args,
     const rns8_device_info& info,
@@ -1586,8 +1667,7 @@ void print_json(
   std::cout << "  \"tile_n\": " << args.tile_n << ",\n";
   std::cout << "  \"layout\": \"row_major\",\n";
   std::cout << "  \"k_block_size\": "
-            << (args.semantics == BenchSemantics::WrapU64Mod2_64 ? args.k
-                                                                  : std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK))
+            << benchmark_k_block_size(args)
             << ",\n";
   std::cout << "  \"adaptive_tile_size\": null,\n";
   std::cout << "  \"tile_bounds_u64\": ";
@@ -1875,6 +1955,14 @@ int main(int argc, char** argv) {
       break;
   }
   rns8_destroy_context(ctx);
+  if (args.write_autotune_cache) {
+    std::string error;
+    if (!rns8::detail::write_autotune_cache_entry(make_autotune_cache_entry(args, info, result), error)) {
+      std::cerr << "write autotune cache: " << error << "\n";
+      return 1;
+    }
+    std::cerr << "autotune cache updated: " << rns8::detail::autotune_cache_path().string() << "\n";
+  }
   print_json(args, info, result, bound, cmdline);
   return 0;
 }
