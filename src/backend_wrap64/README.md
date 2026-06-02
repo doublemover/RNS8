@@ -23,7 +23,9 @@ Current status:
   GEMM, and low-64-bit export. It keeps strict wraparound arithmetic separate
   from the odd-modulus CRT path. It also contains the signed-INT8 correction
   algebra future accelerator paths must use when unsigned byte products are
-  computed through signed INT8 hardware instructions, plus a full byte-diagonal
+  computed through signed INT8 hardware instructions: signed byte product plus
+  explicit high-bit correction terms, not a shortcut through odd-modulus CRT or
+  a separate unsigned product. It also contains the full byte-diagonal
   decomposition oracle used by wrap64 correctness tests. Persistent CPU GEMM
   consumes compact resident byte-limb matrices directly after pack, not padded
   host storage.

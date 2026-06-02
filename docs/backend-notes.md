@@ -210,11 +210,13 @@ arguments.
 The direct HIP wrap64 path is a tiled byte-limb correctness kernel. It stages
 16x16 output tiles through K tiles while each output sums the low eight Comba
 product diagonals with the same signed-INT8 correction algebra as the CPU
-oracle for the 36 byte-product pairs that can affect the low 64 bits, performs
-one deterministic carry pass into the low 64 bits, keeps A/B/C byte-limb
-storage device-resident across pack/GEMM/export, and is tested against the CPU
-byte-limb reference. It is not an optimized matrix-engine byte-GEMM accelerator
-path, and it is not performance evidence.
+oracle for the 36 byte-product pairs that can affect the low 64 bits. That
+algebra is signed byte product plus explicit high-bit correction terms, not a
+separate unsigned-product shortcut. The kernel performs one deterministic carry
+pass into the low 64 bits, keeps A/B/C byte-limb storage device-resident across
+pack/GEMM/export, and is tested against the CPU byte-limb reference. It is not
+an optimized matrix-engine byte-GEMM accelerator path, and it is not performance
+evidence.
 
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and
