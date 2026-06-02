@@ -42,7 +42,9 @@ disagree, the spec remains the target and this file identifies the gap.
   internal schedule fingerprint, and reject same-shape reuse across bounded,
   per-tile bounded, exact-wide, wrap64, and different per-tile schedule
   contracts. Per-tile bounded matrices must carry matching plan tile geometry
-  before GEMM/export dispatch.
+  before GEMM/export dispatch. Successful bounded RNS GEMM stamps C with an
+  input-derived source version, and rejected dispatch leaves that version
+  untouched.
 - Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
   required prefix, selected prefix, and prefix-group metadata through public ABI
   queries. Global bounded plans still use one fixed selected prefix for every
@@ -255,15 +257,18 @@ disagree, the spec remains the target and this file identifies the gap.
 - The Windows HIP test pass includes persistent direct-HIP allocation-reuse
   coverage: after warmup, repeated persistent pack/GEMM/export leaves
   allocation/free counters and device/upload/export/status buffer pointers
-  unchanged. The new bounded signed K-split case covers padded `lda/ldb/ldc`
-  and a repeated same-shape direct-HIP persistent path.
+  unchanged and does not create a C upload buffer. The bounded signed K-split
+  case covers padded `lda/ldb/ldc` and a repeated same-shape direct-HIP
+  persistent path.
 - The CPU and Windows HIP test pass includes hard-cut descriptor and workspace
   guards for stale exact-wide bounds, stray tile-bound storage on global
   descriptors, oversized matrix-owned storage, invalid exact-wide limb widths,
   and same-shape workspaces from the wrong semantic or bound-kind contract.
 - The CPU test pass includes literal `RNS8_DEFAULT_BOUNDED_PREFIX == 9`
   contract coverage, bounded signed/unsigned range errors for too-small but
-  otherwise valid global and per-tile bounds, and padded exact-wide signed and
+  otherwise valid global and per-tile bounds, padded bounded K-edge output
+  preservation around 65535/65536/65537, full-width signed and unsigned bounded
+  padded output checks, and padded exact-wide signed and
   unsigned limb export sentinel checks.
 - The CPU test pass includes bounded signed and unsigned one-shot GEMMs over
   2x2 output tile grids whose tiles use selected prefixes 1, 2, 3, and 4 and
