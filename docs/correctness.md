@@ -20,9 +20,9 @@ Implemented correctness coverage:
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
 - Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
-  rejects bounded-looking metadata, and finite-ring, finite-field, strict
-  wraparound, and future accelerator backend requests report unsupported
-  instead of falling through to bounded CRT behavior.
+  rejects bounded-looking metadata, finite-ring/finite-field/future accelerator
+  requests report unsupported, and strict wraparound never falls through to
+  bounded CRT behavior.
 - Negative semantic tests that exact-wide signed/unsigned and strict
   `mod 2^64` wraparound reject bounded-looking metadata, including explicit
   global bounds and input-range bounds. A bounded prefix alone is not a license
@@ -34,9 +34,9 @@ Implemented correctness coverage:
   fixed-width little-endian two's-complement, unsigned export is fixed-width
   little-endian magnitude, and both report range errors when too few limbs are
   supplied.
-- Internal strict `mod 2^64` byte-limb product and GEMM-cell reference tests
-  compared against Boost.Multiprecision low-64-bit results. The public
-  wraparound backend remains unsupported.
+- Strict `mod 2^64` byte-limb product, GEMM-cell, and public CPU one-shot tests
+  compared against Boost.Multiprecision low-64-bit results. The public one-shot
+  requires the explicit byte-limb backend and rejects CRT bounds/prefixes.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -52,7 +52,7 @@ Not yet implemented:
 - Exact-wide GPU reconstruction.
 - Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
   path.
-- Public strict `mod 2^64` byte-limb GEMM backend and GPU kernels.
+- Persistent strict `mod 2^64` byte-limb matrix storage and GPU kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
 Semantic guardrail:
@@ -68,8 +68,10 @@ Semantic guardrail:
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested
-  directly. A bounded API call is only valid for wrap-like inputs when the exact
-  mathematical result is also within the supplied bounded contract.
+  directly. The current public surface is a CPU one-shot byte-limb backend; RNS
+  matrix APIs and bounded exports still reject wrap descriptors. A bounded API
+  call is only valid for wrap-like inputs when the exact mathematical result is
+  also within the supplied bounded contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path.

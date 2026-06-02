@@ -34,9 +34,9 @@ disagree, the spec remains the target and this file identifies the gap.
   CRT metadata. CPU and direct HIP RNS output are checked against
   Boost.Multiprecision residue oracles. CPU little-endian limb export is
   implemented for signed two's-complement and unsigned magnitude output.
-- Strict wraparound reference: internal CPU byte-limb Comba product and GEMM-cell
-  reference paths match Boost.Multiprecision low-64-bit results. The public
-  wraparound backend remains unsupported.
+- Strict wraparound byte-limb backend: CPU one-shot `mod 2^64` GEMM uses the
+  byte-limb Comba reference and matches Boost.Multiprecision low-64-bit results.
+  RNS/CRT APIs still reject wrap descriptors.
 - Benchmark schema v2: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
@@ -55,8 +55,8 @@ disagree, the spec remains the target and this file identifies the gap.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Exact-wide GPU export.
-- Public strict `mod 2^64` byte-limb backend, unsigned-byte packing, GPU byte
-  GEMMs, signed-INT8 bias correction, and GPU differential tests.
+- Persistent strict `mod 2^64` byte-limb matrix storage, unsigned-byte packing,
+  GPU byte GEMMs, signed-INT8 bias correction, and GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -66,12 +66,14 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 32/32 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 35/35 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 32/32 passed on
+- `ctest --preset windows-debug --output-on-failure`: 35/35 passed on
   `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json`:
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
+- `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb
+  --json`: reported the CPU wrap64 byte-limb reference backend.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
   verification and direct HIP smoke passed.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct

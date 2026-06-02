@@ -13,7 +13,9 @@ Backend status:
 - hipBLASLt: not implemented.
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
-- Wraparound byte-limb backend: not implemented.
+- Wraparound byte-limb backend: CPU one-shot reference implemented; persistent
+  byte-limb storage, HIP byte-limb kernels, and accelerator signedness
+  corrections are not implemented.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
@@ -44,3 +46,9 @@ CPU export uses explicit little-endian limbs: signed output is fixed-width
 two's-complement and unsigned output is fixed-width magnitude. HIP-resident RNS
 matrices use host reconstruction for exact-wide limb export; GPU exact-wide
 export remains unimplemented.
+
+Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed only through
+`rns8_gemm_wrap_u64_oneshot` on `RNS8_BACKEND_WRAP64_BYTE_LIMB`. That path uses
+the byte-limb Comba reference and returns low-64-bit `uint64_t` output. It does
+not allocate RNS matrices, does not use CRT reconstruction, and rejects bounds
+or prefixes in the descriptor.

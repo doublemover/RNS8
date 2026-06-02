@@ -173,6 +173,16 @@ RNS8_API rns8_status rns8_gemm_u64_oneshot(
     uint64_t* C,
     int64_t ldc);
 
+RNS8_API rns8_status rns8_gemm_wrap_u64_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    uint64_t* C,
+    int64_t ldc);
+
 #ifdef __cplusplus
 }
 #endif

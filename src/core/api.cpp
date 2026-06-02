@@ -1,6 +1,7 @@
 #include "core/internal.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <new>
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -41,6 +42,13 @@ rns8_matrix_desc make_matrix_desc(
   desc.tile_n = 128;
   desc.max_prefix = prefix;
   return desc;
+}
+
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld) {
+  if (rows <= 0 || cols <= 0 || ld < cols) {
+    return false;
+  }
+  return rows <= std::numeric_limits<int64_t>::max() / ld;
 }
 
 std::vector<int8_t> gather_cell_residues(const rns8_matrix& matrix, int64_t row, int64_t col, uint32_t prefix) {
@@ -185,6 +193,16 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
         delete ctx;
         return status;
       }
+      *out = ctx;
+      return RNS8_SUCCESS;
+    }
+
+    if (requested == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      ctx->backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+      ctx->device_id = -1;
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      rns8::detail::fill_wrap64_device_info(ctx->device_info);
       *out = ctx;
       return RNS8_SUCCESS;
     }
@@ -760,5 +778,52 @@ rns8_status rns8_gemm_u64_oneshot(
     rns8_destroy_matrix(a_matrix);
     rns8_destroy_plan(plan);
     return status;
+  });
+}
+
+rns8_status rns8_gemm_wrap_u64_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    uint64_t* C,
+    int64_t ldc) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !desc || !A || !B || !C || !rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (desc->semantics != RNS8_WRAP_U64_MOD_2_64) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    const rns8_backend_kind requested = effective_backend(desc->requested_backend, ctx->backend);
+    if (requested != RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (desc->bound_kind != RNS8_BOUND_NONE || desc->bound != 0 || desc->max_prefix != 0) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (desc->tile_m != 0 && (desc->tile_m < 64 || desc->tile_m > 512)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (desc->tile_n != 0 && (desc->tile_n < 64 || desc->tile_n > 512)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!valid_matrix_access(desc->m, desc->k, lda) || !valid_matrix_access(desc->k, desc->n, ldb) ||
+        !valid_matrix_access(desc->m, desc->n, ldc)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    for (int64_t row = 0; row < desc->m; ++row) {
+      for (int64_t col = 0; col < desc->n; ++col) {
+        C[row * ldc + col] =
+            rns8::detail::wrap64_byte_limb_gemm_cell(A, lda, B, ldb, row, col, desc->k);
+      }
+    }
+    return RNS8_SUCCESS;
   });
 }

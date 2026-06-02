@@ -26,6 +26,9 @@ Implemented:
   residue oracles and CPU little-endian limb export. Signed exact-wide export
   uses fixed-width two's-complement limbs; unsigned exact-wide export uses
   fixed-width magnitude limbs.
+- Strict `mod 2^64` wraparound CPU one-shot GEMM through the explicit
+  byte-limb backend. This path returns low-64-bit `uint64_t` output and does not
+  use odd-modulus CRT.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
@@ -41,7 +44,7 @@ Implemented:
 Not implemented yet:
 
 - Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
-  hot kernels, GPU exact-wide export, and strict `mod 2^64` byte-limb GEMM.
+  hot kernels, GPU exact-wide export, and GPU strict `mod 2^64` byte-limb GEMM.
 - Performance claims beyond the current host/event-timed benchmark shell.
 
 ## Windows Development Requirements
