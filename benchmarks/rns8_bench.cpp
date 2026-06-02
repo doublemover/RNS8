@@ -19,6 +19,26 @@
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
 #endif
 
+#ifndef RNS8_CONFIGURED_HIP_ENABLED
+#  define RNS8_CONFIGURED_HIP_ENABLED 0
+#endif
+
+#ifndef RNS8_CONFIGURED_HIP_ROOT
+#  define RNS8_CONFIGURED_HIP_ROOT ""
+#endif
+
+#ifndef RNS8_CONFIGURED_HIPCC_PATH
+#  define RNS8_CONFIGURED_HIPCC_PATH ""
+#endif
+
+#ifndef RNS8_CONFIGURED_HIPCC_VERSION
+#  define RNS8_CONFIGURED_HIPCC_VERSION ""
+#endif
+
+#ifndef RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION
+#  define RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION ""
+#endif
+
 #ifndef RNS8_GIT_COMMIT
 #  define RNS8_GIT_COMMIT "unknown"
 #endif
@@ -449,6 +469,14 @@ std::string compiler_version() {
 #else
   return "unknown";
 #endif
+}
+
+void print_nullable_string(const char* value) {
+  if (value && value[0] != '\0') {
+    std::cout << "\"" << json_escape(value) << "\"";
+  } else {
+    std::cout << "null";
+  }
 }
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
@@ -1463,6 +1491,26 @@ void print_json(
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
   std::cout << "  },\n";
   std::cout << "  \"configured_amdgpu_targets\": \"" << json_escape(RNS8_CONFIGURED_AMDGPU_TARGETS) << "\",\n";
+  std::cout << "  \"hip_toolchain\": {\n";
+  std::cout << "    \"enabled\": " << (RNS8_CONFIGURED_HIP_ENABLED ? "true" : "false") << ",\n";
+  std::cout << "    \"hip_root\": ";
+  print_nullable_string(RNS8_CONFIGURED_HIP_ROOT);
+  std::cout << ",\n";
+  std::cout << "    \"hipcc_path\": ";
+  print_nullable_string(RNS8_CONFIGURED_HIPCC_PATH);
+  std::cout << ",\n";
+  std::cout << "    \"hipcc_version\": ";
+  print_nullable_string(RNS8_CONFIGURED_HIPCC_VERSION);
+  std::cout << ",\n";
+  std::cout << "    \"hip_sdk_or_rocm_version\": ";
+  print_nullable_string(RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION);
+  std::cout << ",\n";
+  std::cout << "    \"version_source\": "
+            << (RNS8_CONFIGURED_HIP_ENABLED && RNS8_CONFIGURED_HIPCC_VERSION[0] != '\0'
+                    ? "\"hipcc --version\""
+                    : "null")
+            << "\n";
+  std::cout << "  },\n";
   std::cout << "  \"device\": {\n";
   std::cout << "    \"device_id\": " << info.device_id << ",\n";
   std::cout << "    \"name\": \"" << json_escape(info.name) << "\",\n";

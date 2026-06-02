@@ -70,16 +70,17 @@ disagree, the spec remains the target and this file identifies the gap.
   device-resident through GEMM/export.
 - Benchmark schema v4: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
-  null placeholders for unavailable fields, direct-HIP GPU event timing arrays
-  when complete, explicit unavailable metadata when event timing is not
-  applicable, strict wrap64 CPU and direct-HIP byte-limb benchmark metadata,
-  fixed-prefix schedule metadata, measured schedule-info query timing,
-  explicit phase-availability metadata for fused or not-applicable reduction,
-  direct-HIP per-tile adaptive bounded capture metadata, schema validation
-  tooling, and comparison-tool support for v1/v2/v3/v4 plus capture-specific
-  GPU event phase orders. Adaptive captures are evidence for the direct-HIP
-  tiled correctness path only; they are not optimized matrix-engine performance
-  claims.
+  configured HIP toolchain metadata, null placeholders for unavailable fields,
+  direct-HIP GPU event timing arrays when complete, exact `hipEventElapsedTime`
+  source/scope validation for direct-HIP event captures, explicit unavailable
+  metadata when event timing is not applicable, strict wrap64 CPU and direct-HIP
+  byte-limb benchmark metadata, fixed-prefix schedule metadata, measured
+  schedule-info query timing, explicit phase-availability metadata for fused or
+  not-applicable reduction, direct-HIP per-tile adaptive bounded capture
+  metadata, schema validation tooling, and comparison-tool support for
+  v1/v2/v3/v4 plus capture-specific GPU event phase orders. Adaptive captures
+  are evidence for the direct-HIP tiled correctness path only; they are not
+  optimized matrix-engine performance claims.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -113,7 +114,7 @@ disagree, the spec remains the target and this file identifies the gap.
 
 - `ctest --test-dir build/cpu-debug --output-on-failure`: 58/58 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 53/53 passed on
+- `ctest --preset windows-debug --output-on-failure`: 58/58 passed on
   `gfx1100`.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
@@ -194,6 +195,11 @@ disagree, the spec remains the target and this file identifies the gap.
   temp\rns8-v3-hip-wrap-u64.json`: all runtime captures validated as schema
   v3, including measured `scheduling` timing and explicit reduction
   availability metadata.
+- `temp\rns8-v4-hip-toolchain-smoke.json`: schema v4 direct-HIP bounded
+  capture validated with configured HIP toolchain metadata, parsed HIP SDK root
+  version `7.1`, hipcc version text from `hipcc --version`, exact
+  `hipEventElapsedTime` source identity, and default bounded direct-HIP event
+  source scope.
 - `python tools\result_compare.py --json
   temp\rns8-v3-hip-bounded-u64-repeat.json
   temp\rns8-v3-hip-bounded-u64-repeat2.json`: same-contract schema v3
