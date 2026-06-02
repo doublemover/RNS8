@@ -34,9 +34,10 @@ disagree, the spec remains the target and this file identifies the gap.
 - Plan schedule inspection: bounded and wrap64 plans expose output tile grid,
   required prefix, selected prefix, and prefix-group metadata through public ABI
   queries. Global bounded plans still use one fixed selected prefix for every
-  tile. CPU reference per-tile bounded plans copy tile bounds into the plan,
-  select variable exact prefixes, report adaptive prefix/skip metadata, execute
-  only selected per-tile prefixes, and export with tile-local bounds.
+  tile. CPU reference and direct HIP per-tile bounded plans copy tile bounds
+  into the plan, select variable exact prefixes, report adaptive prefix/skip
+  metadata, execute only selected per-tile prefixes, and export with
+  tile-local bounds.
 - Exact-wide RNS output: exact-wide signed and unsigned semantics accept
   `RNS8_BOUND_NONE`, compute persistent RNS output, and reject bounded-looking
   CRT metadata. CPU and direct HIP RNS output are checked against
@@ -54,6 +55,13 @@ disagree, the spec remains the target and this file identifies the gap.
   CPU byte-limb reference, and padded host export layouts are tested. This is a
   one-thread-per-output Comba correctness path, not an optimized byte-GEMM
   accelerator path.
+- Direct-HIP per-tile bounded adaptive correctness path: HIP_DIRECT bounded
+  plans with `RNS8_BOUND_PER_TILE_MAX_ABS` or
+  `RNS8_BOUND_PER_TILE_MAX_UNSIGNED` use grouped direct HIP tile launches for
+  selected prefixes and tile-local device CRT export. Tests compare signed and
+  unsigned output against the CPU reference, cover tile-local range errors,
+  prove skipped high-prefix residue planes remain untouched, and keep matrices
+  device-resident through GEMM/export.
 - Benchmark schema v3: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
@@ -75,9 +83,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
   instruction-level validation. The direct HIP kernels are correctness bring-up
   kernels, not performance evidence.
-- Direct-HIP per-tile adaptive bounds, grouped variable-prefix execution, and
-  adaptive skip behavior. CPU reference per-tile adaptive bounds are
-  implemented for exact differential coverage; they are not yet a GPU path.
+- Benchmark schema/CLI support for per-tile adaptive bounded captures. Current
+  benchmark captures remain global-bound fixed-prefix contracts and must not
+  imply adaptive GPU performance evidence.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
@@ -91,9 +99,9 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 48/48 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 50/50 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 48/48 passed on
+- `ctest --preset windows-debug --output-on-failure`: 50/50 passed on
   `gfx1100`.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
@@ -105,6 +113,10 @@ disagree, the spec remains the target and this file identifies the gap.
 - The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
   export checks against the CPU reference, including `INT64_MIN` and
   `UINT64_MAX` boundary outputs.
+- The Windows HIP test pass includes direct-HIP per-tile bounded signed and
+  unsigned output comparisons against the CPU reference, tile-local range-error
+  checks, padded host export sentinels, schedule parity checks, and skipped
+  high-prefix residue plane checks.
 - The Windows HIP test pass includes a direct HIP one-modulus centered
   correction boundary case that compares negative, threshold, and near-zero
   residues against the CPU ring-GEMM reference.
@@ -122,7 +134,8 @@ disagree, the spec remains the target and this file identifies the gap.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb
   --json`: reported the CPU wrap64 byte-limb reference backend.
 - `build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke`: CPU reference
-  verification and direct HIP pack, ring, bounded GEMM, and wrap64 smoke passed.
+  verification and direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM,
+  and wrap64 smoke passed.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
   Windows host. hipBLASLt was reported as candidate evidence only on this host;

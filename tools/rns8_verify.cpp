@@ -583,6 +583,58 @@ bool verify_hip_smoke() {
     return false;
   }
 
+  const int64_t adaptive_m = 65;
+  const int64_t adaptive_n = 65;
+  const int64_t adaptive_k = 1;
+  std::vector<uint64_t> adaptive_a(static_cast<std::size_t>(adaptive_m * adaptive_k));
+  std::vector<uint64_t> adaptive_b(static_cast<std::size_t>(adaptive_k * adaptive_n));
+  std::vector<uint64_t> cpu_adaptive_c(static_cast<std::size_t>(adaptive_m * adaptive_n), 0);
+  std::vector<uint64_t> hip_adaptive_c(static_cast<std::size_t>(adaptive_m * adaptive_n), 0);
+  for (int64_t row = 0; row < adaptive_m; ++row) {
+    adaptive_a[static_cast<std::size_t>(row)] = row < 64 ? 1 : 1000000;
+  }
+  for (int64_t col = 0; col < adaptive_n; ++col) {
+    adaptive_b[static_cast<std::size_t>(col)] = col < 64 ? 7 : 1000;
+  }
+  const std::vector<uint64_t> adaptive_bounds = {7, 1000, 7000000, 1000000000};
+  auto cpu_adaptive_desc =
+      unsigned_desc_for_backend(adaptive_m, adaptive_n, adaptive_k, 0, RNS8_BACKEND_CPU_REFERENCE);
+  cpu_adaptive_desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  cpu_adaptive_desc.tile_m = 64;
+  cpu_adaptive_desc.tile_n = 64;
+  cpu_adaptive_desc.tile_bounds = adaptive_bounds.data();
+  cpu_adaptive_desc.tile_bounds_count = adaptive_bounds.size();
+  auto hip_adaptive_desc = cpu_adaptive_desc;
+  hip_adaptive_desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+  const rns8_status cpu_adaptive_status = rns8_gemm_u64_oneshot(
+      cpu_ctx,
+      &cpu_adaptive_desc,
+      adaptive_a.data(),
+      adaptive_k,
+      adaptive_b.data(),
+      adaptive_n,
+      cpu_adaptive_c.data(),
+      adaptive_n);
+  const rns8_status hip_adaptive_status = rns8_gemm_u64_oneshot(
+      hip_ctx,
+      &hip_adaptive_desc,
+      adaptive_a.data(),
+      adaptive_k,
+      adaptive_b.data(),
+      adaptive_n,
+      hip_adaptive_c.data(),
+      adaptive_n);
+  if (cpu_adaptive_status != RNS8_SUCCESS || hip_adaptive_status != RNS8_SUCCESS ||
+      cpu_adaptive_c != hip_adaptive_c) {
+    std::cerr << "direct HIP per-tile bounded u64 smoke failed: CPU="
+              << rns8_status_string(cpu_adaptive_status) << " HIP=" << rns8_status_string(hip_adaptive_status)
+              << "\n";
+    rns8_destroy_context(wrap_ctx);
+    rns8_destroy_context(hip_ctx);
+    rns8_destroy_context(cpu_ctx);
+    return false;
+  }
+
   const int64_t wrap_m = 2;
   const int64_t wrap_n = 3;
   const int64_t wrap_k = 4;
@@ -658,7 +710,7 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP pack, ring, bounded GEMM, and wrap64 smoke: PASS\n";
+    std::cout << "Direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM, and wrap64 smoke: PASS\n";
   }
 
   return 0;

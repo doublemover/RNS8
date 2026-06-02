@@ -13,10 +13,10 @@ Implemented correctness coverage:
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Plan schedule inspection for output tile grid, exact required prefix,
   selected prefix, and prefix-group metadata. Global bounded plans use a fixed
-  selected prefix for every tile. CPU reference per-tile bounded plans copy the
-  caller's tile bounds at plan creation, select the minimum exact prefix per
-  tile, report adaptive prefix/skip metadata, execute only the selected
-  per-tile prefixes, and export with the tile-local bound.
+  selected prefix for every tile. CPU reference and direct HIP per-tile bounded
+  plans copy the caller's tile bounds at plan creation, select the minimum
+  exact prefix per tile, report adaptive prefix/skip metadata, execute only the
+  selected per-tile prefixes, and export with the tile-local bound.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
   `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs.
 - Public bounded signed and unsigned CPU one-shot GEMM sweeps over all
@@ -62,14 +62,17 @@ Implemented correctness coverage:
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
   reference.
+- Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
+  the CPU reference, cover tile-local range errors, padded host export layouts,
+  schedule parity, and verify skipped residue planes above each tile's selected
+  prefix remain untouched on device.
 - Private direct HIP strict `mod 2^64` byte-limb Comba kernel smoke also
   remains as low-level coverage. The public and private HIP wrap64 tests are
   correctness coverage, not optimized 36 byte-GEMM performance evidence.
 
 Not yet implemented:
 
-- Direct HIP per-tile adaptive bounds.
-- Variable-prefix grouped GPU execution and adaptive GPU modulus skipping.
+- Benchmark capture/schema support for adaptive per-tile bounded runs.
 - Optimized strict `mod 2^64` GPU byte-GEMM kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 

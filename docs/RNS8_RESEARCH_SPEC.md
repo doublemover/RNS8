@@ -478,9 +478,10 @@ For `RNS8_BOUND_PER_TILE_MAX_ABS` and `RNS8_BOUND_PER_TILE_MAX_UNSIGNED`,
 row-major output-tile bounds with
 `ceil(m / tile_m) * ceil(n / tile_n)` entries. `rns8_create_plan` copies this
 array, so the caller only needs to keep it alive through plan creation.
-Current CPU reference plans execute and export with these per-tile selected
-prefixes. GPU grouped per-tile execution remains a separate validation target
-and must not be implied by CPU schedule support alone.
+Current CPU reference and direct HIP plans execute and export with these
+per-tile selected prefixes. Direct HIP support is a correctness path with
+grouped direct tile launches and tile-local device CRT export; optimized matrix
+engine grouped kernels remain a separate validation target.
 
 For each tile:
 

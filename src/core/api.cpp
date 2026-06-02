@@ -513,10 +513,6 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (!backend_supports_semantics(requested, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (is_per_tile_bound_kind(desc->bound_kind) && requested != RNS8_BACKEND_CPU_REFERENCE) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-
     auto* plan = new (std::nothrow) rns8_plan();
     if (!plan) {
       return RNS8_INTERNAL_ERROR;
@@ -658,9 +654,6 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       return validation;
     }
     if (!backend_supports_semantics(ctx->backend, desc->semantics)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (is_per_tile_bound_kind(desc->bound_kind) && ctx->backend != RNS8_BACKEND_CPU_REFERENCE) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     auto* matrix = new (std::nothrow) rns8_matrix();
@@ -870,18 +863,34 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      status = rns8::detail::hip_direct_gemm_rns_device(
-          ctx->device_id,
-          A->hip_residues,
-          B->hip_residues,
-          C->hip_residues,
-          plan->desc.m,
-          plan->desc.n,
-          plan->desc.k,
-          A->desc.cols,
-          B->desc.cols,
-          C->desc.cols,
-          plan->prefix);
+      if (!plan->tile_schedule.empty()) {
+        status = rns8::detail::hip_direct_gemm_rns_tiled_device(
+            ctx->device_id,
+            A->hip_residues,
+            B->hip_residues,
+            C->hip_residues,
+            plan->desc.m,
+            plan->desc.n,
+            plan->desc.k,
+            A->desc.cols,
+            B->desc.cols,
+            C->desc.cols,
+            plan->tile_schedule.data(),
+            static_cast<uint64_t>(plan->tile_schedule.size()));
+      } else {
+        status = rns8::detail::hip_direct_gemm_rns_device(
+            ctx->device_id,
+            A->hip_residues,
+            B->hip_residues,
+            C->hip_residues,
+            plan->desc.m,
+            plan->desc.n,
+            plan->desc.k,
+            A->desc.cols,
+            B->desc.cols,
+            C->desc.cols,
+            plan->prefix);
+      }
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -974,11 +983,27 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     if (ctx->backend != plan->backend || C->backend != plan->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (is_per_tile_bound_kind(plan->desc.bound_kind) && plan->backend != RNS8_BACKEND_CPU_REFERENCE) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      const rns8_status status = rns8::detail::hip_direct_export_i64_device(
+      if (!plan->tile_schedule.empty()) {
+        if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
+          return RNS8_INTERNAL_ERROR;
+        }
+        return rns8::detail::hip_direct_export_i64_tiled_device(
+            ctx->device_id,
+            C->hip_residues,
+            &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+            &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+            &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+            &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+            plan->desc.m,
+            plan->desc.n,
+            plan->tile_schedule.data(),
+            plan->tile_bounds.data(),
+            static_cast<uint64_t>(plan->tile_schedule.size()),
+            dst,
+            ld);
+      }
+      return rns8::detail::hip_direct_export_i64_device(
           ctx->device_id,
           C->hip_residues,
           &const_cast<rns8_matrix*>(C)->hip_export_buffer,
@@ -991,7 +1016,6 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           plan->desc.bound,
           dst,
           ld);
-      return status;
     }
     const rns8_status sync_status = ensure_host_residues_current(*C);
     if (sync_status != RNS8_SUCCESS) {
@@ -1030,11 +1054,27 @@ rns8_status rns8_export_u64(
     if (ctx->backend != plan->backend || C->backend != plan->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (is_per_tile_bound_kind(plan->desc.bound_kind) && plan->backend != RNS8_BACKEND_CPU_REFERENCE) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
-      const rns8_status status = rns8::detail::hip_direct_export_u64_device(
+      if (!plan->tile_schedule.empty()) {
+        if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
+          return RNS8_INTERNAL_ERROR;
+        }
+        return rns8::detail::hip_direct_export_u64_tiled_device(
+            ctx->device_id,
+            C->hip_residues,
+            &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+            &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+            &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+            &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+            plan->desc.m,
+            plan->desc.n,
+            plan->tile_schedule.data(),
+            plan->tile_bounds.data(),
+            static_cast<uint64_t>(plan->tile_schedule.size()),
+            dst,
+            ld);
+      }
+      return rns8::detail::hip_direct_export_u64_device(
           ctx->device_id,
           C->hip_residues,
           &const_cast<rns8_matrix*>(C)->hip_export_buffer,
@@ -1047,7 +1087,6 @@ rns8_status rns8_export_u64(
           plan->desc.bound,
           dst,
           ld);
-      return status;
     }
     const rns8_status sync_status = ensure_host_residues_current(*C);
     if (sync_status != RNS8_SUCCESS) {
