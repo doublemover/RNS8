@@ -14,6 +14,7 @@ from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capt
 
 TIMING_PHASES = {
     "planning": ["avg_planning_us", "plan_us"],
+    "scheduling": ["avg_scheduling_us", "schedule_query_us"],
     "matrix_alloc": ["avg_matrix_alloc_us", "matrix_alloc_us"],
     "pack": ["avg_pack_us"],
     "rns_gemm": ["avg_rns_gemm_us"],
@@ -67,6 +68,8 @@ CONTRACT_KEYS = [
     "repeats",
     "input_distribution",
     "timing_source",
+    "timing_metadata.phase_availability.scheduling.scope",
+    "timing_metadata.phase_availability.reduction.scope",
     "compiler.id",
     "compiler.version",
     "configured_amdgpu_targets",
@@ -119,6 +122,8 @@ def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, s
 
 
 def phase_applicable(data: dict[str, Any], phase: str) -> bool:
+    if phase == "scheduling":
+        return schema_version(data) >= 3
     if phase == "per_modulus_gemm_estimate":
         value = data.get("per_modulus_gemm_estimate_applicable")
         return value if isinstance(value, bool) else True
@@ -229,17 +234,21 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
     }
     timings = {}
     for phase in TIMING_PHASES:
-        base, base_source = phase_timing(baseline, phase, baseline_path)
-        cand, cand_source = phase_timing(candidate, phase, candidate_path)
+        base_applicable = phase_applicable(baseline, phase)
+        cand_applicable = phase_applicable(candidate, phase)
+        base, base_source = phase_timing(baseline, phase, baseline_path) if base_applicable else (None, "not_applicable")
+        cand, cand_source = phase_timing(candidate, phase, candidate_path) if cand_applicable else (None, "not_applicable")
+        delta = cand - base if base is not None and cand is not None else None
+        ratio = cand / base if base is not None and base != 0 and cand is not None else None
         timings[phase] = {
             "baseline": base,
             "candidate": cand,
-            "delta": cand - base,
-            "ratio": cand / base if base != 0 else None,
+            "delta": delta,
+            "ratio": ratio,
             "baseline_source": base_source,
             "candidate_source": cand_source,
-            "baseline_applicable": phase_applicable(baseline, phase),
-            "candidate_applicable": phase_applicable(candidate, phase),
+            "baseline_applicable": base_applicable,
+            "candidate_applicable": cand_applicable,
         }
 
     return {
@@ -277,12 +286,15 @@ def print_human(report: dict[str, Any]) -> None:
     for phase, item in report["timings"].items():
         ratio = item["ratio"]
         ratio_text = "n/a" if ratio is None else f"{ratio:.6g}"
+        base_text = "n/a" if item["baseline"] is None else f"{item['baseline']:.6g}"
+        cand_text = "n/a" if item["candidate"] is None else f"{item['candidate']:.6g}"
+        delta_text = "n/a" if item["delta"] is None else f"{item['delta']:.6g}"
         applicability = (
             "" if item["baseline_applicable"] and item["candidate_applicable"] else " [not applicable to one or both captures]"
         )
         print(
-            f"{phase}: baseline={item['baseline']:.6g} "
-            f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}{applicability}"
+            f"{phase}: baseline={base_text} "
+            f"candidate={cand_text} delta={delta_text} ratio={ratio_text}{applicability}"
         )
     print()
     gpu_events = report["gpu_event_timings"]

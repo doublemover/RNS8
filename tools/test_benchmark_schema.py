@@ -34,6 +34,8 @@ def main() -> int:
     bounded = expect_valid("v2_bounded_hip.json")
     wrap64 = expect_valid("v2_wrap64.json")
     wrap64_hip = expect_valid("v2_wrap64_hip.json")
+    v3_bounded = expect_valid("v3_bounded_hip.json")
+    v3_wrap64_hip = expect_valid("v3_wrap64_hip.json")
     expect_valid("v1_legacy.json")
 
     bad_length = copy.deepcopy(bounded)
@@ -64,6 +66,14 @@ def main() -> int:
     bad_wrap64_hip_phase = copy.deepcopy(wrap64_hip)
     bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
     expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
+
+    bad_v3_schedule = copy.deepcopy(v3_bounded)
+    bad_v3_schedule["raw_timings_us"]["scheduling"] = [6]
+    expect_invalid(bad_v3_schedule, "timing_summary_us.scheduling.avg")
+
+    bad_v3_reduction_scope = copy.deepcopy(v3_wrap64_hip)
+    bad_v3_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
+    expect_invalid(bad_v3_reduction_scope, "phase_availability.reduction.scope")
 
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}
