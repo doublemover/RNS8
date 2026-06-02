@@ -158,6 +158,11 @@ Implemented correctness coverage:
   covers every currently supported default-prefix modulus with padded layouts,
   and private metadata tests reject a wrong reciprocal for an otherwise valid
   modulus before queueing work.
+- The HIP-only ISA checker extracts the compiled direct-HIP `.hip_fatbin`,
+  unbundles the active `gfx*` code object, disassembles the direct RNS GEMM
+  kernels, rejects divide/remainder/rcp mnemonics, and requires `v_mul_hi_u32`.
+  This guards the exact reciprocal-reduction implementation against compiler or
+  source regressions while remaining separate from performance validation.
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests through prefix 20 against the CPU
@@ -254,5 +259,6 @@ Semantic guardrail:
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path. Its
 centered-range corrections are source-level branchless and its GEMM reduction
-uses validated exact reciprocal metadata, but instruction-level validation and
+uses validated exact reciprocal metadata. The current ISA gate proves the
+compiled RNS GEMM path is not using divide/remainder/rcp mnemonics, but broader
 architecture-tuned kernels remain future optimization work.

@@ -98,6 +98,12 @@ launching only the selected prefix for each tile. GEMM centered reduction uses
 validated reciprocal metadata for the accepted small modulus and mask arithmetic
 for centered-range correction, but the kernel has not been promoted to an
 ISA-verified performance kernel.
+`tools/check_hip_kernel_isa.py` is registered as a HIP-only CTest gate on the
+compiled direct-HIP object. It extracts the `.hip_fatbin`, unbundles the active
+AMDGPU target code object, disassembles the direct RNS GEMM kernels, rejects
+divide/remainder/rcp mnemonics, and requires `v_mul_hi_u32` as reciprocal
+multiply-high evidence. This is an instruction-shape guard for the correctness
+kernel, not a throughput claim.
 Bounded direct-HIP GEMM requires A and B to have current device residues. A
 host-current bounded matrix with stale device residues is rejected by persistent
 GEMM instead of being uploaded implicitly at dispatch time.
