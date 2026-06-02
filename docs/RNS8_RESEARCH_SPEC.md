@@ -969,7 +969,12 @@ Benchmark outputs include:
 - matrix shape,
 - data distribution,
 - semantic contract,
+- bound mode,
+- per-tile bound source/order/min/max/hash when adaptive bounded captures use
+  per-tile bounds,
+- adaptive execution applied flag,
 - modulus prefix,
+- selected-prefix schedule metadata,
 - correctness seed,
 - warmup count,
 - repeat count,

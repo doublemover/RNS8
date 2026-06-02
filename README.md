@@ -38,9 +38,9 @@ Implemented:
   K-block reduction, bounded i64/u64 GPU CRT export, public strict wrap64
   byte-limb correctness path, and real one-modulus plus bounded i64/u64 and
   wrap64 smoke tests compared against the CPU reference.
-- Benchmark schema v3 with host wall-clock phase timings, live git commit
-  capture, raw timing arrays, summaries, and direct-HIP GPU event timing arrays
-  when complete.
+- Benchmark schema v4 with host wall-clock phase timings, live git commit
+  capture, raw timing arrays, summaries, direct-HIP GPU event timing arrays
+  when complete, and explicit per-tile adaptive bounded capture metadata.
 
 Not implemented yet:
 

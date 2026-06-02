@@ -11,14 +11,18 @@ build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bou
 build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semantics wrap-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 5 --seed 7
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --bound-mode per-tile --require-adaptive-execution --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 7
 ```
 
 The benchmark reports:
 
 - stable `schema_version` metadata,
 - requested and selected backend,
-- selected kernel when a backend can report it; currently `null`,
+- selected kernel when a backend can report it; direct-HIP adaptive per-tile
+  bounded captures report `direct_hip_tiled_rns_gemm_v1`,
 - semantic contract,
+- bound mode plus per-tile bound source/order/min/max/hash metadata when the
+  capture uses `RNS8_BOUND_PER_TILE_*`,
 - matrix shape,
 - layout, K-block size, tile size, epilogue type, and packed layout version
   when exposed,
@@ -82,32 +86,32 @@ is:
 }
 ```
 
-Schema v3 also includes `timing_metadata.phase_availability`. The current RNS
-bounded paths report `reduction.timed=false` with
+Schema v3 added `timing_metadata.phase_availability`. Schema v4 keeps v1/v2/v3
+compatibility and adds per-tile adaptive bounded capture metadata:
+`bound_mode`, `tile_bounds_u64`, non-null `selected_kernel`, strict adaptive
+schedule consistency, and an adaptive direct-HIP event timing source scope. The
+current RNS bounded paths report `reduction.timed=false` with
 `scope: "fused_into_rns_gemm"` because centered residue reduction happens inside
 the `rns_gemm` phase. Strict wrap64 byte-limb captures report
 `scope: "not_applicable_wrap64_byte_limb"`. Do not synthesize a reduction timing
 from GEMM time.
 
 Use `tools\benchmark_schema.py` to validate benchmark captures before using
-them as comparison evidence. The validator enforces schema v2/v3 required
+them as comparison evidence. The validator enforces schema v2/v3/v4 required
 fields, raw timing array lengths against `repeats`, average/median/p95
-consistency, v3 phase-availability metadata, GPU event timing nullability or
-completeness, and the strict wrap64
+consistency, v3+ phase-availability metadata, v4 per-tile adaptive metadata,
+GPU event timing nullability or completeness, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
 also checks schedule metadata and keeps a compatibility check for legacy v1
 captures that only expose the older top-level timing fields.
 
-Current benchmark inputs are an inspectable fixed-prefix planning contract:
-the benchmark CLI supplies global bounded contracts, so bounded captures report
-the single selected prefix used by the CPU/direct-HIP GEMM paths. The CPU
-reference and direct-HIP APIs can execute per-tile adaptive bounded plans when
-callers provide `RNS8_BOUND_PER_TILE_*` bounds, but the benchmark shell does
-not yet generate per-tile bound vectors or adaptive captures. Strict wrap64
-captures report prefix zero and no RNS prefix groups.
-`adaptive_execution_applied` remains `false` in benchmark JSON until the
-benchmark has reviewed per-tile adaptive capture support and explicit execution
-evidence metadata.
+Current benchmark inputs are inspectable planning contracts. Global bounded
+captures remain fixed-prefix contracts. With `--bound-mode per-tile`, the
+benchmark computes exact per-output-tile bounds from the seeded A/B inputs
+before plan creation, passes those bounds through `rns8_gemm_desc.tile_bounds`,
+requires actual prefix grouping or prefix skipping, and emits
+`adaptive_execution_applied=true` only for the direct-HIP tiled bounded path.
+Strict wrap64 captures report prefix zero and no RNS prefix groups.
 
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, first-use
@@ -175,9 +179,10 @@ Future benchmark work must add deeper scheduler internals, reviewed raw sweeps,
 comparison baselines, and performance gates before any speedup claims are made.
 
 `tools/result_compare.py` validates both captures before comparing host timing
-phases for schema v1/v2/v3 captures. Its contract check includes backend,
-semantics, bounds, shape, prefix, seed, warmups/repeats, input distribution,
-timing source, epilogue, packed layout, schedule metadata, compiler, configured
+phases for schema v1/v2/v3/v4 captures. Its contract check includes backend,
+selected kernel, semantics, bound mode, bounds, tile-bound source/order/min/max
+and hash, shape, prefix, seed, warmups/repeats, input distribution, timing
+source, epilogue, packed layout, schedule metadata, compiler, configured
 target, and HIP device/runtime fields when present. It also compares
 `gpu_event_timing_summary_us` phases only when both captures set
 `timing_metadata.gpu_event_timing=true` and report the same event timing source,

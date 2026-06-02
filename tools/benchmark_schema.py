@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+SUPPORTED_SCHEMA_VERSIONS = {2, 3, SCHEMA_VERSION}
 TIMING_PHASES_V2 = ["planning", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 TIMING_PHASES_V3 = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
@@ -108,8 +109,9 @@ class _Validator:
         if version <= 1:
             self._validate_v1_legacy()
             return
-        if version not in {2, SCHEMA_VERSION}:
-            self._error(f"unsupported schema_version {version}; expected 2 or {SCHEMA_VERSION}")
+        if version not in SUPPORTED_SCHEMA_VERSIONS:
+            expected = ", ".join(str(item) for item in sorted(SUPPORTED_SCHEMA_VERSIONS))
+            self._error(f"unsupported schema_version {version}; expected one of {expected}")
             return
         self.version = version
         self._validate_v2()
@@ -166,6 +168,11 @@ class _Validator:
             "timing_note",
         ]:
             self._require(key, "str")
+        selected_kernel = self.data.get("selected_kernel")
+        if selected_kernel is not None and not isinstance(selected_kernel, str):
+            self._error("selected_kernel must be a string or null")
+        if self.version >= 4:
+            self._require("bound_mode", "str")
         for key in [
             "bound",
             "m",
@@ -331,7 +338,7 @@ class _Validator:
             self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
-        if schedule.get("adaptive_execution_applied") is True:
+        if self.version < 4 and schedule.get("adaptive_execution_applied") is True:
             self._error(
                 "schedule_metadata.adaptive_execution_applied must remain false until adaptive benchmark capture support is implemented"
             )
@@ -341,11 +348,18 @@ class _Validator:
         prefix = self.data.get("prefix")
         packed_layout = self.data.get("packed_layout_version")
         schedule = self.data.get("schedule_metadata")
+        bound_mode = self.data.get("bound_mode", "global")
+        if self.version >= 4 and bound_mode not in {"global", "per_tile"}:
+            self._error("bound_mode must be global or per_tile")
         if semantics == "wrap_u64_mod_2_64":
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"}:
                 self._error("wrap64 captures must select wrap64-byte-limb or hip-direct backend")
+            if self.version >= 4 and bound_mode != "global":
+                self._error("wrap64 captures must use bound_mode=global")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
                 self._error("wrap64 captures must use bound_kind=none and bound=0")
+            if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
+                self._error("wrap64 captures must use tile_bounds_u64=null")
             if prefix != 0:
                 self._error("wrap64 captures must use prefix=0")
             if packed_layout != "byte_limb_v1":
@@ -359,28 +373,119 @@ class _Validator:
                 if schedule.get("prefix_group_count") != 0:
                     self._error("wrap64 captures must use schedule_metadata.prefix_group_count=0")
         elif semantics in {"bounded_i64", "bounded_u64"}:
-            expected_bound_kind = "global_max_abs" if semantics == "bounded_i64" else "global_max_unsigned"
-            if self.data.get("bound_kind") != expected_bound_kind:
-                self._error(f"{semantics} captures must use bound_kind={expected_bound_kind}")
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")
             if packed_layout is not None:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
             if self.data.get("epilogue_type") != "crt_export":
                 self._error(f"{semantics} captures must use crt_export epilogue")
-            if isinstance(schedule, dict) and _is_int(prefix):
-                if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
-                    self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
-                if schedule.get("prefix_group_count") != 1:
-                    self._error(f"{semantics} captures must use one fixed prefix group")
+            if bound_mode == "global":
+                expected_bound_kind = "global_max_abs" if semantics == "bounded_i64" else "global_max_unsigned"
+                if self.data.get("bound_kind") != expected_bound_kind:
+                    self._error(f"{semantics} captures must use bound_kind={expected_bound_kind}")
+                if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
+                    self._error(f"{semantics} global captures must use tile_bounds_u64=null")
+                if isinstance(schedule, dict) and _is_int(prefix):
+                    if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                        self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
+                    if schedule.get("prefix_group_count") != 1:
+                        self._error(f"{semantics} captures must use one fixed prefix group")
+                    if schedule.get("adaptive_execution_applied") is True:
+                        self._error(f"{semantics} global captures must not apply adaptive execution")
+            elif bound_mode == "per_tile":
+                if self.version < 4:
+                    self._error("per_tile bound_mode requires schema_version 4")
+                expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
+                if self.data.get("bound_kind") != expected_bound_kind:
+                    self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
+                if self.data.get("backend_selected") != "hip-direct":
+                    self._error("per-tile adaptive captures must select hip-direct backend")
+                if self.data.get("bound") != 0:
+                    self._error("per-tile adaptive captures must use bound=0")
+                self._validate_v4_tile_bounds(semantics, schedule)
+                self._validate_v4_adaptive_schedule(prefix, schedule)
         elif isinstance(semantics, str):
             self._error(f"unsupported benchmark semantics {semantics}")
 
         applicable = self.data.get("per_modulus_gemm_estimate_applicable")
         if applicable is not None and not isinstance(applicable, bool):
             self._error("per_modulus_gemm_estimate_applicable must be a boolean")
-        elif isinstance(applicable, bool) and _is_int(prefix) and applicable != (prefix > 0):
-            self._error("per_modulus_gemm_estimate_applicable must match prefix > 0")
+        elif isinstance(applicable, bool) and _is_int(prefix):
+            expected_applicable = prefix > 0 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
+            if applicable != expected_applicable:
+                self._error("per_modulus_gemm_estimate_applicable must match the fixed-prefix contract")
+
+    def _validate_v4_tile_bounds(self, semantics: Any, schedule: Any) -> None:
+        tile_bounds = self.data.get("tile_bounds_u64")
+        if not isinstance(tile_bounds, dict):
+            self._error("tile_bounds_u64 must be an object for per-tile adaptive captures")
+            return
+        for key in ["source", "pattern", "order"]:
+            if not isinstance(tile_bounds.get(key), str) or not tile_bounds.get(key):
+                self._error(f"tile_bounds_u64.{key} must be a nonempty string")
+        expected_pattern = "exact_output_tile_max_abs_v1" if semantics == "bounded_i64" else "exact_output_tile_max_unsigned_v1"
+        if tile_bounds.get("source") != "exact_seeded_input_prepass":
+            self._error("tile_bounds_u64.source must be exact_seeded_input_prepass")
+        if tile_bounds.get("pattern") != expected_pattern:
+            self._error(f"tile_bounds_u64.pattern must be {expected_pattern}")
+        if tile_bounds.get("order") != "row_major_output_tiles":
+            self._error("tile_bounds_u64.order must be row_major_output_tiles")
+        for key in ["count", "min", "max", "hash_u64"]:
+            if not _is_int(tile_bounds.get(key)):
+                self._error(f"tile_bounds_u64.{key} must be an integer")
+        count = tile_bounds.get("count")
+        minimum = tile_bounds.get("min")
+        maximum = tile_bounds.get("max")
+        if _is_int(count) and count <= 0:
+            self._error("tile_bounds_u64.count must be positive")
+        if _is_int(minimum) and minimum < 0:
+            self._error("tile_bounds_u64.min must be nonnegative")
+        if _is_int(maximum) and maximum < 0:
+            self._error("tile_bounds_u64.max must be nonnegative")
+        if _is_int(minimum) and _is_int(maximum) and minimum > maximum:
+            self._error("tile_bounds_u64.min must be <= max")
+        if semantics == "bounded_i64" and _is_int(maximum) and maximum > 2**63:
+            self._error("bounded_i64 tile_bounds_u64.max must be <= 2^63")
+        if _is_int(tile_bounds.get("hash_u64")) and tile_bounds.get("hash_u64") < 0:
+            self._error("tile_bounds_u64.hash_u64 must be nonnegative")
+        if isinstance(schedule, dict) and _is_int(count) and _is_int(schedule.get("tile_count")):
+            if count != schedule.get("tile_count"):
+                self._error("tile_bounds_u64.count must match schedule_metadata.tile_count")
+
+    def _validate_v4_adaptive_schedule(self, prefix: Any, schedule: Any) -> None:
+        if not isinstance(schedule, dict):
+            return
+        if schedule.get("adaptive_execution_applied") is not True:
+            self._error("per-tile adaptive captures must set schedule_metadata.adaptive_execution_applied=true")
+        selected_kernel = self.data.get("selected_kernel")
+        if not isinstance(selected_kernel, str) or not selected_kernel:
+            self._error("per-tile adaptive captures must report selected_kernel")
+        elif selected_kernel != "direct_hip_tiled_rns_gemm_v1":
+            self._error("per-tile adaptive captures must use selected_kernel=direct_hip_tiled_rns_gemm_v1")
+        prefix_group_count = schedule.get("prefix_group_count")
+        max_selected = schedule.get("max_selected_prefix")
+        min_selected = schedule.get("min_selected_prefix")
+        adaptive_prefix_expected = _is_int(prefix_group_count) and prefix_group_count > 1
+        if isinstance(schedule.get("adaptive_prefix_active"), bool) and schedule.get("adaptive_prefix_active") != adaptive_prefix_expected:
+            self._error("schedule_metadata.adaptive_prefix_active must match prefix_group_count > 1")
+        adaptive_skip_expected = _is_int(max_selected) and _is_int(prefix) and max_selected < prefix
+        if isinstance(schedule.get("adaptive_skip_active"), bool) and schedule.get("adaptive_skip_active") != adaptive_skip_expected:
+            self._error("schedule_metadata.adaptive_skip_active must match max_selected_prefix < prefix")
+        if _is_int(prefix_group_count) and prefix_group_count <= 0:
+            self._error("per-tile adaptive captures must use at least one prefix group")
+        if _is_int(min_selected) and min_selected <= 0:
+            self._error("schedule_metadata.min_selected_prefix must be positive for per-tile adaptive captures")
+        if _is_int(max_selected) and _is_int(prefix) and max_selected > prefix:
+            self._error("schedule_metadata.max_selected_prefix must be <= prefix")
+        if schedule.get("adaptive_prefix_active") is not True and schedule.get("adaptive_skip_active") is not True:
+            self._error("per-tile adaptive captures must apply prefix grouping or prefix skipping")
+        metadata = self.data.get("timing_metadata")
+        if isinstance(metadata, dict):
+            if metadata.get("gpu_event_timing") is not True:
+                self._error("per-tile adaptive captures must include HIP event timings")
+            expected_scope = "direct_hip_bounded_adaptive_default_stream_backend_operation_groups"
+            if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
 
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
@@ -463,9 +568,15 @@ class _Validator:
                     f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}"
                 )
         prefix = self.data.get("prefix")
+        applicable = self.data.get("per_modulus_gemm_estimate_applicable")
         per_modulus = self._require("avg_per_modulus_gemm_estimate_us", "number")
         gemm_values = raw_timings.get("rns_gemm")
-        if _is_number(per_modulus) and _is_int(prefix) and gemm_values is not None:
+        if (
+            _is_number(per_modulus)
+            and _is_int(prefix)
+            and gemm_values is not None
+            and applicable is not False
+        ):
             expected = _average(gemm_values) / float(prefix) if prefix > 0 else _average(gemm_values)
             if not _close(float(per_modulus), expected):
                 self._error(f"avg_per_modulus_gemm_estimate_us={per_modulus} does not match expected {expected}")

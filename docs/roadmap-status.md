@@ -62,15 +62,18 @@ disagree, the spec remains the target and this file identifies the gap.
   unsigned output against the CPU reference, cover tile-local range errors,
   prove skipped high-prefix residue planes remain untouched, and keep matrices
   device-resident through GEMM/export.
-- Benchmark schema v3: benchmark captures include stable schema version, command
+- Benchmark schema v4: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
   when complete, explicit unavailable metadata when event timing is not
   applicable, strict wrap64 CPU and direct-HIP byte-limb benchmark metadata,
   fixed-prefix schedule metadata, measured schedule-info query timing,
   explicit phase-availability metadata for fused or not-applicable reduction,
-  schema validation tooling, and comparison-tool support for v1/v2/v3 plus
-  capture-specific GPU event phase orders.
+  direct-HIP per-tile adaptive bounded capture metadata, schema validation
+  tooling, and comparison-tool support for v1/v2/v3/v4 plus capture-specific
+  GPU event phase orders. Adaptive captures are evidence for the direct-HIP
+  tiled correctness path only; they are not optimized matrix-engine performance
+  claims.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -83,9 +86,6 @@ disagree, the spec remains the target and this file identifies the gap.
 - Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
   instruction-level validation. The direct HIP kernels are correctness bring-up
   kernels, not performance evidence.
-- Benchmark schema/CLI support for per-tile adaptive bounded captures. Current
-  benchmark captures remain global-bound fixed-prefix contracts and must not
-  imply adaptive GPU performance evidence.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
@@ -171,6 +171,15 @@ disagree, the spec remains the target and this file identifies the gap.
   temp\rns8-v3-hip-bounded-u64-repeat2.json`: same-contract schema v3
   comparison passed with comparable direct-HIP GPU event phase order. Captures
   are raw evidence only and do not establish a performance claim.
+- `temp\rns8-v4-hip-bounded-u64-adaptive.json` and
+  `temp\rns8-v4-hip-bounded-u64-adaptive-repeat.json`: direct-HIP per-tile
+  adaptive bounded captures validated as schema v4, with exact seeded-input
+  tile-bound metadata, `selected_kernel=direct_hip_tiled_rns_gemm_v1`,
+  `adaptive_execution_applied=true`, complete HIP event timing in
+  `direct_hip_bounded_adaptive_default_stream_backend_operation_groups`, and
+  same-contract `tools\result_compare.py --json` comparison including matching
+  tile-bound hash. Captures are raw evidence only and do not establish a
+  performance claim.
 - `temp\rns8-wrap-u64-bench.json` and
   `temp\rns8-wrap-u64-bench-repeat.json`: fixed-seed strict wrap64 CPU
   byte-limb captures with `prefix=0`, `bound_kind=none`,
@@ -187,8 +196,8 @@ disagree, the spec remains the target and this file identifies the gap.
   raw evidence only and do not establish a performance claim.
 - `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
   passed, including malformed raw timing length, GPU event summary, invalid
-  schedule metadata, wrap64 prefix, event-nullability, v3 scheduling, and v3
-  reduction-availability rejection checks.
+  schedule metadata, wrap64 prefix, event-nullability, v3 scheduling, v3
+  reduction-availability, and v4 per-tile adaptive contract rejection checks.
 - `python tools\benchmark_schema.py` validated representative v2/v3 CPU,
-  direct HIP, and wrap64 captures under `temp\`, plus synthetic v1/v2/v3
+  direct HIP, and wrap64 captures under `temp\`, plus synthetic v1/v2/v3/v4
   fixtures under `tests\fixtures\benchmark_schema\`.

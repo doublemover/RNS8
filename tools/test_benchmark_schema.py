@@ -36,6 +36,8 @@ def main() -> int:
     wrap64_hip = expect_valid("v2_wrap64_hip.json")
     v3_bounded = expect_valid("v3_bounded_hip.json")
     v3_wrap64_hip = expect_valid("v3_wrap64_hip.json")
+    v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
+    expect_valid("v4_bounded_i64_adaptive_hip.json")
     expect_valid("v1_legacy.json")
 
     bad_length = copy.deepcopy(bounded)
@@ -74,6 +76,30 @@ def main() -> int:
     bad_v3_reduction_scope = copy.deepcopy(v3_wrap64_hip)
     bad_v3_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
     expect_invalid(bad_v3_reduction_scope, "phase_availability.reduction.scope")
+
+    bad_v3_adaptive = copy.deepcopy(v3_bounded)
+    bad_v3_adaptive["schedule_metadata"]["adaptive_execution_applied"] = True
+    expect_invalid(bad_v3_adaptive, "adaptive_execution_applied must remain false")
+
+    bad_v4_bound = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_bound["bound"] = 1
+    expect_invalid(bad_v4_bound, "per-tile adaptive captures must use bound=0")
+
+    bad_v4_tile_count = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_tile_count["tile_bounds_u64"]["count"] = 3
+    expect_invalid(bad_v4_tile_count, "tile_bounds_u64.count must match")
+
+    bad_v4_skip_flag = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_skip_flag["schedule_metadata"]["adaptive_skip_active"] = False
+    expect_invalid(bad_v4_skip_flag, "adaptive_skip_active must match")
+
+    bad_v4_per_modulus = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_per_modulus["per_modulus_gemm_estimate_applicable"] = True
+    expect_invalid(bad_v4_per_modulus, "fixed-prefix contract")
+
+    bad_v4_scope = copy.deepcopy(v4_adaptive_u64)
+    bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
+    expect_invalid(bad_v4_scope, "bounded_adaptive")
 
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}
