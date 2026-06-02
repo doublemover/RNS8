@@ -38,6 +38,10 @@ disagree, the spec remains the target and this file identifies the gap.
   GEMM use byte-limb matrix storage and the Comba reference, match
   Boost.Multiprecision low-64-bit results, and keep RNS/CRT APIs fenced off
   from wrap descriptors.
+- Private direct-HIP strict wrap64 byte-limb smoke: a compiled direct HIP
+  one-thread-per-output Comba kernel matches the CPU byte-limb reference. This
+  is not public HIP wrap64 backend support and is not an optimized byte-GEMM
+  accelerator path.
 - Benchmark schema v2: benchmark captures include stable schema version, command
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
@@ -57,8 +61,8 @@ disagree, the spec remains the target and this file identifies the gap.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
 - Exact-wide GPU export.
-- Strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and GPU
-  differential tests.
+- Public/optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias
+  correction, and production GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -68,10 +72,13 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 36/36 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 37/37 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 36/36 passed on
+- `ctest --preset windows-debug --output-on-failure`: 37/37 passed on
   `gfx1100`.
+- The Windows HIP test pass included
+  `private HIP wrap64 byte-limb GEMM matches CPU reference`, which exercises a
+  compiled direct-HIP byte-limb Comba smoke kernel against the CPU reference.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json`:
   detected AMD Radeon RX 7900 XTX / `gfx1100`.
 - `build\windows-msvc-hip-debug\rns8-inspect.exe --backend wrap64-byte-limb

@@ -47,6 +47,9 @@ Implemented correctness coverage:
 - Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
   INT32-to-centered-residue reduction without INT32 global output, and bounded
   signed/unsigned GPU CRT export smoke tests against the CPU reference.
+- Private direct HIP strict `mod 2^64` byte-limb Comba smoke test compared
+  against the CPU byte-limb reference. This is not public HIP wrap64 backend
+  support and is not an optimized 36 byte-GEMM path.
 
 Not yet implemented:
 
@@ -54,7 +57,7 @@ Not yet implemented:
 - Exact-wide GPU reconstruction.
 - Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
   path.
-- Strict `mod 2^64` GPU byte-limb kernels.
+- Public or optimized strict `mod 2^64` GPU byte-limb kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
 Semantic guardrail:
