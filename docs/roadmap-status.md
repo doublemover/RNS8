@@ -56,8 +56,9 @@ disagree, the spec remains the target and this file identifies the gap.
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
   when complete, explicit unavailable metadata when event timing is not
   applicable, strict wrap64 CPU and direct-HIP byte-limb benchmark metadata,
-  schema validation tooling, and comparison-tool support for v1/v2 plus
-  capture-specific GPU event phase orders.
+  fixed-prefix schedule metadata, schema validation tooling, and
+  comparison-tool support for v1/v2 plus capture-specific GPU event phase
+  orders.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -116,16 +117,20 @@ disagree, the spec remains the target and this file identifies the gap.
   requirements.
 - Benchmark captures are kept under `temp/`:
   `rns8-cpu-bounded-i64.json`, `rns8-cpu-bounded-u64.json`,
-  `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`, and
-  `rns8-hip-bounded-u64-exactwide-limb-export.json`.
+  `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`,
+  `rns8-hip-bounded-u64-event-smoke.json`, and
+  `rns8-hip-bounded-u64-schedule-smoke.json`.
 - `temp\rns8-hip-bounded-u64-event-smoke.json`: checked schema v2, `gfx1100`,
   live `git_commit`, `gpu_event_timing=true`, and nonnegative direct-HIP event
   arrays for `pack`, `rns_gemm`, and `crt_export`.
+- `temp\rns8-hip-bounded-u64-schedule-smoke.json`: checked schema v2 with
+  `--tile-m 64 --tile-n 64`, fixed selected prefix metadata, required prefix
+  metadata, one prefix group, and `adaptive_execution_applied=false`.
 - `python tools\result_compare.py --json temp\rns8-hip-bounded-u64.json
-  temp\rns8-hip-bounded-u64-event-smoke.json`: same-contract comparison passed;
-  event-summary comparison is enabled only when both captures carry compatible
-  GPU event timing metadata. Captures are raw evidence only and do not establish
-  a performance claim.
+  temp\rns8-hip-bounded-u64-repeat.json`: same-contract comparison passed,
+  including matching fixed-prefix schedule metadata and compatible GPU event
+  timing metadata. Captures are raw evidence only and do not establish a
+  performance claim.
 - `temp\rns8-wrap-u64-bench.json` and
   `temp\rns8-wrap-u64-bench-repeat.json`: fixed-seed strict wrap64 CPU
   byte-limb captures with `prefix=0`, `bound_kind=none`,
@@ -141,8 +146,8 @@ disagree, the spec remains the target and this file identifies the gap.
   same-contract comparison with comparable GPU event phase order. Captures are
   raw evidence only and do not establish a performance claim.
 - `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
-  passed, including malformed raw timing length, GPU event summary, wrap64
-  prefix, and event-nullability rejection checks.
+  passed, including malformed raw timing length, GPU event summary, invalid
+  schedule metadata, wrap64 prefix, and event-nullability rejection checks.
 - `python tools\benchmark_schema.py` validated representative v2 CPU, direct
   HIP, and wrap64 captures under `temp\`, plus synthetic v1/v2 fixtures under
   `tests\fixtures\benchmark_schema\`.

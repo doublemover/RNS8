@@ -43,6 +43,8 @@ struct Args {
   uint32_t warmups = 1;
   uint32_t repeats = 5;
   uint64_t seed = 1;
+  uint32_t tile_m = 128;
+  uint32_t tile_n = 128;
   int device_id = std::numeric_limits<int>::min();
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   BenchSemantics semantics = BenchSemantics::BoundedI64;
@@ -77,6 +79,8 @@ struct GpuEventSamples {
 struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t matrix_alloc_us = 0;
+  rns8_plan_schedule_info schedule_info{};
+  bool schedule_info_available = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
   uint64_t checksum = 0;
@@ -92,6 +96,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "usage: rns8-bench [--backend cpu|hip-direct|wrap64-byte-limb]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
+      << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
 }
@@ -119,6 +124,10 @@ uint64_t parse_u64_seed(const char* text) {
     usage_error("seed must be non-negative");
   }
   return static_cast<uint64_t>(value);
+}
+
+bool valid_tile_size(uint32_t value) {
+  return value >= 64 && value <= 512 && (value & (value - 1u)) == 0;
 }
 
 rns8_backend_kind parse_backend(const std::string& value) {
@@ -151,6 +160,10 @@ Args parse_args(int argc, char** argv) {
       args.repeats = parse_u32(argv[++i], "--repeats");
     } else if (arg == "--seed" && i + 1 < argc) {
       args.seed = parse_u64_seed(argv[++i]);
+    } else if (arg == "--tile-m" && i + 1 < argc) {
+      args.tile_m = parse_u32(argv[++i], "--tile-m");
+    } else if (arg == "--tile-n" && i + 1 < argc) {
+      args.tile_n = parse_u32(argv[++i], "--tile-n");
     } else if (arg == "--device" && i + 1 < argc) {
       args.device_id = static_cast<int>(parse_i64(argv[++i], "--device"));
     } else if (arg == "--backend" && i + 1 < argc) {
@@ -162,6 +175,7 @@ Args parse_args(int argc, char** argv) {
           << "usage: rns8-bench [--backend cpu|hip-direct|wrap64-byte-limb]\n"
           << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
+          << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
     } else {
@@ -171,6 +185,9 @@ Args parse_args(int argc, char** argv) {
 
   if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
     usage_error("matrix dimensions must be positive and repeats must be nonzero");
+  }
+  if (!valid_tile_size(args.tile_m) || !valid_tile_size(args.tile_n)) {
+    usage_error("tile dimensions must be powers of two from 64 through 512");
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
       args.backend != RNS8_BACKEND_HIP_DIRECT) {
@@ -386,19 +403,19 @@ uint64_t benchmark_bound(const Args& args) {
   return bound;
 }
 
-rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, BenchSemantics semantics) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
   desc.rows = rows;
   desc.cols = cols;
   desc.logical_ld = cols;
-  desc.semantics = c_semantics(semantics);
+  desc.semantics = c_semantics(args.semantics);
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
-  desc.bound_kind = bound_kind(semantics);
-  desc.tile_m = 128;
-  desc.tile_n = 128;
-  desc.max_prefix = semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.bound_kind = bound_kind(args.semantics);
+  desc.tile_m = args.tile_m;
+  desc.tile_n = args.tile_n;
+  desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -414,8 +431,8 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound) {
   desc.k = args.k;
   desc.bound = bound;
   desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
-  desc.tile_m = 128;
-  desc.tile_n = 128;
+  desc.tile_m = args.tile_m;
+  desc.tile_n = args.tile_n;
   return desc;
 }
 
@@ -506,6 +523,16 @@ void print_string_array(const std::vector<std::string>& values) {
 
 void print_single_u64_array(uint64_t value) {
   std::cout << "[" << value << "]";
+}
+
+void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
+  result.schedule_info.struct_size = sizeof(result.schedule_info);
+  result.schedule_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status status = rns8_get_plan_schedule_info(plan, &result.schedule_info);
+  if (status != RNS8_SUCCESS) {
+    fail_status("rns8_get_plan_schedule_info", status);
+  }
+  result.schedule_info_available = true;
 }
 
 std::vector<std::string> gpu_event_phase_order(const Args& args) {
@@ -769,6 +796,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -779,9 +807,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args.semantics);
-  auto b_desc = matrix_desc(args.k, args.n, args.semantics);
-  auto c_desc = matrix_desc(args.m, args.n, args.semantics);
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -866,6 +894,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -876,9 +905,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args.semantics);
-  auto b_desc = matrix_desc(args.k, args.n, args.semantics);
-  auto c_desc = matrix_desc(args.m, args.n, args.semantics);
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -963,6 +992,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -973,9 +1003,9 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args.semantics);
-  auto b_desc = matrix_desc(args.k, args.n, args.semantics);
-  auto c_desc = matrix_desc(args.m, args.n, args.semantics);
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -1107,14 +1137,33 @@ void print_json(
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
   std::cout << "  \"prefix\": " << prefix << ",\n";
-  std::cout << "  \"tile_m\": 128,\n";
-  std::cout << "  \"tile_n\": 128,\n";
+  std::cout << "  \"tile_m\": " << args.tile_m << ",\n";
+  std::cout << "  \"tile_n\": " << args.tile_n << ",\n";
   std::cout << "  \"layout\": \"row_major\",\n";
   std::cout << "  \"k_block_size\": "
             << (args.semantics == BenchSemantics::WrapU64Mod2_64 ? args.k
                                                                   : std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK))
             << ",\n";
   std::cout << "  \"adaptive_tile_size\": null,\n";
+  std::cout << "  \"schedule_metadata\": {\n";
+  std::cout << "    \"source\": \"rns8_get_plan_schedule_info\",\n";
+  std::cout << "    \"tile_m\": " << result.schedule_info.tile_m << ",\n";
+  std::cout << "    \"tile_n\": " << result.schedule_info.tile_n << ",\n";
+  std::cout << "    \"tile_rows\": " << result.schedule_info.tile_rows << ",\n";
+  std::cout << "    \"tile_cols\": " << result.schedule_info.tile_cols << ",\n";
+  std::cout << "    \"tile_count\": " << result.schedule_info.tile_count << ",\n";
+  std::cout << "    \"min_required_prefix\": " << result.schedule_info.min_required_prefix << ",\n";
+  std::cout << "    \"max_required_prefix\": " << result.schedule_info.max_required_prefix << ",\n";
+  std::cout << "    \"min_selected_prefix\": " << result.schedule_info.min_selected_prefix << ",\n";
+  std::cout << "    \"max_selected_prefix\": " << result.schedule_info.max_selected_prefix << ",\n";
+  std::cout << "    \"prefix_group_count\": " << result.schedule_info.prefix_group_count << ",\n";
+  std::cout << "    \"adaptive_prefix_active\": "
+            << (result.schedule_info.adaptive_prefix_active ? "true" : "false") << ",\n";
+  std::cout << "    \"adaptive_skip_active\": "
+            << (result.schedule_info.adaptive_skip_active ? "true" : "false") << ",\n";
+  std::cout << "    \"adaptive_execution_applied\": false,\n";
+  std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
+  std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";
   std::cout << "  \"packed_layout_version\": "
             << (args.semantics == BenchSemantics::WrapU64Mod2_64 ? "\"byte_limb_v1\"" : "null") << ",\n";

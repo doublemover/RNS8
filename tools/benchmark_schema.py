@@ -180,6 +180,7 @@ class _Validator:
             self._require(key, "int")
         self._validate_nonnegative_ints()
         self._validate_nested_metadata()
+        self._validate_schedule_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
         self._validate_timing_summaries(raw_timings, "timing_summary_us", TIMING_PHASES)
@@ -234,10 +235,65 @@ class _Validator:
                 elif len(set(gpu_phase_order)) != len(gpu_phase_order):
                     self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
 
+    def _validate_tile_value(self, key: str, value: Any) -> None:
+        if not _is_int(value):
+            self._error(f"{key} must be an integer")
+            return
+        if value < 64 or value > 512 or (value & (value - 1)) != 0:
+            self._error(f"{key} must be a power of two from 64 through 512")
+
+    def _validate_schedule_metadata(self) -> None:
+        self._validate_tile_value("tile_m", self.data.get("tile_m"))
+        self._validate_tile_value("tile_n", self.data.get("tile_n"))
+        schedule = self._require("schedule_metadata", "dict")
+        if not isinstance(schedule, dict):
+            return
+        if schedule.get("source") != "rns8_get_plan_schedule_info":
+            self._error("schedule_metadata.source must be rns8_get_plan_schedule_info")
+        for key in [
+            "tile_m",
+            "tile_n",
+            "tile_rows",
+            "tile_cols",
+            "tile_count",
+            "min_required_prefix",
+            "max_required_prefix",
+            "min_selected_prefix",
+            "max_selected_prefix",
+            "prefix_group_count",
+            "range_bit_length",
+        ]:
+            if not _is_int(schedule.get(key)):
+                self._error(f"schedule_metadata.{key} must be an integer")
+        for key in ["adaptive_prefix_active", "adaptive_skip_active", "adaptive_execution_applied"]:
+            if not isinstance(schedule.get(key), bool):
+                self._error(f"schedule_metadata.{key} must be a boolean")
+        if schedule.get("tile_m") != self.data.get("tile_m"):
+            self._error("schedule_metadata.tile_m must match tile_m")
+        if schedule.get("tile_n") != self.data.get("tile_n"):
+            self._error("schedule_metadata.tile_n must match tile_n")
+        tile_rows = schedule.get("tile_rows")
+        tile_cols = schedule.get("tile_cols")
+        tile_count = schedule.get("tile_count")
+        if _is_int(tile_rows) and _is_int(tile_cols) and _is_int(tile_count):
+            if tile_rows <= 0 or tile_cols <= 0 or tile_count != tile_rows * tile_cols:
+                self._error("schedule_metadata tile grid must have positive rows/cols and matching tile_count")
+        min_required = schedule.get("min_required_prefix")
+        max_required = schedule.get("max_required_prefix")
+        min_selected = schedule.get("min_selected_prefix")
+        max_selected = schedule.get("max_selected_prefix")
+        if _is_int(min_required) and _is_int(max_required) and min_required > max_required:
+            self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
+        if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
+            self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
+        if schedule.get("adaptive_execution_applied") is True:
+            self._error("schedule_metadata.adaptive_execution_applied must remain false for schema v2 captures")
+
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")
         prefix = self.data.get("prefix")
         packed_layout = self.data.get("packed_layout_version")
+        schedule = self.data.get("schedule_metadata")
         if semantics == "wrap_u64_mod_2_64":
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"}:
                 self._error("wrap64 captures must select wrap64-byte-limb or hip-direct backend")
@@ -249,6 +305,12 @@ class _Validator:
                 self._error("wrap64 captures must use packed_layout_version=byte_limb_v1")
             if self.data.get("epilogue_type") != "low64_wrap_export":
                 self._error("wrap64 captures must use low64_wrap_export epilogue")
+            if isinstance(schedule, dict):
+                for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
+                    if schedule.get(key) != 0:
+                        self._error(f"wrap64 captures must use schedule_metadata.{key}=0")
+                if schedule.get("prefix_group_count") != 0:
+                    self._error("wrap64 captures must use schedule_metadata.prefix_group_count=0")
         elif semantics in {"bounded_i64", "bounded_u64"}:
             expected_bound_kind = "global_max_abs" if semantics == "bounded_i64" else "global_max_unsigned"
             if self.data.get("bound_kind") != expected_bound_kind:
@@ -259,6 +321,11 @@ class _Validator:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
             if self.data.get("epilogue_type") != "crt_export":
                 self._error(f"{semantics} captures must use crt_export epilogue")
+            if isinstance(schedule, dict) and _is_int(prefix):
+                if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                    self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
+                if schedule.get("prefix_group_count") != 1:
+                    self._error(f"{semantics} captures must use one fixed prefix group")
         elif isinstance(semantics, str):
             self._error(f"unsupported benchmark semantics {semantics}")
 
