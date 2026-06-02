@@ -3,13 +3,17 @@
 Implemented correctness coverage:
 
 - Default ladder stability and pairwise-coprime validation.
-- Prefix range-bit checks against the research spec table.
+- Prefix range-bit checks against the research spec table, exact prefix-product
+  checks through the supported prefix range, and strict `product > range`
+  required-prefix boundary checks.
 - Centered residue conversion for `m = 256`, composite odd moduli, prime
   moduli, negative inputs, and full signed input boundaries.
 - Scalar ring GEMM over composite and prime moduli.
 - K-block splitting above 65536 to avoid signed INT32 accumulation overflow.
 - Boost.Multiprecision CRT/Garner reconstruction for bounded signed and
-  unsigned outputs.
+  unsigned outputs, including canonical unsigned reconstruction, centered
+  signed midpoint thresholds, malformed residue-prefix rejection before range
+  evaluation, and full-width prefix-9 signed/unsigned edge cases.
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Plan schedule inspection for output tile grid, exact required prefix,
   selected prefix, and prefix-group metadata. Global bounded plans use a fixed
@@ -18,7 +22,8 @@ Implemented correctness coverage:
   exact prefix per tile, report adaptive prefix/skip metadata, execute only the
   selected per-tile prefixes, and export with the tile-local bound.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
-  `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs.
+  `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs under scalar and padded
+  leading-dimension layouts.
 - Public bounded signed and unsigned CPU one-shot GEMM sweeps over all
   dimensions 1 through 8, with Boost.Multiprecision exact oracles.
 - Fixed-seed random bounded signed and unsigned CPU checks with padded leading
@@ -29,6 +34,9 @@ Implemented correctness coverage:
   K-split edges, full-width `INT64_MIN`/`INT64_MAX`/`UINT64_MAX` output with
   padded leading dimensions, and signed/unsigned per-tile selected-prefix
   schedule parity.
+- Bounded global and per-tile range-error exports preserve caller output
+  buffers, including padded `ldc` lanes, instead of partially committing
+  out-of-contract results.
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
 - Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
@@ -63,7 +71,9 @@ Implemented correctness coverage:
   selected-prefix schedules, so workspace reuse cannot silently route a
   bounded, exact-wide, per-tile, or wrap64 plan through another contract.
   Per-tile bounded matrix tile geometry is also part of the persistent contract
-  and is rejected when stale before GEMM/export dispatch.
+  and is rejected when stale before GEMM/export dispatch. Bounded persistent
+  CPU reuse tests also pin source-version preservation for repacked operands
+  and reject stale output currentness before export.
 - Negative semantic tests that exact-wide signed/unsigned and strict
   `mod 2^64` wraparound reject bounded-looking metadata, including explicit
   global bounds and input-range bounds. A bounded prefix alone is not a license

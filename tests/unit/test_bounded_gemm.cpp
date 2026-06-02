@@ -46,6 +46,13 @@ rns8_gemm_desc u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   return desc;
 }
 
+template <typename T>
+void check_all_equal(const std::vector<T>& values, T expected) {
+  for (const T& value : values) {
+    CHECK(value == expected);
+  }
+}
+
 }  // namespace
 
 TEST_CASE("bounded i64 oneshot handles signs and cancellation") {
@@ -107,6 +114,73 @@ TEST_CASE("bounded i64 and u64 oneshot handle full boundary outputs") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("bounded CPU full-width outputs preserve padded leading dimensions") {
+  rns8_context* ctx = create_cpu();
+  {
+    constexpr int64_t m = 2;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 2;
+    constexpr int64_t lda = 3;
+    constexpr int64_t ldb = 3;
+    constexpr int64_t ldc = 4;
+    constexpr int64_t sentinel = INT64_C(0x1020304050607);
+    std::vector<int64_t> A(static_cast<std::size_t>(m * lda), sentinel);
+    std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), -sentinel);
+    std::vector<int64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+    A[0] = std::numeric_limits<int64_t>::min();
+    A[1] = 0;
+    A[lda] = std::numeric_limits<int64_t>::max();
+    A[lda + 1] = -std::numeric_limits<int64_t>::max();
+    B[0] = 1;
+    B[1] = 0;
+    B[ldb] = 0;
+    B[ldb + 1] = 1;
+
+    auto desc = i64_desc(m, n, k, uint64_t{1} << 63u);
+    REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+    CHECK(C[0] == std::numeric_limits<int64_t>::min());
+    CHECK(C[1] == 0);
+    CHECK(C[2] == sentinel);
+    CHECK(C[3] == sentinel);
+    CHECK(C[ldc] == std::numeric_limits<int64_t>::max());
+    CHECK(C[ldc + 1] == -std::numeric_limits<int64_t>::max());
+    CHECK(C[ldc + 2] == sentinel);
+    CHECK(C[ldc + 3] == sentinel);
+  }
+  {
+    constexpr int64_t m = 2;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 2;
+    constexpr int64_t lda = 3;
+    constexpr int64_t ldb = 3;
+    constexpr int64_t ldc = 4;
+    constexpr uint64_t sentinel = 0xaaaaaaaaaaaaaaaaull;
+    std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), sentinel);
+    std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), sentinel);
+    std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+    A[0] = std::numeric_limits<uint64_t>::max();
+    A[1] = std::numeric_limits<uint64_t>::max() - 1u;
+    A[lda] = 0;
+    A[lda + 1] = 1;
+    B[0] = 1;
+    B[1] = 0;
+    B[ldb] = 0;
+    B[ldb + 1] = 1;
+
+    auto desc = u64_desc(m, n, k, std::numeric_limits<uint64_t>::max());
+    REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+    CHECK(C[0] == std::numeric_limits<uint64_t>::max());
+    CHECK(C[1] == std::numeric_limits<uint64_t>::max() - 1u);
+    CHECK(C[2] == sentinel);
+    CHECK(C[3] == sentinel);
+    CHECK(C[ldc] == 0);
+    CHECK(C[ldc + 1] == 1);
+    CHECK(C[ldc + 2] == sentinel);
+    CHECK(C[ldc + 3] == sentinel);
+  }
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded defaults keep the fixed 9-modulus contract") {
   CHECK(RNS8_DEFAULT_BOUNDED_PREFIX == 9u);
 
@@ -129,20 +203,32 @@ TEST_CASE("bounded defaults keep the fixed 9-modulus contract") {
 TEST_CASE("bounded CPU export reports range errors for too-small valid global bounds") {
   rns8_context* ctx = create_cpu();
   {
-    const int64_t A[] = {6};
-    const int64_t B[] = {7};
-    int64_t C[] = {-1};
-    auto desc = i64_desc(1, 1, 1, 41);
-    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A, 1, B, 1, C, 1) == RNS8_RANGE_ERROR);
-    CHECK(C[0] == -1);
+    constexpr int64_t m = 2;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 1;
+    constexpr int64_t ldb = 3;
+    constexpr int64_t ldc = 4;
+    constexpr int64_t sentinel = INT64_C(-0x123456789);
+    const int64_t A[] = {6, -6};
+    const int64_t B[] = {7, -7, 999};
+    std::vector<int64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+    auto desc = i64_desc(m, n, k, 41);
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A, k, B, ldb, C.data(), ldc) == RNS8_RANGE_ERROR);
+    check_all_equal(C, sentinel);
   }
   {
-    const uint64_t A[] = {6};
-    const uint64_t B[] = {7};
-    uint64_t C[] = {99};
-    auto desc = u64_desc(1, 1, 1, 41);
-    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A, 1, B, 1, C, 1) == RNS8_RANGE_ERROR);
-    CHECK(C[0] == 99);
+    constexpr int64_t m = 2;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 1;
+    constexpr int64_t ldb = 3;
+    constexpr int64_t ldc = 4;
+    constexpr uint64_t sentinel = 0xbadc0ffee0ddf00dull;
+    const uint64_t A[] = {6, 8};
+    const uint64_t B[] = {7, 1, 999};
+    std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+    auto desc = u64_desc(m, n, k, 41);
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A, k, B, ldb, C.data(), ldc) == RNS8_RANGE_ERROR);
+    check_all_equal(C, sentinel);
   }
   rns8_destroy_context(ctx);
 }
@@ -154,6 +240,121 @@ TEST_CASE("bounded plan creation rejects insufficient prefix range") {
   rns8_plan* plan = nullptr;
   CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_RANGE_ERROR);
   CHECK(plan == nullptr);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded prefix-9 is the first full-width i64 and u64 contract") {
+  CHECK(RNS8_DEFAULT_BOUNDED_PREFIX == 9u);
+  rns8_context* ctx = create_cpu();
+
+  {
+    auto desc = i64_desc(1, 1, 1, uint64_t{1} << 63u);
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX - 1u;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_RANGE_ERROR);
+    CHECK(plan == nullptr);
+
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_schedule_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(info.min_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.max_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    auto desc = u64_desc(1, 1, 1, std::numeric_limits<uint64_t>::max());
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX - 1u;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_RANGE_ERROR);
+    CHECK(plan == nullptr);
+
+    desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_schedule_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(info.min_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.max_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU K-split edge cases preserve padded output and exact cancellation") {
+  rns8_context* ctx = create_cpu();
+  for (int64_t k : {static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) - 1,
+                    static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK),
+                    static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) + 1}) {
+    {
+      constexpr int64_t m = 2;
+      constexpr int64_t n = 2;
+      const int64_t lda = k + 1;
+      constexpr int64_t ldb = 3;
+      constexpr int64_t ldc = 4;
+      constexpr int64_t product = 127 * 127;
+      constexpr int64_t sentinel = INT64_C(-0x51f15e5);
+      std::vector<int64_t> A(static_cast<std::size_t>(m * lda), INT64_C(0x5a5a5a5a));
+      std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), INT64_C(-0x1234567));
+      std::vector<int64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(kk)] = kk % 2 == 0 ? 127 : -127;
+        A[static_cast<std::size_t>(lda + kk)] = 127;
+        B[static_cast<std::size_t>(kk * ldb)] = 127;
+        B[static_cast<std::size_t>(kk * ldb + 1)] = -127;
+      }
+
+      auto desc = i64_desc(m, n, k, static_cast<uint64_t>(k * product));
+      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      const int64_t alternating = k % 2 == 0 ? 0 : product;
+      CHECK(C[0] == alternating);
+      CHECK(C[1] == -alternating);
+      CHECK(C[2] == sentinel);
+      CHECK(C[3] == sentinel);
+      CHECK(C[static_cast<std::size_t>(ldc)] == k * product);
+      CHECK(C[static_cast<std::size_t>(ldc + 1)] == -(k * product));
+      CHECK(C[static_cast<std::size_t>(ldc + 2)] == sentinel);
+      CHECK(C[static_cast<std::size_t>(ldc + 3)] == sentinel);
+    }
+
+    {
+      constexpr int64_t m = 2;
+      constexpr int64_t n = 2;
+      const int64_t lda = k + 1;
+      constexpr int64_t ldb = 3;
+      constexpr int64_t ldc = 4;
+      constexpr uint64_t sentinel = 0xc001d00dcafef00dull;
+      std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), 0xfeedfacefeedfaceull);
+      std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), 0xdeadbeefdeadbeefull);
+      std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), sentinel);
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(kk)] = 255;
+        A[static_cast<std::size_t>(lda + kk)] = 1;
+        B[static_cast<std::size_t>(kk * ldb)] = 1;
+        B[static_cast<std::size_t>(kk * ldb + 1)] = 255;
+      }
+
+      auto desc = u64_desc(m, n, k, static_cast<uint64_t>(k) * 255u * 255u);
+      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      CHECK(C[0] == static_cast<uint64_t>(k) * 255u);
+      CHECK(C[1] == static_cast<uint64_t>(k) * 255u * 255u);
+      CHECK(C[2] == sentinel);
+      CHECK(C[3] == sentinel);
+      CHECK(C[static_cast<std::size_t>(ldc)] == static_cast<uint64_t>(k));
+      CHECK(C[static_cast<std::size_t>(ldc + 1)] == static_cast<uint64_t>(k) * 255u);
+      CHECK(C[static_cast<std::size_t>(ldc + 2)] == sentinel);
+      CHECK(C[static_cast<std::size_t>(ldc + 3)] == sentinel);
+    }
+  }
   rns8_destroy_context(ctx);
 }
 
@@ -363,33 +564,34 @@ TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile 
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
   constexpr int64_t k = 1;
+  constexpr int64_t ldc = 67;
   {
     const std::vector<uint64_t> bounds = {5, 10, 10, 10};
     std::vector<int64_t> A(m * k, 2);
     std::vector<int64_t> B(k * n, 3);
-    std::vector<int64_t> C(m * n, -99);
+    std::vector<int64_t> C(m * ldc, -99);
     auto desc = i64_desc(m, n, k, 0);
     desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
     desc.tile_m = 64;
     desc.tile_n = 64;
     desc.tile_bounds = bounds.data();
     desc.tile_bounds_count = bounds.size();
-    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(C[0] == -99);
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    check_all_equal<int64_t>(C, -99);
   }
   {
     const std::vector<uint64_t> bounds = {5, 10, 10, 10};
     std::vector<uint64_t> A(m * k, 2);
     std::vector<uint64_t> B(k * n, 3);
-    std::vector<uint64_t> C(m * n, 123);
+    std::vector<uint64_t> C(m * ldc, 123);
     auto desc = u64_desc(m, n, k, 0);
     desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
     desc.tile_m = 64;
     desc.tile_n = 64;
     desc.tile_bounds = bounds.data();
     desc.tile_bounds_count = bounds.size();
-    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), n) == RNS8_RANGE_ERROR);
-    CHECK(C[0] == 123);
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    check_all_equal<uint64_t>(C, 123);
   }
   rns8_destroy_context(ctx);
 }

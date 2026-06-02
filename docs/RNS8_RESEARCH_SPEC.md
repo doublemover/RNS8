@@ -383,6 +383,10 @@ The default CRT ladder is:
 
 All values are `<= 256` and pairwise coprime in this order. Composite values
 are intentional because CRT requires pairwise coprime rings, not fields.
+Prefix selection uses the strict condition `product(moduli[0:s]) > range`.
+Therefore prefix 8 is not sufficient for full signed or unsigned 64-bit bounded
+output, while prefix 9 is the first default ladder prefix that satisfies both
+`2 * 2^63` for signed magnitude bounds and `UINT64_MAX` for unsigned bounds.
 
 ### 7.2 Prefix Range Table
 
