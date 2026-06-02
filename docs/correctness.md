@@ -107,11 +107,11 @@ Implemented correctness coverage:
   verify that the signed-INT8 correction algebra composes through Comba
   diagonals. This is readiness coverage for future signed-INT8 accelerator use,
   not an enabled accelerator backend.
-- A separate CPU 36-byte-GEMM oracle sums the low-product byte diagonals with
-  the signed-INT8 correction helper, performs Comba carry propagation, and is
-  compared against both Boost.Multiprecision low-64-bit results and the existing
-  byte-limb Comba GEMM-cell reference over boundary and fixed-seed full-width
-  random inputs.
+- A separate CPU 36-byte-pair oracle sums the low eight Comba byte-product
+  diagonals with the signed-INT8 correction helper, performs carry propagation,
+  and is compared against both Boost.Multiprecision low-64-bit results and the
+  existing byte-limb Comba GEMM-cell reference over boundary and fixed-seed
+  full-width random inputs.
 - Public direct HIP strict `mod 2^64` byte-limb one-shot and persistent API
   tests compared against the CPU byte-limb backend. HIP wrap matrices own
   device-resident byte-limb buffers, do not allocate RNS residues, preserve
@@ -122,9 +122,9 @@ Implemented correctness coverage:
   matrices. Same-shape wrap64 HIP resident tests also check allocation counters
   across repeat pack/GEMM/export cycles, including larger multi-tile padded
   shapes with host inputs mutated after pack. The HIP GEMM correctness kernel
-  sums the 36 low-product byte diagonals with device-side signed-INT8
-  correction algebra and then performs deterministic carry propagation into the
-  low 64 bits.
+  sums the low eight Comba byte-product diagonals with device-side signed-INT8
+  correction algebra for the 36 byte-product pairs that can affect the low 64
+  bits, and then performs deterministic carry propagation into the low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
@@ -215,9 +215,11 @@ Semantic guardrail:
   semantics, Comba accumulation, carry handling, and low-limb export are tested
   directly. The current public surface includes the CPU byte-limb backend and a
   direct HIP correctness path with device-resident byte-limb matrices. RNS/CRT
-  GEMM and bounded exports still reject wrap descriptors. A bounded API call is
-  only valid for wrap-like inputs when the exact mathematical result is also
-  within the supplied bounded contract.
+  GEMM and bounded exports still reject wrap descriptors. Malformed wrap
+  descriptors and matrix descriptors carrying bounded, prefix, flag, tile-bound,
+  or invalid layout metadata are rejected as invalid before backend dispatch. A
+  bounded API call is only valid for wrap-like inputs when the exact
+  mathematical result is also within the supplied bounded contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path. Its

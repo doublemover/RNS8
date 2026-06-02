@@ -9,7 +9,10 @@ constexpr int kWrap64TileN = 16;
 constexpr int kWrap64TileK = 16;
 constexpr int kWrap64ByteLimbs = 8;
 constexpr int kWrap64LowProductDiagonals = kWrap64ByteLimbs;
+constexpr int kWrap64LowProductPairCount =
+    (kWrap64LowProductDiagonals * (kWrap64LowProductDiagonals + 1)) / 2;
 constexpr int kWrap64TileThreads = kWrap64TileM * kWrap64TileN;
+static_assert(kWrap64LowProductPairCount == 36, "low 64-bit wrap64 uses exactly 36 byte-product pairs");
 
 __device__ int64_t rns8_wrap64_compact_limb_index(int64_t row, int64_t col, int64_t cols, uint32_t limb) {
   return ((row * cols + col) * kWrap64ByteLimbs) + static_cast<int64_t>(limb);
@@ -47,6 +50,7 @@ __device__ uint64_t rns8_load_u64_limbs(const uint8_t* src) {
 
 __device__ void rns8_wrap64_store_low64_from_diagonals(uint8_t* dst, const uint64_t* diagonals) {
   uint64_t carry = 0;
+#pragma unroll
   for (uint32_t diagonal_index = 0; diagonal_index < kWrap64LowProductDiagonals; ++diagonal_index) {
     const uint64_t column = diagonals[diagonal_index] + carry;
     dst[diagonal_index] = static_cast<uint8_t>(column & 0xffu);
@@ -58,7 +62,9 @@ __device__ void rns8_wrap64_accumulate_low_diagonals_from_limbs(
     const uint8_t* a,
     const uint8_t* b,
     uint64_t* diagonals) {
+#pragma unroll
   for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
+#pragma unroll
     for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64LowProductDiagonals; ++b_limb) {
       diagonals[a_limb + b_limb] +=
           static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a[a_limb], b[b_limb]));

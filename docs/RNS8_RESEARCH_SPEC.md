@@ -1453,15 +1453,15 @@ Production strict wraparound path:
 ```text
 uint64 source
   -> base-256 byte limbs
-  -> 36 grouped INT8 GEMMs or direct HIP equivalent
-  -> Comba diagonal accumulation
+  -> 36 low-64-relevant byte-product pairs across the low eight Comba diagonals
+  -> Comba diagonal accumulation with unsigned-byte signed-INT8 correction
   -> delayed carry propagation
   -> low 64-bit output
 ```
 
 If a future accelerator exposes only signed INT8 products, unsigned byte
 products must be reconstructed with the tested signed-INT8 correction algebra
-before Comba carry propagation. The CPU reference has a 36-byte-GEMM
+before Comba carry propagation. The CPU reference has a 36-byte-pair
 decomposition oracle for this production path, and the direct-HIP correctness
 kernel consumes the same correction algebra at device source level. This still
 does not enable a signed-INT8 matrix-engine backend by itself.

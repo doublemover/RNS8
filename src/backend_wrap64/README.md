@@ -14,6 +14,10 @@ Current status:
   prefix, and byte-limb storage. CPU reference RNS contexts reject it.
   `RNS8_BACKEND_HIP_DIRECT` accepts it through device-resident byte-limb
   matrices, not through RNS residue storage.
+- Public wrap descriptors and wrap matrix descriptors are validated before
+  backend availability. Malformed wrap metadata returns `RNS8_INVALID_ARGUMENT`;
+  a valid wrap descriptor on a backend that does not implement strict byte-limb
+  wraparound returns `RNS8_UNSUPPORTED_BACKEND`.
 - `wrap64_reference.cpp` contains the CPU byte-limb Comba reference for
   low-64-bit product, GEMM-cell behavior, persistent matrix packing, persistent
   GEMM, and low-64-bit export. It keeps strict wraparound arithmetic separate
@@ -50,7 +54,8 @@ Current status:
 Acceptance bar for enabling this backend:
 
 - Pack inputs as unsigned base-256 limbs.
-- Compute the 36 low-product byte GEMMs needed for the low 64 output bits.
+- Compute the 36 low-64-relevant byte-product pairs across the low eight
+  Comba diagonals.
 - Accumulate Comba diagonals with deterministic carry propagation.
 - Test unsigned byte signedness handling explicitly when a selected accelerator
   exposes only signed INT8 GEMM.

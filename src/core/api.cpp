@@ -371,10 +371,14 @@ bool matrix_descriptor_matches(
       matrix.desc.max_prefix != prefix) {
     return false;
   }
-  if (is_per_tile_bound_kind(bound_kind)) {
+  if (semantics == RNS8_WRAP_U64_MOD_2_64 || is_per_tile_bound_kind(bound_kind)) {
     return matrix.desc.tile_m == tile_m && matrix.desc.tile_n == tile_n;
   }
   return true;
+}
+
+bool configured_tile_size_valid(uint32_t value) {
+  return value >= 64 && value <= 512 && (value & (value - 1u)) == 0;
 }
 
 bool wrap_byte_limb_bytes(int64_t rows, int64_t cols, std::size_t& bytes) {
@@ -442,8 +446,9 @@ bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backe
 }
 
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
-  if (!backend_supports_semantics(plan.backend, plan.desc.semantics) || plan.desc.tile_m == 0 ||
-      plan.desc.tile_n == 0 || plan.desc.flags != 0 || plan.prefix != plan.desc.max_prefix) {
+  if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
+      !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
+      plan.desc.flags != 0 || plan.prefix != plan.desc.max_prefix) {
     return false;
   }
   const uint64_t expected_tile_rows = ceil_div_i64_u32(plan.desc.m, plan.desc.tile_m);
@@ -1887,9 +1892,19 @@ rns8_status rns8_gemm_wrap_u64_oneshot(
     if (desc->semantics != RNS8_WRAP_U64_MOD_2_64) {
       return RNS8_INVALID_ARGUMENT;
     }
+    const uint32_t prefix =
+        desc->max_prefix == 0 ? rns8::detail::default_prefix_for_semantics(desc->semantics) : desc->max_prefix;
+    const rns8_status validation = rns8::detail::validate_gemm_desc(*desc, prefix);
+    if (validation != RNS8_SUCCESS) {
+      return validation;
+    }
     if (!valid_matrix_access(desc->m, desc->k, lda) || !valid_matrix_access(desc->k, desc->n, ldb) ||
         !valid_matrix_access(desc->m, desc->n, ldc)) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_backend_kind requested = effective_backend(desc->requested_backend, ctx->backend);
+    if (requested != ctx->backend || !backend_supports_semantics(requested, desc->semantics)) {
+      return RNS8_UNSUPPORTED_BACKEND;
     }
 
     rns8_plan* plan = nullptr;

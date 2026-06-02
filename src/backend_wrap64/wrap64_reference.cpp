@@ -10,6 +10,10 @@ uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b);
 namespace {
 
 constexpr uint32_t kWrap64ByteLimbs = 8;
+constexpr uint32_t kWrap64LowProductDiagonals = kWrap64ByteLimbs;
+constexpr uint32_t kWrap64LowProductPairCount =
+    (kWrap64LowProductDiagonals * (kWrap64LowProductDiagonals + 1u)) / 2u;
+static_assert(kWrap64LowProductPairCount == 36u, "low 64-bit wrap64 uses exactly 36 byte-product pairs");
 
 std::size_t wrap_compact_limb_index(int64_t row, int64_t col, int64_t cols, uint32_t limb) {
   const std::size_t cell = static_cast<std::size_t>(row) * static_cast<std::size_t>(cols) +
@@ -78,18 +82,18 @@ bool wrap64_cpu_plan_metadata_is_clean(const rns8_plan& plan) {
 void accumulate_wrap64_low_diagonals_from_limbs(
     const uint8_t* a_limbs,
     const uint8_t* b_limbs,
-    std::array<cpp_int, kWrap64ByteLimbs>& diagonals) {
+    std::array<cpp_int, kWrap64LowProductDiagonals>& diagonals) {
   for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
-    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64ByteLimbs; ++b_limb) {
+    for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64LowProductDiagonals; ++b_limb) {
       diagonals[a_limb + b_limb] += wrap64_unsigned_byte_product_from_signed_i8(a_limbs[a_limb], b_limbs[b_limb]);
     }
   }
 }
 
-uint64_t wrap64_low64_from_diagonals(const std::array<cpp_int, kWrap64ByteLimbs>& diagonals) {
+uint64_t wrap64_low64_from_diagonals(const std::array<cpp_int, kWrap64LowProductDiagonals>& diagonals) {
   uint64_t out = 0;
   cpp_int carry = 0;
-  for (uint32_t diagonal = 0; diagonal < kWrap64ByteLimbs; ++diagonal) {
+  for (uint32_t diagonal = 0; diagonal < kWrap64LowProductDiagonals; ++diagonal) {
     const cpp_int column = diagonals[diagonal] + carry;
     const uint64_t byte = static_cast<uint64_t>(column & 0xffu);
     out |= byte << (8u * diagonal);
@@ -104,7 +108,7 @@ uint64_t wrap64_compact_byte_limb_gemm_cell(
     int64_t row,
     int64_t col,
     int64_t k) {
-  std::array<cpp_int, kWrap64ByteLimbs> diagonals{};
+  std::array<cpp_int, kWrap64LowProductDiagonals> diagonals{};
   for (int64_t kk = 0; kk < k; ++kk) {
     const uint8_t* a_limbs = A.byte_limbs.data() + wrap_byte_limb_index(A, row, kk, 0);
     const uint8_t* b_limbs = B.byte_limbs.data() + wrap_byte_limb_index(B, kk, col, 0);
@@ -146,7 +150,7 @@ uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b) {
   return out;
 }
 
-uint64_t wrap64_byte_gemm36_cell(
+uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(
     const uint64_t* A,
     int64_t lda,
     const uint64_t* B,
@@ -154,13 +158,13 @@ uint64_t wrap64_byte_gemm36_cell(
     int64_t row,
     int64_t col,
     int64_t k) {
-  std::array<cpp_int, 8> diagonals{};
+  std::array<cpp_int, kWrap64LowProductDiagonals> diagonals{};
   for (int64_t kk = 0; kk < k; ++kk) {
     const uint64_t a_value = A[row * lda + kk];
     const uint64_t b_value = B[kk * ldb + col];
-    for (uint32_t a_limb = 0; a_limb < 8; ++a_limb) {
+    for (uint32_t a_limb = 0; a_limb < kWrap64ByteLimbs; ++a_limb) {
       const auto a_byte = static_cast<uint8_t>((a_value >> (8u * a_limb)) & 0xffu);
-      for (uint32_t b_limb = 0; b_limb + a_limb < 8; ++b_limb) {
+      for (uint32_t b_limb = 0; b_limb + a_limb < kWrap64LowProductDiagonals; ++b_limb) {
         const auto b_byte = static_cast<uint8_t>((b_value >> (8u * b_limb)) & 0xffu);
         diagonals[a_limb + b_limb] += wrap64_unsigned_byte_product_from_signed_i8(a_byte, b_byte);
       }

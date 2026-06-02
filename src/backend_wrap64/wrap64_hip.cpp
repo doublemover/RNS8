@@ -40,17 +40,23 @@ struct Wrap64CompactLayout {
 };
 
 constexpr uint64_t kWrap64ByteLimbsPerCell = 8;
+constexpr uint64_t kWrap64LowProductDiagonals = kWrap64ByteLimbsPerCell;
+constexpr uint64_t kWrap64LowProductPairCount =
+    (kWrap64LowProductDiagonals * (kWrap64LowProductDiagonals + 1ull)) / 2ull;
 constexpr uint64_t kWrap64MaxUnsignedByteProduct = 255ull * 255ull;
-constexpr uint64_t kWrap64MaxLowDiagonalProductsPerK = kWrap64ByteLimbsPerCell;
+constexpr uint64_t kWrap64MaxLowDiagonalProductsPerK = kWrap64LowProductDiagonals;
 constexpr uint64_t kWrap64MaxLowDiagonalColumnPerK =
     kWrap64MaxLowDiagonalProductsPerK * kWrap64MaxUnsignedByteProduct;
+constexpr uint64_t kWrap64MaxCarryInflatedLowDiagonalColumnPerK =
+    2ull * kWrap64MaxLowDiagonalColumnPerK;
+static_assert(kWrap64LowProductPairCount == 36ull, "low 64-bit wrap64 uses exactly 36 byte-product pairs");
 
 bool checked_diagonal_accumulator_capacity(int64_t k) {
   if (k <= 0) {
     return false;
   }
   return static_cast<uint64_t>(k) <=
-         std::numeric_limits<uint64_t>::max() / kWrap64MaxLowDiagonalColumnPerK;
+         std::numeric_limits<uint64_t>::max() / kWrap64MaxCarryInflatedLowDiagonalColumnPerK;
 }
 
 bool checked_limb_bytes(int64_t rows, int64_t cols, std::size_t* bytes) {

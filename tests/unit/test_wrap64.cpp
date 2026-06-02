@@ -190,7 +190,7 @@ TEST_CASE("wrap64 byte-limb GEMM cell matches multiprecision modulo 2^64") {
   }
 }
 
-TEST_CASE("wrap64 36-byte-GEMM oracle matches Comba and multiprecision") {
+TEST_CASE("wrap64 36-byte-pair oracle matches Comba and multiprecision") {
   constexpr int64_t m = 2;
   constexpr int64_t n = 3;
   constexpr int64_t k = 4;
@@ -231,14 +231,15 @@ TEST_CASE("wrap64 36-byte-GEMM oracle matches Comba and multiprecision") {
       for (int64_t kk = 0; kk < k; ++kk) {
         exact += boost::multiprecision::cpp_int(A[row * lda + kk]) * boost::multiprecision::cpp_int(B[kk * ldb + col]);
       }
-      const uint64_t oracle = rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t oracle =
+          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(oracle == low64(exact));
       CHECK(oracle == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
     }
   }
 }
 
-TEST_CASE("wrap64 36-byte-GEMM oracle covers full-width randomized signed-int8 correction") {
+TEST_CASE("wrap64 36-byte-pair oracle covers full-width randomized signed-int8 correction") {
   constexpr int64_t m = 4;
   constexpr int64_t n = 5;
   constexpr int64_t k = 13;
@@ -267,7 +268,8 @@ TEST_CASE("wrap64 36-byte-GEMM oracle covers full-width randomized signed-int8 c
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t oracle = rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t oracle =
+          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(oracle == expected_wrap_cell(A, lda, B, ldb, row, col, k));
       CHECK(oracle == rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
     }
@@ -358,7 +360,8 @@ TEST_CASE("public wrap64 one-shot matches byte-limb oracle for carry-heavy padde
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      const uint64_t expected = rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k);
+      const uint64_t expected =
+          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k);
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] == expected);
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
             rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
@@ -515,7 +518,8 @@ TEST_CASE("public wrap64 persistent matrices use compact byte limbs independent 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
-            rns8::detail::wrap64_byte_gemm36_cell(packed_A.data(), lda, packed_B.data(), ldb, row, col, k));
+            rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(
+                packed_A.data(), lda, packed_B.data(), ldb, row, col, k));
     }
     CHECK(C[static_cast<std::size_t>(row * ldc + n)] == c_sentinel);
   }
@@ -754,7 +758,9 @@ TEST_CASE("public wrap64 CPU resident path covers large padded tile-tail full-wi
         const std::size_t out_index = static_cast<std::size_t>(row * ldc + col);
         const uint64_t expected = expected_wrap_cell(A, lda, B, ldb, row, col, k);
         CHECK(C[out_index] == expected);
-        CHECK(C[out_index] == rns8::detail::wrap64_byte_gemm36_cell(A.data(), lda, B.data(), ldb, row, col, k));
+        CHECK(
+            C[out_index] ==
+            rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
         CHECK(C[out_index] ==
               rns8::detail::wrap64_byte_limb_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
       }
@@ -855,6 +861,8 @@ TEST_CASE("public wrap64 CPU path rejects stale bounded schedule metadata") {
   auto desc = wrap_desc(m, n, k);
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  const uint32_t original_tile_m = plan->desc.tile_m;
+  const uint32_t original_tile_n = plan->desc.tile_n;
   rns8_workspace* workspace = nullptr;
   REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
   rns8_matrix* a_matrix = nullptr;
@@ -869,53 +877,94 @@ TEST_CASE("public wrap64 CPU path rejects stale bounded schedule metadata") {
   REQUIRE(rns8_pack_u64(ctx, a_matrix, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(ctx, b_matrix, B, n, 2) == RNS8_SUCCESS);
 
-  plan->desc.tile_bounds = A;
-  plan->desc.tile_bounds_count = 1;
-  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  plan->desc.tile_bounds = nullptr;
-  plan->desc.tile_bounds_count = 0;
-
-  plan->tile_bounds.push_back(1);
-  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  plan->tile_bounds.clear();
-
   rns8_plan_tile_schedule_entry stale_entry{};
   stale_entry.struct_size = sizeof(stale_entry);
   stale_entry.abi_version = RNS8_ABI_VERSION;
   stale_entry.required_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   stale_entry.selected_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
-  plan->tile_schedule.push_back(stale_entry);
-  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  plan->tile_schedule.clear();
 
-  plan->schedule_min_required_prefix = 1;
-  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  plan->schedule_min_required_prefix = 0;
-
-  plan->schedule_range_bit_length = 64;
-  CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  plan->schedule_range_bit_length = 0;
+  auto check_gemm_rejects_plan_mutation = [&](auto mutate, auto restore) {
+    mutate();
+    CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    restore();
+  };
+  check_gemm_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
+  check_gemm_rejects_plan_mutation(
+      [&] { plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
+      [&] { plan->desc.bound_kind = RNS8_BOUND_NONE; });
+  check_gemm_rejects_plan_mutation(
+      [&] { plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
+      [&] { plan->desc.max_prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.flags = 1; }, [&] { plan->desc.flags = 0; });
+  check_gemm_rejects_plan_mutation(
+      [&] { plan->desc.tile_m = original_tile_m + 1; },
+      [&] { plan->desc.tile_m = original_tile_m; });
+  check_gemm_rejects_plan_mutation(
+      [&] { plan->desc.tile_n = original_tile_n + 1; },
+      [&] { plan->desc.tile_n = original_tile_n; });
+  check_gemm_rejects_plan_mutation([&] { plan->prefix = 1; }, [&] { plan->prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->modulus_product = 1; }, [&] { plan->modulus_product = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.tile_bounds = A; }, [&] { plan->desc.tile_bounds = nullptr; });
+  check_gemm_rejects_plan_mutation([&] { plan->desc.tile_bounds_count = 1; }, [&] { plan->desc.tile_bounds_count = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->tile_bounds.push_back(1); }, [&] { plan->tile_bounds.clear(); });
+  check_gemm_rejects_plan_mutation(
+      [&] { plan->tile_schedule.push_back(stale_entry); },
+      [&] { plan->tile_schedule.clear(); });
+  check_gemm_rejects_plan_mutation([&] { ++plan->schedule_tile_rows; }, [&] { --plan->schedule_tile_rows; });
+  check_gemm_rejects_plan_mutation([&] { ++plan->schedule_tile_cols; }, [&] { --plan->schedule_tile_cols; });
+  check_gemm_rejects_plan_mutation([&] { ++plan->schedule_tile_count; }, [&] { --plan->schedule_tile_count; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_min_required_prefix = 1; }, [&] { plan->schedule_min_required_prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_max_required_prefix = 1; }, [&] { plan->schedule_max_required_prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_min_selected_prefix = 1; }, [&] { plan->schedule_min_selected_prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_max_selected_prefix = 1; }, [&] { plan->schedule_max_selected_prefix = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_prefix_group_count = 1; }, [&] { plan->schedule_prefix_group_count = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_range_bit_length = 64; }, [&] { plan->schedule_range_bit_length = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_adaptive_prefix_active = 1; }, [&] { plan->schedule_adaptive_prefix_active = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_adaptive_skip_active = 1; }, [&] { plan->schedule_adaptive_skip_active = 0; });
+  check_gemm_rejects_plan_mutation([&] { plan->schedule_flags = 1; }, [&] { plan->schedule_flags = 0; });
 
   REQUIRE(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   uint64_t C[] = {0};
 
-  plan->desc.tile_bounds = A;
-  plan->desc.tile_bounds_count = 1;
-  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  plan->desc.tile_bounds = nullptr;
-  plan->desc.tile_bounds_count = 0;
-
-  plan->tile_bounds.push_back(1);
-  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  plan->tile_bounds.clear();
-
-  plan->tile_schedule.push_back(stale_entry);
-  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  plan->tile_schedule.clear();
-
-  plan->schedule_range_bit_length = 64;
-  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  plan->schedule_range_bit_length = 0;
+  auto check_export_rejects_plan_mutation = [&](auto mutate, auto restore) {
+    mutate();
+    CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
+    restore();
+  };
+  check_export_rejects_plan_mutation([&] { plan->desc.bound = 1; }, [&] { plan->desc.bound = 0; });
+  check_export_rejects_plan_mutation(
+      [&] { plan->desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED; },
+      [&] { plan->desc.bound_kind = RNS8_BOUND_NONE; });
+  check_export_rejects_plan_mutation(
+      [&] { plan->desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX; },
+      [&] { plan->desc.max_prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->desc.flags = 1; }, [&] { plan->desc.flags = 0; });
+  check_export_rejects_plan_mutation(
+      [&] { plan->desc.tile_m = original_tile_m + 1; },
+      [&] { plan->desc.tile_m = original_tile_m; });
+  check_export_rejects_plan_mutation(
+      [&] { plan->desc.tile_n = original_tile_n + 1; },
+      [&] { plan->desc.tile_n = original_tile_n; });
+  check_export_rejects_plan_mutation([&] { plan->prefix = 1; }, [&] { plan->prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->modulus_product = 1; }, [&] { plan->modulus_product = 0; });
+  check_export_rejects_plan_mutation([&] { plan->desc.tile_bounds = A; }, [&] { plan->desc.tile_bounds = nullptr; });
+  check_export_rejects_plan_mutation([&] { plan->desc.tile_bounds_count = 1; }, [&] { plan->desc.tile_bounds_count = 0; });
+  check_export_rejects_plan_mutation([&] { plan->tile_bounds.push_back(1); }, [&] { plan->tile_bounds.clear(); });
+  check_export_rejects_plan_mutation(
+      [&] { plan->tile_schedule.push_back(stale_entry); },
+      [&] { plan->tile_schedule.clear(); });
+  check_export_rejects_plan_mutation([&] { ++plan->schedule_tile_rows; }, [&] { --plan->schedule_tile_rows; });
+  check_export_rejects_plan_mutation([&] { ++plan->schedule_tile_cols; }, [&] { --plan->schedule_tile_cols; });
+  check_export_rejects_plan_mutation([&] { ++plan->schedule_tile_count; }, [&] { --plan->schedule_tile_count; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_min_required_prefix = 1; }, [&] { plan->schedule_min_required_prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_max_required_prefix = 1; }, [&] { plan->schedule_max_required_prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_min_selected_prefix = 1; }, [&] { plan->schedule_min_selected_prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_max_selected_prefix = 1; }, [&] { plan->schedule_max_selected_prefix = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_prefix_group_count = 1; }, [&] { plan->schedule_prefix_group_count = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_range_bit_length = 64; }, [&] { plan->schedule_range_bit_length = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_adaptive_prefix_active = 1; }, [&] { plan->schedule_adaptive_prefix_active = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_adaptive_skip_active = 1; }, [&] { plan->schedule_adaptive_skip_active = 0; });
+  check_export_rejects_plan_mutation([&] { plan->schedule_flags = 1; }, [&] { plan->schedule_flags = 0; });
 
   REQUIRE(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_SUCCESS);
 
@@ -946,13 +995,41 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   int64_t signed_C[] = {0};
   CHECK(rns8_gemm_i64_oneshot(wrap_ctx, &desc, signed_A, k, signed_B, n, signed_C, n) == RNS8_INVALID_ARGUMENT);
 
+  auto check_invalid_wrap_descriptor = [&](const rns8_gemm_desc& bad_desc) {
+    rns8_plan* rejected_plan = nullptr;
+    CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bad_desc, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_wrap_u64_oneshot(cpu_ctx, &bad_desc, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_create_plan(wrap_ctx, &bad_desc, &rejected_plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(rejected_plan == nullptr);
+    if (rejected_plan) {
+      rns8_destroy_plan(rejected_plan);
+      rejected_plan = nullptr;
+    }
+    CHECK(rns8_create_plan(cpu_ctx, &bad_desc, &rejected_plan) == RNS8_INVALID_ARGUMENT);
+    CHECK(rejected_plan == nullptr);
+    if (rejected_plan) {
+      rns8_destroy_plan(rejected_plan);
+    }
+  };
+
+  auto check_invalid_wrap_access = [&](int64_t bad_lda, int64_t bad_ldb, int64_t bad_ldc) {
+    C[0] = 0x123456789abcdef0ull;
+    CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &desc, A, bad_lda, B, bad_ldb, C, bad_ldc) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(C[0] == 0x123456789abcdef0ull);
+    CHECK(rns8_gemm_wrap_u64_oneshot(cpu_ctx, &desc, A, bad_lda, B, bad_ldb, C, bad_ldc) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(C[0] == 0x123456789abcdef0ull);
+  };
+  check_invalid_wrap_access(0, n, n);
+  check_invalid_wrap_access(k, 0, n);
+  check_invalid_wrap_access(k, n, 0);
+
   auto bounded_looking = desc;
   bounded_looking.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   bounded_looking.bound = std::numeric_limits<uint64_t>::max();
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bounded_looking, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
   rns8_plan* plan = nullptr;
-  CHECK(rns8_create_plan(wrap_ctx, &bounded_looking, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(bounded_looking);
 
   auto malformed_with_future_backend = bounded_looking;
   malformed_with_future_backend.requested_backend = RNS8_BACKEND_HIPBLASLT;
@@ -976,26 +1053,36 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
 
   auto prefixed = desc;
   prefixed.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &prefixed, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_create_plan(wrap_ctx, &prefixed, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(prefixed);
 
   CHECK(rns8_create_plan(cpu_ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(plan == nullptr);
 
   auto bound_only = desc;
   bound_only.bound = 1;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bound_only, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_create_plan(wrap_ctx, &bound_only, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(bound_only);
+
+  auto flagged = desc;
+  flagged.flags = 1;
+  check_invalid_wrap_descriptor(flagged);
+
+  auto bad_tile_m = desc;
+  bad_tile_m.tile_m = 32;
+  check_invalid_wrap_descriptor(bad_tile_m);
+
+  auto bad_tile_n = desc;
+  bad_tile_n.tile_n = 96;
+  check_invalid_wrap_descriptor(bad_tile_n);
 
   const uint64_t tile_bound = 1;
   auto tile_bounded = desc;
   tile_bounded.tile_bounds = &tile_bound;
   tile_bounded.tile_bounds_count = 1;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &tile_bounded, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_create_plan(wrap_ctx, &tile_bounded, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(tile_bounded);
+
+  auto tile_count_only = desc;
+  tile_count_only.tile_bounds_count = 1;
+  check_invalid_wrap_descriptor(tile_count_only);
 
   auto per_tile_wrap = desc;
   per_tile_wrap.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
@@ -1003,9 +1090,7 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   per_tile_wrap.tile_n = 64;
   per_tile_wrap.tile_bounds = &tile_bound;
   per_tile_wrap.tile_bounds_count = 1;
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &per_tile_wrap, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_create_plan(wrap_ctx, &per_tile_wrap, &plan) == RNS8_INVALID_ARGUMENT);
-  CHECK(plan == nullptr);
+  check_invalid_wrap_descriptor(per_tile_wrap);
 
   rns8_gemm_desc bounded_desc{};
   bounded_desc.struct_size = sizeof(bounded_desc);
@@ -1038,15 +1123,37 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   matrix.bound_kind = RNS8_BOUND_NONE;
   matrix.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   rns8_matrix* storage = nullptr;
+  auto check_invalid_wrap_matrix_descriptor = [&](const rns8_matrix_desc& bad_desc) {
+    CHECK(rns8_create_matrix(wrap_ctx, &bad_desc, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+    if (storage) {
+      rns8_destroy_matrix(storage);
+      storage = nullptr;
+    }
+    CHECK(rns8_create_matrix(cpu_ctx, &bad_desc, &storage) == RNS8_INVALID_ARGUMENT);
+    CHECK(storage == nullptr);
+    if (storage) {
+      rns8_destroy_matrix(storage);
+      storage = nullptr;
+    }
+  };
   CHECK(rns8_create_matrix(cpu_ctx, &matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(storage == nullptr);
-  matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
-  CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
-  CHECK(storage == nullptr);
-  matrix.bound_kind = RNS8_BOUND_NONE;
-  matrix.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
-  CHECK(rns8_create_matrix(wrap_ctx, &matrix, &storage) == RNS8_INVALID_ARGUMENT);
-  CHECK(storage == nullptr);
+  auto bounded_matrix_descriptor = matrix;
+  bounded_matrix_descriptor.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  check_invalid_wrap_matrix_descriptor(bounded_matrix_descriptor);
+  auto prefixed_matrix_descriptor = matrix;
+  prefixed_matrix_descriptor.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  check_invalid_wrap_matrix_descriptor(prefixed_matrix_descriptor);
+  auto flagged_matrix_descriptor = matrix;
+  flagged_matrix_descriptor.flags = 1;
+  check_invalid_wrap_matrix_descriptor(flagged_matrix_descriptor);
+  auto bad_ld_matrix_descriptor = matrix;
+  bad_ld_matrix_descriptor.logical_ld = -1;
+  check_invalid_wrap_matrix_descriptor(bad_ld_matrix_descriptor);
+  auto bad_tile_matrix_descriptor = matrix;
+  bad_tile_matrix_descriptor.tile_m = 32;
+  check_invalid_wrap_matrix_descriptor(bad_tile_matrix_descriptor);
 
   rns8_plan* valid_plan = nullptr;
   REQUIRE(rns8_create_plan(wrap_ctx, &desc, &valid_plan) == RNS8_SUCCESS);
