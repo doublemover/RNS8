@@ -293,6 +293,12 @@ delayed carry propagation
 low 64-bit export
 ```
 
+The current public implementation exposes a CPU byte-limb reference one-shot
+through `rns8_gemm_wrap_u64_oneshot`. It requires
+`RNS8_WRAP_U64_MOD_2_64`, `RNS8_BOUND_NONE`, no CRT prefix, and the
+`RNS8_BACKEND_WRAP64_BYTE_LIMB` context/backend. Persistent byte-limb matrix
+storage and HIP byte-limb kernels are later production milestones.
+
 ## 7. Modulus Ladder
 
 ### 7.1 Default Ordered Set
@@ -628,6 +634,16 @@ rns8_status rns8_gemm_u64_oneshot(
     uint64_t* C,
     int64_t ldc);
 
+rns8_status rns8_gemm_wrap_u64_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    uint64_t* C,
+    int64_t ldc);
+
 const char* rns8_status_string(rns8_status status);
 ```
 
@@ -647,6 +663,11 @@ Limbs are little-endian. Signed export is two's-complement in exactly
 does not fit. Unsigned export is magnitude in exactly `limb_count` limbs and
 also returns `RNS8_RANGE_ERROR` on overflow. These APIs are separate from
 bounded i64/u64 export and strict wraparound semantics.
+
+Strict wrap one-shot output is row-major `uint64_t` with caller-supplied `ldc`.
+It is a finite-ring low-64-bit result and does not report CRT range errors.
+Descriptors carrying bounds or CRT prefixes are rejected instead of being
+interpreted as odd-modulus CRT metadata.
 
 Required status codes:
 

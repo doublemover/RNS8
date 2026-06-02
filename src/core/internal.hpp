@@ -63,6 +63,7 @@ constexpr uint16_t kDefaultModuli[RNS8_DEFAULT_MODULUS_COUNT] = {
 
 bool valid_abi(uint64_t struct_size, uint32_t abi_version, std::size_t expected_size);
 void fill_cpu_device_info(rns8_device_info& info);
+void fill_wrap64_device_info(rns8_device_info& info);
 void copy_c_string(char* dst, std::size_t dst_size, const std::string& src);
 
 bool default_moduli_pairwise_coprime();

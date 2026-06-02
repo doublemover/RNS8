@@ -10,6 +10,7 @@ rns8_backend_kind parse_backend(const std::string& value) {
   if (value == "auto") return RNS8_BACKEND_AUTO;
   if (value == "cpu") return RNS8_BACKEND_CPU_REFERENCE;
   if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
+  if (value == "wrap64-byte-limb") return RNS8_BACKEND_WRAP64_BYTE_LIMB;
   return RNS8_BACKEND_AUTO;
 }
 
@@ -76,7 +77,7 @@ int main(int argc, char** argv) {
     } else if (arg == "--device" && i + 1 < argc) {
       device_id = std::atoi(argv[++i]);
     } else if (arg == "--help") {
-      std::cout << "usage: rns8-inspect [--backend cpu|hip-direct|auto] [--device N] [--json]\n";
+      std::cout << "usage: rns8-inspect [--backend cpu|hip-direct|wrap64-byte-limb|auto] [--device N] [--json]\n";
       return 0;
     } else {
       std::cerr << "unknown argument: " << arg << "\n";
@@ -113,4 +114,3 @@ int main(int argc, char** argv) {
   }
   return 0;
 }
-

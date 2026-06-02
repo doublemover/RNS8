@@ -16,6 +16,16 @@ rns8_context* create_cpu() {
   return ctx;
 }
 
+rns8_context* create_wrap64() {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  rns8_context* ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS);
+  return ctx;
+}
+
 rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -154,9 +164,21 @@ TEST_CASE("strict wraparound is not accepted as bounded odd-modulus CRT") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("wrap64 byte-limb context reports explicit CPU reference backend") {
+  rns8_context* ctx = create_wrap64();
+  rns8_device_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_device_info(ctx, &info) == RNS8_SUCCESS);
+  CHECK(info.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB);
+  CHECK(info.device_id == -1);
+  CHECK(info.hip_available == 0);
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("future backend context kinds report unsupported status") {
   for (const rns8_backend_kind backend :
-       {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA, RNS8_BACKEND_WRAP64_BYTE_LIMB}) {
+       {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA}) {
     rns8_context_options options{};
     options.struct_size = sizeof(options);
     options.abi_version = RNS8_ABI_VERSION;

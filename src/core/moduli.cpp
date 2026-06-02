@@ -59,6 +59,18 @@ void fill_cpu_device_info(rns8_device_info& info) {
   copy_c_string(info.detail, sizeof(info.detail), "portable scalar CPU reference backend");
 }
 
+void fill_wrap64_device_info(rns8_device_info& info) {
+  info.backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  info.device_id = -1;
+  info.hip_available = 0;
+  info.hip_runtime_version = 0;
+  info.hip_driver_version = 0;
+  info.global_mem_bytes = 0;
+  copy_c_string(info.name, sizeof(info.name), "CPU wrap64 byte-limb reference");
+  copy_c_string(info.gcn_arch, sizeof(info.gcn_arch), "none");
+  copy_c_string(info.detail, sizeof(info.detail), "strict mod 2^64 byte-limb CPU reference backend");
+}
+
 bool default_moduli_pairwise_coprime() {
   for (uint32_t i = 0; i < RNS8_DEFAULT_MODULUS_COUNT; ++i) {
     for (uint32_t j = i + 1; j < RNS8_DEFAULT_MODULUS_COUNT; ++j) {
