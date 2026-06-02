@@ -89,7 +89,13 @@
     "global_mem_bytes": 25753026560
   },
   "clock_power_settings": null,
-  "comparison_baseline": null,
+  "comparison_baseline": {
+    "status": "required_not_recorded",
+    "speedup_claimed": false,
+    "selected_reference": null,
+    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64"],
+    "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
+  },
   "derived_tops_equivalent": null,
   "timing_source": "std::chrono::steady_clock",
   "timing_note": "host wall-clock timings for the direct-HIP adaptive per-tile bounded correctness path",

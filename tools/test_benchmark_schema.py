@@ -130,6 +130,21 @@ def main() -> int:
     bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
     expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
 
+    bad_baseline_prereq = copy.deepcopy(v4_adaptive_u64)
+    bad_baseline_prereq["comparison_baseline"]["required_before_speedup_claim"] = ["same_contract_cpu_reference"]
+    expect_invalid(bad_baseline_prereq, "same_contract_direct_hip_vector_alu_int64")
+
+    bad_speedup_claim = copy.deepcopy(v4_ck_i64)
+    bad_speedup_claim["comparison_baseline"]["speedup_claimed"] = True
+    expect_invalid(bad_speedup_claim, "speedup claims require a reviewed same-contract comparison baseline")
+
+    bad_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    bad_performance_promotion["backend_metadata"]["performance_validated"] = True
+    expect_invalid(
+        bad_performance_promotion,
+        "performance_validated captures require comparison_baseline.status=reviewed_same_contract_baseline",
+    )
+
     bad_current_version = copy.deepcopy(v4_adaptive_u64)
     bad_current_version["schema_version"] = 3
     expect_invalid(bad_current_version, "expected 4")

@@ -785,6 +785,49 @@ void print_string_array(const std::vector<std::string>& values) {
   std::cout << "]";
 }
 
+std::vector<std::string> required_speedup_baselines(const Args& args, rns8_backend_kind selected_backend) {
+  std::vector<std::string> baselines;
+  switch (args.semantics) {
+    case BenchSemantics::BoundedI64:
+    case BenchSemantics::BoundedU64:
+      baselines.push_back("same_contract_cpu_reference");
+      baselines.push_back("same_contract_direct_hip_vector_alu_int64");
+      if (selected_backend != RNS8_BACKEND_HIP_DIRECT) {
+        baselines.push_back("same_contract_direct_hip_correctness");
+      }
+      break;
+    case BenchSemantics::WrapU64Mod2_64:
+      baselines.push_back("same_contract_cpu_wrap64_byte_limb_reference");
+      baselines.push_back("same_contract_direct_hip_wrap64_byte_gemm36");
+      break;
+  }
+  return baselines;
+}
+
+void print_comparison_baseline(const Args& args, const rns8_device_info& info, const BenchmarkResult& result) {
+  const bool performance_validated = result.backend_info.performance_validated != 0;
+  std::cout << "  \"comparison_baseline\": {\n";
+  std::cout << "    \"status\": \""
+            << (performance_validated ? "missing_reviewed_same_contract_baseline"
+                                      : "required_not_recorded")
+            << "\",\n";
+  std::cout << "    \"speedup_claimed\": false,\n";
+  std::cout << "    \"selected_reference\": null,\n";
+  std::cout << "    \"required_before_speedup_claim\": ";
+  print_string_array(required_speedup_baselines(args, info.backend));
+  std::cout << ",\n";
+  std::cout << "    \"reason\": \"";
+  if (performance_validated) {
+    std::cout << "backend metadata requested performance validation but this capture has no reviewed same-contract "
+                 "baseline record";
+  } else {
+    std::cout << "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU "
+                 "baseline evidence";
+  }
+  std::cout << "\"\n";
+  std::cout << "  },\n";
+}
+
 void print_single_u64_array(uint64_t value) {
   std::cout << "[" << value << "]";
 }
@@ -1756,7 +1799,7 @@ void print_json(
   std::cout << "    \"global_mem_bytes\": " << info.global_mem_bytes << "\n";
   std::cout << "  },\n";
   std::cout << "  \"clock_power_settings\": null,\n";
-  std::cout << "  \"comparison_baseline\": null,\n";
+  print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {

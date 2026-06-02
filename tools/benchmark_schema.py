@@ -180,6 +180,7 @@ class _Validator:
         self._validate_nonnegative_ints()
         self._validate_nested_metadata()
         self._validate_backend_metadata()
+        self._validate_comparison_baseline()
         self._validate_schedule_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
@@ -348,6 +349,45 @@ class _Validator:
                 "separate_i32_scratch_reduce_then_canonical_u8_export",
             }:
                 self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
+
+    def _validate_comparison_baseline(self) -> None:
+        baseline = self._require("comparison_baseline", "dict")
+        if not isinstance(baseline, dict):
+            return
+        status = baseline.get("status")
+        if status not in {"required_not_recorded", "reviewed_same_contract_baseline", "missing_reviewed_same_contract_baseline"}:
+            self._error("comparison_baseline.status must describe reviewed or missing same-contract baseline evidence")
+        if not isinstance(baseline.get("speedup_claimed"), bool):
+            self._error("comparison_baseline.speedup_claimed must be a boolean")
+        selected_reference = baseline.get("selected_reference")
+        if selected_reference is not None and not isinstance(selected_reference, str):
+            self._error("comparison_baseline.selected_reference must be a string or null")
+        required = baseline.get("required_before_speedup_claim")
+        if not isinstance(required, list) or not all(isinstance(item, str) and item for item in required):
+            self._error("comparison_baseline.required_before_speedup_claim must be a nonempty string array")
+        if not isinstance(baseline.get("reason"), str) or not baseline.get("reason"):
+            self._error("comparison_baseline.reason must be a nonempty string")
+        raw_metadata = self.data.get("backend_metadata")
+        metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+        selected_backend = self.data.get("backend_selected")
+        performance_validated = metadata.get("performance_validated") is True
+        derived_tops = self.data.get("derived_tops_equivalent")
+        if baseline.get("speedup_claimed") is True:
+            if status != "reviewed_same_contract_baseline" or not isinstance(selected_reference, str):
+                self._error("speedup claims require a reviewed same-contract comparison baseline")
+        if performance_validated and status != "reviewed_same_contract_baseline":
+            self._error("performance_validated captures require comparison_baseline.status=reviewed_same_contract_baseline")
+        if derived_tops is not None and status != "reviewed_same_contract_baseline":
+            self._error("derived_tops_equivalent requires a reviewed same-contract comparison baseline")
+        semantics = self.data.get("semantics")
+        if semantics in {"bounded_i64", "bounded_u64"} and isinstance(required, list):
+            for item in ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64"]:
+                if item not in required:
+                    self._error(f"bounded captures require comparison baseline prerequisite {item}")
+        if semantics == "wrap_u64_mod_2_64" and isinstance(required, list):
+            for item in ["same_contract_cpu_wrap64_byte_limb_reference", "same_contract_direct_hip_wrap64_byte_gemm36"]:
+                if item not in required:
+                    self._error(f"wrap64 captures require comparison baseline prerequisite {item}")
         if selected_backend == "ck":
             expected = {
                 "accelerator_library": "Composable Kernel",
