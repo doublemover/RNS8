@@ -23,6 +23,11 @@ def main() -> int:
     expect(ck["expected_sha"] == deps.EXPECTED_ROCM_SUBMODULES["ck"]["sha"], "CK expected SHA changed")
     if ck["status"] == "present":
         expect(bool(ck["sha_matches"]), "initialized CK submodule is not at the pinned release SHA")
+    expect("ck" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES, "CK primitive probe source missing")
+    expect(
+        "DeviceGemmWmma_CShuffle" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
+        "CK primitive probe no longer instantiates the WMMA CShuffle GEMM primitive",
+    )
 
     rocwmma = deps.repo_local_dependency_report("rocwmma")
     expect(rocwmma["relative_path"] == "third_party/rocm/rocWMMA", "rocWMMA submodule path changed")
@@ -33,6 +38,11 @@ def main() -> int:
     )
     if rocwmma["status"] == "present":
         expect(bool(rocwmma["sha_matches"]), "initialized rocWMMA submodule is not at the pinned release SHA")
+    expect("rocwmma" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES, "rocWMMA primitive probe source missing")
+    expect(
+        "mma_sync" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["rocwmma"],
+        "rocWMMA primitive probe no longer instantiates an int8 mma_sync path",
+    )
 
     roc_header = root / "third_party" / "rocm" / "rocWMMA" / "library" / "include" / "rocwmma" / "rocwmma.hpp"
     expect(
@@ -58,6 +68,18 @@ def main() -> int:
         probes = deps.accelerator_compile_probes({}, False, temp_path / "probes", None)
         expect(probes["requested"] is False, "not-requested probe report changed")
         expect(probes["items"]["ck"]["status"] == "NOT_REQUESTED", "CK not-requested probe status changed")
+        expect(
+            probes["items"]["ck"]["primitive_probe_status"] == "NOT_REQUESTED",
+            "CK not-requested primitive probe status changed",
+        )
+        expect(
+            probes["items"]["rocwmma"]["primitive_probe_status"] == "NOT_REQUESTED",
+            "rocWMMA not-requested primitive probe status changed",
+        )
+        expect(
+            probes["items"]["hipblaslt"]["primitive_probe_status"] == "NOT_APPLICABLE",
+            "hipBLASLt primitive probe applicability changed",
+        )
 
     print("dependency checker self-test: PASS")
     return 0

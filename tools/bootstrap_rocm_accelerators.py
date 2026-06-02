@@ -106,7 +106,14 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
     accelerators = deps.accelerator_components()
     component = accelerators.get(name)
     if not isinstance(component, dict):
-        return {"ok": False, "status": "missing_component_record", "name": name}
+        return {
+            "ok": False,
+            "status": "missing_component_record",
+            "name": name,
+            **deps.primitive_probe_not_run_fields(
+                name, probe_root, "NOT_RUN_MISSING_COMPONENT", "component record not discovered", True
+            ),
+        }
     header = component.get("header")
     if not isinstance(header, str) or not header:
         return {
@@ -114,10 +121,21 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
             "status": "missing_header",
             "name": name,
             "component": component,
+            **deps.primitive_probe_not_run_fields(
+                name, probe_root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True
+            ),
         }
     hipcc = deps.find_command("hipcc")
     if not hipcc:
-        return {"ok": False, "status": "missing_hipcc", "name": name, "component": component}
+        return {
+            "ok": False,
+            "status": "missing_hipcc",
+            "name": name,
+            "component": component,
+            **deps.primitive_probe_not_run_fields(
+                name, probe_root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True
+            ),
+        }
 
     probe_root.mkdir(parents=True, exist_ok=True)
     source = probe_root / f"{name}_probe.cpp"
@@ -128,14 +146,24 @@ def compile_dependency_probe(name: str, target: str, probe_root: Path) -> dict[s
         command.extend(["-I", include_root])
     command.extend(["-o", str(binary)])
     result = run_command(command, cwd=deps.repo_root(), timeout=120, use_msvc=True)
+    primitive = deps.compile_accelerator_primitive_probe(name, component, probe_root, target, hipcc)
+    header_ok = bool(result["ok"])
+    primitive_ok = bool(primitive.get("primitive_probe_ok"))
+    if header_ok and primitive_ok:
+        status = "compile_probe_pass_primitive_probe_pass"
+    elif header_ok:
+        status = "compile_probe_pass_primitive_probe_fail"
+    else:
+        status = "compile_probe_fail"
     return {
-        "ok": bool(result["ok"]),
-        "status": "compile_probe_pass" if result["ok"] else "compile_probe_fail",
+        "ok": header_ok and primitive_ok,
+        "status": status,
         "name": name,
         "source": str(source),
         "binary": str(binary),
         "component": component,
         "compile": result,
+        **primitive,
     }
 
 
@@ -149,7 +177,10 @@ def probe_dependencies(target: str, probe_root: Path) -> dict[str, object]:
         "target": target,
         "probe_root": str(probe_root),
         "items": items,
-        "policy": "dependency compile probes only; backend enable flags remain fail-fast",
+        "policy": (
+            "dependency compile/run probes plus object-only int8 primitive compile probes; "
+            "backend enable flags remain fail-fast"
+        ),
     }
 
 
@@ -184,9 +215,16 @@ def print_human(report: dict[str, object]) -> None:
             for name, item in items.items():
                 assert isinstance(item, dict)
                 print(f"  {name}: {item.get('status')}")
+                print(
+                    "    primitive: "
+                    f"{item.get('primitive_probe_status')} ok={item.get('primitive_probe_ok')}"
+                )
                 compile_result = item.get("compile")
                 if isinstance(compile_result, dict) and compile_result.get("output"):
                     print(f"    output: {compile_result['output']}")
+                primitive_output = item.get("primitive_output")
+                if primitive_output:
+                    print(f"    primitive output: {primitive_output}")
 
 
 def main() -> int:
