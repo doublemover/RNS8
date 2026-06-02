@@ -16,10 +16,10 @@ Backend status:
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
 - Wraparound byte-limb backend: CPU reference implemented for one-shot and
-  persistent byte-limb matrix APIs. Direct HIP supports a public correctness
-  path for `RNS8_WRAP_U64_MOD_2_64` under `RNS8_BACKEND_HIP_DIRECT` with
-  device-resident byte-limb buffers. Optimized byte GEMMs and accelerator
-  signedness corrections are not implemented.
+  persistent byte-limb matrix APIs. Direct HIP supports a public byte-GEMM36
+  correctness path for `RNS8_WRAP_U64_MOD_2_64` under `RNS8_BACKEND_HIP_DIRECT`
+  with device-resident byte-limb buffers. Optimized matrix-engine byte GEMMs
+  are not implemented.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
@@ -77,22 +77,25 @@ matrices via `rns8_pack_u64`, `rns8_gemm_wrap_u64`, and
 allocate RNS residue matrices for wrap descriptors, do not use CRT
 reconstruction, and reject bounds or prefixes in the descriptor.
 
-The direct HIP wrap64 path is a correctness Comba path with one thread per
-output element. It keeps A/B/C byte-limb storage device-resident across
-pack/GEMM/export and is tested against the CPU byte-limb reference. It is not
-the production 36 byte-GEMM accelerator path, and it is not performance
-evidence.
+The direct HIP wrap64 path is a byte-GEMM36 correctness kernel with one thread
+per output element. It sums the 36 low-product byte diagonals across K with the
+same signed-INT8 correction algebra as the CPU oracle, performs one deterministic
+carry pass into the low 64 bits, keeps A/B/C byte-limb storage device-resident
+across pack/GEMM/export, and is tested against the CPU byte-limb reference. It
+is not an optimized matrix-engine byte-GEMM accelerator path, and it is not
+performance evidence.
 
 Unsigned byte semantics are explicit. The CPU reference includes a tested
 signed-INT8 correction helper that reconstructs each unsigned byte product from
 the product a signed INT8 accelerator would expose plus a deterministic
 correction term. It also includes a separate 36-byte-GEMM decomposition oracle
-that sums byte-product diagonals and then performs Comba carry propagation.
-These are accelerator-readiness references only; no signed-INT8 accelerator
-backend is enabled by them.
+that sums byte-product diagonals and then performs Comba carry propagation. The
+direct HIP correctness kernel consumes the same correction algebra at device
+source level; no signed-INT8 accelerator backend is enabled by this.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
-direct-HIP Comba correctness path. HIP wrap64 event captures use
-wrap64-specific Comba/export labels and schema-compatible aggregate aliases;
-they are raw timing evidence for the correctness path only, not optimized
-byte-GEMM performance evidence.
+direct-HIP byte-GEMM36 correctness path. HIP wrap64 event captures use
+wrap64-specific byte-GEMM36/export labels, report
+`selected_kernel=direct_hip_wrap64_byte_gemm36_correctness_v1`, and keep
+schema-compatible aggregate aliases; they are raw timing evidence for the
+correctness path only, not optimized byte-GEMM performance evidence.

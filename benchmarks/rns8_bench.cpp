@@ -73,7 +73,7 @@ struct GpuEventSamples {
   std::vector<double> pack_kernel_us;
   std::vector<double> pack_us;
   std::vector<double> rns_gemm_kernel_group_us;
-  std::vector<double> wrap64_comba_gemm_kernel_us;
+  std::vector<double> wrap64_byte_gemm36_kernel_us;
   std::vector<double> rns_gemm_us;
   std::vector<double> crt_export_status_memset_us;
   std::vector<double> crt_export_kernel_us;
@@ -741,7 +741,7 @@ std::vector<std::string> gpu_event_phase_order(const Args& args) {
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "wrap64_comba_gemm_kernel",
+        "wrap64_byte_gemm36_kernel",
         "rns_gemm",
         "wrap64_export_kernel",
         "wrap64_export_d2h",
@@ -796,7 +796,7 @@ void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
     print_named_gpu_event_array("pack", events.pack_us, true);
-    print_named_gpu_event_array("wrap64_comba_gemm_kernel", events.wrap64_comba_gemm_kernel_us, true);
+    print_named_gpu_event_array("wrap64_byte_gemm36_kernel", events.wrap64_byte_gemm36_kernel_us, true);
     print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
     print_named_gpu_event_array("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_named_gpu_event_array("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -822,7 +822,7 @@ void print_gpu_event_timing_summary(const Args& args, const GpuEventSamples& eve
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
     print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
     print_gpu_event_summary("pack", events.pack_us, true);
-    print_gpu_event_summary("wrap64_comba_gemm_kernel", events.wrap64_comba_gemm_kernel_us, true);
+    print_gpu_event_summary("wrap64_byte_gemm36_kernel", events.wrap64_byte_gemm36_kernel_us, true);
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_gpu_event_summary("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -911,9 +911,9 @@ void collect_gemm_gpu_events(GpuEventSamples& events) {
 
 void collect_wrap64_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double kernel = sum_event_label(events, samples, "rns_gemm", "wrap64_comba_gemm_kernel");
+  const double kernel = sum_event_label(events, samples, "rns_gemm", "wrap64_byte_gemm36_kernel");
   if (events.complete) {
-    events.wrap64_comba_gemm_kernel_us.push_back(kernel);
+    events.wrap64_byte_gemm36_kernel_us.push_back(kernel);
     events.rns_gemm_us.push_back(kernel);
   }
 }
@@ -969,7 +969,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return false;
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
-    return result.gpu_events.wrap64_comba_gemm_kernel_us.size() == repeats &&
+    return result.gpu_events.wrap64_byte_gemm36_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_d2h_us.size() == repeats;
   }
@@ -1354,6 +1354,9 @@ const char* selected_kernel_name(
   if (adaptive_execution_applied(args, info, result)) {
     return "direct_hip_tiled_rns_gemm_v1";
   }
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
+    return "direct_hip_wrap64_byte_gemm36_correctness_v1";
+  }
   return nullptr;
 }
 
@@ -1474,9 +1477,9 @@ void print_json(
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {
-    std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 byte-limb Comba "
-                 "correctness path; GPU event timing uses wrap64-specific Comba/export labels plus schema-compatible "
-                 "rns_gemm/crt_export aggregate aliases\",\n";
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 byte-GEMM36 "
+                 "correctness path; GPU event timing uses wrap64-specific byte-GEMM36/export labels plus "
+                 "schema-compatible rns_gemm/crt_export aggregate aliases\",\n";
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
@@ -1501,7 +1504,7 @@ void print_json(
   std::cout << "    \"gpu_event_timing_source_scope\": "
             << (gpu_events_available
                     ? (wrap64_hip_events
-                           ? "\"direct_hip_wrap64_comba_default_stream_backend_operation_groups\""
+                           ? "\"direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups\""
                            : (adaptive_hip_events
                                   ? "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\""
                                   : "\"direct_hip_default_stream_backend_operation_groups\""))
@@ -1509,7 +1512,7 @@ void print_json(
             << ",\n";
   std::cout << "    \"gpu_event_timing_caveat\": "
             << (wrap64_hip_events
-                    ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a one-thread-per-output Comba correctness kernel and schema-compatible rns_gemm/crt_export aggregate aliases; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
+                    ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a one-thread-per-output byte-GEMM36 correctness kernel and schema-compatible rns_gemm/crt_export aggregate aliases; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
                     : (adaptive_hip_events
                            ? "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
                            : (gpu_events_available

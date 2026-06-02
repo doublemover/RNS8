@@ -36,6 +36,7 @@ def main() -> int:
     wrap64_hip = expect_valid("v2_wrap64_hip.json")
     v3_bounded = expect_valid("v3_bounded_hip.json")
     v3_wrap64_hip = expect_valid("v3_wrap64_hip.json")
+    v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
     expect_valid("v4_bounded_i64_adaptive_hip.json")
     expect_valid("v1_legacy.json")
@@ -100,6 +101,10 @@ def main() -> int:
     bad_v4_scope = copy.deepcopy(v4_adaptive_u64)
     bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
     expect_invalid(bad_v4_scope, "bounded_adaptive")
+
+    bad_v4_wrap64_kernel = copy.deepcopy(v4_wrap64_hip)
+    bad_v4_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_comba_correctness_v1"
+    expect_invalid(bad_v4_wrap64_kernel, "byte_gemm36")
 
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}
