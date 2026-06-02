@@ -18,6 +18,10 @@ In particular, Windows reports keep `windows_evidence_validates_linux_rocm` and
 `windows_evidence_validates_instinct` false; Linux and Instinct fields are
 validation claims only after a real Linux ROCm host runs the relevant parity
 suite.
+The same report carries `readiness.correctness_backend_validation`, which
+records that dependency discovery does not validate CPU, direct-HIP, wrap64, or
+accelerator correctness backends. Its Linux/Instinct records are representation
+and readiness metadata on Windows, not validation evidence.
 
 Expected Linux configure path:
 
@@ -66,6 +70,9 @@ capability probes, exact CPU differential coverage, and measured performance
 before enabling advanced backend stages. AMDGPU builtin hot kernels follow the
 same rule: compiler or architecture availability is only candidate evidence
 until a target-specific kernel has exact CPU differential coverage.
+Checker records mark this as
+`evidence_class=candidate_accelerator_evidence_only` and
+`candidate_evidence_is_correctness_validation=false`.
 The same hard-cut enable policy is covered by CTest configure-negative cases:
 each accelerator enable flag must fail while only evidence probes exist.
 

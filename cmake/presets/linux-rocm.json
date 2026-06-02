@@ -4,7 +4,7 @@
     {
       "name": "linux-rocm-reference",
       "displayName": "Linux ROCm reference fragment",
-      "description": "Reference preset fragment documenting ROCm variables for production Linux validation.",
+      "description": "Reference preset fragment documenting ROCm variables; validation requires a real Linux ROCm host with supported hardware.",
       "cacheVariables": {
         "RNS8_ENABLE_HIP": "ON",
         "RNS8_HIP_ROOT": "/opt/rocm",

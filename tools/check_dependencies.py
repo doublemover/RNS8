@@ -56,6 +56,8 @@ ACCELERATOR_ENABLE_FLAGS = {
     "amdgpu_builtins": "RNS8_ENABLE_AMDGPU_BUILTINS",
 }
 ACCELERATOR_ENABLE_POLICY = "fail_fast_until_real_exact_correctness_backend"
+CHECKER_VALIDATION_SCOPE = "dependency/readiness reporting only; no build, test, smoke, schema, benchmark, or correctness run"
+CANDIDATE_ACCELERATOR_EVIDENCE_CLASS = "candidate_accelerator_evidence_only"
 
 ACCELERATOR_PROBE_SOURCES = {
     "hipblaslt": """#include <hipblaslt/hipblaslt.h>
@@ -522,6 +524,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "validated_correctness_backend": False,
             "can_enable_correctness_backend": False,
             "feature_detection": "evidence_only",
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
             "header": item["header"],
             "library": item["library"],
             "tool": item["tool"],
@@ -531,7 +535,7 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "experiment": item["experiment"],
             "capability": item["capability"],
             "readiness": (
-                "candidate evidence only; backend remains disabled until compiled capability and exact correctness probes pass"
+                "candidate evidence only; backend remains disabled until a real backend has compiled kernels and exact CPU differentials"
                 if bool(item["header"] or item["library"] or item["tool"])
                 else item.get(
                     "not_ready_detail",
@@ -578,6 +582,8 @@ def not_run_probe(
         "enable_policy": ACCELERATOR_ENABLE_POLICY,
         "validated_correctness_backend": False,
         "can_enable_correctness_backend": False,
+        "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+        "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
         "source": str(probe_dir / f"{name}_probe.cpp"),
         "binary": str(probe_binary_path(probe_dir, name)),
@@ -681,6 +687,8 @@ def accelerator_compile_probes(
             "enable_policy": ACCELERATOR_ENABLE_POLICY,
             "validated_correctness_backend": False,
             "can_enable_correctness_backend": False,
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",
             "source": str(source),
             "binary": str(binary),
@@ -803,6 +811,11 @@ def accelerator_gate(
         "ok": False,
         "required_for_host_readiness": False,
         "backend_stage": item["backend_stage"],
+        "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+        "backend_enablement": "disabled",
+        "correctness_backend": "not_implemented",
+        "validated_correctness_backend": False,
+        "candidate_evidence_is_correctness_validation": False,
         "evidence": [
             f"probe: {item.get('probe')}",
             f"cmake module: {item.get('cmake_module') or 'not found'}",
@@ -833,6 +846,8 @@ def accelerator_enablement_policy(
             "validated_correctness_backend": False,
             "can_enable_correctness_backend": False,
             "feature_detection": "evidence_only",
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
             "component_discovered": bool(component.get("ok")) if isinstance(component, dict) else False,
             "probe_status": probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED",
             "readiness_effect": "none",
@@ -847,6 +862,59 @@ def accelerator_enablement_policy(
             "correctness backends exist; discovery and probes are evidence only"
         ),
         "flags": flags,
+    }
+
+
+def correctness_backend_validation_status(
+    host_system: str,
+    hip_info: dict[str, object],
+    accelerators: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    target = hip_info.get("target")
+    windows_gfx1100_visible = host_system == "Windows" and target == "gfx1100"
+    accelerator_summary: dict[str, dict[str, object]] = {}
+    for name in ACCELERATOR_NAMES:
+        item = accelerators.get(name, {})
+        accelerator_summary[name] = {
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "component_discovered": bool(item.get("ok")) if isinstance(item, dict) else False,
+            "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
+            "backend_enablement": "disabled",
+            "correctness_backend": "not_implemented",
+            "validated_correctness_backend": False,
+            "candidate_evidence_is_correctness_validation": False,
+        }
+    return {
+        "checker_scope": CHECKER_VALIDATION_SCOPE,
+        "validated_by_this_report": [],
+        "validated_correctness_backend_count": 0,
+        "candidate_accelerator_evidence_is_correctness_validation": False,
+        "implemented_correctness_backends": {
+            "cpu_reference": {
+                "backend_enablement": "implemented",
+                "evidence_class": "implemented_correctness_backend",
+                "validated_by_this_report": False,
+                "validation_source": "build and test runs, not dependency discovery",
+            },
+            "direct_hip": {
+                "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_HIP",
+                "evidence_class": "implemented_correctness_backend",
+                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "validated_by_this_report": False,
+                "validation_source": "Windows/Linux HIP build, ctest, and smoke runs, not dependency discovery",
+            },
+            "wrap64_byte_limb": {
+                "backend_enablement": "implemented",
+                "evidence_class": "implemented_correctness_backend",
+                "validated_by_this_report": False,
+                "validation_source": "unit/differential tests, not dependency discovery",
+            },
+        },
+        "candidate_accelerators": accelerator_summary,
+        "policy": (
+            "This dependency report can expose prerequisites and candidate accelerator evidence, but only "
+            "separate correctness runs can validate CPU, direct-HIP, wrap64, or future accelerator backends."
+        ),
     }
 
 
@@ -866,8 +934,11 @@ def exact_wide_platform_validation_status(host_system: str, hip_info: dict[str, 
         "instinct_validated_by_this_host": False,
         "windows_evidence_validates_linux_rocm": False,
         "windows_evidence_validates_instinct": False,
+        "linux_rocm_validation_evidence": "not_validated_by_this_host",
+        "instinct_validation_evidence": "not_validated_by_this_host",
         "linux_validation_status": "unvalidated_until_real_linux_rocm_host",
         "instinct_validation_status": "unvalidated_until_real_linux_rocm_cdna_host",
+        "validation_boundary": "Windows evidence is host-local and cannot be promoted to Linux ROCm or Instinct validation",
         "policy": (
             "exact-wide Windows evidence does not validate Linux ROCm, Radeon Linux, or Instinct CDNA; "
             "those gates require a real supported Linux ROCm host and exact CPU differential runs"
@@ -1033,8 +1104,70 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         "policy": "optional accelerators are never promoted to enabled backends by this checker",
         "gates": gates,
         "platform_gates": platform_gates,
+        "checker_validation_scope": CHECKER_VALIDATION_SCOPE,
+        "correctness_backend_validation": correctness_backend_validation_status(host_system, hip_info, accelerators),
         "accelerator_enablement": accelerator_enablement_policy(accelerators, accelerator_probes),
         "exact_wide_platform_validation": exact_wide_platform_validation_status(host_system, hip_info),
+    }
+
+
+def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
+    readiness = report.get("readiness", {})
+    assert isinstance(readiness, dict)
+    accelerator_enablement = readiness.get("accelerator_enablement", {})
+    exact_wide_platform = readiness.get("exact_wide_platform_validation", {})
+    correctness_validation = readiness.get("correctness_backend_validation", {})
+    assert isinstance(accelerator_enablement, dict)
+    assert isinstance(exact_wide_platform, dict)
+    assert isinstance(correctness_validation, dict)
+    flags = accelerator_enablement.get("flags", {})
+    candidate_accelerators = correctness_validation.get("candidate_accelerators", {})
+    assert isinstance(flags, dict)
+    assert isinstance(candidate_accelerators, dict)
+    expected_flags_present = all(name in flags for name in ACCELERATOR_NAMES)
+    expected_candidate_records_present = all(name in candidate_accelerators for name in ACCELERATOR_NAMES)
+    accelerator_flags_disabled = all(
+        isinstance(item, dict)
+        and item.get("backend_enablement") == "disabled"
+        and item.get("correctness_backend") == "not_implemented"
+        and item.get("validated_correctness_backend") is False
+        and item.get("candidate_evidence_is_correctness_validation") is False
+        for item in flags.values()
+    )
+    checks = {
+        "accelerator_records_complete": {
+            "ok": expected_flags_present and expected_candidate_records_present,
+            "detail": "all expected accelerator enablement and candidate-evidence records are present",
+        },
+        "accelerator_enablement_disabled": {
+            "ok": accelerator_enablement.get("backend_enablement") == "disabled"
+            and accelerator_enablement.get("correctness_backends_enabled") is False
+            and expected_flags_present
+            and accelerator_flags_disabled,
+            "detail": "accelerator enable flags stay disabled and evidence-only",
+        },
+        "no_validated_accelerator_correctness_backends": {
+            "ok": accelerator_enablement.get("validated_correctness_backend_count") == 0
+            and correctness_validation.get("candidate_accelerator_evidence_is_correctness_validation") is False,
+            "detail": "candidate accelerator evidence is not reported as correctness validation",
+        },
+        "dependency_checker_does_not_claim_correctness_validation": {
+            "ok": correctness_validation.get("validated_correctness_backend_count") == 0
+            and correctness_validation.get("validated_by_this_report") == [],
+            "detail": "dependency discovery does not claim to validate implemented correctness backends",
+        },
+        "windows_evidence_does_not_validate_linux_or_instinct": {
+            "ok": exact_wide_platform.get("windows_evidence_validates_linux_rocm") is False
+            and exact_wide_platform.get("windows_evidence_validates_instinct") is False
+            and exact_wide_platform.get("linux_rocm_validated_by_this_host") is False
+            and exact_wide_platform.get("instinct_validated_by_this_host") is False,
+            "detail": "Windows host evidence remains separated from Linux ROCm and Instinct validation",
+        },
+    }
+    return {
+        "ok": all(bool(item["ok"]) for item in checks.values()),
+        "scope": "internal JSON/report consistency only; no external command or correctness verification",
+        "checks": checks,
     }
 
 
@@ -1112,7 +1245,10 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
     report["readiness"] = readiness_report(report)
     readiness = report["readiness"]
     assert isinstance(readiness, dict)
-    return report, not missing_required and bool(readiness["host_readiness_ok"])
+    report["hard_cut_self_checks"] = hard_cut_self_checks(report)
+    hard_cut_checks = report["hard_cut_self_checks"]
+    assert isinstance(hard_cut_checks, dict)
+    return report, not missing_required and bool(readiness["host_readiness_ok"]) and bool(hard_cut_checks["ok"])
 
 
 def print_human(report: dict[str, object]) -> None:
@@ -1218,6 +1354,8 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  probe: {item['probe']}")
         print(f"  enable flag: {item['enable_flag']} ({item['enable_policy']})")
         print(f"  backend enablement: {item['backend_enablement']}")
+        print(f"  evidence class: {item['evidence_class']}")
+        print(f"  candidate evidence is correctness validation: {item['candidate_evidence_is_correctness_validation']}")
         print(f"  validated correctness backend: {item['validated_correctness_backend']}")
         print(f"  cmake module: {item.get('cmake_module') or 'not found'}")
         if item.get("header"):
@@ -1245,6 +1383,8 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  runtime:  {item.get('runtime_probe_ok', False)}")
         print(f"  backend enablement: {item.get('backend_enablement')}")
         print(f"  enable flag: {item.get('enable_flag')} ({item.get('enable_policy')})")
+        print(f"  evidence class: {item.get('evidence_class')}")
+        print(f"  candidate evidence is correctness validation: {item.get('candidate_evidence_is_correctness_validation')}")
         print(f"  validated correctness backend: {item.get('validated_correctness_backend')}")
         print(f"  source: {item.get('source')}")
         print(f"  binary: {item.get('binary')}")
@@ -1290,8 +1430,31 @@ def print_human(report: dict[str, object]) -> None:
         assert isinstance(item, dict)
         print(
             f"  {name}: {item['enable_flag']} -> {item['backend_enablement']} "
-            f"({item['probe_status']}, validated={item['validated_correctness_backend']})"
+            f"({item['probe_status']}, validated={item['validated_correctness_backend']}, "
+            f"evidence_class={item['evidence_class']})"
         )
+    print()
+
+    print("Correctness backend validation boundary")
+    correctness_validation = readiness["correctness_backend_validation"]
+    assert isinstance(correctness_validation, dict)
+    print(f"scope: {correctness_validation['checker_scope']}")
+    print(f"validated by this report: {len(correctness_validation['validated_by_this_report'])}")
+    print(f"validated correctness backend count: {correctness_validation['validated_correctness_backend_count']}")
+    print(
+        "candidate accelerator evidence is correctness validation: "
+        f"{correctness_validation['candidate_accelerator_evidence_is_correctness_validation']}"
+    )
+    implemented = correctness_validation["implemented_correctness_backends"]
+    assert isinstance(implemented, dict)
+    for name in sorted(implemented):
+        item = implemented[name]
+        assert isinstance(item, dict)
+        print(
+            f"  {name}: {item['backend_enablement']} "
+            f"(validated_by_this_report={item['validated_by_this_report']})"
+        )
+    print(f"policy: {correctness_validation['policy']}")
     print()
 
     print("Readiness gates")
@@ -1326,7 +1489,23 @@ def print_human(report: dict[str, object]) -> None:
     print(f"Instinct validated by this host: {exact_wide_platform['instinct_validated_by_this_host']}")
     print(f"Windows evidence validates Linux ROCm: {exact_wide_platform['windows_evidence_validates_linux_rocm']}")
     print(f"Windows evidence validates Instinct: {exact_wide_platform['windows_evidence_validates_instinct']}")
+    print(f"Linux ROCm validation evidence: {exact_wide_platform['linux_rocm_validation_evidence']}")
+    print(f"Instinct validation evidence: {exact_wide_platform['instinct_validation_evidence']}")
+    print(f"validation boundary: {exact_wide_platform['validation_boundary']}")
     print(f"policy: {exact_wide_platform['policy']}")
+    print()
+
+    hard_cut_checks = report["hard_cut_self_checks"]
+    assert isinstance(hard_cut_checks, dict)
+    print("Hard-cut readiness self-checks")
+    print(f"ok: {hard_cut_checks['ok']}")
+    print(f"scope: {hard_cut_checks['scope']}")
+    checks = hard_cut_checks["checks"]
+    assert isinstance(checks, dict)
+    for name in sorted(checks):
+        item = checks[name]
+        assert isinstance(item, dict)
+        print(f"[{'OK' if item['ok'] else 'FAIL'}] {name}: {item['detail']}")
     print()
 
     print("Project tools")

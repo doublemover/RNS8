@@ -117,12 +117,19 @@ disagree, the spec remains the target and this file identifies the gap.
   hipBLASLt/CK/rocWMMA probes report headers, libraries, tools, and CMake module
   evidence without enabling accelerator backends. AMDGPU builtin readiness is a
   separate not-ready gate until real target-specific exact kernels exist.
+  Readiness JSON separates implemented correctness backend families from
+  candidate accelerator evidence through `readiness.correctness_backend_validation`;
+  dependency discovery validates no correctness backend by itself, and
+  accelerator component/probe records are explicitly marked
+  `candidate_accelerator_evidence_only`.
   Opt-in Python and CMake accelerator probe modes record compile/link/runtime
   evidence under `temp/` or probe-only build directories while keeping all
   accelerator backend enablement disabled. CTest configure-negative cases pin
   that `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
   `RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast until
-  real correctness backends exist.
+  real correctness backends exist. Report-level `hard_cut_self_checks` keep
+  accelerator evidence, backend enablement, and Windows/Linux/Instinct
+  validation boundaries machine-readable.
 
 ## Requirement Audit
 
@@ -176,12 +183,15 @@ disagree, the spec remains the target and this file identifies the gap.
 8. Linux ROCm and Instinct: represented by presets, readiness gates, target
    coverage metadata, and docs. Validation remains `NOT_APPLICABLE` on this
    Windows host and requires a real supported Linux ROCm host; Windows evidence
-   is not a substitute for Linux Radeon or Instinct CDNA validation.
+   is not a substitute for Linux Radeon or Instinct CDNA validation. Readiness
+   output keeps `windows_evidence_validates_linux_rocm=false` and
+   `windows_evidence_validates_instinct=false`.
 9. hipBLASLt, CK, rocWMMA, and AMDGPU builtins: kept as later feature-detected
    accelerators. Enable flags fail fast because no correctness backend is
    implemented. Python/CMake probes are evidence-only and never become
-   correctness requirements. CTest registers configure-negative cases for all
-   four enable flags to prevent accidental placeholder backend acceptance.
+   correctness requirements or validated backend claims. CTest registers
+   configure-negative cases for all four enable flags to prevent accidental
+   placeholder backend acceptance.
 
 ## Not Yet Implemented
 
@@ -230,6 +240,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - `python tools\check_dependencies.py`: host readiness passed on Windows
   `gfx1100`; accelerator enable flags remain fail-fast/evidence-only and Linux
   ROCm/Instinct exact-wide validation remains not applicable on this host.
+  Current dependency output also separates
+  `readiness.correctness_backend_validation` from candidate accelerator
+  evidence and emits `hard_cut_self_checks` for report consistency.
 - Verified post-`de1c251` exact-wide/readiness integration patch with an
   incremental Windows HIP build, targeted CTest for direct-HIP exact-wide
   max-width padded export and stale bounded metadata rejection, and dependency

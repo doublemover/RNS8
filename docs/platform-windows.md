@@ -12,9 +12,15 @@ Recorded Windows validation coverage:
   - `E004` GPU architecture detection.
   - `E070` Windows RDNA3 direct HIP readiness for the local `gfx1100` bring-up
     target.
-- Its process exit status follows host-required readiness gates. Optional
-  reference/planned manifest packages and accelerator probes are reported as
-  evidence, not as correctness or Windows bring-up blockers.
+- Its process exit status follows host-required readiness gates plus internal
+  hard-cut self-check consistency. Optional reference/planned manifest packages
+  and accelerator probes are reported as evidence, not as correctness or
+  Windows bring-up blockers.
+- The JSON report's `readiness.correctness_backend_validation` section records
+  that the dependency checker validates no correctness backend by itself. It
+  distinguishes implemented CPU/direct-HIP/wrap64 backend families from
+  candidate accelerator evidence, whose records keep
+  `candidate_evidence_is_correctness_validation=false`.
 - `cmake --preset windows-msvc-hip-debug` configures with vcpkg and
   `RNS8_ENABLE_HIP=ON`.
 - HIP sources are compiled by explicit hipcc custom commands. The build does
@@ -54,6 +60,9 @@ host and `gfx1100` evidence only. Direct-HIP exact-wide export on Windows uses
 device-current resident RNS output and rejects host-current stale device
 residues; that local contract still does not stand in for Linux Radeon or
 Instinct exact-wide validation.
+The report also emits `hard_cut_self_checks` to keep those boundaries
+machine-readable: accelerator evidence must not enable backends, and Windows
+host evidence must not be promoted to Linux ROCm or Instinct validation.
 
 hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected
 accelerators on Windows. `tools/check_dependencies.py` may report discovered
@@ -63,7 +72,9 @@ kernels exist. It does not enable or validate those backends. They require
 compiled capability probes and exact CPU differential tests before any backend
 can be treated as ready. The CMake accelerator enable flags intentionally fail
 fast until real correctness backends exist; discovery evidence is not a bypass
-around the direct HIP correctness path. The CTest suite includes
+around the direct HIP correctness path. A passing component probe is still
+`candidate_accelerator_evidence_only`, not a validated correctness backend. The
+CTest suite includes
 configure-negative cases for each accelerator enable flag so a placeholder
 backend cannot configure successfully under the current policy.
 
