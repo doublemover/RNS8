@@ -76,6 +76,8 @@ pack/GEMM/export and is tested against the CPU byte-limb reference. It is not
 the production 36 byte-GEMM accelerator path, and it is not performance
 evidence.
 
-Current wrap64 benchmark captures remain CPU byte-limb captures. A direct-HIP
-wrap64 benchmark/event-capture path should be added explicitly before recording
-GPU timing evidence for this semantic.
+Wrap64 benchmark captures support both the CPU byte-limb reference and the
+direct-HIP Comba correctness path. HIP wrap64 event captures use
+wrap64-specific Comba/export labels and schema-compatible aggregate aliases;
+they are raw timing evidence for the correctness path only, not optimized
+byte-GEMM performance evidence.

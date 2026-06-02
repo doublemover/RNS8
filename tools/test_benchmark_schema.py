@@ -33,6 +33,7 @@ def expect_invalid(data: dict, needle: str) -> None:
 def main() -> int:
     bounded = expect_valid("v2_bounded_hip.json")
     wrap64 = expect_valid("v2_wrap64.json")
+    wrap64_hip = expect_valid("v2_wrap64_hip.json")
     expect_valid("v1_legacy.json")
 
     bad_length = copy.deepcopy(bounded)
@@ -46,6 +47,14 @@ def main() -> int:
     bad_wrap_prefix = copy.deepcopy(wrap64)
     bad_wrap_prefix["prefix"] = 9
     expect_invalid(bad_wrap_prefix, "wrap64 captures must use prefix=0")
+
+    bad_wrap_backend = copy.deepcopy(wrap64)
+    bad_wrap_backend["backend_selected"] = "cpu-reference"
+    expect_invalid(bad_wrap_backend, "wrap64 captures must select wrap64-byte-limb or hip-direct backend")
+
+    bad_wrap64_hip_phase = copy.deepcopy(wrap64_hip)
+    bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
+    expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
 
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}

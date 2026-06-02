@@ -124,6 +124,13 @@ void hip_direct_timing_reset() {
   g_hip_direct_timing_samples.clear();
 }
 
+void hip_direct_timing_record_sample(const char* label, double microseconds) {
+  if (!g_hip_direct_timing_enabled || !label || microseconds < 0.0) {
+    return;
+  }
+  g_hip_direct_timing_samples.push_back({label, microseconds});
+}
+
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot() {
   return g_hip_direct_timing_samples;
 }

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -135,6 +136,15 @@ uint64_t load_u64_limbs(const std::vector<uint8_t>& src, int64_t cell) {
     value |= static_cast<uint64_t>(src[static_cast<std::size_t>(cell * 8 + limb)]) << (8u * limb);
   }
   return value;
+}
+
+bool has_timing_label(const std::vector<rns8::detail::hip_direct_timing_sample>& samples, const std::string& label) {
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace
@@ -327,8 +337,14 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
 
   REQUIRE(rns8_pack_u64(cpu, cpu_a, A.data(), lda, 7) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(cpu, cpu_b, B.data(), ldb, 11) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
   REQUIRE(rns8_pack_u64(hip, hip_a, A.data(), lda, 7) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, hip_b, B.data(), ldb, 11) == RNS8_SUCCESS);
+  auto hip_pack_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(hip_pack_events, "pack_h2d"));
+  CHECK(has_timing_label(hip_pack_events, "pack_kernel"));
   CHECK(hip_a->hip_byte_limbs == hip_a_bytes);
   CHECK(hip_b->hip_byte_limbs == hip_b_bytes);
   CHECK(hip_a->device_byte_limbs_current);
@@ -338,14 +354,25 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
 
   CHECK(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_gemm_wrap_u64(cpu, cpu_plan, cpu_a, cpu_b, cpu_out, cpu_workspace) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
   REQUIRE(rns8_gemm_wrap_u64(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
+  auto hip_gemm_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(hip_gemm_events, "wrap64_comba_gemm_kernel"));
   CHECK(hip_out->hip_byte_limbs == hip_out_bytes);
   CHECK(hip_out->device_byte_limbs_current);
   CHECK_FALSE(hip_out->host_byte_limbs_current);
 
   CHECK(rns8_export_u64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_export_wrap_u64(cpu, cpu_plan, cpu_out, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
   REQUIRE(rns8_export_wrap_u64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_SUCCESS);
+  auto hip_export_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(hip_export_events, "wrap64_export_kernel"));
+  CHECK(has_timing_label(hip_export_events, "wrap64_export_d2h"));
   CHECK(hip_out->hip_export_buffer != nullptr);
   CHECK_FALSE(hip_out->host_byte_limbs_current);
   CHECK(hip_c == cpu_c);
