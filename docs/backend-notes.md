@@ -40,7 +40,9 @@ contracts report `RNS8_UNSUPPORTED_BACKEND` only after descriptor validation.
 `unknown status`. `rns8-inspect` adds requested-backend context to unsupported
 backend errors and tells users when an accelerator request is evidence-only; it
 does not reinterpret unsupported accelerator requests as working correctness
-backends.
+backends. CTest runs `tools/test_inspect_cli.py` against the built
+`rns8-inspect` executable to pin invalid backend-string rejection and
+evidence-only accelerator diagnostics.
 
 The future backend directories under `src/` are scaffold markers only. They
 exist to keep ownership boundaries visible while preserving the rule that no
