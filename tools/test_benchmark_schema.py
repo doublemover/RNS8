@@ -53,6 +53,14 @@ def main() -> int:
     bad_event_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_unknown_scope"
     expect_invalid(bad_event_scope, "known direct-HIP scope")
 
+    missing_event_phase_order = copy.deepcopy(bounded)
+    del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]
+    expect_invalid(missing_event_phase_order, "gpu_event_phase_order must be an array of strings when events are available")
+
+    undeclared_event_phase = copy.deepcopy(bounded)
+    undeclared_event_phase["gpu_event_timings_us"]["old_event_scope_phase"] = [1.0, 1.0, 1.0]
+    expect_invalid(undeclared_event_phase, "undeclared phase old_event_scope_phase")
+
     bad_schedule_tile = copy.deepcopy(bounded)
     bad_schedule_tile["tile_m"] = 96
     bad_schedule_tile["schedule_metadata"]["tile_m"] = 96
@@ -77,6 +85,10 @@ def main() -> int:
     bad_current_version = copy.deepcopy(v4_adaptive_u64)
     bad_current_version["schema_version"] = 3
     expect_invalid(bad_current_version, "expected 4")
+
+    missing_current_version = copy.deepcopy(v4_adaptive_u64)
+    del missing_current_version["schema_version"]
+    expect_invalid(missing_current_version, "missing required field schema_version")
 
     bad_schedule_summary = copy.deepcopy(v4_adaptive_u64)
     bad_schedule_summary["raw_timings_us"]["scheduling"] = [6]

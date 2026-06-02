@@ -67,9 +67,10 @@ correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound
 `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 
-Schema version 4 is the only accepted tracked capture schema. It includes a
-measured `scheduling` phase for the public schedule-info query. The timing
-contract is:
+Schema version 4 is the only accepted tracked capture schema. Current captures
+must carry an explicit integer `"schema_version": 4`; missing version fields are
+rejected instead of inferred. Schema v4 includes a measured `scheduling` phase
+for the public schedule-info query. The timing contract is:
 
 ```json
 "raw_timings_us": {
@@ -103,7 +104,9 @@ Use `tools\benchmark_schema.py` to validate benchmark captures before using
 them as comparison evidence. The validator enforces schema v4 required fields,
 raw timing array lengths against `repeats`, average/median/p95 consistency,
 phase-availability metadata, per-tile adaptive metadata, GPU event timing
-nullability or completeness, and the strict wrap64
+nullability or completeness, explicit event phase order for event-enabled
+captures, exact matching of event timing keys to that phase order, and the
+strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
 also checks schedule metadata.
 
