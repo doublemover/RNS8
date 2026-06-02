@@ -30,10 +30,11 @@ Implemented correctness coverage:
 - Exact-wide signed and unsigned RNS-output tests for CPU and direct HIP,
   including full-width 64-bit inputs that are compared against
   Boost.Multiprecision residue oracles.
-- Exact-wide signed and unsigned CPU limb export tests. Signed export is
-  fixed-width little-endian two's-complement, unsigned export is fixed-width
-  little-endian magnitude, and both report range errors when too few limbs are
-  supplied.
+- Exact-wide signed and unsigned CPU and direct HIP limb export tests. Signed
+  export is fixed-width little-endian two's-complement, unsigned export is
+  fixed-width little-endian magnitude, both report range errors when too few
+  limbs are supplied, and direct HIP export leaves device-resident residues on
+  device instead of synchronizing host residue storage.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires the explicit byte-limb
@@ -55,7 +56,6 @@ Implemented correctness coverage:
 Not yet implemented:
 
 - Per-tile adaptive bounds.
-- Exact-wide GPU reconstruction.
 - Public or optimized strict `mod 2^64` GPU byte-limb kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
 
@@ -67,8 +67,10 @@ Semantic guardrail:
   inside the stated range.
 - `RNS8_EXACT_WIDE_SIGNED` and `RNS8_EXACT_WIDE_UNSIGNED` are not aliases for
   bounded 64-bit export with a larger prefix. They support persistent RNS output
-  with `RNS8_BOUND_NONE` and explicit CPU little-endian limb export. GPU
-  exact-wide export remains a separate unsupported milestone.
+  with `RNS8_BOUND_NONE` and explicit little-endian limb export. CPU Boost
+  reconstruction remains the reference; direct HIP export reconstructs fixed
+  limbs on device for correctness validation and copies only the requested limb
+  layout to host.
 - `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
   Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
   semantics, Comba accumulation, carry handling, and low-limb export are tested

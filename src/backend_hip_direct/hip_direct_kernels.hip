@@ -125,6 +125,88 @@ __device__ bool rns8_u192_gt_u64_device(rns8_u192_device value, uint64_t limit) 
   return value.limb2 != 0 || value.limb1 != 0 || value.limb0 > limit;
 }
 
+__device__ uint64_t rns8_u192_limb_device(rns8_u192_device value, int limb) {
+  if (limb == 0) {
+    return value.limb0;
+  }
+  if (limb == 1) {
+    return value.limb1;
+  }
+  if (limb == 2) {
+    return value.limb2;
+  }
+  return 0;
+}
+
+__device__ bool rns8_u192_unsigned_fits_limbs_device(rns8_u192_device value, int limb_count) {
+  if (limb_count >= 3) {
+    return true;
+  }
+  if (limb_count == 2) {
+    return value.limb2 == 0;
+  }
+  return value.limb2 == 0 && value.limb1 == 0;
+}
+
+__device__ bool rns8_u192_signed_positive_fits_limbs_device(rns8_u192_device value, int limb_count) {
+  constexpr uint64_t sign_bit_limit = 0x7fffffffffffffffULL;
+  if (limb_count >= 4) {
+    return true;
+  }
+  if (limb_count == 3) {
+    return value.limb2 <= sign_bit_limit;
+  }
+  if (limb_count == 2) {
+    return value.limb2 == 0 && value.limb1 <= sign_bit_limit;
+  }
+  return value.limb2 == 0 && value.limb1 == 0 && value.limb0 <= sign_bit_limit;
+}
+
+__device__ bool rns8_u192_signed_negative_magnitude_fits_limbs_device(rns8_u192_device magnitude, int limb_count) {
+  constexpr uint64_t sign_bit = 0x8000000000000000ULL;
+  if (limb_count >= 4) {
+    return true;
+  }
+  const int sign_limb = limb_count - 1;
+  for (int limb = limb_count; limb < 3; ++limb) {
+    if (rns8_u192_limb_device(magnitude, limb) != 0) {
+      return false;
+    }
+  }
+  const uint64_t high = rns8_u192_limb_device(magnitude, sign_limb);
+  if (high < sign_bit) {
+    return true;
+  }
+  if (high > sign_bit) {
+    return false;
+  }
+  for (int limb = 0; limb < sign_limb; ++limb) {
+    if (rns8_u192_limb_device(magnitude, limb) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+__device__ void rns8_store_u192_unsigned_limbs_device(uint64_t* dst, rns8_u192_device value, int limb_count) {
+  for (int limb = 0; limb < limb_count; ++limb) {
+    dst[limb] = rns8_u192_limb_device(value, limb);
+  }
+}
+
+__device__ void rns8_store_u192_negative_twos_complement_limbs_device(
+    uint64_t* dst,
+    rns8_u192_device magnitude,
+    int limb_count) {
+  uint64_t carry = 1;
+  for (int limb = 0; limb < limb_count; ++limb) {
+    const uint64_t inverted = ~rns8_u192_limb_device(magnitude, limb);
+    const uint64_t value = inverted + carry;
+    carry = value < inverted ? 1 : 0;
+    dst[limb] = value;
+  }
+}
+
 __device__ void rns8_reconstruct_canonical_wide_device(
     const int8_t* residues,
     int cell,
@@ -312,6 +394,66 @@ __global__ void rns8_export_u64_kernel(
     return;
   }
   dst[cell] = x.limb0;
+}
+
+__global__ void rns8_export_exact_wide_unsigned_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  if (!rns8_u192_unsigned_fits_limbs_device(x, limb_count)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  rns8_store_u192_unsigned_limbs_device(dst + static_cast<int64_t>(cell) * limb_count, x, limb_count);
+}
+
+__global__ void rns8_export_exact_wide_signed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  const rns8_u192_device half_product = rns8_u192_shr1_device(product);
+  uint64_t* cell_dst = dst + static_cast<int64_t>(cell) * limb_count;
+  if (rns8_u192_compare_device(x, half_product) > 0) {
+    const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
+    if (!rns8_u192_signed_negative_magnitude_fits_limbs_device(magnitude, limb_count)) {
+      atomicCAS(status, 0, 5);
+      return;
+    }
+    rns8_store_u192_negative_twos_complement_limbs_device(cell_dst, magnitude, limb_count);
+    return;
+  }
+
+  if (!rns8_u192_signed_positive_fits_limbs_device(x, limb_count)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  rns8_store_u192_unsigned_limbs_device(cell_dst, x, limb_count);
 }
 
 }  // namespace
@@ -657,6 +799,60 @@ extern "C" int rns8_hip_direct_export_u64_device(
       cols,
       prefix,
       bound,
+      d_status);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status) {
+  const int threads = 256;
+  const int elements = rows * cols;
+  const int blocks = (elements + threads - 1) / threads;
+  hipLaunchKernelGGL(
+      rns8_export_exact_wide_unsigned_limbs_kernel,
+      dim3(blocks),
+      dim3(threads),
+      0,
+      nullptr,
+      d_residues,
+      d_dst,
+      rows,
+      cols,
+      prefix,
+      limb_count,
+      d_status);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status) {
+  const int threads = 256;
+  const int elements = rows * cols;
+  const int blocks = (elements + threads - 1) / threads;
+  hipLaunchKernelGGL(
+      rns8_export_exact_wide_signed_limbs_kernel,
+      dim3(blocks),
+      dim3(threads),
+      0,
+      nullptr,
+      d_residues,
+      d_dst,
+      rows,
+      cols,
+      prefix,
+      limb_count,
       d_status);
   return static_cast<int>(hipGetLastError());
 }

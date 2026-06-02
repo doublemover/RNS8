@@ -732,6 +732,25 @@ rns8_status rns8_export_exact_wide_signed_limbs(
     if (ctx->backend != plan->backend || C->backend != plan->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*C));
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      return rns8::detail::hip_direct_export_exact_wide_signed_limbs_device(
+          ctx->device_id,
+          C->hip_residues,
+          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->prefix,
+          dst,
+          ld,
+          limb_count);
+    }
     const rns8_status sync_status = ensure_host_residues_current(*C);
     if (sync_status != RNS8_SUCCESS) {
       return sync_status;
@@ -767,6 +786,25 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     }
     if (ctx->backend != plan->backend || C->backend != plan->backend) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*C));
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      return rns8::detail::hip_direct_export_exact_wide_unsigned_limbs_device(
+          ctx->device_id,
+          C->hip_residues,
+          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->prefix,
+          dst,
+          ld,
+          limb_count);
     }
     const rns8_status sync_status = ensure_host_residues_current(*C);
     if (sync_status != RNS8_SUCCESS) {

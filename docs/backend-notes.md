@@ -55,9 +55,11 @@ bring-up kernels, not performance evidence.
 Exact-wide signed and unsigned semantics are supported as persistent RNS output
 with `RNS8_BOUND_NONE`. They are not exported through the bounded i64/u64 APIs.
 CPU export uses explicit little-endian limbs: signed output is fixed-width
-two's-complement and unsigned output is fixed-width magnitude. HIP-resident RNS
-matrices use host reconstruction for exact-wide limb export; GPU exact-wide
-export remains unimplemented.
+two's-complement and unsigned output is fixed-width magnitude. Direct HIP
+exports exact-wide limbs from device-resident RNS matrices with the same
+fixed-width ABI, range-error behavior for too few limbs, and strided host
+layout. CPU Boost.Multiprecision reconstruction remains the reference and debug
+path.
 
 Strict wraparound `RNS8_WRAP_U64_MOD_2_64` is exposed through the explicit
 `RNS8_BACKEND_WRAP64_BYTE_LIMB` CPU reference backend. It supports both
