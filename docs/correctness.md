@@ -138,7 +138,9 @@ Implemented correctness coverage:
   bits, and then performs deterministic carry propagation into the low 64 bits.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
-  dimensions.
+  dimensions. Newly created HIP RNS matrices own resident storage but are
+  non-current until pack or GEMM, so unpacked inputs cannot silently behave as
+  valid zero matrices.
 - Direct HIP one-modulus ring-GEMM smoke tests compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible, including a
   centered-correction boundary case for negative, positive-threshold, and

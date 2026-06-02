@@ -846,8 +846,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
     (void)free_hip_matrix_storage(matrix);
     return status;
   }
-  matrix.host_residues_current = true;
-  matrix.device_residues_current = true;
+  matrix.host_residues_current = false;
+  matrix.device_residues_current = false;
   matrix.host_byte_limbs_current = false;
   matrix.device_byte_limbs_current = false;
   return RNS8_SUCCESS;
@@ -1583,6 +1583,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     if (sync_status != RNS8_SUCCESS) {
       return sync_status;
     }
+    std::vector<int64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
         int64_t value = 0;
@@ -1593,7 +1594,12 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
         if (status != RNS8_SUCCESS) {
           return status;
         }
-        dst[row * ld + col] = value;
+        staged[static_cast<std::size_t>(row * plan->desc.n + col)] = value;
+      }
+    }
+    for (int64_t row = 0; row < plan->desc.m; ++row) {
+      for (int64_t col = 0; col < plan->desc.n; ++col) {
+        dst[row * ld + col] = staged[static_cast<std::size_t>(row * plan->desc.n + col)];
       }
     }
     return RNS8_SUCCESS;
@@ -1653,6 +1659,7 @@ rns8_status rns8_export_u64(
     if (sync_status != RNS8_SUCCESS) {
       return sync_status;
     }
+    std::vector<uint64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
         uint64_t value = 0;
@@ -1663,7 +1670,12 @@ rns8_status rns8_export_u64(
         if (status != RNS8_SUCCESS) {
           return status;
         }
-        dst[row * ld + col] = value;
+        staged[static_cast<std::size_t>(row * plan->desc.n + col)] = value;
+      }
+    }
+    for (int64_t row = 0; row < plan->desc.m; ++row) {
+      for (int64_t col = 0; col < plan->desc.n; ++col) {
+        dst[row * ld + col] = staged[static_cast<std::size_t>(row * plan->desc.n + col)];
       }
     }
     return RNS8_SUCCESS;
