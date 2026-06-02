@@ -318,9 +318,11 @@ Args parse_args(int argc, char** argv) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
-    if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
+    if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_CPU_REFERENCE &&
+        args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
         args.backend != RNS8_BACKEND_WMMA) {
-      usage_error("--bound-mode per-tile currently captures direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
+      usage_error(
+          "--bound-mode per-tile currently captures CPU, direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
     }
   }
   if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
@@ -1245,6 +1247,18 @@ double sum_event_label(
   return total;
 }
 
+double optional_event_label(
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    const char* label) {
+  double total = 0.0;
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      total += sample.microseconds;
+    }
+  }
+  return total;
+}
+
 void collect_pack_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const double h2d = sum_event_label(events, samples, "pack", "pack_h2d");
@@ -1298,7 +1312,7 @@ void collect_wrap64_gemm_gpu_events(GpuEventSamples& events) {
 
 void collect_export_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double status_memset = sum_event_label(events, samples, "crt_export", "crt_export_status_memset");
+  const double status_memset = optional_event_label(samples, "crt_export_status_memset");
   const double kernel = sum_event_label(events, samples, "crt_export", "crt_export_kernel");
   const double status_d2h = sum_event_label(events, samples, "crt_export", "crt_export_status_d2h");
   const double d2h = sum_event_label(events, samples, "crt_export", "crt_export_d2h");
@@ -1943,8 +1957,8 @@ bool adaptive_execution_applied(
     const rns8_device_info& info,
     const BenchmarkResult& result) {
   return args.bound_mode == BoundMode::PerTile &&
-         (info.backend == RNS8_BACKEND_HIP_DIRECT || info.backend == RNS8_BACKEND_CK ||
-          info.backend == RNS8_BACKEND_WMMA) &&
+         (info.backend == RNS8_BACKEND_CPU_REFERENCE || info.backend == RNS8_BACKEND_HIP_DIRECT ||
+          info.backend == RNS8_BACKEND_CK || info.backend == RNS8_BACKEND_WMMA) &&
          schedule_uses_adaptive_work(result);
 }
 
@@ -2216,6 +2230,9 @@ void print_json(
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
+  } else if (adaptive_applied && info.backend == RNS8_BACKEND_CPU_REFERENCE) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU adaptive per-tile bounded "
+                 "reference path; no GPU event timing is requested for this backend\",\n";
   } else if (adaptive_applied && gpu_events_available) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP adaptive per-tile bounded "
                  "correctness path; GPU event timing aggregates all selected-prefix tiled GEMM launches and tiled "
