@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
+
 
 TIMING_PHASES = {
     "planning": ["avg_planning_us", "plan_us"],
@@ -67,12 +69,11 @@ def load_result(path: Path) -> dict[str, Any]:
         raise SystemExit(f"{path}: failed to read benchmark JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise SystemExit(f"{path}: benchmark JSON root must be an object")
+    try:
+        validate_capture(data, path)
+    except BenchmarkSchemaError as exc:
+        raise SystemExit(str(exc)) from exc
     return data
-
-
-def schema_version(data: dict[str, Any]) -> int:
-    value = data.get("schema_version", 1)
-    return value if isinstance(value, int) else 1
 
 
 def dotted_get(data: dict[str, Any], path: str) -> Any:

@@ -71,6 +71,14 @@ timing contract is:
 }
 ```
 
+Use `tools\benchmark_schema.py` to validate benchmark captures before using
+them as comparison evidence. The validator enforces schema v2 required fields,
+raw timing array lengths against `repeats`, average/median/p95 consistency,
+GPU event timing nullability or completeness, and the strict wrap64
+`prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
+also keeps a compatibility check for legacy v1 captures that only expose the
+older top-level timing fields.
+
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, first-use
 matrix-owned upload/export buffer allocation when it occurs, host/device copies,
@@ -122,11 +130,12 @@ Future benchmark work must add finer scheduling overhead capture, reviewed raw
 sweeps, comparison baselines, and performance gates before any speedup claims
 are made.
 
-`tools/result_compare.py` compares host timing phases for schema v1/v2 captures.
-Its contract check includes backend, semantics, bounds, shape, prefix, seed,
-warmups/repeats, input distribution, timing source, epilogue, packed layout,
-compiler, configured target, and HIP device/runtime fields when present. It
-also compares `gpu_event_timing_summary_us` phases only when both captures set
+`tools/result_compare.py` validates both captures before comparing host timing
+phases for schema v1/v2 captures. Its contract check includes backend,
+semantics, bounds, shape, prefix, seed, warmups/repeats, input distribution,
+timing source, epilogue, packed layout, compiler, configured target, and HIP
+device/runtime fields when present. It also compares
+`gpu_event_timing_summary_us` phases only when both captures set
 `timing_metadata.gpu_event_timing=true` and report the same event timing source
 and source scope. Per-modulus timing rows are flagged as not applicable when a
 capture says `per_modulus_gemm_estimate_applicable: false`.
