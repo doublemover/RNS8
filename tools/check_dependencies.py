@@ -44,6 +44,9 @@ SUPPORTED_TARGETS = {
     "gfx942": {"tier": "I1", "family": "CDNA3", "role": "previous-generation Instinct production"},
     "gfx950": {"tier": "I0", "family": "CDNA4", "role": "current Instinct production"},
 }
+LINUX_ROCM_COVERAGE_TARGETS = tuple(SUPPORTED_TARGETS)
+LINUX_RDNA_TARGETS = {"gfx1030", "gfx1100", "gfx1200", "gfx1201"}
+LINUX_CDNA_TARGETS = {"gfx90a", "gfx942", "gfx950"}
 
 
 def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
@@ -126,6 +129,14 @@ def load_json(path: Path) -> dict[str, object]:
     return data if isinstance(data, dict) else {}
 
 
+def target_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    raw = str(value)
+    targets = [part.strip() for part in re.split(r"[;,]", raw) if part.strip()]
+    return targets
+
+
 def manifest_vcpkg_packages() -> list[str]:
     manifest = load_json(repo_root() / "vcpkg.json")
     dependencies = manifest.get("dependencies", [])
@@ -167,11 +178,18 @@ def cmake_presets_report() -> dict[str, object]:
     if not isinstance(linux_cache, dict):
         linux_cache = {}
 
-    windows_targets = str(windows_cache.get("RNS8_AMDGPU_TARGETS", ""))
-    linux_targets = str(linux_cache.get("RNS8_AMDGPU_TARGETS", ""))
+    windows_targets = target_list(windows_cache.get("RNS8_AMDGPU_TARGETS"))
+    linux_active_targets = target_list(linux_cache.get("RNS8_AMDGPU_TARGETS"))
+    linux_coverage_targets = target_list(linux_cache.get("RNS8_ROCM_COVERAGE_TARGETS"))
+    if not linux_coverage_targets:
+        linux_coverage_targets = linux_active_targets
+    missing_linux_coverage = [target for target in LINUX_ROCM_COVERAGE_TARGETS if target not in linux_coverage_targets]
     windows_ok = bool(windows) and windows_cache.get("RNS8_ENABLE_HIP") == "ON" and "gfx1100" in windows_targets
-    linux_represented = bool(linux) and linux_cache.get("RNS8_ENABLE_HIP") == "ON" and (
-        "gfx942" in linux_targets or "gfx950" in linux_targets
+    linux_represented = (
+        bool(linux)
+        and linux_cache.get("RNS8_ENABLE_HIP") == "ON"
+        and bool(linux_active_targets)
+        and not missing_linux_coverage
     )
 
     return {
@@ -185,6 +203,7 @@ def cmake_presets_report() -> dict[str, object]:
             "toolchain": windows_cache.get("CMAKE_TOOLCHAIN_FILE"),
             "hip_root": windows_cache.get("RNS8_HIP_ROOT"),
             "amdgpu_targets": windows_cache.get("RNS8_AMDGPU_TARGETS"),
+            "parsed_targets": windows_targets,
             "vcpkg_triplet": windows_cache.get("VCPKG_TARGET_TRIPLET"),
         },
         "linux_rocm_debug": {
@@ -192,8 +211,11 @@ def cmake_presets_report() -> dict[str, object]:
             "toolchain": linux_cache.get("CMAKE_TOOLCHAIN_FILE"),
             "hip_root": linux_cache.get("RNS8_HIP_ROOT"),
             "amdgpu_targets": linux_cache.get("RNS8_AMDGPU_TARGETS"),
+            "active_targets": linux_active_targets,
+            "coverage_targets": linux_coverage_targets,
+            "missing_coverage_targets": missing_linux_coverage,
             "vcpkg_triplet": linux_cache.get("VCPKG_TARGET_TRIPLET"),
-            "detail": "source-level preset representation only; Linux ROCm and Instinct runtime validation is not required on Windows",
+            "detail": "source-level preset representation only; active compile targets are separate from RDNA/CDNA family coverage metadata",
         },
     }
 
@@ -216,8 +238,13 @@ def hip_roots() -> list[Path]:
 def vcpkg_roots() -> list[Path]:
     roots: list[Path] = []
     root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
-    roots.append(Path(root) / "installed" / "x64-windows")
-    roots.append(repo_root() / "vcpkg_installed" / "x64-windows")
+    triplets = ["x64-windows", "x64-linux"]
+    env_triplet = os.environ.get("VCPKG_TARGET_TRIPLET")
+    if env_triplet and env_triplet not in triplets:
+        triplets.append(env_triplet)
+    for triplet in triplets:
+        roots.append(Path(root) / "installed" / triplet)
+        roots.append(repo_root() / "vcpkg_installed" / triplet)
     return roots
 
 
@@ -382,10 +409,25 @@ def installed_vcpkg_packages(vcpkg_path: str | None) -> dict[str, str]:
 
 def accelerator_components() -> dict[str, dict[str, object]]:
     roots = hip_roots() + vcpkg_roots()
+    modules = repo_root() / "cmake" / "modules"
     components = {
         "hipblaslt": {
             "header": find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]),
-            "library": find_under_roots(roots, ["lib/hipblaslt.lib", "lib/libhipblaslt.so"]),
+            "library": find_under_roots(
+                roots,
+                [
+                    "lib/hipblaslt.lib",
+                    "lib64/hipblaslt.lib",
+                    "lib/libhipblaslt.dll.a",
+                    "lib64/libhipblaslt.dll.a",
+                    "lib/libhipblaslt.so",
+                    "lib64/libhipblaslt.so",
+                    "bin/libhipblaslt.dll",
+                ],
+            ),
+            "tool": find_under_roots(roots, ["bin/hipblaslt-bench.exe", "bin/hipblaslt-bench"]),
+            "cmake_module": first_existing([modules / "FindRNS8HIPBLASLT.cmake"]),
+            "probe": "header/library/tool discovery only; no compile, link, or device capability test",
             "backend_stage": "B3/B4",
             "experiment": "E005",
             "capability": "hipBLASLt INT8 per-modulus and grouped/batched GEMM",
@@ -393,6 +435,9 @@ def accelerator_components() -> dict[str, dict[str, object]]:
         "ck": {
             "header": find_under_roots(roots, ["include/ck/ck.hpp", "include/ck.hpp"]),
             "library": None,
+            "tool": None,
+            "cmake_module": first_existing([modules / "FindRNS8CK.cmake"]),
+            "probe": "header discovery only; no compile, link, or device capability test",
             "backend_stage": "B5/B6",
             "experiment": "E006",
             "capability": "CK grouped GEMM and custom epilogues",
@@ -400,6 +445,9 @@ def accelerator_components() -> dict[str, dict[str, object]]:
         "rocwmma": {
             "header": find_under_roots(roots, ["include/rocwmma/rocwmma.hpp"]),
             "library": None,
+            "tool": None,
+            "cmake_module": first_existing([modules / "FindRNS8ROCWMMA.cmake"]),
+            "probe": "header discovery only; no compile, link, or device capability test",
             "backend_stage": "B7",
             "experiment": "E007",
             "capability": "rocWMMA or AMDGPU builtin hot kernels",
@@ -407,16 +455,19 @@ def accelerator_components() -> dict[str, dict[str, object]]:
     }
     return {
         name: {
-            "ok": bool(item["header"] or item["library"]),
+            "ok": bool(item["header"] or item["library"] or item["tool"]),
             "required": False,
             "header": item["header"],
             "library": item["library"],
+            "tool": item["tool"],
+            "cmake_module": item["cmake_module"],
+            "probe": item["probe"],
             "backend_stage": item["backend_stage"],
             "experiment": item["experiment"],
             "capability": item["capability"],
             "readiness": (
                 "candidate evidence only; backend remains disabled until compiled capability and exact correctness probes pass"
-                if bool(item["header"] or item["library"])
+                if bool(item["header"] or item["library"] or item["tool"])
                 else "not discovered; optional on Windows and required on Linux only where officially supported"
             ),
         }
@@ -493,8 +544,11 @@ def accelerator_gate(
         "required_for_host_readiness": False,
         "backend_stage": item["backend_stage"],
         "evidence": [
+            f"probe: {item.get('probe')}",
+            f"cmake module: {item.get('cmake_module') or 'not found'}",
             f"header: {item.get('header') or 'not found'}",
             f"library: {item.get('library') or 'not found'}",
+            f"tool: {item.get('tool') or 'not found'}",
         ],
         "detail": (
             "component discovered, but this checker does not enable the backend without a compiled capability probe"
@@ -622,20 +676,20 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "required_for_host_readiness": False,
             "detail": "current Radeon gate; evaluated only on matching Windows RDNA4 hardware",
         },
-        "E072_linux_rdna3_rdna4_rocm": {
+        "E072_linux_rdna2_rdna3_rdna4_rocm": {
             "status": status_label(
-                linux_rocm_ok and target in {"gfx1100", "gfx1200", "gfx1201"},
-                host_is_linux and target in {"gfx1100", "gfx1200", "gfx1201"},
+                linux_rocm_ok and target in LINUX_RDNA_TARGETS,
+                host_is_linux and target in LINUX_RDNA_TARGETS,
             ),
-            "ok": linux_rocm_ok and target in {"gfx1100", "gfx1200", "gfx1201"},
+            "ok": linux_rocm_ok and target in LINUX_RDNA_TARGETS,
             "required_for_host_readiness": False,
-            "detail": "Radeon Linux gate; not required on Windows",
+            "detail": "Radeon Linux gate for documented RDNA2/RDNA3/RDNA4 targets; not required on Windows",
         },
         "E073_E074_E075_linux_instinct_rocm": {
-            "status": status_label(linux_rocm_ok and target in {"gfx942", "gfx950", "gfx90a"}, host_is_linux and target in {"gfx942", "gfx950", "gfx90a"}),
-            "ok": linux_rocm_ok and target in {"gfx942", "gfx950", "gfx90a"},
+            "status": status_label(linux_rocm_ok and target in LINUX_CDNA_TARGETS, host_is_linux and target in LINUX_CDNA_TARGETS),
+            "ok": linux_rocm_ok and target in LINUX_CDNA_TARGETS,
             "required_for_host_readiness": False,
-            "detail": "Instinct validation gates require Linux ROCm on supported CDNA hardware",
+            "detail": "Instinct validation gates cover documented CDNA2/CDNA3/CDNA4 targets and require supported Linux ROCm hardware",
         },
     }
 
@@ -777,7 +831,13 @@ def print_human(report: dict[str, object]) -> None:
     print(f"  linux ROCm debug represented: {'OK' if linux['represented'] else 'MISSING'}")
     print(f"    toolchain: {linux.get('toolchain')}")
     print(f"    HIP root:  {linux.get('hip_root')}")
-    print(f"    targets:   {linux.get('amdgpu_targets')}")
+    print(f"    active targets:   {linux.get('amdgpu_targets')}")
+    coverage_targets = linux.get("coverage_targets") or []
+    assert isinstance(coverage_targets, list)
+    print(f"    coverage targets: {', '.join(coverage_targets) if coverage_targets else 'not represented'}")
+    missing_coverage = linux.get("missing_coverage_targets") or []
+    assert isinstance(missing_coverage, list)
+    print(f"    missing coverage: {', '.join(missing_coverage) if missing_coverage else 'none'}")
     print(f"    triplet:   {linux.get('vcpkg_triplet')}")
     print(f"    detail:    {linux.get('detail')}")
     print()
@@ -812,10 +872,14 @@ def print_human(report: dict[str, object]) -> None:
         assert isinstance(item, dict)
         status = "OK" if item["ok"] else "MISSING"
         print(f"[{status}] {name} ({item['backend_stage']}, {item['experiment']}, optional)")
+        print(f"  probe: {item['probe']}")
+        print(f"  cmake module: {item.get('cmake_module') or 'not found'}")
         if item.get("header"):
             print(f"  header: {item['header']}")
         if item.get("library"):
             print(f"  library: {item['library']}")
+        if item.get("tool"):
+            print(f"  tool: {item['tool']}")
         print(f"  readiness: {item['readiness']}")
     print()
 

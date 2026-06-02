@@ -24,6 +24,11 @@ find_path(
 
 find_package_handle_standard_args(RNS8CK REQUIRED_VARS RNS8_CK_INCLUDE_DIR)
 
+set(RNS8_CK_CANDIDATE FALSE)
+if(RNS8_CK_INCLUDE_DIR)
+  set(RNS8_CK_CANDIDATE TRUE)
+endif()
+
 if(RNS8CK_FOUND)
   set(RNS8_CK_INCLUDE_DIRS "${RNS8_CK_INCLUDE_DIR}")
 endif()

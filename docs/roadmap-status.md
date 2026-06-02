@@ -51,7 +51,10 @@ disagree, the spec remains the target and this file identifies the gap.
   tooling, and comparison-tool support for v1/v2.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
-  optional accelerator components as candidate evidence only.
+  optional accelerator components as candidate evidence only. Linux presets keep
+  active offload targets separate from RDNA/CDNA coverage metadata, and shallow
+  hipBLASLt/CK/rocWMMA probes report headers, libraries, tools, and CMake module
+  evidence without enabling accelerator backends.
 
 ## Not Yet Implemented
 
@@ -94,7 +97,9 @@ disagree, the spec remains the target and this file identifies the gap.
   verification and direct HIP smoke passed.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
-  Windows host.
+  Windows host. hipBLASLt was reported as candidate evidence only on this host;
+  CK and rocWMMA remained not ready, and none were promoted to correctness
+  requirements.
 - Benchmark captures are kept under `temp/`:
   `rns8-cpu-bounded-i64.json`, `rns8-cpu-bounded-u64.json`,
   `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`, and

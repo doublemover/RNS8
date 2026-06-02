@@ -18,6 +18,16 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug --output-on-failure
 ```
 
+The Linux preset keeps two target lists separate:
+
+- `RNS8_AMDGPU_TARGETS` is the active offload list used by explicit HIP
+  compilation. It should be set to targets supported by the active ROCm release
+  and the validation machine.
+- `RNS8_ROCM_COVERAGE_TARGETS` is source-level readiness metadata. It records
+  the documented RDNA2/RDNA3/RDNA4 and CDNA2/CDNA3/CDNA4 coverage families:
+  `gfx1030`, `gfx1100`, `gfx1200`, `gfx1201`, `gfx90a`, `gfx942`, and
+  `gfx950`. It does not add compiler offload architectures by itself.
+
 Linux-specific accelerator paths are intentionally not required for core
 correctness:
 
@@ -25,8 +35,10 @@ correctness:
 - CK grouped/fused kernels remain a later feature-detected backend.
 - rocWMMA and AMDGPU builtins remain target-specific hot paths.
 
-The checker reports hipBLASLt, CK, and rocWMMA discovery as candidate evidence
-only. Linux production readiness still requires target-supported components,
+The checker and CMake find modules report hipBLASLt, CK, and rocWMMA discovery
+as candidate evidence only. The hipBLASLt probe looks for headers, libraries,
+and the optional `hipblaslt-bench` utility; CK and rocWMMA probes look for their
+headers. Linux production readiness still requires target-supported components,
 compiled capability probes, exact CPU differential coverage, and measured
 performance before enabling advanced backend stages.
 
