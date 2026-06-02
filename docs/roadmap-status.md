@@ -96,9 +96,10 @@ disagree, the spec remains the target and this file identifies the gap.
   placeholders for unavailable fields, direct-HIP GPU event timing arrays when
   complete, exact `hipEventElapsedTime` source/scope validation for direct-HIP
   event captures, mandatory declared GPU event phase order with exact timing-key
-  matching, explicit unavailable metadata when event timing is not applicable,
-  strict wrap64 CPU and direct-HIP byte-limb benchmark metadata, fixed-prefix
-  schedule metadata, measured schedule-info query timing, explicit
+  matching, `gpu_event_phase_order: null` plus explicit unavailable metadata
+  when event timing is not applicable, strict wrap64 CPU and direct-HIP
+  byte-limb benchmark metadata, fixed-prefix schedule metadata, measured
+  schedule-info query timing, explicit
   phase-availability metadata for fused or not-applicable reduction, direct-HIP
   per-tile adaptive bounded capture
   metadata, schema validation tooling, and comparison-tool support for

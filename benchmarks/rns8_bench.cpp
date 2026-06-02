@@ -1576,7 +1576,11 @@ void print_json(
       << "    \"phase_order\": [\"planning\", \"scheduling\", \"matrix_alloc\", \"pack\", \"rns_gemm\", "
          "\"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"gpu_event_phase_order\": ";
-  print_string_array(gpu_event_phase_order(args));
+  if (gpu_events_available) {
+    print_string_array(gpu_event_phase_order(args));
+  } else {
+    std::cout << "null";
+  }
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
   std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";

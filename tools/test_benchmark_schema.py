@@ -138,6 +138,14 @@ def main() -> int:
     bad_event_nullability["gpu_event_timing_summary_us"] = None
     expect_invalid(bad_event_nullability, "gpu_event_timings_us must be null")
 
+    bad_event_phase_order_nullability = copy.deepcopy(wrap64)
+    bad_event_phase_order_nullability["timing_metadata"]["gpu_event_timing"] = False
+    bad_event_phase_order_nullability["timing_metadata"]["gpu_event_timing_source"] = None
+    bad_event_phase_order_nullability["timing_metadata"]["gpu_event_timing_source_scope"] = None
+    bad_event_phase_order_nullability["gpu_event_timings_us"] = None
+    bad_event_phase_order_nullability["gpu_event_timing_summary_us"] = None
+    expect_invalid(bad_event_phase_order_nullability, "gpu_event_phase_order must be null")
+
     print("benchmark schema self-test: PASS")
     return 0
 
