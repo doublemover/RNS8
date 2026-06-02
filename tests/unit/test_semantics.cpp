@@ -688,14 +688,24 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_device_info(auto_ctx, &info) == RNS8_SUCCESS);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  CHECK(info.backend == RNS8_BACKEND_HIP_DIRECT);
+#else
   CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+#endif
 
   auto wrap = gemm_desc(RNS8_WRAP_U64_MOD_2_64, RNS8_BOUND_NONE);
   wrap.bound = 0;
   wrap.requested_backend = RNS8_BACKEND_AUTO;
   rns8_plan* plan = nullptr;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  CHECK(rns8_create_plan(auto_ctx, &wrap, &plan) == RNS8_SUCCESS);
+  rns8_destroy_plan(plan);
+  plan = nullptr;
+#else
   CHECK(rns8_create_plan(auto_ctx, &wrap, &plan) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(plan == nullptr);
+#endif
 
   auto exact = gemm_desc(RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
   exact.bound = 0;

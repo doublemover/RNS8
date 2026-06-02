@@ -21,8 +21,12 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
 HIPBLASLT_GPU_EVENT_SCOPES = {
     "hipblaslt_baseline_default_stream_backend_operation_groups",
 }
-HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma"}
+HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma", "hip-vector-alu-int64"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
+VECTOR_ALU_SELECTED_KERNELS = {
+    "hip_vector_alu_i64_exact_192b_v1",
+    "hip_vector_alu_u64_exact_192b_v1",
+}
 CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
@@ -268,8 +272,14 @@ class _Validator:
         metadata = self._require("backend_metadata", "dict")
         if not isinstance(metadata, dict):
             return
-        if metadata.get("source") != "rns8_get_plan_backend_info":
-            self._error("backend_metadata.source must be rns8_get_plan_backend_info")
+        selected_backend = self.data.get("backend_selected")
+        expected_source = (
+            "rns8_bench_vector_alu_baseline"
+            if selected_backend == "hip-vector-alu-int64"
+            else "rns8_get_plan_backend_info"
+        )
+        if metadata.get("source") != expected_source:
+            self._error(f"backend_metadata.source must be {expected_source}")
         selected_kernel = metadata.get("selected_kernel")
         if not isinstance(selected_kernel, str) or not selected_kernel:
             self._error("backend_metadata.selected_kernel must be a nonempty string")
@@ -304,7 +314,6 @@ class _Validator:
         workspace_bytes = metadata.get("workspace_required_bytes")
         if not _is_int(workspace_bytes) or workspace_bytes < 0:
             self._error("backend_metadata.workspace_required_bytes must be a nonnegative integer")
-        selected_backend = self.data.get("backend_selected")
         if selected_backend in CURRENT_CORRECTNESS_BACKENDS:
             if metadata.get("accelerator_backend") is not False:
                 self._error("current correctness backends must set backend_metadata.accelerator_backend=false")
@@ -349,6 +358,30 @@ class _Validator:
                 "separate_i32_scratch_reduce_then_canonical_u8_export",
             }:
                 self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
+        if selected_backend == "hip-vector-alu-int64":
+            expected = {
+                "accelerator_library": "HIP runtime",
+                "capability_status": "benchmark_only_vector_alu_baseline",
+                "epilogue_mode": "direct_int64_export",
+                "workspace_mode": "benchmark_owned_device_buffers",
+                "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
+            }
+            for key, value in expected.items():
+                if metadata.get(key) != value:
+                    self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
+            if metadata.get("selected_kernel") not in VECTOR_ALU_SELECTED_KERNELS:
+                self._error("hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel")
+            bool_expected = {
+                "accelerator_backend": False,
+                "correctness_backend": True,
+                "matrix_engine_backend": False,
+                "compiled_kernel_available": True,
+                "exact_differential_validated": True,
+                "performance_validated": False,
+            }
+            for key, value in bool_expected.items():
+                if metadata.get(key) is not value:
+                    self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
 
     def _validate_comparison_baseline(self) -> None:
         baseline = self._require("comparison_baseline", "dict")
@@ -381,7 +414,14 @@ class _Validator:
             self._error("derived_tops_equivalent requires a reviewed same-contract comparison baseline")
         semantics = self.data.get("semantics")
         if semantics in {"bounded_i64", "bounded_u64"} and isinstance(required, list):
-            for item in ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64"]:
+            expected = ["same_contract_cpu_reference"]
+            if selected_backend == "hip-vector-alu-int64":
+                expected.append("same_contract_direct_hip_correctness")
+            else:
+                expected.append("same_contract_direct_hip_vector_alu_int64")
+                if selected_backend != "hip-direct":
+                    expected.append("same_contract_direct_hip_correctness")
+            for item in expected:
                 if item not in required:
                     self._error(f"bounded captures require comparison baseline prerequisite {item}")
         if semantics == "wrap_u64_mod_2_64" and isinstance(required, list):
@@ -485,6 +525,8 @@ class _Validator:
             expected_scope = "not_applicable_wrap64_byte_limb"
         elif self.data.get("backend_selected") == "hipblaslt":
             expected_scope = "separate_hipblaslt_i32_scratch_residue_reduce"
+        elif self.data.get("backend_selected") == "hip-vector-alu-int64":
+            expected_scope = "not_applicable_direct_int64_export"
         else:
             expected_scope = "fused_into_rns_gemm"
         if reduction.get("scope") != expected_scope:
@@ -599,8 +641,11 @@ class _Validator:
                 self._error(f"{semantics} captures must use a positive prefix")
             if packed_layout is not None:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
-            if self.data.get("epilogue_type") != "crt_export":
-                self._error(f"{semantics} captures must use crt_export epilogue")
+            expected_epilogue_type = (
+                "direct_int64_export" if self.data.get("backend_selected") == "hip-vector-alu-int64" else "crt_export"
+            )
+            if self.data.get("epilogue_type") != expected_epilogue_type:
+                self._error(f"{semantics} captures must use {expected_epilogue_type} epilogue")
             if bound_mode == "global":
                 expected_bound_kind = "global_max_abs" if semantics == "bounded_i64" else "global_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
@@ -636,8 +681,8 @@ class _Validator:
                 expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
-                if self.data.get("backend_selected") not in {"hip-direct", "ck", "wmma"}:
-                    self._error("per-tile adaptive captures must select hip-direct, ck, or wmma backend")
+                if self.data.get("backend_selected") not in {"hip-direct", "ck", "wmma", "hip-vector-alu-int64"}:
+                    self._error("per-tile adaptive captures must select hip-direct, ck, wmma, or hip-vector-alu-int64 backend")
                 if self.data.get("bound") != 0:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
@@ -649,7 +694,11 @@ class _Validator:
         if applicable is not None and not isinstance(applicable, bool):
             self._error("per_modulus_gemm_estimate_applicable must be a boolean")
         elif isinstance(applicable, bool) and _is_int(prefix):
-            expected_applicable = prefix > 0 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
+            expected_applicable = (
+                prefix > 0
+                and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
+                and self.data.get("backend_selected") != "hip-vector-alu-int64"
+            )
             if applicable != expected_applicable:
                 self._error("per_modulus_gemm_estimate_applicable must match the fixed-prefix contract")
 
@@ -708,6 +757,8 @@ class _Validator:
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:
                 self._error(f"per-tile adaptive {selected_backend} captures must use selected_kernel={expected_kernel}")
+            if selected_backend == "hip-vector-alu-int64" and selected_kernel not in VECTOR_ALU_SELECTED_KERNELS:
+                self._error("per-tile adaptive hip-vector-alu-int64 captures must use a known vector-ALU selected_kernel")
         prefix_group_count = schedule.get("prefix_group_count")
         max_selected = schedule.get("max_selected_prefix")
         min_selected = schedule.get("min_selected_prefix")
@@ -749,11 +800,19 @@ class _Validator:
                     self._error(
                         "rocWMMA per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
                     )
+            elif self.data.get("backend_selected") == "hip-vector-alu-int64":
+                if metadata.get("gpu_event_timing") is not False:
+                    self._error("vector-ALU per-tile adaptive captures must report unavailable GPU event timings")
+                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
+                    self._error(
+                        "vector-ALU per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
+                    )
         backend_metadata = self.data.get("backend_metadata")
         if isinstance(backend_metadata, dict):
             expected_epilogues = {
                 "ck": "ck_fused_i32_to_centered_residue_then_crt_export",
                 "wmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+                "hip-vector-alu-int64": "direct_int64_export",
             }
             expected_epilogue = expected_epilogues.get(
                 self.data.get("backend_selected"), "fused_centered_residue_then_crt_export"
@@ -765,6 +824,7 @@ class _Validator:
             expected_workspaces = {
                 "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "wmma": "resident_device_buffers_with_rocwmma_pack_workspace",
+                "hip-vector-alu-int64": "benchmark_owned_device_buffers",
             }
             expected_workspace = expected_workspaces.get(
                 self.data.get("backend_selected"), "resident_device_buffers_with_tiled_schedule"
@@ -776,6 +836,7 @@ class _Validator:
             expected_isas = {
                 "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
                 "wmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+                "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
             expected_isa = expected_isas.get(
                 self.data.get("backend_selected"), "rns8_hip_direct_reciprocal_isa_gate"

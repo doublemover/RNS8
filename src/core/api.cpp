@@ -1790,6 +1790,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     *out = nullptr;
 
     rns8_backend_kind requested = RNS8_BACKEND_CPU_REFERENCE;
+    bool requested_auto = false;
     if (options) {
       if (!rns8::detail::valid_abi(options->struct_size, options->abi_version, sizeof(*options))) {
         return RNS8_INVALID_ARGUMENT;
@@ -1797,12 +1798,34 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       if (options->flags != 0) {
         return RNS8_INVALID_ARGUMENT;
       }
-      requested = effective_backend(options->requested_backend, RNS8_BACKEND_CPU_REFERENCE);
+      requested_auto = options->requested_backend == RNS8_BACKEND_AUTO;
+      requested = requested_auto ? RNS8_BACKEND_AUTO : options->requested_backend;
     }
 
     auto* ctx = new (std::nothrow) rns8_context();
     if (!ctx) {
       return RNS8_INTERNAL_ERROR;
+    }
+
+    if (requested_auto) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      ctx->backend = RNS8_BACKEND_HIP_DIRECT;
+      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      const rns8_status hip_status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
+      if (hip_status == RNS8_SUCCESS) {
+        *out = ctx;
+        return RNS8_SUCCESS;
+      }
+#endif
+      ctx->backend = RNS8_BACKEND_CPU_REFERENCE;
+      ctx->device_id = -1;
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      rns8::detail::fill_cpu_device_info(ctx->device_info);
+      *out = ctx;
+      return RNS8_SUCCESS;
     }
 
     if (requested == RNS8_BACKEND_CPU_REFERENCE) {

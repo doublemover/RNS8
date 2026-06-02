@@ -39,6 +39,8 @@ def main() -> int:
     v4_ck_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_ck.json")
     v4_wmma_i64 = expect_valid("v4_bounded_i64_rocwmma.json")
     v4_wmma_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_rocwmma.json")
+    v4_vector_i64 = expect_valid("v4_bounded_i64_vector_alu.json")
+    v4_vector_u64 = expect_valid("v4_bounded_u64_vector_alu.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
@@ -100,6 +102,22 @@ def main() -> int:
         bad_wmma_events,
         "rocWMMA per-tile adaptive captures must report unavailable GPU event timings",
     )
+
+    bad_vector_source = copy.deepcopy(v4_vector_i64)
+    bad_vector_source["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
+    expect_invalid(bad_vector_source, "rns8_bench_vector_alu_baseline")
+
+    bad_vector_accelerator = copy.deepcopy(v4_vector_u64)
+    bad_vector_accelerator["backend_metadata"]["accelerator_backend"] = True
+    expect_invalid(bad_vector_accelerator, "accelerator_backend")
+
+    bad_vector_epilogue = copy.deepcopy(v4_vector_i64)
+    bad_vector_epilogue["epilogue_type"] = "crt_export"
+    expect_invalid(bad_vector_epilogue, "direct_int64_export")
+
+    bad_vector_prereq = copy.deepcopy(v4_vector_u64)
+    bad_vector_prereq["comparison_baseline"]["required_before_speedup_claim"] = ["same_contract_cpu_reference"]
+    expect_invalid(bad_vector_prereq, "same_contract_direct_hip_correctness")
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]
