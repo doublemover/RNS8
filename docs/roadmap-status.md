@@ -19,7 +19,8 @@ disagree, the spec remains the target and this file identifies the gap.
   GEMM path.
 - Direct HIP fused INT32-to-centered-residue reduction: the correctness kernel
   reduces each K block to the centered residue in the kernel and does not write
-  full INT32 output matrices to global memory.
+  full INT32 output matrices to global memory. Centered-range correction uses
+  source-level mask arithmetic instead of source-level `if` branches.
 - Bounded i64/u64 GPU export: direct HIP reconstructs bounded i64/u64 output on
   device with a fixed three-limb Garner path for prefixes up to 20, reports
   range errors through device status, handles the full signed output range
@@ -68,8 +69,9 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Not Yet Implemented
 
-- Optimized matrix-engine HIP kernels. The direct HIP kernels are correctness
-  bring-up kernels, not performance evidence.
+- Optimized matrix-engine HIP kernels, reciprocal-reduction kernels, and
+  instruction-level validation. The direct HIP kernels are correctness bring-up
+  kernels, not performance evidence.
 - Per-tile adaptive bounds, variable per-tile selected prefixes, grouped
   variable-prefix execution, and adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
@@ -85,9 +87,9 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 43/43 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 44/44 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 43/43 passed on
+- `ctest --preset windows-debug --output-on-failure`: 44/44 passed on
   `gfx1100`.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
   for fixed-prefix bounded tile groups, wrap64 prefix-zero byte-limb scheduling,
@@ -95,6 +97,9 @@ disagree, the spec remains the target and this file identifies the gap.
 - The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
   export checks against the CPU reference, including `INT64_MIN` and
   `UINT64_MAX` boundary outputs.
+- The Windows HIP test pass includes a direct HIP one-modulus centered
+  correction boundary case that compares negative, threshold, and near-zero
+  residues against the CPU ring-GEMM reference.
 - The Windows HIP test pass includes
   `private HIP wrap64 byte-limb GEMM matches CPU reference` and
   `direct HIP public wrap64 byte-limb path matches CPU reference`, covering both

@@ -169,6 +169,38 @@ TEST_CASE("direct HIP ring GEMM matches CPU reference for one modulus") {
   CHECK(gpu == cpu);
 }
 
+TEST_CASE("direct HIP ring GEMM covers centered correction boundaries") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP centered-boundary smoke");
+  }
+
+  const int64_t m = 1;
+  const int64_t n = 4;
+  const int64_t k = 2;
+  const uint16_t modulus = 255;
+  const std::vector<int8_t> A = {1, 1};
+  const std::vector<int8_t> B = {
+      64,
+      127,
+      127,
+      -64,
+      64,
+      0,
+      127,
+      -64};
+  std::vector<int8_t> cpu(static_cast<std::size_t>(m * n), 0);
+  std::vector<int8_t> gpu(static_cast<std::size_t>(m * n), 0);
+
+  rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, k, n, n, modulus);
+  REQUIRE(cpu[0] == -127);
+  REQUIRE(cpu[1] == 127);
+  REQUIRE(cpu[2] == -1);
+  REQUIRE(cpu[3] == 127);
+  CHECK(rns8::detail::hip_direct_ring_gemm_i8(0, A.data(), B.data(), gpu.data(), m, n, k, k, n, n, modulus) ==
+        RNS8_SUCCESS);
+  CHECK(gpu == cpu);
+}
+
 TEST_CASE("direct HIP ring GEMM splits K above the int32 safe block") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP split smoke");

@@ -5,8 +5,9 @@ Backend status:
 - CPU reference: implemented and tested.
 - Direct HIP: implemented for device inspection, signed/unsigned residue
   conversion, persistent device-resident RNS matrix buffers, one-modulus
-  correctness smoke, fused INT32-to-centered-residue reduction, and bounded
-  i64/u64 GPU export through the supported prefix-20 bound.
+  correctness smoke, fused INT32-to-centered-residue reduction with
+  source-level branchless centered correction, and bounded i64/u64 GPU export
+  through the supported prefix-20 bound.
   Public bounded GEMM can execute the direct HIP pack, RNS GEMM, and export
   path, with K split into blocks no larger than 65536 before centered residue
   reduction.
@@ -41,7 +42,10 @@ matrix-owned device residue storage. The direct HIP RNS GEMM path consumes those
 device residues directly, launches one thread per output element per modulus,
 and reduces each INT32 K-block sum to a centered residue in the kernel. For K
 above 65536, it launches multiple block kernels and accumulates the centered
-residue on device.
+residue on device. The current centered-range correction code uses mask
+arithmetic instead of source-level `if` branches, but the kernel still uses
+ordinary modulo operations and has not been promoted to a reciprocal-reduction
+or ISA-verified performance kernel.
 
 Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
 three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes

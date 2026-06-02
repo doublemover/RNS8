@@ -10,19 +10,15 @@ __device__ __constant__ int rns8_default_moduli_device[28] = {
 
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
   int residue = value % modulus;
-  if (residue < 0) {
-    residue += modulus;
-  }
+  residue += modulus & -static_cast<int>(residue < 0);
   const int threshold = (modulus + 1) / 2;
-  if (residue >= threshold) {
-    residue -= modulus;
-  }
+  residue -= modulus & -static_cast<int>(residue >= threshold);
   return static_cast<int8_t>(residue);
 }
 
 __device__ uint32_t rns8_canonical_from_centered_device(int8_t residue, int modulus) {
   const int value = static_cast<int>(residue);
-  return static_cast<uint32_t>(value < 0 ? value + modulus : value);
+  return static_cast<uint32_t>(value + (modulus & -static_cast<int>(value < 0)));
 }
 
 __device__ uint32_t rns8_mod_inverse_device(uint32_t a, uint32_t modulus) {
@@ -225,9 +221,7 @@ __device__ void rns8_reconstruct_canonical_wide_device(
     const uint32_t inverse = rns8_mod_inverse_device(product_mod, static_cast<uint32_t>(modulus));
     int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     delta_mod %= modulus;
-    if (delta_mod < 0) {
-      delta_mod += modulus;
-    }
+    delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
     x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
@@ -239,24 +233,17 @@ __device__ void rns8_reconstruct_canonical_wide_device(
 
 __device__ int8_t rns8_center_i64_device(int64_t value, int modulus) {
   int64_t residue = value % static_cast<int64_t>(modulus);
-  if (residue < 0) {
-    residue += modulus;
-  }
+  residue += static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue < 0);
   const int64_t threshold = (static_cast<int64_t>(modulus) + 1) / 2;
-  if (residue >= threshold) {
-    residue -= modulus;
-  }
+  residue -= static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue >= threshold);
   return static_cast<int8_t>(residue);
 }
 
 __device__ int8_t rns8_center_u64_device(uint64_t value, int modulus) {
   uint64_t residue = value % static_cast<uint64_t>(modulus);
   const uint64_t threshold = (static_cast<uint64_t>(modulus) + 1) / 2;
-  int64_t centered = static_cast<int64_t>(residue);
-  if (residue >= threshold) {
-    centered -= modulus;
-  }
-  return static_cast<int8_t>(centered);
+  residue -= static_cast<uint64_t>(modulus) & (0u - static_cast<uint64_t>(residue >= threshold));
+  return static_cast<int8_t>(static_cast<int64_t>(residue));
 }
 
 __global__ void rns8_pack_i64_kernel(
