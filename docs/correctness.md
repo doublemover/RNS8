@@ -35,15 +35,20 @@ Implemented correctness coverage:
   bounded CRT behavior.
 - Public API hard-cut tests cover exact-wide invalid limb layout, null context,
   plan, matrix, and output pointers, stale bound/tile-bound descriptor
-  metadata, bounded export shortcuts, wrap export shortcuts, signed/unsigned
-  exact-wide cross-export attempts, and unsupported accelerator context kinds.
+  metadata, stale-prefix matrix handles, bounded matrix handles, wrap byte-limb
+  matrix handles, bounded export shortcuts, wrap export shortcuts,
+  signed/unsigned exact-wide cross-export attempts, and unsupported accelerator
+  context kinds.
 - Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
   nonzero bounds, global plans carrying tile-bound storage, and matrix
   descriptors whose owned RNS or byte-limb storage would overflow the host
   allocation size.
 - Persistent workspace guard tests reject same-shape workspaces from different
-  semantic contracts or bound kinds, so workspace reuse cannot silently route a
+  semantic contracts, bound kinds, bound values, tile geometry, or per-tile
+  selected-prefix schedules, so workspace reuse cannot silently route a
   bounded, exact-wide, per-tile, or wrap64 plan through another contract.
+  Per-tile bounded matrix tile geometry is also part of the persistent contract
+  and is rejected when stale before GEMM/export dispatch.
 - Negative semantic tests that exact-wide signed/unsigned and strict
   `mod 2^64` wraparound reject bounded-looking metadata, including explicit
   global bounds and input-range bounds. A bounded prefix alone is not a license
@@ -65,10 +70,11 @@ Implemented correctness coverage:
 - CPU exact-wide fixed-width export tests also pin the signed centered
   half-product representative at small and maximum supported prefixes,
   one-limb signed min/max boundaries, negative two's-complement sign extension
-  through 32 limbs, unsigned one-limb overflow rejection, two-limb unsigned
-  success including a high-bit magnitude case, padded element-stride export,
-  descriptor rejection, stale matrix-state rejection, null-handle rejection,
-  and wrong export-function rejection.
+  through 32 limbs, public signed high-bit negative export, unsigned one-limb
+  overflow rejection, two-limb unsigned success including public high-bit
+  magnitude cases, padded element-stride export, descriptor rejection, stale
+  matrix-state rejection, null-handle rejection, and wrong export-function
+  rejection.
 - Strict `mod 2^64` byte-limb product, GEMM-cell, public CPU one-shot, and
   persistent byte-limb matrix tests compared against Boost.Multiprecision
   low-64-bit results. The public wrap path requires explicit wrap64 semantics
@@ -130,7 +136,10 @@ Implemented correctness coverage:
   metadata where `required_prefix > selected_prefix` before GEMM launch or
   export/status buffer allocation. Adaptive per-tile K-split reuse coverage
   compares against CPU with padded output and mixed selected-prefix groups while
-  checking same-shape resident buffer allocation stability after warmup.
+  checking same-shape resident buffer allocation and workspace schedule-metadata
+  stability after warmup. Direct HIP also rejects same-shape stale per-tile
+  workspace schedules and stale per-tile matrix tile metadata without changing
+  warmed resident allocation counters.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is
@@ -141,6 +150,10 @@ Implemented correctness coverage:
   export into compact device byte-limb storage with reusable helper buffers. The
   public and private HIP wrap64 tests are correctness coverage for the tiled
   byte-limb kernel, not optimized matrix-engine byte-GEMM performance evidence.
+- CTest configure-negative coverage asserts that
+  `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
+  `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast with the evidence-only policy message
+  while no correctness backend exists.
 
 Not yet implemented:
 

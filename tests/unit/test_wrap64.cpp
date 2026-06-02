@@ -827,6 +827,24 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   CHECK(rns8_create_plan(wrap_ctx, &bound_only, &plan) == RNS8_INVALID_ARGUMENT);
   CHECK(plan == nullptr);
 
+  const uint64_t tile_bound = 1;
+  auto tile_bounded = desc;
+  tile_bounded.tile_bounds = &tile_bound;
+  tile_bounded.tile_bounds_count = 1;
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &tile_bounded, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(wrap_ctx, &tile_bounded, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
+  auto per_tile_wrap = desc;
+  per_tile_wrap.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  per_tile_wrap.tile_m = 64;
+  per_tile_wrap.tile_n = 64;
+  per_tile_wrap.tile_bounds = &tile_bound;
+  per_tile_wrap.tile_bounds_count = 1;
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &per_tile_wrap, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_create_plan(wrap_ctx, &per_tile_wrap, &plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(plan == nullptr);
+
   rns8_gemm_desc bounded_desc{};
   bounded_desc.struct_size = sizeof(bounded_desc);
   bounded_desc.abi_version = RNS8_ABI_VERSION;
@@ -840,6 +858,13 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   CHECK(rns8_gemm_wrap_u64_oneshot(wrap_ctx, &bounded_desc, A, k, B, n, C, n) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_create_plan(wrap_ctx, &bounded_desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(plan == nullptr);
+
+  auto cpu_bounded_desc = bounded_desc;
+  cpu_bounded_desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  rns8_plan* bounded_plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu_ctx, &cpu_bounded_desc, &bounded_plan) == RNS8_SUCCESS);
+  rns8_workspace* bounded_workspace = nullptr;
+  REQUIRE(rns8_create_workspace(cpu_ctx, bounded_plan, &bounded_workspace) == RNS8_SUCCESS);
 
   rns8_matrix_desc matrix{};
   matrix.struct_size = sizeof(matrix);
@@ -890,11 +915,22 @@ TEST_CASE("public wrap64 path rejects CRT metadata and RNS APIs") {
   CHECK(rns8_create_matrix(wrap_ctx, &bounded_matrix, &storage) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(storage == nullptr);
 
+  rns8_matrix* cpu_bounded_matrix = nullptr;
+  REQUIRE(rns8_create_matrix(cpu_ctx, &bounded_matrix, &cpu_bounded_matrix) == RNS8_SUCCESS);
+  CHECK(cpu_bounded_matrix->residues.size() == static_cast<std::size_t>(RNS8_DEFAULT_BOUNDED_PREFIX));
+  CHECK(cpu_bounded_matrix->byte_limbs.empty());
+  CHECK(rns8_gemm_wrap_u64(wrap_ctx, valid_plan, a_matrix, b_matrix, c_matrix, bounded_workspace) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(wrap_ctx, valid_plan, cpu_bounded_matrix, C, n) == RNS8_INVALID_ARGUMENT);
+  rns8_destroy_matrix(cpu_bounded_matrix);
+
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(valid_plan);
+  rns8_destroy_workspace(bounded_workspace);
+  rns8_destroy_plan(bounded_plan);
 
   rns8_destroy_context(cpu_ctx);
   rns8_destroy_context(wrap_ctx);
