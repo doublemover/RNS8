@@ -40,6 +40,7 @@
     {
       "name": "windows-msvc-hip-accelerator-probe",
       "displayName": "Windows MSVC + HIP SDK accelerator probe (Debug)",
+      "description": "Evidence-only accelerator component probe preset; keeps accelerator backend enable flags disabled.",
       "inherits": "windows-msvc-hip-debug",
       "binaryDir": "${sourceDir}/build/windows-msvc-hip-accelerator-probe",
       "cacheVariables": {
@@ -53,7 +54,7 @@
     {
       "name": "linux-rocm-debug",
       "displayName": "Linux ROCm + vcpkg (Debug)",
-      "description": "Linux ROCm production/profiling preset. Requires VCPKG_ROOT and ROCm installed on the Linux host.",
+      "description": "Linux ROCm production/profiling validation preset. Represented only until run on a real Linux ROCm host with supported hardware.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-rocm-debug",
       "condition": {
@@ -85,6 +86,7 @@
     {
       "name": "linux-rocm-accelerator-probe",
       "displayName": "Linux ROCm accelerator probe (Debug)",
+      "description": "Evidence-only Linux accelerator component probe preset; keeps accelerator backend enable flags disabled.",
       "inherits": "linux-rocm-debug",
       "binaryDir": "${sourceDir}/build/linux-rocm-accelerator-probe",
       "cacheVariables": {

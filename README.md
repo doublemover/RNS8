@@ -67,7 +67,8 @@ Required:
 - vcpkg at `C:\vcpkg`.
 - vcpkg packages declared in [vcpkg.json](vcpkg.json). The dependency checker
   marks only current host-required packages as readiness blockers; optional
-  reference/planned packages are reported without enabling backends:
+  reference/planned packages are reported without enabling backends or making
+  correctness-validation claims:
   - `benchmark`
   - `boost-multiprecision`
   - `catch2`
@@ -237,7 +238,12 @@ ctest --test-dir build\cpu-debug --output-on-failure
   optional accelerator/reference components, project tools, and optional Radeon
   Developer Tool Suite utilities. `--accelerator-probes` runs opt-in tiny
   compile/run probes under `temp/` for discovered accelerator components; these
-  probes are evidence only and do not enable correctness backends.
+  probes are evidence only and do not enable correctness backends. The JSON
+  report separates implemented correctness backend families from candidate
+  accelerator evidence through `readiness.correctness_backend_validation`, keeps
+  accelerator records marked with
+  `candidate_evidence_is_correctness_validation=false`, and uses
+  `hard_cut_self_checks` only for internal report consistency.
 - [tools/result_compare.py](tools/result_compare.py) compares two `rns8-bench`
   JSON captures without treating timing deltas as correctness or performance
   claims.

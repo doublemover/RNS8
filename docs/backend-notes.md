@@ -63,6 +63,13 @@ separate `accelerator_enablement` section. Every accelerator enable flag remains
 `not_implemented`, `validated_correctness_backend` is false, and
 `backend_enablement` stays `disabled` regardless of component discovery or
 optional compile/run probe evidence.
+The same report carries `readiness.correctness_backend_validation`, which is
+the hard boundary between implemented correctness backend families and
+candidate accelerator evidence. The dependency checker does not validate CPU,
+direct-HIP, wrap64, or accelerator correctness; its
+`validated_by_this_report` list remains empty. Accelerator component/probe
+records carry `evidence_class=candidate_accelerator_evidence_only` and
+`candidate_evidence_is_correctness_validation=false`.
 
 The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
@@ -164,7 +171,10 @@ and debug path.
 Dependency readiness reports expose `exact_wide_platform_validation` separately
 from host dependency gates: Windows `gfx1100` exact-wide evidence is not Linux
 ROCm or Instinct validation, and those targets remain unvalidated until run on a
-real supported Linux ROCm host with exact CPU differentials.
+real supported Linux ROCm host with exact CPU differentials. The report-level
+`hard_cut_self_checks` section is an internal consistency check that keeps
+Windows-to-Linux/Instinct promotion false and keeps accelerator evidence from
+turning into backend enablement.
 The CPU signed CRT representative uses the centered threshold
 `x >= ceil(P / 2)`, so the exact half-product residue class maps negative for
 even modulus products. Unit coverage pins one-limb signed min/max boundaries,

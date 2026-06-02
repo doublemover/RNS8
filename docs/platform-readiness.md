@@ -50,6 +50,24 @@ This file describes readiness policy, not a fresh validation record.
 | Accelerator enablement | hipBLASLt, CK, rocWMMA, and AMDGPU builtin enable flags intentionally fail fast until real correctness backends exist. Probes collect candidate evidence only. CTest negative configure cases pin the fail-fast message for each enable flag. |
 | Linux ROCm and Instinct | Linux ROCm, Radeon Linux, and Instinct CDNA gates are represented by presets, target metadata, and dependency reports. Windows evidence does not validate them; they require a real Linux ROCm host with supported hardware. |
 
+## Readiness Output Classes
+
+- Dependency checks report prerequisites and candidate evidence. They do not
+  validate correctness backends.
+- `readiness.correctness_backend_validation` separates implemented correctness
+  backend families from accelerator candidates. Its
+  `validated_by_this_report` list is empty and
+  `validated_correctness_backend_count` is `0` because correctness validation
+  requires separate build/test/smoke runs.
+- Accelerator component and probe records carry
+  `evidence_class=candidate_accelerator_evidence_only` and
+  `candidate_evidence_is_correctness_validation=false`.
+- `hard_cut_self_checks` is an internal report-consistency section.
+  It checks that accelerator enablement stays disabled, candidate evidence is
+  not promoted to correctness validation, and Windows host evidence is not
+  promoted to Linux ROCm or Instinct validation. It does not run external
+  validation commands.
+
 ## Accelerator Gates
 
 - `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
@@ -65,8 +83,8 @@ This file describes readiness policy, not a fresh validation record.
   `accelerator_enablement`, whose per-flag records keep
   `backend_enablement=disabled`, `correctness_backend=not_implemented`,
   `validated_correctness_backend=false`, `can_enable_correctness_backend=false`,
-  and `enable_flags_fail_fast=true` until a real exact correctness backend
-  exists.
+  `candidate_evidence_is_correctness_validation=false`, and
+  `enable_flags_fail_fast=true` until a real exact correctness backend exists.
 - The same JSON readiness object includes
   `exact_wide_platform_validation`. On this Windows bring-up host it records
   Windows `gfx1100` exact-wide evidence scope only, sets
