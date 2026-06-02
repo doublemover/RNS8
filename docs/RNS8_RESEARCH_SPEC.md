@@ -1208,6 +1208,14 @@ $XDG_CACHE_HOME/rns8-gemm/autotune.json
 %LOCALAPPDATA%\rns8-gemm\autotune.json
 ```
 
+The local implementation also accepts `RNS8_AUTOTUNE_CACHE_PATH` for isolated
+tests. Cache entries are keyed by the plan autotune key and record backend,
+target, HIP SDK or accelerator library version, semantic contract, shape,
+layout, prefix schedule hash, K-block, tile size, epilogue, selected kernel,
+workspace bytes, measured medians, validation status, and cache schema version.
+Unreviewed benchmark-emitted entries must not be treated as performance
+validation or as permission to promote an accelerator backend.
+
 Benchmark outputs include:
 
 - command line,

@@ -18,6 +18,7 @@ build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semanti
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --bound-mode per-tile --require-adaptive-execution --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 7
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11 --write-autotune-cache
 ```
 
 The benchmark reports:
@@ -66,6 +67,15 @@ The benchmark reports:
 - average CRT export time,
 - average end-to-end time for the measured phases,
 - raw per-repeat timing arrays plus average, median, and p95 summaries.
+
+When `--write-autotune-cache` is present, the benchmark also writes an external
+cache entry keyed by `backend_metadata.autotune_key`. The cache stores backend,
+target, HIP SDK or accelerator library version, shape, semantic contract,
+layout, prefix schedule hash, K-block, tile size, epilogue, selected kernel,
+workspace bytes, raw median timings, and validation status. The cache write is
+side-band and does not change the benchmark JSON schema. Raw cache entries with
+`schema_v4_capture_emitted_unreviewed` are selection evidence only; they are not
+performance validation claims.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with

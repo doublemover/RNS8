@@ -55,6 +55,7 @@ find_path(
   NAMES boost/multiprecision/cpp_int.hpp
   REQUIRED
 )
+find_package(nlohmann_json CONFIG REQUIRED)
 
 set(RNS8_PUBLIC_HEADERS
   include/rns8/status.h
@@ -66,6 +67,7 @@ set(RNS8_PUBLIC_HEADERS
 )
 
 set(RNS8_SOURCES
+  src/core/autotune_cache.cpp
   src/core/api.cpp
   src/core/moduli.cpp
   src/core/status.cpp
@@ -134,6 +136,7 @@ function(rns8_configure_library target_name)
       target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_LIBRARY}")
     endif()
   endif()
+  target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
 endfunction()
 
 add_library(rns8 SHARED ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
@@ -156,6 +159,7 @@ set_target_properties(rns8_static PROPERTIES OUTPUT_NAME rns8_static)
 
 if(RNS8_BUILD_TOOLS)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)
+  target_include_directories(rns8-inspect PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(rns8-inspect PRIVATE rns8_static)
 
   add_executable(rns8-verify tools/rns8_verify.cpp)

@@ -71,6 +71,18 @@ and an autotune key. Workspaces copy those fields from the plan, and workspace
 validation treats them as part of the same deterministic contract as schedule
 metadata.
 
+Autotune cache support is implemented as an explicit evidence layer, not as an
+automatic accelerator promotion path. `rns8-bench --write-autotune-cache`
+records the current plan autotune key, selected backend/kernel, target id,
+library or HIP SDK version, semantic contract, shape, layout, K-block, tile
+size, epilogue, workspace bytes, raw median timings, and validation status in
+`%LOCALAPPDATA%\rns8-gemm\autotune.json` on Windows, or the equivalent
+`$XDG_CACHE_HOME/rns8-gemm/autotune.json` path on Unix-like hosts.
+`RNS8_AUTOTUNE_CACHE_PATH` can override the path for tests and isolated smoke
+runs. `rns8-inspect --autotune-key ...` reports exact-hit versus missing-cache
+rationale; unreviewed raw benchmark captures remain unvalidated and do not
+turn on `performance_validated`.
+
 The CK, rocWMMA, and AMDGPU builtin backend directories under `src/` remain
 scaffold markers only. They exist to keep ownership boundaries visible while
 preserving the rule that no accelerator path counts until it has compiled

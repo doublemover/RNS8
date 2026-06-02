@@ -4,17 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 
-def run_command(exe: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_command(exe: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(exe), *args],
         check=False,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=env,
     )
 
 
@@ -66,6 +69,23 @@ def main() -> int:
     expect_exit(cpu, 0, "cpu-reference json")
     expect_text(cpu.stdout, '"backend": "cpu-reference"', "cpu-reference json")
     expect_text(cpu.stdout, '"hip_available": 0', "cpu-reference json")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        env = os.environ.copy()
+        env["RNS8_AUTOTUNE_CACHE_PATH"] = str(Path(temp_dir) / "autotune.json")
+        autotune = run_command(
+            inspect_exe,
+            "--backend",
+            "cpu-reference",
+            "--json",
+            "--autotune-key",
+            "unit-test-missing-autotune-key",
+            env=env,
+        )
+        expect_exit(autotune, 0, "autotune json")
+        expect_text(autotune.stdout, '"autotune_cache": {', "autotune json")
+        expect_text(autotune.stdout, '"exact_hit": false', "autotune json")
+        expect_text(autotune.stdout, "missing_cache_using_cpu_reference", "autotune json")
 
     print("rns8-inspect CLI self-test: PASS")
     return 0
