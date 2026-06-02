@@ -45,9 +45,12 @@ build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 ```
 
-`rns8-inspect --backend` is explicit: unknown backend strings are invalid, and
-accelerator names such as `hipblaslt`, `ck`, and `rocwmma` report unsupported
-status until correctness backends exist. They are not routed to `auto`.
+`rns8-inspect --backend` is explicit: unknown backend strings are invalid.
+With the default Windows HIP preset, accelerator names such as `hipblaslt`,
+`ck`, and `rocwmma` report unsupported status and are not routed to `auto`.
+With the opt-in `windows-msvc-hipblaslt-debug` preset, `hipblaslt` reports the
+implemented baseline backend on the local device while `ck` and `rocwmma`
+remain unsupported.
 
 The current HIP kernel is a correctness bring-up kernel, not an optimized
 matrix-engine implementation.
@@ -68,15 +71,12 @@ hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain feature-detected
 accelerators on Windows. `tools/check_dependencies.py` may report discovered
 headers or libraries as candidate evidence for component-backed accelerators,
 and reports AMDGPU builtin readiness as not ready until target-specific exact
-kernels exist. It does not enable or validate those backends. They require
-compiled capability probes and exact CPU differential tests before any backend
-can be treated as ready. The CMake accelerator enable flags intentionally fail
-fast until real correctness backends exist; discovery evidence is not a bypass
-around the direct HIP correctness path. A passing component probe is still
-`candidate_accelerator_evidence_only`, not a validated correctness backend. The
-CTest suite includes
-configure-negative cases for each accelerator enable flag so a placeholder
-backend cannot configure successfully under the current policy.
+kernels exist. Discovery does not enable or validate a backend by itself.
+hipBLASLt is the current opt-in baseline exception: `RNS8_ENABLE_HIPBLASLT=ON`
+builds a real INT8-to-INT32 scratch-and-reduce backend when HIP and hipBLASLt
+are present, and the `windows-hipblaslt-debug` tests run exact CPU/direct-HIP
+differentials. CK, rocWMMA, and AMDGPU builtin enable flags intentionally fail
+fast until their real correctness backends exist.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:
@@ -95,7 +95,15 @@ link probes, records compile/link/runtime status, and keeps
 exists. The CMake probe preset sets
 `RNS8_PROBE_ACCELERATORS=ON` while keeping `RNS8_ENABLE_HIPBLASLT`,
 `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
-`RNS8_ENABLE_AMDGPU_BUILTINS` off. On the current Windows HIP SDK install,
+`RNS8_ENABLE_AMDGPU_BUILTINS` off. For the real hipBLASLt baseline backend use:
+
+```powershell
+python tools\windows_dev.py cmake --preset windows-msvc-hipblaslt-debug
+python tools\windows_dev.py cmake --build --preset windows-hipblaslt-debug
+python tools\windows_dev.py ctest --preset windows-hipblaslt-debug --output-on-failure
+```
+
+On the current Windows HIP SDK install,
 hipBLASLt is candidate evidence through AMD's `roc::hipblaslt` CMake target,
 headers, `libhipblaslt.dll.a` import archive, and `libhipblaslt.dll` runtime.
 No separate MSVC `hipblaslt.lib` is required. The opt-in CMake MSVC link probe

@@ -52,6 +52,19 @@
       }
     },
     {
+      "name": "windows-msvc-hipblaslt-debug",
+      "displayName": "Windows MSVC + HIP SDK + hipBLASLt baseline (Debug)",
+      "description": "Windows gfx1100 hipBLASLt baseline backend build with direct HIP residency support.",
+      "inherits": "windows-msvc-hip-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-hipblaslt-debug",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIPBLASLT": "ON",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
       "name": "linux-rocm-debug",
       "displayName": "Linux ROCm + vcpkg (Debug)",
       "description": "Linux ROCm production/profiling validation preset. Represented only until run on a real Linux ROCm host with supported hardware.",
@@ -112,6 +125,10 @@
       "configurePreset": "windows-msvc-hip-accelerator-probe"
     },
     {
+      "name": "windows-hipblaslt-debug",
+      "configurePreset": "windows-msvc-hipblaslt-debug"
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-rocm-debug"
     },
@@ -135,6 +152,13 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-msvc-hip-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-hipblaslt-debug",
+      "configurePreset": "windows-msvc-hipblaslt-debug",
       "output": {
         "outputOnFailure": true
       }

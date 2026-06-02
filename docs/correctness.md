@@ -205,10 +205,9 @@ Implemented correctness coverage:
   export into compact device byte-limb storage with reusable helper buffers. The
   public and private HIP wrap64 tests are correctness coverage for the tiled
   byte-limb kernel, not optimized matrix-engine byte-GEMM performance evidence.
-- CTest configure-negative coverage asserts that
-  `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
-  `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast with the evidence-only policy message
-  while no correctness backend exists.
+- CTest configure-negative coverage asserts that CK, rocWMMA, AMDGPU builtins,
+  and non-enabled hipBLASLt configurations fail fast with the evidence-only
+  policy message while no correctness backend is selected for that flag.
 
 Not yet implemented:
 

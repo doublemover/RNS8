@@ -43,7 +43,19 @@ def main() -> int:
     expect_text(invalid.stderr, "invalid backend string: not-a-backend", "invalid backend")
     expect_text(invalid.stderr, "unknown names are not routed to auto", "invalid backend")
 
-    for backend in ["hipblaslt", "ck", "rocwmma"]:
+    hipblaslt = run_command(inspect_exe, "--backend", "hipblaslt")
+    if hipblaslt.returncode == 0:
+        expect_text(hipblaslt.stdout, "capability_status: implemented_baseline_backend", "hipblaslt")
+        expect_text(hipblaslt.stdout, "selected_kernel:   hipblaslt_int8_i32_scratch_reduce_baseline_v1", "hipblaslt")
+        expect_text(hipblaslt.stdout, "exact_validated:   1", "hipblaslt")
+        expect_text(hipblaslt.stdout, "perf_validated:    0", "hipblaslt")
+    else:
+        expect_exit(hipblaslt, 1, "hipblaslt")
+        expect_text(hipblaslt.stderr, "unsupported backend", "hipblaslt")
+        expect_text(hipblaslt.stderr, "requested accelerator is evidence-only", "hipblaslt")
+        expect_text(hipblaslt.stderr, "real exact correctness backend", "hipblaslt")
+
+    for backend in ["ck", "rocwmma"]:
         accelerator = run_command(inspect_exe, "--backend", backend)
         expect_exit(accelerator, 1, backend)
         expect_text(accelerator.stderr, "unsupported backend", backend)

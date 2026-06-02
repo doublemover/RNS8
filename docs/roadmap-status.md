@@ -141,16 +141,16 @@ disagree, the spec remains the target and this file identifies the gap.
   accelerator component/probe records are explicitly marked
   `candidate_accelerator_evidence_only`.
   Opt-in Python and CMake accelerator probe modes record compile/link/runtime
-  evidence under `temp/` or probe-only build directories while keeping all
-  accelerator backend enablement disabled. Readiness output also separates
+  evidence under `temp/` or probe-only build directories while keeping probe
+  evidence separate from backend enablement. Readiness output also separates
   correctness-backend validation from candidate accelerator evidence and reports
   hard-cut self-check metadata so discovery cannot be read as enabled backend
-  validation. CTest configure-negative cases pin that `RNS8_ENABLE_HIPBLASLT`,
-  `RNS8_ENABLE_CK`,
-  `RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` fail fast until
-  real correctness backends exist. Report-level `hard_cut_self_checks` keep
-  accelerator evidence, backend enablement, and Windows/Linux/Instinct
-  validation boundaries machine-readable.
+  validation. CTest configure-negative cases pin that `RNS8_ENABLE_CK`,
+  `RNS8_ENABLE_ROCWMMA`, `RNS8_ENABLE_AMDGPU_BUILTINS`, and non-enabled
+  hipBLASLt configurations fail fast until real correctness backends exist.
+  Report-level `hard_cut_self_checks` keep accelerator evidence, backend
+  enablement, and Windows/Linux/Instinct validation boundaries
+  machine-readable.
 
 ## Requirement Audit
 
@@ -218,12 +218,13 @@ disagree, the spec remains the target and this file identifies the gap.
    is not a substitute for Linux Radeon or Instinct CDNA validation. Readiness
    output keeps `windows_evidence_validates_linux_rocm=false` and
    `windows_evidence_validates_instinct=false`.
-9. hipBLASLt, CK, rocWMMA, and AMDGPU builtins: kept as later feature-detected
-   accelerators. Enable flags fail fast because no correctness backend is
-   implemented. Python/CMake probes are evidence-only and never become
-   correctness requirements or validated backend claims. CTest registers
-   configure-negative cases for all four enable flags to prevent accidental
-   placeholder backend acceptance.
+9. hipBLASLt baseline: implemented as an opt-in Windows `gfx1100` correctness
+   backend under `RNS8_ENABLE_HIPBLASLT=ON`. It uses padded transposed INT8
+   pack buffers, hipBLASLt INT8-to-INT32 GEMM, padded INT32 scratch, and a
+   separate HIP centered-residue reduction. CPU/direct-HIP differentials cover
+   bounded, exact-wide RNS output, finite u8, K splits, tail padding, and
+   adaptive-schedule rejection. CK, rocWMMA, and AMDGPU builtins remain later
+   feature-detected accelerators with fail-fast enable flags.
 
 ## Not Yet Implemented
 
@@ -234,11 +235,12 @@ disagree, the spec remains the target and this file identifies the gap.
 - Production performance gates for the fixed 9-modulus bounded milestone. The
   current fixed-prefix CPU and direct-HIP paths are correctness-grade and
   unoptimized unless a reviewed benchmark capture says otherwise.
-- hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
+- CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Device capability and exact CPU differential probes for hipBLASLt, CK,
-  rocWMMA, or AMDGPU builtin backends. Current opt-in probes are compile/link
-  and tiny runtime evidence only.
+- Device capability and exact CPU differential probes for CK, rocWMMA, or
+  AMDGPU builtin backends. Current opt-in probes are compile/link and tiny
+  runtime evidence only. hipBLASLt has a local opt-in correctness baseline but
+  still lacks reviewed performance evidence.
 - Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
   signed-INT8 correction algebra, and broader production-host/device validation
   beyond the current Windows direct-HIP CPU differentials.
@@ -370,9 +372,10 @@ current tracked schema contract.
   --json`: reported the CPU wrap64 byte-limb reference backend.
 - `python tools\check_dependencies.py`: host readiness and Windows RDNA3 direct
   HIP gates passed; Linux ROCm/Instinct gates reported not applicable on this
-  Windows host. hipBLASLt was reported as candidate evidence only on this host;
-  CK, rocWMMA, and AMDGPU builtins remained not ready, and none were promoted
-  to correctness requirements or correctness-backend validation.
+  Windows host. hipBLASLt dependency discovery remains candidate evidence until
+  the explicit backend preset is built and tested; CK, rocWMMA, and AMDGPU
+  builtins remained not ready, and none were promoted to correctness
+  requirements or correctness-backend validation by discovery alone.
 - `python tools\check_dependencies.py --accelerator-probes --json`: host
   readiness stayed true while accelerator gates stayed `ok=false`. CK and
   rocWMMA probes did not run because headers were not discovered. hipBLASLt was
@@ -381,8 +384,10 @@ current tracked schema contract.
   separate MSVC `hipblaslt.lib` is required. The hipBLASLt tiny host API probe
   auto-loaded the Visual Studio developer environment, linked the import
   archive, and ran successfully while remaining
-  `candidate_accelerator_evidence_only`. AMDGPU builtin probes reported
-  `NOT_RUN_NO_CORRECTNESS_KERNEL`; backend enablement remained disabled.
+  `candidate_accelerator_evidence_only`. The real hipBLASLt baseline is
+  validated by `windows-hipblaslt-debug`, not this probe. AMDGPU builtin probes
+  reported `NOT_RUN_NO_CORRECTNESS_KERNEL`; backend enablement remained
+  disabled.
 - `python tools\windows_dev.py cmake --preset windows-msvc-hip-accelerator-probe`:
   configured successfully, reported hipBLASLt
   imported-target/header/import-archive/DLL evidence with

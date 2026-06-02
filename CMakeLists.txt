@@ -27,10 +27,14 @@ set(RNS8_ROCM_COVERAGE_TARGETS "" CACHE STRING "Source-level ROCm target family 
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
-if(RNS8_ENABLE_HIPBLASLT OR RNS8_ENABLE_CK OR RNS8_ENABLE_ROCWMMA OR RNS8_ENABLE_AMDGPU_BUILTINS)
+if(RNS8_ENABLE_HIPBLASLT AND NOT RNS8_ENABLE_HIP)
+  message(FATAL_ERROR "RNS8_ENABLE_HIPBLASLT requires RNS8_ENABLE_HIP because hipBLASLt uses resident HIP buffers")
+endif()
+
+if(RNS8_ENABLE_CK OR RNS8_ENABLE_ROCWMMA OR RNS8_ENABLE_AMDGPU_BUILTINS)
   message(
     FATAL_ERROR
-      "hipBLASLt, CK, rocWMMA, and AMDGPU builtin accelerator backends are not implemented. "
+      "CK, rocWMMA, and AMDGPU builtin accelerator backends are not implemented. "
       "Use RNS8_PROBE_ACCELERATORS=ON or tools/check_dependencies.py --accelerator-probes for evidence-only probes."
   )
 endif()
@@ -83,6 +87,14 @@ if(RNS8_ENABLE_HIP)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/wrap64_hip_kernels.hip"
   )
   list(APPEND RNS8_SOURCES "${RNS8_HIP_DIRECT_KERNEL_OBJECT}" "${RNS8_WRAP64_HIP_KERNEL_OBJECT}")
+  if(RNS8_ENABLE_HIPBLASLT)
+    find_package(RNS8HIPBLASLT REQUIRED)
+    rns8_compile_hip_source(
+      RNS8_HIPBLASLT_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_kernels.hip"
+    )
+    list(APPEND RNS8_SOURCES src/backend_hipblaslt/hipblaslt_backend.cpp "${RNS8_HIPBLASLT_KERNEL_OBJECT}")
+  endif()
 endif()
 
 function(rns8_configure_library target_name)
@@ -96,7 +108,12 @@ function(rns8_configure_library target_name)
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
-  target_compile_definitions(${target_name} PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
+  target_compile_definitions(
+    ${target_name}
+    PRIVATE
+      $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>
+      $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
+  )
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
   else()
@@ -106,6 +123,16 @@ function(rns8_configure_library target_name)
     target_include_directories(${target_name} PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
     target_link_libraries(${target_name} PRIVATE ${RNS8_HIP_LIBRARIES})
     target_compile_definitions(${target_name} PRIVATE __HIP_PLATFORM_AMD__=1)
+  endif()
+  if(RNS8_ENABLE_HIPBLASLT)
+    if(RNS8_HIPBLASLT_INCLUDE_DIR)
+      target_include_directories(${target_name} PRIVATE "${RNS8_HIPBLASLT_INCLUDE_DIR}")
+    endif()
+    if(RNS8_HIPBLASLT_TARGET)
+      target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_TARGET}")
+    else()
+      target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_LIBRARY}")
+    endif()
   endif()
 endfunction()
 
@@ -213,13 +240,8 @@ endif()
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-  foreach(
-    RNS8_ACCELERATOR_ENABLE_FLAG
-    RNS8_ENABLE_HIPBLASLT
-    RNS8_ENABLE_CK
-    RNS8_ENABLE_ROCWMMA
-    RNS8_ENABLE_AMDGPU_BUILTINS
-  )
+  set(RNS8_FAIL_FAST_ACCELERATOR_FLAGS RNS8_ENABLE_CK RNS8_ENABLE_ROCWMMA RNS8_ENABLE_AMDGPU_BUILTINS)
+  foreach(RNS8_ACCELERATOR_ENABLE_FLAG ${RNS8_FAIL_FAST_ACCELERATOR_FLAGS})
     string(TOLOWER "${RNS8_ACCELERATOR_ENABLE_FLAG}" RNS8_ACCELERATOR_ENABLE_NAME)
     add_test(
       NAME "accelerator_fail_fast_${RNS8_ACCELERATOR_ENABLE_NAME}"
@@ -249,6 +271,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_wrap64_hip.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_hip.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_adaptive_hip.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_hipblaslt.json"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_current_fixtures PROPERTIES LABELS "benchmark;schema")
@@ -288,6 +311,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp
     tests/differential/test_hip_direct.cpp
+    tests/differential/test_hipblaslt.cpp
   )
   target_include_directories(
     rns8_tests
@@ -296,6 +320,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
+  target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
   include(Catch)
   catch_discover_tests(rns8_tests)

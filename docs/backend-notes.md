@@ -16,7 +16,14 @@ Backend status:
   counters and differential tests verify that repeated same-shape persistent
   pack/GEMM/export calls reuse warmed matrix-owned buffers without additional
   direct-HIP allocation or free calls.
-- hipBLASLt: not implemented.
+- hipBLASLt: implemented as an opt-in baseline when configured with
+  `RNS8_ENABLE_HIPBLASLT=ON` and `RNS8_ENABLE_HIP=ON`. The backend uses
+  resident HIP RNS matrices, padded 16-aligned transposed INT8 pack buffers,
+  hipBLASLt `int8 x int8 -> int32`, padded INT32 scratch, and a separate HIP
+  centered-residue reduction kernel. It supports fixed-prefix bounded i64/u64,
+  exact-wide RNS output, and finite u8 ring/field GEMM; adaptive per-tile
+  bounded plans and wrap64 remain unsupported. This is a correctness baseline,
+  not a performance-validated production accelerator.
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
 - Wraparound byte-limb backend: CPU reference implemented for one-shot and
@@ -64,10 +71,12 @@ and an autotune key. Workspaces copy those fields from the plan, and workspace
 validation treats them as part of the same deterministic contract as schedule
 metadata.
 
-The future backend directories under `src/` are scaffold markers only. They
-exist to keep ownership boundaries visible while preserving the rule that no
-accelerator path counts until it has compiled kernels and exact CPU
-differential validation.
+The CK, rocWMMA, and AMDGPU builtin backend directories under `src/` remain
+scaffold markers only. They exist to keep ownership boundaries visible while
+preserving the rule that no accelerator path counts until it has compiled
+kernels and exact CPU differential validation. hipBLASLt is the current
+exception: it is a real compiled baseline backend under its opt-in preset, but
+still carries `perf_validated=0`.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,
@@ -76,17 +85,19 @@ hipBLASLt, CK, and rocWMMA component files. AMDGPU builtins have no
 discovery-only readiness path because they require target-specific kernels.
 These probes are shallow header/library/tool discovery only; hipBLASLt
 discovery also records AMD's `roc::hipblaslt` CMake target when the installed
-HIP SDK exposes it. On Windows, opt-in hipBLASLt compile/link evidence loads
-the Visual Studio developer environment automatically and links the installed
-`libhipblaslt.dll.a` import archive. The probes still do not compile production
-kernels, link an accelerator backend, run device capability checks, or satisfy
-correctness requirements.
+HIP SDK exposes it. On Windows, the hipBLASLt backend preset loads the Visual
+Studio developer environment automatically and links the installed
+`libhipblaslt.dll.a` import archive. Probe-only paths still do not compile
+production kernels, link CK/rocWMMA/builtin accelerator backends, run device
+capability checks for those families, or satisfy correctness requirements.
 The dependency checker's machine-readable readiness object also carries a
-separate `accelerator_enablement` section. Every accelerator enable flag remains
-`fail_fast_until_real_exact_correctness_backend`, every correctness backend is
-`not_implemented`, `validated_correctness_backend` is false, and
-`backend_enablement` stays `disabled` regardless of component discovery or
-optional compile/run probe evidence.
+separate `accelerator_enablement` section. CK, rocWMMA, and AMDGPU builtin
+enable flags remain `fail_fast_until_real_exact_correctness_backend`; their
+correctness backends are `not_implemented`, `validated_correctness_backend` is
+false, and `backend_enablement` stays `disabled` regardless of component
+discovery or optional compile/run probe evidence. hipBLASLt is enabled only by
+the explicit backend build flag and validated runtime tests, not discovery
+evidence alone.
 The same report carries `readiness.correctness_backend_validation`, which is
 the hard boundary between implemented correctness backend families and
 candidate accelerator evidence. The dependency checker does not validate CPU,
@@ -280,15 +291,16 @@ propagation. The direct HIP correctness kernel consumes the same correction
 algebra at device source level; no signed-INT8 accelerator backend is enabled
 by this.
 
-hipBLASLt, CK, rocWMMA, and AMDGPU builtin paths remain accelerator candidates
-only. Shallow discovery, compile/link probes, or builtin availability notes do
-not promote a backend to correctness-ready status. A future accelerator backend
-must have compiled kernels, explicit semantic support, and exact CPU
-differential coverage before enable flags stop failing fast. The fail-fast
-flags are `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
-`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`. CTest registers a
-negative configure case for each flag so accidental placeholder backend
-enablement fails at the integration gate.
+CK, rocWMMA, and AMDGPU builtin paths remain accelerator candidates only.
+Shallow discovery, compile/link probes, or builtin availability notes do not
+promote those backends to correctness-ready status. A future accelerator
+backend must have compiled kernels, explicit semantic support, and exact CPU
+differential coverage before its enable flag stops failing fast. The remaining
+fail-fast flags are `RNS8_ENABLE_CK`, `RNS8_ENABLE_ROCWMMA`, and
+`RNS8_ENABLE_AMDGPU_BUILTINS`; CTest registers negative configure cases for
+those flags. In presets where `RNS8_ENABLE_HIPBLASLT` is off, the legacy
+negative configure test still proves that hipBLASLt is not enabled by discovery
+alone.
 
 Wrap64 benchmark captures support both the CPU byte-limb reference and the
 direct-HIP tiled byte-limb correctness path. HIP wrap64 event captures use

@@ -557,11 +557,23 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "ok": bool(item["header"] or item["library"] or item["tool"]),
             "required": False,
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
-            "enable_policy": ACCELERATOR_ENABLE_POLICY,
-            "backend_enablement": "disabled",
-            "correctness_backend": "not_implemented",
+            "enable_policy": (
+                "explicit_opt_in_baseline_backend_with_exact_differentials"
+                if name == "hipblaslt"
+                else ACCELERATOR_ENABLE_POLICY
+            ),
+            "backend_enablement": (
+                "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+                if name == "hipblaslt"
+                else "disabled"
+            ),
+            "correctness_backend": (
+                "implemented_opt_in_baseline_not_validated_by_dependency_report"
+                if name == "hipblaslt"
+                else "not_implemented"
+            ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": False,
+            "can_enable_correctness_backend": name == "hipblaslt" and bool(item["header"] or item["library"] or item["tool"]),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
@@ -581,8 +593,13 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "capability": item["capability"],
             "link_guidance": item.get("link_guidance"),
             "readiness": (
-                "candidate evidence only; backend remains disabled until a real exact correctness backend "
-                "has target capability checks and exact CPU differentials"
+                (
+                    "candidate evidence only; hipBLASLt backend validation requires the explicit "
+                    "windows-hipblaslt-debug build/test preset"
+                    if name == "hipblaslt"
+                    else "candidate evidence only; backend remains disabled until a real exact correctness backend "
+                    "has target capability checks and exact CPU differentials"
+                )
                 if bool(item["header"] or item["library"] or item["tool"])
                 else item.get(
                     "not_ready_detail",
@@ -624,11 +641,19 @@ def not_run_probe(
         "compiled_probe_ok": False,
         "runtime_probe_ok": False,
         "device_capability_ok": False,
-        "backend_enablement": "disabled",
+        "backend_enablement": (
+            "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+            if name == "hipblaslt"
+            else "disabled"
+        ),
         "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
-        "enable_policy": ACCELERATOR_ENABLE_POLICY,
+        "enable_policy": (
+            "explicit_opt_in_baseline_backend_with_exact_differentials"
+            if name == "hipblaslt"
+            else ACCELERATOR_ENABLE_POLICY
+        ),
         "validated_correctness_backend": False,
-        "can_enable_correctness_backend": False,
+        "can_enable_correctness_backend": name == "hipblaslt" and requested,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
@@ -748,11 +773,19 @@ def accelerator_compile_probes(
             "compiled_probe_ok": compiled,
             "runtime_probe_ok": runtime_ok,
             "device_capability_ok": False,
-            "backend_enablement": "disabled",
+            "backend_enablement": (
+                "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+                if name == "hipblaslt"
+                else "disabled"
+            ),
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
-            "enable_policy": ACCELERATOR_ENABLE_POLICY,
+            "enable_policy": (
+                "explicit_opt_in_baseline_backend_with_exact_differentials"
+                if name == "hipblaslt"
+                else ACCELERATOR_ENABLE_POLICY
+            ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": False,
+            "can_enable_correctness_backend": name == "hipblaslt" and compiled and runtime_ok,
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",
@@ -868,6 +901,16 @@ def accelerator_gate(
     if name == "amdgpu_builtins":
         status = "NOT_READY"
         detail = item["readiness"]
+    elif name == "hipblaslt" and probe_status == "COMPILE_LINK_PASS_RUN_PASS":
+        detail = (
+            "optional probe evidence exists; hipBLASLt has an opt-in baseline backend, "
+            "but this checker still does not enable the backend or prove exactness"
+        )
+    elif name == "hipblaslt" and found:
+        detail = (
+            "component discovered; hipBLASLt has an opt-in baseline backend, but discovery "
+            "is not correctness validation and this checker does not enable the backend"
+        )
     elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         detail = "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
     elif found:
@@ -880,8 +923,16 @@ def accelerator_gate(
         "required_for_host_readiness": False,
         "backend_stage": item["backend_stage"],
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
-        "backend_enablement": "disabled",
-        "correctness_backend": "not_implemented",
+        "backend_enablement": (
+            "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+            if name == "hipblaslt"
+            else "disabled"
+        ),
+        "correctness_backend": (
+            "implemented_opt_in_baseline_not_validated_by_dependency_report"
+            if name == "hipblaslt"
+            else "not_implemented"
+        ),
         "validated_correctness_backend": False,
         "candidate_evidence_is_correctness_validation": False,
         "evidence": [
@@ -912,13 +963,26 @@ def accelerator_enablement_policy(
     for name in ACCELERATOR_NAMES:
         component = accelerators.get(name, {})
         probe = probe_items.get(name) if isinstance(probe_items, dict) else None
+        is_hipblaslt = name == "hipblaslt"
         flags[name] = {
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
-            "enable_policy": ACCELERATOR_ENABLE_POLICY,
-            "backend_enablement": "disabled",
-            "correctness_backend": "not_implemented",
+            "enable_policy": (
+                "explicit_opt_in_baseline_backend_with_exact_differentials"
+                if is_hipblaslt
+                else ACCELERATOR_ENABLE_POLICY
+            ),
+            "backend_enablement": (
+                "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+                if is_hipblaslt
+                else "disabled"
+            ),
+            "correctness_backend": (
+                "implemented_opt_in_baseline_not_validated_by_dependency_report"
+                if is_hipblaslt
+                else "not_implemented"
+            ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": False,
+            "can_enable_correctness_backend": is_hipblaslt and bool(component.get("ok")) if isinstance(component, dict) else False,
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
@@ -927,15 +991,16 @@ def accelerator_enablement_policy(
             "readiness_effect": "none",
         }
     return {
-        "backend_enablement": "disabled",
+        "backend_enablement": "probe_only_dependency_report",
         "correctness_backends_enabled": False,
         "validated_correctness_backend_count": 0,
-        "enable_flags_fail_fast": True,
+        "enable_flags_fail_fast": "ck_rocwmma_amdgpu_builtins",
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "policy": (
-            "hipBLASLt, CK, rocWMMA, and AMDGPU builtin flags fail fast until real exact "
-            "correctness backends exist; discovery and probes are evidence only"
+            "hipBLASLt has an explicit opt-in baseline backend validated by build/test presets; "
+            "CK, rocWMMA, and AMDGPU builtin flags fail fast until real exact correctness "
+            "backends exist; discovery and probes are evidence only"
         ),
         "flags": flags,
     }
@@ -951,12 +1016,21 @@ def correctness_backend_validation_status(
     accelerator_summary: dict[str, dict[str, object]] = {}
     for name in ACCELERATOR_NAMES:
         item = accelerators.get(name, {})
+        is_hipblaslt = name == "hipblaslt"
         accelerator_summary[name] = {
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "component_discovered": bool(item.get("ok")) if isinstance(item, dict) else False,
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
-            "backend_enablement": "disabled",
-            "correctness_backend": "not_implemented",
+            "backend_enablement": (
+                "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+                if is_hipblaslt
+                else "disabled"
+            ),
+            "correctness_backend": (
+                "implemented_opt_in_baseline_not_validated_by_dependency_report"
+                if is_hipblaslt
+                else "not_implemented"
+            ),
             "validated_correctness_backend": False,
             "candidate_evidence_is_correctness_validation": False,
         }
@@ -984,6 +1058,13 @@ def correctness_backend_validation_status(
                 "evidence_class": "implemented_correctness_backend",
                 "validated_by_this_report": False,
                 "validation_source": "unit/differential tests, not dependency discovery",
+            },
+            "hipblaslt": {
+                "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_HIPBLASLT",
+                "evidence_class": "implemented_correctness_backend",
+                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "validated_by_this_report": False,
+                "validation_source": "windows-hipblaslt-debug build and exact CPU/direct-HIP differentials, not dependency discovery",
             },
         },
         "candidate_accelerators": accelerator_summary,
@@ -1202,25 +1283,40 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(candidate_accelerators, dict)
     expected_flags_present = all(name in flags for name in ACCELERATOR_NAMES)
     expected_candidate_records_present = all(name in candidate_accelerators for name in ACCELERATOR_NAMES)
-    accelerator_flags_disabled = all(
-        isinstance(item, dict)
-        and item.get("backend_enablement") == "disabled"
-        and item.get("correctness_backend") == "not_implemented"
-        and item.get("validated_correctness_backend") is False
-        and item.get("candidate_evidence_is_correctness_validation") is False
-        for item in flags.values()
-    )
+    accelerator_flags_policy_clean = True
+    for name, item in flags.items():
+        if not isinstance(item, dict):
+            accelerator_flags_policy_clean = False
+            break
+        expected_backend = (
+            "requires_explicit_RNS8_ENABLE_HIPBLASLT_build"
+            if name == "hipblaslt"
+            else "disabled"
+        )
+        expected_correctness = (
+            "implemented_opt_in_baseline_not_validated_by_dependency_report"
+            if name == "hipblaslt"
+            else "not_implemented"
+        )
+        if (
+            item.get("backend_enablement") != expected_backend
+            or item.get("correctness_backend") != expected_correctness
+            or item.get("validated_correctness_backend") is not False
+            or item.get("candidate_evidence_is_correctness_validation") is not False
+        ):
+            accelerator_flags_policy_clean = False
+            break
     checks = {
         "accelerator_records_complete": {
             "ok": expected_flags_present and expected_candidate_records_present,
             "detail": "all expected accelerator enablement and candidate-evidence records are present",
         },
-        "accelerator_enablement_disabled": {
-            "ok": accelerator_enablement.get("backend_enablement") == "disabled"
+        "accelerator_discovery_does_not_enable_backends": {
+            "ok": accelerator_enablement.get("backend_enablement") == "probe_only_dependency_report"
             and accelerator_enablement.get("correctness_backends_enabled") is False
             and expected_flags_present
-            and accelerator_flags_disabled,
-            "detail": "accelerator enable flags stay disabled and evidence-only",
+            and accelerator_flags_policy_clean,
+            "detail": "dependency discovery stays evidence-only; hipBLASLt requires explicit build/test enablement",
         },
         "no_validated_accelerator_correctness_backends": {
             "ok": accelerator_enablement.get("validated_correctness_backend_count") == 0

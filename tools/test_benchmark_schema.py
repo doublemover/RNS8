@@ -34,6 +34,7 @@ def main() -> int:
     v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
     v4_adaptive_i64 = expect_valid("v4_bounded_i64_adaptive_hip.json")
+    v4_hipblaslt_i64 = expect_valid("v4_bounded_i64_hipblaslt.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
@@ -52,6 +53,10 @@ def main() -> int:
     bad_event_scope = copy.deepcopy(bounded)
     bad_event_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_unknown_scope"
     expect_invalid(bad_event_scope, "known direct-HIP scope")
+
+    bad_hipblaslt_scope = copy.deepcopy(v4_hipblaslt_i64)
+    bad_hipblaslt_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
+    expect_invalid(bad_hipblaslt_scope, "known hipBLASLt scope")
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]
@@ -120,7 +125,7 @@ def main() -> int:
 
     bad_v4_toolchain_enabled = copy.deepcopy(v4_adaptive_u64)
     bad_v4_toolchain_enabled["hip_toolchain"]["enabled"] = False
-    expect_invalid(bad_v4_toolchain_enabled, "hip-direct captures must set hip_toolchain.enabled=true")
+    expect_invalid(bad_v4_toolchain_enabled, "HIP backend captures must set hip_toolchain.enabled=true")
 
     bad_v4_scope = copy.deepcopy(v4_adaptive_u64)
     bad_v4_scope["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
