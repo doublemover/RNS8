@@ -66,7 +66,7 @@
   "comparison_baseline": null,
   "derived_tops_equivalent": null,
   "timing_source": "std::chrono::steady_clock",
-  "timing_note": "host wall-clock timings for the direct-HIP wrap64 tiled byte-limb path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus schema-compatible rns_gemm/crt_export aggregate aliases",
+  "timing_note": "host wall-clock timings for the direct-HIP wrap64 tiled byte-limb path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus current rns_gemm/crt_export aggregate phase labels",
   "timing_metadata": {
     "unit": "microseconds",
     "source": "std::chrono::steady_clock",
@@ -76,16 +76,16 @@
     "gpu_event_timing_status": "available",
     "gpu_event_timing_source": "hipEventElapsedTime",
     "gpu_event_timing_source_scope": "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups",
-    "gpu_event_timing_caveat": "HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and schema-compatible rns_gemm/crt_export aggregate aliases; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream",
+    "gpu_event_timing_caveat": "HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream",
     "phase_order": ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"],
     "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "wrap64_tiled_byte_gemm_kernel", "rns_gemm", "wrap64_export_kernel", "wrap64_export_d2h", "crt_export"],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
-      "scheduling": "one-time rns8_get_plan_schedule_info host timing; planning remains the legacy aggregate that also includes this query",
+      "scheduling": "one-time rns8_get_plan_schedule_info host timing",
       "matrix_alloc": "one-time persistent matrix allocation host timing",
       "pack": "per-repeat host timing for packing A and B into persistent byte-limb matrices",
-      "rns_gemm": "per-repeat host timing for rns8_gemm_wrap_u64; key retained for schema compatibility",
-      "crt_export": "per-repeat host timing for low-64-bit rns8_export_wrap_u64; key retained for schema compatibility",
+      "rns_gemm": "per-repeat host timing for rns8_gemm_wrap_u64",
+      "crt_export": "per-repeat host timing for low-64-bit rns8_export_wrap_u64",
       "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
     },
     "phase_availability": {

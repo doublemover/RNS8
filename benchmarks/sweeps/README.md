@@ -7,8 +7,9 @@ Generated captures, raw outputs, and exploratory sweep results belong under
 
 Reviewed captures should preserve the `rns8-bench` JSON schema version and the
 structured timing fields documented in `docs/performance-model.md`. Sweep
-summaries should compare `timing_summary_us` phases when present and may fall
-back to legacy top-level averages for older captures.
+summaries compare `timing_summary_us` phases from current schema v4 captures.
+Older captures are historical evidence and are not accepted by current sweep
+tooling.
 
 GPU HIP event timing is intentionally nullable for non-HIP captures and any
 capture with incomplete backend event data. A sweep must only compare

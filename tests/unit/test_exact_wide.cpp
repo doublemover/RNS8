@@ -153,8 +153,54 @@ TEST_CASE("exact-wide signed CPU RNS output matches multiprecision residues") {
       CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
     }
   }
-  CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+  constexpr uint64_t range_sentinel = 0x123456789abcdef0ull;
+  std::vector<uint64_t> too_few(static_cast<std::size_t>(m * n), range_sentinel);
+  CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, too_few.data(), n, 1) == RNS8_RANGE_ERROR);
+  for (const uint64_t limb : too_few) {
+    CHECK(limb == range_sentinel);
+  }
   CHECK(rns8_export_i64(ctx, plan, c_matrix, reinterpret_cast<int64_t*>(limbs.data()), n) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide signed CPU export rejects bounded unsigned and wrap interpretations") {
+  rns8_context* ctx = create_cpu();
+  const int64_t m = 1;
+  const int64_t n = 1;
+  const int64_t k = 1;
+  const int64_t A[] = {-7};
+  const int64_t B[] = {11};
+
+  auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, m, n, k);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED);
+  auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED);
+  auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx, a_matrix, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx, b_matrix, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+  uint64_t limbs[2] = {0xddddddddddddddddull, 0xeeeeeeeeeeeeeeeeull};
+  CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(limbs[0] == 0xddddddddddddddddull);
+  CHECK(limbs[1] == 0xeeeeeeeeeeeeeeeeull);
+  CHECK(rns8_export_u64(ctx, plan, c_matrix, limbs, n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, limbs, n) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -257,8 +303,54 @@ TEST_CASE("exact-wide unsigned CPU RNS output matches multiprecision residues") 
       CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
     }
   }
-  CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+  constexpr uint64_t range_sentinel = 0x0fedcba987654321ull;
+  std::vector<uint64_t> too_few(static_cast<std::size_t>(m * n), range_sentinel);
+  CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, too_few.data(), n, 1) == RNS8_RANGE_ERROR);
+  for (const uint64_t limb : too_few) {
+    CHECK(limb == range_sentinel);
+  }
   CHECK(rns8_export_u64(ctx, plan, c_matrix, limbs.data(), n) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide unsigned CPU export rejects signed bounded and wrap interpretations") {
+  rns8_context* ctx = create_cpu();
+  const int64_t m = 1;
+  const int64_t n = 1;
+  const int64_t k = 1;
+  const uint64_t A[] = {17};
+  const uint64_t B[] = {19};
+
+  auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, m, n, k);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED);
+  auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED);
+  auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, a_matrix, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, b_matrix, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+  uint64_t limbs[2] = {0xccccccccccccccccull, 0xbbbbbbbbbbbbbbbbull};
+  CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(limbs[0] == 0xccccccccccccccccull);
+  CHECK(limbs[1] == 0xbbbbbbbbbbbbbbbbull);
+  CHECK(rns8_export_i64(ctx, plan, c_matrix, reinterpret_cast<int64_t*>(limbs), n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, limbs, n) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -318,5 +410,41 @@ TEST_CASE("exact-wide unsigned CPU limb export preserves padded destination cell
   rns8_destroy_matrix(a_matrix);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("exact-wide CPU descriptors reject bounded metadata") {
+  rns8_context* ctx = create_cpu();
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 1, 1, 1);
+    desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+    desc.bound = 1;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+
+    auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED);
+    matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+    rns8_matrix* out = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(out == nullptr);
+  }
+
+  {
+    auto desc = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, 1, 1, 1);
+    desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+    desc.bound = 1;
+    rns8_plan* plan = nullptr;
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(plan == nullptr);
+
+    auto matrix = exact_matrix_desc(1, 1, RNS8_EXACT_WIDE_UNSIGNED);
+    matrix.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+    rns8_matrix* out = nullptr;
+    CHECK(rns8_create_matrix(ctx, &matrix, &out) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(out == nullptr);
+  }
+
   rns8_destroy_context(ctx);
 }

@@ -52,8 +52,9 @@ accelerators on Windows. `tools/check_dependencies.py` may report discovered
 headers or libraries as candidate evidence, but it does not enable or validate
 those backends. They require compiled capability probes and exact CPU
 differential tests before any backend can be treated as ready. The CMake
-accelerator enable flags intentionally fail fast until those correctness
-backends exist.
+accelerator enable flags intentionally fail fast until real correctness
+backends exist; discovery evidence is not a bypass around the
+direct HIP correctness path.
 
 Opt-in accelerator evidence probes are available without changing backend
 selection:

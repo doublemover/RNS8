@@ -31,15 +31,11 @@ def expect_invalid(data: dict, needle: str) -> None:
 
 
 def main() -> int:
-    bounded = expect_valid("v2_bounded_hip.json")
-    wrap64 = expect_valid("v2_wrap64.json")
-    wrap64_hip = expect_valid("v2_wrap64_hip.json")
-    v3_bounded = expect_valid("v3_bounded_hip.json")
-    v3_wrap64_hip = expect_valid("v3_wrap64_hip.json")
     v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
-    expect_valid("v4_bounded_i64_adaptive_hip.json")
-    expect_valid("v1_legacy.json")
+    v4_adaptive_i64 = expect_valid("v4_bounded_i64_adaptive_hip.json")
+    bounded = v4_adaptive_i64
+    wrap64 = v4_wrap64_hip
 
     bad_length = copy.deepcopy(bounded)
     bad_length["raw_timings_us"]["pack"].pop()
@@ -63,8 +59,8 @@ def main() -> int:
     expect_invalid(bad_schedule_tile, "tile_m must be a power of two")
 
     bad_schedule_prefix = copy.deepcopy(bounded)
-    bad_schedule_prefix["schedule_metadata"]["min_selected_prefix"] = 8
-    expect_invalid(bad_schedule_prefix, "fixed selected schedule prefix equal to prefix")
+    bad_schedule_prefix["schedule_metadata"]["max_selected_prefix"] = bad_schedule_prefix["prefix"]
+    expect_invalid(bad_schedule_prefix, "adaptive_skip_active must match")
 
     bad_wrap_prefix = copy.deepcopy(wrap64)
     bad_wrap_prefix["prefix"] = 9
@@ -74,21 +70,21 @@ def main() -> int:
     bad_wrap_backend["backend_selected"] = "cpu-reference"
     expect_invalid(bad_wrap_backend, "wrap64 captures must select wrap64-byte-limb or hip-direct backend")
 
-    bad_wrap64_hip_phase = copy.deepcopy(wrap64_hip)
+    bad_wrap64_hip_phase = copy.deepcopy(v4_wrap64_hip)
     bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
     expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
 
-    bad_v3_schedule = copy.deepcopy(v3_bounded)
-    bad_v3_schedule["raw_timings_us"]["scheduling"] = [6]
-    expect_invalid(bad_v3_schedule, "timing_summary_us.scheduling.avg")
+    bad_current_version = copy.deepcopy(v4_adaptive_u64)
+    bad_current_version["schema_version"] = 3
+    expect_invalid(bad_current_version, "expected 4")
 
-    bad_v3_reduction_scope = copy.deepcopy(v3_wrap64_hip)
-    bad_v3_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
-    expect_invalid(bad_v3_reduction_scope, "phase_availability.reduction.scope")
+    bad_schedule_summary = copy.deepcopy(v4_adaptive_u64)
+    bad_schedule_summary["raw_timings_us"]["scheduling"] = [6]
+    expect_invalid(bad_schedule_summary, "timing_summary_us.scheduling.avg")
 
-    bad_v3_adaptive = copy.deepcopy(v3_bounded)
-    bad_v3_adaptive["schedule_metadata"]["adaptive_execution_applied"] = True
-    expect_invalid(bad_v3_adaptive, "adaptive_execution_applied must remain false")
+    bad_reduction_scope = copy.deepcopy(v4_wrap64_hip)
+    bad_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
+    expect_invalid(bad_reduction_scope, "phase_availability.reduction.scope")
 
     bad_v4_bound = copy.deepcopy(v4_adaptive_u64)
     bad_v4_bound["bound"] = 1
@@ -123,7 +119,11 @@ def main() -> int:
     expect_invalid(bad_v4_wrap64_kernel, "tiled_byte_limb")
 
     bad_event_nullability = copy.deepcopy(wrap64)
+    bad_event_nullability["timing_metadata"]["gpu_event_timing"] = False
+    bad_event_nullability["timing_metadata"]["gpu_event_timing_source"] = None
+    bad_event_nullability["timing_metadata"]["gpu_event_timing_source_scope"] = None
     bad_event_nullability["gpu_event_timings_us"] = {"pack": [1.0, 2.0]}
+    bad_event_nullability["gpu_event_timing_summary_us"] = None
     expect_invalid(bad_event_nullability, "gpu_event_timings_us must be null")
 
     print("benchmark schema self-test: PASS")

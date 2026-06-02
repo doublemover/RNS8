@@ -11,9 +11,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = 4
-SUPPORTED_SCHEMA_VERSIONS = {2, 3, SCHEMA_VERSION}
-TIMING_PHASES_V2 = ["planning", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
-TIMING_PHASES_V3 = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 DEFAULT_GPU_EVENT_PHASES = [
     "pack_h2d",
@@ -32,8 +30,6 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
     "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups",
-    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
-    "direct_hip_wrap64_comba_default_stream_backend_operation_groups",
 }
 
 
@@ -113,15 +109,11 @@ class _Validator:
             self._error("schema_version must be an integer when present")
             return
         version = int(version_value)
-        if version <= 1:
-            self._validate_v1_legacy()
-            return
-        if version not in SUPPORTED_SCHEMA_VERSIONS:
-            expected = ", ".join(str(item) for item in sorted(SUPPORTED_SCHEMA_VERSIONS))
-            self._error(f"unsupported schema_version {version}; expected one of {expected}")
+        if version != SCHEMA_VERSION:
+            self._error(f"unsupported schema_version {version}; expected {SCHEMA_VERSION}")
             return
         self.version = version
-        self._validate_v2()
+        self._validate_v4()
 
     def _error(self, message: str) -> None:
         self.errors.append(f"{self.path}: {message}")
@@ -143,23 +135,7 @@ class _Validator:
             self._error(f"{key} must be an object")
         return value
 
-    def _validate_v1_legacy(self) -> None:
-        for key in ["benchmark", "backend_requested", "backend_selected", "semantics", "m", "n", "k", "repeats"]:
-            if key not in self.data:
-                self._error(f"legacy v1 capture missing {key}")
-        for phase, keys in {
-            "planning": ["avg_planning_us", "plan_us"],
-            "matrix_alloc": ["avg_matrix_alloc_us", "matrix_alloc_us"],
-            "pack": ["avg_pack_us"],
-            "rns_gemm": ["avg_rns_gemm_us"],
-            "per_modulus_gemm_estimate": ["avg_per_modulus_gemm_estimate_us"],
-            "crt_export": ["avg_crt_export_us"],
-            "end_to_end": ["avg_end_to_end_us"],
-        }.items():
-            if not any(_is_number(self.data.get(key)) for key in keys):
-                self._error(f"legacy v1 capture missing numeric timing for {phase}")
-
-    def _validate_v2(self) -> None:
+    def _validate_v4(self) -> None:
         for key in [
             "benchmark",
             "backend_requested",
@@ -178,8 +154,7 @@ class _Validator:
         selected_kernel = self.data.get("selected_kernel")
         if selected_kernel is not None and not isinstance(selected_kernel, str):
             self._error("selected_kernel must be a string or null")
-        if self.version >= 4:
-            self._require("bound_mode", "str")
+        self._require("bound_mode", "str")
         for key in [
             "bound",
             "m",
@@ -248,8 +223,7 @@ class _Validator:
             for key in ["id", "version"]:
                 if not isinstance(compiler.get(key), str):
                     self._error(f"compiler.{key} must be a string")
-        if self.version >= 4:
-            self._validate_hip_toolchain()
+        self._validate_hip_toolchain()
         device = self._require("device", "dict")
         if isinstance(device, dict):
             for key in ["device_id", "hip_available", "hip_runtime_version", "hip_driver_version", "global_mem_bytes"]:
@@ -273,8 +247,7 @@ class _Validator:
             expected_phases = self._timing_phases()
             if phase_order != expected_phases:
                 self._error(f"timing_metadata.phase_order must be {expected_phases}")
-            if self.version >= 3 or "phase_availability" in metadata:
-                self._validate_phase_availability(metadata)
+            self._validate_phase_availability(metadata)
             gpu_phase_order = metadata.get("gpu_event_phase_order")
             if gpu_phase_order is not None:
                 if not isinstance(gpu_phase_order, list) or not all(isinstance(item, str) for item in gpu_phase_order):
@@ -319,7 +292,7 @@ class _Validator:
             self._error("timing_metadata.phase_availability.reduction.reason must be a nonempty string")
 
     def _timing_phases(self) -> list[str]:
-        return TIMING_PHASES_V3 if self.version >= 3 else TIMING_PHASES_V2
+        return TIMING_PHASES
 
     def _validate_tile_value(self, key: str, value: Any) -> None:
         if not _is_int(value):
@@ -372,31 +345,26 @@ class _Validator:
             self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
-        if self.version < 4 and schedule.get("adaptive_execution_applied") is True:
-            self._error(
-                "schedule_metadata.adaptive_execution_applied must remain false until adaptive benchmark capture support is implemented"
-            )
-
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")
         prefix = self.data.get("prefix")
         packed_layout = self.data.get("packed_layout_version")
         schedule = self.data.get("schedule_metadata")
         bound_mode = self.data.get("bound_mode", "global")
-        if self.version >= 4 and bound_mode not in {"global", "per_tile"}:
+        if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
         if semantics == "wrap_u64_mod_2_64":
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"}:
                 self._error("wrap64 captures must select wrap64-byte-limb or hip-direct backend")
-            if self.version >= 4 and bound_mode != "global":
+            if bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
-            if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+            if self.data.get("backend_selected") == "hip-direct":
                 expected_kernel = "direct_hip_wrap64_tiled_byte_limb_gemm_v1"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
                 self._error("wrap64 captures must use bound_kind=none and bound=0")
-            if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
+            if self.data.get("tile_bounds_u64") is not None:
                 self._error("wrap64 captures must use tile_bounds_u64=null")
             if prefix != 0:
                 self._error("wrap64 captures must use prefix=0")
@@ -410,7 +378,7 @@ class _Validator:
                         self._error(f"wrap64 captures must use schedule_metadata.{key}=0")
                 if schedule.get("prefix_group_count") != 0:
                     self._error("wrap64 captures must use schedule_metadata.prefix_group_count=0")
-            if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+            if self.data.get("backend_selected") == "hip-direct":
                 metadata = self.data.get("timing_metadata")
                 if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
                     expected_scope = "direct_hip_wrap64_tiled_byte_gemm_default_stream_backend_operation_groups"
@@ -427,9 +395,9 @@ class _Validator:
                 expected_bound_kind = "global_max_abs" if semantics == "bounded_i64" else "global_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} captures must use bound_kind={expected_bound_kind}")
-                if self.version >= 4 and self.data.get("tile_bounds_u64") is not None:
+                if self.data.get("tile_bounds_u64") is not None:
                     self._error(f"{semantics} global captures must use tile_bounds_u64=null")
-                if self.version >= 4 and self.data.get("backend_selected") == "hip-direct":
+                if self.data.get("backend_selected") == "hip-direct":
                     metadata = self.data.get("timing_metadata")
                     if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
                         expected_scope = "direct_hip_default_stream_backend_operation_groups"
@@ -443,8 +411,6 @@ class _Validator:
                     if schedule.get("adaptive_execution_applied") is True:
                         self._error(f"{semantics} global captures must not apply adaptive execution")
             elif bound_mode == "per_tile":
-                if self.version < 4:
-                    self._error("per_tile bound_mode requires schema_version 4")
                 expected_bound_kind = "per_tile_max_abs" if semantics == "bounded_i64" else "per_tile_max_unsigned"
                 if self.data.get("bound_kind") != expected_bound_kind:
                     self._error(f"{semantics} per-tile captures must use bound_kind={expected_bound_kind}")
@@ -601,22 +567,18 @@ class _Validator:
             ("avg_crt_export_us", "crt_export"),
             ("avg_end_to_end_us", "end_to_end"),
         ]
-        if self.version >= 3:
-            fields.insert(1, ("avg_scheduling_us", "scheduling"))
+        fields.insert(1, ("avg_scheduling_us", "scheduling"))
         for field, phase in fields:
             value = self._require(field, "number")
             values = raw_timings.get(phase)
             if _is_number(value) and values is not None and not _close(float(value), _average(values)):
                 self._error(f"{field}={value} does not match raw average {_average(values)}")
-        if self.version >= 3:
-            schedule_query = self._require("schedule_query_us", "number")
-            scheduling_values = raw_timings.get("scheduling")
-            if _is_number(schedule_query) and scheduling_values is not None and not _close(
-                float(schedule_query), _average(scheduling_values)
-            ):
-                self._error(
-                    f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}"
-                )
+        schedule_query = self._require("schedule_query_us", "number")
+        scheduling_values = raw_timings.get("scheduling")
+        if _is_number(schedule_query) and scheduling_values is not None and not _close(
+            float(schedule_query), _average(scheduling_values)
+        ):
+            self._error(f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}")
         prefix = self.data.get("prefix")
         applicable = self.data.get("per_modulus_gemm_estimate_applicable")
         per_modulus = self._require("avg_per_modulus_gemm_estimate_us", "number")

@@ -89,7 +89,7 @@
     "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
-      "scheduling": "one-time rns8_get_plan_schedule_info host timing; planning remains the legacy aggregate that also includes this query",
+      "scheduling": "one-time rns8_get_plan_schedule_info host timing",
       "matrix_alloc": "one-time persistent matrix allocation host timing",
       "pack": "per-repeat host timing for packing A and B into persistent RNS matrices",
       "rns_gemm": "per-repeat host timing for rns8_gemm_rns",

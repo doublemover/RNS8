@@ -34,7 +34,7 @@ The benchmark reports:
 - prefix count,
 - command line,
 - git commit resolved from the configured source checkout at benchmark runtime,
-  with the CMake configure-time value used only as a fallback when git is
+  with the CMake configure-time value used only when git is
   unavailable,
 - compiler version,
 - configured AMDGPU target list,
@@ -62,15 +62,14 @@ Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 either the CPU byte-limb reference backend or the direct-HIP tiled byte-limb
 correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound: 0`,
 `prefix: 0`, `packed_layout_version: "byte_limb_v1"`, and `epilogue_type:
-"low64_wrap_export"`. For schema compatibility, wrap captures keep the host
-timing keys `rns_gemm` and `crt_export`; their phase notes identify these as
+"low64_wrap_export"`. Wrap captures use the current host timing keys
+`rns_gemm` and `crt_export`; their phase notes identify these as
 `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 
-Schema version 3 keeps the legacy top-level average fields and adds a measured
-`scheduling` phase for the public schedule-info query. Schema version 2 captures
-remain valid without this phase. The preferred timing contract for new captures
-is:
+Schema version 4 is the only accepted tracked capture schema. It includes a
+measured `scheduling` phase for the public schedule-info query. The timing
+contract is:
 
 ```json
 "raw_timings_us": {
@@ -89,8 +88,8 @@ is:
 }
 ```
 
-Schema v3 added `timing_metadata.phase_availability`. Schema v4 keeps v1/v2/v3
-compatibility and adds per-tile adaptive bounded capture metadata:
+Schema v4 includes `timing_metadata.phase_availability`, per-tile adaptive
+bounded capture metadata:
 `bound_mode`, `tile_bounds_u64`, non-null `selected_kernel`, strict adaptive
 schedule consistency, configured HIP toolchain metadata, and exact direct-HIP
 event timing source/scope validation. The
@@ -101,13 +100,12 @@ the `rns_gemm` phase. Strict wrap64 byte-limb captures report
 from GEMM time.
 
 Use `tools\benchmark_schema.py` to validate benchmark captures before using
-them as comparison evidence. The validator enforces schema v2/v3/v4 required
-fields, raw timing array lengths against `repeats`, average/median/p95
-consistency, v3+ phase-availability metadata, v4 per-tile adaptive metadata,
-GPU event timing nullability or completeness, and the strict wrap64
+them as comparison evidence. The validator enforces schema v4 required fields,
+raw timing array lengths against `repeats`, average/median/p95 consistency,
+phase-availability metadata, per-tile adaptive metadata, GPU event timing
+nullability or completeness, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
-also checks schedule metadata and keeps a compatibility check for legacy v1
-captures that only expose the older top-level timing fields.
+also checks schedule metadata.
 
 Current benchmark inputs are inspectable planning contracts. Global bounded
 captures remain fixed-prefix contracts. With `--bound-mode per-tile`, the
@@ -156,7 +154,7 @@ For bounded direct-HIP captures with complete event data, `gpu_event_timing` is
 - `crt_export`
 
 For strict wrap64 direct-HIP captures, event timing uses wrap64-specific labels
-plus schema-compatible aggregate aliases:
+plus current aggregate phase labels:
 
 - `pack_h2d`
 - `pack_kernel`
@@ -183,7 +181,7 @@ Future benchmark work must add deeper scheduler internals, reviewed raw sweeps,
 comparison baselines, and performance gates before any speedup claims are made.
 
 `tools/result_compare.py` validates both captures before comparing host timing
-phases for schema v1/v2/v3/v4 captures. Its contract check includes backend,
+phases for schema v4 captures. Its contract check includes backend,
 selected kernel, semantics, bound mode, bounds, tile-bound source/order/min/max
 and hash, shape, prefix, seed, warmups/repeats, input distribution, timing
 source, epilogue, packed layout, schedule metadata, compiler, configured
