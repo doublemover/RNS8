@@ -90,6 +90,50 @@ rns8_status set_hip_device(int device_id) {
   return hipSetDevice(device_id) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 }
 
+template <typename Fn>
+hipError_t timed_hip_operation(const char* label, Fn&& fn) {
+  if (!hip_direct_timing_enabled()) {
+    return fn();
+  }
+
+  hipEvent_t start = nullptr;
+  hipEvent_t stop = nullptr;
+  hipError_t event_status = hipEventCreate(&start);
+  if (event_status != hipSuccess) {
+    return fn();
+  }
+  event_status = hipEventCreate(&stop);
+  if (event_status != hipSuccess) {
+    (void)hipEventDestroy(start);
+    return fn();
+  }
+  event_status = hipEventRecord(start, nullptr);
+  if (event_status != hipSuccess) {
+    (void)hipEventDestroy(stop);
+    (void)hipEventDestroy(start);
+    return fn();
+  }
+
+  const hipError_t op_status = fn();
+  if (op_status == hipSuccess) {
+    event_status = hipEventRecord(stop, nullptr);
+    if (event_status == hipSuccess) {
+      event_status = hipEventSynchronize(stop);
+    }
+    if (event_status == hipSuccess) {
+      float milliseconds = 0.0f;
+      event_status = hipEventElapsedTime(&milliseconds, start, stop);
+      if (event_status == hipSuccess && milliseconds >= 0.0f) {
+        hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
+      }
+    }
+  }
+
+  (void)hipEventDestroy(stop);
+  (void)hipEventDestroy(start);
+  return op_status;
+}
+
 rns8_status free_if_allocated(int device_id, void* ptr) {
   return ptr ? hip_direct_free(device_id, ptr) : RNS8_SUCCESS;
 }
@@ -192,21 +236,28 @@ rns8_status wrap64_hip_pack_u64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  hipError_t err = hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice);
+  hipError_t err = timed_hip_operation("pack_h2d", [&]() {
+    return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice);
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  const int code = rns8_wrap64_hip_pack_u64_device(
-      static_cast<const uint64_t*>(*upload_buffer),
-      static_cast<uint8_t*>(device_byte_limbs),
-      rows,
-      cols,
-      ld);
-  if (code != static_cast<int>(hipSuccess)) {
+  err = timed_hip_operation("pack_kernel", [&]() {
+    const int code = rns8_wrap64_hip_pack_u64_device(
+        static_cast<const uint64_t*>(*upload_buffer),
+        static_cast<uint8_t*>(device_byte_limbs),
+        rows,
+        cols,
+        ld);
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
+  if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  err = hipDeviceSynchronize();
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return RNS8_SUCCESS;
 #else
   (void)device_id;
   (void)upload_buffer;
@@ -235,17 +286,19 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
-      static_cast<const uint8_t*>(device_a_limbs),
-      static_cast<const uint8_t*>(device_b_limbs),
-      static_cast<uint8_t*>(device_c_limbs),
-      m,
-      n,
-      k);
-  if (code != static_cast<int>(hipSuccess)) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  const hipError_t err = hipDeviceSynchronize();
+  const hipError_t err = timed_hip_operation("wrap64_comba_gemm_kernel", [&]() {
+    const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
+        static_cast<const uint8_t*>(device_a_limbs),
+        static_cast<const uint8_t*>(device_b_limbs),
+        static_cast<uint8_t*>(device_c_limbs),
+        m,
+        n,
+        k);
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -279,23 +332,27 @@ rns8_status wrap64_hip_export_u64_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  const int code = rns8_wrap64_hip_export_u64_device(
-      static_cast<const uint8_t*>(device_byte_limbs), static_cast<uint64_t*>(*export_buffer), rows, cols);
-  if (code != static_cast<int>(hipSuccess)) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  hipError_t err = hipDeviceSynchronize();
+  hipError_t err = timed_hip_operation("wrap64_export_kernel", [&]() {
+    const int code = rns8_wrap64_hip_export_u64_device(
+        static_cast<const uint8_t*>(device_byte_limbs), static_cast<uint64_t*>(*export_buffer), rows, cols);
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  err = hipMemcpy2D(
-      dst,
-      static_cast<std::size_t>(ld) * sizeof(uint64_t),
-      *export_buffer,
-      static_cast<std::size_t>(cols) * sizeof(uint64_t),
-      static_cast<std::size_t>(cols) * sizeof(uint64_t),
-      static_cast<std::size_t>(rows),
-      hipMemcpyDeviceToHost);
+  err = timed_hip_operation("wrap64_export_d2h", [&]() {
+    return hipMemcpy2D(
+        dst,
+        static_cast<std::size_t>(ld) * sizeof(uint64_t),
+        *export_buffer,
+        static_cast<std::size_t>(cols) * sizeof(uint64_t),
+        static_cast<std::size_t>(cols) * sizeof(uint64_t),
+        static_cast<std::size_t>(rows),
+        hipMemcpyDeviceToHost);
+  });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

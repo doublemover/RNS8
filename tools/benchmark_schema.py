@@ -13,7 +13,7 @@ from typing import Any
 SCHEMA_VERSION = 2
 TIMING_PHASES = ["planning", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
-GPU_EVENT_PHASES = [
+DEFAULT_GPU_EVENT_PHASES = [
     "pack_h2d",
     "pack_kernel",
     "pack",
@@ -25,6 +25,7 @@ GPU_EVENT_PHASES = [
     "crt_export_d2h",
     "crt_export",
 ]
+AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
 
 
 class BenchmarkSchemaError(ValueError):
@@ -226,14 +227,20 @@ class _Validator:
             phase_order = metadata.get("phase_order")
             if phase_order != TIMING_PHASES:
                 self._error(f"timing_metadata.phase_order must be {TIMING_PHASES}")
+            gpu_phase_order = metadata.get("gpu_event_phase_order")
+            if gpu_phase_order is not None:
+                if not isinstance(gpu_phase_order, list) or not all(isinstance(item, str) for item in gpu_phase_order):
+                    self._error("timing_metadata.gpu_event_phase_order must be an array of strings")
+                elif len(set(gpu_phase_order)) != len(gpu_phase_order):
+                    self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
 
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")
         prefix = self.data.get("prefix")
         packed_layout = self.data.get("packed_layout_version")
         if semantics == "wrap_u64_mod_2_64":
-            if self.data.get("backend_selected") != "wrap64-byte-limb":
-                self._error("wrap64 captures must select wrap64-byte-limb backend")
+            if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"}:
+                self._error("wrap64 captures must select wrap64-byte-limb or hip-direct backend")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
                 self._error("wrap64 captures must use bound_kind=none and bound=0")
             if prefix != 0:
@@ -364,8 +371,9 @@ class _Validator:
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return
+        phases = self._gpu_event_phases(metadata, timings)
         parsed: dict[str, list[float]] = {}
-        for phase in GPU_EVENT_PHASES:
+        for phase in phases:
             values = timings.get(phase)
             if not isinstance(values, list):
                 self._error(f"gpu_event_timings_us.{phase} must be an array")
@@ -379,7 +387,18 @@ class _Validator:
                 else:
                     parsed_values.append(float(value))
             parsed[phase] = parsed_values
-        self._validate_timing_summaries(parsed, "gpu_event_timing_summary_us", GPU_EVENT_PHASES)
+        self._validate_timing_summaries(parsed, "gpu_event_timing_summary_us", phases)
+
+    def _gpu_event_phases(self, metadata: dict[str, Any], timings: dict[str, Any]) -> list[str]:
+        phase_order = metadata.get("gpu_event_phase_order")
+        if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order):
+            phases = list(phase_order)
+        else:
+            phases = list(DEFAULT_GPU_EVENT_PHASES)
+        for phase in AGGREGATE_GPU_EVENT_PHASES:
+            if phase in timings and phase not in phases:
+                phases.append(phase)
+        return phases
 
 
 def main() -> int:

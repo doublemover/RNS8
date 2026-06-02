@@ -9,6 +9,7 @@ Current benchmark shell:
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semantics wrap-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 5 --seed 7
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11
 ```
 
 The benchmark reports:
@@ -45,12 +46,13 @@ The benchmark reports:
 - raw per-repeat timing arrays plus average, median, and p95 summaries.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
-`epilogue_type: "crt_export"`. Strict wrap captures use the explicit CPU
-byte-limb backend only: `semantics: "wrap_u64_mod_2_64"`, `bound_kind:
-"none"`, `bound: 0`, `prefix: 0`, `packed_layout_version: "byte_limb_v1"`,
-and `epilogue_type: "low64_wrap_export"`. For schema compatibility, wrap
-captures keep the host timing keys `rns_gemm` and `crt_export`; their phase
-notes identify these as `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
+`epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
+either the CPU byte-limb reference backend or the direct-HIP Comba correctness
+path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound: 0`,
+`prefix: 0`, `packed_layout_version: "byte_limb_v1"`, and `epilogue_type:
+"low64_wrap_export"`. For schema compatibility, wrap captures keep the host
+timing keys `rns_gemm` and `crt_export`; their phase notes identify these as
+`rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 
 Schema version 2 keeps the legacy top-level average fields, but the preferred
@@ -88,9 +90,7 @@ kernel launches, fused residue reduction, and GPU bounded export.
 
 The benchmark enables direct-HIP event timing through internal backend hooks for
 measured repeats. Events are recorded inside the backend around operation groups
-that the public benchmark phase cannot otherwise see: pack upload, pack kernel,
-the per-modulus RNS GEMM kernel group, export status initialization, export
-kernel, export status readback, and export device-to-host copy.
+that the public benchmark phase cannot otherwise see.
 
 When the selected backend is not direct HIP, or when a complete expected event
 set is not available, event fields remain nullable:
@@ -104,8 +104,8 @@ set is not available, event fields remain nullable:
 "gpu_event_timing_summary_us": null
 ```
 
-For direct-HIP captures with complete event data, `gpu_event_timing` is `true`,
-`gpu_event_timings_us` contains raw per-repeat arrays, and
+For bounded direct-HIP captures with complete event data, `gpu_event_timing` is
+`true`, `gpu_event_timings_us` contains raw per-repeat arrays, and
 `gpu_event_timing_summary_us` contains average, median, and p95 summaries for:
 
 - `pack_h2d`
@@ -118,6 +118,23 @@ For direct-HIP captures with complete event data, `gpu_event_timing` is `true`,
 - `crt_export_status_d2h`
 - `crt_export_d2h`
 - `crt_export`
+
+For strict wrap64 direct-HIP captures, event timing uses wrap64-specific labels
+plus schema-compatible aggregate aliases:
+
+- `pack_h2d`
+- `pack_kernel`
+- `pack`
+- `wrap64_comba_gemm_kernel`
+- `rns_gemm`
+- `wrap64_export_kernel`
+- `wrap64_export_d2h`
+- `crt_export`
+
+The wrap64 direct-HIP event source scope is
+`direct_hip_wrap64_comba_default_stream_backend_operation_groups`. It describes
+the one-thread-per-output Comba correctness path, not an optimized byte-GEMM
+backend.
 
 Host timings and HIP event timings answer different questions. Host
 `std::chrono::steady_clock` timings include API dispatch, CPU scheduling,
@@ -136,6 +153,7 @@ semantics, bounds, shape, prefix, seed, warmups/repeats, input distribution,
 timing source, epilogue, packed layout, compiler, configured target, and HIP
 device/runtime fields when present. It also compares
 `gpu_event_timing_summary_us` phases only when both captures set
-`timing_metadata.gpu_event_timing=true` and report the same event timing source
-and source scope. Per-modulus timing rows are flagged as not applicable when a
-capture says `per_modulus_gemm_estimate_applicable: false`.
+`timing_metadata.gpu_event_timing=true` and report the same event timing source,
+source scope, and GPU event phase order. Per-modulus timing rows are flagged as
+not applicable when a capture says `per_modulus_gemm_estimate_applicable:
+false`.

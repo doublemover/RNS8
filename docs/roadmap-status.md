@@ -51,8 +51,9 @@ disagree, the spec remains the target and this file identifies the gap.
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
   when complete, explicit unavailable metadata when event timing is not
-  applicable, strict wrap64 CPU byte-limb benchmark metadata, schema validation
-  tooling, and comparison-tool support for v1/v2.
+  applicable, strict wrap64 CPU and direct-HIP byte-limb benchmark metadata,
+  schema validation tooling, and comparison-tool support for v1/v2 plus
+  capture-specific GPU event phase orders.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only. Linux presets keep
@@ -70,8 +71,6 @@ disagree, the spec remains the target and this file identifies the gap.
   feature-detected future paths and are not correctness requirements.
 - Optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias correction, and
   production GPU differential tests.
-- Direct-HIP wrap64 benchmark/event captures. Current strict wrap64 benchmark
-  evidence remains CPU byte-limb only.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -126,6 +125,14 @@ disagree, the spec remains the target and this file identifies the gap.
   `packed_layout_version=byte_limb_v1`, nullable GPU event timing, and successful
   `tools\result_compare.py --json` contract comparison. Captures are raw
   evidence only and do not establish a performance claim.
+- `temp\rns8-hip-wrap-u64-event-smoke.json` and
+  `temp\rns8-hip-wrap-u64-event-smoke-repeat.json`: fixed-seed strict wrap64
+  direct-HIP byte-limb captures with `prefix=0`, `bound_kind=none`,
+  `packed_layout_version=byte_limb_v1`, `gpu_event_timing=true`, and
+  wrap64-specific `wrap64_comba_gemm_kernel`, `wrap64_export_kernel`, and
+  `wrap64_export_d2h` event phases. `tools\result_compare.py --json` reported
+  same-contract comparison with comparable GPU event phase order. Captures are
+  raw evidence only and do not establish a performance claim.
 - `python tools\test_benchmark_schema.py`: benchmark schema fixture self-test
   passed, including malformed raw timing length, GPU event summary, wrap64
   prefix, and event-nullability rejection checks.

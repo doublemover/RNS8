@@ -19,6 +19,7 @@ bool hip_direct_compiled();
 void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
 void hip_direct_timing_reset();
+void hip_direct_timing_record_sample(const char* label, double microseconds);
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
 rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);

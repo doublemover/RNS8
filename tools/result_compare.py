@@ -21,7 +21,7 @@ TIMING_PHASES = {
     "crt_export": ["avg_crt_export_us"],
     "end_to_end": ["avg_end_to_end_us"],
 }
-GPU_EVENT_PHASES = [
+DEFAULT_GPU_EVENT_PHASES = [
     "pack_h2d",
     "pack_kernel",
     "pack",
@@ -33,6 +33,7 @@ GPU_EVENT_PHASES = [
     "crt_export_d2h",
     "crt_export",
 ]
+AGGREGATE_GPU_EVENT_PHASES = ["pack", "rns_gemm", "crt_export"]
 CONTRACT_KEYS = [
     "benchmark",
     "backend_requested",
@@ -126,6 +127,22 @@ def gpu_event_phase_timing(data: dict[str, Any], phase: str, path: Path) -> tupl
     raise SystemExit(f"{path}: missing numeric GPU event timing for phase {phase}")
 
 
+def gpu_event_phase_order(data: dict[str, Any]) -> list[str]:
+    metadata = timing_metadata(data)
+    phase_order = metadata.get("gpu_event_phase_order")
+    phases = (
+        list(phase_order)
+        if isinstance(phase_order, list) and all(isinstance(item, str) for item in phase_order)
+        else list(DEFAULT_GPU_EVENT_PHASES)
+    )
+    timings = data.get("gpu_event_timings_us")
+    if isinstance(timings, dict):
+        for phase in AGGREGATE_GPU_EVENT_PHASES:
+            if phase in timings and phase not in phases:
+                phases.append(phase)
+    return phases
+
+
 def compare_gpu_events(
     baseline: dict[str, Any],
     candidate: dict[str, Any],
@@ -140,13 +157,16 @@ def compare_gpu_events(
     cand_source = cand_meta.get("gpu_event_timing_source")
     base_scope = base_meta.get("gpu_event_timing_source_scope")
     cand_scope = cand_meta.get("gpu_event_timing_source_scope")
+    base_phases = gpu_event_phase_order(baseline)
+    cand_phases = gpu_event_phase_order(candidate)
     source_match = base_source == cand_source
     scope_match = base_scope == cand_scope
-    comparable = base_enabled and cand_enabled and source_match and scope_match
+    phases_match = base_phases == cand_phases
+    comparable = base_enabled and cand_enabled and source_match and scope_match and phases_match
 
     event_timings = {}
     if comparable:
-        for phase in GPU_EVENT_PHASES:
+        for phase in base_phases:
             base, base_source_key = gpu_event_phase_timing(baseline, phase, baseline_path)
             cand, cand_source_key = gpu_event_phase_timing(candidate, phase, candidate_path)
             event_timings[phase] = {
@@ -166,6 +186,8 @@ def compare_gpu_events(
             reason = "gpu_event_timing_source_mismatch"
         elif not scope_match:
             reason = "gpu_event_timing_source_scope_mismatch"
+        elif not phases_match:
+            reason = "gpu_event_phase_order_mismatch"
 
     return {
         "comparable": comparable,
@@ -176,6 +198,8 @@ def compare_gpu_events(
         "candidate_source": cand_source,
         "baseline_source_scope": base_scope,
         "candidate_source_scope": cand_scope,
+        "baseline_phase_order": base_phases,
+        "candidate_phase_order": cand_phases,
         "timings": event_timings,
     }
 
