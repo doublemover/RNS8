@@ -24,17 +24,6 @@ from pathlib import Path
 
 REQUIRED_COMMANDS = ["cmake", "ninja", "git", "python", "vcpkg", "hipcc", "hipInfo"]
 PYTHON_PACKAGES = ["numpy", "pandas", "matplotlib", "pytest", "scipy"]
-VCPKG_PACKAGES = [
-    "benchmark",
-    "boost-multiprecision",
-    "catch2",
-    "cli11",
-    "flint",
-    "fmt",
-    "gmp",
-    "nlohmann-json",
-    "spdlog",
-]
 OPTIONAL_CPP_PACKAGES = ["ntl", "fflas-ffpack", "linbox"]
 RADEON_TOOLS = [
     "rga",
@@ -96,6 +85,87 @@ def find_command(name: str) -> str | None:
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def load_json(path: Path) -> dict[str, object]:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def manifest_vcpkg_packages() -> list[str]:
+    manifest = load_json(repo_root() / "vcpkg.json")
+    dependencies = manifest.get("dependencies", [])
+    packages: list[str] = []
+    if not isinstance(dependencies, list):
+        return packages
+    for dependency in dependencies:
+        if isinstance(dependency, str):
+            packages.append(dependency)
+        elif isinstance(dependency, dict):
+            name = dependency.get("name")
+            if isinstance(name, str):
+                packages.append(name)
+    return packages
+
+
+def cmake_presets_report() -> dict[str, object]:
+    path = repo_root() / "CMakePresets.json"
+    data = load_json(path)
+    configure = data.get("configurePresets", [])
+    build = data.get("buildPresets", [])
+    test = data.get("testPresets", [])
+    configure_presets = configure if isinstance(configure, list) else []
+    build_presets = build if isinstance(build, list) else []
+    test_presets = test if isinstance(test, list) else []
+
+    configure_by_name = {
+        item.get("name"): item for item in configure_presets if isinstance(item, dict) and isinstance(item.get("name"), str)
+    }
+    build_names = [item.get("name") for item in build_presets if isinstance(item, dict) and isinstance(item.get("name"), str)]
+    test_names = [item.get("name") for item in test_presets if isinstance(item, dict) and isinstance(item.get("name"), str)]
+
+    windows = configure_by_name.get("windows-msvc-hip-debug", {})
+    linux = configure_by_name.get("linux-rocm-debug", {})
+    windows_cache = windows.get("cacheVariables", {}) if isinstance(windows, dict) else {}
+    linux_cache = linux.get("cacheVariables", {}) if isinstance(linux, dict) else {}
+    if not isinstance(windows_cache, dict):
+        windows_cache = {}
+    if not isinstance(linux_cache, dict):
+        linux_cache = {}
+
+    windows_targets = str(windows_cache.get("RNS8_AMDGPU_TARGETS", ""))
+    linux_targets = str(linux_cache.get("RNS8_AMDGPU_TARGETS", ""))
+    windows_ok = bool(windows) and windows_cache.get("RNS8_ENABLE_HIP") == "ON" and "gfx1100" in windows_targets
+    linux_represented = bool(linux) and linux_cache.get("RNS8_ENABLE_HIP") == "ON" and (
+        "gfx942" in linux_targets or "gfx950" in linux_targets
+    )
+
+    return {
+        "ok": bool(data) and windows_ok and linux_represented,
+        "path": str(path),
+        "configure_presets": sorted(configure_by_name),
+        "build_presets": sorted(name for name in build_names if isinstance(name, str)),
+        "test_presets": sorted(name for name in test_names if isinstance(name, str)),
+        "windows_hip_debug": {
+            "ok": windows_ok,
+            "toolchain": windows_cache.get("CMAKE_TOOLCHAIN_FILE"),
+            "hip_root": windows_cache.get("RNS8_HIP_ROOT"),
+            "amdgpu_targets": windows_cache.get("RNS8_AMDGPU_TARGETS"),
+            "vcpkg_triplet": windows_cache.get("VCPKG_TARGET_TRIPLET"),
+        },
+        "linux_rocm_debug": {
+            "represented": linux_represented,
+            "toolchain": linux_cache.get("CMAKE_TOOLCHAIN_FILE"),
+            "hip_root": linux_cache.get("RNS8_HIP_ROOT"),
+            "amdgpu_targets": linux_cache.get("RNS8_AMDGPU_TARGETS"),
+            "vcpkg_triplet": linux_cache.get("VCPKG_TARGET_TRIPLET"),
+            "detail": "source-level preset representation only; Linux ROCm and Instinct runtime validation is not required on Windows",
+        },
+    }
 
 
 def hip_roots() -> list[Path]:
@@ -273,7 +343,7 @@ def project_tools() -> dict[str, dict[str, object]]:
     return {
         name: {
             "ok": bool(first_existing(paths)),
-            "required": name in {"rns8-inspect", "rns8-verify"},
+            "required": True,
             "detail": first_existing(paths) or "not found",
         }
         for name, paths in tools.items()
@@ -291,6 +361,12 @@ def cmake_hip_language_report() -> dict[str, object]:
 def build_report() -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
+    vcpkg_packages = manifest_vcpkg_packages()
+    if not vcpkg_packages:
+        missing_required = True
+    cmake_presets = cmake_presets_report()
+    if not cmake_presets["ok"]:
+        missing_required = True
     for command in REQUIRED_COMMANDS + ["hipconfig"] + RADEON_TOOLS:
         path = find_command(command)
         required = command in REQUIRED_COMMANDS
@@ -313,7 +389,7 @@ def build_report() -> tuple[dict[str, object], bool]:
     vcpkg_path = find_command("vcpkg")
     vcpkg_installed = installed_vcpkg_packages(vcpkg_path)
     vcpkg_report = {}
-    for package in VCPKG_PACKAGES:
+    for package in vcpkg_packages:
         version = vcpkg_installed.get(package)
         vcpkg_report[package] = version
         if version is None:
@@ -331,6 +407,11 @@ def build_report() -> tuple[dict[str, object], bool]:
         "commands": commands,
         "msvc": {"ok": bool(msvc), "detail": msvc or "not found"},
         "python_packages": packages,
+        "cmake_presets": cmake_presets,
+        "vcpkg_manifest": {
+            "path": str(repo_root() / "vcpkg.json"),
+            "packages": vcpkg_packages,
+        },
         "vcpkg_packages": vcpkg_report,
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
         "accelerator_components": accelerator_components(),
@@ -379,10 +460,39 @@ def print_human(report: dict[str, object]) -> None:
         print(f"[{'OK' if version else 'MISSING'}] {name}: {version or 'not found'}")
     print()
 
+    print("CMake presets")
+    cmake_presets = report["cmake_presets"]
+    assert isinstance(cmake_presets, dict)
+    print(f"[{'OK' if cmake_presets['ok'] else 'MISSING'}] {cmake_presets['path']}")
+    print(f"  configure: {', '.join(cmake_presets['configure_presets'])}")
+    print(f"  build:     {', '.join(cmake_presets['build_presets'])}")
+    print(f"  test:      {', '.join(cmake_presets['test_presets'])}")
+    windows = cmake_presets["windows_hip_debug"]
+    linux = cmake_presets["linux_rocm_debug"]
+    assert isinstance(windows, dict)
+    assert isinstance(linux, dict)
+    print(f"  windows HIP debug: {'OK' if windows['ok'] else 'MISSING'}")
+    print(f"    toolchain: {windows.get('toolchain')}")
+    print(f"    HIP root:  {windows.get('hip_root')}")
+    print(f"    targets:   {windows.get('amdgpu_targets')}")
+    print(f"    triplet:   {windows.get('vcpkg_triplet')}")
+    print(f"  linux ROCm debug represented: {'OK' if linux['represented'] else 'MISSING'}")
+    print(f"    toolchain: {linux.get('toolchain')}")
+    print(f"    HIP root:  {linux.get('hip_root')}")
+    print(f"    targets:   {linux.get('amdgpu_targets')}")
+    print(f"    triplet:   {linux.get('vcpkg_triplet')}")
+    print(f"    detail:    {linux.get('detail')}")
+    print()
+
     print("vcpkg packages")
+    manifest = report["vcpkg_manifest"]
+    assert isinstance(manifest, dict)
+    manifest_packages = manifest["packages"]
+    assert isinstance(manifest_packages, list)
+    print(f"manifest: {manifest['path']}")
     vcpkg_packages = report["vcpkg_packages"]
     assert isinstance(vcpkg_packages, dict)
-    for name in VCPKG_PACKAGES:
+    for name in manifest_packages:
         version = vcpkg_packages[name]
         print(f"[{'OK' if version else 'MISSING'}] {name}: {version or 'not installed'}")
     print()

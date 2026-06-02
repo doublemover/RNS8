@@ -207,7 +207,8 @@ ctest --test-dir build\cpu-debug --output-on-failure
   configure/build/test presets.
 - [vcpkg.json](vcpkg.json) declares the C++ dependency set.
 - [tools/check_dependencies.py](tools/check_dependencies.py) reports the local
-  toolchain, HIP device, Python packages, vcpkg packages, MSVC install,
+  toolchain, HIP device, Python packages, `vcpkg.json` manifest packages,
+  `CMakePresets.json` Windows/Linux HIP target representation, MSVC install,
   optional accelerator/reference components, project tools, and optional Radeon
   Developer Tool Suite utilities.
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
