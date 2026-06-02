@@ -113,8 +113,28 @@ endif()
 if(RNS8_BUILD_BENCHMARKS)
   set(RNS8_AMDGPU_TARGETS_TEXT "${RNS8_AMDGPU_TARGETS}")
   string(REPLACE ";" "," RNS8_AMDGPU_TARGETS_TEXT "${RNS8_AMDGPU_TARGETS_TEXT}")
+  set(RNS8_GIT_COMMIT "unknown")
+  find_package(Git QUIET)
+  if(Git_FOUND)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" rev-parse --short=12 HEAD
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      RESULT_VARIABLE RNS8_GIT_RESULT
+      OUTPUT_VARIABLE RNS8_GIT_OUTPUT
+      ERROR_QUIET
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(RNS8_GIT_RESULT EQUAL 0 AND NOT RNS8_GIT_OUTPUT STREQUAL "")
+      set(RNS8_GIT_COMMIT "${RNS8_GIT_OUTPUT}")
+    endif()
+  endif()
   add_executable(rns8-bench benchmarks/rns8_bench.cpp)
-  target_compile_definitions(rns8-bench PRIVATE RNS8_CONFIGURED_AMDGPU_TARGETS="${RNS8_AMDGPU_TARGETS_TEXT}")
+  target_compile_definitions(
+    rns8-bench
+    PRIVATE
+      RNS8_CONFIGURED_AMDGPU_TARGETS="${RNS8_AMDGPU_TARGETS_TEXT}"
+      RNS8_GIT_COMMIT="${RNS8_GIT_COMMIT}"
+  )
   target_link_libraries(rns8-bench PRIVATE rns8_static)
 endif()
 
