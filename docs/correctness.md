@@ -41,7 +41,17 @@ Implemented correctness coverage:
   context kinds. One-shot helpers preserve the same status precedence as plan
   creation: malformed descriptors return `RNS8_INVALID_ARGUMENT` even when they
   name future/evidence-only backends, while valid descriptors for unavailable
-  backends return `RNS8_UNSUPPORTED_BACKEND`.
+  backends return `RNS8_UNSUPPORTED_BACKEND`. Unknown public enum values for
+  semantics, bound kinds, and layouts are malformed ABI input; known but
+  unimplemented contracts such as column-major layout, finite-ring/field
+  semantics, input-range bounded contracts, or future backend enums remain
+  unsupported backend requests after descriptor validation succeeds.
+- User-visible diagnostic tests pin `rns8_status_string` for every public
+  status code and the out-of-range `unknown status` case. API guard tests also
+  pin `RNS8_BACKEND_AUTO` as a context-default selector only: CPU AUTO accepts
+  CPU-backed exact-wide descriptors, CPU AUTO rejects wrap64, and wrap64 AUTO
+  rejects bounded and exact-wide descriptors instead of routing across semantic
+  backend families.
 - Descriptor hard-cut tests reject unbounded exact-wide plans carrying stale
   nonzero bounds, global plans carrying tile-bound storage, and matrix
   descriptors whose owned RNS or byte-limb storage would overflow the host

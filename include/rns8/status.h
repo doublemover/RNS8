@@ -35,6 +35,8 @@ typedef enum rns8_status {
   RNS8_INTERNAL_ERROR = 10
 } rns8_status;
 
+/* Returns stable lowercase diagnostic text for public status codes, or
+ * "unknown status" for out-of-range status values. */
 RNS8_API const char* rns8_status_string(rns8_status status);
 
 #ifdef __cplusplus
