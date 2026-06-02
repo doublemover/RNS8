@@ -35,6 +35,10 @@ disagree, the spec remains the target and this file identifies the gap.
   9-modulus milestone explicitly and locks default prefix-9 scheduling,
   K-split edge behavior around 65536, signed cancellation, unsigned full-width
   padded output, and signed/unsigned per-tile schedule parity.
+- Public one-shot GEMM lifetime: bounded i64/u64, strict wrap64, and finite
+  ring/field one-shot APIs share one internal resident owner for plan, A/B/C
+  matrix, and workspace construction before routing through the corresponding
+  persistent pack/GEMM/export path.
 - Persistent RNS behavior: public matrix/workspace APIs exercise persistent A/B/C
   storage and verify device pointer stability through pack, GEMM, and export.
   Workspaces are tagged with backend, shape, prefix, semantics, bound kind,
