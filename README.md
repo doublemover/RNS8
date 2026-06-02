@@ -25,9 +25,9 @@ Implemented:
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
 - Windows direct HIP bring-up through explicit hipcc object compilation for
-  `gfx1100`, HIP device inspection, K-block split reduction, and real
-  one-modulus plus bounded i64/u64 GEMM smoke tests compared against the CPU
-  reference.
+  `gfx1100`, HIP device inspection, signed/unsigned GPU residue conversion,
+  K-block split reduction, and real one-modulus plus bounded i64/u64 GEMM
+  smoke tests compared against the CPU reference.
 
 Not implemented yet:
 

@@ -251,7 +251,21 @@ rns8_status rns8_pack_i64(
     if (matrix->desc.semantics != RNS8_BOUNDED_I64) {
       return RNS8_INVALID_ARGUMENT;
     }
-    rns8::detail::pack_i64_matrix(*matrix, src, ld);
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status = rns8::detail::hip_direct_pack_i64(
+          ctx->device_id,
+          src,
+          matrix->residues.data(),
+          matrix->desc.rows,
+          matrix->desc.cols,
+          ld,
+          matrix->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+    } else {
+      rns8::detail::pack_i64_matrix(*matrix, src, ld);
+    }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
   });
@@ -270,7 +284,21 @@ rns8_status rns8_pack_u64(
     if (matrix->desc.semantics != RNS8_BOUNDED_U64) {
       return RNS8_INVALID_ARGUMENT;
     }
-    rns8::detail::pack_u64_matrix(*matrix, src, ld);
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status = rns8::detail::hip_direct_pack_u64(
+          ctx->device_id,
+          src,
+          matrix->residues.data(),
+          matrix->desc.rows,
+          matrix->desc.cols,
+          ld,
+          matrix->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+    } else {
+      rns8::detail::pack_u64_matrix(*matrix, src, ld);
+    }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
   });
