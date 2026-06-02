@@ -6,7 +6,7 @@ Backend status:
 - Direct HIP: implemented for device inspection, signed/unsigned residue
   conversion, persistent device-resident RNS matrix buffers, one-modulus
   correctness smoke, fused INT32-to-centered-residue reduction, and bounded
-  i64/u64 GPU export for prefixes that fit the direct 128-bit Garner path.
+  i64/u64 GPU export through the supported prefix-20 bound.
   Public bounded GEMM can execute the direct HIP pack, RNS GEMM, and export
   path, with K split into blocks no larger than 65536 before centered residue
   reduction.
@@ -35,9 +35,11 @@ and reduces each INT32 K-block sum to a centered residue in the kernel. For K
 above 65536, it launches multiple block kernels and accumulates the centered
 residue on device.
 
-Bounded direct HIP export reconstructs i64/u64 outputs on device with a compact
-Garner kernel for prefixes up to 16, writes a device status for range errors,
-and copies the compact output to the caller's host layout. CPU
+Bounded direct HIP export reconstructs i64/u64 outputs on device with a fixed
+three-limb Garner kernel for prefixes up to `RNS8_MAX_SUPPORTED_PREFIX`, writes
+a device status for range errors, and copies the compact output to the caller's
+host layout. Signed export supports the full `int64_t` range, including
+`INT64_MIN` when the bounded contract supplies magnitude `2^63`. CPU
 Boost.Multiprecision CRT/Garner remains the reference and debug path. The direct
 HIP kernels are intentionally inspectable and unoptimized; they are correctness
 bring-up kernels, not performance evidence.

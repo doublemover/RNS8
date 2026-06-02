@@ -21,8 +21,9 @@ disagree, the spec remains the target and this file identifies the gap.
   reduces each K block to the centered residue in the kernel and does not write
   full INT32 output matrices to global memory.
 - Bounded i64/u64 GPU export: direct HIP reconstructs bounded i64/u64 output on
-  device with a compact 128-bit Garner path for prefixes up to 16, reports range
-  errors through device status, and copies compact output into the caller's host
+  device with a fixed three-limb Garner path for prefixes up to 20, reports
+  range errors through device status, handles the full signed output range
+  including `INT64_MIN`, and copies compact output into the caller's host
   layout.
 - Fixed 9-modulus bounded i64/u64 GEMM: CPU and direct HIP public one-shot
   bounded APIs pass CPU differential tests, including full-width boundary and
@@ -60,7 +61,8 @@ disagree, the spec remains the target and this file identifies the gap.
   adaptive skip behavior.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
-- Exact-wide GPU export.
+- Exact-wide GPU export. Current exact-wide HIP export synchronizes residues to
+  host and uses the CPU Boost.Multiprecision limb exporter.
 - Public/optimized strict `mod 2^64` GPU byte GEMMs, signed-INT8 bias
   correction, and production GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
@@ -72,10 +74,13 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 38/38 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 39/39 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 38/38 passed on
+- `ctest --preset windows-debug --output-on-failure`: 39/39 passed on
   `gfx1100`.
+- The Windows HIP test pass includes prefix-20 bounded signed and unsigned GPU
+  export checks against the CPU reference, including `INT64_MIN` and
+  `UINT64_MAX` boundary outputs.
 - The Windows HIP test pass included
   `private HIP wrap64 byte-limb GEMM matches CPU reference`, which exercises a
   compiled direct-HIP byte-limb Comba smoke kernel against the CPU reference.

@@ -715,8 +715,8 @@ rns8_status hip_direct_export_i64_device(
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
-      ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > 16) {
-    return prefix > 16 ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+      ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -806,8 +806,8 @@ rns8_status hip_direct_export_u64_device(
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
-      ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > 16) {
-    return prefix > 16 ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+      ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
