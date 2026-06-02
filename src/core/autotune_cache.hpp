@@ -50,6 +50,9 @@ AutotuneCacheSnapshot read_autotune_cache();
 const AutotuneCacheEntry* find_exact_autotune_entry(
     const AutotuneCacheSnapshot& snapshot,
     const std::string& key);
+const AutotuneCacheEntry* find_validated_autotune_entry(
+    const AutotuneCacheSnapshot& snapshot,
+    const std::string& key);
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error);
 std::string autotune_selection_rationale(
     const AutotuneCacheSnapshot& snapshot,

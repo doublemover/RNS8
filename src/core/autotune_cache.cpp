@@ -193,6 +193,19 @@ const AutotuneCacheEntry* find_exact_autotune_entry(
   return nullptr;
 }
 
+const AutotuneCacheEntry* find_validated_autotune_entry(
+    const AutotuneCacheSnapshot& snapshot,
+    const std::string& key) {
+  const AutotuneCacheEntry* hit = find_exact_autotune_entry(snapshot, key);
+  if (!hit || !hit->performance_validated || hit->schema_version != 1) {
+    return nullptr;
+  }
+  if (hit->validation_status.rfind("reviewed_", 0) != 0) {
+    return nullptr;
+  }
+  return hit;
+}
+
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error) {
   if (entry.key.empty()) {
     error = "autotune cache entry key is empty";
@@ -249,10 +262,16 @@ std::string autotune_selection_rationale(
     return "cache_unavailable:" + snapshot.error;
   }
   if (const AutotuneCacheEntry* hit = find_exact_autotune_entry(snapshot, key)) {
-    if (hit->performance_validated) {
+    if (find_validated_autotune_entry(snapshot, key)) {
       return "exact_cache_hit_validated:" + hit->selected_backend + "/" + hit->selected_kernel;
     }
-    return "exact_cache_hit_unvalidated:" + hit->selected_backend + "/" + hit->selected_kernel;
+    if (!hit->performance_validated) {
+      return "exact_cache_hit_rejected_unvalidated:" + hit->selected_backend + "/" + hit->selected_kernel;
+    }
+    if (hit->schema_version != 1) {
+      return "exact_cache_hit_rejected_schema_version:" + std::to_string(hit->schema_version);
+    }
+    return "exact_cache_hit_rejected_validation_status:" + hit->validation_status;
   }
   if (selected_backend == "hip-direct") {
     return "missing_cache_using_direct_hip_correctness";

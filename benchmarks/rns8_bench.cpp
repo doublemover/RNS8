@@ -56,6 +56,8 @@ enum class BenchSemantics {
   BoundedI64,
   BoundedU64,
   WrapU64Mod2_64,
+  FiniteRingU8,
+  FiniteFieldU8,
 };
 
 enum class BoundMode {
@@ -76,6 +78,7 @@ struct Args {
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool vector_alu_baseline = false;
   BenchSemantics semantics = BenchSemantics::BoundedI64;
+  uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
@@ -159,7 +162,8 @@ uint32_t benchmark_prefix(const Args& args);
   std::cerr << message << "\n";
   std::cerr
       << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
-      << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
+      << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
+      << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
@@ -196,6 +200,32 @@ uint64_t parse_u64_seed(const char* text) {
 
 bool valid_tile_size(uint32_t value) {
   return value >= 64 && value <= 512 && (value & (value - 1u)) == 0;
+}
+
+bool finite_benchmark_semantics(BenchSemantics semantics) {
+  return semantics == BenchSemantics::FiniteRingU8 || semantics == BenchSemantics::FiniteFieldU8;
+}
+
+bool valid_finite_field_modulus(uint16_t modulus) {
+  if (modulus < 2 || modulus > 251) {
+    return false;
+  }
+  for (uint16_t divisor = 2; divisor * divisor <= modulus; ++divisor) {
+    if (modulus % divisor == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool valid_finite_modulus(BenchSemantics semantics, uint16_t modulus) {
+  if (semantics == BenchSemantics::FiniteRingU8) {
+    return modulus >= 2 && modulus <= 256;
+  }
+  if (semantics == BenchSemantics::FiniteFieldU8) {
+    return valid_finite_field_modulus(modulus);
+  }
+  return true;
 }
 
 void parse_backend_option(const std::string& value, Args& args) {
@@ -236,6 +266,8 @@ BenchSemantics parse_semantics(const std::string& value) {
   if (value == "bounded-i64") return BenchSemantics::BoundedI64;
   if (value == "bounded-u64") return BenchSemantics::BoundedU64;
   if (value == "wrap-u64" || value == "wrap-u64-mod-2-64") return BenchSemantics::WrapU64Mod2_64;
+  if (value == "finite-u8-ring" || value == "finite-ring-u8") return BenchSemantics::FiniteRingU8;
+  if (value == "finite-u8-field" || value == "finite-field-u8") return BenchSemantics::FiniteFieldU8;
   usage_error("unknown semantics: " + value);
 }
 
@@ -271,6 +303,12 @@ Args parse_args(int argc, char** argv) {
       parse_backend_option(argv[++i], args);
     } else if (arg == "--semantics" && i + 1 < argc) {
       args.semantics = parse_semantics(argv[++i]);
+    } else if (arg == "--modulus" && i + 1 < argc) {
+      const uint32_t parsed = parse_u32(argv[++i], "--modulus");
+      if (parsed > 256) {
+        usage_error("finite-u8 modulus must be <= 256");
+      }
+      args.finite_modulus = static_cast<uint16_t>(parsed);
     } else if (arg == "--bound-mode" && i + 1 < argc) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--require-adaptive-execution") {
@@ -280,7 +318,8 @@ Args parse_args(int argc, char** argv) {
     } else if (arg == "--help") {
       std::cout
           << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
-          << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
+          << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
+          << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
@@ -303,7 +342,8 @@ Args parse_args(int argc, char** argv) {
       args.backend != RNS8_BACKEND_HIP_DIRECT) {
     usage_error("wrap-u64 benchmark requires --backend wrap64-byte-limb or --backend hip-direct");
   }
-  if (args.vector_alu_baseline && args.semantics == BenchSemantics::WrapU64Mod2_64) {
+  if (args.vector_alu_baseline &&
+      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))) {
     usage_error("hip-vector-alu-int64 baseline is only valid for bounded-i64 or bounded-u64 semantics");
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
@@ -314,8 +354,16 @@ Args parse_args(int argc, char** argv) {
   if (args.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB && args.semantics != BenchSemantics::WrapU64Mod2_64) {
     usage_error("wrap64-byte-limb backend requires --semantics wrap-u64");
   }
+  if (finite_benchmark_semantics(args.semantics)) {
+    if (!valid_finite_modulus(args.semantics, args.finite_modulus)) {
+      usage_error("invalid modulus for selected finite-u8 benchmark semantics");
+    }
+    if (args.bound_mode != BoundMode::Global) {
+      usage_error("finite-u8 benchmarks require --bound-mode global");
+    }
+  }
   if (args.bound_mode == BoundMode::PerTile) {
-    if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
     if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_CPU_REFERENCE &&
@@ -386,6 +434,10 @@ const char* semantics_name(BenchSemantics semantics) {
       return "bounded_u64";
     case BenchSemantics::WrapU64Mod2_64:
       return "wrap_u64_mod_2_64";
+    case BenchSemantics::FiniteRingU8:
+      return "finite_ring_u8";
+    case BenchSemantics::FiniteFieldU8:
+      return "finite_field_u8";
   }
   return "unknown";
 }
@@ -398,6 +450,10 @@ rns8_semantics c_semantics(BenchSemantics semantics) {
       return RNS8_BOUNDED_U64;
     case BenchSemantics::WrapU64Mod2_64:
       return RNS8_WRAP_U64_MOD_2_64;
+    case BenchSemantics::FiniteRingU8:
+      return RNS8_FINITE_RING_U8;
+    case BenchSemantics::FiniteFieldU8:
+      return RNS8_FINITE_FIELD_U8;
   }
   return RNS8_BOUNDED_I64;
 }
@@ -409,6 +465,8 @@ rns8_bound_kind global_bound_kind(BenchSemantics semantics) {
     case BenchSemantics::BoundedU64:
       return RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
     case BenchSemantics::WrapU64Mod2_64:
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
       return RNS8_BOUND_NONE;
   }
   return RNS8_BOUND_NONE;
@@ -422,6 +480,8 @@ rns8_bound_kind bound_kind(const Args& args) {
       case BenchSemantics::BoundedU64:
         return RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
       case BenchSemantics::WrapU64Mod2_64:
+      case BenchSemantics::FiniteRingU8:
+      case BenchSemantics::FiniteFieldU8:
         return RNS8_BOUND_NONE;
     }
   }
@@ -436,6 +496,8 @@ const char* bound_kind_name(const Args& args) {
       case BenchSemantics::BoundedU64:
         return "per_tile_max_unsigned";
       case BenchSemantics::WrapU64Mod2_64:
+      case BenchSemantics::FiniteRingU8:
+      case BenchSemantics::FiniteFieldU8:
         return "none";
     }
   }
@@ -445,6 +507,8 @@ const char* bound_kind_name(const Args& args) {
     case BenchSemantics::BoundedU64:
       return "global_max_unsigned";
     case BenchSemantics::WrapU64Mod2_64:
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
       return "none";
   }
   return "unknown";
@@ -612,7 +676,8 @@ std::size_t row_major_index(int64_t row, int64_t col, int64_t ld, const char* la
 }
 
 uint64_t benchmark_bound(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || args.bound_mode == BoundMode::PerTile) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics) ||
+      args.bound_mode == BoundMode::PerTile) {
     return 0;
   }
   const uint64_t max_term = 16u * 16u;
@@ -736,7 +801,10 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   desc.bound_kind = bound_kind(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
-  desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix =
+      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
+          ? 0
+          : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -751,7 +819,10 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uin
   desc.n = args.n;
   desc.k = args.k;
   desc.bound = bound;
-  desc.max_prefix = args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix =
+      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
+          ? 0
+          : RNS8_DEFAULT_BOUNDED_PREFIX;
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
   if (args.bound_mode == BoundMode::PerTile) {
@@ -945,6 +1016,13 @@ std::vector<std::string> required_speedup_baselines(const Args& args, const char
     case BenchSemantics::WrapU64Mod2_64:
       baselines.push_back("same_contract_cpu_wrap64_byte_limb_reference");
       baselines.push_back("same_contract_direct_hip_wrap64_byte_gemm36");
+      break;
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
+      baselines.push_back("same_contract_cpu_reference");
+      if (selected != "hip-direct") {
+        baselines.push_back("same_contract_direct_hip_correctness");
+      }
       break;
   }
   return baselines;
@@ -1211,6 +1289,14 @@ uint64_t checksum_u64(const std::vector<uint64_t>& values) {
   uint64_t checksum = 1469598103934665603ull;
   for (const uint64_t value : values) {
     mix_checksum(checksum, value);
+  }
+  return checksum;
+}
+
+uint64_t checksum_u8(const std::vector<uint8_t>& values) {
+  uint64_t checksum = 1469598103934665603ull;
+  for (const uint8_t value : values) {
+    mix_checksum(checksum, static_cast<uint64_t>(value));
   }
   return checksum;
 }
@@ -1810,6 +1896,107 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   return result;
 }
 
+BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t bound) {
+  (void)bound;
+  std::mt19937_64 rng(args.seed);
+  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
+  std::uniform_int_distribution<uint32_t> dist(0, high);
+  std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint8_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
+  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+
+  BenchmarkResult result{};
+  result.gpu_events.requested = gpu_event_capture_requested(args);
+  auto desc = gemm_desc(args, 0);
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
+  rns8_workspace* workspace = nullptr;
+  status = rns8_create_workspace(ctx, plan, &workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
+  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_pack_finite_u8(ctx, a_matrix, args.finite_modulus, A.data(), args.k, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(A)", status);
+    status = rns8_pack_finite_u8(ctx, b_matrix, args.finite_modulus, B.data(), args.n, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(B)", status);
+    if (collect_gpu_events) {
+      collect_pack_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto pack_end = std::chrono::steady_clock::now();
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8", status);
+    if (collect_gpu_events) {
+      collect_rns_gemm_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_export_finite_u8(ctx, plan, args.finite_modulus, c_matrix, C.data(), args.n);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  }
+  result.checksum = checksum_u8(C);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  return result;
+}
+
 BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
@@ -1910,20 +2097,30 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
 }
 
 uint32_t benchmark_prefix(const Args& args) {
-  return args.semantics == BenchSemantics::WrapU64Mod2_64 ? 0 : RNS8_DEFAULT_BOUNDED_PREFIX;
+  return (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
+             ? 0
+             : RNS8_DEFAULT_BOUNDED_PREFIX;
 }
 
 const char* benchmark_name(const Args& args) {
   if (args.vector_alu_baseline) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_baseline";
   }
-  return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "rns8_wrap_u64_persistent_byte_limb"
-                                                          : "rns8_bounded_gemm_persistent_rns";
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    return "rns8_wrap_u64_persistent_byte_limb";
+  }
+  if (finite_benchmark_semantics(args.semantics)) {
+    return "rns8_finite_u8_persistent_residue";
+  }
+  return "rns8_bounded_gemm_persistent_rns";
 }
 
 const char* epilogue_type(const Args& args) {
   if (args.vector_alu_baseline) {
     return "direct_int64_export";
+  }
+  if (finite_benchmark_semantics(args.semantics)) {
+    return "canonical_u8_export";
   }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "low64_wrap_export" : "crt_export";
 }
@@ -1936,6 +2133,9 @@ const char* input_distribution(const Args& args) {
       return "unsigned_uniform_0_16";
     case BenchSemantics::WrapU64Mod2_64:
       return "unsigned_rng_u64_full_range";
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
+      return "u8_uniform_0_modulus_minus_1";
   }
   return "unknown";
 }
@@ -1947,6 +2147,8 @@ const char* tile_bound_pattern(const Args& args) {
     case BenchSemantics::BoundedU64:
       return "exact_output_tile_max_unsigned_v1";
     case BenchSemantics::WrapU64Mod2_64:
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
       return "none";
   }
   return "unknown";
@@ -1979,7 +2181,7 @@ const char* selected_kernel_name(
 }
 
 int64_t benchmark_k_block_size(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
     return args.k;
   }
   return std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK);
@@ -2132,6 +2334,13 @@ void print_json(
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
   std::cout << "  \"prefix\": " << prefix << ",\n";
+  std::cout << "  \"finite_modulus\": ";
+  if (finite_benchmark_semantics(args.semantics)) {
+    std::cout << args.finite_modulus;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "  \"tile_m\": " << args.tile_m << ",\n";
   std::cout << "  \"tile_n\": " << args.tile_n << ",\n";
   std::cout << "  \"layout\": \"row_major\",\n";
@@ -2230,6 +2439,9 @@ void print_json(
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU wrap64 byte-limb reference; "
                  "no GPU event timing is requested for this backend\",\n";
+  } else if (finite_benchmark_semantics(args.semantics)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for persistent finite-u8 packing, finite residue "
+                 "GEMM, and canonical uint8 export with an explicit benchmark modulus\",\n";
   } else if (adaptive_applied && info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU adaptive per-tile bounded "
                  "reference path; no GPU event timing is requested for this backend\",\n";
@@ -2315,6 +2527,10 @@ void print_json(
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent byte-limb matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64\",\n";
+  } else if (finite_benchmark_semantics(args.semantics)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent finite-u8 matrices\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_finite_u8\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for canonical uint8 rns8_export_finite_u8\",\n";
   } else {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
@@ -2448,6 +2664,10 @@ int main(int argc, char** argv) {
       break;
     case BenchSemantics::WrapU64Mod2_64:
       result = run_wrap_u64(ctx, args, bound);
+      break;
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
+      result = run_finite_u8(ctx, args, bound);
       break;
   }
   rns8_destroy_context(ctx);

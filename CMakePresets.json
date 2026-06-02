@@ -69,6 +69,16 @@
       }
     },
     {
+      "name": "windows-msvc-hipblaslt-release",
+      "displayName": "Windows MSVC + HIP SDK + hipBLASLt baseline (Release)",
+      "description": "Windows gfx1100 hipBLASLt baseline backend release build for reviewed performance captures.",
+      "inherits": "windows-msvc-hipblaslt-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-hipblaslt-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "windows-msvc-ck-debug",
       "displayName": "Windows MSVC + HIP SDK + CK fused accelerator (Debug)",
       "description": "Windows gfx1100 opt-in CK fused accelerator backend build with repo-local Composable Kernel headers.",
@@ -82,6 +92,16 @@
       }
     },
     {
+      "name": "windows-msvc-ck-release",
+      "displayName": "Windows MSVC + HIP SDK + CK fused accelerator (Release)",
+      "description": "Windows gfx1100 opt-in CK fused accelerator release build for reviewed performance captures.",
+      "inherits": "windows-msvc-ck-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-ck-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "windows-msvc-rocwmma-debug",
       "displayName": "Windows MSVC + HIP SDK + rocWMMA hot kernels (Debug)",
       "description": "Windows gfx1100 opt-in rocWMMA signed-int8 fused accelerator backend build with repo-local rocWMMA headers.",
@@ -92,6 +112,16 @@
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "ON",
         "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
+      "name": "windows-msvc-rocwmma-release",
+      "displayName": "Windows MSVC + HIP SDK + rocWMMA hot kernels (Release)",
+      "description": "Windows gfx1100 opt-in rocWMMA signed-int8 fused accelerator release build for reviewed performance captures.",
+      "inherits": "windows-msvc-rocwmma-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-rocwmma-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
@@ -159,12 +189,24 @@
       "configurePreset": "windows-msvc-hipblaslt-debug"
     },
     {
+      "name": "windows-hipblaslt-release",
+      "configurePreset": "windows-msvc-hipblaslt-release"
+    },
+    {
       "name": "windows-ck-debug",
       "configurePreset": "windows-msvc-ck-debug"
     },
     {
+      "name": "windows-ck-release",
+      "configurePreset": "windows-msvc-ck-release"
+    },
+    {
       "name": "windows-rocwmma-debug",
       "configurePreset": "windows-msvc-rocwmma-debug"
+    },
+    {
+      "name": "windows-rocwmma-release",
+      "configurePreset": "windows-msvc-rocwmma-release"
     },
     {
       "name": "linux-debug",
@@ -202,6 +244,13 @@
       }
     },
     {
+      "name": "windows-hipblaslt-release",
+      "configurePreset": "windows-msvc-hipblaslt-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "windows-ck-debug",
       "configurePreset": "windows-msvc-ck-debug",
       "output": {
@@ -209,8 +258,22 @@
       }
     },
     {
+      "name": "windows-ck-release",
+      "configurePreset": "windows-msvc-ck-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "windows-rocwmma-debug",
       "configurePreset": "windows-msvc-rocwmma-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-rocwmma-release",
+      "configurePreset": "windows-msvc-rocwmma-release",
       "output": {
         "outputOnFailure": true
       }

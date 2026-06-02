@@ -41,6 +41,8 @@ def main() -> int:
     v4_wmma_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_rocwmma.json")
     v4_vector_i64 = expect_valid("v4_bounded_i64_vector_alu.json")
     v4_vector_u64 = expect_valid("v4_bounded_u64_vector_alu.json")
+    v4_finite_ring_ck = expect_valid("v4_finite_ring_u8_ck.json")
+    v4_finite_field_wmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
 
@@ -161,6 +163,22 @@ def main() -> int:
     bad_vector_prereq = copy.deepcopy(v4_vector_u64)
     bad_vector_prereq["comparison_baseline"]["required_before_speedup_claim"] = ["same_contract_cpu_reference"]
     expect_invalid(bad_vector_prereq, "same_contract_direct_hip_correctness")
+
+    bad_finite_ring_modulus = copy.deepcopy(v4_finite_ring_ck)
+    bad_finite_ring_modulus["finite_modulus"] = 1
+    expect_invalid(bad_finite_ring_modulus, "finite_ring_u8 finite_modulus")
+
+    bad_finite_field_modulus = copy.deepcopy(v4_finite_field_wmma)
+    bad_finite_field_modulus["finite_modulus"] = 255
+    expect_invalid(bad_finite_field_modulus, "finite_field_u8 finite_modulus")
+
+    bad_finite_prefix = copy.deepcopy(v4_finite_ring_ck)
+    bad_finite_prefix["prefix"] = 9
+    expect_invalid(bad_finite_prefix, "finite-u8 captures must use prefix=0")
+
+    bad_finite_epilogue = copy.deepcopy(v4_finite_field_wmma)
+    bad_finite_epilogue["epilogue_type"] = "crt_export"
+    expect_invalid(bad_finite_epilogue, "canonical_u8_export")
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]

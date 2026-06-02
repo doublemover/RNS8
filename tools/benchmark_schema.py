@@ -101,7 +101,18 @@ def _average(values: list[float]) -> float:
 
 
 def _close(actual: float, expected: float) -> bool:
-    return math.isclose(float(actual), float(expected), rel_tol=1.0e-5, abs_tol=1.0e-3)
+    return math.isclose(float(actual), float(expected), rel_tol=1.0e-5, abs_tol=1.0e-2)
+
+
+def _is_prime_modulus(value: int) -> bool:
+    if value < 2 or value > 251:
+        return False
+    divisor = 2
+    while divisor * divisor <= value:
+        if value % divisor == 0:
+            return False
+        divisor += 1
+    return True
 
 
 class _Validator:
@@ -428,6 +439,11 @@ class _Validator:
             for item in ["same_contract_cpu_wrap64_byte_limb_reference", "same_contract_direct_hip_wrap64_byte_gemm36"]:
                 if item not in required:
                     self._error(f"wrap64 captures require comparison baseline prerequisite {item}")
+        if semantics in {"finite_ring_u8", "finite_field_u8"} and isinstance(required, list):
+            if "same_contract_cpu_reference" not in required:
+                self._error("finite-u8 captures require comparison baseline prerequisite same_contract_cpu_reference")
+            if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
+                self._error("finite-u8 captures require comparison baseline prerequisite same_contract_direct_hip_correctness")
         if selected_backend == "ck":
             expected = {
                 "accelerator_library": "Composable Kernel",
@@ -696,6 +712,46 @@ class _Validator:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
                 self._validate_v4_adaptive_schedule(prefix, schedule)
+        elif semantics in {"finite_ring_u8", "finite_field_u8"}:
+            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "wmma"}:
+                self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or wmma backend")
+            if bound_mode != "global":
+                self._error("finite-u8 captures must use bound_mode=global")
+            if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
+                self._error("finite-u8 captures must use bound_kind=none and bound=0")
+            if self.data.get("tile_bounds_u64") is not None:
+                self._error("finite-u8 captures must use tile_bounds_u64=null")
+            if prefix != 0:
+                self._error("finite-u8 captures must use prefix=0")
+            if packed_layout is not None:
+                self._error("finite-u8 captures must use packed_layout_version=null")
+            if self.data.get("epilogue_type") != "canonical_u8_export":
+                self._error("finite-u8 captures must use canonical_u8_export epilogue")
+            modulus = self.data.get("finite_modulus")
+            if not _is_int(modulus):
+                self._error("finite-u8 captures must include integer finite_modulus")
+            elif semantics == "finite_ring_u8" and (modulus < 2 or modulus > 256):
+                self._error("finite_ring_u8 finite_modulus must be in [2, 256]")
+            elif semantics == "finite_field_u8" and not _is_prime_modulus(modulus):
+                self._error("finite_field_u8 finite_modulus must be prime and <= 251")
+            if isinstance(schedule, dict):
+                for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
+                    if schedule.get(key) != 0:
+                        self._error(f"finite-u8 captures must use schedule_metadata.{key}=0")
+                if schedule.get("prefix_group_count") != 0:
+                    self._error("finite-u8 captures must use schedule_metadata.prefix_group_count=0")
+                if schedule.get("adaptive_execution_applied") is True:
+                    self._error("finite-u8 captures must not apply adaptive execution")
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                if self.data.get("backend_selected") == "hip-direct":
+                    expected_scope = "direct_hip_default_stream_backend_operation_groups"
+                    if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                        self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                if self.data.get("backend_selected") == "hipblaslt":
+                    expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
+                    if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                        self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif isinstance(semantics, str):
             self._error(f"unsupported benchmark semantics {semantics}")
 

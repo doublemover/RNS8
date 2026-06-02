@@ -323,6 +323,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(benchmark_schema_self_test PROPERTIES LABELS "benchmark;schema")
 
   add_test(
+    NAME benchmark_sweep_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_sweep.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_sweep_self_test PROPERTIES LABELS "benchmark;sweep;autotune")
+
+  add_test(
     NAME dependency_checker_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_dependencies.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -344,6 +351,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_rocwmma.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_vector_alu.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_vector_alu.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_finite_ring_u8_ck.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_finite_field_u8_rocwmma.json"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_current_fixtures PROPERTIES LABELS "benchmark;schema")
@@ -391,6 +400,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_api.cpp
+    tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
     tests/unit/test_exact_wide.cpp

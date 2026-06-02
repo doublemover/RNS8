@@ -18,7 +18,7 @@ build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semanti
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --bound-mode per-tile --require-adaptive-execution --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 7
-build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics wrap-u64 --m 4 --n 4 --k 8 --warmups 1 --repeats 2 --seed 11 --write-autotune-cache
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics finite-u8-ring --modulus 255 --m 64 --n 64 --k 64 --warmups 1 --repeats 3 --seed 1
 ```
 
 The benchmark reports:
@@ -62,6 +62,7 @@ The benchmark reports:
   `same_contract_direct_hip_vector_alu_int64`; accelerator captures also name
   the same-contract direct-HIP correctness baseline. Strict wrap64 captures
   require the CPU byte-limb reference and direct-HIP byte-GEMM36 baseline.
+  finite-u8 captures require CPU reference and direct-HIP finite-u8 baselines.
   `derived_tops_equivalent` remains `null` until a reviewed same-contract
   baseline is attached,
 - timing source, timing caveat, and structured timing metadata,
@@ -76,14 +77,54 @@ The benchmark reports:
 - average end-to-end time for the measured phases,
 - raw per-repeat timing arrays plus average, median, and p95 summaries.
 
-When `--write-autotune-cache` is present, the benchmark also writes an external
-cache entry keyed by `backend_metadata.autotune_key`. The cache stores backend,
-target, HIP SDK or accelerator library version, shape, semantic contract,
-layout, prefix schedule hash, K-block, tile size, epilogue, selected kernel,
-workspace bytes, raw median timings, and validation status. The cache write is
-side-band and does not change the benchmark JSON schema. Raw cache entries with
-`schema_v4_capture_emitted_unreviewed` are selection evidence only; they are not
+Raw benchmark captures do not write production autotune cache entries. The
+review path is `tools/benchmark_sweep.py --write-autotune-cache`, which first
+validates schema, groups captures by same-contract semantics/shape/layout/
+target/toolchain/input seed, requires the matching CPU/GPU baselines, and
+writes only fastest reviewed accelerator winners. Cache entries are keyed by
+`backend_metadata.autotune_key` and store backend, target, HIP SDK or
+accelerator library version, shape, semantic contract, layout, prefix schedule
+hash, K-block, tile size, epilogue, selected kernel, workspace bytes, reviewed
+median timings, and validation status. Unreviewed raw captures are not
 performance validation claims.
+
+## Windows `gfx1100` release review snapshot
+
+The first release review run on Windows `gfx1100` used release opt-in
+hipBLASLt, CK, and rocWMMA builds plus fixed seed `20260602`, one warmup, and
+one measured repeat for the full release matrices. Raw captures and temp cache
+outputs live under `temp/benchmark-sweeps/windows-gfx1100-release-*` and
+`temp/accelerator-release-smoke/`; they are intentionally not tracked.
+
+Reviewed bounded global captures covered CPU reference, direct HIP,
+`hip-vector-alu-int64`, hipBLASLt, CK, and rocWMMA for bounded i64/u64 square
+shapes 64, 128, 512, and 1024. The review accepted two promotable temp cache
+entries: bounded i64 512 selected rocWMMA
+`rocwmma_i8_i32_signed_hot_residue_v1` at 2513 us end-to-end, and bounded i64
+1024 selected CK `ck_wmma_cshuffle_i8_i32_centered_epilogue_v1` at 7838 us
+end-to-end. Bounded u64 produced no promotable accelerator entries because
+direct-HIP or vector-ALU baselines were faster for the reviewed shapes.
+
+Reviewed adaptive bounded captures covered the default 65x65x64 and
+1024x1024x1024 per-tile schedules with CPU, direct HIP, vector-ALU, CK, and
+rocWMMA. Only the 65x65x64 adaptive cases promoted temp entries, both selecting
+rocWMMA `rocwmma_i8_i32_signed_tiled_hot_residue_v1`: 1152 us for bounded i64
+and 1238 us for bounded u64. The 1024 adaptive cases remained blocked by
+direct-HIP/vector baselines.
+
+Reviewed finite-u8 release captures covered ring moduli 251 and 255 plus field
+modulus 251 for square shapes 64, 128, 512, and 1024. Ring modulus 251 selected
+CK for 64, 128, and 1024, and rocWMMA for 512. Ring modulus 255 selected
+rocWMMA for 64, 128, and 512, and hipBLASLt for 1024. Field modulus 251
+selected CK for 64 and 128, and rocWMMA for 512 and 1024.
+
+Reviewed wrap64 baseline captures kept `direct_hip_wrap64_byte_gemm36_tiled_2d_v3`
+as the measured production GPU path for strict `mod 2^64`: 2128 us end-to-end
+versus 49256 us for the CPU byte-limb reference at 64x64x64. No wrap64
+matrix-engine candidate exists yet, so no wrap64 accelerator promotion was
+made. AMDGPU builtins remain fail-fast because the release reviews did not
+identify a shape requiring a builtin kernel with exact differentials, ISA
+evidence, and better timings than CK/rocWMMA.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
@@ -96,6 +137,10 @@ correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound
 `per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 Exact-wide captures, when added, must use exact-wide limb semantics and cannot
 be normalized into bounded i64/u64 or strict wrap64 timing contracts.
+finite-u8 captures use prefix-zero finite storage with
+`semantics: "finite_ring_u8"` or `"finite_field_u8"`, an explicit
+`finite_modulus`, `bound_kind: "none"`, `bound: 0`, and
+`epilogue_type: "canonical_u8_export"`.
 
 Schema version 4 is the only accepted tracked capture schema. Current captures
 must carry an explicit integer `"schema_version": 4`; missing version fields are

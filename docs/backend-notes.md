@@ -82,17 +82,23 @@ workspace byte requirement, ISA evidence, and an autotune key. Workspaces copy
 those fields from the plan, and workspace validation treats them as part of the
 same deterministic contract as schedule metadata.
 
-Autotune cache support is implemented as an explicit evidence layer, not as an
-automatic accelerator promotion path. `rns8-bench --write-autotune-cache`
-records the current plan autotune key, selected backend/kernel, target id,
-library or HIP SDK version, semantic contract, shape, layout, K-block, tile
-size, epilogue, workspace bytes, raw median timings, and validation status in
+Autotune cache support is implemented as an explicit reviewed-evidence layer,
+not as an automatic accelerator promotion path. Raw
+`rns8-bench --write-autotune-cache` writes are refused unless the selected plan
+is already performance validated. `tools/benchmark_sweep.py
+--write-autotune-cache` is the promotion path: it validates captures, groups
+them by same-contract semantics/shape/layout/target/toolchain/input seed,
+requires the matching CPU/direct-HIP/vector-ALU baselines where applicable, and
+writes only the fastest promotable accelerator entry. Cache entries record the
+plan autotune key, selected backend/kernel, target id, library or HIP SDK
+version, semantic contract, shape, layout, K-block, tile size, epilogue,
+workspace bytes, reviewed median timings, and validation status in
 `%LOCALAPPDATA%\rns8-gemm\autotune.json` on Windows, or the equivalent
 `$XDG_CACHE_HOME/rns8-gemm/autotune.json` path on Unix-like hosts.
 `RNS8_AUTOTUNE_CACHE_PATH` can override the path for tests and isolated smoke
 runs. `rns8-inspect --autotune-key ...` reports exact-hit versus missing-cache
-rationale; unreviewed raw benchmark captures remain unvalidated and do not
-turn on `performance_validated`.
+rationale; unreviewed, wrong-schema, or non-reviewed cache hits are reported as
+rejected and are not eligible for validated selection.
 
 Benchmark captures make the performance gate explicit with a structured
 `comparison_baseline` object. Unreviewed captures keep
@@ -109,6 +115,18 @@ reserved ownership boundary. No accelerator path counts from discovery alone:
 it must have compiled kernels and exact CPU/direct-HIP differential validation.
 hipBLASLt, CK, and rocWMMA are real compiled correctness backends under their
 opt-in presets, but still carry `perf_validated=0`.
+
+The Windows `gfx1100` release review workflow has been exercised through
+`tools/benchmark_sweep.py` with temp-only cache outputs. Reviewed release
+entries currently promote CK/rocWMMA for selected bounded i64 and adaptive
+bounded shapes, CK/rocWMMA/hipBLASLt for selected finite-u8 shapes, and no
+bounded u64 global shapes. These reviewed entries live in temp cache files and
+do not make dependency discovery an enablement signal. hipBLASLt remains a
+baseline accelerator for bounded i64/u64, with one finite ring modulus-255
+release winner in the reviewed temp cache. AMDGPU builtins remain fail-fast,
+and strict wrap64 remains on the direct-HIP
+`direct_hip_wrap64_byte_gemm36_tiled_2d_v3` path until a matrix-engine
+candidate beats it with exact differentials and ISA evidence.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,
