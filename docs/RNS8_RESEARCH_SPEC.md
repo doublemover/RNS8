@@ -182,9 +182,12 @@ The dependency checker reports:
 - HIP/ROCm/HIP SDK version.
 - Compiler paths and versions.
 - Whether CMake HIP language is available.
-- hipBLASLt availability and INT8 support.
-- CK availability and target support.
-- rocWMMA availability and target support.
+- hipBLASLt shallow discovery, optional compile/run probe evidence, and backend
+  enablement status.
+- CK shallow discovery, optional compile/run probe evidence, and backend
+  enablement status.
+- rocWMMA shallow discovery, optional compile/run probe evidence, and backend
+  enablement status.
 - Boost, GMP/MPIR, FLINT, NTL, FFLAS-FFPACK, and LinBox discovery.
 - Python package versions.
 
@@ -1041,6 +1044,10 @@ at least 1.55x speedup for 8192 square bounded GEMM.
 | E006 | CK capability | B5/B6 enabled only after pass |
 | E007 | rocWMMA or AMDGPU builtin capability | B7 enabled only after pass |
 | E008 | signed and unsigned INT8 behavior | backend accepted after exact match |
+
+E005 through E007 require more than file discovery. Shallow headers, libraries,
+tools, and opt-in tiny compile/run probes are evidence only until a backend also
+has target-supported capability checks and exact CPU differential validation.
 
 ### 18.2 Core Correctness
 

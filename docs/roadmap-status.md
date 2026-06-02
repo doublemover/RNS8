@@ -85,7 +85,10 @@ disagree, the spec remains the target and this file identifies the gap.
   optional accelerator components as candidate evidence only. Linux presets keep
   active offload targets separate from RDNA/CDNA coverage metadata, and shallow
   hipBLASLt/CK/rocWMMA probes report headers, libraries, tools, and CMake module
-  evidence without enabling accelerator backends.
+  evidence without enabling accelerator backends. Opt-in Python and CMake
+  accelerator probe modes record compile/link/runtime evidence under `temp/` or
+  probe-only build directories while keeping all accelerator backend enablement
+  disabled.
 
 ## Not Yet Implemented
 
@@ -94,6 +97,9 @@ disagree, the spec remains the target and this file identifies the gap.
   kernels, not performance evidence.
 - hipBLASLt, CK, rocWMMA, or AMDGPU builtin accelerator backends. They remain
   feature-detected future paths and are not correctness requirements.
+- Device capability and exact CPU differential probes for hipBLASLt, CK,
+  rocWMMA, or AMDGPU builtin backends. Current opt-in probes are compile/link
+  and tiny runtime evidence only.
 - Optimized strict `mod 2^64` GPU byte GEMMs, accelerator integration of the
   signed-INT8 correction algebra, and production GPU differential tests.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
@@ -105,9 +111,9 @@ disagree, the spec remains the target and this file identifies the gap.
 
 ## Latest Evidence
 
-- `ctest --test-dir build/cpu-debug --output-on-failure`: 50/50 passed; HIP
+- `ctest --test-dir build/cpu-debug --output-on-failure`: 53/53 passed; HIP
   smoke tests skipped in CPU-only build.
-- `ctest --preset windows-debug --output-on-failure`: 50/50 passed on
+- `ctest --preset windows-debug --output-on-failure`: 53/53 passed on
   `gfx1100`.
 - The CPU and Windows HIP test passes include plan schedule inspection coverage
   for fixed-prefix bounded tile groups, CPU per-tile adaptive bounded groups,
@@ -147,6 +153,18 @@ disagree, the spec remains the target and this file identifies the gap.
   Windows host. hipBLASLt was reported as candidate evidence only on this host;
   CK and rocWMMA remained not ready, and none were promoted to correctness
   requirements.
+- `python tools\check_dependencies.py --accelerator-probes --json`: host
+  readiness stayed true while accelerator gates stayed `ok=false`. CK and
+  rocWMMA probes did not run because headers were not discovered. hipBLASLt was
+  candidate evidence but the tiny Windows hipcc/lld-link probe failed because
+  this HIP SDK install exposes `libhipblaslt.dll.a` rather than a linkable
+  `hipblaslt.lib`; backend enablement remained disabled.
+- `cmake --preset windows-msvc-hip-accelerator-probe`: configured successfully,
+  reported hipBLASLt header evidence, CK/rocWMMA not discovered, and
+  accelerator backend enablement disabled.
+- `cmake --build --preset windows-accelerator-probe --target rns8-inspect`:
+  built the direct-HIP inspection binary from the probe preset while keeping all
+  accelerator backend enablement flags disabled.
 - Benchmark captures are kept under `temp/`:
   `rns8-cpu-bounded-i64.json`, `rns8-cpu-bounded-u64.json`,
   `rns8-hip-bounded-u64.json`, `rns8-hip-bounded-u64-repeat.json`,

@@ -1,5 +1,3 @@
-include(FindPackageHandleStandardArgs)
-
 set(_RNS8_CK_HINTS)
 if(RNS8_HIP_ROOT)
   list(APPEND _RNS8_CK_HINTS "${RNS8_HIP_ROOT}")
@@ -22,13 +20,12 @@ find_path(
   PATH_SUFFIXES include
 )
 
-find_package_handle_standard_args(RNS8CK REQUIRED_VARS RNS8_CK_INCLUDE_DIR)
-
 set(RNS8_CK_CANDIDATE FALSE)
+set(RNS8_CK_EVIDENCE "not discovered")
 if(RNS8_CK_INCLUDE_DIR)
   set(RNS8_CK_CANDIDATE TRUE)
+  set(RNS8_CK_EVIDENCE "header=${RNS8_CK_INCLUDE_DIR}")
 endif()
-
-if(RNS8CK_FOUND)
-  set(RNS8_CK_INCLUDE_DIRS "${RNS8_CK_INCLUDE_DIR}")
-endif()
+set(RNS8_CK_BACKEND_READY FALSE)
+set(RNS8_CK_BACKEND_ENABLEMENT "disabled")
+set(RNS8CK_FOUND FALSE)

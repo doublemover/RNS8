@@ -3,8 +3,8 @@
 
 The script is intentionally read-only. It checks command discovery, Python
 packages, vcpkg manifest dependencies, HIP device visibility, MSVC availability,
-optional accelerator components, repository tools, and optional Radeon Developer
-Tool Suite utilities.
+optional accelerator components and opt-in accelerator compile/run probes,
+repository tools, and optional Radeon Developer Tool Suite utilities.
 """
 
 from __future__ import annotations
@@ -47,6 +47,36 @@ SUPPORTED_TARGETS = {
 LINUX_ROCM_COVERAGE_TARGETS = tuple(SUPPORTED_TARGETS)
 LINUX_RDNA_TARGETS = {"gfx1030", "gfx1100", "gfx1200", "gfx1201"}
 LINUX_CDNA_TARGETS = {"gfx90a", "gfx942", "gfx950"}
+ACCELERATOR_NAMES = ("hipblaslt", "ck", "rocwmma")
+
+ACCELERATOR_PROBE_SOURCES = {
+    "hipblaslt": """#include <hipblaslt/hipblaslt.h>
+
+int main() {
+  hipblasLtHandle_t handle = nullptr;
+  hipblasStatus_t status = hipblasLtCreate(&handle);
+  if (status != HIPBLAS_STATUS_SUCCESS) {
+    return 2;
+  }
+  int version = 0;
+  (void)hipblasLtGetVersion(handle, &version);
+  status = hipblasLtDestroy(handle);
+  return status == HIPBLAS_STATUS_SUCCESS ? 0 : 3;
+}
+""",
+    "ck": """#include <ck/ck.hpp>
+
+int main() {
+  return 0;
+}
+""",
+    "rocwmma": """#include <rocwmma/rocwmma.hpp>
+
+int main() {
+  return 0;
+}
+""",
+}
 
 
 def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
@@ -62,6 +92,12 @@ def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
         return completed.returncode, completed.stdout.strip()
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 1, str(exc)
+
+
+def compact_output(output: str, limit: int = 6000) -> str:
+    if len(output) <= limit:
+        return output
+    return output[: limit // 2] + "\n...[truncated]...\n" + output[-limit // 2 :]
 
 
 def user_tools_dirs() -> list[Path]:
@@ -475,6 +511,152 @@ def accelerator_components() -> dict[str, dict[str, object]]:
     }
 
 
+def include_root_for_header(header: str | None) -> str | None:
+    if not header:
+        return None
+    path = Path(header)
+    parent = path.parent
+    if parent.name in {"hipblaslt", "ck", "rocwmma"}:
+        return str(parent.parent)
+    return str(parent)
+
+
+def probe_binary_path(probe_dir: Path, name: str) -> Path:
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    return probe_dir / f"{name}_probe{suffix}"
+
+
+def not_run_probe(
+    name: str,
+    probe_dir: Path,
+    status: str,
+    detail: str,
+    requested: bool,
+) -> dict[str, object]:
+    return {
+        "probe_requested": requested,
+        "requested": requested,
+        "status": status,
+        "ok": False,
+        "compiled_probe_ok": False,
+        "runtime_probe_ok": False,
+        "device_capability_ok": False,
+        "backend_enablement": "disabled",
+        "readiness_effect": "none",
+        "source": str(probe_dir / f"{name}_probe.cpp"),
+        "binary": str(probe_binary_path(probe_dir, name)),
+        "command": [],
+        "exit_code": None,
+        "run_command": [],
+        "run_exit_code": None,
+        "run_output": "",
+        "output": "",
+        "detail": detail,
+    }
+
+
+def accelerator_compile_probes(
+    accelerators: dict[str, dict[str, object]],
+    requested: bool,
+    probe_dir: Path | None,
+    offload_target: str | None,
+) -> dict[str, object]:
+    root = probe_dir or (repo_root() / "temp" / "accelerator-probes")
+    items: dict[str, dict[str, object]] = {}
+    if not requested:
+        for name in ACCELERATOR_NAMES:
+            items[name] = not_run_probe(
+                name,
+                root,
+                "NOT_REQUESTED",
+                "compile/link/run probe not requested; pass --accelerator-probes to run evidence probes under temp/",
+                False,
+            )
+        return {
+            "requested": False,
+            "probe_root": str(root),
+            "policy": "not run by default; probes never enable correctness backends or affect host readiness",
+            "items": items,
+        }
+
+    hipcc = find_command("hipcc")
+    root.mkdir(parents=True, exist_ok=True)
+    for name in ACCELERATOR_NAMES:
+        component = accelerators.get(name, {})
+        header = component.get("header") if isinstance(component, dict) else None
+        library = component.get("library") if isinstance(component, dict) else None
+        if not isinstance(header, str) or not header:
+            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True)
+            continue
+        if name == "hipblaslt" and (not isinstance(library, str) or not library):
+            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True)
+            continue
+        if not hipcc:
+            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True)
+            continue
+
+        source = root / f"{name}_probe.cpp"
+        binary = probe_binary_path(root, name)
+        source.write_text(ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
+        include_root = include_root_for_header(header)
+        command = [hipcc, "-std=c++17"]
+        if offload_target:
+            command.append(f"--offload-arch={offload_target}")
+        command.append(str(source))
+        if include_root:
+            command.extend(["-I", include_root])
+        if name == "hipblaslt" and isinstance(library, str):
+            command.extend(["-L", str(Path(library).parent), "-lhipblaslt"])
+        command.extend(["-o", str(binary)])
+        code, output = run(command, timeout=60)
+        run_command: list[str] = []
+        run_code: int | None = None
+        run_output = ""
+        if code == 0:
+            run_command = [str(binary)]
+            run_code, run_output = run(run_command, timeout=30)
+        compiled = code == 0
+        runtime_ok = run_code == 0
+        if not compiled:
+            status = "COMPILE_LINK_FAIL"
+        elif runtime_ok:
+            status = "COMPILE_LINK_PASS_RUN_PASS"
+        else:
+            status = "COMPILE_LINK_PASS_RUN_FAIL"
+        items[name] = {
+            "probe_requested": True,
+            "requested": True,
+            "status": status,
+            "ok": compiled and runtime_ok,
+            "compiled_probe_ok": compiled,
+            "runtime_probe_ok": runtime_ok,
+            "device_capability_ok": False,
+            "backend_enablement": "disabled",
+            "readiness_effect": "none",
+            "source": str(source),
+            "binary": str(binary),
+            "command": command,
+            "exit_code": code,
+            "run_command": run_command,
+            "run_exit_code": run_code,
+            "run_output": compact_output(run_output),
+            "output": compact_output(output),
+            "detail": (
+                "tiny compile/link/run probe passed; still not a correctness backend or device capability validation"
+                if compiled and runtime_ok
+                else "tiny compile/link probe passed but runtime probe failed; this is optional accelerator evidence only"
+                if compiled
+                else "tiny compile/link probe failed; this is optional accelerator evidence only"
+            ),
+        }
+    return {
+        "requested": True,
+        "probe_root": str(root),
+        "policy": "compile/link/run evidence only; probes never enable correctness backends or affect host readiness",
+        "items": items,
+    }
+
+
 def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[str, object]]:
     report: dict[str, dict[str, object]] = {}
     for package in OPTIONAL_CPP_PACKAGES:
@@ -535,11 +717,23 @@ def accelerator_gate(
     name: str,
     accelerators: dict[str, dict[str, object]],
     host_is_windows: bool,
+    probes: dict[str, object],
 ) -> dict[str, object]:
     item = accelerators[name]
     found = bool(item["ok"])
+    probe_items = probes.get("items") if isinstance(probes, dict) else {}
+    probe = probe_items.get(name) if isinstance(probe_items, dict) else None
+    probe_status = probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED"
+    if probe_status == "COMPILE_LINK_PASS_RUN_PASS":
+        status = "PROBE_PASS"
+    elif probe_status == "COMPILE_LINK_PASS_RUN_FAIL":
+        status = "PROBE_RUNTIME_FAIL"
+    elif probe_status == "COMPILE_LINK_FAIL":
+        status = "PROBE_COMPILE_FAIL"
+    else:
+        status = "CANDIDATE" if found else "NOT_READY"
     return {
-        "status": "CANDIDATE" if found else "NOT_READY",
+        "status": status,
         "ok": False,
         "required_for_host_readiness": False,
         "backend_stage": item["backend_stage"],
@@ -549,11 +743,16 @@ def accelerator_gate(
             f"header: {item.get('header') or 'not found'}",
             f"library: {item.get('library') or 'not found'}",
             f"tool: {item.get('tool') or 'not found'}",
+            f"compile/link probe: {probe_status}",
         ],
         "detail": (
-            "component discovered, but this checker does not enable the backend without a compiled capability probe"
-            if found
-            else "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
+            "optional probe evidence exists, but this checker still does not enable the backend or prove exactness"
+            if probe_status == "COMPILE_LINK_PASS_RUN_PASS"
+            else (
+                "component discovered, but this checker does not enable the backend without a compiled capability probe"
+                if found
+                else "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
+            )
         ),
         "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
     }
@@ -565,6 +764,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     vcpkg_packages = report["vcpkg_packages"]
     cmake_presets = report["cmake_presets"]
     accelerators = report["accelerator_components"]
+    accelerator_probes = report["accelerator_compile_probes"]
     hip_info = report["hip_info"]
     msvc = report["msvc"]
     assert isinstance(commands, dict)
@@ -572,6 +772,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(vcpkg_packages, dict)
     assert isinstance(cmake_presets, dict)
     assert isinstance(accelerators, dict)
+    assert isinstance(accelerator_probes, dict)
     assert isinstance(hip_info, dict)
     assert isinstance(msvc, dict)
 
@@ -657,9 +858,13 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             ],
             "detail": "Target-specific backend selection is allowed only after architecture detection",
         },
-        "E005_hipblaslt_int8_capability": accelerator_gate("hipblaslt", accelerators, host_is_windows),
-        "E006_ck_capability": accelerator_gate("ck", accelerators, host_is_windows),
-        "E007_rocwmma_or_builtin_capability": accelerator_gate("rocwmma", accelerators, host_is_windows),
+        "E005_hipblaslt_int8_capability": accelerator_gate(
+            "hipblaslt", accelerators, host_is_windows, accelerator_probes
+        ),
+        "E006_ck_capability": accelerator_gate("ck", accelerators, host_is_windows, accelerator_probes),
+        "E007_rocwmma_or_builtin_capability": accelerator_gate(
+            "rocwmma", accelerators, host_is_windows, accelerator_probes
+        ),
     }
 
     target = hip_info.get("target")
@@ -703,7 +908,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     }
 
 
-def build_report() -> tuple[dict[str, object], bool]:
+def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None) -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
     host_system = platform.system()
@@ -747,6 +952,9 @@ def build_report() -> tuple[dict[str, object], bool]:
     if not msvc:
         missing_required = True
 
+    hip_info = hip_info_report(find_command("hipInfo"))
+    offload_target_value = hip_info.get("target") if isinstance(hip_info.get("target"), str) else None
+    accelerators = accelerator_components()
     report: dict[str, object] = {
         "system": {
             "platform": platform.platform(),
@@ -761,9 +969,12 @@ def build_report() -> tuple[dict[str, object], bool]:
             "packages": vcpkg_packages,
         },
         "vcpkg_packages": vcpkg_report,
-        "hip_info": hip_info_report(find_command("hipInfo")),
+        "hip_info": hip_info,
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
-        "accelerator_components": accelerator_components(),
+        "accelerator_components": accelerators,
+        "accelerator_compile_probes": accelerator_compile_probes(
+            accelerators, run_accelerator_probes, accelerator_probe_dir, offload_target_value
+        ),
         "cmake_hip_language": cmake_hip_language_report(),
         "project_tools": project_tools(),
     }
@@ -883,6 +1094,30 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  readiness: {item['readiness']}")
     print()
 
+    print("Accelerator compile/run probes")
+    accelerator_probes = report["accelerator_compile_probes"]
+    assert isinstance(accelerator_probes, dict)
+    print(f"requested: {accelerator_probes['requested']}")
+    print(f"probe root: {accelerator_probes['probe_root']}")
+    print(f"policy: {accelerator_probes['policy']}")
+    probe_items = accelerator_probes["items"]
+    assert isinstance(probe_items, dict)
+    for name in sorted(probe_items):
+        item = probe_items[name]
+        assert isinstance(item, dict)
+        print(f"[{item['status']}] {name}")
+        print(f"  compiled: {item.get('compiled_probe_ok', False)}")
+        print(f"  runtime:  {item.get('runtime_probe_ok', False)}")
+        print(f"  backend enablement: {item.get('backend_enablement')}")
+        print(f"  source: {item.get('source')}")
+        print(f"  binary: {item.get('binary')}")
+        if item.get("output"):
+            print(f"  compile output: {item['output']}")
+        if item.get("run_output"):
+            print(f"  runtime output: {item['run_output']}")
+        print(f"  detail: {item['detail']}")
+    print()
+
     cmake_hip = report["cmake_hip_language"]
     assert isinstance(cmake_hip, dict)
     print(f"CMake HIP language: {'OK' if cmake_hip['ok'] else 'NOT REQUIRED'} - {cmake_hip['detail']}")
@@ -935,9 +1170,21 @@ def print_human(report: dict[str, object]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--accelerator-probes",
+        "--probe-accelerators",
+        action="store_true",
+        help="run optional tiny compile/run probes for discovered accelerator components under temp/",
+    )
+    parser.add_argument(
+        "--accelerator-probe-dir",
+        type=Path,
+        default=None,
+        help="directory for optional accelerator probe source and binaries; defaults to temp/accelerator-probes",
+    )
     args = parser.parse_args()
 
-    report, ok = build_report()
+    report, ok = build_report(args.accelerator_probes, args.accelerator_probe_dir)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
