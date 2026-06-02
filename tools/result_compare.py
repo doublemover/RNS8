@@ -10,13 +10,15 @@ from pathlib import Path
 from typing import Any
 
 
-TIMING_KEYS = [
-    "avg_pack_us",
-    "avg_rns_gemm_us",
-    "avg_per_modulus_gemm_estimate_us",
-    "avg_crt_export_us",
-    "avg_end_to_end_us",
-]
+TIMING_PHASES = {
+    "planning": ["avg_planning_us", "plan_us"],
+    "matrix_alloc": ["avg_matrix_alloc_us", "matrix_alloc_us"],
+    "pack": ["avg_pack_us"],
+    "rns_gemm": ["avg_rns_gemm_us"],
+    "per_modulus_gemm_estimate": ["avg_per_modulus_gemm_estimate_us"],
+    "crt_export": ["avg_crt_export_us"],
+    "end_to_end": ["avg_end_to_end_us"],
+}
 CONTRACT_KEYS = ["backend_selected", "semantics", "m", "n", "k", "prefix", "seed"]
 
 
@@ -31,11 +33,27 @@ def load_result(path: Path) -> dict[str, Any]:
     return data
 
 
-def number(data: dict[str, Any], key: str, path: Path) -> float:
-    value = data.get(key)
-    if not isinstance(value, (int, float)):
-        raise SystemExit(f"{path}: missing numeric field {key}")
-    return float(value)
+def schema_version(data: dict[str, Any]) -> int:
+    value = data.get("schema_version", 1)
+    return value if isinstance(value, int) else 1
+
+
+def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
+    summary = data.get("timing_summary_us")
+    if isinstance(summary, dict):
+        phase_summary = summary.get(phase)
+        if isinstance(phase_summary, dict):
+            value = phase_summary.get("avg")
+            if isinstance(value, (int, float)):
+                return float(value), f"timing_summary_us.{phase}.avg"
+
+    for key in TIMING_PHASES[phase]:
+        value = data.get(key)
+        if isinstance(value, (int, float)):
+            return float(value), key
+
+    keys = ", ".join([f"timing_summary_us.{phase}.avg", *TIMING_PHASES[phase]])
+    raise SystemExit(f"{path}: missing numeric timing for phase {phase}; looked for {keys}")
 
 
 def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
@@ -48,19 +66,25 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
         for key in CONTRACT_KEYS
     }
     timings = {}
-    for key in TIMING_KEYS:
-        base = number(baseline, key, baseline_path)
-        cand = number(candidate, key, candidate_path)
-        timings[key] = {
+    for phase in TIMING_PHASES:
+        base, base_source = phase_timing(baseline, phase, baseline_path)
+        cand, cand_source = phase_timing(candidate, phase, candidate_path)
+        timings[phase] = {
             "baseline": base,
             "candidate": cand,
             "delta": cand - base,
             "ratio": cand / base if base != 0 else None,
+            "baseline_source": base_source,
+            "candidate_source": cand_source,
         }
 
     return {
         "baseline": str(baseline_path),
         "candidate": str(candidate_path),
+        "schema": {
+            "baseline_version": schema_version(baseline),
+            "candidate_version": schema_version(candidate),
+        },
         "matching_contract": all(item["match"] for item in contract.values()),
         "contract": contract,
         "timings": timings,
@@ -72,6 +96,11 @@ def print_human(report: dict[str, Any]) -> None:
     print("=========================")
     print(f"baseline:  {report['baseline']}")
     print(f"candidate: {report['candidate']}")
+    print(
+        "schema:    "
+        f"baseline=v{report['schema']['baseline_version']} "
+        f"candidate=v{report['schema']['candidate_version']}"
+    )
     print(f"matching contract: {report['matching_contract']}")
     print()
     print("Contract")
@@ -80,11 +109,11 @@ def print_human(report: dict[str, Any]) -> None:
         print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
     print()
     print("Timings")
-    for key, item in report["timings"].items():
+    for phase, item in report["timings"].items():
         ratio = item["ratio"]
         ratio_text = "n/a" if ratio is None else f"{ratio:.6g}"
         print(
-            f"{key}: baseline={item['baseline']:.6g} "
+            f"{phase}: baseline={item['baseline']:.6g} "
             f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}"
         )
 

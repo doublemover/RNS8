@@ -9,7 +9,8 @@ reduce each result back to residues, then reconstruct bounded `int64_t` or
 The first development target is Windows on Radeon through the AMD HIP SDK. The
 full production target remains Linux ROCm for Radeon and Instinct systems. See
 [docs/RNS8_RESEARCH_SPEC.md](docs/RNS8_RESEARCH_SPEC.md) for the full research
-and implementation plan.
+and implementation plan. See [docs/roadmap-status.md](docs/roadmap-status.md)
+for the current implementation status and verified gaps.
 
 ## Current Implementation Status
 
@@ -21,19 +22,22 @@ Implemented:
 - CPU reference path for bounded exact signed and unsigned 64-bit GEMM using
   persistent RNS matrices, centered residues, scalar per-modulus ring GEMM,
   Boost.Multiprecision CRT/Garner reconstruction, and range-error checks.
+- Exact-wide signed and unsigned persistent RNS output with Boost-backed
+  residue oracles. Scalar/multi-limb exact-wide export is still intentionally
+  separate from bounded i64/u64 export.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
 - Windows direct HIP bring-up through explicit hipcc object compilation for
-  `gfx1100`, HIP device inspection, signed/unsigned GPU residue conversion,
-  K-block split reduction, and real one-modulus plus bounded i64/u64 GEMM
-  smoke tests compared against the CPU reference.
+  `gfx1100`, HIP device inspection, device-resident RNS matrix storage,
+  signed/unsigned GPU residue conversion, fused INT32-to-centered-residue
+  K-block reduction, bounded i64/u64 GPU CRT export, and real one-modulus plus
+  bounded i64/u64 GEMM smoke tests compared against the CPU reference.
 
 Not implemented yet:
 
-- Optimized fused HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin hot
-  kernels, GPU CRT export, exact-wide export, and strict `mod 2^64` byte-limb
-  GEMM.
+- Optimized matrix-engine HIP kernels, hipBLASLt, CK, rocWMMA, AMDGPU builtin
+  hot kernels, exact-wide export, and strict `mod 2^64` byte-limb GEMM.
 - Performance claims beyond the host-timed CPU/direct-HIP benchmark shell.
 
 ## Windows Development Requirements

@@ -43,6 +43,7 @@ set(RNS8_SOURCES
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp
   src/backend_hip_direct/hip_backend.cpp
+  src/backend_wrap64/wrap64_reference.cpp
 )
 
 if(RNS8_ENABLE_HIP)
@@ -148,7 +149,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_crt.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp
+    tests/unit/test_wrap64.cpp
     tests/differential/test_hip_direct.cpp
   )
   target_include_directories(

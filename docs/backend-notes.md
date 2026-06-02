@@ -4,9 +4,12 @@ Backend status:
 
 - CPU reference: implemented and tested.
 - Direct HIP: implemented for device inspection, signed/unsigned residue
-  conversion, and one-modulus correctness smoke. Public bounded GEMM can
-  execute the direct HIP pack and ring-GEMM path, with K split into blocks no
-  larger than 65536 before centered residue reduction.
+  conversion, persistent device-resident RNS matrix buffers, one-modulus
+  correctness smoke, fused INT32-to-centered-residue reduction, and bounded
+  i64/u64 GPU export for prefixes that fit the direct 128-bit Garner path.
+  Public bounded GEMM can execute the direct HIP pack, RNS GEMM, and export
+  path, with K split into blocks no larger than 65536 before centered residue
+  reduction.
 - hipBLASLt: not implemented.
 - CK: not implemented.
 - rocWMMA/AMDGPU builtins: not implemented.
@@ -20,10 +23,21 @@ exist to keep ownership boundaries visible while preserving the rule that no
 accelerator path counts until it has compiled kernels and exact CPU
 differential validation.
 
-The direct HIP pack kernels convert host `int64_t` and `uint64_t` matrices into
-centered residues and copy the current host-side residue storage back. The
-direct HIP ring-GEMM kernel then copies host residues to device, launches one
-thread per output element, reduces the INT32 sum to a centered residue, and
-copies the result back. For K above 65536, it launches multiple block kernels
-and accumulates the centered residue on device. This is intentionally
-inspectable and unoptimized.
+The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
+to a matrix-owned device upload buffer and write centered residues into
+matrix-owned device residue storage. The direct HIP RNS GEMM path consumes those
+device residues directly, launches one thread per output element per modulus,
+and reduces each INT32 K-block sum to a centered residue in the kernel. For K
+above 65536, it launches multiple block kernels and accumulates the centered
+residue on device.
+
+Bounded direct HIP export reconstructs i64/u64 outputs on device with a compact
+Garner kernel for prefixes up to 16, writes a device status for range errors,
+and copies the compact output to the caller's host layout. CPU
+Boost.Multiprecision CRT/Garner remains the reference and debug path. The direct
+HIP kernels are intentionally inspectable and unoptimized; they are correctness
+bring-up kernels, not performance evidence.
+
+Exact-wide signed and unsigned semantics are supported as persistent RNS output
+with `RNS8_BOUND_NONE`. They are not exported through the bounded i64/u64 APIs;
+multi-limb exact-wide export needs a separate ABI contract.

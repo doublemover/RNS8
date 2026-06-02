@@ -59,6 +59,20 @@ rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rn
   return desc;
 }
 
+rns8_gemm_desc exact_signed_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_EXACT_WIDE_SIGNED;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  return desc;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -71,7 +85,9 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantic
   desc.bound_kind = bound_kind;
   desc.tile_m = 128;
   desc.tile_n = 128;
-  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix =
+      semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ? RNS8_MAX_SUPPORTED_PREFIX
+                                                                                   : RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
 }
 
@@ -152,6 +168,14 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
+    CHECK(hip_matrix->hip_residues != nullptr);
+    CHECK(hip_matrix->device_residues_current);
+    CHECK_FALSE(hip_matrix->host_residues_current);
+    CHECK(rns8::detail::hip_direct_copy_device_to_host(
+              hip_matrix->hip_device_id,
+              hip_matrix->residues.data(),
+              hip_matrix->hip_residues,
+              hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix->residues == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 11);
     rns8_destroy_matrix(hip_matrix);
@@ -182,12 +206,158 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
+    CHECK(hip_matrix->hip_residues != nullptr);
+    CHECK(hip_matrix->device_residues_current);
+    CHECK_FALSE(hip_matrix->host_residues_current);
+    CHECK(rns8::detail::hip_direct_copy_device_to_host(
+              hip_matrix->hip_device_id,
+              hip_matrix->residues.data(),
+              hip_matrix->hip_residues,
+              hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
     CHECK(hip_matrix->residues == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 19);
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
   }
 
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for persistent direct HIP smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  const int64_t m = 2;
+  const int64_t n = 3;
+  const int64_t k = 4;
+  const int64_t A[] = {5, -7, 11, 13, -17, 19, 23, -29};
+  const int64_t B[] = {3, -5, 7, 11, 13, -17, 19, 23, -29, 31, 37, -41};
+  int64_t cpu_c[6] = {};
+  int64_t hip_c[6] = {};
+
+  auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A, k, B, n, cpu_c, n) == RNS8_SUCCESS);
+
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+  REQUIRE(a_matrix->hip_residues != nullptr);
+  REQUIRE(b_matrix->hip_residues != nullptr);
+  REQUIRE(c_matrix->hip_residues != nullptr);
+  void* a_device_residues = a_matrix->hip_residues;
+  void* b_device_residues = b_matrix->hip_residues;
+  void* c_device_residues = c_matrix->hip_residues;
+
+  REQUIRE(rns8_pack_i64(hip, a_matrix, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, b_matrix, B, n, 2) == RNS8_SUCCESS);
+  CHECK(a_matrix->hip_residues == a_device_residues);
+  CHECK(b_matrix->hip_residues == b_device_residues);
+  CHECK(a_matrix->device_residues_current);
+  CHECK(b_matrix->device_residues_current);
+
+  REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  CHECK(c_matrix->hip_residues == c_device_residues);
+  CHECK(c_matrix->device_residues_current);
+  CHECK_FALSE(c_matrix->host_residues_current);
+
+  REQUIRE(rns8_export_i64(hip, plan, c_matrix, hip_c, n) == RNS8_SUCCESS);
+  CHECK_FALSE(c_matrix->host_residues_current);
+  CHECK(c_matrix->hip_export_buffer != nullptr);
+  CHECK(c_matrix->hip_status_buffer != nullptr);
+  CHECK(std::vector<int64_t>(std::begin(hip_c), std::end(hip_c)) ==
+        std::vector<int64_t>(std::begin(cpu_c), std::end(cpu_c)));
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for exact-wide direct HIP smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  const int64_t m = 1;
+  const int64_t n = 2;
+  const int64_t k = 2;
+  const int64_t A[] = {std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max() - 19};
+  const int64_t B[] = {
+      std::numeric_limits<int64_t>::max() - 3,
+      -std::numeric_limits<int64_t>::max(),
+      std::numeric_limits<int64_t>::max() - 7,
+      std::numeric_limits<int64_t>::max() - 11};
+
+  rns8_plan* cpu_plan = nullptr;
+  rns8_workspace* cpu_workspace = nullptr;
+  rns8_matrix* cpu_a = nullptr;
+  rns8_matrix* cpu_b = nullptr;
+  rns8_matrix* cpu_c = nullptr;
+  auto cpu_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, cpu_a, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, cpu_b, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+
+  rns8_plan* hip_plan = nullptr;
+  rns8_workspace* hip_workspace = nullptr;
+  rns8_matrix* hip_a = nullptr;
+  rns8_matrix* hip_b = nullptr;
+  rns8_matrix* hip_c = nullptr;
+  auto hip_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, hip_a, A, k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, hip_b, B, n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
+              hip_c->hip_device_id, hip_c->residues.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) ==
+          RNS8_SUCCESS);
+  CHECK(hip_c->residues == cpu_c->residues);
+
+  rns8_destroy_matrix(hip_c);
+  rns8_destroy_matrix(hip_b);
+  rns8_destroy_matrix(hip_a);
+  rns8_destroy_workspace(hip_workspace);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_matrix(cpu_c);
+  rns8_destroy_matrix(cpu_b);
+  rns8_destroy_matrix(cpu_a);
+  rns8_destroy_workspace(cpu_workspace);
+  rns8_destroy_plan(cpu_plan);
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }

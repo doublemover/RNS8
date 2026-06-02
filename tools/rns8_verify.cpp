@@ -456,6 +456,13 @@ bool verify_hip_smoke() {
     if (hip_status == RNS8_SUCCESS) {
       hip_status = rns8_pack_i64(hip_ctx, hip_matrix, src.data(), ld, 1);
     }
+    if (hip_status == RNS8_SUCCESS && hip_matrix) {
+      hip_status = rns8::detail::hip_direct_copy_device_to_host(
+          hip_matrix->hip_device_id,
+          hip_matrix->residues.data(),
+          hip_matrix->hip_residues,
+          hip_matrix->hip_residue_bytes);
+    }
     const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
@@ -493,6 +500,13 @@ bool verify_hip_smoke() {
     }
     if (hip_status == RNS8_SUCCESS) {
       hip_status = rns8_pack_u64(hip_ctx, hip_matrix, src.data(), ld, 1);
+    }
+    if (hip_status == RNS8_SUCCESS && hip_matrix) {
+      hip_status = rns8::detail::hip_direct_copy_device_to_host(
+          hip_matrix->hip_device_id,
+          hip_matrix->residues.data(),
+          hip_matrix->hip_residues,
+          hip_matrix->hip_residue_bytes);
     }
     const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
     rns8_destroy_matrix(hip_matrix);

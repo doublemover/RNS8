@@ -22,7 +22,10 @@ import sys
 from pathlib import Path
 
 
-REQUIRED_COMMANDS = ["cmake", "ninja", "git", "python", "vcpkg", "hipcc", "hipInfo"]
+CORE_COMMANDS = ["cmake", "ninja", "git", "python", "vcpkg"]
+WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
+LINUX_ROCM_COMMANDS = ["hipcc", "hipconfig", "rocminfo"]
+LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
 PYTHON_PACKAGES = ["numpy", "pandas", "matplotlib", "pytest", "scipy"]
 OPTIONAL_CPP_PACKAGES = ["ntl", "fflas-ffpack", "linbox"]
 RADEON_TOOLS = [
@@ -32,6 +35,15 @@ RADEON_TOOLS = [
     "RadeonMemoryVisualizer",
     "RadeonDeveloperServiceCLI",
 ]
+SUPPORTED_TARGETS = {
+    "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP fallback and regression"},
+    "gfx1100": {"tier": "W0", "family": "RDNA3", "role": "local Windows bring-up and RDNA3 optimization"},
+    "gfx1200": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
+    "gfx1201": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
+    "gfx90a": {"tier": "I2", "family": "CDNA2", "role": "legacy cluster compatibility"},
+    "gfx942": {"tier": "I1", "family": "CDNA3", "role": "previous-generation Instinct production"},
+    "gfx950": {"tier": "I0", "family": "CDNA4", "role": "current Instinct production"},
+}
 
 
 def run(args: list[str], timeout: int = 20) -> tuple[int, str]:
@@ -54,6 +66,15 @@ def user_tools_dirs() -> list[Path]:
     return [Path(p) for p in glob.glob(str(home / "Tools" / "RadeonDeveloperToolSuite-*"))]
 
 
+def command_names_for_host() -> list[str]:
+    names = CORE_COMMANDS + WINDOWS_HIP_COMMANDS + LINUX_ROCM_COMMANDS + LINUX_SMI_COMMANDS + RADEON_TOOLS
+    deduped: list[str] = []
+    for name in names:
+        if name not in deduped:
+            deduped.append(name)
+    return deduped
+
+
 def find_command(name: str) -> str | None:
     candidates: list[Path] = []
     found = shutil.which(name)
@@ -70,6 +91,15 @@ def find_command(name: str) -> str | None:
             [
                 Path(hip_root) / "bin" / f"{name}.exe",
                 Path(hip_root) / "bin" / f"{name}.bat",
+            ]
+        )
+
+    if name in {"rocminfo", "rocm-smi", "amd-smi"}:
+        rocm_root = os.environ.get("ROCM_PATH", "/opt/rocm")
+        candidates.extend(
+            [
+                Path(rocm_root) / "bin" / name,
+                Path(rocm_root) / "bin" / f"{name}.exe",
             ]
         )
 
@@ -215,7 +245,11 @@ def command_version(name: str, path: str) -> str:
         _, output = run([path, "version"])
     elif name == "hipInfo":
         _, output = run([path], timeout=30)
-        return parse_hip_info(output)
+        return parse_hip_info_summary(output)
+    elif name in {"rocminfo", "rocm-smi", "amd-smi"}:
+        _, output = run([path, "--version"], timeout=30)
+        if not output and name == "rocminfo":
+            _, output = run([path], timeout=30)
     elif name == "RadeonDeveloperServiceCLI":
         _, output = run([path, "--help"])
     else:
@@ -225,10 +259,12 @@ def command_version(name: str, path: str) -> str:
     return first.strip()
 
 
-def parse_hip_info(output: str) -> str:
+def parse_hip_info_details(output: str) -> dict[str, str]:
     name = ""
     arch = ""
     mem = ""
+    hip_version = ""
+    runtime_version = ""
     for line in output.splitlines():
         stripped = line.strip()
         if stripped.startswith("Name:"):
@@ -237,8 +273,57 @@ def parse_hip_info(output: str) -> str:
             arch = stripped.split(":", 1)[1].strip()
         elif stripped.startswith("totalGlobalMem:"):
             mem = stripped.split(":", 1)[1].strip()
-    parts = [part for part in [name, arch, mem] if part]
+        elif stripped.startswith("HIP version:"):
+            hip_version = stripped.split(":", 1)[1].strip()
+        elif stripped.startswith("Runtime version:"):
+            runtime_version = stripped.split(":", 1)[1].strip()
+    return {
+        "gpu_name": name,
+        "gcn_arch": arch,
+        "total_global_mem": mem,
+        "hip_version": hip_version,
+        "runtime_version": runtime_version,
+    }
+
+
+def parse_hip_info_summary(output: str) -> str:
+    details = parse_hip_info_details(output)
+    parts = [
+        details["gpu_name"],
+        details["gcn_arch"],
+        details["total_global_mem"],
+        details["hip_version"],
+        details["runtime_version"],
+    ]
+    parts = [part for part in parts if part]
     return ", ".join(parts) if parts else "no HIP device details parsed"
+
+
+def hip_info_report(path: str | None) -> dict[str, object]:
+    if not path:
+        return {
+            "ok": False,
+            "detail": "hipInfo not found",
+            "gpu_name": "",
+            "gcn_arch": "",
+            "target": "",
+            "target_supported_by_spec": False,
+        }
+    code, output = run([path], timeout=30)
+    details = parse_hip_info_details(output)
+    target = details["gcn_arch"].split(":", 1)[0].strip()
+    return {
+        "ok": code == 0 and bool(target),
+        "detail": parse_hip_info_summary(output),
+        "exit_code": code,
+        "gpu_name": details["gpu_name"],
+        "gcn_arch": details["gcn_arch"],
+        "target": target,
+        "target_supported_by_spec": target in SUPPORTED_TARGETS,
+        "target_info": SUPPORTED_TARGETS.get(target),
+        "hip_version": details["hip_version"],
+        "runtime_version": details["runtime_version"],
+    }
 
 
 def find_msvc() -> str | None:
@@ -301,14 +386,23 @@ def accelerator_components() -> dict[str, dict[str, object]]:
         "hipblaslt": {
             "header": find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]),
             "library": find_under_roots(roots, ["lib/hipblaslt.lib", "lib/libhipblaslt.so"]),
+            "backend_stage": "B3/B4",
+            "experiment": "E005",
+            "capability": "hipBLASLt INT8 per-modulus and grouped/batched GEMM",
         },
         "ck": {
             "header": find_under_roots(roots, ["include/ck/ck.hpp", "include/ck.hpp"]),
             "library": None,
+            "backend_stage": "B5/B6",
+            "experiment": "E006",
+            "capability": "CK grouped GEMM and custom epilogues",
         },
         "rocwmma": {
             "header": find_under_roots(roots, ["include/rocwmma/rocwmma.hpp"]),
             "library": None,
+            "backend_stage": "B7",
+            "experiment": "E007",
+            "capability": "rocWMMA or AMDGPU builtin hot kernels",
         },
     }
     return {
@@ -317,6 +411,14 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "required": False,
             "header": item["header"],
             "library": item["library"],
+            "backend_stage": item["backend_stage"],
+            "experiment": item["experiment"],
+            "capability": item["capability"],
+            "readiness": (
+                "candidate evidence only; backend remains disabled until compiled capability and exact correctness probes pass"
+                if bool(item["header"] or item["library"])
+                else "not discovered; optional on Windows and required on Linux only where officially supported"
+            ),
         }
         for name, item in components.items()
     }
@@ -359,18 +461,209 @@ def cmake_hip_language_report() -> dict[str, object]:
     }
 
 
+def command_ok(commands: dict[str, object], name: str) -> bool:
+    item = commands.get(name)
+    return isinstance(item, dict) and bool(item.get("ok"))
+
+
+def packages_ok(packages: dict[str, str | None], names: list[str]) -> bool:
+    return all(packages.get(name) is not None for name in names)
+
+
+def vcpkg_ok(vcpkg_report: dict[str, str | None], names: list[str]) -> bool:
+    return all(vcpkg_report.get(name) is not None for name in names)
+
+
+def status_label(ok: bool, applicable: bool = True) -> str:
+    if not applicable:
+        return "NOT_APPLICABLE"
+    return "PASS" if ok else "FAIL"
+
+
+def accelerator_gate(
+    name: str,
+    accelerators: dict[str, dict[str, object]],
+    host_is_windows: bool,
+) -> dict[str, object]:
+    item = accelerators[name]
+    found = bool(item["ok"])
+    return {
+        "status": "CANDIDATE" if found else "NOT_READY",
+        "ok": False,
+        "required_for_host_readiness": False,
+        "backend_stage": item["backend_stage"],
+        "evidence": [
+            f"header: {item.get('header') or 'not found'}",
+            f"library: {item.get('library') or 'not found'}",
+        ],
+        "detail": (
+            "component discovered, but this checker does not enable the backend without a compiled capability probe"
+            if found
+            else "component not discovered; optional on Windows and required on Linux only where the target officially supports it"
+        ),
+        "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
+    }
+
+
+def readiness_report(report: dict[str, object]) -> dict[str, object]:
+    commands = report["commands"]
+    py_packages = report["python_packages"]
+    vcpkg_packages = report["vcpkg_packages"]
+    cmake_presets = report["cmake_presets"]
+    accelerators = report["accelerator_components"]
+    hip_info = report["hip_info"]
+    msvc = report["msvc"]
+    assert isinstance(commands, dict)
+    assert isinstance(py_packages, dict)
+    assert isinstance(vcpkg_packages, dict)
+    assert isinstance(cmake_presets, dict)
+    assert isinstance(accelerators, dict)
+    assert isinstance(hip_info, dict)
+    assert isinstance(msvc, dict)
+
+    host_system = platform.system()
+    host_is_windows = host_system == "Windows"
+    host_is_linux = host_system == "Linux"
+    windows = cmake_presets["windows_hip_debug"]
+    linux = cmake_presets["linux_rocm_debug"]
+    assert isinstance(windows, dict)
+    assert isinstance(linux, dict)
+
+    core_host_ok = (
+        all(command_ok(commands, name) for name in CORE_COMMANDS)
+        and packages_ok(py_packages, PYTHON_PACKAGES)
+        and vcpkg_ok(vcpkg_packages, ["boost-multiprecision", "catch2"])
+    )
+    windows_hip_ok = (
+        host_is_windows
+        and all(command_ok(commands, name) for name in WINDOWS_HIP_COMMANDS)
+        and bool(msvc["ok"])
+        and bool(windows["ok"])
+        and bool(hip_info["ok"])
+    )
+    linux_smi_ok = any(command_ok(commands, name) for name in LINUX_SMI_COMMANDS)
+    linux_rocm_ok = (
+        host_is_linux
+        and all(command_ok(commands, name) for name in LINUX_ROCM_COMMANDS)
+        and linux_smi_ok
+        and bool(linux["represented"])
+    )
+    gpu_arch_ok = bool(hip_info["ok"]) and bool(hip_info["target_supported_by_spec"])
+
+    gates: dict[str, dict[str, object]] = {
+        "E001_cpu_compiler_and_boost_reference": {
+            "status": status_label(core_host_ok),
+            "ok": core_host_ok,
+            "required_for_host_readiness": True,
+            "evidence": [
+                "commands: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in CORE_COMMANDS),
+                "python packages: "
+                + ", ".join(f"{name}={'OK' if py_packages.get(name) else 'MISSING'}" for name in PYTHON_PACKAGES),
+                "vcpkg core: "
+                + ", ".join(
+                    f"{name}={'OK' if vcpkg_packages.get(name) else 'MISSING'}"
+                    for name in ["boost-multiprecision", "catch2"]
+                ),
+            ],
+            "detail": "Phase 0 host/reference readiness; optional differential libraries are reported separately",
+        },
+        "E002_windows_hip_sdk_detection": {
+            "status": status_label(windows_hip_ok, host_is_windows),
+            "ok": windows_hip_ok,
+            "required_for_host_readiness": host_is_windows,
+            "evidence": [
+                "commands: "
+                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in WINDOWS_HIP_COMMANDS),
+                f"MSVC={'OK' if msvc['ok'] else 'MISSING'}",
+                f"windows preset={'OK' if windows['ok'] else 'MISSING'}",
+                f"HIP device={hip_info.get('detail') or 'not parsed'}",
+            ],
+            "detail": "Windows GPU path gate; CMake HIP language is intentionally not required",
+        },
+        "E003_linux_rocm_detection": {
+            "status": status_label(linux_rocm_ok, host_is_linux),
+            "ok": linux_rocm_ok,
+            "required_for_host_readiness": host_is_linux,
+            "evidence": [
+                "commands: "
+                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_ROCM_COMMANDS),
+                "smi: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_SMI_COMMANDS),
+                f"linux preset represented={'OK' if linux['represented'] else 'MISSING'}",
+            ],
+            "detail": "Linux ROCm production/profiling gate; not required to pass on a Windows host",
+        },
+        "E004_gpu_architecture_detection": {
+            "status": status_label(gpu_arch_ok, bool(hip_info["ok"])),
+            "ok": gpu_arch_ok,
+            "required_for_host_readiness": host_is_windows or host_is_linux,
+            "evidence": [
+                f"gpu={hip_info.get('gpu_name') or 'not parsed'}",
+                f"target={hip_info.get('target') or 'not parsed'}",
+                f"spec target={'OK' if hip_info.get('target_supported_by_spec') else 'MISSING'}",
+            ],
+            "detail": "Target-specific backend selection is allowed only after architecture detection",
+        },
+        "E005_hipblaslt_int8_capability": accelerator_gate("hipblaslt", accelerators, host_is_windows),
+        "E006_ck_capability": accelerator_gate("ck", accelerators, host_is_windows),
+        "E007_rocwmma_or_builtin_capability": accelerator_gate("rocwmma", accelerators, host_is_windows),
+    }
+
+    target = hip_info.get("target")
+    platform_gates = {
+        "E070_windows_rdna3_direct_hip": {
+            "status": status_label(windows_hip_ok and target == "gfx1100", host_is_windows),
+            "ok": windows_hip_ok and target == "gfx1100",
+            "required_for_host_readiness": host_is_windows,
+            "detail": "local Windows bring-up gate for RX 7900-class gfx1100 targets",
+        },
+        "E071_windows_rdna4_direct_hip": {
+            "status": status_label(windows_hip_ok and target in {"gfx1200", "gfx1201"}, host_is_windows and target in {"gfx1200", "gfx1201"}),
+            "ok": windows_hip_ok and target in {"gfx1200", "gfx1201"},
+            "required_for_host_readiness": False,
+            "detail": "current Radeon gate; evaluated only on matching Windows RDNA4 hardware",
+        },
+        "E072_linux_rdna3_rdna4_rocm": {
+            "status": status_label(
+                linux_rocm_ok and target in {"gfx1100", "gfx1200", "gfx1201"},
+                host_is_linux and target in {"gfx1100", "gfx1200", "gfx1201"},
+            ),
+            "ok": linux_rocm_ok and target in {"gfx1100", "gfx1200", "gfx1201"},
+            "required_for_host_readiness": False,
+            "detail": "Radeon Linux gate; not required on Windows",
+        },
+        "E073_E074_E075_linux_instinct_rocm": {
+            "status": status_label(linux_rocm_ok and target in {"gfx942", "gfx950", "gfx90a"}, host_is_linux and target in {"gfx942", "gfx950", "gfx90a"}),
+            "ok": linux_rocm_ok and target in {"gfx942", "gfx950", "gfx90a"},
+            "required_for_host_readiness": False,
+            "detail": "Instinct validation gates require Linux ROCm on supported CDNA hardware",
+        },
+    }
+
+    required_gates = [gate for gate in gates.values() if gate["required_for_host_readiness"]]
+    return {
+        "host": host_system,
+        "host_readiness_ok": all(bool(gate["ok"]) for gate in required_gates),
+        "policy": "optional accelerators are never promoted to enabled backends by this checker",
+        "gates": gates,
+        "platform_gates": platform_gates,
+    }
+
+
 def build_report() -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
+    host_system = platform.system()
     vcpkg_packages = manifest_vcpkg_packages()
     if not vcpkg_packages:
         missing_required = True
     cmake_presets = cmake_presets_report()
     if not cmake_presets["ok"]:
         missing_required = True
-    for command in REQUIRED_COMMANDS + ["hipconfig"] + RADEON_TOOLS:
+    for command in command_names_for_host():
         path = find_command(command)
-        required = command in REQUIRED_COMMANDS
+        required = command in CORE_COMMANDS or (
+            host_system == "Windows" and command in WINDOWS_HIP_COMMANDS
+        ) or (host_system == "Linux" and command in LINUX_ROCM_COMMANDS)
         if not path:
             commands[command] = {"ok": False, "required": required, "detail": "not found"}
             missing_required = missing_required or required
@@ -414,12 +707,16 @@ def build_report() -> tuple[dict[str, object], bool]:
             "packages": vcpkg_packages,
         },
         "vcpkg_packages": vcpkg_report,
+        "hip_info": hip_info_report(find_command("hipInfo")),
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
         "accelerator_components": accelerator_components(),
         "cmake_hip_language": cmake_hip_language_report(),
         "project_tools": project_tools(),
     }
-    return report, not missing_required
+    report["readiness"] = readiness_report(report)
+    readiness = report["readiness"]
+    assert isinstance(readiness, dict)
+    return report, not missing_required and bool(readiness["host_readiness_ok"])
 
 
 def print_human(report: dict[str, object]) -> None:
@@ -514,16 +811,52 @@ def print_human(report: dict[str, object]) -> None:
         item = accelerators[name]
         assert isinstance(item, dict)
         status = "OK" if item["ok"] else "MISSING"
-        print(f"[{status}] {name} (optional)")
+        print(f"[{status}] {name} ({item['backend_stage']}, {item['experiment']}, optional)")
         if item.get("header"):
             print(f"  header: {item['header']}")
         if item.get("library"):
             print(f"  library: {item['library']}")
+        print(f"  readiness: {item['readiness']}")
     print()
 
     cmake_hip = report["cmake_hip_language"]
     assert isinstance(cmake_hip, dict)
     print(f"CMake HIP language: {'OK' if cmake_hip['ok'] else 'NOT REQUIRED'} - {cmake_hip['detail']}")
+    print()
+
+    hip_info = report["hip_info"]
+    assert isinstance(hip_info, dict)
+    print("HIP device")
+    print(f"[{'OK' if hip_info['ok'] else 'MISSING'}] {hip_info['detail']}")
+    print(f"  target: {hip_info.get('target') or 'not parsed'}")
+    print(f"  spec target: {'OK' if hip_info.get('target_supported_by_spec') else 'MISSING'}")
+    if hip_info.get("target_info"):
+        target_info = hip_info["target_info"]
+        assert isinstance(target_info, dict)
+        print(f"  tier: {target_info['tier']} {target_info['family']} - {target_info['role']}")
+    print()
+
+    readiness = report["readiness"]
+    assert isinstance(readiness, dict)
+    print("Readiness gates")
+    print(f"host readiness: {'OK' if readiness['host_readiness_ok'] else 'NOT READY'}")
+    print(f"policy: {readiness['policy']}")
+    gates = readiness["gates"]
+    assert isinstance(gates, dict)
+    for name in sorted(gates):
+        gate = gates[name]
+        assert isinstance(gate, dict)
+        req = "host-required" if gate["required_for_host_readiness"] else "not host-required"
+        print(f"[{gate['status']}] {name} ({req})")
+        print(f"  detail: {gate['detail']}")
+    platform_gates = readiness["platform_gates"]
+    assert isinstance(platform_gates, dict)
+    for name in sorted(platform_gates):
+        gate = platform_gates[name]
+        assert isinstance(gate, dict)
+        req = "host-required" if gate["required_for_host_readiness"] else "not host-required"
+        print(f"[{gate['status']}] {name} ({req})")
+        print(f"  detail: {gate['detail']}")
     print()
 
     print("Project tools")

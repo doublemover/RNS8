@@ -25,16 +25,32 @@ struct rns8_plan {
 
 struct rns8_matrix {
   rns8_matrix_desc desc{};
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   uint64_t source_version = 0;
   std::vector<int8_t> residues;
+  bool host_residues_current = true;
+  bool device_residues_current = false;
+  int hip_device_id = -1;
+  void* hip_residues = nullptr;
+  std::size_t hip_residue_bytes = 0;
+  void* hip_upload_buffer = nullptr;
+  std::size_t hip_upload_bytes = 0;
+  void* hip_export_buffer = nullptr;
+  std::size_t hip_export_bytes = 0;
+  void* hip_status_buffer = nullptr;
+  std::size_t hip_status_bytes = 0;
 };
 
 struct rns8_workspace {
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   int64_t m = 0;
   int64_t n = 0;
   int64_t k = 0;
   uint32_t prefix = 0;
+  int hip_device_id = -1;
+  void* hip_scratch = nullptr;
+  std::size_t hip_scratch_bytes = 0;
 };
 
 namespace rns8::detail {
@@ -97,8 +113,16 @@ rns8_status reconstruct_signed(
 
 cpp_int exact_i64_gemm_cell(const int64_t* A, int64_t lda, const int64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
 cpp_int exact_u64_gemm_cell(const uint64_t* A, int64_t lda, const uint64_t* B, int64_t ldb, int64_t row, int64_t col, int64_t k);
+uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b);
+uint64_t wrap64_byte_limb_gemm_cell(
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    int64_t row,
+    int64_t col,
+    int64_t k);
 
 }  // namespace rns8::detail
 
 #endif
-

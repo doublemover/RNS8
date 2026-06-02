@@ -4,6 +4,12 @@ Linux ROCm remains the production, profiling, multi-GPU, and Instinct
 validation path. The scaffold keeps Linux ROCm presets and toolchain variables
 represented, but this slice was validated on Windows.
 
+`tools/check_dependencies.py` reports Linux readiness separately from Windows
+readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platform
+matrix gates are reported as not applicable rather than as Windows blockers.
+On Linux, `hipcc`, `hipconfig`, `rocminfo`, and either `rocm-smi` or `amd-smi`
+are treated as the ROCm capability-inspection command set.
+
 Expected Linux configure path:
 
 ```bash
@@ -19,6 +25,10 @@ correctness:
 - CK grouped/fused kernels remain a later feature-detected backend.
 - rocWMMA and AMDGPU builtins remain target-specific hot paths.
 
+The checker reports hipBLASLt, CK, and rocWMMA discovery as candidate evidence
+only. Linux production readiness still requires target-supported components,
+compiled capability probes, exact CPU differential coverage, and measured
+performance before enabling advanced backend stages.
+
 Before claiming Linux production readiness, run direct HIP parity tests on the
 target ROCm release and actual supported Radeon or Instinct hardware.
-

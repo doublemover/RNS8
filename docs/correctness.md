@@ -19,25 +19,53 @@ Implemented correctness coverage:
   dimensions and Boost.Multiprecision exact oracles.
 - Worst-case positive, negative, and unsigned accumulation checks at and just
   above the 65536 K-block split point.
-- Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, and
-  exact-wide, finite-ring, finite-field, strict wraparound, and future
-  accelerator backend requests report unsupported instead of falling through to
-  bounded CRT behavior.
+- Semantic guard tests that bounded APIs reject `RNS8_BOUND_NONE`, exact-wide
+  rejects bounded-looking metadata, and finite-ring, finite-field, strict
+  wraparound, and future accelerator backend requests report unsupported
+  instead of falling through to bounded CRT behavior.
+- Negative semantic tests that exact-wide signed/unsigned and strict
+  `mod 2^64` wraparound reject bounded-looking metadata, including explicit
+  global bounds and input-range bounds. A bounded prefix alone is not a license
+  to reinterpret these contracts as current odd-modulus CRT.
+- Exact-wide signed and unsigned RNS-output tests for CPU and direct HIP,
+  including full-width 64-bit inputs that are compared against
+  Boost.Multiprecision residue oracles.
+- Internal strict `mod 2^64` byte-limb product and GEMM-cell reference tests
+  compared against Boost.Multiprecision low-64-bit results. The public
+  wraparound backend remains unsupported.
 - Direct HIP signed and unsigned residue packing compared against CPU reference
   residue storage, including full-width boundary values and padded leading
   dimensions.
 - A direct HIP one-modulus ring-GEMM smoke test compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible.
-- Direct HIP K-block splitting above 65536, including public bounded signed and
-  unsigned API smoke tests against the CPU reference.
+- Direct HIP device-resident RNS matrices, K-block splitting above 65536, fused
+  INT32-to-centered-residue reduction without INT32 global output, and bounded
+  signed/unsigned GPU CRT export smoke tests against the CPU reference.
 
 Not yet implemented:
 
 - Per-tile adaptive bounds.
-- GPU CRT reconstruction.
-- Exact-wide output.
-- Strict `mod 2^64` byte-limb GEMM.
+- Exact-wide scalar/multi-limb export ABI and GPU reconstruction.
+- Bounded GPU export prefixes wider than the current direct HIP 128-bit Garner
+  path.
+- Public strict `mod 2^64` byte-limb GEMM backend and GPU kernels.
 - Backend signedness corrections for unsigned byte-limb wraparound.
+
+Semantic guardrail:
+
+- `RNS8_BOUNDED_I64` and `RNS8_BOUNDED_U64` are exact-result contracts. The
+  caller-supplied bound is part of that contract, and the current CPU and direct
+  HIP paths use odd-modulus CRT reconstruction only for results recoverable
+  inside the stated range.
+- `RNS8_EXACT_WIDE_SIGNED` and `RNS8_EXACT_WIDE_UNSIGNED` are not aliases for
+  bounded 64-bit export with a larger prefix. They support persistent RNS output
+  with `RNS8_BOUND_NONE`; scalar or multi-limb export remains unsupported until
+  a public ABI/storage contract is added and tested.
+- `RNS8_WRAP_U64_MOD_2_64` is not implemented by the odd-modulus CRT ladder.
+  Strict low-64-bit wraparound requires the byte-limb backend so unsigned byte
+  semantics, Comba accumulation, carry handling, and low-limb export are tested
+  directly. A bounded API call is only valid for wrap-like inputs when the exact
+  mathematical result is also within the supplied bounded contract.
 
 Do not treat the current direct HIP kernel as performance evidence. It is a
 minimal correctness proof for the Windows HIP compile/run path.

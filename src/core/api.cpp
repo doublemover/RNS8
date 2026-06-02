@@ -51,6 +51,98 @@ std::vector<int8_t> gather_cell_residues(const rns8_matrix& matrix, int64_t row,
   return residues;
 }
 
+rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
+  rns8_status status = RNS8_SUCCESS;
+  if (matrix.hip_upload_buffer) {
+    status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_upload_buffer);
+    matrix.hip_upload_buffer = nullptr;
+    matrix.hip_upload_bytes = 0;
+  }
+  if (matrix.hip_status_buffer) {
+    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_status_buffer);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_status_buffer = nullptr;
+    matrix.hip_status_bytes = 0;
+  }
+  if (matrix.hip_export_buffer) {
+    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_export_buffer);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_export_buffer = nullptr;
+    matrix.hip_export_bytes = 0;
+  }
+  if (matrix.hip_residues) {
+    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_residues);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_residues = nullptr;
+    matrix.hip_residue_bytes = 0;
+  }
+  matrix.device_residues_current = false;
+  return status;
+}
+
+rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) {
+  if (matrix.residues.empty()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  matrix.hip_device_id = ctx.device_id;
+  matrix.hip_residue_bytes = matrix.residues.size() * sizeof(int8_t);
+  rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, matrix.hip_residue_bytes, &matrix.hip_residues);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = rns8::detail::hip_direct_zero(ctx.device_id, matrix.hip_residues, matrix.hip_residue_bytes);
+  if (status != RNS8_SUCCESS) {
+    (void)free_hip_matrix_storage(matrix);
+    return status;
+  }
+  matrix.host_residues_current = true;
+  matrix.device_residues_current = true;
+  return RNS8_SUCCESS;
+}
+
+rns8_status ensure_device_residues_current(rns8_matrix& matrix) {
+  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT) {
+    return RNS8_SUCCESS;
+  }
+  if (matrix.device_residues_current) {
+    return RNS8_SUCCESS;
+  }
+  if (!matrix.host_residues_current || !matrix.hip_residues || matrix.hip_residue_bytes == 0) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  const rns8_status status = rns8::detail::hip_direct_copy_host_to_device(
+      matrix.hip_device_id, matrix.hip_residues, matrix.residues.data(), matrix.hip_residue_bytes);
+  if (status == RNS8_SUCCESS) {
+    matrix.device_residues_current = true;
+  }
+  return status;
+}
+
+rns8_status ensure_host_residues_current(const rns8_matrix& const_matrix) {
+  auto& matrix = const_cast<rns8_matrix&>(const_matrix);
+  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT) {
+    return RNS8_SUCCESS;
+  }
+  if (matrix.host_residues_current) {
+    return RNS8_SUCCESS;
+  }
+  if (!matrix.device_residues_current || !matrix.hip_residues || matrix.hip_residue_bytes == 0) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  const rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
+      matrix.hip_device_id, matrix.residues.data(), matrix.hip_residues, matrix.hip_residue_bytes);
+  if (status == RNS8_SUCCESS) {
+    matrix.host_residues_current = true;
+  }
+  return status;
+}
+
 }  // namespace
 
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
@@ -184,12 +276,19 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->n = plan->desc.n;
     workspace->k = plan->desc.k;
     workspace->prefix = plan->prefix;
+    workspace->backend = ctx->backend;
+    workspace->hip_device_id = ctx->backend == RNS8_BACKEND_HIP_DIRECT ? ctx->device_id : -1;
     *out = workspace;
     return RNS8_SUCCESS;
   });
 }
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
+  if (workspace && workspace->hip_scratch) {
+    const rns8_status status = rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_scratch);
+    delete workspace;
+    return status;
+  }
   delete workspace;
   return RNS8_SUCCESS;
 }
@@ -214,6 +313,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       return RNS8_INTERNAL_ERROR;
     }
     matrix->desc = *desc;
+    matrix->backend = ctx->backend;
     matrix->desc.max_prefix = prefix;
     if (matrix->desc.logical_ld == 0) {
       matrix->desc.logical_ld = matrix->desc.cols;
@@ -228,12 +328,24 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     const auto elements = static_cast<std::size_t>(prefix) * static_cast<std::size_t>(desc->rows) *
                           static_cast<std::size_t>(desc->cols);
     matrix->residues.assign(elements, 0);
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status = allocate_hip_matrix_storage(*ctx, *matrix);
+      if (status != RNS8_SUCCESS) {
+        delete matrix;
+        return status;
+      }
+    }
     *out = matrix;
     return RNS8_SUCCESS;
   });
 }
 
 rns8_status rns8_destroy_matrix(rns8_matrix* matrix) {
+  if (matrix) {
+    const rns8_status status = free_hip_matrix_storage(*matrix);
+    delete matrix;
+    return status;
+  }
   delete matrix;
   return RNS8_SUCCESS;
 }
@@ -248,14 +360,19 @@ rns8_status rns8_pack_i64(
     if (!ctx || !matrix || !src || ld < matrix->desc.cols) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (matrix->desc.semantics != RNS8_BOUNDED_I64) {
+    if (matrix->desc.semantics != RNS8_BOUNDED_I64 && matrix->desc.semantics != RNS8_EXACT_WIDE_SIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
-      const rns8_status status = rns8::detail::hip_direct_pack_i64(
+      const rns8_status status = rns8::detail::hip_direct_pack_i64_device(
           ctx->device_id,
           src,
-          matrix->residues.data(),
+          &matrix->hip_upload_buffer,
+          &matrix->hip_upload_bytes,
+          matrix->hip_residues,
           matrix->desc.rows,
           matrix->desc.cols,
           ld,
@@ -263,8 +380,12 @@ rns8_status rns8_pack_i64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
+      matrix->device_residues_current = true;
+      matrix->host_residues_current = false;
     } else {
       rns8::detail::pack_i64_matrix(*matrix, src, ld);
+      matrix->host_residues_current = true;
+      matrix->device_residues_current = false;
     }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
@@ -281,14 +402,19 @@ rns8_status rns8_pack_u64(
     if (!ctx || !matrix || !src || ld < matrix->desc.cols) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (matrix->desc.semantics != RNS8_BOUNDED_U64) {
+    if (matrix->desc.semantics != RNS8_BOUNDED_U64 && matrix->desc.semantics != RNS8_EXACT_WIDE_UNSIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
-      const rns8_status status = rns8::detail::hip_direct_pack_u64(
+      const rns8_status status = rns8::detail::hip_direct_pack_u64_device(
           ctx->device_id,
           src,
-          matrix->residues.data(),
+          &matrix->hip_upload_buffer,
+          &matrix->hip_upload_bytes,
+          matrix->hip_residues,
           matrix->desc.rows,
           matrix->desc.cols,
           ld,
@@ -296,8 +422,12 @@ rns8_status rns8_pack_u64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
+      matrix->device_residues_current = true;
+      matrix->host_residues_current = false;
     } else {
       rns8::detail::pack_u64_matrix(*matrix, src, ld);
+      matrix->host_residues_current = true;
+      matrix->device_residues_current = false;
     }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
@@ -319,6 +449,10 @@ rns8_status rns8_gemm_rns(
         workspace->prefix != plan->prefix) {
       return RNS8_WORKSPACE_TOO_SMALL;
     }
+    if (ctx->backend != plan->backend || workspace->backend != plan->backend || A->backend != plan->backend ||
+        B->backend != plan->backend || C->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
     if (A->desc.semantics != plan->desc.semantics || B->desc.semantics != plan->desc.semantics ||
         C->desc.semantics != plan->desc.semantics) {
       return RNS8_INVALID_ARGUMENT;
@@ -331,29 +465,31 @@ rns8_status rns8_gemm_rns(
           B->desc.cols != plan->desc.n || C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
         return RNS8_INVALID_ARGUMENT;
       }
-      for (uint32_t p = 0; p < plan->prefix; ++p) {
-        const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(A->desc.rows) *
-                                     static_cast<std::size_t>(A->desc.cols);
-        const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(B->desc.rows) *
-                                     static_cast<std::size_t>(B->desc.cols);
-        const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(C->desc.rows) *
-                                     static_cast<std::size_t>(C->desc.cols);
-        const rns8_status status = rns8::detail::hip_direct_ring_gemm_i8(
-            ctx->device_id,
-            A->residues.data() + a_offset,
-            B->residues.data() + b_offset,
-            C->residues.data() + c_offset,
-            plan->desc.m,
-            plan->desc.n,
-            plan->desc.k,
-            A->desc.cols,
-            B->desc.cols,
-            C->desc.cols,
-            rns8::detail::kDefaultModuli[p]);
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
+      rns8_status status = ensure_device_residues_current(const_cast<rns8_matrix&>(*A));
+      if (status != RNS8_SUCCESS) {
+        return status;
       }
+      status = ensure_device_residues_current(const_cast<rns8_matrix&>(*B));
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      status = rns8::detail::hip_direct_gemm_rns_device(
+          ctx->device_id,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          plan->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      C->device_residues_current = true;
+      C->host_residues_current = false;
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;
@@ -367,6 +503,29 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     }
     if (C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != plan->backend || C->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status = rns8::detail::hip_direct_export_i64_device(
+          ctx->device_id,
+          C->hip_residues,
+          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->prefix,
+          plan->desc.bound,
+          dst,
+          ld);
+      return status;
+    }
+    const rns8_status sync_status = ensure_host_residues_current(*C);
+    if (sync_status != RNS8_SUCCESS) {
+      return sync_status;
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
@@ -395,6 +554,29 @@ rns8_status rns8_export_u64(
     }
     if (C->desc.rows != plan->desc.m || C->desc.cols != plan->desc.n) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    if (ctx->backend != plan->backend || C->backend != plan->backend) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status = rns8::detail::hip_direct_export_u64_device(
+          ctx->device_id,
+          C->hip_residues,
+          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
+          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->prefix,
+          plan->desc.bound,
+          dst,
+          ld);
+      return status;
+    }
+    const rns8_status sync_status = ensure_host_residues_current(*C);
+    if (sync_status != RNS8_SUCCESS) {
+      return sync_status;
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
