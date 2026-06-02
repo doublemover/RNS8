@@ -31,7 +31,32 @@ GPU_EVENT_PHASES = [
     "crt_export_d2h",
     "crt_export",
 ]
-CONTRACT_KEYS = ["backend_selected", "semantics", "m", "n", "k", "prefix", "seed"]
+CONTRACT_KEYS = [
+    "benchmark",
+    "backend_requested",
+    "backend_selected",
+    "semantics",
+    "bound_kind",
+    "bound",
+    "m",
+    "n",
+    "k",
+    "prefix",
+    "k_block_size",
+    "epilogue_type",
+    "packed_layout_version",
+    "seed",
+    "warmups",
+    "repeats",
+    "input_distribution",
+    "timing_source",
+    "compiler.id",
+    "compiler.version",
+    "configured_amdgpu_targets",
+    "device.gcn_arch",
+    "device.hip_runtime_version",
+    "device.hip_driver_version",
+]
 
 
 def load_result(path: Path) -> dict[str, Any]:
@@ -50,6 +75,15 @@ def schema_version(data: dict[str, Any]) -> int:
     return value if isinstance(value, int) else 1
 
 
+def dotted_get(data: dict[str, Any], path: str) -> Any:
+    value: Any = data
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
 def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
     summary = data.get("timing_summary_us")
     if isinstance(summary, dict):
@@ -66,6 +100,13 @@ def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, s
 
     keys = ", ".join([f"timing_summary_us.{phase}.avg", *TIMING_PHASES[phase]])
     raise SystemExit(f"{path}: missing numeric timing for phase {phase}; looked for {keys}")
+
+
+def phase_applicable(data: dict[str, Any], phase: str) -> bool:
+    if phase == "per_modulus_gemm_estimate":
+        value = data.get("per_modulus_gemm_estimate_applicable")
+        return value if isinstance(value, bool) else True
+    return True
 
 
 def timing_metadata(data: dict[str, Any]) -> dict[str, Any]:
@@ -141,9 +182,9 @@ def compare_gpu_events(
 def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
     contract = {
         key: {
-            "baseline": baseline.get(key),
-            "candidate": candidate.get(key),
-            "match": baseline.get(key) == candidate.get(key),
+            "baseline": dotted_get(baseline, key),
+            "candidate": dotted_get(candidate, key),
+            "match": dotted_get(baseline, key) == dotted_get(candidate, key),
         }
         for key in CONTRACT_KEYS
     }
@@ -158,6 +199,8 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
             "ratio": cand / base if base != 0 else None,
             "baseline_source": base_source,
             "candidate_source": cand_source,
+            "baseline_applicable": phase_applicable(baseline, phase),
+            "candidate_applicable": phase_applicable(candidate, phase),
         }
 
     return {
@@ -195,9 +238,12 @@ def print_human(report: dict[str, Any]) -> None:
     for phase, item in report["timings"].items():
         ratio = item["ratio"]
         ratio_text = "n/a" if ratio is None else f"{ratio:.6g}"
+        applicability = (
+            "" if item["baseline_applicable"] and item["candidate_applicable"] else " [not applicable to one or both captures]"
+        )
         print(
             f"{phase}: baseline={item['baseline']:.6g} "
-            f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}"
+            f"candidate={item['candidate']:.6g} delta={item['delta']:.6g} ratio={ratio_text}{applicability}"
         )
     print()
     gpu_events = report["gpu_event_timings"]

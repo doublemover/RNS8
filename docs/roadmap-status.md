@@ -42,7 +42,8 @@ disagree, the spec remains the target and this file identifies the gap.
   line, live git commit, compiler/HIP/device metadata, raw timings, summaries,
   null placeholders for unavailable fields, direct-HIP GPU event timing arrays
   when complete, explicit unavailable metadata when event timing is not
-  applicable, and comparison-tool support for v1/v2.
+  applicable, strict wrap64 CPU byte-limb benchmark metadata, and
+  comparison-tool support for v1/v2.
 - Platform readiness reporting: dependency checker reports host readiness gates,
   Windows HIP/RDNA3 gates, Linux ROCm gates as not applicable on Windows, and
   optional accelerator components as candidate evidence only.
@@ -92,3 +93,9 @@ disagree, the spec remains the target and this file identifies the gap.
   event-summary comparison is enabled only when both captures carry compatible
   GPU event timing metadata. Captures are raw evidence only and do not establish
   a performance claim.
+- `temp\rns8-wrap-u64-bench.json` and
+  `temp\rns8-wrap-u64-bench-repeat.json`: fixed-seed strict wrap64 CPU
+  byte-limb captures with `prefix=0`, `bound_kind=none`,
+  `packed_layout_version=byte_limb_v1`, nullable GPU event timing, and successful
+  `tools\result_compare.py --json` contract comparison. Captures are raw
+  evidence only and do not establish a performance claim.

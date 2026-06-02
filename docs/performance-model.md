@@ -8,6 +8,7 @@ Current benchmark shell:
 ```powershell
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend wrap64-byte-limb --semantics wrap-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 5 --seed 7
 ```
 
 The benchmark reports:
@@ -18,7 +19,7 @@ The benchmark reports:
 - semantic contract,
 - matrix shape,
 - layout, K-block size, tile size, epilogue type, and packed layout version
-  when exposed; currently `null`,
+  when exposed,
 - fixed seed,
 - warmup and repeat counts,
 - prefix count,
@@ -38,10 +39,19 @@ The benchmark reports:
 - one-time planning and matrix allocation time,
 - average packing time,
 - average persistent RNS GEMM time,
-- average per-modulus GEMM estimate,
+- average per-modulus GEMM estimate for RNS captures,
 - average CRT export time,
 - average end-to-end time for the measured phases,
 - raw per-repeat timing arrays plus average, median, and p95 summaries.
+
+Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
+`epilogue_type: "crt_export"`. Strict wrap captures use the explicit CPU
+byte-limb backend only: `semantics: "wrap_u64_mod_2_64"`, `bound_kind:
+"none"`, `bound: 0`, `prefix: 0`, `packed_layout_version: "byte_limb_v1"`,
+and `epilogue_type: "low64_wrap_export"`. For schema compatibility, wrap
+captures keep the host timing keys `rns_gemm` and `crt_export`; their phase
+notes identify these as `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
+`per_modulus_gemm_estimate_applicable` is `false` for wrap captures.
 
 Schema version 2 keeps the legacy top-level average fields, but the preferred
 timing contract is:
@@ -113,6 +123,10 @@ sweeps, comparison baselines, and performance gates before any speedup claims
 are made.
 
 `tools/result_compare.py` compares host timing phases for schema v1/v2 captures.
-It also compares `gpu_event_timing_summary_us` phases only when both captures
-set `timing_metadata.gpu_event_timing=true` and report the same event timing
-source and source scope.
+Its contract check includes backend, semantics, bounds, shape, prefix, seed,
+warmups/repeats, input distribution, timing source, epilogue, packed layout,
+compiler, configured target, and HIP device/runtime fields when present. It
+also compares `gpu_event_timing_summary_us` phases only when both captures set
+`timing_metadata.gpu_event_timing=true` and report the same event timing source
+and source scope. Per-modulus timing rows are flagged as not applicable when a
+capture says `per_modulus_gemm_estimate_applicable: false`.
