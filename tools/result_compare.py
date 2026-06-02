@@ -23,26 +23,6 @@ TIMING_PHASES = [
     "end_to_end",
 ]
 CONTRACT_KEYS = [
-    "benchmark",
-    "backend_requested",
-    "backend_selected",
-    "selected_kernel",
-    "backend_metadata.source",
-    "backend_metadata.selected_kernel",
-    "backend_metadata.accelerator_backend",
-    "backend_metadata.correctness_backend",
-    "backend_metadata.matrix_engine_backend",
-    "backend_metadata.compiled_kernel_available",
-    "backend_metadata.exact_differential_validated",
-    "backend_metadata.performance_validated",
-    "backend_metadata.accelerator_library",
-    "backend_metadata.accelerator_version",
-    "backend_metadata.capability_status",
-    "backend_metadata.epilogue_mode",
-    "backend_metadata.workspace_mode",
-    "backend_metadata.workspace_required_bytes",
-    "backend_metadata.isa_evidence",
-    "backend_metadata.autotune_key",
     "semantics",
     "bound_kind",
     "bound_mode",
@@ -73,17 +53,9 @@ CONTRACT_KEYS = [
     "tile_bounds_u64.min",
     "tile_bounds_u64.max",
     "tile_bounds_u64.hash_u64",
-    "epilogue_type",
     "packed_layout_version",
     "seed",
-    "warmups",
-    "repeats",
     "input_distribution",
-    "per_modulus_gemm_estimate_applicable",
-    "timing_source",
-    "timing_metadata.gpu_event_timing_source_scope",
-    "timing_metadata.phase_availability.scheduling.scope",
-    "timing_metadata.phase_availability.reduction.scope",
     "compiler.id",
     "compiler.version",
     "configured_amdgpu_targets",
@@ -95,6 +67,36 @@ CONTRACT_KEYS = [
     "device.gcn_arch",
     "device.hip_runtime_version",
     "device.hip_driver_version",
+]
+BACKEND_EVIDENCE_KEYS = [
+    "benchmark",
+    "backend_requested",
+    "backend_selected",
+    "selected_kernel",
+    "backend_metadata.source",
+    "backend_metadata.selected_kernel",
+    "backend_metadata.accelerator_backend",
+    "backend_metadata.correctness_backend",
+    "backend_metadata.matrix_engine_backend",
+    "backend_metadata.compiled_kernel_available",
+    "backend_metadata.exact_differential_validated",
+    "backend_metadata.performance_validated",
+    "backend_metadata.accelerator_library",
+    "backend_metadata.accelerator_version",
+    "backend_metadata.capability_status",
+    "backend_metadata.epilogue_mode",
+    "backend_metadata.workspace_mode",
+    "backend_metadata.workspace_required_bytes",
+    "backend_metadata.isa_evidence",
+    "backend_metadata.autotune_key",
+    "epilogue_type",
+    "warmups",
+    "repeats",
+    "per_modulus_gemm_estimate_applicable",
+    "timing_source",
+    "timing_metadata.gpu_event_timing_source_scope",
+    "timing_metadata.phase_availability.scheduling.scope",
+    "timing_metadata.phase_availability.reduction.scope",
 ]
 
 
@@ -241,6 +243,14 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
         }
         for key in CONTRACT_KEYS
     }
+    backend_evidence = {
+        key: {
+            "baseline": dotted_get(baseline, key),
+            "candidate": dotted_get(candidate, key),
+            "match": dotted_get(baseline, key) == dotted_get(candidate, key),
+        }
+        for key in BACKEND_EVIDENCE_KEYS
+    }
     timings = {}
     for phase in TIMING_PHASES:
         base_applicable = phase_applicable(baseline, phase)
@@ -269,6 +279,7 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
         },
         "matching_contract": all(item["match"] for item in contract.values()),
         "contract": contract,
+        "backend_evidence": backend_evidence,
         "timings": timings,
         "gpu_event_timings": compare_gpu_events(baseline, candidate, baseline_path, candidate_path),
     }
@@ -288,6 +299,11 @@ def print_human(report: dict[str, Any]) -> None:
     print()
     print("Contract")
     for key, item in report["contract"].items():
+        status = "OK" if item["match"] else "DIFF"
+        print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
+    print()
+    print("Backend Evidence")
+    for key, item in report["backend_evidence"].items():
         status = "OK" if item["match"] else "DIFF"
         print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
     print()

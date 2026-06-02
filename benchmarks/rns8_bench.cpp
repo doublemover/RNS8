@@ -74,6 +74,7 @@ struct Args {
   uint32_t tile_n = 128;
   int device_id = std::numeric_limits<int>::min();
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  bool vector_alu_baseline = false;
   BenchSemantics semantics = BenchSemantics::BoundedI64;
   BoundMode bound_mode = BoundMode::Global;
   bool require_adaptive_execution = false;
@@ -126,16 +127,38 @@ struct BenchmarkResult {
   uint64_t checksum = 0;
 };
 
+#if RNS8_CONFIGURED_HIP_ENABLED
+extern "C" int rns8_bench_vector_i64_gemm_device(
+    int device_id,
+    const int64_t* a,
+    const int64_t* b,
+    int64_t* c,
+    uint32_t* status,
+    int64_t m,
+    int64_t n,
+    int64_t k);
+extern "C" int rns8_bench_vector_u64_gemm_device(
+    int device_id,
+    const uint64_t* a,
+    const uint64_t* b,
+    uint64_t* c,
+    uint32_t* status,
+    int64_t m,
+    int64_t n,
+    int64_t k);
+#endif
+
 uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
   return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 }
 
 void mix_checksum(uint64_t& checksum, uint64_t value);
+uint32_t benchmark_prefix(const Args& args);
 
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb]\n"
+      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
@@ -175,13 +198,37 @@ bool valid_tile_size(uint32_t value) {
   return value >= 64 && value <= 512 && (value & (value - 1u)) == 0;
 }
 
-rns8_backend_kind parse_backend(const std::string& value) {
-  if (value == "cpu" || value == "cpu-reference") return RNS8_BACKEND_CPU_REFERENCE;
-  if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
-  if (value == "hipblaslt" || value == "hipblaslt-baseline") return RNS8_BACKEND_HIPBLASLT;
-  if (value == "ck") return RNS8_BACKEND_CK;
-  if (value == "rocwmma" || value == "wmma" || value == "amdgpu-builtins") return RNS8_BACKEND_WMMA;
-  if (value == "wrap64-byte-limb") return RNS8_BACKEND_WRAP64_BYTE_LIMB;
+void parse_backend_option(const std::string& value, Args& args) {
+  args.vector_alu_baseline = false;
+  if (value == "cpu" || value == "cpu-reference") {
+    args.backend = RNS8_BACKEND_CPU_REFERENCE;
+    return;
+  }
+  if (value == "hip-direct") {
+    args.backend = RNS8_BACKEND_HIP_DIRECT;
+    return;
+  }
+  if (value == "hipblaslt" || value == "hipblaslt-baseline") {
+    args.backend = RNS8_BACKEND_HIPBLASLT;
+    return;
+  }
+  if (value == "ck") {
+    args.backend = RNS8_BACKEND_CK;
+    return;
+  }
+  if (value == "rocwmma" || value == "wmma" || value == "amdgpu-builtins") {
+    args.backend = RNS8_BACKEND_WMMA;
+    return;
+  }
+  if (value == "wrap64-byte-limb") {
+    args.backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+    return;
+  }
+  if (value == "hip-vector-alu-int64" || value == "vector-alu-int64") {
+    args.backend = RNS8_BACKEND_HIP_DIRECT;
+    args.vector_alu_baseline = true;
+    return;
+  }
   usage_error("unknown backend: " + value);
 }
 
@@ -221,7 +268,7 @@ Args parse_args(int argc, char** argv) {
     } else if (arg == "--device" && i + 1 < argc) {
       args.device_id = static_cast<int>(parse_i64(argv[++i], "--device"));
     } else if (arg == "--backend" && i + 1 < argc) {
-      args.backend = parse_backend(argv[++i]);
+      parse_backend_option(argv[++i], args);
     } else if (arg == "--semantics" && i + 1 < argc) {
       args.semantics = parse_semantics(argv[++i]);
     } else if (arg == "--bound-mode" && i + 1 < argc) {
@@ -232,7 +279,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb]\n"
+          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
           << "                  [--semantics bounded-i64|bounded-u64|wrap-u64]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
@@ -256,6 +303,14 @@ Args parse_args(int argc, char** argv) {
       args.backend != RNS8_BACKEND_HIP_DIRECT) {
     usage_error("wrap-u64 benchmark requires --backend wrap64-byte-limb or --backend hip-direct");
   }
+  if (args.vector_alu_baseline && args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    usage_error("hip-vector-alu-int64 baseline is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+#if !RNS8_CONFIGURED_HIP_ENABLED
+  if (args.vector_alu_baseline) {
+    usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+  }
+#endif
   if (args.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB && args.semantics != BenchSemantics::WrapU64Mod2_64) {
     usage_error("wrap64-byte-limb backend requires --semantics wrap-u64");
   }
@@ -263,9 +318,9 @@ Args parse_args(int argc, char** argv) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
-    if (args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
+    if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
         args.backend != RNS8_BACKEND_WMMA) {
-      usage_error("--bound-mode per-tile currently captures direct HIP, CK, or rocWMMA adaptive paths");
+      usage_error("--bound-mode per-tile currently captures direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
     }
   }
   if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
@@ -273,7 +328,7 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.device_id == std::numeric_limits<int>::min()) {
     args.device_id =
-        (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
+        (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
          args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA)
             ? 0
             : -1;
@@ -299,6 +354,26 @@ const char* backend_name(rns8_backend_kind backend) {
       return "wrap64-byte-limb";
   }
   return "unknown";
+}
+
+const char* requested_backend_name(const Args& args) {
+  return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(args.backend);
+}
+
+const char* selected_backend_name(const Args& args, const rns8_device_info& info) {
+  return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(info.backend);
+}
+
+const char* backend_metadata_source(const Args& args) {
+  return args.vector_alu_baseline ? "rns8_bench_vector_alu_baseline" : "rns8_get_plan_backend_info";
+}
+
+void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
+  if (dst_size == 0) {
+    return;
+  }
+  std::snprintf(dst, dst_size, "%s", text ? text : "");
+  dst[dst_size - 1] = '\0';
 }
 
 const char* semantics_name(BenchSemantics semantics) {
@@ -693,9 +768,75 @@ void fail_status(const char* label, rns8_status status) {
   std::exit(1);
 }
 
+void fail_hip_runtime(const char* label, int status) {
+  std::cerr << label << ": HIP runtime status " << status << "\n";
+  std::exit(1);
+}
+
 void mix_checksum(uint64_t& checksum, uint64_t value) {
   checksum ^= value;
   checksum *= 1099511628211ull;
+}
+
+std::size_t checked_bytes(std::size_t elements, std::size_t element_size, const char* label) {
+  if (element_size != 0 && elements > std::numeric_limits<std::size_t>::max() / element_size) {
+    usage_error(std::string("device buffer size overflows size_t for ") + label);
+  }
+  return elements * element_size;
+}
+
+std::size_t checked_add_bytes(std::size_t lhs, std::size_t rhs, const char* label) {
+  if (lhs > std::numeric_limits<std::size_t>::max() - rhs) {
+    usage_error(std::string("device buffer size overflows size_t for ") + label);
+  }
+  return lhs + rhs;
+}
+
+struct DeviceBuffer {
+  int device_id = -1;
+  void* ptr = nullptr;
+  std::size_t bytes = 0;
+
+  DeviceBuffer() = default;
+  DeviceBuffer(const DeviceBuffer&) = delete;
+  DeviceBuffer& operator=(const DeviceBuffer&) = delete;
+
+  ~DeviceBuffer() {
+    reset();
+  }
+
+  void allocate(int device, std::size_t requested_bytes, const char* label) {
+    reset();
+    device_id = device;
+    bytes = requested_bytes;
+    const rns8_status status = rns8::detail::hip_direct_allocate(device_id, requested_bytes, &ptr);
+    if (status != RNS8_SUCCESS) {
+      fail_status(label, status);
+    }
+  }
+
+  void reset() {
+    if (ptr) {
+      const rns8_status status = rns8::detail::hip_direct_free(device_id, ptr);
+      ptr = nullptr;
+      bytes = 0;
+      if (status != RNS8_SUCCESS) {
+        std::cerr << "hip_direct_free: " << rns8_status_string(status) << "\n";
+      }
+    }
+  }
+};
+
+template <typename T>
+uint64_t vector_alu_workspace_bytes(const Args& args) {
+  const std::size_t a_bytes = checked_bytes(checked_elements(args.m, args.k, "A"), sizeof(T), "A");
+  const std::size_t b_bytes = checked_bytes(checked_elements(args.k, args.n, "B"), sizeof(T), "B");
+  const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "C"), sizeof(T), "C");
+  const std::size_t status_bytes = sizeof(uint32_t);
+  const std::size_t ab_bytes = checked_add_bytes(a_bytes, b_bytes, "vector workspace A+B");
+  const std::size_t abc_bytes = checked_add_bytes(ab_bytes, c_bytes, "vector workspace A+B+C");
+  const std::size_t total = checked_add_bytes(abc_bytes, status_bytes, "vector workspace A+B+C+status");
+  return static_cast<uint64_t>(total);
 }
 
 double average(const std::vector<uint64_t>& values) {
@@ -785,14 +926,17 @@ void print_string_array(const std::vector<std::string>& values) {
   std::cout << "]";
 }
 
-std::vector<std::string> required_speedup_baselines(const Args& args, rns8_backend_kind selected_backend) {
+std::vector<std::string> required_speedup_baselines(const Args& args, const char* selected_backend) {
   std::vector<std::string> baselines;
+  const std::string selected = selected_backend ? selected_backend : "";
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
     case BenchSemantics::BoundedU64:
       baselines.push_back("same_contract_cpu_reference");
-      baselines.push_back("same_contract_direct_hip_vector_alu_int64");
-      if (selected_backend != RNS8_BACKEND_HIP_DIRECT) {
+      if (selected != "hip-vector-alu-int64") {
+        baselines.push_back("same_contract_direct_hip_vector_alu_int64");
+      }
+      if (selected != "hip-direct") {
         baselines.push_back("same_contract_direct_hip_correctness");
       }
       break;
@@ -806,6 +950,7 @@ std::vector<std::string> required_speedup_baselines(const Args& args, rns8_backe
 
 void print_comparison_baseline(const Args& args, const rns8_device_info& info, const BenchmarkResult& result) {
   const bool performance_validated = result.backend_info.performance_validated != 0;
+  const char* selected = selected_backend_name(args, info);
   std::cout << "  \"comparison_baseline\": {\n";
   std::cout << "    \"status\": \""
             << (performance_validated ? "missing_reviewed_same_contract_baseline"
@@ -814,7 +959,7 @@ void print_comparison_baseline(const Args& args, const rns8_device_info& info, c
   std::cout << "    \"speedup_claimed\": false,\n";
   std::cout << "    \"selected_reference\": null,\n";
   std::cout << "    \"required_before_speedup_claim\": ";
-  print_string_array(required_speedup_baselines(args, info.backend));
+  print_string_array(required_speedup_baselines(args, selected));
   std::cout << ",\n";
   std::cout << "    \"reason\": \"";
   if (performance_validated) {
@@ -852,6 +997,53 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
   if (status != RNS8_SUCCESS) {
     fail_status("rns8_get_plan_backend_info", status);
   }
+  result.backend_info_available = true;
+}
+
+std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& result, const char* kernel) {
+  std::ostringstream out;
+  out << "backend=hip-vector-alu-int64"
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";prefix=" << benchmark_prefix(args)
+      << ";tile_m=" << args.tile_m
+      << ";tile_n=" << args.tile_n
+      << ";groups=" << result.schedule_info.prefix_group_count
+      << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
+      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";kernel=" << kernel
+      << ";epilogue=direct_int64_export";
+  return out.str();
+}
+
+void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uint64_t workspace_bytes) {
+  const bool signed_semantics = args.semantics == BenchSemantics::BoundedI64;
+  const char* kernel = signed_semantics ? "hip_vector_alu_i64_exact_192b_v1" : "hip_vector_alu_u64_exact_192b_v1";
+  result.backend_info = {};
+  result.backend_info.struct_size = sizeof(result.backend_info);
+  result.backend_info.abi_version = RNS8_ABI_VERSION;
+  result.backend_info.backend = RNS8_BACKEND_HIP_DIRECT;
+  result.backend_info.is_accelerator = 0;
+  result.backend_info.is_correctness_backend = 1;
+  result.backend_info.is_matrix_engine_backend = 0;
+  result.backend_info.compiled_kernel_available = 1;
+  result.backend_info.exact_differential_validated = 1;
+  result.backend_info.performance_validated = 0;
+  result.backend_info.workspace_required_bytes = workspace_bytes;
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(result.backend_info.accelerator_library, sizeof(result.backend_info.accelerator_library), "HIP runtime");
+  set_backend_text(result.backend_info.accelerator_version, sizeof(result.backend_info.accelerator_version), RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION);
+  set_backend_text(result.backend_info.capability_status, sizeof(result.backend_info.capability_status), "benchmark_only_vector_alu_baseline");
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), "direct_int64_export");
+  set_backend_text(result.backend_info.workspace_mode, sizeof(result.backend_info.workspace_mode), "benchmark_owned_device_buffers");
+  set_backend_text(
+      result.backend_info.isa_evidence,
+      sizeof(result.backend_info.isa_evidence),
+      "source_level_192bit_limb_accumulator_no_matrix_engine");
+  const std::string key = vector_alu_autotune_key(args, result, kernel);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
   result.backend_info_available = true;
 }
 
@@ -1022,7 +1214,8 @@ uint64_t checksum_u64(const std::vector<uint64_t>& values) {
 }
 
 bool gpu_event_capture_requested(const Args& args) {
-  return args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT;
+  return !args.vector_alu_baseline &&
+         (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT);
 }
 
 void add_unavailable_reason(GpuEventSamples& events, const std::string& reason) {
@@ -1194,7 +1387,207 @@ void enforce_per_tile_capture_contract(const Args& args, const BenchmarkResult& 
   }
 }
 
+void capture_vector_alu_schedule(rns8_context* ctx, const Args& args, uint64_t bound, BenchmarkResult& result) {
+  auto desc = gemm_desc(args, bound, &result.tile_bounds);
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-alu schedule)", status);
+  capture_schedule_info(plan, result);
+  enforce_per_tile_capture_contract(args, result);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+  rns8_destroy_plan(plan);
+}
+
+BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t bound) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+  (void)ctx;
+  (void)args;
+  (void)bound;
+  usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+#else
+  std::mt19937_64 rng(args.seed);
+  std::uniform_int_distribution<int64_t> dist(-16, 16);
+  std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = dist(rng);
+  for (auto& value : B) value = dist(rng);
+
+  BenchmarkResult result{};
+  if (args.bound_mode == BoundMode::PerTile) {
+    record_tile_bounds(result, compute_i64_tile_bounds(args, A, B));
+  }
+  capture_vector_alu_schedule(ctx, args, bound, result);
+
+  const std::size_t a_bytes = checked_bytes(A.size(), sizeof(int64_t), "A");
+  const std::size_t b_bytes = checked_bytes(B.size(), sizeof(int64_t), "B");
+  const std::size_t c_bytes = checked_bytes(C.size(), sizeof(int64_t), "C");
+  const std::size_t status_bytes = sizeof(uint32_t);
+  DeviceBuffer d_a;
+  DeviceBuffer d_b;
+  DeviceBuffer d_c;
+  DeviceBuffer d_status;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  d_a.allocate(args.device_id, a_bytes, "hip_direct_allocate(vector A)");
+  d_b.allocate(args.device_id, b_bytes, "hip_direct_allocate(vector B)");
+  d_c.allocate(args.device_id, c_bytes, "hip_direct_allocate(vector C)");
+  d_status.allocate(args.device_id, status_bytes, "hip_direct_allocate(vector status)");
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  fill_vector_alu_backend_info(args, result, vector_alu_workspace_bytes<int64_t>(args));
+
+  const auto run_iteration = [&](TimingSamples* samples) {
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    rns8_status status = rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    status = rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    const auto pack_end = std::chrono::steady_clock::now();
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    status = rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
+    const int kernel_status = rns8_bench_vector_i64_gemm_device(
+        args.device_id,
+        static_cast<const int64_t*>(d_a.ptr),
+        static_cast<const int64_t*>(d_b.ptr),
+        static_cast<int64_t*>(d_c.ptr),
+        static_cast<uint32_t*>(d_status.ptr),
+        args.m,
+        args.n,
+        args.k);
+    if (kernel_status != 0) fail_hip_runtime("rns8_bench_vector_i64_gemm_device", kernel_status);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    uint32_t range_status = 0;
+    status = rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status, d_status.ptr, status_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector status)", status);
+    if (range_status != 0) {
+      fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
+    }
+    status = rns8::detail::hip_direct_copy_device_to_host(args.device_id, C.data(), d_c.ptr, c_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(&result.samples);
+  }
+  result.checksum = checksum_i64(C);
+  return result;
+#endif
+}
+
+BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t bound) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+  (void)ctx;
+  (void)args;
+  (void)bound;
+  usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+#else
+  std::mt19937_64 rng(args.seed);
+  std::uniform_int_distribution<uint64_t> dist(0, 16);
+  std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = dist(rng);
+  for (auto& value : B) value = dist(rng);
+
+  BenchmarkResult result{};
+  if (args.bound_mode == BoundMode::PerTile) {
+    record_tile_bounds(result, compute_u64_tile_bounds(args, A, B));
+  }
+  capture_vector_alu_schedule(ctx, args, bound, result);
+
+  const std::size_t a_bytes = checked_bytes(A.size(), sizeof(uint64_t), "A");
+  const std::size_t b_bytes = checked_bytes(B.size(), sizeof(uint64_t), "B");
+  const std::size_t c_bytes = checked_bytes(C.size(), sizeof(uint64_t), "C");
+  const std::size_t status_bytes = sizeof(uint32_t);
+  DeviceBuffer d_a;
+  DeviceBuffer d_b;
+  DeviceBuffer d_c;
+  DeviceBuffer d_status;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  d_a.allocate(args.device_id, a_bytes, "hip_direct_allocate(vector A)");
+  d_b.allocate(args.device_id, b_bytes, "hip_direct_allocate(vector B)");
+  d_c.allocate(args.device_id, c_bytes, "hip_direct_allocate(vector C)");
+  d_status.allocate(args.device_id, status_bytes, "hip_direct_allocate(vector status)");
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  fill_vector_alu_backend_info(args, result, vector_alu_workspace_bytes<uint64_t>(args));
+
+  const auto run_iteration = [&](TimingSamples* samples) {
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    rns8_status status = rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    status = rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    const auto pack_end = std::chrono::steady_clock::now();
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    status = rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
+    const int kernel_status = rns8_bench_vector_u64_gemm_device(
+        args.device_id,
+        static_cast<const uint64_t*>(d_a.ptr),
+        static_cast<const uint64_t*>(d_b.ptr),
+        static_cast<uint64_t*>(d_c.ptr),
+        static_cast<uint32_t*>(d_status.ptr),
+        args.m,
+        args.n,
+        args.k);
+    if (kernel_status != 0) fail_hip_runtime("rns8_bench_vector_u64_gemm_device", kernel_status);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    uint32_t range_status = 0;
+    status = rns8::detail::hip_direct_copy_device_to_host(args.device_id, &range_status, d_status.ptr, status_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector status)", status);
+    if (range_status != 0) {
+      fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
+    }
+    status = rns8::detail::hip_direct_copy_device_to_host(args.device_id, C.data(), d_c.ptr, c_bytes);
+    if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(&result.samples);
+  }
+  result.checksum = checksum_u64(C);
+  return result;
+#endif
+}
+
 BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bound) {
+  if (args.vector_alu_baseline) {
+    return run_vector_alu_i64(ctx, args, bound);
+  }
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
@@ -1298,6 +1691,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
 }
 
 BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bound) {
+  if (args.vector_alu_baseline) {
+    return run_vector_alu_u64(ctx, args, bound);
+  }
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
@@ -1504,11 +1900,17 @@ uint32_t benchmark_prefix(const Args& args) {
 }
 
 const char* benchmark_name(const Args& args) {
+  if (args.vector_alu_baseline) {
+    return "rns8_bounded_gemm_hip_vector_alu_int64_baseline";
+  }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "rns8_wrap_u64_persistent_byte_limb"
                                                           : "rns8_bounded_gemm_persistent_rns";
 }
 
 const char* epilogue_type(const Args& args) {
+  if (args.vector_alu_baseline) {
+    return "direct_int64_export";
+  }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "low64_wrap_export" : "crt_export";
 }
 
@@ -1598,7 +2000,7 @@ rns8::detail::AutotuneCacheEntry make_autotune_cache_entry(
     const BenchmarkResult& result) {
   rns8::detail::AutotuneCacheEntry entry{};
   entry.key = result.backend_info.autotune_key;
-  entry.selected_backend = backend_name(info.backend);
+  entry.selected_backend = selected_backend_name(args, info);
   entry.selected_kernel = result.backend_info.selected_kernel;
   entry.target_id = info.gcn_arch[0] != '\0' ? info.gcn_arch : "cpu";
   entry.hip_sdk_or_library_version = backend_version_for_cache(result);
@@ -1637,13 +2039,14 @@ void print_json(
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
   const bool adaptive_applied = adaptive_execution_applied(args, info, result);
-  const bool per_modulus_estimate_applicable = prefix > 0 && !adaptive_applied;
+  const bool per_modulus_estimate_applicable = prefix > 0 && !adaptive_applied && !args.vector_alu_baseline;
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const bool wrap64_hip_events = gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64;
   const bool adaptive_hip_events = gpu_events_available && adaptive_applied;
-  const bool hipblaslt_events = gpu_events_available && info.backend == RNS8_BACKEND_HIPBLASLT;
+  const char* selected_backend = selected_backend_name(args, info);
+  const bool hipblaslt_events = gpu_events_available && std::string(selected_backend) == "hipblaslt";
   const char* gpu_event_reason = gpu_events_available
                                      ? (hipblaslt_events ? "captured_by_hipblaslt_backend_hooks"
                                                          : "captured_by_direct_hip_backend_hooks")
@@ -1657,8 +2060,8 @@ void print_json(
   std::cout << "{\n";
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
   std::cout << "  \"benchmark\": \"" << benchmark_name(args) << "\",\n";
-  std::cout << "  \"backend_requested\": \"" << backend_name(args.backend) << "\",\n";
-  std::cout << "  \"backend_selected\": \"" << backend_name(info.backend) << "\",\n";
+  std::cout << "  \"backend_requested\": \"" << requested_backend_name(args) << "\",\n";
+  std::cout << "  \"backend_selected\": \"" << selected_backend << "\",\n";
   const char* selected_kernel = selected_kernel_name(args, info, result);
   std::cout << "  \"selected_kernel\": ";
   if (selected_kernel) {
@@ -1668,7 +2071,7 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "  \"backend_metadata\": {\n";
-  std::cout << "    \"source\": \"rns8_get_plan_backend_info\",\n";
+  std::cout << "    \"source\": \"" << backend_metadata_source(args) << "\",\n";
   std::cout << "    \"selected_kernel\": ";
   print_json_string_or_null(result.backend_info.selected_kernel);
   std::cout << ",\n";
@@ -1802,7 +2205,11 @@ void print_json(
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {
+  if (args.vector_alu_baseline) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the benchmark-only HIP vector-ALU exact "
+                 "int64 baseline; phases are raw input H2D copies, one 192-bit-limb exact output kernel, "
+                 "and direct output D2H export with range-status validation\",\n";
+  } else if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 tiled byte-limb "
                  "path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus "
                  "current rns_gemm/crt_export aggregate phase labels\",\n";
@@ -1872,10 +2279,22 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
-  std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
+  if (args.vector_alu_baseline) {
+    std::cout << "      \"planning\": \"one-time rns8_create_plan schedule validation for the same bounded semantic contract\",\n";
+  } else {
+    std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
+  }
   std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing\",\n";
-  std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+  if (args.vector_alu_baseline) {
+    std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned HIP device buffer allocation host timing\",\n";
+  } else {
+    std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
+  }
+  if (args.vector_alu_baseline) {
+    std::cout << "      \"pack\": \"per-repeat host timing for raw bounded inputs copied to benchmark-owned HIP buffers\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for one exact 192-bit-limb vector-ALU output kernel\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for range-status D2H plus direct logical output D2H\",\n";
+  } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent byte-limb matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64\",\n";
@@ -1899,11 +2318,16 @@ void print_json(
     std::cout << "        \"timing_key\": null,\n";
     std::cout << "        \"scope\": \"not_applicable_wrap64_byte_limb\",\n";
     std::cout << "        \"reason\": \"strict wrap64 byte-limb captures do not use centered RNS residue reduction\"\n";
-  } else if (info.backend == RNS8_BACKEND_HIPBLASLT) {
+  } else if (std::string(selected_backend) == "hipblaslt") {
     std::cout << "        \"timed\": false,\n";
     std::cout << "        \"timing_key\": null,\n";
     std::cout << "        \"scope\": \"separate_hipblaslt_i32_scratch_residue_reduce\",\n";
     std::cout << "        \"reason\": \"hipBLASLt baseline GEMM writes INT32 scratch and runs a separate centered-residue reduction inside rns_gemm\"\n";
+  } else if (args.vector_alu_baseline) {
+    std::cout << "        \"timed\": false,\n";
+    std::cout << "        \"timing_key\": null,\n";
+    std::cout << "        \"scope\": \"not_applicable_direct_int64_export\",\n";
+    std::cout << "        \"reason\": \"benchmark-only vector-ALU baseline computes exact logical outputs directly and does not use centered RNS residue reduction\"\n";
   } else {
     std::cout << "        \"timed\": false,\n";
     std::cout << "        \"timing_key\": null,\n";
@@ -2011,6 +2435,11 @@ int main(int argc, char** argv) {
   }
   rns8_destroy_context(ctx);
   if (args.write_autotune_cache) {
+    if (result.backend_info.performance_validated == 0) {
+      std::cerr << "write autotune cache: refused unreviewed raw capture; use reviewed promotion tooling for "
+                   "performance_validated entries\n";
+      return 1;
+    }
     std::string error;
     if (!rns8::detail::write_autotune_cache_entry(make_autotune_cache_entry(args, info, result), error)) {
       std::cerr << "write autotune cache: " << error << "\n";

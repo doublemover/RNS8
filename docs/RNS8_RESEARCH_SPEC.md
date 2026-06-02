@@ -995,6 +995,13 @@ Thread-safety rules:
 The direct HIP backend exists to prevent the project from being blocked by
 library availability differences between Windows and Linux.
 
+Windows `gfx1100` performance validation also includes a benchmark-only
+`hip-vector-alu-int64` baseline for bounded i64/u64. It is not a public runtime
+backend enum and must not be selected by production plans. Its role is to
+provide same-contract GPU vector-ALU evidence, with exact 192-bit-limb
+accumulation and direct logical output export, before a matrix-engine backend
+can claim speedup.
+
 Feature detection does not enable a backend. hipBLASLt is the baseline
 correctness exception only under the explicit `RNS8_ENABLE_HIPBLASLT=ON`
 build/test preset; discovery still remains candidate evidence. CK and rocWMMA
@@ -1221,6 +1228,8 @@ layout, prefix schedule hash, K-block, tile size, epilogue, selected kernel,
 workspace bytes, measured medians, validation status, and cache schema version.
 Unreviewed benchmark-emitted entries must not be treated as performance
 validation or as permission to promote an accelerator backend.
+Raw benchmark captures are not allowed to write production autotune entries
+directly; reviewed same-contract reports are the promotion boundary.
 
 Benchmark outputs include:
 

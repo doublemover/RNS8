@@ -271,7 +271,15 @@ if(RNS8_BUILD_BENCHMARKS)
       set(RNS8_GIT_COMMIT "${RNS8_GIT_OUTPUT}")
     endif()
   endif()
-  add_executable(rns8-bench benchmarks/rns8_bench.cpp)
+  set(RNS8_BENCHMARK_SOURCES benchmarks/rns8_bench.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(
+      RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_vector_alu_baseline_kernels.hip"
+    )
+    list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
+  endif()
+  add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
   target_compile_definitions(
     rns8-bench
     PRIVATE
@@ -334,9 +342,25 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_ck.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_rocwmma.json"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_adaptive_rocwmma.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_i64_vector_alu.json"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/benchmark_schema/v4_bounded_u64_vector_alu.json"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_current_fixtures PROPERTIES LABELS "benchmark;schema")
+
+  if(TARGET rns8-bench AND RNS8_ENABLE_HIP)
+    add_test(
+      NAME benchmark_vector_alu_baseline_smoke
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_vector_alu_baseline.py"
+        "$<TARGET_FILE:rns8-bench>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/temp/vector-alu-baseline-smoke"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(benchmark_vector_alu_baseline_smoke PROPERTIES LABELS "benchmark;hip;baseline")
+  endif()
 
   add_test(
     NAME benchmark_result_compare_same_contract

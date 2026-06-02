@@ -247,6 +247,7 @@ build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-vector-alu-int64 --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 python tools\result_compare.py temp\baseline.json temp\candidate.json
 ```
 
@@ -255,6 +256,26 @@ captures deliberately report `status=required_not_recorded` and
 `speedup_claimed=false`; schema validation requires same-contract CPU/reference
 and GPU baseline prerequisites before a capture can ever be promoted to a
 speedup claim.
+
+`hip-vector-alu-int64` is a benchmark-only backend name, not a public
+`rns8_backend_kind`. It runs bounded i64/u64 inputs through benchmark-owned HIP
+buffers and exact 192-bit-limb vector-ALU kernels, then emits
+`backend_selected=hip-vector-alu-int64` with `performance_validated=false`.
+Use it as the same-contract GPU baseline for accelerator reviews, not as a
+production backend.
+
+Run small Windows `gfx1100` benchmark sweeps and review reports under ignored
+`temp\benchmark-sweeps\`:
+
+```powershell
+python tools\benchmark_sweep.py --bench build\windows-msvc-hip-debug\rns8-bench.exe --out-root temp\benchmark-sweeps\windows-gfx1100 --shape 64 --backend cpu --backend hip-direct --backend hip-vector-alu-int64 --warmups 1 --repeats 3 --seed 1
+```
+
+The review report groups captures by semantic input contract, reports CPU,
+direct-HIP, and vector-ALU baseline coverage, and marks accelerator entries
+promotable only when they beat the same-contract direct-HIP and vector-ALU GPU
+baselines. Raw `rns8-bench --write-autotune-cache` writes are refused unless the
+capture is already performance-validated by reviewed promotion tooling.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
@@ -345,7 +366,11 @@ ctest --test-dir build\cpu-debug --output-on-failure
   `hard_cut_self_checks` only for internal report consistency.
 - [tools/result_compare.py](tools/result_compare.py) compares two `rns8-bench`
   JSON captures without treating timing deltas as correctness or performance
-  claims.
+  claims. Backend and selected-kernel differences are reported separately from
+  the same semantic contract.
+- [tools/benchmark_sweep.py](tools/benchmark_sweep.py) runs fixed command
+  matrices and writes reviewed same-contract baseline reports under ignored
+  `temp\benchmark-sweeps\`.
 - [include/rns8/rns8.h](include/rns8/rns8.h) is the public C ABI. Packing is
   explicitly matrix-descriptor based; the ABI does not infer operand role or
   semantics from C++ types. Exact-wide limb export is separate from bounded
