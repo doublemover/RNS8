@@ -39,6 +39,10 @@ build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 ```
 
+`rns8-inspect --backend` is explicit: unknown backend strings are invalid, and
+accelerator names such as `hipblaslt`, `ck`, and `rocwmma` report unsupported
+status until correctness backends exist. They are not routed to `auto`.
+
 The current HIP kernel is a correctness bring-up kernel, not an optimized
 matrix-engine implementation.
 

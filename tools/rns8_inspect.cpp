@@ -6,12 +6,41 @@
 
 namespace {
 
-rns8_backend_kind parse_backend(const std::string& value) {
-  if (value == "auto") return RNS8_BACKEND_AUTO;
-  if (value == "cpu") return RNS8_BACKEND_CPU_REFERENCE;
-  if (value == "hip-direct") return RNS8_BACKEND_HIP_DIRECT;
-  if (value == "wrap64-byte-limb") return RNS8_BACKEND_WRAP64_BYTE_LIMB;
-  return RNS8_BACKEND_AUTO;
+bool parse_backend(const std::string& value, rns8_backend_kind& out) {
+  if (value == "auto") {
+    out = RNS8_BACKEND_AUTO;
+    return true;
+  }
+  if (value == "cpu" || value == "cpu-reference") {
+    out = RNS8_BACKEND_CPU_REFERENCE;
+    return true;
+  }
+  if (value == "hip-direct") {
+    out = RNS8_BACKEND_HIP_DIRECT;
+    return true;
+  }
+  if (value == "wrap64-byte-limb") {
+    out = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+    return true;
+  }
+  if (value == "hipblaslt") {
+    out = RNS8_BACKEND_HIPBLASLT;
+    return true;
+  }
+  if (value == "ck") {
+    out = RNS8_BACKEND_CK;
+    return true;
+  }
+  if (value == "rocwmma" || value == "wmma") {
+    out = RNS8_BACKEND_WMMA;
+    return true;
+  }
+  return false;
+}
+
+void print_usage(std::ostream& out) {
+  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
+      << " [--device N] [--json]\n";
 }
 
 const char* backend_name(rns8_backend_kind backend) {
@@ -73,11 +102,16 @@ int main(int argc, char** argv) {
     if (arg == "--json") {
       json = true;
     } else if (arg == "--backend" && i + 1 < argc) {
-      backend = parse_backend(argv[++i]);
+      const std::string value = argv[++i];
+      if (!parse_backend(value, backend)) {
+        std::cerr << "invalid backend: " << value << "\n";
+        print_usage(std::cerr);
+        return 2;
+      }
     } else if (arg == "--device" && i + 1 < argc) {
       device_id = std::atoi(argv[++i]);
     } else if (arg == "--help") {
-      std::cout << "usage: rns8-inspect [--backend cpu|hip-direct|wrap64-byte-limb|auto] [--device N] [--json]\n";
+      print_usage(std::cout);
       return 0;
     } else {
       std::cerr << "unknown argument: " << arg << "\n";
