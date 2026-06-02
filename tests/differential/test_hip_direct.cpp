@@ -311,6 +311,7 @@ struct BoundedHipResidentSnapshot {
   void* c_residues = nullptr;
   void* a_upload = nullptr;
   void* b_upload = nullptr;
+  void* c_upload = nullptr;
   void* c_export = nullptr;
   void* c_status = nullptr;
   void* workspace_scratch = nullptr;
@@ -319,6 +320,7 @@ struct BoundedHipResidentSnapshot {
   std::size_t c_residue_bytes = 0;
   std::size_t a_upload_bytes = 0;
   std::size_t b_upload_bytes = 0;
+  std::size_t c_upload_bytes = 0;
   std::size_t c_export_bytes = 0;
   std::size_t c_status_bytes = 0;
   std::size_t workspace_scratch_bytes = 0;
@@ -356,6 +358,7 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   snapshot.c_residues = C->hip_residues;
   snapshot.a_upload = A->hip_upload_buffer;
   snapshot.b_upload = B->hip_upload_buffer;
+  snapshot.c_upload = C->hip_upload_buffer;
   snapshot.c_export = C->hip_export_buffer;
   snapshot.c_status = C->hip_status_buffer;
   snapshot.workspace_scratch = workspace->hip_scratch;
@@ -364,6 +367,7 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   snapshot.c_residue_bytes = C->hip_residue_bytes;
   snapshot.a_upload_bytes = A->hip_upload_bytes;
   snapshot.b_upload_bytes = B->hip_upload_bytes;
+  snapshot.c_upload_bytes = C->hip_upload_bytes;
   snapshot.c_export_bytes = C->hip_export_bytes;
   snapshot.c_status_bytes = C->hip_status_bytes;
   snapshot.workspace_scratch_bytes = workspace->hip_scratch_bytes;
@@ -401,6 +405,7 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(C->hip_residues == snapshot.c_residues);
   CHECK(A->hip_upload_buffer == snapshot.a_upload);
   CHECK(B->hip_upload_buffer == snapshot.b_upload);
+  CHECK(C->hip_upload_buffer == snapshot.c_upload);
   CHECK(C->hip_export_buffer == snapshot.c_export);
   CHECK(C->hip_status_buffer == snapshot.c_status);
   CHECK(workspace->hip_scratch == snapshot.workspace_scratch);
@@ -409,6 +414,7 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(C->hip_residue_bytes == snapshot.c_residue_bytes);
   CHECK(A->hip_upload_bytes == snapshot.a_upload_bytes);
   CHECK(B->hip_upload_bytes == snapshot.b_upload_bytes);
+  CHECK(C->hip_upload_bytes == snapshot.c_upload_bytes);
   CHECK(C->hip_export_bytes == snapshot.c_export_bytes);
   CHECK(C->hip_status_bytes == snapshot.c_status_bytes);
   CHECK(workspace->hip_scratch_bytes == snapshot.workspace_scratch_bytes);
@@ -532,6 +538,83 @@ TEST_CASE("direct HIP ring GEMM splits K above the int32 safe block") {
   rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, k, n, n, modulus);
   run_resident_ring_gemm(A, B, gpu, m, n, k, k, n, n, modulus, 3, 4);
   CHECK(gpu == cpu);
+}
+
+TEST_CASE("direct HIP tiled ring GEMM covers shared-memory tile tails with padded layouts") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP tiled-tail smoke");
+  }
+
+  const int64_t m = 17;
+  const int64_t n = 19;
+  const int64_t k = 130;
+  const int64_t lda = 137;
+  const int64_t ldb = 23;
+  const int64_t ldc = 29;
+  const uint16_t modulus = 253;
+  const int8_t a_sentinel = static_cast<int8_t>(-99);
+  const int8_t b_sentinel = static_cast<int8_t>(77);
+  const int8_t c_sentinel = static_cast<int8_t>(44);
+  std::vector<int8_t> A(static_cast<std::size_t>(m * lda), a_sentinel);
+  std::vector<int8_t> B(static_cast<std::size_t>(k * ldb), b_sentinel);
+  std::vector<int8_t> cpu(static_cast<std::size_t>(m * ldc), c_sentinel);
+  std::vector<int8_t> gpu(static_cast<std::size_t>(m * ldc), c_sentinel);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t kk = 0; kk < k; ++kk) {
+      switch ((row * 17 + kk * 5) % 7) {
+        case 0:
+          A[static_cast<std::size_t>(row * lda + kk)] = 127;
+          break;
+        case 1:
+          A[static_cast<std::size_t>(row * lda + kk)] = -126;
+          break;
+        case 2:
+          A[static_cast<std::size_t>(row * lda + kk)] = 64;
+          break;
+        case 3:
+          A[static_cast<std::size_t>(row * lda + kk)] = -63;
+          break;
+        default:
+          A[static_cast<std::size_t>(row * lda + kk)] = static_cast<int8_t>((row - kk) % 11);
+          break;
+      }
+    }
+  }
+  for (int64_t kk = 0; kk < k; ++kk) {
+    for (int64_t col = 0; col < n; ++col) {
+      switch ((kk * 11 + col * 3) % 7) {
+        case 0:
+          B[static_cast<std::size_t>(kk * ldb + col)] = 126;
+          break;
+        case 1:
+          B[static_cast<std::size_t>(kk * ldb + col)] = -127;
+          break;
+        case 2:
+          B[static_cast<std::size_t>(kk * ldb + col)] = 63;
+          break;
+        case 3:
+          B[static_cast<std::size_t>(kk * ldb + col)] = -64;
+          break;
+        default:
+          B[static_cast<std::size_t>(kk * ldb + col)] = static_cast<int8_t>((kk + col) % 13 - 6);
+          break;
+      }
+    }
+  }
+
+  rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, lda, ldb, ldc, modulus);
+  run_resident_ring_gemm(A, B, gpu, m, n, k, lda, ldb, ldc, modulus, 2, 3);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(gpu[static_cast<std::size_t>(row * ldc + col)] ==
+            cpu[static_cast<std::size_t>(row * ldc + col)]);
+    }
+    for (int64_t col = n; col < ldc; ++col) {
+      CHECK(cpu[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+      CHECK(gpu[static_cast<std::size_t>(row * ldc + col)] == c_sentinel);
+    }
+  }
 }
 
 TEST_CASE("private HIP ring GEMM rejects mismatched modulus metadata before launch") {
@@ -2574,6 +2657,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   CHECK(hip_c == cpu_c);
 
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  CHECK(warmed_snapshot.c_upload == nullptr);
+  CHECK(warmed_snapshot.c_upload_bytes == 0);
   CHECK(workspace->schedule_tile_count == bounds_a.size());
   CHECK(workspace->schedule_prefix_group_count >= 1);
   CHECK(workspace->schedule_fingerprint != workspace_b->schedule_fingerprint);
@@ -2694,6 +2779,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
+  CHECK(warmed_snapshot.c_upload == nullptr);
+  CHECK(warmed_snapshot.c_upload_bytes == 0);
   REQUIRE(warmed_snapshot.c_export != nullptr);
   REQUIRE(warmed_snapshot.c_status != nullptr);
   REQUIRE(warmed_snapshot.allocations.allocate_calls > 0);
@@ -2953,6 +3040,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
+  CHECK(warmed_snapshot.c_upload == nullptr);
+  CHECK(warmed_snapshot.c_upload_bytes == 0);
   REQUIRE(warmed_snapshot.c_export != nullptr);
   REQUIRE(warmed_snapshot.c_status != nullptr);
   REQUIRE(warmed_snapshot.allocations.allocate_calls > 0);

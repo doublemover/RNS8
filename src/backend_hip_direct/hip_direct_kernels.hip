@@ -17,7 +17,12 @@ __device__ __constant__ int rns8_default_moduli_device[kRns8DefaultModulusCount]
 constexpr int kRns8HipTileM = 16;
 constexpr int kRns8HipTileN = 16;
 constexpr int kRns8HipTileK = 64;
+constexpr int kRns8HipTileNPadded = kRns8HipTileN + 1;
 constexpr int kRns8SafeInt32KBlock = 65536;
+
+static_assert(
+    kRns8HipTileM * kRns8HipTileN == 256,
+    "bounded direct HIP GEMM uses one 16x16 output tile per block");
 
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus) {
   int residue = value % modulus;
@@ -307,7 +312,7 @@ __global__ void rns8_pack_u64_kernel(
   residues[idx] = rns8_center_u64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
 }
 
-__global__ void rns8_ring_gemm_kernel(
+__global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_i8_i32_tiled_kernel(
     const int8_t* A,
     const int8_t* B,
     int8_t* C,
@@ -321,7 +326,7 @@ __global__ void rns8_ring_gemm_kernel(
     int modulus,
     int accumulate) {
   __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
-  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileN];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
 
   const int thread_row = static_cast<int>(threadIdx.y);
   const int thread_col = static_cast<int>(threadIdx.x);
@@ -332,7 +337,7 @@ __global__ void rns8_ring_gemm_kernel(
   const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
   const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
   const bool output_active = row < m && col < n;
-  int acc = 0;
+  int32_t acc = 0;
 
   for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
     const int tile_extent =
@@ -360,7 +365,7 @@ __global__ void rns8_ring_gemm_kernel(
 
     if (output_active) {
       for (int kk = 0; kk < tile_extent; ++kk) {
-        acc += static_cast<int>(a_tile[thread_row][kk]) * static_cast<int>(b_tile[kk][thread_col]);
+        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
       }
     }
 
@@ -368,7 +373,7 @@ __global__ void rns8_ring_gemm_kernel(
   }
 
   if (output_active && accumulate) {
-    acc += static_cast<int>(C[row * ldc + col]);
+    acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
     C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus);
@@ -648,7 +653,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     const int k_remaining = k - k_offset;
     const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
     hipLaunchKernelGGL(
-        rns8_ring_gemm_kernel,
+        rns8_ring_gemm_i8_i32_tiled_kernel,
         grid,
         block,
         0,

@@ -55,9 +55,10 @@ The direct HIP pack kernels copy logical host `int64_t` and `uint64_t` inputs
 to a matrix-owned device upload buffer and write centered residues into
 matrix-owned device residue storage. The direct HIP RNS GEMM path consumes those
 device residues directly, launches inspectable 16x16 output tiles per modulus,
-and reduces each INT32 K-block sum to a centered residue in the kernel without
-materializing INT32 output matrices. For K above 65536, it launches multiple
-block kernels and accumulates the centered residue on device. The resident RNS
+stages A/B residue tiles in shared memory, and reduces each INT32 K-block sum
+to a centered residue in the kernel without materializing INT32 output
+matrices. For K above 65536, it launches multiple block kernels and
+accumulates the centered residue on device. The resident RNS
 GEMM host path routes every per-modulus launch through one metadata contract
 that carries the modulus value, modulus index, selected prefix for that full
 matrix or tile, and the safe K-block cap; the host helper and HIP launch

@@ -133,7 +133,9 @@ Implemented correctness coverage:
   buffers.
 - Direct HIP bounded persistent tests cover fixed prefix-9 unsigned GEMM at the
   exact 65536 K-block boundary with padded host input/output layouts, CPU
-  reference comparison, and repeated same-shape allocation reuse.
+  reference comparison, and repeated same-shape allocation reuse. The private
+  ring GEMM differential also covers non-multiple 16x16 output tile tails,
+  partial K tiles, and padded leading dimensions against the CPU ring reference.
 - Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
   the CPU reference, cover tile-local range errors, padded host export layouts,
   schedule parity, signed K-split cancellation under selected-prefix execution,
