@@ -62,7 +62,10 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int lda,
     int ldb,
     int ldc,
-    int modulus);
+    int modulus,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block);
 
 extern "C" int rns8_hip_direct_export_i64_device(
     const int8_t* d_residues,
@@ -285,6 +288,53 @@ bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows
   return entry.row_extent <= rows - entry.row_offset && entry.col_extent <= cols - entry.col_offset &&
          entry.row_offset <= std::numeric_limits<int>::max() && entry.col_offset <= std::numeric_limits<int>::max() &&
          entry.row_extent <= std::numeric_limits<int>::max() && entry.col_extent <= std::numeric_limits<int>::max();
+}
+
+struct hip_rns_modulus_launch {
+  const int8_t* a = nullptr;
+  const int8_t* b = nullptr;
+  int8_t* c = nullptr;
+  int64_t m = 0;
+  int64_t n = 0;
+  int64_t k = 0;
+  int64_t lda = 0;
+  int64_t ldb = 0;
+  int64_t ldc = 0;
+  uint32_t modulus_index = 0;
+  uint32_t selected_prefix = 0;
+};
+
+bool checked_rns_modulus_launch(const hip_rns_modulus_launch& launch) {
+  if (!launch.a || !launch.b || !launch.c || launch.m <= 0 || launch.n <= 0 || launch.k <= 0 ||
+      launch.lda < launch.k || launch.ldb < launch.n || launch.ldc < launch.n || launch.selected_prefix == 0 ||
+      launch.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX || launch.modulus_index >= launch.selected_prefix) {
+    return false;
+  }
+  return launch.m <= std::numeric_limits<int>::max() && launch.n <= std::numeric_limits<int>::max() &&
+         launch.k <= std::numeric_limits<int>::max() && launch.lda <= std::numeric_limits<int>::max() &&
+         launch.ldb <= std::numeric_limits<int>::max() && launch.ldc <= std::numeric_limits<int>::max() &&
+         RNS8_SAFE_INT32_K_BLOCK <= static_cast<uint32_t>(std::numeric_limits<int>::max());
+}
+
+hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
+  if (!checked_rns_modulus_launch(launch)) {
+    return hipErrorInvalidValue;
+  }
+  const int code = rns8_hip_direct_ring_gemm_i8_device(
+      launch.a,
+      launch.b,
+      launch.c,
+      static_cast<int>(launch.m),
+      static_cast<int>(launch.n),
+      static_cast<int>(launch.k),
+      static_cast<int>(launch.lda),
+      static_cast<int>(launch.ldb),
+      static_cast<int>(launch.ldc),
+      static_cast<int>(kDefaultModuli[launch.modulus_index]),
+      static_cast<int>(launch.modulus_index),
+      static_cast<int>(launch.selected_prefix),
+      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+  return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
 #endif
 
@@ -749,7 +799,7 @@ rns8_status hip_direct_gemm_rns_device(
     uint32_t prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || prefix == 0 || prefix > RNS8_DEFAULT_MODULUS_COUNT) {
+      ldb < n || ldc < n || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -772,19 +822,20 @@ rns8_status hip_direct_gemm_rns_device(
                                    static_cast<std::size_t>(ldb);
       const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                    static_cast<std::size_t>(ldc);
-      const int code = rns8_hip_direct_ring_gemm_i8_device(
+      const hipError_t launch_status = launch_rns_modulus_gemm({
           a_base + a_offset,
           b_base + b_offset,
           c_base + c_offset,
-          static_cast<int>(m),
-          static_cast<int>(n),
-          static_cast<int>(k),
-          static_cast<int>(lda),
-          static_cast<int>(ldb),
-          static_cast<int>(ldc),
-          static_cast<int>(kDefaultModuli[p]));
-      if (code != static_cast<int>(hipSuccess)) {
-        return static_cast<hipError_t>(code);
+          m,
+          n,
+          k,
+          lda,
+          ldb,
+          ldc,
+          p,
+          prefix});
+      if (launch_status != hipSuccess) {
+        return launch_status;
       }
     }
     return hipDeviceSynchronize();
@@ -850,20 +901,21 @@ rns8_status hip_direct_gemm_rns_tiled_device(
                                      static_cast<std::size_t>(ldb);
         const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                      static_cast<std::size_t>(ldc);
-        const int code = rns8_hip_direct_ring_gemm_i8_device(
+        const hipError_t launch_status = launch_rns_modulus_gemm({
             a_base + a_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(lda),
             b_base + b_offset + static_cast<std::size_t>(entry.col_offset),
             c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
                 static_cast<std::size_t>(entry.col_offset),
-            static_cast<int>(entry.row_extent),
-            static_cast<int>(entry.col_extent),
-            static_cast<int>(k),
-            static_cast<int>(lda),
-            static_cast<int>(ldb),
-            static_cast<int>(ldc),
-            static_cast<int>(kDefaultModuli[p]));
-        if (code != static_cast<int>(hipSuccess)) {
-          return static_cast<hipError_t>(code);
+            entry.row_extent,
+            entry.col_extent,
+            k,
+            lda,
+            ldb,
+            ldc,
+            p,
+            entry.selected_prefix});
+        if (launch_status != hipSuccess) {
+          return launch_status;
         }
       }
     }
@@ -903,7 +955,7 @@ rns8_status hip_direct_export_i64_device(
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
       ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+    return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -1103,7 +1155,7 @@ rns8_status hip_direct_export_u64_device(
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
       ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+    return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -1304,7 +1356,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
       ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       limb_count == 0 || limb_count > 32 || !checked_limb_export_pitch(ld, limb_count)) {
-    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+    return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -1397,7 +1449,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
   if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !dst ||
       ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       limb_count == 0 || limb_count > 32 || !checked_limb_export_pitch(ld, limb_count)) {
-    return prefix > RNS8_MAX_SUPPORTED_PREFIX ? RNS8_UNSUPPORTED_BACKEND : RNS8_INVALID_ARGUMENT;
+    return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {

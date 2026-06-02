@@ -4,7 +4,9 @@
 
 namespace {
 
-__device__ __constant__ int rns8_default_moduli_device[28] = {
+constexpr int kRns8DefaultModulusCount = 28;
+
+__device__ __constant__ int rns8_default_moduli_device[kRns8DefaultModulusCount] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
@@ -811,7 +813,15 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int lda,
     int ldb,
     int ldc,
-    int modulus) {
+    int modulus,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus <= 0 ||
+      modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
+      selected_prefix > kRns8DefaultModulusCount || safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);
   const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
   hipError_t err = hipSuccess;
@@ -819,7 +829,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
   int accumulate = 0;
   while (k_offset < k && err == hipSuccess) {
     const int k_remaining = k - k_offset;
-    const int k_block = k_remaining > kRns8SafeInt32KBlock ? kRns8SafeInt32KBlock : k_remaining;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
     hipLaunchKernelGGL(
         rns8_ring_gemm_kernel,
         grid,

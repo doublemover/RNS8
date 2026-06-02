@@ -218,6 +218,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_crt.cpp
+    tests/unit/test_api.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
     tests/unit/test_exact_wide.cpp
