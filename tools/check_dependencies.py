@@ -3,7 +3,8 @@
 
 The script is intentionally read-only. It checks command discovery, Python
 packages, vcpkg manifest dependencies, HIP device visibility, MSVC availability,
-and optional Radeon Developer Tool Suite utilities.
+optional accelerator components, repository tools, and optional Radeon Developer
+Tool Suite utilities.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ VCPKG_PACKAGES = [
     "nlohmann-json",
     "spdlog",
 ]
+OPTIONAL_CPP_PACKAGES = ["ntl", "fflas-ffpack", "linbox"]
 RADEON_TOOLS = [
     "rga",
     "RadeonGPUProfiler",
@@ -90,6 +92,48 @@ def find_command(name: str) -> str | None:
         if candidate.exists():
             return str(candidate)
     return None
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def hip_roots() -> list[Path]:
+    roots: list[Path] = []
+    for env_name in ("HIP_PATH", "ROCM_PATH"):
+        value = os.environ.get(env_name)
+        if value:
+            roots.append(Path(value))
+    roots.append(Path(r"C:\Program Files\AMD\ROCm\7.1"))
+    roots.append(Path("/opt/rocm"))
+    deduped: list[Path] = []
+    for root in roots:
+        if root not in deduped:
+            deduped.append(root)
+    return deduped
+
+
+def vcpkg_roots() -> list[Path]:
+    roots: list[Path] = []
+    root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
+    roots.append(Path(root) / "installed" / "x64-windows")
+    roots.append(repo_root() / "vcpkg_installed" / "x64-windows")
+    return roots
+
+
+def first_existing(paths: list[Path]) -> str | None:
+    for path in paths:
+        if path.exists():
+            return str(path)
+    return None
+
+
+def find_under_roots(roots: list[Path], relatives: list[str]) -> str | None:
+    candidates: list[Path] = []
+    for root in roots:
+        for relative in relatives:
+            candidates.append(root / relative)
+    return first_existing(candidates)
 
 
 def command_version(name: str, path: str) -> str:
@@ -181,6 +225,69 @@ def installed_vcpkg_packages(vcpkg_path: str | None) -> dict[str, str]:
     return packages
 
 
+def accelerator_components() -> dict[str, dict[str, object]]:
+    roots = hip_roots() + vcpkg_roots()
+    components = {
+        "hipblaslt": {
+            "header": find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]),
+            "library": find_under_roots(roots, ["lib/hipblaslt.lib", "lib/libhipblaslt.so"]),
+        },
+        "ck": {
+            "header": find_under_roots(roots, ["include/ck/ck.hpp", "include/ck.hpp"]),
+            "library": None,
+        },
+        "rocwmma": {
+            "header": find_under_roots(roots, ["include/rocwmma/rocwmma.hpp"]),
+            "library": None,
+        },
+    }
+    return {
+        name: {
+            "ok": bool(item["header"] or item["library"]),
+            "required": False,
+            "header": item["header"],
+            "library": item["library"],
+        }
+        for name, item in components.items()
+    }
+
+
+def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[str, object]]:
+    report: dict[str, dict[str, object]] = {}
+    for package in OPTIONAL_CPP_PACKAGES:
+        report[package] = {
+            "ok": package in vcpkg_installed,
+            "required": False,
+            "version": vcpkg_installed.get(package),
+        }
+    return report
+
+
+def project_tools() -> dict[str, dict[str, object]]:
+    root = repo_root()
+    tools = {
+        "rns8-inspect": [root / "tools" / "rns8_inspect.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-inspect.exe"],
+        "rns8-verify": [root / "tools" / "rns8_verify.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-verify.exe"],
+        "rns8-bench": [root / "benchmarks" / "rns8_bench.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-bench.exe"],
+    }
+    return {
+        name: {
+            "ok": bool(first_existing(paths)),
+            "required": name in {"rns8-inspect", "rns8-verify"},
+            "detail": first_existing(paths) or "not found",
+        }
+        for name, paths in tools.items()
+    }
+
+
+def cmake_hip_language_report() -> dict[str, object]:
+    return {
+        "ok": False,
+        "required": False,
+        "detail": "not probed by the read-only dependency checker; RNS8 Windows builds use explicit hipcc integration instead of enable_language(HIP)",
+    }
+
+
 def build_report() -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
@@ -225,6 +332,10 @@ def build_report() -> tuple[dict[str, object], bool]:
         "msvc": {"ok": bool(msvc), "detail": msvc or "not found"},
         "python_packages": packages,
         "vcpkg_packages": vcpkg_report,
+        "optional_cpp_references": optional_cpp_references(vcpkg_installed),
+        "accelerator_components": accelerator_components(),
+        "cmake_hip_language": cmake_hip_language_report(),
+        "project_tools": project_tools(),
     }
     return report, not missing_required
 
@@ -274,6 +385,43 @@ def print_human(report: dict[str, object]) -> None:
     for name in VCPKG_PACKAGES:
         version = vcpkg_packages[name]
         print(f"[{'OK' if version else 'MISSING'}] {name}: {version or 'not installed'}")
+    print()
+
+    print("Optional CPU reference packages")
+    optional_refs = report["optional_cpp_references"]
+    assert isinstance(optional_refs, dict)
+    for name in OPTIONAL_CPP_PACKAGES:
+        item = optional_refs[name]
+        assert isinstance(item, dict)
+        print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item.get('version') or 'not installed'}")
+    print()
+
+    print("Accelerator components")
+    accelerators = report["accelerator_components"]
+    assert isinstance(accelerators, dict)
+    for name in sorted(accelerators):
+        item = accelerators[name]
+        assert isinstance(item, dict)
+        status = "OK" if item["ok"] else "MISSING"
+        print(f"[{status}] {name} (optional)")
+        if item.get("header"):
+            print(f"  header: {item['header']}")
+        if item.get("library"):
+            print(f"  library: {item['library']}")
+    print()
+
+    cmake_hip = report["cmake_hip_language"]
+    assert isinstance(cmake_hip, dict)
+    print(f"CMake HIP language: {'OK' if cmake_hip['ok'] else 'NOT REQUIRED'} - {cmake_hip['detail']}")
+    print()
+
+    print("Project tools")
+    tools = report["project_tools"]
+    assert isinstance(tools, dict)
+    for name in sorted(tools):
+        item = tools[name]
+        assert isinstance(item, dict)
+        print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item['detail']}")
 
 
 def main() -> int:

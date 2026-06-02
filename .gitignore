@@ -6,3 +6,5 @@ CMakeUserPresets.json
 .vs/
 *.user
 *.suo
+__pycache__/
+*.py[cod]

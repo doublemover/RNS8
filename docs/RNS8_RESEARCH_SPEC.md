@@ -547,23 +547,26 @@ rns8_status rns8_create_workspace(
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace);
 
-rns8_status rns8_pack_i64(
+rns8_status rns8_create_matrix(
     rns8_context* ctx,
-    const rns8_plan* plan,
-    const int64_t* src,
-    int64_t ld,
-    uint64_t source_version,
-    rns8_matrix** out);
-
-rns8_status rns8_pack_u64(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const uint64_t* src,
-    int64_t ld,
-    uint64_t source_version,
+    const rns8_matrix_desc* desc,
     rns8_matrix** out);
 
 rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
+
+rns8_status rns8_pack_i64(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    const int64_t* src,
+    int64_t ld,
+    uint64_t source_version);
+
+rns8_status rns8_pack_u64(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    const uint64_t* src,
+    int64_t ld,
+    uint64_t source_version);
 
 rns8_status rns8_gemm_rns(
     rns8_context* ctx,
@@ -597,8 +600,22 @@ rns8_status rns8_gemm_i64_oneshot(
     int64_t* C,
     int64_t ldc);
 
+rns8_status rns8_gemm_u64_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc* desc,
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    uint64_t* C,
+    int64_t ldc);
+
 const char* rns8_status_string(rns8_status status);
 ```
+
+The original plan-only pack sketch was replaced during the Phase 0 scaffold:
+packing needs an explicit matrix descriptor because A, B, and C have different
+dimensions. Hidden pack-role inference is not allowed in the ABI.
 
 Required status codes:
 
