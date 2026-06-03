@@ -1392,8 +1392,16 @@ Technical direction:
 
 Likely first slices:
 
-- Prefix-9 bounded direct-HIP kernel.
-- Multi-modulus launch batching for 64/128.
+- Prefix-9 bounded direct-HIP kernel. Implemented first as
+  `direct_hip_prefix9_grouped_rns_gemm_v1`, which batches the nine default
+  bounded RNS planes into one `grid.z` grouped launch per K block while keeping
+  the existing tiled math and centered reducers.
+- Multi-modulus launch batching for 64/128. Implemented first for fixed-prefix
+  direct-HIP RNS plans: prefix 9 bounded and prefix 20 exact-wide now share the
+  grouped launch path, with exact-wide plans reporting
+  `direct_hip_prefix20_grouped_rns_gemm_v1`. This has build, correctness,
+  schema, and event-smoke evidence, but still needs release-sweep performance
+  review before it becomes a durable speedup claim.
 - Direct-HIP fused pack+GEMM small-shape baseline.
 
 Relation to new architecture work:

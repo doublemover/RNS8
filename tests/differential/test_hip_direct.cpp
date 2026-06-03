@@ -1184,9 +1184,9 @@ TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("direct HIP bounded prefix-9 plans advertise grouped GEMM kernel") {
+TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   if (!hip_available()) {
-    SKIP("no HIP device available for direct HIP bounded metadata smoke");
+    SKIP("no HIP device available for direct HIP fixed-prefix metadata smoke");
   }
 
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
@@ -1207,6 +1207,27 @@ TEST_CASE("direct HIP bounded prefix-9 plans advertise grouped GEMM kernel") {
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     CHECK(std::string(info.selected_kernel) == grouped_kernel);
     CHECK(std::string(info.autotune_key).find(std::string("kernel=") + grouped_kernel + ";") != std::string::npos);
+
+    rns8_destroy_plan(plan);
+  }
+
+  constexpr const char* exact_grouped_kernel = "direct_hip_prefix20_grouped_rns_gemm_v1";
+  for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    CAPTURE(semantics);
+    auto desc = semantics == RNS8_EXACT_WIDE_SIGNED ? exact_signed_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT)
+                                                    : exact_unsigned_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(plan->prefix == RNS8_MAX_SUPPORTED_PREFIX);
+    CHECK(plan->tile_schedule.empty());
+
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(std::string(info.selected_kernel) == exact_grouped_kernel);
+    CHECK(std::string(info.autotune_key).find(std::string("kernel=") + exact_grouped_kernel + ";") !=
+          std::string::npos);
 
     rns8_destroy_plan(plan);
   }

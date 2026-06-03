@@ -193,6 +193,10 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
         (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64)) {
       return "direct_hip_prefix9_grouped_rns_gemm_v1";
     }
+    if (plan.tile_schedule.empty() && plan.prefix == RNS8_MAX_SUPPORTED_PREFIX &&
+        (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED)) {
+      return "direct_hip_prefix20_grouped_rns_gemm_v1";
+    }
     return "direct_hip_tiled_rns_gemm_v1";
   }
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {

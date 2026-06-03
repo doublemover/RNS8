@@ -52,7 +52,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int selected_prefix,
     int safe_k_block);
 
-extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     const int8_t* d_a,
     const int8_t* d_b,
     int8_t* d_c,
@@ -62,6 +62,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
     int lda,
     int ldb,
     int ldc,
+    int grouped_prefix,
     int safe_k_block);
 
 extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
@@ -713,7 +714,7 @@ hipError_t launch_rns_scheduled_modulus_gemm(const hip_rns_scheduled_modulus_lau
   return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
 
-hipError_t launch_rns_prefix9_grouped_gemm(
+hipError_t launch_rns_grouped_prefix_gemm(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -722,15 +723,17 @@ hipError_t launch_rns_prefix9_grouped_gemm(
     int64_t k,
     int64_t lda,
     int64_t ldb,
-    int64_t ldc) {
+    int64_t ldc,
+    uint32_t prefix) {
   if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
       ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max() ||
       RNS8_SAFE_INT32_K_BLOCK > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
     return hipErrorInvalidValue;
   }
-  const int code = rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
+  const int code = rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
       a,
       b,
       c,
@@ -740,6 +743,7 @@ hipError_t launch_rns_prefix9_grouped_gemm(
       static_cast<int>(lda),
       static_cast<int>(ldb),
       static_cast<int>(ldc),
+      static_cast<int>(prefix),
       static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
   return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
@@ -1293,9 +1297,10 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX) {
+  if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX || prefix == RNS8_MAX_SUPPORTED_PREFIX) {
     const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-      const hipError_t launch_status = launch_rns_prefix9_grouped_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc);
+      const hipError_t launch_status =
+          launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
       return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
     });
     return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
