@@ -162,6 +162,24 @@ def normalized_positive_int(value: Any) -> str | None:
     return None
 
 
+def normalized_identity_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text.lower() in PLACEHOLDER_TARGET_IDS:
+        return None
+    return text
+
+
+def normalized_compiler_identity(capture: dict[str, Any]) -> str | None:
+    compiler = capture_compiler(capture)
+    compiler_id = normalized_identity_text(compiler.get("id"))
+    compiler_version = normalized_identity_text(compiler.get("version"))
+    if compiler_id is None or compiler_version is None:
+        return None
+    return f"{compiler_id} {compiler_version}"
+
+
 def capture_backend_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     metadata = capture.get("backend_metadata")
     return metadata if isinstance(metadata, dict) else {}
@@ -482,6 +500,10 @@ def promotion_blockers(
     hip_runtime_version_compatible: bool,
     hip_driver_version_complete: bool,
     hip_driver_version_compatible: bool,
+    compiler_identity_complete: bool,
+    compiler_identity_compatible: bool,
+    git_commit_identity_complete: bool,
+    git_commit_identity_compatible: bool,
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
@@ -514,6 +536,14 @@ def promotion_blockers(
         blockers.append("missing_hip_driver_version")
     elif not hip_driver_version_compatible:
         blockers.append("hip_driver_version_mismatch")
+    if not compiler_identity_complete:
+        blockers.append("missing_compiler_identity")
+    elif not compiler_identity_compatible:
+        blockers.append("compiler_identity_mismatch")
+    if not git_commit_identity_complete:
+        blockers.append("missing_git_commit")
+    elif not git_commit_identity_compatible:
+        blockers.append("git_commit_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
     if internal_candidate:
@@ -623,6 +653,20 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         hip_driver_version_complete = not missing_hip_driver_versions
         hip_driver_version_values = {version for version in hip_driver_versions.values() if version}
         hip_driver_version_compatible = hip_driver_version_complete and len(hip_driver_version_values) <= 1
+        compiler_identities = {backend: normalized_compiler_identity(capture) for backend, capture in by_backend.items()}
+        missing_compiler_identities = sorted(
+            backend for backend, identity in compiler_identities.items() if identity is None
+        )
+        compiler_identity_complete = not missing_compiler_identities
+        compiler_identity_values = {identity for identity in compiler_identities.values() if identity}
+        compiler_identity_compatible = compiler_identity_complete and len(compiler_identity_values) <= 1
+        git_commits = {
+            backend: normalized_identity_text(capture.get("git_commit")) for backend, capture in by_backend.items()
+        }
+        missing_git_commits = sorted(backend for backend, commit in git_commits.items() if commit is None)
+        git_commit_identity_complete = not missing_git_commits
+        git_commit_values = {commit for commit in git_commits.values() if commit}
+        git_commit_identity_compatible = git_commit_identity_complete and len(git_commit_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
@@ -647,6 +691,10 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 hip_runtime_version_compatible=hip_runtime_version_compatible,
                 hip_driver_version_complete=hip_driver_version_complete,
                 hip_driver_version_compatible=hip_driver_version_compatible,
+                compiler_identity_complete=compiler_identity_complete,
+                compiler_identity_compatible=compiler_identity_compatible,
+                git_commit_identity_complete=git_commit_identity_complete,
+                git_commit_identity_compatible=git_commit_identity_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
@@ -740,6 +788,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "missing_hip_driver_versions": missing_hip_driver_versions,
                 "hip_driver_version_complete": hip_driver_version_complete,
                 "hip_driver_version_compatible": hip_driver_version_compatible,
+                "compiler_identities": compiler_identities,
+                "missing_compiler_identities": missing_compiler_identities,
+                "compiler_identity_complete": compiler_identity_complete,
+                "compiler_identity_compatible": compiler_identity_compatible,
+                "git_commits": git_commits,
+                "missing_git_commits": missing_git_commits,
+                "git_commit_identity_complete": git_commit_identity_complete,
+                "git_commit_identity_compatible": git_commit_identity_compatible,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -1109,6 +1165,12 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         missing_driver = group.get("missing_hip_driver_versions") or []
         lines.append(f"- missing_hip_driver_versions: `{','.join(missing_driver) if missing_driver else 'none'}`")
         lines.append(f"- hip_driver_version_compatible: `{group.get('hip_driver_version_compatible')}`")
+        missing_compilers = group.get("missing_compiler_identities") or []
+        lines.append(f"- missing_compiler_identities: `{','.join(missing_compilers) if missing_compilers else 'none'}`")
+        lines.append(f"- compiler_identity_compatible: `{group.get('compiler_identity_compatible')}`")
+        missing_git = group.get("missing_git_commits") or []
+        lines.append(f"- missing_git_commits: `{','.join(missing_git) if missing_git else 'none'}`")
+        lines.append(f"- git_commit_identity_compatible: `{group.get('git_commit_identity_compatible')}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
