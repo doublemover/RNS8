@@ -124,6 +124,8 @@ enum class PrepackReuseStrategy {
 struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t schedule_query_us = 0;
+  uint64_t tile_bound_scan_us = 0;
+  bool tile_bound_scan_available = false;
   uint64_t matrix_alloc_us = 0;
   std::vector<uint64_t> tile_bounds{};
   uint64_t tile_bound_min = 0;
@@ -1038,6 +1040,16 @@ void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
     mix_checksum(hash, bound);
   }
   result.tile_bound_hash = hash;
+}
+
+template <typename Fn>
+void record_timed_tile_bounds(BenchmarkResult& result, Fn&& compute_bounds) {
+  const auto scan_start = std::chrono::steady_clock::now();
+  auto bounds = compute_bounds();
+  const auto scan_end = std::chrono::steady_clock::now();
+  result.tile_bound_scan_us = elapsed_us(scan_start, scan_end);
+  result.tile_bound_scan_available = true;
+  record_tile_bounds(result, std::move(bounds));
 }
 
 uint32_t benchmark_prefix(const Args& args) {
@@ -2257,7 +2269,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
-    record_tile_bounds(result, compute_i64_tile_bounds(args, A, B));
+    record_timed_tile_bounds(result, [&]() { return compute_i64_tile_bounds(args, A, B); });
   }
   capture_vector_alu_schedule(ctx, args, bound, result);
 
@@ -2378,7 +2390,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
-    record_tile_bounds(result, compute_u64_tile_bounds(args, A, B));
+    record_timed_tile_bounds(result, [&]() { return compute_u64_tile_bounds(args, A, B); });
   }
   capture_vector_alu_schedule(ctx, args, bound, result);
 
@@ -2496,7 +2508,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
-    record_tile_bounds(result, compute_i64_tile_bounds(args, A, B));
+    record_timed_tile_bounds(result, [&]() { return compute_i64_tile_bounds(args, A, B); });
   }
   auto desc = gemm_desc(args, bound, &result.tile_bounds);
   const auto plan_start = std::chrono::steady_clock::now();
@@ -2648,7 +2660,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
-    record_tile_bounds(result, compute_u64_tile_bounds(args, A, B));
+    record_timed_tile_bounds(result, [&]() { return compute_u64_tile_bounds(args, A, B); });
   }
   auto desc = gemm_desc(args, bound, &result.tile_bounds);
   const auto plan_start = std::chrono::steady_clock::now();
@@ -3913,8 +3925,11 @@ void print_json(
     std::cout << ",\n";
   }
   std::cout
-      << "    \"phase_order\": [\"planning\", \"scheduling\", \"matrix_alloc\", \"pack\", \"rns_gemm\", "
-         "\"crt_export\", \"end_to_end\"],\n";
+      << "    \"phase_order\": [\"planning\", \"scheduling\", ";
+  if (result.tile_bound_scan_available) {
+    std::cout << "\"tile_bound_scan\", ";
+  }
+  std::cout << "\"matrix_alloc\", \"pack\", \"rns_gemm\", \"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"gpu_event_phase_order\": ";
   if (gpu_events_available) {
     print_string_array(event_phase_order);
@@ -3934,6 +3949,9 @@ void print_json(
     std::cout << "      \"scheduling\": \"one-time fixed 16x16 WMMA candidate schedule derivation from the matrix shape\",\n";
   } else {
     std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing\",\n";
+  }
+  if (result.tile_bound_scan_available) {
+    std::cout << "      \"tile_bound_scan\": \"one-time exact seeded input prepass that computes per-output-tile bounds before plan creation\",\n";
   }
   if (args.wrap64_wmma_candidate) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned compact byte-limb HIP device buffer allocation host timing\",\n";
@@ -4017,6 +4035,14 @@ void print_json(
     std::cout << "        \"reason\": \"measured with host steady_clock around rns8_get_plan_schedule_info\"\n";
   }
   std::cout << "      },\n";
+  if (result.tile_bound_scan_available) {
+    std::cout << "      \"tile_bound_scan\": {\n";
+    std::cout << "        \"timed\": true,\n";
+    std::cout << "        \"timing_key\": \"tile_bound_scan\",\n";
+    std::cout << "        \"scope\": \"exact_seeded_input_prepass\",\n";
+    std::cout << "        \"reason\": \"measured with host steady_clock around exact per-output-tile bound computation before plan creation\"\n";
+    std::cout << "      },\n";
+  }
   std::cout << "      \"prepack_setup\": {\n";
   std::cout << "        \"timed\": " << (result.prepack_setup_available ? "true" : "false") << ",\n";
   std::cout << "        \"timing_key\": "
@@ -4074,6 +4100,10 @@ void print_json(
   std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
   std::cout << "  \"schedule_query_us\": " << result.schedule_query_us << ",\n";
   std::cout << "  \"avg_scheduling_us\": " << static_cast<double>(result.schedule_query_us) << ",\n";
+  if (result.tile_bound_scan_available) {
+    std::cout << "  \"tile_bound_scan_us\": " << result.tile_bound_scan_us << ",\n";
+    std::cout << "  \"avg_tile_bound_scan_us\": " << static_cast<double>(result.tile_bound_scan_us) << ",\n";
+  }
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";
   std::cout << "  \"avg_matrix_alloc_us\": " << static_cast<double>(result.matrix_alloc_us) << ",\n";
   std::cout << "  \"avg_prepack_setup_us\": ";
@@ -4097,6 +4127,11 @@ void print_json(
   std::cout << "    \"scheduling\": ";
   print_single_u64_array(result.schedule_query_us);
   std::cout << ",\n";
+  if (result.tile_bound_scan_available) {
+    std::cout << "    \"tile_bound_scan\": ";
+    print_single_u64_array(result.tile_bound_scan_us);
+    std::cout << ",\n";
+  }
   std::cout << "    \"matrix_alloc\": ";
   print_single_u64_array(result.matrix_alloc_us);
   std::cout << ",\n";
@@ -4116,6 +4151,9 @@ void print_json(
   std::cout << "  \"timing_summary_us\": {\n";
   print_single_timing_summary("planning", result.plan_us, true);
   print_single_timing_summary("scheduling", result.schedule_query_us, true);
+  if (result.tile_bound_scan_available) {
+    print_single_timing_summary("tile_bound_scan", result.tile_bound_scan_us, true);
+  }
   print_single_timing_summary("matrix_alloc", result.matrix_alloc_us, true);
   print_timing_summary("pack", result.samples.pack_us, true);
   print_timing_summary("rns_gemm", result.samples.gemm_us, true);

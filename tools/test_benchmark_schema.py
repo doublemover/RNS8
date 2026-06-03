@@ -708,6 +708,21 @@ def main() -> int:
     bad_schedule_summary["raw_timings_us"]["scheduling"] = [6]
     expect_invalid(bad_schedule_summary, "timing_summary_us.scheduling.avg")
 
+    missing_tile_bound_scan = copy.deepcopy(v4_adaptive_u64)
+    del missing_tile_bound_scan["raw_timings_us"]["tile_bound_scan"]
+    expect_invalid(missing_tile_bound_scan, "raw_timings_us.tile_bound_scan must be an array")
+
+    bad_tile_bound_scan_summary = copy.deepcopy(v4_adaptive_u64)
+    bad_tile_bound_scan_summary["raw_timings_us"]["tile_bound_scan"] = [11]
+    expect_invalid(bad_tile_bound_scan_summary, "timing_summary_us.tile_bound_scan.avg")
+
+    bad_tile_bound_scan_availability = copy.deepcopy(v4_adaptive_u64)
+    del bad_tile_bound_scan_availability["timing_metadata"]["phase_availability"]["tile_bound_scan"]
+    expect_invalid(
+        bad_tile_bound_scan_availability,
+        "phase_availability.tile_bound_scan must be an object for per-tile captures",
+    )
+
     bad_reduction_scope = copy.deepcopy(v4_wrap64_hip)
     bad_reduction_scope["timing_metadata"]["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
     expect_invalid(bad_reduction_scope, "phase_availability.reduction.scope")
