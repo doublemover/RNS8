@@ -98,6 +98,16 @@ behind these notes.
   nullspace, characteristic/minimal polynomial, and rational-reconstruction
   workflows. Those workflows also need factorization, triangular solve,
   CRT/CRA, verification, and certificate phases that RNS8 does not yet expose.
+- Exact-linear-algebra phase labels should be precise: PLUQ/CUP/PLE
+  rank-profile work, echelon recovery, determinant, inverse, solve, nullspace,
+  characteristic/minimal polynomial, Freivalds verification, and certificate
+  workflows are adjacent phases around GEMM unless RNS8 implements them
+  explicitly.
+- Symbolic-computation labels need even stronger boundaries. Dense F4
+  finite-field matrices and FGLM multiplication-matrix phases can be adjacent
+  dense-LA scenarios; sparse F4, F5 signature control, resultants,
+  subresultants, NTT polynomial multiplication, and CAS-wide workflows are not
+  dense-GEMM evidence.
 - Finite-u8 should distinguish `Z/qZ` rings from prime fields `GF(p)`.
   Extension fields such as `GF(2^e)` and word-size prime fields are not current
   RNS8 contracts.
@@ -472,6 +482,11 @@ RNS8-specific notes:
   dense GEMM, modular factorization, triangular solve, CRT/CRA combine,
   rational reconstruction, verification, certificate generation, polynomial
   transform, product/remainder tree, and black-box sparse matvec.
+- Exact-LA and symbolic scenarios should also record controller and
+  preprocessing time: rank-profile selection, symbolic preprocessing, sparse
+  reduction, tree setup, p-adic lifting, certificate generation, and
+  reconstruction/export can dominate even when the dense modular GEMM phase is
+  fast.
 - External CAS or exact-algebra libraries should be recorded by role: CPU
   oracle, CAS oracle, algorithm reference, benchmark comparison, or non-goal.
 
@@ -579,10 +594,13 @@ Technical direction:
   overclaiming; they are not public FHE APIs.
 - Include computational-algebra vocabulary in the internal IR even before those
   operations become public APIs: `Rank`, `Determinant`, `Solve`, `Nullspace`,
-  `TriangularSolve`, `CRABuild`, `RationalReconstruct`, `FreivaldsCheck`,
-  `Ntt`, `Intt`, `PointwiseMul`, `ProductTree`, `RemainderTree`,
-  `Interpolate`, `ModularCompose`, `SubresultantPRS`, `SylvesterMat`, and
-  `PolyMatMul`.
+  `RankProfile`, `PLUQ`, `CUP`, `PLE`, `TriangularSolve`, `Echelon`,
+  `CharPoly`, `MinPoly`, `Certificate`, `CRABuild`, `DixonSolve`,
+  `PadicLift`, `RationalReconstruct`, `FreivaldsCheck`, `Ntt`, `Intt`,
+  `PointwiseMul`, `ProductTree`, `RemainderTree`, `Interpolate`,
+  `ModularCompose`, `GroebnerF4Sparse`, `GroebnerF4DenseFiniteField`,
+  `F5SignatureReduction`, `FGLM`, `SubresultantPRS`, `ResultantSylvesterDet`,
+  `SylvesterMat`, `Popov`, `Hermite`, `Smith`, and `PolyMatMul`.
 - Lower `Export(MatMul(A,B))` differently from `MatMul(A,B)` whose result feeds
   another RNS GEMM.
 - Lower repeated-B workloads toward prepack and persistent scheduling.
@@ -897,8 +915,9 @@ RNS8-specific notes:
 - Computational-algebra libraries should be tracked by role rather than
   dependency status: FLINT/NTL/Boost as CPU exact oracles, FFLAS-FFPACK/Givaro
   as finite-field references, LinBox/IML as workload and certificate sources,
-  Sage/Nemo/Magma as CAS oracles where available, and M4RI/M4RIE as
-  small-characteristic non-goals unless a real extension-field backend appears.
+  Sage/Nemo/Magma/Maple/Singular/Wolfram as CAS oracles or phase classifiers
+  where available, and M4RI/M4RIE as small-characteristic non-goals unless a
+  real extension-field backend appears.
 - CUDA artifacts such as Linac, CUMODP, and GPU NTT systems are translation
   studies. Review their lane assumptions, CUDA library dependencies,
   warp-size assumptions, memory layouts, and NVIDIA-specific instructions
@@ -941,11 +960,14 @@ Technical direction:
   count.
 - Add computational-algebra scenarios: dense finite-field BLAS, modular rank,
   determinant, solve, nullspace, rational reconstruction, Freivalds-verified
-  product, block LU/TRSM-like update, rectangular rank-k, polynomial matrix
-  multiplication, modular-composition BSGS, NTT pressure, batched NTT,
-  product/remainder tree, subresultant/PRS, Sylvester determinant, structured
-  band/triangular/diagonal, Toeplitz/Hankel, low-rank, and black-box
-  Wiedemann/Lanczos matvec.
+  product, PLUQ/CUP/PLE rank profile, echelon recovery, block LU/TRSM-like
+  update, rectangular rank-k, characteristic/minimal polynomial, p-adic/Dixon
+  solve, early-terminated CRA, polynomial matrix multiplication,
+  modular-composition BSGS, F4 dense finite-field matrix phases, F4 sparse
+  reduction, F5 signature control, FGLM multiplication-matrix conversion, NTT
+  pressure, batched NTT, product/remainder tree, subresultant/PRS, Sylvester
+  determinant, structured band/triangular/diagonal, Toeplitz/Hankel/Cauchy,
+  low-displacement-rank, and black-box Wiedemann/Lanczos matvec.
 - Add failure-mode scenarios: max bounds, negative centered residues,
   modulus-edge residues, overflow-near accumulators, stale cache layouts,
   padded dimensions, non-contiguous strides, K-block boundaries, and mismatched
@@ -962,7 +984,10 @@ RNS8-specific notes:
 - Scenario metadata should include `algebra_family`, `structure_id`,
   `shape_signature`, `bound_profile`, `prefix_budget`, `density`, `reuse_mode`,
   `fast_mm_level`, `determinism_mode`, field/ring metadata, and reconstruction
-  profile where applicable.
+  profile where applicable. Exact-LA/symbolic metadata should additionally
+  include `phase_id`, `symbolic_precompute`, `controller_mode`,
+  `certificate_mode`, `structure_declared`, and whether the reported timing is
+  raw dense GEMM, dense-LA phase, reconstruction, or whole symbolic workflow.
 
 Likely first slices:
 
@@ -1641,7 +1666,9 @@ Relation to new architecture work:
   wrap64 carry-heavy, and large exploratory shapes.
 - Add computational-algebra scenarios for finite-field BLAS, modular
   rank/determinant/solve/nullspace, rational reconstruction, polynomial
-  matrix/modular-composition lowerings, NTT/product-tree pressure, rectangular
+  matrix/modular-composition lowerings, PLUQ/CUP/PLE rank profiles,
+  p-adic/Dixon solve, early-terminated CRA, F4 dense finite-field matrices,
+  FGLM multiplication-matrix conversion, NTT/product-tree pressure, rectangular
   rank-k, and structured matrix families.
 - Add FHE/lattice-derived NTT/key-switch/rotation/bootstrap proxies to the
   same scenario benchmark family, with evidence scope and output-domain

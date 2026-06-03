@@ -228,6 +228,27 @@ for ideas, but every borrowed idea has to be translated into HIP, compiled,
 exactly compared, and measured on the intended AMD target before it becomes
 RNS8 evidence.
 
+## Exact Linear Algebra And Symbolic Follow-Up
+
+A second alignment pass focused specifically on exact linear algebra and
+symbolic computation is recorded in
+[exact-linear-symbolic-alignment.md](exact-linear-symbolic-alignment.md). Its
+main correction is precision, not a product-direction change:
+
+- PLUQ/CUP/PLE rank-profile algorithms, triangular solve, echelon recovery,
+  determinant, inverse, solve, nullspace, characteristic/minimal polynomial,
+  and certificate workflows are adjacent exact-LA phases around dense modular
+  GEMM, not current RNS8 public functionality.
+- Multimodular and rational workflows should be described through explicit
+  controller modes: deterministic CRT, early-terminated CRA, rational
+  reconstruction, p-adic/Dixon solve, and fault-tolerant reconstruction.
+- Symbolic computation should be classified by phase. Dense F4 finite-field
+  matrices and FGLM multiplication matrices can be adjacent dense-LA scenarios;
+  sparse F4, F5 signature control, resultants/subresultants, NTT polynomial
+  multiplication, and CAS-wide workflows are not dense-GEMM evidence.
+- Structured and polynomial-matrix workloads need declared structure and
+  polynomial-domain metadata before any dense-GEMM lowering claim.
+
 ## PGWQ Alignment
 
 The current PGWQ already has the right architecture hooks: adaptive prefix
