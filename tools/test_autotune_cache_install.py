@@ -14,17 +14,28 @@ import install_autotune_cache
 
 def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     semantics = "finite_ring_u8" if finite_modulus else "bounded_i64"
+    selected_kernel = (
+        "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        if finite_modulus
+        else "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+    )
+    epilogue = (
+        "ck_fused_i32_to_centered_residue_then_canonical_u8_export"
+        if finite_modulus
+        else "ck_fused_i32_to_centered_residue_then_crt_export"
+    )
+    target_id = f"gfx1100{key_suffix}"
     finite = f";finite_modulus={finite_modulus}" if finite_modulus else ""
     key = (
-        f"backend=ck;target=gfx1100;version=repo-local release/rocm-rel-7.1;semantics={semantics};"
+        f"backend=ck;target={target_id};version=repo-local release/rocm-rel-7.1;semantics={semantics};"
         f"m=512;n=512;k=512{finite};layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
-        f"kernel=unit_kernel{key_suffix};epilogue=unit_epilogue"
+        f"kernel={selected_kernel};epilogue={epilogue}"
     )
     return {
         "key": key,
         "selected_backend": "ck",
-        "selected_kernel": f"unit_kernel{key_suffix}",
-        "target_id": "gfx1100",
+        "selected_kernel": selected_kernel,
+        "target_id": target_id,
         "hip_sdk_or_library_version": "repo-local release/rocm-rel-7.1",
         "semantic_contract": semantics,
         "finite_modulus": finite_modulus,
@@ -34,8 +45,8 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
         "k_block_size": 512,
         "tile_m": 128,
         "tile_n": 128,
-        "epilogue": "unit_epilogue",
-        "kernel_family": f"unit_kernel{key_suffix}",
+        "epilogue": epilogue,
+        "kernel_family": selected_kernel,
         "workspace_bytes": 4096,
         "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
         "performance_validated": True,
@@ -187,6 +198,46 @@ def main() -> int:
             assert "unsupported_autotune_backend_semantic_contract" in str(exc)
         else:
             raise AssertionError("direct-HIP baseline cache entry was accepted")
+
+        stale_kernel = entry("-stale-kernel")
+        stale_kernel.update(
+            {
+                "key": stale_kernel["key"]
+                .replace(
+                    "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+                    "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0",
+                ),
+                "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+                "kernel_family": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+            }
+        )
+        stale_kernel_source = root / "stale-kernel.json"
+        write_cache(stale_kernel_source, [stale_kernel])
+        try:
+            install_autotune_cache.install_cache([stale_kernel_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_kernel_for_contract" in str(exc)
+        else:
+            raise AssertionError("stale public-backend cache kernel was accepted")
+
+        stale_epilogue = entry("-stale-epilogue")
+        stale_epilogue.update(
+            {
+                "key": stale_epilogue["key"].replace(
+                    "epilogue=ck_fused_i32_to_centered_residue_then_crt_export",
+                    "epilogue=low64_wrap_export",
+                ),
+                "epilogue": "low64_wrap_export",
+            }
+        )
+        stale_epilogue_source = root / "stale-epilogue.json"
+        write_cache(stale_epilogue_source, [stale_epilogue])
+        try:
+            install_autotune_cache.install_cache([stale_epilogue_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_epilogue_for_contract" in str(exc)
+        else:
+            raise AssertionError("stale public-backend cache epilogue was accepted")
 
         stale = root / "stale.json"
         stale_entry = copy.deepcopy(old)
