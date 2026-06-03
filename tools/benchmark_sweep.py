@@ -17,9 +17,15 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
+EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
+EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
+REVIEW_SCHEMA_VERSION = 3
+PLACEHOLDER_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
+RELEASE_MIN_WARMUPS = 3
+RELEASE_MIN_REPEATS = 9
 PROMOTABLE_RELEASE_SHAPES = [64, 128, 512, 1024]
 EXPLORATORY_RELEASE_SHAPES = [2048, 4096, 8192]
 DEFAULT_ADAPTIVE_CASES = [
@@ -103,6 +109,8 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"k_block={capture.get('k_block_size')}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
+        f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
+        f"pack_mode={capture_pack_mode(capture)}",
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)
@@ -128,6 +136,136 @@ def selected_kernel(capture: dict[str, Any]) -> str:
     return str(kernel) if kernel is not None else ""
 
 
+def normalized_target_id(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text.lower() in PLACEHOLDER_TARGET_IDS:
+        return None
+    return text
+
+
+def capture_backend_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    metadata = capture.get("backend_metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def capture_timing_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    metadata = capture.get("timing_metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def capture_pack_mode(capture: dict[str, Any]) -> str:
+    timing = capture_timing_metadata(capture)
+    mode = timing.get("pack_mode")
+    if mode is None:
+        mode = capture.get("pack_mode")
+    if isinstance(mode, str):
+        return mode
+    return "prepacked_reuse" if capture.get("reuse_packed_inputs") is True else "per_repeat_repack"
+
+
+def capture_device(capture: dict[str, Any]) -> dict[str, Any]:
+    device = capture.get("device")
+    return device if isinstance(device, dict) else {}
+
+
+def capture_hip_toolchain(capture: dict[str, Any]) -> dict[str, Any]:
+    toolchain = capture.get("hip_toolchain")
+    return toolchain if isinstance(toolchain, dict) else {}
+
+
+def capture_compiler(capture: dict[str, Any]) -> dict[str, Any]:
+    compiler = capture.get("compiler")
+    return compiler if isinstance(compiler, dict) else {}
+
+
+def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    metadata = capture_backend_metadata(capture)
+    timing = capture_timing_metadata(capture)
+    device = capture_device(capture)
+    toolchain = capture_hip_toolchain(capture)
+    compiler = capture_compiler(capture)
+    return {
+        "target_id": normalized_target_id(device.get("gcn_arch")),
+        "device_name": device.get("name"),
+        "hip_sdk_or_rocm_version": toolchain.get("hip_sdk_or_rocm_version"),
+        "accelerator_library": metadata.get("accelerator_library"),
+        "accelerator_version": metadata.get("accelerator_version"),
+        "compiler": {"id": compiler.get("id"), "version": compiler.get("version")},
+        "configured_amdgpu_targets": capture.get("configured_amdgpu_targets"),
+        "git_commit": capture.get("git_commit"),
+        "seed": capture.get("seed"),
+        "warmups": capture.get("warmups"),
+        "repeats": capture.get("repeats"),
+        "layout": capture.get("layout"),
+        "reuse_packed_inputs": capture.get("reuse_packed_inputs") is True,
+        "pack_mode": capture_pack_mode(capture),
+        "prepack_setup_us": capture.get("prepack_setup_us"),
+        "prefix": capture.get("prefix"),
+        "k_block_size": capture.get("k_block_size"),
+        "tile_m": capture.get("tile_m"),
+        "tile_n": capture.get("tile_n"),
+        "epilogue": capture.get("epilogue_type"),
+        "workspace_bytes": metadata.get("workspace_required_bytes", 0),
+        "autotune_key": metadata.get("autotune_key"),
+        "event_source": timing.get("gpu_event_timing_source"),
+        "event_source_scope": timing.get("gpu_event_timing_source_scope"),
+        "event_status": timing.get("gpu_event_timing_status"),
+        "event_phase_order": timing.get("gpu_event_phase_order"),
+    }
+
+
+def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
+    source_items = [candidate_source_metadata(item) for item in items]
+    targets = sorted(
+        {
+            str(item.get("target_id"))
+            for item in source_items
+            if item.get("target_id")
+        }
+    )
+    hip_versions = sorted(
+        {
+            str(item.get("hip_sdk_or_rocm_version"))
+            for item in source_items
+            if item.get("hip_sdk_or_rocm_version")
+        }
+    )
+    accelerator_versions = sorted(
+        {
+            str(item.get("accelerator_version"))
+            for item in source_items
+            if item.get("accelerator_version")
+        }
+    )
+    compilers = sorted(
+        {
+            f"{compiler.get('id')} {compiler.get('version')}"
+            for item in items
+            if (compiler := capture_compiler(item)).get("id") or compiler.get("version")
+        }
+    )
+    return {
+        "target_ids": targets,
+        "hip_sdk_or_rocm_versions": hip_versions,
+        "accelerator_versions": accelerator_versions,
+        "compilers": compilers,
+        "git_commits": sorted({str(item.get("git_commit")) for item in items if item.get("git_commit")}),
+        "seeds": sorted({int(item.get("seed")) for item in items if isinstance(item.get("seed"), int)}),
+        "warmups": sorted({int(item.get("warmups")) for item in items if isinstance(item.get("warmups"), int)}),
+        "repeats": sorted({int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}),
+        "reuse_packed_inputs": sorted({bool(item.get("reuse_packed_inputs") is True) for item in items}),
+        "pack_modes": sorted({capture_pack_mode(item) for item in items}),
+        "event_sources": sorted(
+            {
+                str(capture_timing_metadata(item).get("gpu_event_timing_source") or "unavailable")
+                for item in items
+            }
+        ),
+    }
+
+
 def cli_backend(backend: str) -> str:
     return "rocwmma" if backend == "wmma" else backend
 
@@ -136,6 +274,10 @@ def normalize_semantics(value: str) -> str:
     aliases = {
         "bounded_i64": "bounded-i64",
         "bounded_u64": "bounded-u64",
+        "exact_wide_signed": "exact-wide-signed",
+        "exact-wide-i64": "exact-wide-signed",
+        "exact_wide_unsigned": "exact-wide-unsigned",
+        "exact-wide-u64": "exact-wide-unsigned",
         "wrap_u64_mod_2_64": "wrap-u64",
         "finite-ring-u8": "finite-u8-ring",
         "finite_ring_u8": "finite-u8-ring",
@@ -208,6 +350,8 @@ def required_baselines(semantics: Any) -> list[str]:
         return ["cpu-reference", "hip-direct", "hip-vector-alu-int64"]
     if semantics in {"finite_ring_u8", "finite_field_u8"}:
         return ["cpu-reference", "hip-direct"]
+    if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+        return ["cpu-reference", "hip-direct"]
     if semantics == "wrap_u64_mod_2_64":
         return ["wrap64-byte-limb", "hip-direct"]
     return []
@@ -227,11 +371,23 @@ def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: di
     return result
 
 
+def release_capture_satisfied(capture: dict[str, Any]) -> bool:
+    return (
+        isinstance(capture.get("warmups"), int)
+        and isinstance(capture.get("repeats"), int)
+        and capture["warmups"] >= RELEASE_MIN_WARMUPS
+        and capture["repeats"] >= RELEASE_MIN_REPEATS
+    )
+
+
 def promotion_blockers(
     *,
     missing: list[str],
+    semantics: Any,
+    release_review_satisfied: bool,
     gpu_target_compatible: bool,
     accelerator: bool,
+    prepacked_reuse: bool,
     end_to_end: float | None,
     direct: float | None,
     vector: float | None,
@@ -239,10 +395,14 @@ def promotion_blockers(
     blockers: list[str] = []
     if missing:
         blockers.append("missing_required_baselines")
+    if not release_review_satisfied:
+        blockers.append("not_release_review")
     if not gpu_target_compatible:
         blockers.append("gpu_target_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
+    if prepacked_reuse:
+        blockers.append("prepacked_reuse_not_autotune_promotable")
     if end_to_end is None:
         blockers.append("missing_end_to_end_timing")
     if direct is None:
@@ -271,7 +431,9 @@ def primary_loss_phase(item: dict[str, Any], direct: dict[str, Any] | None) -> s
     return worst_phase
 
 
-def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
+def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
+    if review_mode not in {"smoke", "release"}:
+        raise ValueError(f"unsupported review mode: {review_mode}")
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for capture in captures:
         grouped[capture_contract_key(capture)].append(capture)
@@ -290,24 +452,28 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
             for item in items
         }
         gpu_targets = {
-            backend: capture.get("device", {}).get("gcn_arch")
+            backend: normalized_target_id(capture.get("device", {}).get("gcn_arch"))
             for backend, capture in by_backend.items()
             if backend not in {"cpu-reference", "wrap64-byte-limb"}
         }
         gpu_target_values = {value for value in gpu_targets.values() if value}
         gpu_target_compatible = len(gpu_target_values) <= 1
+        release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
             backend = backend_id(item)
-            metadata = item.get("backend_metadata") if isinstance(item.get("backend_metadata"), dict) else {}
+            metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
             end_to_end = median_phase(item, "end_to_end")
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
             blockers = promotion_blockers(
                 missing=missing,
+                semantics=semantics,
+                release_review_satisfied=release_review_satisfied,
                 gpu_target_compatible=gpu_target_compatible,
                 accelerator=accelerator,
+                prepacked_reuse=capture_pack_mode(item) == "prepacked_reuse",
                 end_to_end=end_to_end,
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
@@ -317,7 +483,9 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
+                "source_metadata": candidate_source_metadata(item),
                 "accelerator_backend": accelerator,
+                "release_review_capture": release_capture_satisfied(item),
                 "median_end_to_end_us": end_to_end,
                 "phase_diagnostics": phase_ratios(item, direct_capture, vector_capture),
                 "speedup_vs_direct_hip": (direct / end_to_end) if direct and end_to_end else None,
@@ -326,6 +494,7 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
                 "primary_loss_phase_vs_direct_hip": None if promotable else primary_loss_phase(item, direct_capture),
+                "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
             }
             candidates.append(candidate)
 
@@ -338,6 +507,7 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
                     item["promotable"] = False
                     item["promotion_blockers"] = ["not_fastest_promotable_accelerator"]
                     item["promotion_reason"] = "blocked"
+                    item["cache_write_status"] = "not_eligible"
             source = by_backend.get(fastest["backend"])
             if source is not None:
                 metadata = source.get("backend_metadata") if isinstance(source.get("backend_metadata"), dict) else {}
@@ -348,6 +518,13 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
                         "selected_backend": fastest["backend"],
                         "selected_kernel": fastest["selected_kernel"],
                         "median_end_to_end_us": fastest["median_end_to_end_us"],
+                        "target_id": candidate_source_metadata(source).get("target_id"),
+                        "hip_sdk_or_rocm_version": candidate_source_metadata(source).get("hip_sdk_or_rocm_version"),
+                        "accelerator_library": metadata.get("accelerator_library"),
+                        "accelerator_version": metadata.get("accelerator_version"),
+                        "workspace_bytes": metadata.get("workspace_required_bytes", 0),
+                        "winner_rationale": "fastest_promotable_same_contract_accelerator",
+                        "cache_write_status": "pending",
                     }
                 )
 
@@ -358,6 +535,13 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "finite_modulus": items[0].get("finite_modulus"),
                 "shape": {"m": items[0].get("m"), "n": items[0].get("n"), "k": items[0].get("k")},
                 "capture_count": len(items),
+                "source_metadata": group_source_metadata(items),
+                "review_mode": review_mode,
+                "release_review_satisfied": release_review_satisfied,
+                "release_review_requirements": {
+                    "min_warmups": RELEASE_MIN_WARMUPS,
+                    "min_repeats": RELEASE_MIN_REPEATS,
+                },
                 "required_baselines": required,
                 "missing_required_baselines": missing,
                 "gpu_targets": gpu_targets,
@@ -369,11 +553,22 @@ def review_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
         )
 
     return {
-        "schema_version": 2,
+        "schema_version": REVIEW_SCHEMA_VERSION,
+        "review_mode": review_mode,
+        "release_review_requirements": {
+            "min_warmups": RELEASE_MIN_WARMUPS,
+            "min_repeats": RELEASE_MIN_REPEATS,
+        },
         "reviewed_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "group_count": len(groups),
         "groups": groups,
         "promotable_autotune_entries": promotable_entries,
+        "cache_write": {
+            "requested": False,
+            "path": None,
+            "entries_written": 0,
+            "status": "not_requested",
+        },
     }
 
 
@@ -403,17 +598,18 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "key": metadata.get("autotune_key"),
         "selected_backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
-        "target_id": device.get("gcn_arch") or "cpu",
+        "target_id": normalized_target_id(device.get("gcn_arch")) or "cpu",
         "hip_sdk_or_library_version": version,
         "semantic_contract": capture.get("semantics"),
+        "finite_modulus": capture.get("finite_modulus") or 0,
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "layout": capture.get("layout"),
         "prefix_schedule_hash": prefix_schedule_hash,
         "k_block_size": capture.get("k_block_size"),
         "tile_m": capture.get("tile_m"),
         "tile_n": capture.get("tile_n"),
-        "epilogue": capture.get("epilogue_type"),
-        "kernel_family": capture.get("selected_kernel"),
+        "epilogue": metadata.get("epilogue_mode"),
+        "kernel_family": metadata.get("selected_kernel") or capture.get("selected_kernel"),
         "workspace_bytes": metadata.get("workspace_required_bytes", 0),
         "measured_medians_us": {
             "pack": median("pack"),
@@ -440,7 +636,7 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
         capture = by_path.get(str(item.get("source_capture")))
         if not capture:
             continue
-        entry = cache_entry_from_capture(capture, "reviewed_same_contract_fastest_windows_gfx1100")
+        entry = cache_entry_from_capture(capture, "reviewed_release_same_contract_fastest_windows_gfx1100")
         if entry.get("key"):
             entries.append(entry)
     if not entries:
@@ -462,7 +658,39 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
         json.dumps({"schema_version": 1, "entries": list(by_key.values())}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    for item in promotable:
+        if isinstance(item, dict):
+            item["cache_write_status"] = "written"
     return len(entries)
+
+
+def attach_cache_write_status(report: dict[str, Any], requested: bool, path: Path, entries_written: int) -> None:
+    report["cache_write"] = {
+        "requested": requested,
+        "path": str(path) if requested else None,
+        "entries_written": entries_written,
+        "status": "written" if requested and entries_written else "no_promotable_entries" if requested else "not_requested",
+    }
+    if not requested:
+        for item in report.get("promotable_autotune_entries", []):
+            if isinstance(item, dict):
+                item["cache_write_status"] = "not_requested"
+        return
+    written_sources = {
+        str(item.get("source_capture"))
+        for item in report.get("promotable_autotune_entries", [])
+        if isinstance(item, dict) and item.get("cache_write_status") == "written" and item.get("source_capture")
+    }
+    for group in report.get("groups", []):
+        if not isinstance(group, dict):
+            continue
+        for candidate in group.get("candidates", []):
+            if not isinstance(candidate, dict):
+                continue
+            if str(candidate.get("capture")) in written_sources:
+                candidate["cache_write_status"] = "written"
+            elif candidate.get("promotable"):
+                candidate["cache_write_status"] = "pending"
 
 
 def default_cases(args: argparse.Namespace) -> list[SweepCase]:
@@ -484,6 +712,18 @@ def adaptive_cases(args: argparse.Namespace) -> list[SweepCase]:
     return []
 
 
+def wrap64_cases(args: argparse.Namespace) -> list[SweepCase]:
+    if args.case:
+        return [parse_case(value) for value in args.case]
+    shapes = PROMOTABLE_RELEASE_SHAPES if args.release_matrix else [64]
+    if args.include_exploratory_large:
+        shapes = [*shapes, *EXPLORATORY_RELEASE_SHAPES]
+    return [
+        parse_case(f"wrap64-{shape}:{shape},{shape},{shape}", promotable=shape in PROMOTABLE_RELEASE_SHAPES)
+        for shape in shapes
+    ]
+
+
 def finite_moduli_for(semantics: str, args: argparse.Namespace) -> list[int | None]:
     if semantics == "finite-u8-ring":
         return args.modulus or DEFAULT_FINITE_RING_MODULI
@@ -497,6 +737,8 @@ def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
         return ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"] if case.bound_mode == "per-tile" else BOUNDED_BACKENDS
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return FINITE_BACKENDS
+    if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
+        return EXACT_WIDE_BACKENDS
     if semantics == "wrap-u64":
         return WRAP64_BACKENDS
     return []
@@ -507,6 +749,8 @@ def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
         return backend in WRAP64_BACKENDS
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return backend in FINITE_BACKENDS
+    if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
+        return case.bound_mode == "global" and backend in EXACT_WIDE_BACKENDS
     if semantics in {"bounded-i64", "bounded-u64"}:
         if backend not in BOUNDED_BACKENDS:
             return False
@@ -516,10 +760,18 @@ def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
     return False
 
 
-def capture_name(semantics: str, case: SweepCase, backend: str, modulus: int | None) -> str:
+def capture_name(
+    semantics: str,
+    case: SweepCase,
+    backend: str,
+    modulus: int | None,
+    reuse_packed_inputs: bool,
+) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
         parts.append(f"mod{modulus}")
+    if reuse_packed_inputs:
+        parts.append("reuse-packed")
     parts.append(backend)
     return "-".join(parts).replace("/", "_") + ".json"
 
@@ -561,6 +813,8 @@ def command_for(
         command.append("--require-adaptive-execution")
     if modulus is not None:
         command.extend(["--modulus", str(modulus)])
+    if args.reuse_packed_inputs:
+        command.append("--reuse-packed-inputs")
     return command
 
 
@@ -568,12 +822,20 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
     backend_benches = parse_backend_bench(args.bench_for)
     commands: list[tuple[str, list[str], Path]] = []
     semantics_values = [normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])]
-    cases = [*default_cases(args), *adaptive_cases(args)]
+    cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
+    if args.adaptive_only and not cases:
+        raise SystemExit("--adaptive-only requires --adaptive-case or --include-default-adaptive")
     if args.include_wrap64 and "wrap-u64" not in semantics_values:
         semantics_values.append("wrap-u64")
+    if args.include_exact_wide:
+        for exact_semantics in EXACT_WIDE_SEMANTICS:
+            if exact_semantics not in semantics_values:
+                semantics_values.append(exact_semantics)
     for semantics in semantics_values:
         if semantics == "wrap-u64":
-            active_cases = [parse_case("wrap64-64:64,64,64")]
+            if args.adaptive_only:
+                continue
+            active_cases = wrap64_cases(args)
         else:
             active_cases = cases
         for case in active_cases:
@@ -585,7 +847,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                     bench = backend_benches.get(backend, args.bench)
                     if bench is None:
                         raise SystemExit(f"no benchmark executable configured for backend {backend}")
-                    name = capture_name(semantics, case, backend, modulus)
+                    name = capture_name(semantics, case, backend, modulus, args.reuse_packed_inputs)
                     command = command_for(bench, backend, semantics, case, modulus, args)
                     commands.append((name, command, args.out_root / name))
     return commands
@@ -595,9 +857,12 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
     lines = [
         "# RNS8 Benchmark Sweep Review",
         "",
+        f"- schema_version: `{report.get('schema_version')}`",
+        f"- review_mode: `{report.get('review_mode')}`",
         f"- reviewed_utc: `{report.get('reviewed_utc')}`",
         f"- groups: `{report.get('group_count')}`",
         f"- promotable_autotune_entries: `{len(report.get('promotable_autotune_entries', []))}`",
+        f"- cache_write: `{report.get('cache_write', {}).get('status')}`",
         "",
     ]
     for group in report.get("groups", []):
@@ -609,22 +874,27 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.extend([f"## {title}", ""])
         missing = group.get("missing_required_baselines") or []
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
+        lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
             lines.append(f"- fastest_promotable: `{fastest['backend']}/{fastest['selected_kernel']}`")
+            lines.append(f"- winner_rationale: `{fastest.get('promotion_reason')}`")
         else:
             lines.append("- fastest_promotable: `none`")
         lines.append("")
-        lines.append("| backend | kernel | e2e median us | promotable | blockers | primary loss phase |")
-        lines.append("|---|---|---:|---|---|---|")
+        lines.append("| backend | kernel | target | e2e median us | promotable | cache | blockers | primary loss phase |")
+        lines.append("|---|---|---|---:|---|---|---|---|")
         for candidate in group.get("candidates", []):
             blockers = ",".join(candidate.get("promotion_blockers") or [])
+            source = candidate.get("source_metadata") if isinstance(candidate.get("source_metadata"), dict) else {}
             lines.append(
-                "| {backend} | {kernel} | {median} | {promotable} | {blockers} | {loss} |".format(
+                "| {backend} | {kernel} | {target} | {median} | {promotable} | {cache} | {blockers} | {loss} |".format(
                     backend=candidate.get("backend"),
                     kernel=candidate.get("selected_kernel"),
+                    target=source.get("target_id"),
                     median=candidate.get("median_end_to_end_us"),
                     promotable=candidate.get("promotable"),
+                    cache=candidate.get("cache_write_status"),
                     blockers=blockers or "none",
                     loss=candidate.get("primary_loss_phase_vs_direct_hip") or "",
                 )
@@ -658,16 +928,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
     parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
+    parser.add_argument("--adaptive-only", action="store_true", help="run only adaptive cases, skipping global cases")
     parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
+    parser.add_argument(
+        "--include-exact-wide",
+        action="store_true",
+        help="include exact-wide signed and unsigned captures",
+    )
+    parser.add_argument(
+        "--reuse-packed-inputs",
+        action="store_true",
+        help="pack A/B once before warmups and benchmark repeated GEMM/export against persistent packed inputs",
+    )
     parser.add_argument("--release-matrix", action="store_true", help="use promotable release bounded shapes 64..1024")
     parser.add_argument("--include-exploratory-large", action="store_true", help="include 2048/4096/8192 exploratory shapes")
+    parser.add_argument(
+        "--review-mode",
+        choices=["smoke", "release"],
+        default="smoke",
+        help="release mode is required before captures can produce performance_validated autotune entries",
+    )
     parser.add_argument("--warmups", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(
         "--write-autotune-cache",
         action="store_true",
-        help="write performance_validated cache entries only for fastest promotable reviewed captures",
+        help="write performance_validated cache entries only for fastest promotable release-reviewed captures",
     )
     parser.add_argument("--autotune-cache", type=Path, help="override autotune cache output path")
     return parser.parse_args()
@@ -687,15 +974,16 @@ def main() -> int:
                 capture_paths.append(output)
 
     captures = validate_paths(capture_paths)
-    report = review_captures(captures)
-    report_path = args.out_root / "review_report.json"
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
-    markdown_path = args.out_root / "review_report.md"
-    write_markdown_report(report, markdown_path)
+    report = review_captures(captures, review_mode=args.review_mode)
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:
         promoted = write_promoted_cache_entries(report, captures, cache_path)
+    attach_cache_write_status(report, args.write_autotune_cache, cache_path, promoted)
+    report_path = args.out_root / "review_report.json"
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    markdown_path = args.out_root / "review_report.md"
+    write_markdown_report(report, markdown_path)
     print(
         json.dumps(
             {

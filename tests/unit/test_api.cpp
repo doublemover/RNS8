@@ -1,6 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
+#include <cstdlib>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
 #include <vector>
@@ -27,6 +31,32 @@ rns8_context* create_wrap_context() {
   rns8_context* ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS);
   return ctx;
+}
+
+void set_autotune_cache_path_for_test(const std::filesystem::path& path) {
+#if defined(_WIN32)
+  _putenv_s("RNS8_AUTOTUNE_CACHE_PATH", path.string().c_str());
+#else
+  setenv("RNS8_AUTOTUNE_CACHE_PATH", path.string().c_str(), 1);
+#endif
+}
+
+void clear_autotune_cache_path_for_test() {
+#if defined(_WIN32)
+  _putenv_s("RNS8_AUTOTUNE_CACHE_PATH", "");
+#else
+  unsetenv("RNS8_AUTOTUNE_CACHE_PATH");
+#endif
+}
+
+struct ScopedAutotuneCachePath {
+  explicit ScopedAutotuneCachePath(const std::filesystem::path& path) { set_autotune_cache_path_for_test(path); }
+  ~ScopedAutotuneCachePath() { clear_autotune_cache_path_for_test(); }
+};
+
+std::filesystem::path unique_cache_fixture_path(const char* stem) {
+  const auto tick = std::chrono::steady_clock::now().time_since_epoch().count();
+  return std::filesystem::temp_directory_path() / (std::string(stem) + "-" + std::to_string(tick) + ".json");
 }
 
 rns8_gemm_desc exact_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k) {
@@ -69,6 +99,20 @@ rns8_matrix_desc bounded_matrix_desc(int64_t rows, int64_t cols, rns8_semantics 
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   desc.bound_kind = semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
+rns8_matrix_desc finite_matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics) {
+  rns8_matrix_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.rows = rows;
+  desc.cols = cols;
+  desc.logical_ld = cols;
+  desc.semantics = semantics;
+  desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.max_prefix = 0;
   return desc;
 }
 
@@ -694,7 +738,8 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_canonical_pack_workspace");
-      CHECK(std::string(capability.isa_evidence) == "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store");
+      CHECK(std::string(capability.isa_evidence) ==
+            "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
@@ -730,25 +775,27 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     CHECK(capability.compiled_kernel_available == 0);
     CHECK(capability.exact_differential_validated == 0);
     CHECK(capability.performance_validated == 0);
-    CHECK(std::string(capability.status) == "not_implemented_evidence_only");
     CHECK(std::string(capability.isa_evidence) == "not_validated");
     if (backend == RNS8_BACKEND_CK) {
-      CHECK(std::string(capability.selected_kernel) == "ck_grouped_fused_int8_i32_residue_pending_v1");
-      CHECK(std::string(capability.epilogue_mode) == "fused_i32_to_centered_residue_pending");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_workspace_pending");
+      CHECK(std::string(capability.status) == "not_enabled_in_this_build");
+      CHECK(std::string(capability.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1_disabled");
+      CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue_disabled");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
     } else if (backend == RNS8_BACKEND_WMMA) {
-      CHECK(std::string(capability.selected_kernel) == "gfx1100_wmma_builtin_fused_residue_pending_v1");
-      CHECK(std::string(capability.epilogue_mode) == "fused_matrix_engine_residue_pending");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_wmma_workspace_pending");
+      CHECK(std::string(capability.status) == "not_enabled_or_builtin_not_implemented");
+      CHECK(std::string(capability.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1_disabled");
+      CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
     } else {
+      CHECK(std::string(capability.status) == "not_implemented_evidence_only");
       CHECK(std::string(capability.epilogue_mode) == "not_implemented");
     }
   }
@@ -845,6 +892,375 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
   null_info.abi_version = RNS8_ABI_VERSION;
   CHECK(rns8_get_plan_backend_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
 }
+
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+TEST_CASE("AUTO plan consumes reviewed CK cache entry with HIP resident matrices") {
+  constexpr int64_t m = 64;
+  constexpr int64_t n = 128;
+  constexpr int64_t k = 64;
+
+  rns8_context_options ck_options{};
+  ck_options.struct_size = sizeof(ck_options);
+  ck_options.abi_version = RNS8_ABI_VERSION;
+  ck_options.requested_backend = RNS8_BACKEND_CK;
+  rns8_context* ck_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &ck_options, &ck_ctx) == RNS8_SUCCESS);
+
+  rns8_device_info ck_device{};
+  ck_device.struct_size = sizeof(ck_device);
+  ck_device.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_device_info(ck_ctx, &ck_device) == RNS8_SUCCESS);
+
+  rns8_gemm_desc ck_desc{};
+  ck_desc.struct_size = sizeof(ck_desc);
+  ck_desc.abi_version = RNS8_ABI_VERSION;
+  ck_desc.semantics = RNS8_BOUNDED_I64;
+  ck_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  ck_desc.requested_backend = RNS8_BACKEND_CK;
+  ck_desc.m = m;
+  ck_desc.n = n;
+  ck_desc.k = k;
+  ck_desc.bound = static_cast<uint64_t>(k);
+  ck_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+  rns8_plan* ck_plan = nullptr;
+  REQUIRE(rns8_create_plan(ck_ctx, &ck_desc, &ck_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info ck_info{};
+  ck_info.struct_size = sizeof(ck_info);
+  ck_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(ck_plan, &ck_info) == RNS8_SUCCESS);
+
+  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-ck-cache");
+  {
+    std::ofstream cache(cache_path, std::ios::trunc);
+    cache << "{"
+          << "\"schema_version\":1,"
+          << "\"entries\":[{"
+          << "\"key\":\"" << ck_info.autotune_key << "\","
+          << "\"selected_backend\":\"ck\","
+          << "\"selected_kernel\":\"" << ck_info.selected_kernel << "\","
+          << "\"target_id\":\"" << ck_device.gcn_arch << "\","
+          << "\"hip_sdk_or_library_version\":\"" << ck_info.accelerator_version << "\","
+          << "\"semantic_contract\":\"bounded_i64\","
+          << "\"shape\":{\"m\":" << m << ",\"n\":" << n << ",\"k\":" << k << "},"
+          << "\"layout\":\"row_major\","
+          << "\"prefix_schedule_hash\":\"groups=1;adaptive_prefix=0;adaptive_skip=0\","
+          << "\"k_block_size\":" << k << ","
+          << "\"tile_m\":128,"
+          << "\"tile_n\":128,"
+          << "\"epilogue\":\"" << ck_info.epilogue_mode << "\","
+          << "\"kernel_family\":\"" << ck_info.selected_kernel << "\","
+          << "\"workspace_bytes\":" << ck_info.workspace_required_bytes << ","
+          << "\"measured_medians_us\":{\"pack\":1.0,\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
+          << "\"performance_validated\":true,"
+          << "\"validation_status\":\"reviewed_release_same_contract_fastest_windows_gfx1100\","
+          << "\"schema_version\":1,"
+          << "\"updated_utc\":\"2026-06-02T00:00:00Z\""
+          << "}]}"
+          << "\n";
+  }
+  rns8_destroy_plan(ck_plan);
+  rns8_destroy_context(ck_ctx);
+
+  ScopedAutotuneCachePath scoped_cache(cache_path);
+  rns8_context_options auto_options{};
+  auto_options.struct_size = sizeof(auto_options);
+  auto_options.abi_version = RNS8_ABI_VERSION;
+  auto_options.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_context* auto_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &auto_options, &auto_ctx) == RNS8_SUCCESS);
+
+  rns8_gemm_desc auto_desc = ck_desc;
+  auto_desc.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_plan* auto_plan = nullptr;
+  REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &auto_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info auto_info{};
+  auto_info.struct_size = sizeof(auto_info);
+  auto_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_CK);
+  CHECK(auto_info.performance_validated == 1);
+  CHECK(std::string(auto_info.autotune_key) == ck_info.autotune_key);
+
+  auto a_desc = bounded_matrix_desc(m, k, RNS8_BOUNDED_I64);
+  auto b_desc = bounded_matrix_desc(k, n, RNS8_BOUNDED_I64);
+  auto c_desc = bounded_matrix_desc(m, n, RNS8_BOUNDED_I64);
+  rns8_matrix* A = nullptr;
+  rns8_matrix* B = nullptr;
+  rns8_matrix* C = nullptr;
+  REQUIRE(rns8_create_matrix(auto_ctx, &a_desc, &A) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &b_desc, &B) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &c_desc, &C) == RNS8_SUCCESS);
+
+  std::vector<int64_t> a(static_cast<std::size_t>(m * k), 1);
+  std::vector<int64_t> b(static_cast<std::size_t>(k * n), 1);
+  std::vector<int64_t> c(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_pack_i64(auto_ctx, A, a.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(auto_ctx, B, b.data(), n, 1) == RNS8_SUCCESS);
+
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(auto_ctx, auto_plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(auto_ctx, auto_plan, A, B, C, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(auto_ctx, auto_plan, C, c.data(), n) == RNS8_SUCCESS);
+  for (int64_t value : c) {
+    CHECK(value == k);
+  }
+
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_matrix(C);
+  rns8_destroy_matrix(B);
+  rns8_destroy_matrix(A);
+  rns8_destroy_plan(auto_plan);
+  rns8_destroy_context(auto_ctx);
+  std::filesystem::remove(cache_path);
+}
+#endif
+
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resident matrices") {
+  constexpr int64_t m = 64;
+  constexpr int64_t n = 128;
+  constexpr int64_t k = 64;
+
+  rns8_context_options wmma_options{};
+  wmma_options.struct_size = sizeof(wmma_options);
+  wmma_options.abi_version = RNS8_ABI_VERSION;
+  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  rns8_context* wmma_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
+
+  rns8_device_info wmma_device{};
+  wmma_device.struct_size = sizeof(wmma_device);
+  wmma_device.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_device_info(wmma_ctx, &wmma_device) == RNS8_SUCCESS);
+
+  rns8_gemm_desc wmma_desc{};
+  wmma_desc.struct_size = sizeof(wmma_desc);
+  wmma_desc.abi_version = RNS8_ABI_VERSION;
+  wmma_desc.semantics = RNS8_BOUNDED_I64;
+  wmma_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.m = m;
+  wmma_desc.n = n;
+  wmma_desc.k = k;
+  wmma_desc.bound = static_cast<uint64_t>(k);
+  wmma_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+  rns8_plan* wmma_plan = nullptr;
+  REQUIRE(rns8_create_plan(wmma_ctx, &wmma_desc, &wmma_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info wmma_info{};
+  wmma_info.struct_size = sizeof(wmma_info);
+  wmma_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(wmma_plan, &wmma_info) == RNS8_SUCCESS);
+
+  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-wmma-cache");
+  {
+    std::ofstream cache(cache_path, std::ios::trunc);
+    cache << "{"
+          << "\"schema_version\":1,"
+          << "\"entries\":[{"
+          << "\"key\":\"" << wmma_info.autotune_key << "\","
+          << "\"selected_backend\":\"wmma\","
+          << "\"selected_kernel\":\"" << wmma_info.selected_kernel << "\","
+          << "\"target_id\":\"" << wmma_device.gcn_arch << "\","
+          << "\"hip_sdk_or_library_version\":\"" << wmma_info.accelerator_version << "\","
+          << "\"semantic_contract\":\"bounded_i64\","
+          << "\"shape\":{\"m\":" << m << ",\"n\":" << n << ",\"k\":" << k << "},"
+          << "\"layout\":\"row_major\","
+          << "\"prefix_schedule_hash\":\"groups=1;adaptive_prefix=0;adaptive_skip=0\","
+          << "\"k_block_size\":" << k << ","
+          << "\"tile_m\":128,"
+          << "\"tile_n\":128,"
+          << "\"epilogue\":\"" << wmma_info.epilogue_mode << "\","
+          << "\"kernel_family\":\"" << wmma_info.selected_kernel << "\","
+          << "\"workspace_bytes\":" << wmma_info.workspace_required_bytes << ","
+          << "\"measured_medians_us\":{\"pack\":1.0,\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
+          << "\"performance_validated\":true,"
+          << "\"validation_status\":\"reviewed_release_same_contract_fastest_windows_gfx1100\","
+          << "\"schema_version\":1,"
+          << "\"updated_utc\":\"2026-06-03T00:00:00Z\""
+          << "}]}"
+          << "\n";
+  }
+  rns8_destroy_plan(wmma_plan);
+  rns8_destroy_context(wmma_ctx);
+
+  ScopedAutotuneCachePath scoped_cache(cache_path);
+  rns8_context_options auto_options{};
+  auto_options.struct_size = sizeof(auto_options);
+  auto_options.abi_version = RNS8_ABI_VERSION;
+  auto_options.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_context* auto_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &auto_options, &auto_ctx) == RNS8_SUCCESS);
+
+  rns8_gemm_desc auto_desc = wmma_desc;
+  auto_desc.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_plan* auto_plan = nullptr;
+  REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &auto_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info auto_info{};
+  auto_info.struct_size = sizeof(auto_info);
+  auto_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  CHECK(auto_info.performance_validated == 1);
+  CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
+
+  auto a_desc = bounded_matrix_desc(m, k, RNS8_BOUNDED_I64);
+  auto b_desc = bounded_matrix_desc(k, n, RNS8_BOUNDED_I64);
+  auto c_desc = bounded_matrix_desc(m, n, RNS8_BOUNDED_I64);
+  rns8_matrix* A = nullptr;
+  rns8_matrix* B = nullptr;
+  rns8_matrix* C = nullptr;
+  REQUIRE(rns8_create_matrix(auto_ctx, &a_desc, &A) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &b_desc, &B) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &c_desc, &C) == RNS8_SUCCESS);
+
+  std::vector<int64_t> a(static_cast<std::size_t>(m * k), 1);
+  std::vector<int64_t> b(static_cast<std::size_t>(k * n), 1);
+  std::vector<int64_t> c(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_pack_i64(auto_ctx, A, a.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(auto_ctx, B, b.data(), n, 1) == RNS8_SUCCESS);
+
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(auto_ctx, auto_plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(auto_ctx, auto_plan, A, B, C, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(auto_ctx, auto_plan, C, c.data(), n) == RNS8_SUCCESS);
+  for (int64_t value : c) {
+    CHECK(value == k);
+  }
+
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_matrix(C);
+  rns8_destroy_matrix(B);
+  rns8_destroy_matrix(A);
+  rns8_destroy_plan(auto_plan);
+  rns8_destroy_context(auto_ctx);
+  std::filesystem::remove(cache_path);
+}
+
+TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulus is plan keyed") {
+  constexpr int64_t m = 64;
+  constexpr int64_t n = 64;
+  constexpr int64_t k = 64;
+
+  rns8_context_options wmma_options{};
+  wmma_options.struct_size = sizeof(wmma_options);
+  wmma_options.abi_version = RNS8_ABI_VERSION;
+  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  rns8_context* wmma_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
+
+  rns8_device_info wmma_device{};
+  wmma_device.struct_size = sizeof(wmma_device);
+  wmma_device.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_device_info(wmma_ctx, &wmma_device) == RNS8_SUCCESS);
+
+  rns8_gemm_desc wmma_desc{};
+  wmma_desc.struct_size = sizeof(wmma_desc);
+  wmma_desc.abi_version = RNS8_ABI_VERSION;
+  wmma_desc.semantics = RNS8_FINITE_RING_U8;
+  wmma_desc.bound_kind = RNS8_BOUND_NONE;
+  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.m = m;
+  wmma_desc.n = n;
+  wmma_desc.k = k;
+  wmma_desc.finite_modulus = 251;
+
+  rns8_plan* wmma_plan = nullptr;
+  REQUIRE(rns8_create_plan(wmma_ctx, &wmma_desc, &wmma_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info wmma_info{};
+  wmma_info.struct_size = sizeof(wmma_info);
+  wmma_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(wmma_plan, &wmma_info) == RNS8_SUCCESS);
+  CHECK(std::string(wmma_info.autotune_key).find(";finite_modulus=251;") != std::string::npos);
+  CHECK(std::string(wmma_info.autotune_key).find(";epilogue=") != std::string::npos);
+
+  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-wmma-finite-cache");
+  {
+    std::ofstream cache(cache_path, std::ios::trunc);
+    cache << "{"
+          << "\"schema_version\":1,"
+          << "\"entries\":[{"
+          << "\"key\":\"" << wmma_info.autotune_key << "\","
+          << "\"selected_backend\":\"wmma\","
+          << "\"selected_kernel\":\"" << wmma_info.selected_kernel << "\","
+          << "\"target_id\":\"" << wmma_device.gcn_arch << "\","
+          << "\"hip_sdk_or_library_version\":\"" << wmma_info.accelerator_version << "\","
+          << "\"semantic_contract\":\"finite_ring_u8\","
+          << "\"finite_modulus\":251,"
+          << "\"shape\":{\"m\":" << m << ",\"n\":" << n << ",\"k\":" << k << "},"
+          << "\"layout\":\"row_major\","
+          << "\"prefix_schedule_hash\":\"groups=0;adaptive_prefix=0;adaptive_skip=0\","
+          << "\"k_block_size\":" << k << ","
+          << "\"tile_m\":128,"
+          << "\"tile_n\":128,"
+          << "\"epilogue\":\"" << wmma_info.epilogue_mode << "\","
+          << "\"kernel_family\":\"" << wmma_info.selected_kernel << "\","
+          << "\"workspace_bytes\":" << wmma_info.workspace_required_bytes << ","
+          << "\"measured_medians_us\":{\"pack\":1.0,\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
+          << "\"performance_validated\":true,"
+          << "\"validation_status\":\"reviewed_release_same_contract_fastest_windows_gfx1100\","
+          << "\"schema_version\":1,"
+          << "\"updated_utc\":\"2026-06-03T00:00:00Z\""
+          << "}]}"
+          << "\n";
+  }
+  rns8_destroy_plan(wmma_plan);
+  rns8_destroy_context(wmma_ctx);
+
+  ScopedAutotuneCachePath scoped_cache(cache_path);
+  rns8_context_options auto_options{};
+  auto_options.struct_size = sizeof(auto_options);
+  auto_options.abi_version = RNS8_ABI_VERSION;
+  auto_options.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_context* auto_ctx = nullptr;
+  REQUIRE(rns8_create_context(-1, &auto_options, &auto_ctx) == RNS8_SUCCESS);
+
+  rns8_gemm_desc auto_desc = wmma_desc;
+  auto_desc.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_plan* auto_plan = nullptr;
+  REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &auto_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info auto_info{};
+  auto_info.struct_size = sizeof(auto_info);
+  auto_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  CHECK(auto_info.performance_validated == 1);
+  CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
+
+  auto a_desc = finite_matrix_desc(m, k, RNS8_FINITE_RING_U8);
+  auto b_desc = finite_matrix_desc(k, n, RNS8_FINITE_RING_U8);
+  auto c_desc = finite_matrix_desc(m, n, RNS8_FINITE_RING_U8);
+  rns8_matrix* A = nullptr;
+  rns8_matrix* B = nullptr;
+  rns8_matrix* C = nullptr;
+  REQUIRE(rns8_create_matrix(auto_ctx, &a_desc, &A) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &b_desc, &B) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(auto_ctx, &c_desc, &C) == RNS8_SUCCESS);
+
+  std::vector<uint8_t> a(static_cast<std::size_t>(m * k), 1);
+  std::vector<uint8_t> b(static_cast<std::size_t>(k * n), 1);
+  std::vector<uint8_t> c(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_pack_finite_u8(auto_ctx, A, 251, a.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_finite_u8(auto_ctx, B, 251, b.data(), n, 1) == RNS8_SUCCESS);
+
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(auto_ctx, auto_plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8(auto_ctx, auto_plan, 251, A, B, C, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_finite_u8(auto_ctx, auto_plan, 251, C, c.data(), n) == RNS8_SUCCESS);
+  for (uint8_t value : c) {
+    CHECK(value == static_cast<uint8_t>(k % 251));
+  }
+
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_matrix(C);
+  rns8_destroy_matrix(B);
+  rns8_destroy_matrix(A);
+  rns8_destroy_plan(auto_plan);
+  rns8_destroy_context(auto_ctx);
+  std::filesystem::remove(cache_path);
+}
+#endif
 
 TEST_CASE("public status strings cover every ABI status") {
   struct Case {

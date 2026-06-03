@@ -19,8 +19,8 @@
     "epilogue_mode": "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
     "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
     "workspace_required_bytes": 20480,
-    "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
-    "autotune_key": "backend=ck;semantics=finite_ring_u8;m=64;n=128;k=64;prefix=0;tile_m=128;tile_n=128;groups=0;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1;epilogue=ck_fused_i32_to_centered_residue_then_canonical_u8_export"
+    "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+    "autotune_key": "backend=ck;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;prefix=0;tile_m=128;tile_n=128;groups=0;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1;epilogue=ck_fused_i32_to_centered_residue_then_canonical_u8_export"
   },
   "semantics": "finite_ring_u8",
   "bound_kind": "none",
@@ -99,14 +99,14 @@
     "unit": "microseconds",
     "source": "std::chrono::steady_clock",
     "source_scope": "host_wall_clock",
-    "gpu_event_timing": false,
-    "gpu_event_timing_reason": "backend_has_no_gpu_event_hooks",
-    "gpu_event_timing_status": "not_requested_for_selected_backend",
-    "gpu_event_timing_source": null,
-    "gpu_event_timing_source_scope": null,
-    "gpu_event_timing_caveat": null,
+    "gpu_event_timing": true,
+    "gpu_event_timing_reason": "captured_by_accelerator_backend_operation_group_hooks",
+    "gpu_event_timing_status": "available",
+    "gpu_event_timing_source": "hipEventElapsedTime",
+    "gpu_event_timing_source_scope": "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "gpu_event_timing_caveat": "HIP event timings record direct-HIP pack/export operation groups plus one accelerator GEMM operation group; per-kernel accelerator internals and host-side API overhead remain represented only by host wall-clock timings",
     "phase_order": ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"],
-    "gpu_event_phase_order": null,
+    "gpu_event_phase_order": ["finite_pack_h2d", "finite_pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -121,8 +121,26 @@
       "reduction": {"timed": false, "timing_key": null, "scope": "fused_into_rns_gemm", "reason": "finite-u8 captures reduce to centered residues inside rns_gemm before canonical uint8 export"}
     }
   },
-  "gpu_event_timings_us": null,
-  "gpu_event_timing_summary_us": null,
+  "gpu_event_timings_us": {
+    "finite_pack_h2d": [10.0, 11.0],
+    "finite_pack_kernel": [20.0, 29.0],
+    "pack": [30.0, 40.0],
+    "rns_gemm_kernel_group": [70.0, 90.0],
+    "rns_gemm": [70.0, 90.0],
+    "finite_export_kernel": [30.0, 35.0],
+    "finite_export_d2h": [20.0, 25.0],
+    "crt_export": [50.0, 60.0]
+  },
+  "gpu_event_timing_summary_us": {
+    "finite_pack_h2d": {"avg": 10.5, "median": 11.0, "p95": 11.0},
+    "finite_pack_kernel": {"avg": 24.5, "median": 29.0, "p95": 29.0},
+    "pack": {"avg": 35.0, "median": 40.0, "p95": 40.0},
+    "rns_gemm_kernel_group": {"avg": 80.0, "median": 90.0, "p95": 90.0},
+    "rns_gemm": {"avg": 80.0, "median": 90.0, "p95": 90.0},
+    "finite_export_kernel": {"avg": 32.5, "median": 35.0, "p95": 35.0},
+    "finite_export_d2h": {"avg": 22.5, "median": 25.0, "p95": 25.0},
+    "crt_export": {"avg": 55.0, "median": 60.0, "p95": 60.0}
+  },
   "plan_us": 1000,
   "avg_planning_us": 1000,
   "schedule_query_us": 10,

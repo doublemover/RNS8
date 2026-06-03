@@ -101,17 +101,17 @@
   },
   "derived_tops_equivalent": null,
   "timing_source": "std::chrono::steady_clock",
-  "timing_note": "host wall-clock timings for an adaptive per-tile bounded accelerator path; GPU event timing is unavailable until the selected backend exposes event hooks",
+  "timing_note": "host wall-clock timings for an adaptive per-tile bounded accelerator path; GPU event timing combines direct-HIP pack/export labels with one accelerator GEMM operation-group label",
   "timing_metadata": {
     "unit": "microseconds",
     "source": "std::chrono::steady_clock",
     "source_scope": "host_wall_clock",
-    "gpu_event_timing": false,
-    "gpu_event_timing_reason": "backend_has_no_gpu_event_hooks",
-    "gpu_event_timing_status": "not_requested_for_selected_backend",
-    "gpu_event_timing_source": null,
-    "gpu_event_timing_source_scope": null,
-    "gpu_event_timing_caveat": null,
+    "gpu_event_timing": true,
+    "gpu_event_timing_reason": "captured_by_accelerator_backend_operation_group_hooks",
+    "gpu_event_timing_status": "available",
+    "gpu_event_timing_source": "hipEventElapsedTime",
+    "gpu_event_timing_source_scope": "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "gpu_event_timing_caveat": "HIP event timings record direct-HIP pack/export operation groups plus one accelerator GEMM operation group; per-kernel accelerator internals and host-side API overhead remain represented only by host wall-clock timings",
     "phase_order": [
       "planning",
       "scheduling",
@@ -121,7 +121,7 @@
       "crt_export",
       "end_to_end"
     ],
-    "gpu_event_phase_order": null,
+    "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -146,8 +146,30 @@
       }
     }
   },
-  "gpu_event_timings_us": null,
-  "gpu_event_timing_summary_us": null,
+  "gpu_event_timings_us": {
+    "pack_h2d": [150.0, 160.0],
+    "pack_kernel": [166.0, 190.0],
+    "pack": [316.0, 350.0],
+    "rns_gemm_kernel_group": [221.0, 214.0],
+    "rns_gemm": [221.0, 214.0],
+    "crt_export_status_memset": [0.0, 0.0],
+    "crt_export_kernel": [300.0, 450.0],
+    "crt_export_status_d2h": [20.0, 21.0],
+    "crt_export_d2h": [386.0, 450.0],
+    "crt_export": [706.0, 921.0]
+  },
+  "gpu_event_timing_summary_us": {
+    "pack_h2d": {"avg": 155.0, "median": 160.0, "p95": 160.0},
+    "pack_kernel": {"avg": 178.0, "median": 190.0, "p95": 190.0},
+    "pack": {"avg": 333.0, "median": 350.0, "p95": 350.0},
+    "rns_gemm_kernel_group": {"avg": 217.5, "median": 221.0, "p95": 221.0},
+    "rns_gemm": {"avg": 217.5, "median": 221.0, "p95": 221.0},
+    "crt_export_status_memset": {"avg": 0.0, "median": 0.0, "p95": 0.0},
+    "crt_export_kernel": {"avg": 375.0, "median": 450.0, "p95": 450.0},
+    "crt_export_status_d2h": {"avg": 20.5, "median": 21.0, "p95": 21.0},
+    "crt_export_d2h": {"avg": 418.0, "median": 450.0, "p95": 450.0},
+    "crt_export": {"avg": 813.5, "median": 921.0, "p95": 921.0}
+  },
   "plan_us": 142508,
   "avg_planning_us": 142508,
   "schedule_query_us": 24,

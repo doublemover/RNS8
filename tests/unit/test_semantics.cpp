@@ -44,13 +44,15 @@ rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   return desc;
 }
 
-rns8_gemm_desc finite_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k) {
+rns8_gemm_desc finite_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint16_t modulus = 0) {
   auto desc = gemm_desc(semantics, RNS8_BOUND_NONE);
   desc.m = m;
   desc.n = n;
   desc.k = k;
   desc.bound = 0;
   desc.max_prefix = 0;
+  desc.finite_modulus =
+      modulus != 0 ? modulus : (semantics == RNS8_FINITE_FIELD_U8 ? uint16_t{251} : uint16_t{255});
   return desc;
 }
 
@@ -381,9 +383,11 @@ TEST_CASE("finite u8 oneshot descriptors reject stale CRT metadata and invalid f
 
   auto ring = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
   CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 1, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 257, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
 
   auto field = finite_desc(RNS8_FINITE_FIELD_U8, 1, 1, 1);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 241, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 251, A, 0, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
 
@@ -414,6 +418,17 @@ TEST_CASE("finite u8 persistent descriptors reject stale CRT metadata and modulu
   stale_prefix.max_prefix = 1;
   rns8_plan* rejected_plan = nullptr;
   CHECK(rns8_create_plan(ctx, &stale_prefix, &rejected_plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_plan == nullptr);
+
+  auto missing_modulus = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
+  missing_modulus.finite_modulus = 0;
+  CHECK(rns8_create_plan(ctx, &missing_modulus, &rejected_plan) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_plan == nullptr);
+
+  auto stale_nonfinite_modulus = gemm_desc(RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  stale_nonfinite_modulus.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  stale_nonfinite_modulus.finite_modulus = 251;
+  CHECK(rns8_create_plan(ctx, &stale_nonfinite_modulus, &rejected_plan) == RNS8_INVALID_ARGUMENT);
   CHECK(rejected_plan == nullptr);
 
   auto stale_matrix_desc = matrix_desc(1, 1, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);

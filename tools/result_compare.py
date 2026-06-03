@@ -16,6 +16,7 @@ TIMING_PHASES = [
     "planning",
     "scheduling",
     "matrix_alloc",
+    "prepack_setup",
     "pack",
     "rns_gemm",
     "per_modulus_gemm_estimate",
@@ -54,8 +55,12 @@ CONTRACT_KEYS = [
     "tile_bounds_u64.max",
     "tile_bounds_u64.hash_u64",
     "packed_layout_version",
+    "reuse_packed_inputs",
+    "pack_mode",
     "seed",
     "input_distribution",
+]
+GPU_COMPATIBILITY_KEYS = [
     "compiler.id",
     "compiler.version",
     "configured_amdgpu_targets",
@@ -68,6 +73,7 @@ CONTRACT_KEYS = [
     "device.hip_runtime_version",
     "device.hip_driver_version",
 ]
+REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
 BACKEND_EVIDENCE_KEYS = [
     "benchmark",
     "backend_requested",
@@ -124,12 +130,35 @@ def dotted_get(data: dict[str, Any], path: str) -> Any:
     return value
 
 
+def capture_pack_mode(data: dict[str, Any]) -> str:
+    metadata = data.get("timing_metadata")
+    mode = metadata.get("pack_mode") if isinstance(metadata, dict) else None
+    if mode is None:
+        mode = data.get("pack_mode")
+    if isinstance(mode, str):
+        return mode
+    return "prepacked_reuse" if data.get("reuse_packed_inputs") is True else "per_repeat_repack"
+
+
+def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "reuse_packed_inputs":
+        return data.get("reuse_packed_inputs") is True
+    if key == "pack_mode":
+        return capture_pack_mode(data)
+    return dotted_get(data, key)
+
+
 def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
     if phase == "per_modulus_gemm_estimate":
         value = data.get("avg_per_modulus_gemm_estimate_us")
         if isinstance(value, (int, float)):
             return float(value), "avg_per_modulus_gemm_estimate_us"
         raise SystemExit(f"{path}: missing numeric timing for phase avg_per_modulus_gemm_estimate_us")
+    if phase == "prepack_setup":
+        value = data.get("avg_prepack_setup_us")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value), "avg_prepack_setup_us"
+        raise SystemExit(f"{path}: missing numeric timing for phase avg_prepack_setup_us")
 
     summary = data.get("timing_summary_us")
     if isinstance(summary, dict):
@@ -146,12 +175,34 @@ def phase_applicable(data: dict[str, Any], phase: str) -> bool:
     if phase == "per_modulus_gemm_estimate":
         value = data.get("per_modulus_gemm_estimate_applicable")
         return value if isinstance(value, bool) else True
+    if phase == "prepack_setup":
+        value = data.get("avg_prepack_setup_us")
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
     return True
 
 
 def timing_metadata(data: dict[str, Any]) -> dict[str, Any]:
     metadata = data.get("timing_metadata")
     return metadata if isinstance(metadata, dict) else {}
+
+
+def selected_backend(data: dict[str, Any]) -> str:
+    backend = data.get("backend_selected")
+    return str(backend) if backend is not None else ""
+
+
+def is_gpu_capture(data: dict[str, Any]) -> bool:
+    backend = selected_backend(data)
+    if backend in REFERENCE_BACKENDS:
+        return False
+    hip_toolchain = data.get("hip_toolchain")
+    if isinstance(hip_toolchain, dict) and hip_toolchain.get("enabled") is False:
+        return False
+    device = data.get("device")
+    if isinstance(device, dict):
+        gcn_arch = str(device.get("gcn_arch") or "").strip().lower()
+        return gcn_arch not in {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
+    return backend not in {"", "cpu-reference"}
 
 
 def gpu_event_phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, str]:
@@ -237,9 +288,9 @@ def compare_gpu_events(
 def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
     contract = {
         key: {
-            "baseline": dotted_get(baseline, key),
-            "candidate": dotted_get(candidate, key),
-            "match": dotted_get(baseline, key) == dotted_get(candidate, key),
+            "baseline": contract_value(baseline, key),
+            "candidate": contract_value(candidate, key),
+            "match": contract_value(baseline, key) == contract_value(candidate, key),
         }
         for key in CONTRACT_KEYS
     }
@@ -251,6 +302,18 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
         }
         for key in BACKEND_EVIDENCE_KEYS
     }
+    baseline_gpu = is_gpu_capture(baseline)
+    candidate_gpu = is_gpu_capture(candidate)
+    gpu_compatibility = {
+        key: {
+            "baseline": dotted_get(baseline, key),
+            "candidate": dotted_get(candidate, key),
+            "match": dotted_get(baseline, key) == dotted_get(candidate, key),
+        }
+        for key in GPU_COMPATIBILITY_KEYS
+    }
+    gpu_compatibility_required = baseline_gpu and candidate_gpu
+    gpu_compatible = (not gpu_compatibility_required) or all(item["match"] for item in gpu_compatibility.values())
     timings = {}
     for phase in TIMING_PHASES:
         base_applicable = phase_applicable(baseline, phase)
@@ -278,7 +341,10 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
             "candidate_version": schema_version(candidate),
         },
         "matching_contract": all(item["match"] for item in contract.values()),
+        "gpu_compatible": gpu_compatible,
+        "gpu_compatibility_required": gpu_compatibility_required,
         "contract": contract,
+        "gpu_compatibility": gpu_compatibility,
         "backend_evidence": backend_evidence,
         "timings": timings,
         "gpu_event_timings": compare_gpu_events(baseline, candidate, baseline_path, candidate_path),
@@ -296,9 +362,15 @@ def print_human(report: dict[str, Any]) -> None:
         f"candidate=v{report['schema']['candidate_version']}"
     )
     print(f"matching contract: {report['matching_contract']}")
+    print(f"gpu compatible:   {report['gpu_compatible']} (required={report['gpu_compatibility_required']})")
     print()
     print("Contract")
     for key, item in report["contract"].items():
+        status = "OK" if item["match"] else "DIFF"
+        print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
+    print()
+    print("GPU Compatibility")
+    for key, item in report["gpu_compatibility"].items():
         status = "OK" if item["match"] else "DIFF"
         print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
     print()
@@ -348,7 +420,7 @@ def main() -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
         print_human(report)
-    return 0 if report["matching_contract"] else 1
+    return 0 if report["matching_contract"] and report["gpu_compatible"] else 1
 
 
 if __name__ == "__main__":

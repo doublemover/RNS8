@@ -11,8 +11,23 @@ from typing import Any
 
 
 SCHEMA_VERSION = 4
+BASELINE_STATUS_REQUIRED_NOT_RECORDED = "required_not_recorded"
+BASELINE_STATUS_REVIEWED = "reviewed_same_contract_baseline"
+BASELINE_STATUS_RELEASE_REVIEWED = "reviewed_release_same_contract_baseline"
+BASELINE_STATUS_MISSING_REVIEWED = "missing_reviewed_same_contract_baseline"
+REVIEWED_BASELINE_STATUSES = {
+    BASELINE_STATUS_REVIEWED,
+    BASELINE_STATUS_RELEASE_REVIEWED,
+}
+COMPARISON_BASELINE_STATUSES = {
+    BASELINE_STATUS_REQUIRED_NOT_RECORDED,
+    BASELINE_STATUS_REVIEWED,
+    BASELINE_STATUS_RELEASE_REVIEWED,
+    BASELINE_STATUS_MISSING_REVIEWED,
+}
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
+PACK_MODES = {"per_repeat_repack", "prepacked_reuse"}
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -20,6 +35,9 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
 }
 HIPBLASLT_GPU_EVENT_SCOPES = {
     "hipblaslt_baseline_default_stream_backend_operation_groups",
+}
+ACCELERATOR_GPU_EVENT_SCOPES = {
+    "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
 }
 HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma", "hip-vector-alu-int64"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
@@ -199,6 +217,7 @@ class _Validator:
         self._validate_schedule_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
+        self._validate_pack_reuse_fields(raw_timings)
         self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
@@ -357,7 +376,6 @@ class _Validator:
                 "matrix_engine_backend": True,
                 "compiled_kernel_available": True,
                 "exact_differential_validated": True,
-                "performance_validated": False,
             }
             for key, value in bool_expected.items():
                 if metadata.get(key) is not value:
@@ -399,7 +417,7 @@ class _Validator:
         if not isinstance(baseline, dict):
             return
         status = baseline.get("status")
-        if status not in {"required_not_recorded", "reviewed_same_contract_baseline", "missing_reviewed_same_contract_baseline"}:
+        if status not in COMPARISON_BASELINE_STATUSES:
             self._error("comparison_baseline.status must describe reviewed or missing same-contract baseline evidence")
         if not isinstance(baseline.get("speedup_claimed"), bool):
             self._error("comparison_baseline.speedup_claimed must be a boolean")
@@ -417,12 +435,15 @@ class _Validator:
         performance_validated = metadata.get("performance_validated") is True
         derived_tops = self.data.get("derived_tops_equivalent")
         if baseline.get("speedup_claimed") is True:
-            if status != "reviewed_same_contract_baseline" or not isinstance(selected_reference, str):
+            if status not in REVIEWED_BASELINE_STATUSES or not isinstance(selected_reference, str) or not selected_reference:
                 self._error("speedup claims require a reviewed same-contract comparison baseline")
-        if performance_validated and status != "reviewed_same_contract_baseline":
-            self._error("performance_validated captures require comparison_baseline.status=reviewed_same_contract_baseline")
-        if derived_tops is not None and status != "reviewed_same_contract_baseline":
-            self._error("derived_tops_equivalent requires a reviewed same-contract comparison baseline")
+        if performance_validated and status != BASELINE_STATUS_RELEASE_REVIEWED:
+            self._error(
+                "performance_validated captures require "
+                "comparison_baseline.status=reviewed_release_same_contract_baseline"
+            )
+        if derived_tops is not None and status != BASELINE_STATUS_RELEASE_REVIEWED:
+            self._error("derived_tops_equivalent requires a reviewed release same-contract comparison baseline")
         semantics = self.data.get("semantics")
         if semantics in {"bounded_i64", "bounded_u64"} and isinstance(required, list):
             expected = ["same_contract_cpu_reference"]
@@ -444,13 +465,20 @@ class _Validator:
                 self._error("finite-u8 captures require comparison baseline prerequisite same_contract_cpu_reference")
             if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
                 self._error("finite-u8 captures require comparison baseline prerequisite same_contract_direct_hip_correctness")
+        if semantics in {"exact_wide_signed", "exact_wide_unsigned"} and isinstance(required, list):
+            if "same_contract_cpu_reference" not in required:
+                self._error("exact-wide captures require comparison baseline prerequisite same_contract_cpu_reference")
+            if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
+                self._error(
+                    "exact-wide captures require comparison baseline prerequisite same_contract_direct_hip_correctness"
+                )
         if selected_backend == "ck":
             expected = {
                 "accelerator_library": "Composable Kernel",
                 "accelerator_version": "repo-local release/rocm-rel-7.1",
                 "capability_status": "implemented_opt_in_ck_backend",
                 "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
-                "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
+                "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
             }
             for key, value in expected.items():
                 if metadata.get(key) != value:
@@ -463,7 +491,6 @@ class _Validator:
                 "matrix_engine_backend": True,
                 "compiled_kernel_available": True,
                 "exact_differential_validated": True,
-                "performance_validated": False,
             }
             for key, value in bool_expected.items():
                 if metadata.get(key) is not value:
@@ -494,7 +521,6 @@ class _Validator:
                 "matrix_engine_backend": True,
                 "compiled_kernel_available": True,
                 "exact_differential_validated": True,
-                "performance_validated": False,
             }
             for key, value in bool_expected.items():
                 if metadata.get(key) is not value:
@@ -528,6 +554,32 @@ class _Validator:
                 self._error("timing_metadata.phase_availability.scheduling.scope must be one_time_schedule_info_query")
             if not isinstance(scheduling.get("reason"), str) or not scheduling.get("reason"):
                 self._error("timing_metadata.phase_availability.scheduling.reason must be a nonempty string")
+
+        reuse_packed = self.data.get("reuse_packed_inputs") is True
+        prepack = availability.get("prepack_setup")
+        if reuse_packed and not isinstance(prepack, dict):
+            self._error("timing_metadata.phase_availability.prepack_setup must be an object for prepacked reuse")
+        elif prepack is not None:
+            if not isinstance(prepack, dict):
+                self._error("timing_metadata.phase_availability.prepack_setup must be an object")
+            else:
+                expected_timed = reuse_packed
+                expected_key = "prepack_setup_us" if reuse_packed else None
+                expected_scope = "one_time_before_warmups" if reuse_packed else "not_requested_per_repeat_repack"
+                if prepack.get("timed") is not expected_timed:
+                    self._error(
+                        f"timing_metadata.phase_availability.prepack_setup.timed must be {str(expected_timed).lower()}"
+                    )
+                if prepack.get("timing_key") != expected_key:
+                    self._error(
+                        f"timing_metadata.phase_availability.prepack_setup.timing_key must be {expected_key}"
+                    )
+                if prepack.get("scope") != expected_scope:
+                    self._error(
+                        f"timing_metadata.phase_availability.prepack_setup.scope must be {expected_scope}"
+                    )
+                if not isinstance(prepack.get("reason"), str) or not prepack.get("reason"):
+                    self._error("timing_metadata.phase_availability.prepack_setup.reason must be a nonempty string")
 
         reduction = availability.get("reduction")
         if not isinstance(reduction, dict):
@@ -712,6 +764,61 @@ class _Validator:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
                 self._validate_v4_adaptive_schedule(prefix, schedule)
+        elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "wmma"}:
+                self._error("exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, or wmma backend")
+            if bound_mode != "global":
+                self._error("exact-wide captures must use bound_mode=global")
+            if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
+                self._error("exact-wide captures must use bound_kind=none and bound=0")
+            if self.data.get("tile_bounds_u64") is not None:
+                self._error("exact-wide captures must use tile_bounds_u64=null")
+            if _is_int(prefix) and prefix <= 0:
+                self._error("exact-wide captures must use a positive prefix")
+            if packed_layout is not None:
+                self._error("exact-wide captures must use packed_layout_version=null")
+            expected_epilogue_type = (
+                "exact_wide_signed_limb_export"
+                if semantics == "exact_wide_signed"
+                else "exact_wide_unsigned_limb_export"
+            )
+            if self.data.get("epilogue_type") != expected_epilogue_type:
+                self._error(f"exact-wide captures must use {expected_epilogue_type} epilogue")
+            if self.data.get("finite_modulus") is not None:
+                self._error("exact-wide captures must use finite_modulus=null")
+            if isinstance(schedule, dict) and _is_int(prefix):
+                if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                    self._error("exact-wide captures must use fixed selected schedule prefix equal to prefix")
+                if schedule.get("prefix_group_count") != 1:
+                    self._error("exact-wide captures must use one fixed prefix group")
+                if schedule.get("adaptive_execution_applied") is True:
+                    self._error("exact-wide captures must not apply adaptive execution")
+            if isinstance(backend_metadata, dict):
+                backend = self.data.get("backend_selected")
+                expected_epilogues = {
+                    "hipblaslt": "separate_i32_scratch_reduce_rns_output",
+                    "ck": "ck_fused_i32_to_centered_residue_rns_output",
+                    "wmma": "rocwmma_fused_i32_to_centered_residue_rns_output",
+                }
+                expected_backend_epilogue = expected_epilogues.get(str(backend))
+                if (
+                    expected_backend_epilogue is not None
+                    and backend_metadata.get("epilogue_mode") != expected_backend_epilogue
+                ):
+                    self._error(
+                        f"exact-wide {backend} captures must use "
+                        f"backend_metadata.epilogue_mode={expected_backend_epilogue}"
+                    )
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                if self.data.get("backend_selected") == "hip-direct":
+                    expected_scope = "direct_hip_default_stream_backend_operation_groups"
+                    if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                        self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                if self.data.get("backend_selected") == "hipblaslt":
+                    expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
+                    if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                        self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"finite_ring_u8", "finite_field_u8"}:
             if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "wmma"}:
                 self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or wmma backend")
@@ -734,6 +841,14 @@ class _Validator:
                 self._error("finite_ring_u8 finite_modulus must be in [2, 256]")
             elif semantics == "finite_field_u8" and not _is_prime_modulus(modulus):
                 self._error("finite_field_u8 finite_modulus must be prime and <= 251")
+            raw_metadata = self.data.get("backend_metadata")
+            backend_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            autotune_key = backend_metadata.get("autotune_key")
+            if isinstance(autotune_key, str) and _is_int(modulus):
+                required_field = f";finite_modulus={modulus};"
+                normalized_key = f";{autotune_key};"
+                if required_field not in normalized_key:
+                    self._error("finite-u8 backend_metadata.autotune_key must include finite_modulus")
             if isinstance(schedule, dict):
                 for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
                     if schedule.get(key) != 0:
@@ -850,21 +965,17 @@ class _Validator:
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                     self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "ck":
-                if metadata.get("gpu_event_timing") is not False:
-                    self._error("CK per-tile adaptive captures must report unavailable GPU event timings until CK hooks exist")
-                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
-                    self._error(
-                        "CK per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
-                    )
+                if metadata.get("gpu_event_timing") is not True:
+                    self._error("CK per-tile adaptive captures must include HIP event operation-group timings")
+                expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+                if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "wmma":
-                if metadata.get("gpu_event_timing") is not False:
-                    self._error(
-                        "rocWMMA per-tile adaptive captures must report unavailable GPU event timings until rocWMMA hooks exist"
-                    )
-                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
-                    self._error(
-                        "rocWMMA per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
-                    )
+                if metadata.get("gpu_event_timing") is not True:
+                    self._error("rocWMMA per-tile adaptive captures must include HIP event operation-group timings")
+                expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+                if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "hip-vector-alu-int64":
                 if metadata.get("gpu_event_timing") is not False:
                     self._error("vector-ALU per-tile adaptive captures must report unavailable GPU event timings")
@@ -901,7 +1012,7 @@ class _Validator:
                 )
             expected_isas = {
                 "cpu-reference": "not_applicable_cpu",
-                "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
+                "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
                 "wmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
@@ -912,6 +1023,55 @@ class _Validator:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.isa_evidence={expected_isa}"
                 )
+
+    def _validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> None:
+        reuse_value = self.data.get("reuse_packed_inputs", False)
+        if "reuse_packed_inputs" in self.data and not isinstance(reuse_value, bool):
+            self._error("reuse_packed_inputs must be a boolean")
+        reuse_packed = reuse_value is True
+        expected_mode = "prepacked_reuse" if reuse_packed else "per_repeat_repack"
+
+        pack_mode = self.data.get("pack_mode")
+        if pack_mode is not None:
+            if pack_mode not in PACK_MODES:
+                self._error(f"pack_mode must be one of {sorted(PACK_MODES)}")
+            elif pack_mode != expected_mode:
+                self._error(f"pack_mode must be {expected_mode}")
+
+        metadata = self.data.get("timing_metadata")
+        if isinstance(metadata, dict):
+            metadata_mode = metadata.get("pack_mode")
+            if metadata_mode is not None:
+                if metadata_mode not in PACK_MODES:
+                    self._error(f"timing_metadata.pack_mode must be one of {sorted(PACK_MODES)}")
+                elif metadata_mode != expected_mode:
+                    self._error(f"timing_metadata.pack_mode must be {expected_mode}")
+                if pack_mode is not None and metadata_mode != pack_mode:
+                    self._error("timing_metadata.pack_mode must match pack_mode")
+
+        prepack_setup = self.data.get("prepack_setup_us")
+        avg_prepack_setup = self.data.get("avg_prepack_setup_us")
+        if reuse_packed:
+            if not _is_int(prepack_setup) or prepack_setup < 0:
+                self._error("prepacked reuse captures must include nonnegative integer prepack_setup_us")
+            if not _is_number(avg_prepack_setup):
+                self._error("prepacked reuse captures must include avg_prepack_setup_us")
+            elif _is_int(prepack_setup) and not _close(float(avg_prepack_setup), float(prepack_setup)):
+                self._error("avg_prepack_setup_us must match prepack_setup_us")
+            pack_values = raw_timings.get("pack")
+            if pack_values is not None and any(value != 0.0 for value in pack_values):
+                self._error("prepacked reuse captures must report raw_timings_us.pack as zero-valued repeats")
+            event_timings = self.data.get("gpu_event_timings_us")
+            if isinstance(event_timings, dict):
+                for phase in ["pack_h2d", "pack_kernel", "finite_pack_h2d", "finite_pack_kernel", "pack"]:
+                    values = event_timings.get(phase)
+                    if isinstance(values, list) and any(_is_number(value) and float(value) != 0.0 for value in values):
+                        self._error(f"prepacked reuse captures must report gpu_event_timings_us.{phase} as zero")
+        else:
+            if "prepack_setup_us" in self.data and prepack_setup is not None:
+                self._error("per-repeat repack captures must use prepack_setup_us=null")
+            if "avg_prepack_setup_us" in self.data and avg_prepack_setup is not None:
+                self._error("per-repeat repack captures must use avg_prepack_setup_us=null")
 
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
@@ -1011,6 +1171,9 @@ class _Validator:
         repeats = self.data.get("repeats")
         if not isinstance(enabled, bool) or not _is_int(repeats):
             return
+        selected_backend = self.data.get("backend_selected")
+        if selected_backend in {"ck", "wmma"} and enabled is not True:
+            self._error(f"{selected_backend} captures must include HIP event operation-group timings")
         timings = self.data.get("gpu_event_timings_us")
         summary = self.data.get("gpu_event_timing_summary_us")
         if not enabled:
@@ -1033,12 +1196,15 @@ class _Validator:
             self._error("timing_metadata.gpu_event_timing_source must be hipEventElapsedTime")
         if not isinstance(scope, str):
             self._error("timing_metadata.gpu_event_timing_source_scope must be a string when events are available")
-        elif self.data.get("backend_selected") == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
+        elif selected_backend == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(DIRECT_HIP_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}")
-        elif self.data.get("backend_selected") == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
+        elif selected_backend == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
+        elif selected_backend in {"ck", "wmma"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
+            expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
+            self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return

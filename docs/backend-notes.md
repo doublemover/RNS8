@@ -48,9 +48,14 @@ Backend status:
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.
-`RNS8_BACKEND_AUTO` selects only the current context's default backend at
-context/plan creation time; it does not route valid descriptors across semantic
-backend families such as CPU reference to wrap64 byte-limb.
+`RNS8_BACKEND_AUTO` does not route valid descriptors across semantic backend
+families such as CPU reference to wrap64 byte-limb. In HIP-capable contexts,
+AUTO starts from the direct-HIP correctness backend and may select a compiled,
+runtime-probed HIP-resident accelerator only when a reviewed release autotune
+cache entry matches the full plan key, target id, and HIP or accelerator
+library version. Without that exact reviewed hit, release-smoke temp cache
+entries remain performance evidence and production-release candidates, not
+automatic runtime selection.
 Status precedence is part of the public C ABI hard cut: malformed descriptors
 and ABI misuse return `RNS8_INVALID_ARGUMENT` before backend routing, including
 unknown semantics, bound-kind, or layout enum values. Valid descriptors naming
@@ -84,30 +89,97 @@ same deterministic contract as schedule metadata.
 
 Autotune cache support is implemented as an explicit reviewed-evidence layer,
 not as an automatic accelerator promotion path. Raw
-`rns8-bench --write-autotune-cache` writes are refused unless the selected plan
-is already performance validated. `tools/benchmark_sweep.py
---write-autotune-cache` is the promotion path: it validates captures, groups
-them by same-contract semantics/shape/layout/target/toolchain/input seed,
-requires the matching CPU/direct-HIP/vector-ALU baselines where applicable, and
-writes only the fastest promotable accelerator entry. Cache entries record the
+`rns8-bench --write-autotune-cache` writes are always refused.
+`tools/benchmark_sweep.py --review-mode release --write-autotune-cache` is the
+promotion path: it validates captures,
+groups them by same-contract semantics/shape/layout/target/toolchain/input
+seed, requires the matching CPU/direct-HIP/vector-ALU baselines where
+applicable, requires at least three warmups and nine measured repeats for every
+capture in the same-contract group, and writes only the fastest promotable
+accelerator entry. finite-u8 captures can be release-reviewed and promoted as
+shape-and-modulus-scoped cache entries because the explicit finite modulus is
+part of the plan autotune key. Cache entries record the
 plan autotune key, selected backend/kernel, target id, library or HIP SDK
-version, semantic contract, shape, layout, K-block, tile size, epilogue,
-workspace bytes, reviewed median timings, and validation status in
+version, semantic contract, finite modulus when present, shape, layout,
+K-block, tile size, epilogue, workspace bytes, reviewed median timings, and
+validation status in
 `%LOCALAPPDATA%\rns8-gemm\autotune.json` on Windows, or the equivalent
 `$XDG_CACHE_HOME/rns8-gemm/autotune.json` path on Unix-like hosts.
 `RNS8_AUTOTUNE_CACHE_PATH` can override the path for tests and isolated smoke
-runs. `rns8-inspect --autotune-key ...` reports exact-hit versus missing-cache
-rationale; unreviewed, wrong-schema, or non-reviewed cache hits are reported as
-rejected and are not eligible for validated selection.
+runs. `tools/install_autotune_cache.py` validates schema-v1 reviewed-release
+entries, checks key identity including finite modulus, merges by autotune key,
+and writes a deterministic installable cache only after validation.
+`rns8-inspect --autotune-key ...` reports exact-hit versus missing-cache
+rationale and includes the runtime target id plus HIP SDK or accelerator
+library version used for validation. Unreviewed, wrong-schema, non-reviewed,
+wrong-target, or wrong-version cache hits are reported as rejected and are not
+eligible for validated selection.
+The cache reader and inspection rationale are implemented, and unit tests cover
+validated hit and rejection cases. AUTO plan selection from validated entries is
+now wired for HIP-resident accelerator candidates; a CK-enabled Windows
+`gfx1100` test covers a reviewed bounded cache hit selecting CK while using
+AUTO-created HIP-resident matrices, and a rocWMMA-enabled test covers reviewed
+bounded and finite cache hits selecting rocWMMA. A Windows `gfx1100`
+release-mode
+bounded-i64 matrix now covers shapes 64, 128, 512, and 1024 with complete
+CPU/direct-HIP/vector-ALU baselines. The 64 and 128 groups remain on the
+vector-ALU baseline. The report wrote temp reviewed cache entries for rocWMMA
+at 512x512x512 (`rocwmma_i8_i32_signed_hot_residue_v1`, 2399 us median
+end-to-end) and hipBLASLt at 1024x1024x1024
+(`hipblaslt_int8_i32_scratch_reduce_baseline_v1`, 8326 us). `rns8-inspect`
+reports exact runtime target/version-matched hits for both keys on `gfx1100`.
+The benchmark CLI also accepts `--backend auto`: an empty-cache smoke falls
+back to direct HIP, and the bounded reviewed-cache smokes emit
+`backend_requested=auto`, `backend_selected=wmma` for 512 or
+`backend_selected=hipblaslt` for 1024,
+`backend_metadata.performance_validated=true`, and schema-valid
+reviewed-release comparison metadata. A matching bounded-u64 release matrix
+covers the same four shapes and backend set, but writes no cache entries
+because `hip-vector-alu-int64` is fastest in all four same-contract groups. The
+adaptive bounded release matrix writes one temp reviewed rocWMMA entry for
+bounded i64 1024x1024x1024 with adaptive skip active, and the matching AUTO
+smoke selects `backend_selected=wmma` with
+`backend_metadata.performance_validated=true`. A Windows `gfx1100` release-mode
+finite-u8 matrix now covers 12 same-contract groups with no missing baselines
+and writes 12 temp reviewed entries: rocWMMA for every 64/128/512 finite group,
+CK for the 1024 ring groups, and hipBLASLt for the 1024 field-251 group.
+Representative AUTO smokes select `backend_selected=hipblaslt`,
+`backend_selected=ck`, and `backend_selected=wmma` with
+`backend_metadata.performance_validated=true`. Fallback remains direct-HIP GPU
+correctness or CPU when GPU support is unavailable.
+The exact-wide release matrix covers signed and unsigned 64/128/512/1024
+same-contract groups and writes four temp reviewed CK entries: signed 1024 and
+unsigned 128/512/1024. After merging
+`temp\reviewed-autotune-exact-wide-full.json` into the production candidate,
+the default cache reports exact `rns8-inspect` hits for those four keys and
+schema-valid AUTO captures select `backend_selected=ck`,
+`backend_metadata.performance_validated=true`, and exact-wide export event
+phases. Signed 64/128/512 and unsigned 64 remain direct-HIP baseline cases
+because no accelerator beat the same-contract baseline. Accelerator-gated
+fake-default-cache smokes also cover exact-wide signed AUTO selection for
+hipBLASLt, CK, and rocWMMA presets. Those smokes have been run in the Windows
+`gfx1100` `windows-hipblaslt-debug`, `windows-ck-debug`, and
+`windows-rocwmma-debug` presets and select
+`hipblaslt_int8_i32_scratch_reduce_baseline_v1`,
+`ck_wmma_cshuffle_i8_i32_centered_epilogue_v1`, and
+`rocwmma_i8_i32_signed_hot_residue_v1`, respectively, with exact-wide export
+event phases. Accelerator-gated fake-default-cache smokes also cover finite-u8
+AUTO selection for hipBLASLt finite-field, CK finite-ring, and rocWMMA
+finite-field paths. The fake-default-cache smoke coverage is synthetic
+reviewed-cache coverage and separate from durable release cache promotion.
 
 Benchmark captures make the performance gate explicit with a structured
 `comparison_baseline` object. Unreviewed captures keep
 `status=required_not_recorded` and `speedup_claimed=false`; schema validation
 rejects bounded captures that do not name the same-contract CPU reference and
 direct-HIP vector-ALU baseline prerequisites, rejects wrap64 captures that do
-not name CPU byte-limb and direct-HIP byte-GEMM36 prerequisites, and rejects any
-future `performance_validated=true` capture unless a reviewed same-contract
-baseline is attached.
+not name CPU byte-limb and direct-HIP byte-GEMM36 prerequisites, rejects
+exact-wide and finite-u8 captures that do not name same-contract CPU and
+direct-HIP correctness prerequisites, and rejects any future
+`performance_validated=true` capture unless a reviewed release same-contract
+baseline is attached. AUTO benchmark captures report the requested backend
+separately from the selected concrete plan backend so runtime cache hits can be
+validated without hiding which kernel actually ran.
 
 The CK and rocWMMA backend directories under `src/` now contain opt-in
 correctness backend implementations. The AMDGPU builtin backend path remains a
@@ -115,18 +187,54 @@ reserved ownership boundary. No accelerator path counts from discovery alone:
 it must have compiled kernels and exact CPU/direct-HIP differential validation.
 hipBLASLt, CK, and rocWMMA are real compiled correctness backends under their
 opt-in presets, but still carry `perf_validated=0`.
+The CK `gfx1100` integration uses CK CShuffle WMMA with the non-adaptive
+`BlockToCTileMap_M00_N0_M01` map at the default `M01=1`; this avoids CK's
+adaptive block-map reciprocal instructions while preserving arbitrary output
+shape support for RNS8's default invocation. The CK ISA CTest disassembles
+matched `kernel_gemm_wmma` symbols and requires `v_wmma_i32_16x16x16_iu8`
+while rejecting scalar divide/remainder/reciprocal mnemonics and unintended
+INT32 global stores. The CK preset generates a build-tree include overlay with
+the WMMA no-divide block-map patch from the pinned repo-local CK header during
+configure, no-ops when the source already has the patched form, and fails fast
+if neither the expected upstream nor patched `MakeDefaultBlock2CTileMap` block
+is found. The generated patched header is placed before CK's include directory
+for the CK HIP compile and registered as an input dependency for the CK HIP
+object.
 
-The Windows `gfx1100` release review workflow has been exercised through
-`tools/benchmark_sweep.py` with temp-only cache outputs. Reviewed release
-entries currently promote CK/rocWMMA for selected bounded i64 and adaptive
-bounded shapes, CK/rocWMMA/hipBLASLt for selected finite-u8 shapes, and no
-bounded u64 global shapes. These reviewed entries live in temp cache files and
-do not make dependency discovery an enablement signal. hipBLASLt remains a
-baseline accelerator for bounded i64/u64, with one finite ring modulus-255
-release winner in the reviewed temp cache. AMDGPU builtins remain fail-fast,
-and strict wrap64 remains on the direct-HIP
-`direct_hip_wrap64_byte_gemm36_tiled_2d_v3` path until a matrix-engine
-candidate beats it with exact differentials and ISA evidence.
+The Windows `gfx1100` release-smoke workflow has been exercised through
+`tools/benchmark_sweep.py` with temp-only cache outputs. Smoke entries identify
+CK/rocWMMA candidate winners for selected bounded i64 and adaptive bounded
+shapes, CK/rocWMMA/hipBLASLt candidate winners for selected finite-u8 shapes,
+and no bounded u64 global candidate winners. These smoke entries do not satisfy
+the production release threshold and do not make dependency discovery an
+enablement signal. Current release-reviewed fixed bounded evidence promotes
+rocWMMA for bounded i64 512 and hipBLASLt for bounded i64 1024, while bounded
+u64 remains blocked by the vector-ALU baseline. Current release-reviewed
+adaptive bounded evidence also promotes rocWMMA for bounded i64 1024, while
+bounded u64 adaptive cases remain blocked. AMDGPU builtins remain
+fail-fast, and strict wrap64 remains on the direct-HIP
+`direct_hip_wrap64_byte_gemm36_tiled_2d_v3` path. The current release-reviewed
+wrap64 baseline covers 64, 128, 512, and 1024 square shapes. Direct HIP
+measures 1828 us, 2090 us, 7757 us, and 39359 us median end-to-end,
+respectively, versus 710 us, 5845 us, 576082 us, and 4729230 us for the CPU
+byte-limb reference. The CPU reference still consumes persistent byte-limb
+storage but uses exact unsigned `uint64_t` wraparound arithmetic for the low-64
+product; the byte-pair/carry oracle remains in tests. A matrix-engine candidate
+must beat the direct-HIP path with exact differentials and ISA evidence before
+it can displace it.
+
+Packed low-bit work is a roadmap track, not a completed backend. The intended
+layout families are `rns_i8_modulus_major_v2`, `rns_i8_tile_swizzled_b_v1`,
+`finite_u8_centered_plane_v2`, `wrap64_byte_limb_gemm36_v2`, and research-only
+`rns_i4_packed_v0`. None of those persistent prepack cache versions is a
+durable production layout yet. Future implementations must key prepack caches
+by matrix source version, backend, target id, layout version, tile shape,
+K-block, operand role, and modulus or prefix schedule; prove layout mismatch
+rejection and source-version invalidation; and benchmark one-shot, repeated-A,
+repeated-B, and repeated-A/B amortization separately before promotion. Current
+`--reuse-packed-inputs` captures provide repeated-A/B measurement support by
+separating one-time `prepack_setup_us` from repeated GEMM/export timings; they
+do not create a reusable production prepack cache.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

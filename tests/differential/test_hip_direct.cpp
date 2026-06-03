@@ -158,7 +158,13 @@ rns8_gemm_desc wrap_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind back
   return desc;
 }
 
-rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics, rns8_backend_kind backend) {
+rns8_gemm_desc finite_desc(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    rns8_semantics semantics,
+    rns8_backend_kind backend,
+    uint16_t modulus = 0) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -169,6 +175,8 @@ rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics seman
   desc.n = n;
   desc.k = k;
   desc.max_prefix = 0;
+  desc.finite_modulus =
+      modulus != 0 ? modulus : (semantics == RNS8_FINITE_FIELD_U8 ? uint16_t{251} : uint16_t{255});
   return desc;
 }
 
@@ -980,8 +988,8 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
            Case{RNS8_FINITE_RING_U8, 256},
            Case{RNS8_FINITE_FIELD_U8, 251},
        }) {
-    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE);
-    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT);
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE, item.modulus);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
     std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
     std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
 
@@ -1064,8 +1072,8 @@ TEST_CASE("direct HIP finite u8 persistent matrices match CPU and reuse resident
            Case{RNS8_FINITE_RING_U8, 256},
            Case{RNS8_FINITE_FIELD_U8, 251},
        }) {
-    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE);
-    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT);
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE, item.modulus);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
     rns8_plan* cpu_plan = nullptr;
     rns8_plan* hip_plan = nullptr;
     rns8_workspace* cpu_workspace = nullptr;
@@ -1163,8 +1171,8 @@ TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
   std::vector<uint8_t> B(static_cast<std::size_t>(k), 255);
   uint8_t cpu_out = 0;
   uint8_t hip_out = 0;
-  auto cpu_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE);
-  auto hip_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT);
+  auto cpu_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE, 256);
+  auto hip_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, 256);
 
   REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), 1, &cpu_out, 1) ==
           RNS8_SUCCESS);
@@ -1188,8 +1196,8 @@ TEST_CASE("direct HIP finite u8 persistent path preserves K-split semantics") {
   std::vector<uint8_t> B(static_cast<std::size_t>(k), 255);
   uint8_t cpu_out = 0;
   uint8_t hip_out = 0;
-  auto cpu_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE);
-  auto hip_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT);
+  auto cpu_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE, 256);
+  auto hip_desc = finite_desc(1, 1, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, 256);
   rns8_plan* cpu_plan = nullptr;
   rns8_plan* hip_plan = nullptr;
   rns8_workspace* cpu_workspace = nullptr;

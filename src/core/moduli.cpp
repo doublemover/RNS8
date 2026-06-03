@@ -112,6 +112,32 @@ bool known_layout(rns8_layout layout) {
   return false;
 }
 
+bool valid_finite_ring_modulus(uint32_t modulus) {
+  return modulus >= 2 && modulus <= 256;
+}
+
+bool valid_finite_field_modulus(uint32_t modulus) {
+  if (modulus < 2 || modulus > 251) {
+    return false;
+  }
+  for (uint32_t divisor = 2; divisor * divisor <= modulus; ++divisor) {
+    if (modulus % divisor == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool valid_finite_modulus_for_semantics(rns8_semantics semantics, uint32_t modulus) {
+  if (semantics == RNS8_FINITE_FIELD_U8) {
+    return valid_finite_field_modulus(modulus);
+  }
+  if (semantics == RNS8_FINITE_RING_U8) {
+    return valid_finite_ring_modulus(modulus);
+  }
+  return false;
+}
+
 bool default_moduli_pairwise_coprime() {
   for (uint32_t i = 0; i < RNS8_DEFAULT_MODULUS_COUNT; ++i) {
     for (uint32_t j = i + 1; j < RNS8_DEFAULT_MODULUS_COUNT; ++j) {
@@ -246,6 +272,10 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (desc.semantics != RNS8_FINITE_RING_U8 && desc.semantics != RNS8_FINITE_FIELD_U8 &&
+      desc.finite_modulus != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0) {
       return RNS8_INVALID_ARGUMENT;
@@ -265,7 +295,8 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     return RNS8_SUCCESS;
   }
   if (desc.semantics == RNS8_FINITE_RING_U8 || desc.semantics == RNS8_FINITE_FIELD_U8) {
-    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 || prefix != 0) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 || prefix != 0 ||
+        !valid_finite_modulus_for_semantics(desc.semantics, desc.finite_modulus)) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;

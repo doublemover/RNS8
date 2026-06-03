@@ -19,7 +19,7 @@
     "epilogue_mode": "ck_fused_i32_to_centered_residue_then_crt_export",
     "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
     "workspace_required_bytes": 20480,
-    "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store",
+    "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
     "autotune_key": "backend=ck;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
   },
   "semantics": "bounded_i64",
@@ -93,17 +93,17 @@
   },
   "derived_tops_equivalent": null,
   "timing_source": "std::chrono::steady_clock",
-  "timing_note": "host wall-clock timings; direct-HIP calls include current backend synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, and GPU bounded export when using HIP",
+  "timing_note": "host wall-clock timings for a bounded accelerator path; GPU event timing combines direct-HIP pack/export labels with one accelerator GEMM operation-group label",
   "timing_metadata": {
     "unit": "microseconds",
     "source": "std::chrono::steady_clock",
     "source_scope": "host_wall_clock",
-    "gpu_event_timing": false,
-    "gpu_event_timing_reason": "backend_has_no_gpu_event_hooks",
-    "gpu_event_timing_status": "not_requested_for_selected_backend",
-    "gpu_event_timing_source": null,
-    "gpu_event_timing_source_scope": null,
-    "gpu_event_timing_caveat": null,
+    "gpu_event_timing": true,
+    "gpu_event_timing_reason": "captured_by_accelerator_backend_operation_group_hooks",
+    "gpu_event_timing_status": "available",
+    "gpu_event_timing_source": "hipEventElapsedTime",
+    "gpu_event_timing_source_scope": "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "gpu_event_timing_caveat": "HIP event timings record direct-HIP pack/export operation groups plus one accelerator GEMM operation group; per-kernel accelerator internals and host-side API overhead remain represented only by host wall-clock timings",
     "phase_order": [
       "planning",
       "scheduling",
@@ -113,7 +113,7 @@
       "crt_export",
       "end_to_end"
     ],
-    "gpu_event_phase_order": null,
+    "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -138,8 +138,30 @@
       }
     }
   },
-  "gpu_event_timings_us": null,
-  "gpu_event_timing_summary_us": null,
+  "gpu_event_timings_us": {
+    "pack_h2d": [100.0, 120.0],
+    "pack_kernel": [169.0, 189.0],
+    "pack": [269.0, 309.0],
+    "rns_gemm_kernel_group": [380.0, 388.0],
+    "rns_gemm": [380.0, 388.0],
+    "crt_export_status_memset": [0.0, 0.0],
+    "crt_export_kernel": [300.0, 400.0],
+    "crt_export_status_d2h": [20.0, 21.0],
+    "crt_export_d2h": [397.0, 467.0],
+    "crt_export": [717.0, 888.0]
+  },
+  "gpu_event_timing_summary_us": {
+    "pack_h2d": {"avg": 110.0, "median": 120.0, "p95": 120.0},
+    "pack_kernel": {"avg": 179.0, "median": 189.0, "p95": 189.0},
+    "pack": {"avg": 289.0, "median": 309.0, "p95": 309.0},
+    "rns_gemm_kernel_group": {"avg": 384.0, "median": 388.0, "p95": 388.0},
+    "rns_gemm": {"avg": 384.0, "median": 388.0, "p95": 388.0},
+    "crt_export_status_memset": {"avg": 0.0, "median": 0.0, "p95": 0.0},
+    "crt_export_kernel": {"avg": 350.0, "median": 400.0, "p95": 400.0},
+    "crt_export_status_d2h": {"avg": 20.5, "median": 21.0, "p95": 21.0},
+    "crt_export_d2h": {"avg": 432.0, "median": 467.0, "p95": 467.0},
+    "crt_export": {"avg": 802.5, "median": 888.0, "p95": 888.0}
+  },
   "plan_us": 156058,
   "avg_planning_us": 156058,
   "schedule_query_us": 24,
