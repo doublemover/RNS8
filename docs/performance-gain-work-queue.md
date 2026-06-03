@@ -640,6 +640,10 @@ Likely first slices:
   before an RNS-backend GEMM consumes them. This is an internal transition
   primitive, not a public output-domain API or vector autotune promotion policy.
 - Plan metadata exposing next-op hints and chosen output domain.
+  Implemented in `rns8_get_plan_packing_info` with explicit input/output
+  domains, host/device output currentness, and next-operation flags for final
+  export, RNS GEMM continuation, native GEMM continuation, native-to-RNS
+  conversion eligibility, and reusable B prepack availability.
 
 Relation to existing queue:
 

@@ -170,6 +170,21 @@ typedef struct rns8_plan_backend_info {
   char autotune_key[512];
 } rns8_plan_backend_info;
 
+typedef enum rns8_output_domain {
+  RNS8_OUTPUT_DOMAIN_RNS_RESIDUE = 1,
+  RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64 = 2,
+  RNS8_OUTPUT_DOMAIN_FINITE_U8 = 3,
+  RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB = 4
+} rns8_output_domain;
+
+typedef enum rns8_next_op_flags {
+  RNS8_NEXT_OP_FINAL_EXPORT = 1u << 0,
+  RNS8_NEXT_OP_RNS_GEMM = 1u << 1,
+  RNS8_NEXT_OP_NATIVE_GEMM = 1u << 2,
+  RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE = 1u << 3,
+  RNS8_NEXT_OP_REUSABLE_B_PREPACK = 1u << 4
+} rns8_next_op_flags;
+
 typedef struct rns8_plan_packing_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -181,11 +196,20 @@ typedef struct rns8_plan_packing_info {
   uint32_t reusable_prepack_cache_available;
   uint32_t production_prepack_cache_available;
   uint32_t flags;
+  rns8_output_domain input_domain;
+  rns8_output_domain output_domain;
+  uint32_t output_host_current;
+  uint32_t output_device_current;
+  uint32_t next_op_flags;
+  uint32_t reserved0;
   uint64_t a_pack_workspace_bytes;
   uint64_t b_pack_workspace_bytes;
   uint64_t accumulator_workspace_bytes;
   uint64_t library_workspace_bytes;
   uint64_t total_transient_workspace_bytes;
+  char input_domain_name[64];
+  char output_domain_name[64];
+  char next_op_hint[160];
   char a_layout_version[96];
   char b_layout_version[96];
   char output_layout_version[96];

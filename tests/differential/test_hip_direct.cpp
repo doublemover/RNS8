@@ -3180,6 +3180,18 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
     rns8_matrix* b_matrix = nullptr;
     rns8_matrix* c_matrix = nullptr;
     REQUIRE(rns8_create_plan(vector, &vector_desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_packing_info packing_info{};
+    packing_info.struct_size = sizeof(packing_info);
+    packing_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_packing_info(plan, &packing_info) == RNS8_SUCCESS);
+    CHECK(packing_info.input_domain == RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64);
+    CHECK(packing_info.output_domain == RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64);
+    CHECK(packing_info.output_host_current == 0);
+    CHECK(packing_info.output_device_current == 1);
+    CHECK((packing_info.next_op_flags & RNS8_NEXT_OP_NATIVE_GEMM) != 0);
+    CHECK((packing_info.next_op_flags & RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE) != 0);
+    CHECK(std::string(packing_info.output_domain_name) == "native_i64_u64_current");
+    CHECK(std::string(packing_info.next_op_hint).find("native-to-RNS conversion") != std::string::npos);
     REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
     auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
@@ -5247,7 +5259,7 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
           RNS8_SUCCESS);
   CHECK_FALSE(hip_c->host_residues_current);
   CHECK(hip_c->hip_export_buffer != nullptr);
-  CHECK(hip_c->hip_status_buffer != nullptr);
+  CHECK(hip_c->hip_status_buffer == nullptr);
   CHECK(hip_limbs == cpu_limbs);
   CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 2) * limb_count)] == 0xbbbbbbbbbbbbbbbbull);
   constexpr uint64_t unsigned_range_sentinel = 0x3434343434343434ull;
@@ -5255,6 +5267,7 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
   std::vector<uint64_t> too_few_hip(static_cast<std::size_t>(m * n), unsigned_range_sentinel);
   CHECK(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, too_few_cpu.data(), n, 1) == RNS8_RANGE_ERROR);
   CHECK(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, too_few_hip.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(hip_c->hip_status_buffer != nullptr);
   CHECK(too_few_cpu == std::vector<uint64_t>(static_cast<std::size_t>(m * n), unsigned_range_sentinel));
   CHECK(too_few_hip == std::vector<uint64_t>(static_cast<std::size_t>(m * n), unsigned_range_sentinel));
   CHECK_FALSE(hip_c->host_residues_current);

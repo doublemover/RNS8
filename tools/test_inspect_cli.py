@@ -181,6 +181,16 @@ def main() -> int:
         )
         expect_text(
             autotune_hit.stdout,
+            '"output_domain": "rns_residue_current"',
+            "autotune exact hit json",
+        )
+        expect_text(
+            autotune_hit.stdout,
+            '"next_op_flags": 3',
+            "autotune exact hit json",
+        )
+        expect_text(
+            autotune_hit.stdout,
             '"production_prepack_cache_available": false',
             "autotune exact hit json",
         )

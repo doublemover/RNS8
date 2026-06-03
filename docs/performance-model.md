@@ -630,7 +630,8 @@ differentials are all covered.
 Created plans expose the current non-benchmark packing contract through
 `rns8_get_plan_packing_info`. The report names persistent resident layouts,
 backend-specific transient A/B pack layouts, accumulator or library workspace
-bytes, and cache availability. hipBLASLt and CK plans report transient
+bytes, selected input/output domains, host/device output currentness,
+next-operation flags, and cache availability. hipBLASLt and CK plans report transient
 per-dispatch matrix-engine pack workspaces; rocWMMA plans report the same
 transient A workspace and, for eligible non-tiled RNS B operands with
 `K <= 65536`, a reusable `rns_i8_tile_swizzled_b_v1` B prepack cache path. The

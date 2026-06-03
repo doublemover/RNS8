@@ -50,8 +50,11 @@ capability status, epilogue mode, workspace mode, workspace byte requirement,
 ISA evidence, and autotune key.
 
 `rns8_get_plan_packing_info` reports resident layout names and transient
-accelerator pack workspace bytes. No current backend reports a reusable
-production prepack cache.
+accelerator pack workspace bytes. It also reports the selected input/output
+domain, whether a successful GEMM leaves host or device output current, and
+next-operation flags for final export, RNS continuation, native continuation,
+native-to-RNS conversion eligibility, and reusable B prepack availability. No
+current backend reports a reusable production prepack cache.
 
 ## Benchmark Promotion
 
