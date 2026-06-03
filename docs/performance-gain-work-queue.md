@@ -330,7 +330,9 @@ Technical direction:
 - Keep transient A in registers or LDS while B uses a reusable backend-native
   layout.
 - Add finite-u8 paths that center canonical bytes in registers for moduli
-  251/255/256.
+  251/255/256. Direct-HIP finite-u8 pack and export now dispatch
+  fixed-modulus kernels for 251, 255, and 256; the full fused pack+GEMM
+  transient-input path remains open.
 
 RNS8-specific notes:
 
@@ -1347,6 +1349,10 @@ Technical direction:
 
 Likely first slices:
 
+- Direct-HIP fixed-modulus 251/255/256 finite-u8 pack/export. Implemented:
+  canonical byte ingress and centered-residue export use compile-time modulus
+  kernels for the hot finite moduli, while generic runtime-modulus kernels
+  remain the fallback for other ring/field moduli.
 - CK/rocWMMA 251/255/256 reducer variants.
 - Finite histogram-guided workload suite.
 - 1024 finite winner retuning for CK ring and hipBLASLt field.

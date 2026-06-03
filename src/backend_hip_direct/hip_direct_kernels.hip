@@ -411,6 +411,29 @@ __device__ int8_t rns8_center_u8_device(uint8_t value, int modulus) {
   return static_cast<int8_t>(residue);
 }
 
+template <int Modulus>
+__device__ int8_t rns8_center_u8_fixed_modulus_device(uint8_t value) {
+  if (Modulus == 256) {
+    return static_cast<int8_t>(value);
+  }
+  if (Modulus == 255) {
+    return rns8_reduce_to_centered_mod255_device(static_cast<int>(value));
+  }
+  if (Modulus == 251) {
+    return rns8_reduce_to_centered_mod251_device(static_cast<int>(value));
+  }
+  int residue = static_cast<int>(value) % Modulus;
+  constexpr int threshold = (Modulus + 1) / 2;
+  residue -= Modulus & -static_cast<int>(residue >= threshold);
+  return static_cast<int8_t>(residue);
+}
+
+template <int Modulus>
+__device__ uint32_t rns8_canonical_from_centered_fixed_modulus_device(int8_t residue) {
+  const int value = static_cast<int>(residue);
+  return static_cast<uint32_t>(value + (Modulus & -static_cast<int>(value < 0)));
+}
+
 __global__ void rns8_pack_i64_kernel(
     const int64_t* src,
     int8_t* residues,
@@ -512,6 +535,23 @@ __global__ void rns8_pack_u8_modulus_kernel(
   const int row = static_cast<int>(idx / cols);
   const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
   residues[idx] = rns8_center_u8_device(src[static_cast<int64_t>(row) * ld + col], modulus);
+}
+
+template <int Modulus>
+__global__ void rns8_pack_u8_fixed_modulus_kernel(
+    const uint8_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(idx / cols);
+  const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
+  residues[idx] = rns8_center_u8_fixed_modulus_device<Modulus>(src[static_cast<int64_t>(row) * ld + col]);
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_i8_i32_tiled_kernel(
@@ -773,6 +813,24 @@ __global__ void rns8_export_u8_modulus_kernel(
   const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
   dst[static_cast<int64_t>(row) * ld + col] =
       static_cast<uint8_t>(rns8_canonical_from_centered_device(residues[idx], modulus));
+}
+
+template <int Modulus>
+__global__ void rns8_export_u8_fixed_modulus_kernel(
+    const int8_t* residues,
+    uint8_t* dst,
+    int rows,
+    int cols,
+    int ld) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(idx / cols);
+  const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
+  dst[static_cast<int64_t>(row) * ld + col] =
+      static_cast<uint8_t>(rns8_canonical_from_centered_fixed_modulus_device<Modulus>(residues[idx]));
 }
 
 __device__ void rns8_export_i64_cell_device(
@@ -1264,6 +1322,48 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  if (modulus == 256) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<256>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 255) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<255>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 251) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<251>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
   hipLaunchKernelGGL(
       rns8_pack_u8_modulus_kernel,
       dim3(blocks),
@@ -1519,6 +1619,48 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  if (modulus == 256) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<256>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 255) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<255>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 251) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<251>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
   hipLaunchKernelGGL(
       rns8_export_u8_modulus_kernel,
       dim3(blocks),
