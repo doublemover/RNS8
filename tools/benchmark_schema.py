@@ -63,6 +63,16 @@ WMMA_SELECTED_KERNELS = {
     "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
 }
+DIRECT_HIP_FINITE_GENERIC_KERNEL = "direct_hip_tiled_finite_u8_gemm_v1"
+DIRECT_HIP_FINITE_SPECIALIZED_KERNELS = {
+    251: "direct_hip_tiled_finite_u8_gemm_mod251_v1",
+    255: "direct_hip_tiled_finite_u8_gemm_mod255_v1",
+    256: "direct_hip_tiled_finite_u8_gemm_mod256_v1",
+}
+DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
+DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
+    "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
+)
 WRAP64_WMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
 
 
@@ -929,6 +939,30 @@ class _Validator:
                 normalized_key = f";{autotune_key};"
                 if required_field not in normalized_key:
                     self._error("finite-u8 backend_metadata.autotune_key must include finite_modulus")
+            if self.data.get("backend_selected") == "hip-direct" and _is_int(modulus):
+                specialized_kernel = DIRECT_HIP_FINITE_SPECIALIZED_KERNELS.get(modulus)
+                if specialized_kernel is not None:
+                    if self.data.get("selected_kernel") != specialized_kernel:
+                        self._error(
+                            f"direct-HIP finite-u8 modulus {modulus} captures "
+                            f"must use selected_kernel={specialized_kernel}"
+                        )
+                    if backend_metadata.get("isa_evidence") != DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE:
+                        self._error(
+                            "direct-HIP finite-u8 specialized captures must use "
+                            f"backend_metadata.isa_evidence={DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE}"
+                        )
+                else:
+                    if self.data.get("selected_kernel") != DIRECT_HIP_FINITE_GENERIC_KERNEL:
+                        self._error(
+                            "direct-HIP generic finite-u8 captures must use "
+                            f"selected_kernel={DIRECT_HIP_FINITE_GENERIC_KERNEL}"
+                        )
+                    if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                        self._error(
+                            "direct-HIP generic finite-u8 captures must use "
+                            f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                        )
             if isinstance(schedule, dict):
                 for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
                     if schedule.get(key) != 0:

@@ -44,7 +44,12 @@ Backend status:
   explicit modulus APIs. Public one-shot calls now construct the same resident
   finite matrices and workspace used by the persistent API, then pack, GEMM,
   and export through that path. There is no separate direct-HIP finite one-shot
-  backend route.
+  backend route. Benchmark schema v4 treats the finite modulus as part of the
+  direct-HIP evidence contract: moduli 251, 255, and 256 must pair their named
+  specialized reducer kernels with
+  `rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide`, while other
+  direct-HIP finite captures stay on `direct_hip_tiled_finite_u8_gemm_v1` with
+  `rns8_hip_direct_reciprocal_isa_gate`.
 
 Unsupported backends must return unsupported status. They must not expose stub
 paths that appear to validate GPU behavior.

@@ -34,6 +34,37 @@ def zero_summary() -> dict:
     return {"avg": 0.0, "median": 0.0, "p95": 0.0}
 
 
+def as_direct_hip_finite_capture(
+    capture: dict, modulus: int, kernel: str, isa_evidence: str
+) -> dict:
+    direct = copy.deepcopy(capture)
+    metadata = direct["backend_metadata"]
+    direct["backend_requested"] = "hip-direct"
+    direct["backend_selected"] = "hip-direct"
+    direct["selected_kernel"] = kernel
+    direct["finite_modulus"] = modulus
+    direct["backend_metadata"]["selected_kernel"] = kernel
+    metadata["accelerator_backend"] = False
+    metadata["matrix_engine_backend"] = False
+    metadata["accelerator_library"] = "HIP runtime"
+    metadata["accelerator_version"] = None
+    metadata["capability_status"] = "implemented_correctness_backend"
+    metadata["epilogue_mode"] = "fused_centered_residue_then_canonical_u8_export"
+    metadata["workspace_mode"] = "resident_device_buffers"
+    metadata["workspace_required_bytes"] = 0
+    metadata["isa_evidence"] = isa_evidence
+    metadata["autotune_key"] = (
+        f"backend=hip-direct;semantics={direct['semantics']};m={direct['m']};n={direct['n']};k={direct['k']};"
+        f"finite_modulus={modulus};prefix=0;tile_m={direct['tile_m']};tile_n={direct['tile_n']};"
+        f"groups=0;adaptive_prefix=0;adaptive_skip=0;kernel={kernel};"
+        "epilogue=fused_centered_residue_then_canonical_u8_export"
+    )
+    direct["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_default_stream_backend_operation_groups"
+    )
+    return direct
+
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -461,6 +492,52 @@ def main() -> int:
     bad_finite_epilogue = copy.deepcopy(v4_finite_field_wmma)
     bad_finite_epilogue["epilogue_type"] = "crt_export"
     expect_invalid(bad_finite_epilogue, "canonical_u8_export")
+
+    direct_finite_specialized = as_direct_hip_finite_capture(
+        v4_finite_ring_ck,
+        255,
+        "direct_hip_tiled_finite_u8_gemm_mod255_v1",
+        "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide",
+    )
+    validate_capture(direct_finite_specialized)
+
+    bad_direct_finite_specialized_isa = copy.deepcopy(direct_finite_specialized)
+    bad_direct_finite_specialized_isa["backend_metadata"]["isa_evidence"] = (
+        "rns8_hip_direct_reciprocal_isa_gate"
+    )
+    expect_invalid(
+        bad_direct_finite_specialized_isa,
+        "direct-HIP finite-u8 specialized captures",
+    )
+
+    bad_direct_finite_specialized_kernel = copy.deepcopy(direct_finite_specialized)
+    bad_direct_finite_specialized_kernel["selected_kernel"] = (
+        "direct_hip_tiled_finite_u8_gemm_v1"
+    )
+    bad_direct_finite_specialized_kernel["backend_metadata"]["selected_kernel"] = (
+        "direct_hip_tiled_finite_u8_gemm_v1"
+    )
+    expect_invalid(
+        bad_direct_finite_specialized_kernel,
+        "direct-HIP finite-u8 modulus 255 captures",
+    )
+
+    direct_finite_generic = as_direct_hip_finite_capture(
+        v4_finite_ring_ck,
+        127,
+        "direct_hip_tiled_finite_u8_gemm_v1",
+        "rns8_hip_direct_reciprocal_isa_gate",
+    )
+    validate_capture(direct_finite_generic)
+
+    bad_direct_finite_generic_isa = copy.deepcopy(direct_finite_generic)
+    bad_direct_finite_generic_isa["backend_metadata"]["isa_evidence"] = (
+        "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
+    )
+    expect_invalid(
+        bad_direct_finite_generic_isa,
+        "direct-HIP generic finite-u8 captures",
+    )
 
     missing_event_phase_order = copy.deepcopy(bounded)
     del missing_event_phase_order["timing_metadata"]["gpu_event_phase_order"]
