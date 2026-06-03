@@ -537,9 +537,44 @@ def main() -> int:
     assert group["source_metadata"]["seeds"] == [13]
     assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
     assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
+    assert group["missing_gpu_targets"] == []
+    assert group["gpu_target_identity_complete"] is True
+    assert group["gpu_target_compatible"] is True
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
+
+    missing_target_ck = copy.deepcopy(ck)
+    missing_target_ck["device"]["gcn_arch"] = "unknown"
+    missing_target_report = benchmark_sweep.review_captures(
+        [missing_target_ck, direct, cpu],
+        review_mode="release",
+    )
+    missing_target_group = missing_target_report["groups"][0]
+    assert missing_target_report["promotable_autotune_entries"] == []
+    assert missing_target_group["missing_gpu_targets"] == ["ck"]
+    assert missing_target_group["gpu_target_identity_complete"] is False
+    assert missing_target_group["gpu_target_compatible"] is False
+    missing_target_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_target_group["candidates"]
+    }
+    assert "missing_gpu_target_id" in missing_target_blockers["ck"]
+
+    mismatched_target_ck = copy.deepcopy(ck)
+    mismatched_target_ck["device"]["gcn_arch"] = "gfx1101"
+    mismatched_target_report = benchmark_sweep.review_captures(
+        [mismatched_target_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_target_group = mismatched_target_report["groups"][0]
+    assert mismatched_target_report["promotable_autotune_entries"] == []
+    assert mismatched_target_group["missing_gpu_targets"] == []
+    assert mismatched_target_group["gpu_target_identity_complete"] is True
+    assert mismatched_target_group["gpu_target_compatible"] is False
+    mismatched_target_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_target_group["candidates"]
+    }
+    assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],

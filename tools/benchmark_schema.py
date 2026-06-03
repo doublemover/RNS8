@@ -49,6 +49,7 @@ ACCELERATOR_GPU_EVENT_SCOPES = {
 }
 HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma", "hip-vector-alu-int64"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
+PLACEHOLDER_GPU_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
 VECTOR_ALU_SELECTED_KERNELS = {
     "hip_vector_alu_i64_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
@@ -123,6 +124,12 @@ def _is_int(value: Any) -> bool:
 
 def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+
+
+def _has_concrete_gpu_target_id(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() not in PLACEHOLDER_GPU_TARGET_IDS
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -302,6 +309,14 @@ class _Validator:
             for key in ["name", "gcn_arch"]:
                 if not isinstance(device.get(key), str):
                     self._error(f"device.{key} must be a string")
+            if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+                if not _has_concrete_gpu_target_id(device.get("gcn_arch")):
+                    self._error("HIP backend captures must include non-placeholder device.gcn_arch")
+                if device.get("hip_available") != 1:
+                    self._error("HIP backend captures must use device.hip_available=1")
+                device_id = device.get("device_id")
+                if _is_int(device_id) and device_id < 0:
+                    self._error("HIP backend captures must use a nonnegative device.device_id")
         metadata = self._require("timing_metadata", "dict")
         if isinstance(metadata, dict):
             if metadata.get("unit") != "microseconds":

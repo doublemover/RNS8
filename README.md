@@ -329,7 +329,11 @@ style overrides when a release sweep combines captures from opt-in accelerator
 build directories, and `--write-autotune-cache --autotune-cache temp\reviewed-autotune.json`
 until the generated report has been reviewed. Production promotion also
 requires `--review-mode release`; the default smoke review mode never writes a
-`performance_validated=true` entry.
+`performance_validated=true` entry. Schema validation and sweep review require
+every HIP-resident capture in a same-contract release group to report a
+non-placeholder `device.gcn_arch`; missing GPU target identity blocks promotion
+with `missing_gpu_target_id`, and mixed GPU targets block promotion with
+`gpu_target_mismatch`.
 Reviewed temp cache files can be merged into an installable cache only through
 the validating installer; it rejects non-reviewed entries and stale identity
 fields before writing. Durable reviewed cache entries are limited to public
