@@ -540,7 +540,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
-    rns8_ring_gemm_i8_i32_prefix9_grouped_kernel(
+    rns8_ring_gemm_i8_i32_grouped_prefix_kernel(
         const int8_t* A_base,
         const int8_t* B_base,
         int8_t* C_base,
@@ -552,9 +552,10 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
         int lda,
         int ldb,
         int ldc,
+        int grouped_prefix,
         int accumulate) {
   const int modulus_index = static_cast<int>(blockIdx.z);
-  if (modulus_index >= kRns8DefaultBoundedPrefix) {
+  if (modulus_index >= grouped_prefix) {
     return;
   }
   const int64_t a_plane_offset =
@@ -1285,7 +1286,7 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
   return static_cast<int>(err);
 }
 
-extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     const int8_t* d_a,
     const int8_t* d_b,
     int8_t* d_c,
@@ -1295,19 +1296,21 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
     int lda,
     int ldb,
     int ldc,
+    int grouped_prefix,
     int safe_k_block) {
   if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      grouped_prefix <= 0 || grouped_prefix > kRns8MaxSupportedPrefix ||
       safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int64_t max_prefix9_plane_elements = kRns8MaxInt64 / kRns8DefaultBoundedPrefix;
-  if (static_cast<int64_t>(m) > max_prefix9_plane_elements / static_cast<int64_t>(lda) ||
-      static_cast<int64_t>(k) > max_prefix9_plane_elements / static_cast<int64_t>(ldb) ||
-      static_cast<int64_t>(m) > max_prefix9_plane_elements / static_cast<int64_t>(ldc)) {
+  const int64_t max_grouped_plane_elements = kRns8MaxInt64 / grouped_prefix;
+  if (static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(lda) ||
+      static_cast<int64_t>(k) > max_grouped_plane_elements / static_cast<int64_t>(ldb) ||
+      static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(ldc)) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);
-  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y, kRns8DefaultBoundedPrefix);
+  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y, grouped_prefix);
   hipError_t err = hipSuccess;
   int k_offset = 0;
   int accumulate = 0;
@@ -1315,7 +1318,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
     const int k_remaining = k - k_offset;
     const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
     hipLaunchKernelGGL(
-        rns8_ring_gemm_i8_i32_prefix9_grouped_kernel,
+        rns8_ring_gemm_i8_i32_grouped_prefix_kernel,
         grid,
         block,
         0,
@@ -1331,6 +1334,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_prefix9_grouped_device(
         lda,
         ldb,
         ldc,
+        grouped_prefix,
         accumulate);
     err = hipGetLastError();
     k_offset += k_block;
