@@ -2984,6 +2984,68 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     rns8_destroy_matrix(cpu_matrix);
   }
 
+  {
+    const int64_t rows = 2;
+    const int64_t cols = 3;
+    const int64_t ld = 4;
+    const std::vector<int64_t> src = {
+        std::numeric_limits<int64_t>::min(),
+        -9223372036854775807LL,
+        -257,
+        999,
+        -1,
+        0,
+        std::numeric_limits<int64_t>::max(),
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
+    CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
+    CHECK(rns8::detail::hip_direct_copy_device_to_host(
+              hip_matrix->hip_device_id,
+              hip_matrix->residues.data(),
+              hip_matrix->hip_residues,
+              hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
+    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix->source_version == 23);
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+  }
+
+  {
+    const int64_t rows = 2;
+    const int64_t cols = 3;
+    const int64_t ld = 4;
+    const std::vector<uint64_t> src = {
+        0,
+        1,
+        257,
+        999,
+        std::numeric_limits<uint64_t>::max() - 1,
+        std::numeric_limits<uint64_t>::max(),
+        1234567890123456789ull,
+        999};
+    auto desc = matrix_desc(rows, cols, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+    rns8_matrix* cpu_matrix = nullptr;
+    rns8_matrix* hip_matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
+    CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
+    CHECK(rns8::detail::hip_direct_copy_device_to_host(
+              hip_matrix->hip_device_id,
+              hip_matrix->residues.data(),
+              hip_matrix->hip_residues,
+              hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
+    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix->source_version == 29);
+    rns8_destroy_matrix(hip_matrix);
+    rns8_destroy_matrix(cpu_matrix);
+  }
+
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
