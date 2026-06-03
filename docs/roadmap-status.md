@@ -321,6 +321,10 @@ accelerator candidates, and
 `tools/install_autotune_cache.py` validates and merges reviewed cache files
 into an explicit or default cache path, and `--replace-existing` intentionally
 discards stale or non-reviewed destination entries instead of preserving them.
+The installer and runtime cache reader reject reviewed entries whose
+backend/semantic pair is outside the current public HIP-resident accelerator
+promotion set, including strict wrap64 matrix-engine candidates and direct-HIP
+baseline entries.
 The default Windows cache at `%LOCALAPPDATA%\rns8-gemm\autotune.json` has been
 populated from `temp\reviewed-autotune-production-candidate.json` with 19
 reviewed entries. The remaining gap is broader production coverage plus
