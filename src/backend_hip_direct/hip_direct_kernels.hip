@@ -453,6 +453,50 @@ __global__ void rns8_pack_u64_kernel(
   residues[idx] = rns8_center_u64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
 }
 
+template <int Prefix>
+__global__ void rns8_pack_i64_fixed_prefix_kernel(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  const int64_t value = src[static_cast<int64_t>(row) * ld + col];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] = rns8_center_i64_device(value, modulus);
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_fixed_prefix_kernel(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  const uint64_t value = src[static_cast<int64_t>(row) * ld + col];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] = rns8_center_u64_device(value, modulus);
+  }
+}
+
 __global__ void rns8_pack_u8_modulus_kernel(
     const uint8_t* src,
     int8_t* residues,
@@ -1105,21 +1149,50 @@ extern "C" int rns8_hip_direct_pack_i64_device(
     int ld,
     int prefix) {
   const int threads = 256;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total =
-      static_cast<int64_t>(prefix) * static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+      static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
-  hipLaunchKernelGGL(
-      rns8_pack_i64_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_src,
-      d_residues,
-      rows,
-      cols,
-      ld,
-      prefix);
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(fixed_blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(fixed_blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_pack_i64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld,
+        prefix);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -1131,21 +1204,50 @@ extern "C" int rns8_hip_direct_pack_u64_device(
     int ld,
     int prefix) {
   const int threads = 256;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total =
-      static_cast<int64_t>(prefix) * static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+      static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
-  hipLaunchKernelGGL(
-      rns8_pack_u64_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_src,
-      d_residues,
-      rows,
-      cols,
-      ld,
-      prefix);
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(fixed_blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(fixed_blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_pack_u64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld,
+        prefix);
+  }
   return static_cast<int>(hipGetLastError());
 }
 

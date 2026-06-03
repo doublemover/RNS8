@@ -302,7 +302,11 @@ RNS8-specific notes:
 Likely first slices:
 
 - Multi-modulus pack kernels that load native A/B once and emit two or three
-  centered residue planes.
+  centered residue planes. Implemented first for direct-HIP fixed-prefix RNS
+  packs: bounded prefix 9 and exact-wide prefix 20 now use native-load-once
+  pack kernels for signed and unsigned inputs, with the generic per-plane pack
+  kernel retained for all other prefixes. This improves the existing pack phase
+  without changing persistent RNS matrix semantics.
 - A direct-HIP small-shape fused multi-plane baseline before CK/rocWMMA
   variants.
 - Autotune key extension for residue group identity and layout.
