@@ -74,17 +74,18 @@ The compact current wins table lives in
 Windows RX 7900 XTX / `gfx1100` only; it does not imply Linux ROCm or Instinct
 readiness.
 
-| Case | Measured speedup | Status |
+| Case | Measured speedup including setup | Status |
 |---|---:|---|
 | Bounded i64 1024 one-shot CK vs direct HIP | 1.04x vs direct HIP, 2.58x vs vector ALU | Release-reviewed local snapshot; cache not installed |
-| hipBLASLt repeated A+B, 512 | 7.68x per repeat vs non-reuse hipBLASLt, 8323 us setup | Event-valid experimental reuse path |
-| hipBLASLt repeated A+B, 1024 | 4.81x per repeat vs non-reuse hipBLASLt, 5992 us setup | Event-valid experimental reuse path |
-| hipBLASLt repeated B, 512 | 5.05x per repeat vs non-reuse hipBLASLt, 2811 us setup | Event-valid experimental reuse path |
-| Vector ALU repeated B, 1024 | 1.23x per repeat vs non-reuse vector ALU, 3187 us setup | Event-valid experimental reuse path |
+| hipBLASLt repeated A+B, 512 | 5.84x over 9 repeats; 7.68x steady-state | Event-valid experimental reuse path; 8323 us setup |
+| hipBLASLt repeated A+B, 1024 | 4.32x over 9 repeats; 4.81x steady-state | Event-valid experimental reuse path; 5992 us setup |
+| hipBLASLt repeated B, 512 | 4.72x over 9 repeats; 5.05x steady-state | Event-valid experimental reuse path; 2811 us setup |
+| Vector ALU repeated B, 1024 | 1.21x over 9 repeats; 1.23x steady-state | Event-valid experimental reuse path; 3187 us setup |
 
-Reuse speedups compare against the same backend without reuse. They are not
-default AUTO promotion claims, and setup cost must be included when deciding
-whether a workload benefits.
+Reuse speedups compare against the same backend without reuse. The headline
+reuse numbers above include one-time setup over the measured nine-repeat
+validation capture; steady-state is the per-repeat limit after setup has already
+been paid. They are not default AUTO promotion claims.
 
 ## Documentation
 
