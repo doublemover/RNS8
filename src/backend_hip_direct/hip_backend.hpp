@@ -174,6 +174,18 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus);
+rns8_status hip_direct_gemm_finite_u8_native_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_native,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint16_t modulus);
 rns8_status hip_direct_export_i64_device(
     int device_id,
     const void* device_residues,

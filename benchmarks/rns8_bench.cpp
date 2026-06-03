@@ -476,8 +476,8 @@ Args parse_args(int argc, char** argv) {
     usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
   }
   if (args.oneshot) {
-    if (!bounded_benchmark_semantics(args.semantics)) {
-      usage_error("--oneshot is currently only valid for bounded-i64 or bounded-u64 semantics");
+    if (!bounded_benchmark_semantics(args.semantics) && !finite_benchmark_semantics(args.semantics)) {
+      usage_error("--oneshot is currently only valid for bounded-i64, bounded-u64, or finite-u8 semantics");
     }
     if (args.bound_mode != BoundMode::Global) {
       usage_error("--oneshot currently requires --bound-mode global");
@@ -1516,6 +1516,9 @@ std::vector<std::string> required_speedup_baselines(const Args& args, const char
       if (selected != "hip-direct") {
         baselines.push_back("same_contract_direct_hip_correctness");
       }
+      if (args.oneshot) {
+        baselines.push_back("same_contract_direct_hip_persistent_finite_u8");
+      }
       break;
   }
   return baselines;
@@ -1595,6 +1598,26 @@ std::string bounded_oneshot_autotune_key(
   return out.str();
 }
 
+std::string finite_oneshot_autotune_key(
+    const Args& args,
+    const BenchmarkResult& result,
+    const char* kernel,
+    const char* epilogue) {
+  std::ostringstream out;
+  out << "backend=" << backend_name(result.backend_info.backend)
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";finite_modulus=" << args.finite_modulus
+      << ";tile_m=" << args.tile_m
+      << ";tile_n=" << args.tile_n
+      << ";execution=public_oneshot_transient_native_inputs"
+      << ";kernel=" << kernel
+      << ";epilogue=" << epilogue;
+  return out.str();
+}
+
 void apply_bounded_oneshot_backend_metadata(const Args& args, BenchmarkResult& result) {
   if (!args.oneshot || !result.backend_info_available) {
     return;
@@ -1614,6 +1637,33 @@ void apply_bounded_oneshot_backend_metadata(const Args& args, BenchmarkResult& r
       sizeof(result.backend_info.workspace_mode),
       "transient_native_inputs_to_resident_rns_output");
   const std::string key = bounded_oneshot_autotune_key(args, result, kernel, epilogue);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+}
+
+void apply_finite_oneshot_backend_metadata(const Args& args, BenchmarkResult& result) {
+  if (!args.oneshot || !finite_benchmark_semantics(args.semantics) || !result.backend_info_available) {
+    return;
+  }
+  result.backend_info.performance_validated = 0;
+  if (result.backend_info.backend != RNS8_BACKEND_HIP_DIRECT) {
+    return;
+  }
+  const char* kernel = "direct_hip_native_finite_u8_gemm_v1";
+  if (args.finite_modulus == 256) {
+    kernel = "direct_hip_native_finite_u8_gemm_mod256_v1";
+  } else if (args.finite_modulus == 255) {
+    kernel = "direct_hip_native_finite_u8_gemm_mod255_v1";
+  } else if (args.finite_modulus == 251) {
+    kernel = "direct_hip_native_finite_u8_gemm_mod251_v1";
+  }
+  const char* epilogue = "native_u8_centered_residue_then_canonical_u8_export";
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
+  set_backend_text(
+      result.backend_info.workspace_mode,
+      sizeof(result.backend_info.workspace_mode),
+      "transient_native_u8_inputs_to_resident_finite_output");
+  const std::string key = finite_oneshot_autotune_key(args, result, kernel, epilogue);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 
@@ -1835,6 +1885,16 @@ std::vector<std::string> gpu_event_phase_order(
     rns8_backend_kind selected_backend,
     bool use_prepacked_b_cache) {
   if (args.oneshot && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (finite_benchmark_semantics(args.semantics)) {
+      return {
+          "oneshot_native_input_h2d",
+          "finite_native_gemm_kernel",
+          "rns_gemm",
+          "finite_export_kernel",
+          "finite_export_d2h",
+          "crt_export",
+          "oneshot_api_gpu"};
+    }
     return {
         "oneshot_native_input_h2d",
         "rns_gemm_kernel_group",
@@ -2461,6 +2521,24 @@ void collect_bounded_oneshot_gpu_events(GpuEventSamples& events) {
   }
 }
 
+void collect_finite_oneshot_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double native_h2d = sum_event_label(events, samples, "oneshot", "residue_h2d_sync");
+  const double gemm = sum_event_label(events, samples, "oneshot", "finite_native_gemm_kernel");
+  const double export_kernel = sum_event_label(events, samples, "oneshot", "finite_export_kernel");
+  const double output_d2h = sum_event_label(events, samples, "oneshot", "finite_export_d2h");
+  const double export_total = export_kernel + output_d2h;
+  if (events.complete) {
+    push_gpu_event_value(events, "oneshot_native_input_h2d", native_h2d);
+    push_gpu_event_value(events, "finite_native_gemm_kernel", gemm);
+    push_gpu_event_value(events, "rns_gemm", gemm);
+    push_gpu_event_value(events, "finite_export_kernel", export_kernel);
+    push_gpu_event_value(events, "finite_export_d2h", output_d2h);
+    push_gpu_event_value(events, "crt_export", export_total);
+    push_gpu_event_value(events, "oneshot_api_gpu", native_h2d + gemm + export_total);
+  }
+}
+
 void collect_wrap64_export_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const double kernel = sum_event_label(events, samples, "crt_export", "wrap64_export_kernel");
@@ -2809,6 +2887,7 @@ BenchmarkResult initialize_bounded_oneshot_result(
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_bounded_oneshot_backend_metadata(args, result);
+  apply_finite_oneshot_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   status = rns8_destroy_plan(plan);
@@ -3596,7 +3675,63 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   return result;
 }
 
+BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint64_t bound) {
+  (void)bound;
+  std::mt19937_64 rng(args.seed);
+  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
+  std::uniform_int_distribution<uint32_t> dist(0, high);
+  std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint8_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
+  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+
+  auto desc = gemm_desc(args, 0);
+  BenchmarkResult result = initialize_bounded_oneshot_result(ctx, args, 0, desc);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+
+  const auto run_iteration = [&](TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    rns8_status status = RNS8_SUCCESS;
+    if (args.semantics == BenchSemantics::FiniteFieldU8) {
+      status = rns8_gemm_finite_field_u8_oneshot(
+          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+    } else {
+      status = rns8_gemm_finite_ring_u8_oneshot(
+          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+    }
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8_oneshot", status);
+    if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      collect_finite_oneshot_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto repeat_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      samples->pack_us.push_back(0);
+      samples->gemm_us.push_back(elapsed);
+      samples->export_us.push_back(0);
+      samples->end_to_end_us.push_back(elapsed);
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(&result.samples);
+  }
+  result.checksum = checksum_u8(C);
+  return result;
+}
+
 BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t bound) {
+  if (args.oneshot) {
+    return run_finite_u8_oneshot(ctx, args, bound);
+  }
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
@@ -3968,7 +4103,8 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
 
 const char* benchmark_name(const Args& args) {
   if (args.oneshot) {
-    return "rns8_bounded_gemm_public_oneshot";
+    return finite_benchmark_semantics(args.semantics) ? "rns8_finite_u8_public_oneshot"
+                                                      : "rns8_bounded_gemm_public_oneshot";
   }
   if (args.vector_alu_baseline) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_baseline";
@@ -4164,8 +4300,8 @@ void print_json(
       gpu_event_reason = "captured_by_direct_hip_oneshot_api_hooks";
       gpu_event_scope = "\"direct_hip_oneshot_default_stream_operation_groups\"";
       gpu_event_caveat =
-          "\"HIP event timings record the public one-shot API's native input H2D copies, grouped direct-HIP GEMM "
-          "kernel, and CRT export operation groups; host wall-clock timings remain required for plan creation, "
+          "\"HIP event timings record the public one-shot API's native input H2D copies, direct-HIP GEMM "
+          "kernel group, and logical export operation groups; host wall-clock timings remain required for plan creation, "
           "transient allocations, API dispatch, CPU scheduling, teardown, and synchronous host-side overhead not "
           "represented on the HIP stream\"";
     } else if (hipblaslt_events) {
@@ -4420,11 +4556,20 @@ void print_json(
               << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and "
                  "one final logical export runs after measured repeats only to produce checksum_u64\",\n";
   } else if (args.oneshot) {
-    std::cout << "  \"timing_note\": \"host wall-clock timings for the public bounded one-shot API; "
-                 "raw_timings_us.rns_gemm and raw_timings_us.end_to_end both measure one complete "
-                 "rns8_gemm_i64_oneshot or rns8_gemm_u64_oneshot call, while raw_timings_us.pack and "
-                 "raw_timings_us.crt_export are zero because transient input copies, any fused native-input "
-                 "direct-HIP GEMM work, logical export, and teardown happen inside the measured API call\",\n";
+    if (finite_benchmark_semantics(args.semantics)) {
+      std::cout << "  \"timing_note\": \"host wall-clock timings for the public finite-u8 one-shot API; "
+                   "raw_timings_us.rns_gemm and raw_timings_us.end_to_end both measure one complete "
+                   "rns8_gemm_finite_ring_u8_oneshot or rns8_gemm_finite_field_u8_oneshot call, while "
+                   "raw_timings_us.pack and raw_timings_us.crt_export are zero because native uint8 input copies, "
+                   "direct-HIP native-input finite GEMM work, canonical export, and teardown happen inside the "
+                   "measured API call\",\n";
+    } else {
+      std::cout << "  \"timing_note\": \"host wall-clock timings for the public bounded one-shot API; "
+                   "raw_timings_us.rns_gemm and raw_timings_us.end_to_end both measure one complete "
+                   "rns8_gemm_i64_oneshot or rns8_gemm_u64_oneshot call, while raw_timings_us.pack and "
+                   "raw_timings_us.crt_export are zero because transient input copies, any fused native-input "
+                   "direct-HIP GEMM work, logical export, and teardown happen inside the measured API call\",\n";
+    }
   } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
@@ -4575,7 +4720,7 @@ void print_json(
     std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host logical export until one final checksum export after measured repeats\",\n";
   } else if (args.oneshot) {
     std::cout << "      \"pack\": \"zero-valued external phase; native input copies and any backend-local transformation are inside the measured one-shot API call\",\n";
-    std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public bounded one-shot API call\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public one-shot API call\",\n";
     std::cout << "      \"crt_export\": \"zero-valued external phase; logical output export is inside the measured one-shot API call\",\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
@@ -4641,7 +4786,7 @@ void print_json(
     }
     std::cout << "\"\n";
   } else if (args.oneshot) {
-    std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public bounded one-shot API call\"\n";
+    std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public one-shot API call\"\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";

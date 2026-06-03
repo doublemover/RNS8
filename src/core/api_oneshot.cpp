@@ -168,6 +168,19 @@ bool direct_hip_native_prefix9_oneshot_eligible(
   return false;
 }
 
+bool direct_hip_finite_native_oneshot_eligible(
+    const rns8_context& ctx,
+    const rns8_gemm_desc& desc,
+    const rns8_plan& plan,
+    rns8_semantics semantics,
+    uint16_t modulus) {
+  return ctx.backend == RNS8_BACKEND_HIP_DIRECT && plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+         uses_finite_storage(semantics) && plan.desc.semantics == semantics && plan.prefix == 0 &&
+         plan.tile_schedule.empty() && desc.bound_kind == RNS8_BOUND_NONE && desc.bound == 0 &&
+         desc.max_prefix == 0 && desc.finite_modulus == modulus && desc.flags == 0 &&
+         desc.tile_bounds == nullptr && desc.tile_bounds_count == 0;
+}
+
 rns8_status create_direct_hip_native_oneshot_state(
     rns8_context* ctx,
     const rns8_gemm_desc& desc,
@@ -183,6 +196,26 @@ rns8_status create_direct_hip_native_oneshot_state(
   }
   const rns8_matrix_desc c_desc =
       make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, state.plan->prefix,
+                       state.plan->desc.tile_m, state.plan->desc.tile_n);
+  return rns8_create_matrix(ctx, &c_desc, &state.C);
+}
+
+rns8_status create_direct_hip_finite_native_oneshot_state(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    rns8_semantics semantics,
+    uint16_t modulus,
+    direct_hip_native_oneshot_state& state) {
+  state.device_id = ctx->device_id;
+  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (!direct_hip_finite_native_oneshot_eligible(*ctx, desc, *state.plan, semantics, modulus)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  const rns8_matrix_desc c_desc =
+      make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, 0,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
   return rns8_create_matrix(ctx, &c_desc, &state.C);
 }
@@ -293,6 +326,65 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     state.C->host_native_current = false;
     state.C->device_native_current = false;
     status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
+  }
+  return status;
+}
+
+rns8_status direct_hip_finite_u8_native_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    rns8_semantics semantics,
+    uint16_t modulus,
+    const uint8_t* A,
+    int64_t lda,
+    const uint8_t* B,
+    int64_t ldb,
+    uint8_t* C,
+    int64_t ldc) {
+  direct_hip_native_oneshot_state state;
+  rns8_status status = create_direct_hip_finite_native_oneshot_state(ctx, desc, semantics, modulus, state);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t b_bytes = 0;
+  if (!checked_native_input_bytes(desc.m, lda, sizeof(uint8_t), a_bytes) ||
+      !checked_native_input_bytes(desc.k, ldb, sizeof(uint8_t), b_bytes)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  status = rns8::detail::hip_direct_allocate(ctx->device_id, a_bytes, &state.device_a);
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_allocate(ctx->device_id, b_bytes, &state.device_b);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a, A, a_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_gemm_finite_u8_native_device(
+        ctx->device_id,
+        state.device_a,
+        state.device_b,
+        state.C->hip_residues,
+        desc.m,
+        desc.n,
+        desc.k,
+        lda,
+        ldb,
+        state.C->desc.logical_ld,
+        modulus);
+  }
+  if (status == RNS8_SUCCESS) {
+    state.C->host_residues_current = false;
+    state.C->device_residues_current = true;
+    state.C->host_byte_limbs_current = false;
+    state.C->device_byte_limbs_current = false;
+    state.C->host_native_current = false;
+    state.C->device_native_current = false;
+    state.C->finite_modulus = modulus;
+    status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   }
   return status;
 }
@@ -510,6 +602,13 @@ rns8_status rns8_gemm_finite_ring_u8_oneshot(
     if (preflight != RNS8_SUCCESS) {
       return preflight;
     }
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status =
+          direct_hip_finite_u8_native_oneshot(ctx, *desc, RNS8_FINITE_RING_U8, modulus, A, lda, B, ldb, C, ldc);
+      if (status != RNS8_UNSUPPORTED_BACKEND) {
+        return status;
+      }
+    }
     return finite_u8_oneshot_resident(ctx, *desc, modulus, A, lda, B, ldb, C, ldc);
   });
 }
@@ -532,6 +631,13 @@ rns8_status rns8_gemm_finite_field_u8_oneshot(
         validate_finite_u8_oneshot_contract(*ctx, *desc, RNS8_FINITE_FIELD_U8, modulus, lda, ldb, ldc);
     if (preflight != RNS8_SUCCESS) {
       return preflight;
+    }
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+      const rns8_status status =
+          direct_hip_finite_u8_native_oneshot(ctx, *desc, RNS8_FINITE_FIELD_U8, modulus, A, lda, B, ldb, C, ldc);
+      if (status != RNS8_UNSUPPORTED_BACKEND) {
+        return status;
+      }
     }
     return finite_u8_oneshot_resident(ctx, *desc, modulus, A, lda, B, ldb, C, ldc);
   });
