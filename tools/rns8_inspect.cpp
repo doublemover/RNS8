@@ -21,6 +21,10 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
     out = RNS8_BACKEND_HIP_DIRECT;
     return true;
   }
+  if (value == "hip-vector-alu-int64" || value == "vector-alu-int64") {
+    out = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+    return true;
+  }
   if (value == "wrap64-byte-limb") {
     out = RNS8_BACKEND_WRAP64_BYTE_LIMB;
     return true;
@@ -45,7 +49,7 @@ bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
 }
 
 void print_usage(std::ostream& out) {
-  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
+  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
       << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache]\n";
 }
 
@@ -57,6 +61,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "cpu-reference";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
+    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+      return "hip-vector-alu-int64";
     case RNS8_BACKEND_HIPBLASLT:
       return "hipblaslt";
     case RNS8_BACKEND_CK:

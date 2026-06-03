@@ -3029,6 +3029,267 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("vector ALU backend keeps native bounded storage through persistent GEMM") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for vector ALU persistent bounded smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* vector = create_context(RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+
+  {
+    const int64_t m = 2;
+    const int64_t n = 3;
+    const int64_t k = 4;
+    const std::vector<int64_t> A = {5, -7, 11, 13, -17, 19, 23, -29};
+    const std::vector<int64_t> B = {3, -5, 7, 11, 13, -17, 19, 23, -29, 31, 37, -41};
+    std::vector<int64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
+    std::vector<int64_t> vector_c(static_cast<std::size_t>(m * n), 0);
+
+    auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
+    auto vector_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+
+    rns8::detail::hip_direct_allocation_counters_reset();
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(vector, &vector_desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    REQUIRE(rns8_create_matrix(vector, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    REQUIRE(a_matrix->hip_native_i64 != nullptr);
+    REQUIRE(b_matrix->hip_native_i64 != nullptr);
+    REQUIRE(c_matrix->hip_native_i64 != nullptr);
+    CHECK(a_matrix->hip_residues == nullptr);
+    CHECK(b_matrix->hip_residues == nullptr);
+    CHECK(c_matrix->hip_residues == nullptr);
+    CHECK(a_matrix->hip_native_i64_bytes == static_cast<std::size_t>(m * k) * sizeof(int64_t));
+    CHECK(b_matrix->hip_native_i64_bytes == static_cast<std::size_t>(k * n) * sizeof(int64_t));
+    CHECK(c_matrix->hip_native_i64_bytes == static_cast<std::size_t>(m * n) * sizeof(int64_t));
+
+    rns8_matrix_storage_info storage_info{};
+    storage_info.struct_size = sizeof(storage_info);
+    storage_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_matrix_storage_info(a_matrix, &storage_info) == RNS8_SUCCESS);
+    CHECK(storage_info.uses_native_storage == 1);
+    CHECK(storage_info.uses_residue_storage == 0);
+    CHECK(storage_info.device_native_current == 0);
+    CHECK(storage_info.device_native_bytes == static_cast<uint64_t>(m * k * sizeof(int64_t)));
+    CHECK(std::string(storage_info.layout_version) == "native_i64_rowmajor_v1");
+    CHECK(std::string(storage_info.storage_scope) == "native_device_storage");
+
+    void* a_native = a_matrix->hip_native_i64;
+    void* b_native = b_matrix->hip_native_i64;
+    void* c_native = c_matrix->hip_native_i64;
+    REQUIRE(rns8_pack_i64(vector, a_matrix, A.data(), k, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, b_matrix, B.data(), n, 2) == RNS8_SUCCESS);
+    CHECK(a_matrix->hip_native_i64 == a_native);
+    CHECK(b_matrix->hip_native_i64 == b_native);
+    CHECK(a_matrix->device_native_current);
+    CHECK(b_matrix->device_native_current);
+    CHECK_FALSE(a_matrix->device_residues_current);
+    CHECK_FALSE(b_matrix->device_residues_current);
+
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    CHECK(c_matrix->hip_native_i64 == c_native);
+    CHECK(c_matrix->device_native_current);
+    CHECK_FALSE(c_matrix->device_residues_current);
+    CHECK(c_matrix->hip_status_buffer != nullptr);
+
+    REQUIRE(rns8_export_i64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
+    CHECK(vector_c == cpu_c);
+    CHECK(c_matrix->hip_export_buffer == nullptr);
+    REQUIRE(rns8_get_matrix_storage_info(c_matrix, &storage_info) == RNS8_SUCCESS);
+    CHECK(storage_info.device_native_current == 1);
+    CHECK(storage_info.device_residues_current == 0);
+
+    void* status_buffer = c_matrix->hip_status_buffer;
+    const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+    REQUIRE(warmed_allocations.allocate_calls > 0);
+    std::fill(vector_c.begin(), vector_c.end(), int64_t{0});
+
+    REQUIRE(rns8_pack_i64(vector, a_matrix, A.data(), k, 3) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, b_matrix, B.data(), n, 4) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_i64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
+    const auto repeated_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+    CHECK(repeated_allocations.allocate_calls == warmed_allocations.allocate_calls);
+    CHECK(repeated_allocations.free_calls == warmed_allocations.free_calls);
+    CHECK(repeated_allocations.allocated_bytes == warmed_allocations.allocated_bytes);
+    CHECK(a_matrix->hip_native_i64 == a_native);
+    CHECK(b_matrix->hip_native_i64 == b_native);
+    CHECK(c_matrix->hip_native_i64 == c_native);
+    CHECK(c_matrix->hip_status_buffer == status_buffer);
+    CHECK(vector_c == cpu_c);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    const int64_t m = 2;
+    const int64_t n = 2;
+    const int64_t k = 3;
+    const std::vector<uint64_t> A = {5, 7, 11, 13, 17, 19};
+    const std::vector<uint64_t> B = {23, 29, 31, 37, 41, 43};
+    std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
+    std::vector<uint64_t> vector_c(static_cast<std::size_t>(m * n), 0);
+
+    auto cpu_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_CPU_REFERENCE);
+    auto vector_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(vector, &vector_desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    REQUIRE(rns8_create_matrix(vector, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    REQUIRE(a_matrix->hip_native_u64 != nullptr);
+    REQUIRE(b_matrix->hip_native_u64 != nullptr);
+    REQUIRE(c_matrix->hip_native_u64 != nullptr);
+    CHECK(a_matrix->hip_residues == nullptr);
+    CHECK(b_matrix->hip_residues == nullptr);
+    CHECK(c_matrix->hip_residues == nullptr);
+
+    rns8_matrix_storage_info storage_info{};
+    storage_info.struct_size = sizeof(storage_info);
+    storage_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_matrix_storage_info(a_matrix, &storage_info) == RNS8_SUCCESS);
+    CHECK(storage_info.uses_native_storage == 1);
+    CHECK(storage_info.uses_residue_storage == 0);
+    CHECK(std::string(storage_info.layout_version) == "native_u64_rowmajor_v1");
+
+    REQUIRE(rns8_pack_u64(vector, a_matrix, A.data(), k, 11) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, b_matrix, B.data(), n, 12) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    CHECK(c_matrix->device_native_current);
+    CHECK_FALSE(c_matrix->device_residues_current);
+    REQUIRE(rns8_export_u64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
+    CHECK(vector_c == cpu_c);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    rns8_plan* rejected = nullptr;
+    auto exact = exact_signed_desc(1, 1, 1, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    CHECK(rns8_create_plan(vector, &exact, &rejected) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rejected == nullptr);
+
+    auto wrap = wrap_desc(1, 1, 1, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    CHECK(rns8_create_plan(vector, &wrap, &rejected) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rejected == nullptr);
+  }
+
+  rns8_destroy_context(vector);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("vector ALU native export range errors leave destination unchanged") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for vector ALU native export range smoke");
+  }
+
+  rns8_context* vector = create_context(RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+
+  {
+    constexpr int64_t m = 1;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 1;
+    const int64_t A[] = {1};
+    const int64_t B[] = {7, 11};
+    auto desc = signed_desc(m, n, k, 10, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(vector, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    REQUIRE(rns8_create_matrix(vector, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, a_matrix, A, k, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, b_matrix, B, n, 2) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+    std::vector<int64_t> out(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212));
+    CHECK(rns8_export_i64(vector, plan, c_matrix, out.data(), n) == RNS8_RANGE_ERROR);
+    CHECK(out == std::vector<int64_t>(static_cast<std::size_t>(m * n), INT64_C(0x1212121212121212)));
+    CHECK(c_matrix->device_native_current);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    constexpr int64_t m = 1;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 1;
+    const uint64_t A[] = {1};
+    const uint64_t B[] = {7, 11};
+    auto desc = unsigned_desc(m, n, k, 10, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(vector, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    REQUIRE(rns8_create_matrix(vector, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, a_matrix, A, k, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, b_matrix, B, n, 2) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+
+    std::vector<uint64_t> out(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe));
+    CHECK(rns8_export_u64(vector, plan, c_matrix, out.data(), n) == RNS8_RANGE_ERROR);
+    CHECK(out == std::vector<uint64_t>(static_cast<std::size_t>(m * n), UINT64_C(0xfefefefefefefefe)));
+    CHECK(c_matrix->device_native_current);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(vector);
+}
+
 TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP bounded stale-input GEMM rejection smoke");

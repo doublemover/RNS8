@@ -246,10 +246,12 @@ Run the current tools:
 
 ```powershell
 build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
+build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-vector-alu-int64 --json
 build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 build\windows-msvc-hip-debug\rns8-bench.exe --backend cpu --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-vector-alu-int64 --semantics bounded-i64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
+build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-vector-alu-int64-runtime --semantics bounded-u64 --m 64 --n 64 --k 64 --warmups 1 --repeats 5 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend auto --semantics bounded-i64 --m 8 --n 8 --k 8 --warmups 1 --repeats 1 --seed 23
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics exact-wide-signed --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
 build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics exact-wide-unsigned --m 16 --n 16 --k 16 --warmups 1 --repeats 3 --seed 1
@@ -264,12 +266,17 @@ captures deliberately report `status=required_not_recorded` and
 and GPU baseline prerequisites before a capture can ever be promoted to a
 speedup claim.
 
-`hip-vector-alu-int64` is a benchmark-only backend name, not a public
-`rns8_backend_kind`. It runs bounded i64/u64 inputs through benchmark-owned HIP
-buffers and exact 192-bit-limb vector-ALU kernels, then emits
-`backend_selected=hip-vector-alu-int64` with `performance_validated=false`.
-Use it as the same-contract GPU baseline for accelerator reviews, not as a
-production backend.
+`RNS8_BACKEND_HIP_VECTOR_ALU_INT64` is a public bounded-only runtime backend
+for `RNS8_BOUNDED_I64` and `RNS8_BOUNDED_U64`. It stores compact native
+`int64_t` or `uint64_t` matrices on the selected HIP device, runs exact
+192-bit-limb vector-ALU kernels, and exports native results directly. It does
+not implement exact-wide, finite-ring, finite-field, or wrap64 semantics; strict
+`mod 2^64` wraparound remains on the byte-limb backend. The benchmark CLI
+continues to support `--backend hip-vector-alu-int64` as a benchmark-owned
+same-contract capture mode for release comparisons. Use
+`--backend hip-vector-alu-int64-runtime` to benchmark the public persistent
+native-storage path. Both report `performance_validated=false` until reviewed
+release evidence promotes a cache entry.
 
 Run small Windows `gfx1100` benchmark sweeps and review reports under ignored
 `temp\benchmark-sweeps\`:

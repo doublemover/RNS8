@@ -188,7 +188,7 @@ uint32_t benchmark_prefix(const Args& args);
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
+      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-runtime]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -296,6 +296,10 @@ void parse_backend_option(const std::string& value, Args& args) {
     args.backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
     return;
   }
+  if (value == "hip-vector-alu-int64-runtime" || value == "vector-alu-int64-runtime") {
+    args.backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+    return;
+  }
   if (value == "hip-vector-alu-int64" || value == "vector-alu-int64") {
     args.backend = RNS8_BACKEND_HIP_DIRECT;
     args.vector_alu_baseline = true;
@@ -377,7 +381,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64]\n"
+          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-runtime]\n"
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -421,12 +425,17 @@ Args parse_args(int argc, char** argv) {
        finite_benchmark_semantics(args.semantics))) {
     usage_error("hip-vector-alu-int64 baseline is only valid for bounded-i64 or bounded-u64 semantics");
   }
+  if (args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 &&
+      (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+       finite_benchmark_semantics(args.semantics))) {
+    usage_error("hip-vector-alu-int64-runtime is only valid for bounded-i64 or bounded-u64 semantics");
+  }
   if (args.reuse_packed_inputs && args.vector_alu_baseline) {
     usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
-  if (args.vector_alu_baseline) {
-    usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+  if (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    usage_error("hip-vector-alu-int64 requires a HIP-enabled benchmark build");
   }
 #endif
   if (args.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB && args.semantics != BenchSemantics::WrapU64Mod2_64) {
@@ -447,7 +456,8 @@ Args parse_args(int argc, char** argv) {
     }
     if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_CPU_REFERENCE &&
         args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
-        args.backend != RNS8_BACKEND_WMMA && args.backend != RNS8_BACKEND_AUTO) {
+        args.backend != RNS8_BACKEND_WMMA && args.backend != RNS8_BACKEND_AUTO &&
+        args.backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       usage_error(
           "--bound-mode per-tile currently captures CPU, direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
     }
@@ -458,7 +468,8 @@ Args parse_args(int argc, char** argv) {
   if (args.device_id == std::numeric_limits<int>::min()) {
     args.device_id =
         (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
-         args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA || args.backend == RNS8_BACKEND_AUTO)
+         args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA || args.backend == RNS8_BACKEND_AUTO ||
+         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64)
             ? 0
             : -1;
   }
@@ -473,6 +484,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "cpu-reference";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
+    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+      return "hip-vector-alu-int64";
     case RNS8_BACKEND_HIPBLASLT:
       return "hipblaslt";
     case RNS8_BACKEND_CK:
@@ -507,6 +520,10 @@ const char* backend_metadata_source(const Args& args) {
     return kWrap64WmmaCandidateBackendSource;
   }
   return args.vector_alu_baseline ? "rns8_bench_vector_alu_baseline" : "rns8_get_plan_backend_info";
+}
+
+bool runtime_vector_alu_backend(const Args& args) {
+  return !args.vector_alu_baseline && args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
 }
 
 const char* pack_mode_name(const Args& args) {
@@ -596,7 +613,8 @@ bool uses_runtime_b_prepack_cache(const BenchmarkResult& result) {
 }
 
 bool should_probe_reusable_b_prepack_cache(const Args& args) {
-  return args.reuse_packed_inputs && args.reuse_packed_b && !args.reuse_packed_a;
+  return args.reuse_packed_inputs && args.reuse_packed_b && !args.reuse_packed_a &&
+         args.backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
 }
 
 rns8_status run_rns_gemm_with_optional_b_cache(
@@ -3220,6 +3238,9 @@ const char* benchmark_name(const Args& args) {
   if (args.vector_alu_baseline) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_baseline";
   }
+  if (runtime_vector_alu_backend(args)) {
+    return "rns8_bounded_gemm_hip_vector_alu_int64_runtime";
+  }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return "rns8_wrap_u64_persistent_byte_limb";
   }
@@ -3233,7 +3254,7 @@ const char* benchmark_name(const Args& args) {
 }
 
 const char* epilogue_type(const Args& args) {
-  if (args.vector_alu_baseline) {
+  if (args.vector_alu_baseline || runtime_vector_alu_backend(args)) {
     return "direct_int64_export";
   }
   if (finite_benchmark_semantics(args.semantics)) {
@@ -3246,6 +3267,16 @@ const char* epilogue_type(const Args& args) {
     return "exact_wide_unsigned_limb_export";
   }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "low64_wrap_export" : "crt_export";
+}
+
+const char* packed_layout_version(const Args& args) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    return "byte_limb_v1";
+  }
+  if (runtime_vector_alu_backend(args)) {
+    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_rowmajor_v1" : "native_u64_rowmajor_v1";
+  }
+  return nullptr;
 }
 
 const char* input_distribution(const Args& args) {
@@ -3338,7 +3369,8 @@ void print_json(
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
   const bool adaptive_applied = adaptive_execution_applied(args, info, result);
-  const bool per_modulus_estimate_applicable = prefix > 0 && !adaptive_applied && !args.vector_alu_baseline;
+  const bool per_modulus_estimate_applicable =
+      prefix > 0 && !adaptive_applied && !args.vector_alu_baseline && !runtime_vector_alu_backend(args);
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
@@ -3518,8 +3550,9 @@ void print_json(
   std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
   std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";
-  std::cout << "  \"packed_layout_version\": "
-            << (args.semantics == BenchSemantics::WrapU64Mod2_64 ? "\"byte_limb_v1\"" : "null") << ",\n";
+  std::cout << "  \"packed_layout_version\": ";
+  print_json_string_or_null(packed_layout_version(args));
+  std::cout << ",\n";
   std::cout << "  \"seed\": " << args.seed << ",\n";
   std::cout << "  \"warmups\": " << args.warmups << ",\n";
   std::cout << "  \"repeats\": " << args.repeats << ",\n";
@@ -3598,6 +3631,10 @@ void print_json(
     std::cout << "  \"timing_note\": \"host wall-clock timings for the benchmark-only HIP vector-ALU exact "
                  "int64 baseline; phases are raw input H2D copies, one 192-bit-limb exact output kernel, "
                  "and direct output D2H export with range-status validation\",\n";
+  } else if (runtime_vector_alu_backend(args)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the public HIP vector-ALU bounded runtime "
+                 "backend; phases are native device packing, one 192-bit-limb exact output kernel, and direct "
+                 "native output export with range-status validation\",\n";
   } else if (args.wrap64_wmma_candidate) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the internal rocWMMA wrap64 byte-GEMM36 "
                  "candidate; GPU event timing uses direct-HIP byte-limb pack/export labels plus one candidate "
@@ -3719,6 +3756,10 @@ void print_json(
     std::cout << "      \"pack\": \"per-repeat host timing for raw bounded inputs copied to benchmark-owned HIP buffers\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one exact 192-bit-limb vector-ALU output kernel\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for range-status D2H plus direct logical output D2H\",\n";
+  } else if (runtime_vector_alu_backend(args)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into native int64/uint64 HIP device matrices\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns dispatch to one exact 192-bit-limb vector-ALU output kernel\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for native output D2H plus range validation\",\n";
   } else if (args.wrap64_wmma_candidate) {
     std::cout << "      \"pack\": \"per-repeat host timing for direct-HIP packing of A and B into compact byte-limb device buffers\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for the internal rocWMMA wrap64 byte-GEMM36 candidate\",\n";
@@ -3794,6 +3835,11 @@ void print_json(
     std::cout << "        \"timing_key\": null,\n";
     std::cout << "        \"scope\": \"not_applicable_direct_int64_export\",\n";
     std::cout << "        \"reason\": \"benchmark-only vector-ALU baseline computes exact logical outputs directly and does not use centered RNS residue reduction\"\n";
+  } else if (runtime_vector_alu_backend(args)) {
+    std::cout << "        \"timed\": false,\n";
+    std::cout << "        \"timing_key\": null,\n";
+    std::cout << "        \"scope\": \"not_applicable_native_vector_output\",\n";
+    std::cout << "        \"reason\": \"runtime vector-ALU backend computes exact native int64/uint64 outputs directly and does not use centered RNS residue reduction\"\n";
   } else {
     std::cout << "        \"timed\": false,\n";
     std::cout << "        \"timing_key\": null,\n";
