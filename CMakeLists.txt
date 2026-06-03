@@ -512,6 +512,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(release_tree_self_test PROPERTIES LABELS "tools;release")
 
   add_test(
+    NAME bootstrap_rocm_accelerators_dry_run_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bootstrap_rocm_accelerators.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(bootstrap_rocm_accelerators_dry_run_self_test PROPERTIES LABELS "tools;accelerator")
+
+  add_test(
     NAME release_tree_current_check
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_release_tree.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

@@ -155,8 +155,9 @@ A release-mode review on June 3, 2026 covered bounded i64 square shapes 64,
 hipBLASLt, CK, and rocWMMA captures from release builds. Every capture used
 three warmups, nine measured repeats, and seed `20260602`. The report produced
 24 captures, four same-contract review groups, no missing required baselines,
-and two temp reviewed cache entries in
-`temp\reviewed-autotune-bounded-i64-full.json`.
+and two reviewed cache candidates. The durable summary is
+[reviewed-local-evidence.md](reviewed-local-evidence.md); raw captures and
+candidate cache files remain temp-only.
 
 The 64 and 128 groups were complete but not promotable because the vector-ALU
 baseline stayed fastest: 397 us at 64x64x64 and 506 us at 128x128x128 median
@@ -170,15 +171,16 @@ followed by direct HIP at 11195 us, vector-ALU at 11327 us, rocWMMA at
 11565 us, CK at 18109 us, and CPU reference at 15657400 us.
 
 `rns8-inspect` reports exact validated hits for both promoted keys on runtime
-target `gfx1100`: the WMMA 512 entry uses runtime version
+target `gfx1100`: the rocWMMA 512 entry uses runtime version
 `repo-local release/rocm-rel-7.1` and the hipBLASLt 1024 entry uses
-`hipBLASLt 100100`. With `RNS8_AUTOTUNE_CACHE_PATH` set to the temp full cache,
+`hipBLASLt 100100`. With `RNS8_AUTOTUNE_CACHE_PATH` set to the reviewed local
+cache candidate,
 schema-valid AUTO smokes emit `backend_requested: "auto"`,
 `backend_selected: "rocwmma"` for 512 and `backend_selected: "hipblaslt"` for
 1024, `backend_metadata.performance_validated: true`, and
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`. This
-is reviewed Windows `gfx1100` release evidence and temp cache proof; it is not
-yet a durable installed production cache policy.
+is reviewed Windows `gfx1100` release evidence and cache-candidate proof; it is
+not yet a durable installed production cache policy.
 
 A follow-up post-fix bounded-i64 validation on June 3, 2026 used seed
 `20260603` and reran the 512 and 1024 groups after the vector event-capture and
@@ -196,14 +198,13 @@ A release-mode review on June 3, 2026 covered bounded u64 square shapes 64,
 hipBLASLt, CK, and rocWMMA captures from release builds. Every capture used
 three warmups, nine measured repeats, and seed `20260602`. The report produced
 24 captures, four same-contract review groups, no missing required baselines,
-and zero promotable cache entries. The requested cache path
-`temp\reviewed-autotune-bounded-u64-full.json` was not written because the
-cache-write status was `no_promotable_entries`.
+and zero promotable cache entries. The cache-write status was
+`no_promotable_entries`.
 
 Every reviewed shape was blocked by the vector-ALU baseline. Median end-to-end
 leaders were `hip-vector-alu-int64` at 361 us for 64x64x64, 452 us for
 128x128x128, 1653 us for 512x512x512, and 5649 us for 1024x1024x1024. The
-closest accelerator candidates were WMMA at 1160 us for 64, WMMA at 1228 us
+closest accelerator candidates were rocWMMA at 1160 us for 64, rocWMMA at 1228 us
 for 128, CK at 2347 us for 512, and CK at 5707 us for 1024. Since no
 accelerator beat the required same-contract vector baseline, this matrix is
 reviewed release evidence for keeping bounded-u64 AUTO on the correctness
@@ -217,8 +218,7 @@ tiles, for both bounded i64 and bounded u64. The matrix used CPU reference,
 direct HIP, `hip-vector-alu-int64`, CK, and rocWMMA captures from release
 builds. Every capture used three warmups, nine measured repeats, and seed
 `20260602`. The report produced 20 captures, four same-contract review groups,
-no missing required baselines, and one temp reviewed cache entry in
-`temp\reviewed-autotune-adaptive-bounded-full.json`.
+no missing required baselines, and one reviewed cache candidate.
 
 The promoted entry is bounded i64 1024x1024x1024 with adaptive skip active:
 rocWMMA `rocwmma_i8_i32_signed_tiled_hot_residue_v1` measured 5095 us median
@@ -233,10 +233,10 @@ reports an exact validated hit for this key, and a matching adaptive
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`.
 
 The remaining adaptive groups were complete but blocked. Bounded i64 65x65x64
-stayed on vector-ALU at 402 us versus WMMA at 1041 us. Bounded u64
+stayed on vector-ALU at 402 us versus rocWMMA at 1041 us. Bounded u64
 1024x1024x1024 stayed on vector-ALU at 6658 us, with direct HIP at 7225 us and
-WMMA at 7253 us. Bounded u64 65x65x64 stayed on vector-ALU at 626 us, with CPU
-reference at 1094 us and WMMA at 1238 us. No bounded-u64 adaptive accelerator
+rocWMMA at 7253 us. Bounded u64 65x65x64 stayed on vector-ALU at 626 us, with CPU
+reference at 1094 us and rocWMMA at 1238 us. No bounded-u64 adaptive accelerator
 entry is promotable from this release review.
 
 ## Windows `gfx1100` release-reviewed finite-u8 matrix
@@ -246,8 +246,7 @@ A release-mode review on June 3, 2026 covered finite-u8 ring moduli 251 and
 The matrix used CPU reference, direct HIP, hipBLASLt, CK, and rocWMMA captures
 from release builds, three warmups, nine measured repeats, and seed `20260602`.
 It produced 60 captures, 12 same-contract review groups, no missing required
-baselines, and 12 temp reviewed cache entries in
-`temp\reviewed-autotune-finite-full-plan-keyed.json`.
+baselines, and 12 reviewed cache candidates keyed by explicit modulus.
 
 The promoted entries are scoped by explicit `finite_modulus` in the plan
 autotune key. rocWMMA
@@ -305,12 +304,11 @@ CPU-oracle cells. The benchmark smoke additionally validates same-seed
 matching `checksum_u64` values; this is release-shape smoke evidence, not
 reviewed release promotion or performance evidence.
 
-A follow-up candidate-inclusive release review on June 3, 2026 under
-`temp\benchmark-sweeps\windows-gfx1100-release-rocwmma-wrap64-candidate-current`
-used three warmups, nine repeats, and seed `20260603` for 64, 128, 512, and
-1024 square wrap64 shapes. The CPU byte-limb, direct-HIP, and rocWMMA-candidate
-captures produced matching `checksum_u64` values within each shape, but the
-candidate lost to direct HIP at every release shape:
+A follow-up candidate-inclusive release review on June 3, 2026 used three
+warmups, nine repeats, and seed `20260603` for 64, 128, 512, and 1024 square
+wrap64 shapes. The CPU byte-limb, direct-HIP, and rocWMMA-candidate captures
+produced matching `checksum_u64` values within each shape, but the candidate
+lost to direct HIP at every release shape:
 
 | shape | direct-HIP v3 median us | rocWMMA candidate median us | candidate blocker |
 |---|---:|---:|---|
@@ -584,11 +582,11 @@ Current Windows release sweep status:
 - adaptive bounded 65x65x64 and 1024x1024x1024 have local release-reviewed
   reports with complete baselines;
 - finite-u8 ring moduli 251 and 255 plus finite-u8 field modulus 251 have a
-  local release-reviewed matrix with 12 temp reviewed cache entries keyed by
+  local release-reviewed matrix with 12 reviewed cache candidates keyed by
   explicit modulus;
 - exact-wide signed/unsigned 64, 128, 512, and 1024 have a local
-  release-reviewed matrix with complete CPU/direct-HIP baselines and four temp
-  reviewed CK cache entries: signed 1024 plus unsigned 128, 512, and 1024;
+  release-reviewed matrix with complete CPU/direct-HIP baselines and four
+  reviewed CK cache candidates: signed 1024 plus unsigned 128, 512, and 1024;
 - strict wrap64 has local release-reviewed CPU/direct-HIP baselines for 64, 128,
   512, and 1024; the matrix-engine accelerator candidate remains open;
 - 2048, 4096, and 8192 remain exploratory until complete baselines finish
