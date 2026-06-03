@@ -1037,6 +1037,124 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP finite u8 native A resident B path matches CPU") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP finite native-A smoke");
+  }
+
+  struct Case {
+    rns8_semantics semantics;
+    uint16_t modulus;
+  };
+  constexpr int64_t m = 7;
+  constexpr int64_t n = 5;
+  constexpr int64_t k = 9;
+  constexpr int64_t lda = 13;
+  constexpr int64_t ldb = 11;
+  constexpr int64_t ldc = 8;
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  for (const Case item : {
+           Case{RNS8_FINITE_RING_U8, 255},
+           Case{RNS8_FINITE_FIELD_U8, 251},
+           Case{RNS8_FINITE_RING_U8, 256},
+       }) {
+    std::vector<uint8_t> A(static_cast<std::size_t>(m * lda), 0xee);
+    std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0xdd);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A[static_cast<std::size_t>(row * lda + col)] =
+            static_cast<uint8_t>((row * 19 + col * 23 + item.modulus / 3) % item.modulus);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(row * ldb + col)] =
+            static_cast<uint8_t>((row * 29 + col * 31 + item.modulus / 5) % item.modulus);
+      }
+    }
+
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE, item.modulus);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
+    std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
+
+    if (item.semantics == RNS8_FINITE_FIELD_U8) {
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    } else {
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    }
+
+    rns8_plan* hip_plan = nullptr;
+    rns8_matrix* hip_b = nullptr;
+    rns8_matrix* hip_c = nullptr;
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    auto b_desc = matrix_desc(k, n, item.semantics, RNS8_BOUND_NONE);
+    auto c_desc = matrix_desc(m, n, item.semantics, RNS8_BOUND_NONE);
+    REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_finite_u8(hip, hip_b, item.modulus, B.data(), ldb, 2) == RNS8_SUCCESS);
+
+    void* d_a = nullptr;
+    const std::size_t a_bytes = static_cast<std::size_t>(m * lda) * sizeof(uint8_t);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, a_bytes, &d_a) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_a, A.data(), a_bytes) == RNS8_SUCCESS);
+
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_finite_u8_native_a_resident_b_device(
+                0,
+                d_a,
+                hip_b->hip_residues,
+                hip_c->hip_residues,
+                m,
+                n,
+                k,
+                lda,
+                hip_b->desc.logical_ld,
+                hip_c->desc.logical_ld,
+                item.modulus) == RNS8_SUCCESS);
+    const auto hip_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(hip_events, "finite_native_a_gemm_kernel"));
+    CHECK_FALSE(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
+
+    hip_c->host_residues_current = false;
+    hip_c->device_residues_current = true;
+    hip_c->host_byte_limbs_current = false;
+    hip_c->device_byte_limbs_current = false;
+    hip_c->host_native_current = false;
+    hip_c->device_native_current = false;
+    hip_c->finite_modulus = item.modulus;
+    REQUIRE(rns8_export_finite_u8(hip, hip_plan, item.modulus, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(cpu_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+      }
+    }
+
+    CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
+    rns8_destroy_matrix(hip_c);
+    rns8_destroy_matrix(hip_b);
+    rns8_destroy_plan(hip_plan);
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP finite u8 persistent matrices match CPU and reuse resident storage") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP finite u8 persistent smoke");

@@ -255,6 +255,77 @@ def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
     return oneshot
 
 
+def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
+    reused = as_direct_hip_finite_capture(
+        capture,
+        255,
+        "direct_hip_native_a_finite_u8_gemm_mod255_v1",
+        "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide",
+    )
+    repeats = reused["repeats"]
+    epilogue = "native_a_centered_resident_b_residue_then_canonical_u8_export"
+    reused["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    reused["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
+    reused["backend_metadata"]["epilogue_mode"] = epilogue
+    reused["backend_metadata"]["workspace_mode"] = "transient_native_u8_a_resident_finite_b_output"
+    reused["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
+        "tile_m=128;tile_n=128;execution=transient_native_a_resident_b_reuse;"
+        "kernel=direct_hip_native_a_finite_u8_gemm_mod255_v1;"
+        f"epilogue={epilogue}"
+    )
+    reused["pack_mode"] = "prepacked_reuse_b"
+    reused["reuse_packed_inputs"] = True
+    reused["prepack_reuse_operands"] = ["B"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    reused["prepack_setup_us"] = 300
+    reused["avg_prepack_setup_us"] = 300.0
+    reused["timing_metadata"]["phase_availability"]["prepack_setup"] = {
+        "timed": True,
+        "timing_key": "prepack_setup_us",
+        "scope": "one_time_before_warmups",
+        "reason": "B was packed once before warmups and reused for every measured repeat",
+    }
+    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    reused["timing_metadata"]["gpu_event_phase_order"] = [
+        "finite_pack_h2d",
+        "finite_pack_kernel",
+        "pack",
+        "finite_native_a_gemm_kernel",
+        "rns_gemm",
+        "finite_export_kernel",
+        "finite_export_d2h",
+        "crt_export",
+    ]
+    event_values = {
+        "finite_pack_h2d": [12.0, 13.0][:repeats],
+        "finite_pack_kernel": [0.0, 0.0][:repeats],
+        "pack": [12.0, 13.0][:repeats],
+        "finite_native_a_gemm_kernel": [80.0, 82.0][:repeats],
+        "rns_gemm": [80.0, 82.0][:repeats],
+        "finite_export_kernel": [20.0, 22.0][:repeats],
+        "finite_export_d2h": [8.0, 9.0][:repeats],
+        "crt_export": [28.0, 31.0][:repeats],
+    }
+    reused["gpu_event_timings_us"] = event_values
+    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["raw_timings_us"]["pack"] = [100, 110][:repeats]
+    reused["raw_timings_us"]["rns_gemm"] = [200, 210][:repeats]
+    reused["raw_timings_us"]["crt_export"] = [90, 100][:repeats]
+    reused["raw_timings_us"]["end_to_end"] = [390, 420][:repeats]
+    reused["timing_summary_us"]["pack"] = summary(reused["raw_timings_us"]["pack"])
+    reused["timing_summary_us"]["rns_gemm"] = summary(reused["raw_timings_us"]["rns_gemm"])
+    reused["timing_summary_us"]["crt_export"] = summary(reused["raw_timings_us"]["crt_export"])
+    reused["timing_summary_us"]["end_to_end"] = summary(reused["raw_timings_us"]["end_to_end"])
+    reused["avg_pack_us"] = reused["timing_summary_us"]["pack"]["avg"]
+    reused["avg_rns_gemm_us"] = reused["timing_summary_us"]["rns_gemm"]["avg"]
+    reused["avg_crt_export_us"] = reused["timing_summary_us"]["crt_export"]["avg"]
+    reused["avg_end_to_end_us"] = reused["timing_summary_us"]["end_to_end"]["avg"]
+    return reused
+
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -669,6 +740,8 @@ def main() -> int:
     validate_capture(direct_hip_oneshot_i64)
     direct_hip_finite_oneshot = as_direct_hip_finite_oneshot_capture(v4_finite_ring_ck)
     validate_capture(direct_hip_finite_oneshot)
+    direct_hip_finite_native_a_reuse_b = as_direct_hip_finite_native_a_reuse_b_capture(v4_finite_ring_ck)
+    validate_capture(direct_hip_finite_native_a_reuse_b)
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)

@@ -90,12 +90,20 @@ DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS = {
     255: "direct_hip_native_finite_u8_gemm_mod255_v1",
     256: "direct_hip_native_finite_u8_gemm_mod256_v1",
 }
+DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL = "direct_hip_native_a_finite_u8_gemm_v1"
+DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS = {
+    251: "direct_hip_native_a_finite_u8_gemm_mod251_v1",
+    255: "direct_hip_native_a_finite_u8_gemm_mod255_v1",
+    256: "direct_hip_native_a_finite_u8_gemm_mod256_v1",
+}
 DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
+DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_canonical_u8_export"
+DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_u8_a_resident_finite_b_output"
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
@@ -132,6 +140,7 @@ BENCHMARK_EXECUTION_MODES = {
     "public_oneshot_transient_native_inputs",
     "benchmark_owned_vector_alu_native_buffers",
     "public_runtime_vector_alu_native_buffers",
+    "transient_native_a_resident_b_reuse",
     "internal_wrap64_rocwmma_candidate",
 }
 DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
@@ -309,6 +318,14 @@ class _Validator:
 
     def _is_public_oneshot_capture(self) -> bool:
         return self._is_bounded_oneshot_capture() or self._is_finite_oneshot_capture()
+
+    def _is_direct_hip_finite_native_a_reuse_b_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+            and self.data.get("pack_mode") == "prepacked_reuse_b"
+            and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
+        )
 
     def _require(self, key: str, kind: str) -> Any:
         if key not in self.data:
@@ -495,6 +512,8 @@ class _Validator:
             if self._is_wrap64_rocwmma_candidate()
             else "rns8_bench_public_oneshot_api"
             if self._is_public_oneshot_capture()
+            else "rns8_bench_native_a_reuse_b_path"
+            if self._is_direct_hip_finite_native_a_reuse_b_capture()
             else (
                 "rns8_get_plan_backend_info"
                 if self._is_vector_alu_runtime_capture()
@@ -1306,14 +1325,19 @@ class _Validator:
                 if required_field not in normalized_key:
                     self._error("finite-u8 backend_metadata.autotune_key must include finite_modulus")
             if self.data.get("backend_selected") == "hip-direct" and _is_int(modulus):
+                native_a_reuse_b_capture = self._is_direct_hip_finite_native_a_reuse_b_capture()
                 specialized_kernel = (
                     DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS.get(modulus)
                     if finite_oneshot_capture
+                    else DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS.get(modulus)
+                    if native_a_reuse_b_capture
                     else DIRECT_HIP_FINITE_SPECIALIZED_KERNELS.get(modulus)
                 )
                 generic_kernel = (
                     DIRECT_HIP_FINITE_ONESHOT_GENERIC_KERNEL
                     if finite_oneshot_capture
+                    else DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL
+                    if native_a_reuse_b_capture
                     else DIRECT_HIP_FINITE_GENERIC_KERNEL
                 )
                 if specialized_kernel is not None:
@@ -1348,6 +1372,17 @@ class _Validator:
                         self._error(
                             "direct-HIP finite one-shot captures must use "
                             f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_ONESHOT_WORKSPACE}"
+                        )
+                elif native_a_reuse_b_capture:
+                    if backend_metadata.get("epilogue_mode") != DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE:
+                        self._error(
+                            "direct-HIP finite native-A reuse-B captures must use "
+                            f"backend_metadata.epilogue_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE}"
+                        )
+                    if backend_metadata.get("workspace_mode") != DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE:
+                        self._error(
+                            "direct-HIP finite native-A reuse-B captures must use "
+                            f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE}"
                         )
             if isinstance(schedule, dict):
                 for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:

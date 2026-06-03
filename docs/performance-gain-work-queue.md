@@ -375,6 +375,18 @@ Likely first slices:
   benchmark/schema surface reports `rns8_finite_u8_public_oneshot`, exact
   native-input event phases, zero external pack/export timings, and a persistent
   direct-HIP finite baseline prerequisite before any speedup claim.
+- Direct-HIP transient-A plus reusable-B finite-u8 path.
+  Implemented for `rns8-bench --backend hip-direct --semantics finite-u8-*`
+  with `--reuse-packed-b`: B is packed once into persistent finite storage,
+  A is copied as canonical native `uint8_t` per repeat, and the Direct-HIP GEMM
+  centers A inside the tile load path while consuming resident centered B. The
+  benchmark/schema surface reports `transient_native_a_resident_b_reuse`,
+  `rns8_bench_native_a_reuse_b_path`, `finite_native_a_gemm_kernel`, and a
+  zero-valued `finite_pack_kernel`. Windows `gfx1100` release captures under
+  `temp/finite-native-a-reuse-b-release-r33/` show setup-amortized wins at 33
+  repeats for ring-255 512/1024 and field-251 512/1024, while 128-size cases
+  stay experimental because setup and Windows timing variance can erase the
+  per-repeat pack savings.
 
 Relation to existing queue:
 
