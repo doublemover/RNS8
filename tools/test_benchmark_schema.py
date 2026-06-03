@@ -454,6 +454,14 @@ def main() -> int:
     bad_wmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
     expect_invalid(bad_wmma_events, "accelerator_backend_default_stream_operation_groups")
 
+    bad_hip_target = copy.deepcopy(v4_ck_i64)
+    bad_hip_target["device"]["gcn_arch"] = "unknown"
+    expect_invalid(bad_hip_target, "HIP backend captures must include non-placeholder device.gcn_arch")
+
+    bad_hip_available = copy.deepcopy(v4_wmma_i64)
+    bad_hip_available["device"]["hip_available"] = 0
+    expect_invalid(bad_hip_available, "HIP backend captures must use device.hip_available=1")
+
     bad_vector_source = copy.deepcopy(v4_vector_i64)
     bad_vector_source["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
     expect_invalid(bad_vector_source, "rns8_bench_vector_alu_baseline")

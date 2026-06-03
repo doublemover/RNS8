@@ -152,6 +152,10 @@ def normalized_target_id(value: Any) -> str | None:
     return text
 
 
+def backend_requires_gpu_target(backend: str) -> bool:
+    return backend not in {"cpu-reference", "wrap64-byte-limb"}
+
+
 def capture_backend_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     metadata = capture.get("backend_metadata")
     return metadata if isinstance(metadata, dict) else {}
@@ -436,6 +440,7 @@ def promotion_blockers(
     missing: list[str],
     semantics: Any,
     release_review_satisfied: bool,
+    gpu_target_identity_complete: bool,
     gpu_target_compatible: bool,
     accelerator: bool,
     internal_candidate: bool,
@@ -449,7 +454,9 @@ def promotion_blockers(
         blockers.append("missing_required_baselines")
     if not release_review_satisfied:
         blockers.append("not_release_review")
-    if not gpu_target_compatible:
+    if not gpu_target_identity_complete:
+        blockers.append("missing_gpu_target_id")
+    elif not gpu_target_compatible:
         blockers.append("gpu_target_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
@@ -508,10 +515,12 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         gpu_targets = {
             backend: normalized_target_id(capture.get("device", {}).get("gcn_arch"))
             for backend, capture in by_backend.items()
-            if backend not in {"cpu-reference", "wrap64-byte-limb"}
+            if backend_requires_gpu_target(backend)
         }
+        missing_gpu_targets = sorted(backend for backend, target in gpu_targets.items() if target is None)
+        gpu_target_identity_complete = not missing_gpu_targets
         gpu_target_values = {value for value in gpu_targets.values() if value}
-        gpu_target_compatible = len(gpu_target_values) <= 1
+        gpu_target_compatible = gpu_target_identity_complete and len(gpu_target_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
@@ -526,6 +535,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 missing=missing,
                 semantics=semantics,
                 release_review_satisfied=release_review_satisfied,
+                gpu_target_identity_complete=gpu_target_identity_complete,
                 gpu_target_compatible=gpu_target_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
@@ -601,6 +611,8 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "required_baselines": required,
                 "missing_required_baselines": missing,
                 "gpu_targets": gpu_targets,
+                "missing_gpu_targets": missing_gpu_targets,
+                "gpu_target_identity_complete": gpu_target_identity_complete,
                 "gpu_target_compatible": gpu_target_compatible,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
@@ -949,7 +961,10 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
             title += f" mod {modulus}"
         lines.extend([f"## {title}", ""])
         missing = group.get("missing_required_baselines") or []
+        missing_targets = group.get("missing_gpu_targets") or []
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
+        lines.append(f"- missing_gpu_targets: `{','.join(missing_targets) if missing_targets else 'none'}`")
+        lines.append(f"- gpu_target_compatible: `{group.get('gpu_target_compatible')}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:

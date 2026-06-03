@@ -497,7 +497,10 @@ Debug and one-repeat release captures are useful for correctness and early
 shape triage, but final performance promotion requires production-grade release
 sweeps. Promotable Windows `gfx1100` captures use fixed seeds, HIP event timing
 where backend hooks exist, at least three warmups, at least nine measured
-repeats, schema v4 validation, and same-contract baseline groups.
+repeats, schema v4 validation, concrete HIP `device.gcn_arch` target identity,
+and same-contract baseline groups. Review groups with a missing HIP GPU target
+are blocked as `missing_gpu_target_id`; groups that mix GPU targets are blocked
+as `gpu_target_mismatch`.
 
 Bounded i64/u64 promotion requires CPU reference, direct-HIP correctness, and
 `hip-vector-alu-int64` baselines for the same semantic contract, shape, layout,
