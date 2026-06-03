@@ -220,6 +220,45 @@ void require_wrap64_output_matches_oracle(
   }
 }
 
+void require_wrap64_sampled_output_matches_oracle(
+    const std::vector<uint64_t>& A,
+    int64_t lda,
+    const std::vector<uint64_t>& B,
+    int64_t ldb,
+    const std::vector<uint64_t>& C,
+    int64_t ldc,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  std::vector<uint64_t> sample_offsets;
+  const auto add_sample = [&](int64_t row, int64_t col) {
+    REQUIRE(row >= 0);
+    REQUIRE(row < m);
+    REQUIRE(col >= 0);
+    REQUIRE(col < n);
+    const auto offset = static_cast<uint64_t>(row * n + col);
+    if (std::find(sample_offsets.begin(), sample_offsets.end(), offset) == sample_offsets.end()) {
+      sample_offsets.push_back(offset);
+    }
+  };
+
+  add_sample(0, 0);
+  add_sample(0, n - 1);
+  add_sample(m - 1, 0);
+  add_sample(m - 1, n - 1);
+  add_sample(m / 2, n / 2);
+  add_sample(m / 3, n / 5);
+  add_sample((2 * m) / 3, (3 * n) / 5);
+  add_sample((5 * m) / 7, (2 * n) / 7);
+
+  for (const uint64_t offset : sample_offsets) {
+    const int64_t row = static_cast<int64_t>(offset / static_cast<uint64_t>(n));
+    const int64_t col = static_cast<int64_t>(offset % static_cast<uint64_t>(n));
+    CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
+          rns8::detail::wrap64_low_diagonal_byte_pair_gemm_cell(A.data(), lda, B.data(), ldb, row, col, k));
+  }
+}
+
 struct Wrap64CandidateShape {
   const char* name;
   int64_t m;
@@ -265,7 +304,9 @@ uint64_t wrap64_candidate_b_value(int64_t row, int64_t col, std::mt19937_64& rng
   return rng();
 }
 
-void require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(const Wrap64CandidateShape& shape) {
+void require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(
+    const Wrap64CandidateShape& shape,
+    bool exhaustive_oracle = true) {
   INFO(shape.name);
 
   constexpr int device_id = 0;
@@ -354,7 +395,11 @@ void require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(const Wrap64Can
     }
   }
   require_same_u64(direct_out, wmma_out);
-  require_wrap64_output_matches_oracle(A, lda, B, ldb, wmma_out, ldc, shape.m, shape.n, shape.k);
+  if (exhaustive_oracle) {
+    require_wrap64_output_matches_oracle(A, lda, B, ldb, wmma_out, ldc, shape.m, shape.n, shape.k);
+  } else {
+    require_wrap64_sampled_output_matches_oracle(A, lda, B, ldb, wmma_out, ldc, shape.m, shape.n, shape.k);
+  }
 }
 #endif
 
@@ -633,5 +678,19 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate enforces K boundary") {
   HipBuffer c_limbs(8);
   CHECK(rns8::detail::wmma_wrap64_gemm_byte_limbs_candidate_device(
             device_id, a_limbs.get(), b_limbs.get(), c_limbs.get(), 1, 1, 32769) == RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP on large release shapes") {
+  if (!wmma_available()) {
+    SKIP("rocWMMA backend is not available on this device");
+  }
+
+  const std::vector<Wrap64CandidateShape> cases = {
+      {"release-shape 512x512x512 full direct-HIP output", 512, 512, 512, 0, 0, 0, 0x3531327835313278ull},
+      {"release-shape 1024x1024x1024 full direct-HIP output", 1024, 1024, 1024, 0, 0, 0, 0x3130323478313032ull},
+  };
+  for (const auto& candidate_case : cases) {
+    require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(candidate_case, false);
+  }
 }
 #endif

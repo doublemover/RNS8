@@ -226,11 +226,12 @@ unsigned byte products, and matches direct HIP plus the CPU oracle on Windows
 `gfx1100` private differentials covering single-cell K tails, exact 16x16x16
 tiles, padded carry-heavy tails, ragged two-tile output, and the current
 `k=32768` accepted / `k=32769` rejected boundary, plus release-shaped
-64x64x64 and 128x128x128 full-output differentials. The benchmark smoke also
-runs same-seed 64x64x64 CPU byte-limb, direct-HIP, and rocWMMA-candidate
-captures and requires matching `checksum_u64` values. It remains
-non-production: no public backend selection, no AUTO route, and no release
-performance promotion.
+64x64x64 and 128x128x128 full-output differentials against the CPU oracle, plus
+full 512x512x512 and 1024x1024x1024 candidate-vs-direct-HIP output checks with
+sampled CPU-oracle cells. The benchmark smoke also runs same-seed 64x64x64 CPU
+byte-limb, direct-HIP, and rocWMMA-candidate captures and requires matching
+`checksum_u64` values. It remains non-production: no public backend selection,
+no AUTO route, and no release performance promotion.
 
 Packed low-bit work is a roadmap track, not a completed backend. The intended
 layout families are `rns_i8_modulus_major_v2`, `rns_i8_tile_swizzled_b_v1`,
@@ -429,11 +430,14 @@ buffers, accumulates the 36 low-product byte-pair diagonals through real WMMA
 instructions and high-bit correction terms, writes compact byte-limb C, and is
 covered by direct-HIP/CPU-oracle differentials for K tails, exact WMMA tiles,
 padded carry-heavy tails, ragged two-tile output, release-shaped 64x64x64 and
-128x128x128 full-output cases, and its K boundary plus the rocWMMA ISA gate. A
+128x128x128 exhaustive CPU-oracle full-output cases, large 512x512x512 and
+1024x1024x1024 full candidate-vs-direct-HIP output checks with sampled
+CPU-oracle cells, and its K boundary plus the rocWMMA ISA gate. A
 benchmark-level 64x64x64 checksum smoke compares CPU byte-limb, direct-HIP, and
 candidate captures for same-seed parity. The candidate is intentionally
-shape-gated and remains outside AUTO and production promotion until 512/1024
-correctness and release performance evidence exists.
+shape-gated and remains outside AUTO and production promotion until reviewed
+release performance evidence and any required exhaustive 512/1024 CPU-oracle
+dumps exist.
 
 Raw benchmark captures are available through
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` in
