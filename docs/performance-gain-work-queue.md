@@ -354,10 +354,18 @@ Likely first slices:
   residues for the existing CRT export path. Per-tile/adaptive plans,
   wider-prefix stress cases, persistent matrix APIs, and non-direct-HIP
   backends keep the established resident pack/GEMM/export route. This is not
-  yet a reviewed speedup claim; release benchmark coverage still needs to split
-  one-shot from persistent reuse.
+  yet a reviewed speedup claim.
 - rocWMMA transient-A fused pack against reusable B for non-tiled RNS.
 - Benchmark split between one-shot and persistent reuse so wins are not hidden.
+  Implemented as `rns8-bench --oneshot` for bounded i64/u64 CPU and
+  direct-HIP global-bound captures plus `tools/benchmark_sweep.py
+  --include-oneshot` / `--oneshot-only`. One-shot captures use the public
+  one-shot API per repeat, report zero external `pack` and `crt_export`
+  phases because those costs are folded into the measured API call, emit a
+  distinct `benchmark_execution_mode`, and keep direct-HIP one-shot captures
+  out of autotune promotion. This is a measurement surface only until release
+  captures compare one-shot end-to-end time against persistent direct-HIP,
+  vector-ALU, CPU, and accelerator baselines.
 
 Relation to existing queue:
 

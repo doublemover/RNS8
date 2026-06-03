@@ -496,6 +496,29 @@ def main() -> int:
     assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
     assert vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
 
+    oneshot_args = copy.copy(exact_args)
+    oneshot_args.out_root = Path("temp") / "oneshot"
+    oneshot_args.backends = ["hip-direct"]
+    oneshot_args.semantics = ["bounded-i64"]
+    oneshot_args.case = ["small:16,16,16"]
+    oneshot_args.include_oneshot = True
+    oneshot_args.oneshot_only = False
+    oneshot_commands = benchmark_sweep.sweep_commands(oneshot_args)
+    assert [name for name, _command, _output in oneshot_commands] == [
+        "bounded-i64-small-16x16x16-hip-direct.json",
+        "bounded-i64-small-16x16x16-oneshot-hip-direct.json",
+    ]
+    assert "--oneshot" not in oneshot_commands[0][1]
+    assert "--oneshot" in oneshot_commands[1][1]
+
+    oneshot_only_args = copy.copy(oneshot_args)
+    oneshot_only_args.oneshot_only = True
+    oneshot_only_commands = benchmark_sweep.sweep_commands(oneshot_only_args)
+    assert [name for name, _command, _output in oneshot_only_commands] == [
+        "bounded-i64-small-16x16x16-oneshot-hip-direct.json",
+    ]
+    assert "--oneshot" in oneshot_only_commands[0][1]
+
     exact_include_args = argparse.Namespace(
         bench=Path("rns8-bench"),
         bench_for=[],

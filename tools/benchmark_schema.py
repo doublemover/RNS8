@@ -40,6 +40,7 @@ PACK_MODE_OPERANDS = {
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_oneshot_default_stream_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
 }
 HIPBLASLT_GPU_EVENT_SCOPES = {
@@ -84,6 +85,9 @@ DIRECT_HIP_FINITE_SPECIALIZED_KERNELS = {
     256: "direct_hip_tiled_finite_u8_gemm_mod256_v1",
 }
 DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
+DIRECT_HIP_BOUNDED_ONESHOT_KERNEL = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
+DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
@@ -115,6 +119,24 @@ VECTOR_ALU_GPU_EVENT_LABELS = {
     "vector_alu_status_d2h",
     "vector_alu_output_d2h",
 }
+BENCHMARK_EXECUTION_MODES = {
+    "persistent_resident_matrices",
+    "public_oneshot_transient_native_inputs",
+    "benchmark_owned_vector_alu_native_buffers",
+    "public_runtime_vector_alu_native_buffers",
+    "internal_wrap64_rocwmma_candidate",
+}
+DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
+    "oneshot_native_input_h2d",
+    "rns_gemm_kernel_group",
+    "rns_gemm",
+    "crt_export_status_memset",
+    "crt_export_kernel",
+    "crt_export_status_d2h",
+    "crt_export_d2h",
+    "crt_export",
+    "oneshot_api_gpu",
+]
 
 
 class BenchmarkSchemaError(ValueError):
@@ -238,6 +260,28 @@ class _Validator:
             and self.data.get("benchmark") == "rns8_bounded_gemm_hip_vector_alu_int64_runtime"
         )
 
+    def _benchmark_execution_mode(self) -> str:
+        mode = self.data.get("benchmark_execution_mode")
+        if mode is None:
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict):
+                mode = metadata.get("benchmark_execution_mode")
+        if isinstance(mode, str):
+            return mode
+        if self._is_wrap64_rocwmma_candidate():
+            return "internal_wrap64_rocwmma_candidate"
+        if self._is_vector_alu_runtime_capture():
+            return "public_runtime_vector_alu_native_buffers"
+        if self.data.get("backend_selected") == "hip-vector-alu-int64":
+            return "benchmark_owned_vector_alu_native_buffers"
+        return "persistent_resident_matrices"
+
+    def _is_bounded_oneshot_capture(self) -> bool:
+        return (
+            self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
+            or self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot"
+        )
+
     def _require(self, key: str, kind: str) -> Any:
         if key not in self.data:
             self._error(f"missing required field {key}")
@@ -274,6 +318,14 @@ class _Validator:
         selected_kernel = self.data.get("selected_kernel")
         if selected_kernel is not None and not isinstance(selected_kernel, str):
             self._error("selected_kernel must be a string or null")
+        execution_mode = self.data.get("benchmark_execution_mode")
+        if execution_mode is not None:
+            if execution_mode not in BENCHMARK_EXECUTION_MODES:
+                self._error(f"benchmark_execution_mode must be one of {sorted(BENCHMARK_EXECUTION_MODES)}")
+            elif self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot" and execution_mode != (
+                "public_oneshot_transient_native_inputs"
+            ):
+                self._error("one-shot benchmark captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
         selected_backend = self.data.get("backend_selected")
         if isinstance(selected_backend, str) and selected_backend not in BACKEND_SELECTED_VALUES:
             self._error(f"backend_selected must be one of {sorted(BACKEND_SELECTED_VALUES)}")
@@ -305,6 +357,7 @@ class _Validator:
         raw_timings = self._validate_raw_timings()
         self._validate_pack_reuse_fields(raw_timings)
         self._validate_residue_current_timings(raw_timings)
+        self._validate_bounded_oneshot_timings(raw_timings)
         self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
@@ -381,6 +434,16 @@ class _Validator:
                 self._error("timing_metadata.gpu_event_timing_status must be a string")
             if not isinstance(metadata.get("gpu_event_timing"), bool):
                 self._error("timing_metadata.gpu_event_timing must be a boolean")
+            metadata_mode = metadata.get("benchmark_execution_mode")
+            if metadata_mode is not None:
+                if metadata_mode not in BENCHMARK_EXECUTION_MODES:
+                    self._error(
+                        f"timing_metadata.benchmark_execution_mode must be one of {sorted(BENCHMARK_EXECUTION_MODES)}"
+                    )
+                elif self.data.get("benchmark_execution_mode") is not None and metadata_mode != self.data.get(
+                    "benchmark_execution_mode"
+                ):
+                    self._error("timing_metadata.benchmark_execution_mode must match benchmark_execution_mode")
             phase_order = metadata.get("phase_order")
             expected_phases = self._timing_phases()
             if phase_order != expected_phases:
@@ -401,6 +464,8 @@ class _Validator:
         expected_source = (
             "rns8_bench_wrap64_rocwmma_candidate"
             if self._is_wrap64_rocwmma_candidate()
+            else "rns8_bench_public_oneshot_api"
+            if self._is_bounded_oneshot_capture()
             else (
                 "rns8_get_plan_backend_info"
                 if self._is_vector_alu_runtime_capture()
@@ -561,6 +626,8 @@ class _Validator:
                 expected.append("same_contract_direct_hip_vector_alu_int64")
                 if selected_backend != "hip-direct":
                     expected.append("same_contract_direct_hip_correctness")
+            if self._is_bounded_oneshot_capture():
+                expected.append("same_contract_direct_hip_persistent_rns")
             for item in expected:
                 if item not in required:
                     self._error(f"bounded captures require comparison baseline prerequisite {item}")
@@ -944,6 +1011,53 @@ class _Validator:
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"bounded_i64", "bounded_u64"}:
+            oneshot_capture = self._is_bounded_oneshot_capture()
+            if oneshot_capture:
+                if self.data.get("benchmark") != "rns8_bounded_gemm_public_oneshot":
+                    self._error("one-shot captures must use benchmark=rns8_bounded_gemm_public_oneshot")
+                if self._benchmark_execution_mode() != "public_oneshot_transient_native_inputs":
+                    self._error("one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
+                if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct"}:
+                    self._error("one-shot bounded captures must select cpu-reference or hip-direct")
+                if self.data.get("backend_requested") not in {"cpu-reference", "cpu", "hip-direct"}:
+                    self._error("one-shot bounded captures must request cpu or hip-direct")
+                if bound_mode != "global":
+                    self._error("one-shot bounded captures must use bound_mode=global")
+                if residue_chain_length != 1 or residue_output_mode != "host_export":
+                    self._error("one-shot bounded captures must use host_export residue_chain_length=1")
+                if self.data.get("reuse_packed_inputs") is True:
+                    self._error("one-shot bounded captures must not use packed-input reuse")
+                if self.data.get("pack_mode") not in {None, "per_repeat_repack"}:
+                    self._error("one-shot bounded captures must use pack_mode=per_repeat_repack")
+                if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
+                    self._error("one-shot bounded captures must use prepack_reuse_strategy=none")
+                if self.data.get("backend_selected") == "hip-direct":
+                    if self.data.get("selected_kernel") != DIRECT_HIP_BOUNDED_ONESHOT_KERNEL:
+                        self._error(
+                            "direct-HIP one-shot bounded captures must use "
+                            f"selected_kernel={DIRECT_HIP_BOUNDED_ONESHOT_KERNEL}"
+                        )
+                    if isinstance(backend_metadata, dict):
+                        if backend_metadata.get("epilogue_mode") != DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE:
+                            self._error(
+                                "direct-HIP one-shot bounded captures must use "
+                                f"backend_metadata.epilogue_mode={DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE}"
+                            )
+                        if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE:
+                            self._error(
+                                "direct-HIP one-shot bounded captures must use "
+                                f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE}"
+                            )
+                        if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                            self._error(
+                                "direct-HIP one-shot bounded captures must use "
+                                f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                            )
+                    metadata = self.data.get("timing_metadata")
+                    if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                        expected_scope = "direct_hip_oneshot_default_stream_operation_groups"
+                        if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                            self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")
             expected_native_layout = (
@@ -978,7 +1092,7 @@ class _Validator:
                     self._error(f"{semantics} captures must use bound_kind={expected_bound_kind}")
                 if self.data.get("tile_bounds_u64") is not None:
                     self._error(f"{semantics} global captures must use tile_bounds_u64=null")
-                if self.data.get("backend_selected") == "hip-direct":
+                if self.data.get("backend_selected") == "hip-direct" and not oneshot_capture:
                     metadata = self.data.get("timing_metadata")
                     if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
                         expected_scope = "direct_hip_default_stream_backend_operation_groups"
@@ -1192,6 +1306,7 @@ class _Validator:
         elif isinstance(applicable, bool) and _is_int(prefix):
             expected_applicable = (
                 prefix > 0
+                and not self._is_bounded_oneshot_capture()
                 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
                 and self.data.get("backend_selected") != "hip-vector-alu-int64"
             )
@@ -1436,6 +1551,21 @@ class _Validator:
         if _is_number(avg_export) and float(avg_export) != 0.0:
             self._error("residue-current chain captures must report avg_crt_export_us=0")
 
+    def _validate_bounded_oneshot_timings(self, raw_timings: dict[str, list[float]]) -> None:
+        if not self._is_bounded_oneshot_capture():
+            return
+        for phase, field in [("pack", "avg_pack_us"), ("crt_export", "avg_crt_export_us"), ("matrix_alloc", "avg_matrix_alloc_us")]:
+            values = raw_timings.get(phase)
+            if not isinstance(values, list) or any(value != 0.0 for value in values):
+                self._error(f"one-shot bounded captures must report raw_timings_us.{phase} as zero-valued")
+            average_value = self.data.get(field)
+            if _is_number(average_value) and float(average_value) != 0.0:
+                self._error(f"one-shot bounded captures must report {field}=0")
+        gemm_values = raw_timings.get("rns_gemm")
+        e2e_values = raw_timings.get("end_to_end")
+        if isinstance(gemm_values, list) and isinstance(e2e_values, list) and gemm_values != e2e_values:
+            self._error("one-shot bounded captures must report raw_timings_us.rns_gemm equal to end_to_end")
+
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
@@ -1675,6 +1805,18 @@ class _Validator:
 
     def _validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> None:
         backend = self.data.get("backend_selected")
+        if self._is_bounded_oneshot_capture() and backend == "hip-direct":
+            expected = DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(f"direct-HIP one-shot GPU event phase set is incomplete; missing {', '.join(missing)}")
+                if extra:
+                    self._error(f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                if not missing and not extra:
+                    self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
+            return
         if backend == "hip-vector-alu-int64":
             expected = self._expected_vector_gpu_event_phases()
             if phases != expected:
