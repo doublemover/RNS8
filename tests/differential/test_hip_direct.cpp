@@ -3029,6 +3029,129 @@ TEST_CASE("direct HIP persistent RNS matrices keep device storage through GEMM")
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RNS residues") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for AUTO native-to-RNS conversion smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context_options auto_options{};
+  auto_options.struct_size = sizeof(auto_options);
+  auto_options.abi_version = RNS8_ABI_VERSION;
+  auto_options.requested_backend = RNS8_BACKEND_AUTO;
+  rns8_context* auto_ctx = nullptr;
+  REQUIRE(rns8_create_context(0, &auto_options, &auto_ctx) == RNS8_SUCCESS);
+  REQUIRE(auto_ctx->auto_backend_selection);
+  REQUIRE(auto_ctx->backend == RNS8_BACKEND_HIP_DIRECT);
+
+  {
+    const int64_t m = 2;
+    const int64_t n = 3;
+    const int64_t k = 4;
+    const std::vector<int64_t> A = {5, -7, 11, 13, -17, 19, 23, -29};
+    const std::vector<int64_t> B = {3, -5, 7, 11, 13, -17, 19, 23, -29, 31, 37, -41};
+    std::vector<int64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
+    std::vector<int64_t> auto_c(static_cast<std::size_t>(m * n), 0);
+
+    auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
+    auto auto_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(auto_ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    REQUIRE(rns8_create_matrix(auto_ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(auto_ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(auto_ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    REQUIRE(rns8_pack_i64(auto_ctx, a_matrix, A.data(), k, 101) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(auto_ctx, b_matrix, B.data(), n, 202) == RNS8_SUCCESS);
+    REQUIRE(a_matrix->device_native_current);
+    REQUIRE(b_matrix->device_native_current);
+    REQUIRE(a_matrix->device_residues_current);
+    REQUIRE(b_matrix->device_residues_current);
+
+    a_matrix->device_residues_current = false;
+    b_matrix->device_residues_current = false;
+    REQUIRE(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    CHECK(a_matrix->device_residues_current);
+    CHECK(b_matrix->device_residues_current);
+    CHECK(a_matrix->device_native_current);
+    CHECK(b_matrix->device_native_current);
+    CHECK(c_matrix->device_residues_current);
+    REQUIRE(rns8_export_i64(auto_ctx, plan, c_matrix, auto_c.data(), n) == RNS8_SUCCESS);
+    CHECK(auto_c == cpu_c);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
+    const int64_t m = 2;
+    const int64_t n = 2;
+    const int64_t k = 3;
+    const std::vector<uint64_t> A = {5, 7, 11, 13, 17, 19};
+    const std::vector<uint64_t> B = {23, 29, 31, 37, 41, 43};
+    std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
+    std::vector<uint64_t> auto_c(static_cast<std::size_t>(m * n), 0);
+
+    auto cpu_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_CPU_REFERENCE);
+    auto auto_desc = unsigned_desc(m, n, k, 10000, RNS8_BACKEND_HIP_DIRECT);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(auto_ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    REQUIRE(rns8_create_matrix(auto_ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(auto_ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(auto_ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
+
+    REQUIRE(rns8_pack_u64(auto_ctx, a_matrix, A.data(), k, 301) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(auto_ctx, b_matrix, B.data(), n, 302) == RNS8_SUCCESS);
+    REQUIRE(a_matrix->device_native_current);
+    REQUIRE(b_matrix->device_native_current);
+    REQUIRE(a_matrix->device_residues_current);
+    REQUIRE(b_matrix->device_residues_current);
+
+    a_matrix->device_residues_current = false;
+    b_matrix->device_residues_current = false;
+    REQUIRE(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    CHECK(a_matrix->device_residues_current);
+    CHECK(b_matrix->device_residues_current);
+    CHECK(a_matrix->device_native_current);
+    CHECK(b_matrix->device_native_current);
+    CHECK(c_matrix->device_residues_current);
+    REQUIRE(rns8_export_u64(auto_ctx, plan, c_matrix, auto_c.data(), n) == RNS8_SUCCESS);
+    CHECK(auto_c == cpu_c);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(auto_ctx);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("vector ALU backend keeps native bounded storage through persistent GEMM") {
   if (!hip_available()) {
     SKIP("no HIP device available for vector ALU persistent bounded smoke");

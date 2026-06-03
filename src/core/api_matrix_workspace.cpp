@@ -986,6 +986,54 @@ bool should_populate_native_on_pack(const rns8_context& ctx, const rns8_matrix& 
          (ctx.auto_backend_selection && ctx.backend == RNS8_BACKEND_HIP_DIRECT && matrix.backend == RNS8_BACKEND_HIP_DIRECT);
 }
 
+rns8_status ensure_bounded_native_residues_current_for_rns_plan(
+    rns8_context& ctx,
+    const rns8_plan& plan,
+    rns8_matrix& matrix) {
+  if (!ctx.auto_backend_selection || ctx.backend != RNS8_BACKEND_HIP_DIRECT ||
+      !hip_resident_rns_backend(plan.backend) || native_vector_backend(plan.backend) ||
+      (plan.desc.semantics != RNS8_BOUNDED_I64 && plan.desc.semantics != RNS8_BOUNDED_U64)) {
+    return RNS8_SUCCESS;
+  }
+  if (rns_residue_state_current_for_backend(matrix, plan.backend)) {
+    return RNS8_SUCCESS;
+  }
+  if (matrix.backend != RNS8_BACKEND_HIP_DIRECT || matrix.hip_device_id != ctx.device_id ||
+      matrix.desc.semantics != plan.desc.semantics ||
+      !rns_matrix_storage_matches(matrix, plan.backend, matrix.desc.rows, matrix.desc.cols, plan.prefix) ||
+      !bounded_native_storage_matches(matrix, plan.desc.semantics, matrix.desc.rows, matrix.desc.cols) ||
+      !bounded_native_state_current(matrix)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_status status = RNS8_SUCCESS;
+  if (plan.desc.semantics == RNS8_BOUNDED_I64) {
+    status = rns8::detail::hip_direct_native_i64_to_rns_device(
+        ctx.device_id,
+        matrix.hip_native_i64,
+        matrix.hip_residues,
+        matrix.desc.rows,
+        matrix.desc.cols,
+        plan.prefix);
+  } else {
+    status = rns8::detail::hip_direct_native_u64_to_rns_device(
+        ctx.device_id,
+        matrix.hip_native_u64,
+        matrix.hip_residues,
+        matrix.desc.rows,
+        matrix.desc.cols,
+        plan.prefix);
+  }
+  if (status != RNS8_SUCCESS) {
+    matrix.device_residues_current = false;
+    return status;
+  }
+  matrix.host_residues_current = false;
+  matrix.device_residues_current = true;
+  matrix.host_byte_limbs_current = false;
+  matrix.device_byte_limbs_current = false;
+  return RNS8_SUCCESS;
+}
+
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;

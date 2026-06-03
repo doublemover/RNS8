@@ -63,6 +63,20 @@ rns8_status hip_direct_pack_u64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix);
+rns8_status hip_direct_native_i64_to_rns_device(
+    int device_id,
+    const void* device_native,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix);
+rns8_status hip_direct_native_u64_to_rns_device(
+    int device_id,
+    const void* device_native,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix);
 rns8_status hip_direct_pack_finite_u8_device(
     int device_id,
     const uint8_t* src,

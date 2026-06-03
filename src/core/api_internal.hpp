@@ -406,6 +406,11 @@ rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint
 
 bool should_populate_native_on_pack(const rns8_context& ctx, const rns8_matrix& matrix);
 
+rns8_status ensure_bounded_native_residues_current_for_rns_plan(
+    rns8_context& ctx,
+    const rns8_plan& plan,
+    rns8_matrix& matrix);
+
 bool signed_value_within_bound(int64_t value, uint64_t bound);
 
 rns8_status export_native_i64(
