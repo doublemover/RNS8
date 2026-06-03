@@ -60,6 +60,14 @@ rns8_status wmma_gemm_finite_u8_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus);
+rns8_status wmma_wrap64_gemm_byte_limbs_candidate_device(
+    int device_id,
+    const void* device_a_limbs,
+    const void* device_b_limbs,
+    void* device_c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k);
 
 }  // namespace rns8::detail
 

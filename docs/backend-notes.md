@@ -219,9 +219,12 @@ measures 1828 us, 2090 us, 7757 us, and 39359 us median end-to-end,
 respectively, versus 710 us, 5845 us, 576082 us, and 4729230 us for the CPU
 byte-limb reference. The CPU reference still consumes persistent byte-limb
 storage but uses exact unsigned `uint64_t` wraparound arithmetic for the low-64
-product; the byte-pair/carry oracle remains in tests. A matrix-engine candidate
-must beat the direct-HIP path with exact differentials and ISA evidence before
-it can displace it.
+product; the byte-pair/carry oracle remains in tests. An internal rocWMMA
+wrap64 byte-GEMM36 candidate now consumes the same compact byte-limb device
+buffers, uses signed WMMA plus explicit high-bit correction WMMA terms for the
+unsigned byte products, and matches direct HIP plus the CPU oracle on a padded
+carry-heavy Windows `gfx1100` differential. It remains non-production: no
+public backend selection, no AUTO route, and no release performance promotion.
 
 Packed low-bit work is a roadmap track, not a completed backend. The intended
 layout families are `rns_i8_modulus_major_v2`, `rns_i8_tile_swizzled_b_v1`,
@@ -413,6 +416,14 @@ pass into the low 64 bits, keeps A/B/C byte-limb storage device-resident across
 pack/GEMM/export, and is tested against the CPU byte-limb reference. It is not
 an optimized matrix-engine byte-GEMM accelerator path, and it is not performance
 evidence.
+
+The rocWMMA wrap64 candidate is an internal proof harness, not a public backend.
+It runs only in `RNS8_ENABLE_ROCWMMA=ON` builds, reads compact byte-limb A/B
+buffers, accumulates the 36 low-product byte-pair diagonals through real WMMA
+instructions and high-bit correction terms, writes compact byte-limb C, and is
+covered by a direct-HIP/CPU-oracle differential plus the rocWMMA ISA gate. The
+candidate is intentionally shape-gated and remains outside AUTO and production
+promotion until broader correctness and release performance evidence exists.
 
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and

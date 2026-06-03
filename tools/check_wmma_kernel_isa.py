@@ -13,16 +13,19 @@ from isa_common import (
     extracted_device_code_object,
     forbidden_mnemonic_lines,
     parse_isa_tool_config,
-    symbol_count_matching_marker,
+    symbols_matching_markers,
 )
 
 
-WMMA_SYMBOL_MARKER = "rocwmma_i8_residue_gemm"
+WMMA_SYMBOL_MARKERS = [
+    "rocwmma_i8_residue_gemm",
+    "rocwmma_wrap64_byte_gemm36_candidate",
+]
 REQUIRED_WMMA_MNEMONIC = "v_wmma_i32_16x16x16_iu8"
 
 
-def wmma_symbol_count(objdump: str, code_object: Path) -> int:
-    return symbol_count_matching_marker(objdump, code_object, WMMA_SYMBOL_MARKER)
+def wmma_symbols(objdump: str, code_object: Path) -> list[str]:
+    return symbols_matching_markers(objdump, code_object, WMMA_SYMBOL_MARKERS, "rocWMMA kernel symbols")
 
 
 def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str) -> tuple[int, list[str], list[str]]:
@@ -40,9 +43,7 @@ def main() -> int:
         "rocWMMA HIP object",
     )
     with extracted_device_code_object(config, "rns8-wmma-isa-", "wmma_backend_kernels.fatbin") as code_object:
-        symbol_count = wmma_symbol_count(config.objdump, code_object)
-        if symbol_count <= 0:
-            raise RuntimeError(f"missing rocWMMA {WMMA_SYMBOL_MARKER} device kernel symbols")
+        symbols = wmma_symbols(config.objdump, code_object)
         wmma_count, forbidden_stores, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
         if wmma_count <= 0:
             raise RuntimeError(f"rocWMMA object does not contain required {REQUIRED_WMMA_MNEMONIC} matrix instructions")
@@ -59,7 +60,9 @@ def main() -> int:
     print("rocWMMA ISA check: PASS")
     print(f"object: {config.host_object}")
     print(f"target: {config.target}")
-    print(f"- rocWMMA fused kernel symbols: {symbol_count}")
+    print(f"- rocWMMA fused/candidate kernel symbols: {len(symbols)}")
+    for symbol in symbols:
+        print(f"  - {symbol}")
     print(f"- {REQUIRED_WMMA_MNEMONIC} instructions: {wmma_count}")
     print("- no global_store_dword/buffer_store_dword instructions")
     print("- no v/s reciprocal, divide, or remainder instructions")

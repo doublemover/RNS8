@@ -305,9 +305,9 @@ disagree, the spec remains the target and this file identifies the gap.
 | Direct HIP | required on Windows HIP builds | yes | yes | reciprocal/no-divide gates for current correctness kernels | baseline for RNS and finite-u8; strict wrap64 release-reviewed baseline at 1828 us for 64, 2090 us for 128, 7757 us for 512, and 39359 us for 1024 | GPU fallback |
 | hipBLASLt | optional discovered dependency plus opt-in preset | yes when `RNS8_ENABLE_HIPBLASLT=ON` | yes in opt-in preset | library baseline evidence | bounded i64 1024 release-reviewed fastest accelerator at 8326 us; bounded u64 blocked by vector baseline; finite field-251 1024 release-reviewed fastest accelerator at 2327 us | selector wired; bounded 1024 and finite field-251 1024 AUTO cache-hit smokes validated on Windows `gfx1100`; default local cache installed from reviewed entries |
 | CK | repo-local CK headers plus opt-in preset | yes when `RNS8_ENABLE_CK=ON` | yes in opt-in preset | `v_wmma` gate with no scalar divide/rcp and no unintended INT32 stores in matched CK WMMA symbols | bounded i64 512 release-reviewed candidate at 2408 us but not fastest; closest bounded u64 candidate at 512/1024 but still slower than vector; finite ring 1024 release-reviewed fastest accelerator at 1428 us for modulus 251 and 1354 us for modulus 255; exact-wide signed 1024 and unsigned 128/512/1024 release-reviewed fastest accelerator | selector wired; bounded CK, finite ring-251 1024, and exact-wide CK AUTO cache-hit paths tested from the default local cache on Windows `gfx1100` |
-| rocWMMA | repo-local rocWMMA headers plus opt-in preset | yes when `RNS8_ENABLE_ROCWMMA=ON` | yes in opt-in preset | `v_wmma` gate with no scalar divide/rcp and no unintended INT32 stores | bounded i64 512 release-reviewed fastest accelerator at 2399 us; adaptive bounded i64 1024 release-reviewed fastest accelerator at 5095 us; bounded u64 blocked by vector baseline; finite 64/128/512 groups release-reviewed fastest accelerator | selector wired; bounded 512, adaptive 1024, and finite ring-251 512 AUTO cache-hit smokes validated, with default local cache exact-hit inspected on Windows `gfx1100` |
+| rocWMMA | repo-local rocWMMA headers plus opt-in preset | yes when `RNS8_ENABLE_ROCWMMA=ON` for bounded/exact-wide/finite; internal wrap64 candidate only | yes in opt-in preset, plus wrap64 candidate differential against direct HIP and CPU oracle | `v_wmma` gate with no scalar divide/rcp and no unintended INT32 stores, now requiring the wrap64 candidate symbol too | bounded i64 512 release-reviewed fastest accelerator at 2399 us; adaptive bounded i64 1024 release-reviewed fastest accelerator at 5095 us; bounded u64 blocked by vector baseline; finite 64/128/512 groups release-reviewed fastest accelerator; no wrap64 release win yet | selector wired for bounded/exact-wide/finite; wrap64 candidate is not public or AUTO-selected |
 | AMDGPU builtins | no discovery-only readiness path | no | no | no | none | fail-fast |
-| Wrap64 matrix-engine | current direct-HIP byte-limb path is baseline only | no accelerator candidate | no accelerator candidate | no matrix-engine evidence | direct-HIP v3 remains measured release GPU path at 1828 us for 64x64x64, 2090 us for 128x128x128, 7757 us for 512x512x512, and 39359 us for 1024x1024x1024 | not durable |
+| Wrap64 matrix-engine | current direct-HIP byte-limb path is production baseline; rocWMMA candidate is internal | no public backend | one padded carry-heavy Windows `gfx1100` candidate differential | rocWMMA candidate is covered by the `v_wmma` no-divide/no-INT32-global-store gate | direct-HIP v3 remains measured release GPU path at 1828 us for 64x64x64, 2090 us for 128x128x128, 7757 us for 512x512x512, and 39359 us for 1024x1024x1024 | not durable |
 
 Durable AUTO promotion is not the same as a temp smoke cache entry. A shape
 enters production selection only after `--review-mode release` captures with complete
@@ -322,9 +322,11 @@ into an explicit or default cache path, and `--replace-existing` intentionally
 discards stale or non-reviewed destination entries instead of preserving them.
 The default Windows cache at `%LOCALAPPDATA%\rns8-gemm\autotune.json` has been
 populated from `temp\reviewed-autotune-production-candidate.json` with 19
-reviewed entries. The remaining gap is broader production coverage plus a
-wrap64 matrix-engine candidate, not selector dispatch or default-cache
-installation tooling for reviewed finite, exact-wide, or bounded plan keys.
+reviewed entries. The remaining gap is broader production coverage plus
+promotion of the internal wrap64 matrix-engine candidate into a public,
+release-reviewed backend if it beats direct HIP, not selector dispatch or
+default-cache installation tooling for reviewed finite, exact-wide, or bounded
+plan keys.
 
 ## Not Yet Implemented
 
@@ -396,7 +398,9 @@ installation tooling for reviewed finite, exact-wide, or bounded plan keys.
   7757 us, and 39359 us median end-to-end at those shapes versus CPU byte-limb
   medians of 710 us, 5845 us, 576082 us, and 4729230 us. The review path still
   keeps current CPU/direct-HIP wrap64 baselines non-promotable because they are
-  not accelerator backends. The matrix-engine candidate remains open.
+  not accelerator backends. An internal rocWMMA candidate now has a padded
+  carry-heavy differential and ISA-gated WMMA evidence, but public backend
+  integration, broader correctness, and release-speed proof remain open.
 - Packed low-bit matrix-engine pipeline work: persistent packed layout versions
   beyond the current correctness layouts, B prepack/tile swizzle caches,
   repeated-A/B amortization sweeps, IU4/INT4 experiments, and FP8/Ozaki

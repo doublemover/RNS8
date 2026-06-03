@@ -220,6 +220,221 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_
   }
 }
 
+__device__ int64_t wrap64_compact_limb_index(int64_t row, int64_t col, int64_t cols, int limb) {
+  return ((row * cols + col) * 8) + limb;
+}
+
+__device__ int8_t wrap64_signed_byte_lane(uint8_t value) {
+  return value < 128u ? static_cast<int8_t>(value) : static_cast<int8_t>(static_cast<int>(value) - 256);
+}
+
+__device__ int8_t wrap64_lane_component(uint8_t value, int high_bit_component) {
+  return high_bit_component != 0 ? static_cast<int8_t>(value >> 7u) : wrap64_signed_byte_lane(value);
+}
+
+__device__ void rocwmma_wrap64_accumulate_component(
+    const uint8_t* a_limbs,
+    const uint8_t* b_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t k_base,
+    int valid_k,
+    int tile_row,
+    int tile_col,
+    int a_limb,
+    int b_limb,
+    int a_high_bit_component,
+    int b_high_bit_component,
+    int diagonal,
+    int64_t coefficient,
+    int8_t* a_pack,
+    int8_t* b_pack,
+    int32_t* tile_acc,
+    int64_t* diagonal_acc) {
+  using namespace rocwmma;
+  using FragA = fragment<matrix_a, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, row_major>;
+  using FragB = fragment<matrix_b, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int8_t, col_major>;
+  using FragAcc = fragment<accumulator, kRns8WmmaTileM, kRns8WmmaTileN, kRns8WmmaTileK, int32_t>;
+
+  const int lane = static_cast<int>(threadIdx.x);
+  for (int index = lane; index < kRns8WmmaTileM * kRns8WmmaTileK; index += kRns8WmmaWaveThreads) {
+    const int local_k = index % kRns8WmmaTileK;
+    const int local_row = index / kRns8WmmaTileK;
+    const int64_t row = static_cast<int64_t>(tile_row + local_row);
+    const int64_t kk = k_base + local_k;
+    int8_t value = 0;
+    if (row < m && local_k < valid_k) {
+      const uint8_t byte = a_limbs[wrap64_compact_limb_index(row, kk, k, a_limb)];
+      value = wrap64_lane_component(byte, a_high_bit_component);
+    }
+    a_pack[index] = value;
+  }
+  for (int index = lane; index < kRns8WmmaTileK * kRns8WmmaTileN; index += kRns8WmmaWaveThreads) {
+    const int local_k = index % kRns8WmmaTileK;
+    const int local_col = index / kRns8WmmaTileK;
+    const int64_t col = static_cast<int64_t>(tile_col + local_col);
+    const int64_t kk = k_base + local_k;
+    int8_t value = 0;
+    if (col < n && local_k < valid_k) {
+      const uint8_t byte = b_limbs[wrap64_compact_limb_index(kk, col, n, b_limb)];
+      value = wrap64_lane_component(byte, b_high_bit_component);
+    }
+    b_pack[index] = value;
+  }
+  __syncthreads();
+
+  FragA frag_a;
+  FragB frag_b;
+  FragAcc acc;
+  fill_fragment(acc, 0);
+  load_matrix_sync(frag_a, a_pack, kRns8WmmaTileK);
+  load_matrix_sync(frag_b, b_pack, kRns8WmmaTileK);
+  mma_sync(acc, frag_a, frag_b, acc);
+  store_matrix_sync(tile_acc, acc, kRns8WmmaTileN, mem_row_major);
+  __syncthreads();
+
+  for (int index = lane; index < kRns8WmmaTileM * kRns8WmmaTileN; index += kRns8WmmaWaveThreads) {
+    const int local_row = index / kRns8WmmaTileN;
+    const int local_col = index - local_row * kRns8WmmaTileN;
+    const int64_t row = static_cast<int64_t>(tile_row + local_row);
+    const int64_t col = static_cast<int64_t>(tile_col + local_col);
+    if (row < m && col < n) {
+      diagonal_acc[diagonal * kRns8WmmaTileM * kRns8WmmaTileN + index] +=
+          static_cast<int64_t>(tile_acc[index]) * coefficient;
+    }
+  }
+  __syncthreads();
+}
+
+__global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_wrap64_byte_gemm36_candidate_kernel(
+    const uint8_t* a_limbs,
+    const uint8_t* b_limbs,
+    uint8_t* c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  __shared__ int8_t a_pack[kRns8WmmaTileM * kRns8WmmaTileK];
+  __shared__ int8_t b_pack[kRns8WmmaTileK * kRns8WmmaTileN];
+  __shared__ int32_t tile_acc[kRns8WmmaTileM * kRns8WmmaTileN];
+  __shared__ int64_t diagonal_acc[8 * kRns8WmmaTileM * kRns8WmmaTileN];
+
+  const int lane = static_cast<int>(threadIdx.x);
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8WmmaTileN;
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8WmmaTileM;
+  for (int index = lane; index < 8 * kRns8WmmaTileM * kRns8WmmaTileN; index += kRns8WmmaWaveThreads) {
+    diagonal_acc[index] = 0;
+  }
+  __syncthreads();
+
+  for (int64_t k_base = 0; k_base < k; k_base += kRns8WmmaTileK) {
+    const int valid_k = static_cast<int>(k - k_base < kRns8WmmaTileK ? k - k_base : kRns8WmmaTileK);
+    for (int a_limb = 0; a_limb < 8; ++a_limb) {
+      for (int b_limb = 0; b_limb + a_limb < 8; ++b_limb) {
+        const int diagonal = a_limb + b_limb;
+        rocwmma_wrap64_accumulate_component(
+            a_limbs,
+            b_limbs,
+            m,
+            n,
+            k,
+            k_base,
+            valid_k,
+            tile_row,
+            tile_col,
+            a_limb,
+            b_limb,
+            0,
+            0,
+            diagonal,
+            1,
+            a_pack,
+            b_pack,
+            tile_acc,
+            diagonal_acc);
+        rocwmma_wrap64_accumulate_component(
+            a_limbs,
+            b_limbs,
+            m,
+            n,
+            k,
+            k_base,
+            valid_k,
+            tile_row,
+            tile_col,
+            a_limb,
+            b_limb,
+            1,
+            0,
+            diagonal,
+            256,
+            a_pack,
+            b_pack,
+            tile_acc,
+            diagonal_acc);
+        rocwmma_wrap64_accumulate_component(
+            a_limbs,
+            b_limbs,
+            m,
+            n,
+            k,
+            k_base,
+            valid_k,
+            tile_row,
+            tile_col,
+            a_limb,
+            b_limb,
+            0,
+            1,
+            diagonal,
+            256,
+            a_pack,
+            b_pack,
+            tile_acc,
+            diagonal_acc);
+        rocwmma_wrap64_accumulate_component(
+            a_limbs,
+            b_limbs,
+            m,
+            n,
+            k,
+            k_base,
+            valid_k,
+            tile_row,
+            tile_col,
+            a_limb,
+            b_limb,
+            1,
+            1,
+            diagonal,
+            65536,
+            a_pack,
+            b_pack,
+            tile_acc,
+            diagonal_acc);
+      }
+    }
+  }
+
+  for (int index = lane; index < kRns8WmmaTileM * kRns8WmmaTileN; index += kRns8WmmaWaveThreads) {
+    const int local_row = index / kRns8WmmaTileN;
+    const int local_col = index - local_row * kRns8WmmaTileN;
+    const int64_t row = static_cast<int64_t>(tile_row + local_row);
+    const int64_t col = static_cast<int64_t>(tile_col + local_col);
+    if (row >= m || col >= n) {
+      continue;
+    }
+    uint64_t carry = 0;
+    uint8_t* dst = c_limbs + wrap64_compact_limb_index(row, col, n, 0);
+    for (int diagonal = 0; diagonal < 8; ++diagonal) {
+      const auto column = static_cast<uint64_t>(
+          diagonal_acc[diagonal * kRns8WmmaTileM * kRns8WmmaTileN + index] + static_cast<int64_t>(carry));
+      dst[diagonal] = static_cast<uint8_t>(column & 0xffu);
+      carry = column >> 8u;
+    }
+  }
+}
+
 int launch_pack_and_gemm(
     const int8_t* a,
     const int8_t* b,
@@ -532,6 +747,38 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
       safe_k_block);
   if (status != wmma_success) {
     return status;
+  }
+  return hipDeviceSynchronize() == hipSuccess ? wmma_success : wmma_backend_failure;
+}
+
+extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+    int device_id,
+    const void* device_a_limbs,
+    const void* device_b_limbs,
+    void* device_c_limbs,
+    long long m,
+    long long n,
+    long long k) {
+  if (hipSetDevice(device_id) != hipSuccess) {
+    return wmma_backend_failure;
+  }
+  if (!device_a_limbs || !device_b_limbs || !device_c_limbs || m <= 0 || n <= 0 || k <= 0 ||
+      !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) || k > 32768) {
+    return wmma_invalid_argument;
+  }
+  const dim3 grid(
+      static_cast<unsigned int>((n + kRns8WmmaTileN - 1) / kRns8WmmaTileN),
+      static_cast<unsigned int>((m + kRns8WmmaTileM - 1) / kRns8WmmaTileM),
+      1);
+  rocwmma_wrap64_byte_gemm36_candidate_kernel<<<grid, kRns8WmmaWaveThreads>>>(
+      static_cast<const uint8_t*>(device_a_limbs),
+      static_cast<const uint8_t*>(device_b_limbs),
+      static_cast<uint8_t*>(device_c_limbs),
+      m,
+      n,
+      k);
+  if (hipGetLastError() != hipSuccess) {
+    return wmma_backend_failure;
   }
   return hipDeviceSynchronize() == hipSuccess ? wmma_success : wmma_backend_failure;
 }
