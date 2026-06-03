@@ -469,6 +469,35 @@ bool checked_output_bytes(int64_t rows, int64_t cols, std::size_t element_size) 
          static_cast<uint64_t>(max_size / element_size / static_cast<std::size_t>(cols));
 }
 
+hipError_t copy_compact_matrix_device_to_host(
+    void* dst,
+    int64_t dst_ld,
+    const void* src,
+    int64_t rows,
+    int64_t cols,
+    std::size_t cell_bytes) {
+  if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
+      !checked_output_bytes(rows, dst_ld, cell_bytes)) {
+    return hipErrorInvalidValue;
+  }
+  const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
+  if (dst_ld == cols) {
+    return hipMemcpy(
+        dst,
+        src,
+        static_cast<std::size_t>(rows) * compact_row_bytes,
+        hipMemcpyDeviceToHost);
+  }
+  return hipMemcpy2D(
+      dst,
+      static_cast<std::size_t>(dst_ld) * cell_bytes,
+      src,
+      compact_row_bytes,
+      compact_row_bytes,
+      static_cast<std::size_t>(rows),
+      hipMemcpyDeviceToHost);
+}
+
 bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {
   if (ld <= 0 || limb_count == 0) {
     return false;
@@ -1970,14 +1999,7 @@ rns8_status hip_direct_export_i64_device(
     return static_cast<rns8_status>(host_status);
   }
   err = timed_hip_operation("crt_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * sizeof(int64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * sizeof(int64_t),
-        static_cast<std::size_t>(cols) * sizeof(int64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2076,14 +2098,7 @@ rns8_status hip_direct_export_i64_tiled_device(
     return static_cast<rns8_status>(host_status);
   }
   err = timed_hip_operation("crt_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * sizeof(int64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * sizeof(int64_t),
-        static_cast<std::size_t>(cols) * sizeof(int64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2170,14 +2185,7 @@ rns8_status hip_direct_export_u64_device(
     return static_cast<rns8_status>(host_status);
   }
   err = timed_hip_operation("crt_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * sizeof(uint64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * sizeof(uint64_t),
-        static_cast<std::size_t>(cols) * sizeof(uint64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2276,14 +2284,7 @@ rns8_status hip_direct_export_u64_tiled_device(
     return static_cast<rns8_status>(host_status);
   }
   err = timed_hip_operation("crt_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * sizeof(uint64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * sizeof(uint64_t),
-        static_cast<std::size_t>(cols) * sizeof(uint64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2344,14 +2345,7 @@ rns8_status hip_direct_export_finite_u8_device(
     return RNS8_BACKEND_FAILURE;
   }
   err = timed_hip_operation("finite_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * sizeof(uint8_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * sizeof(uint8_t),
-        static_cast<std::size_t>(cols) * sizeof(uint8_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint8_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2440,14 +2434,8 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
     }
   }
   err = timed_hip_operation("exact_wide_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        static_cast<std::size_t>(cols) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(
+        dst, ld, *export_buffer, rows, cols, static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -2539,14 +2527,8 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
     }
   }
   err = timed_hip_operation("exact_wide_export_d2h", [&]() {
-    return hipMemcpy2D(
-        dst,
-        static_cast<std::size_t>(ld) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        *export_buffer,
-        static_cast<std::size_t>(cols) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        static_cast<std::size_t>(cols) * static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
-        static_cast<std::size_t>(rows),
-        hipMemcpyDeviceToHost);
+    return copy_compact_matrix_device_to_host(
+        dst, ld, *export_buffer, rows, cols, static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
