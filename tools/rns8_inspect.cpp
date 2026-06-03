@@ -69,6 +69,26 @@ const char* backend_name(rns8_backend_kind backend) {
   return "unknown";
 }
 
+const char* semantics_name(rns8_semantics semantics) {
+  switch (semantics) {
+    case RNS8_BOUNDED_I64:
+      return "bounded_i64";
+    case RNS8_BOUNDED_U64:
+      return "bounded_u64";
+    case RNS8_EXACT_WIDE_SIGNED:
+      return "exact_wide_signed";
+    case RNS8_EXACT_WIDE_UNSIGNED:
+      return "exact_wide_unsigned";
+    case RNS8_WRAP_U64_MOD_2_64:
+      return "wrap_u64_mod_2_64";
+    case RNS8_FINITE_RING_U8:
+      return "finite_ring_u8";
+    case RNS8_FINITE_FIELD_U8:
+      return "finite_field_u8";
+  }
+  return "unknown";
+}
+
 std::string json_escape(const char* input) {
   std::string escaped;
   if (!input) {
@@ -201,7 +221,12 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
     rns8_backend_kind backend,
     const rns8::detail::AutotuneCacheSnapshot& snapshot,
     const std::string& autotune_key,
-    rns8::detail::AutotuneRuntimeIdentity runtime) {
+    rns8::detail::AutotuneRuntimeIdentity runtime,
+    rns8_plan_packing_info* plan_packing,
+    bool* plan_packing_available) {
+  if (plan_packing_available) {
+    *plan_packing_available = false;
+  }
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   if (!hit) {
     return runtime;
@@ -221,6 +246,13 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
   plan_info.struct_size = sizeof(plan_info);
   plan_info.abi_version = RNS8_ABI_VERSION;
   const rns8_status status = rns8_get_plan_backend_info(plan, &plan_info);
+  if (plan_packing) {
+    plan_packing->struct_size = sizeof(*plan_packing);
+    plan_packing->abi_version = RNS8_ABI_VERSION;
+    if (rns8_get_plan_packing_info(plan, plan_packing) == RNS8_SUCCESS && plan_packing_available) {
+      *plan_packing_available = true;
+    }
+  }
   rns8_destroy_plan(plan);
   if (status == RNS8_SUCCESS && plan_info.accelerator_version[0] != '\0') {
     runtime.hip_sdk_or_library_version = plan_info.accelerator_version;
@@ -275,6 +307,45 @@ void print_capability_json(const rns8_backend_capability_info& capability, bool 
   std::cout << "  }" << (trailing_comma ? "," : "") << "\n";
 }
 
+void print_plan_packing_text(const rns8_plan_packing_info& packing) {
+  std::cout << "autotune_plan_backend:            " << backend_name(packing.backend) << "\n";
+  std::cout << "autotune_plan_semantics:          " << semantics_name(packing.semantics) << "\n";
+  std::cout << "autotune_plan_resident_inputs:    " << packing.uses_resident_matrix_inputs << "\n";
+  std::cout << "autotune_plan_transient_pack:     " << packing.uses_transient_pack_workspace << "\n";
+  std::cout << "autotune_plan_matrix_engine_pack: " << packing.uses_matrix_engine_pack_layout << "\n";
+  std::cout << "autotune_plan_reusable_prepack:   " << packing.reusable_prepack_cache_available << "\n";
+  std::cout << "autotune_plan_production_prepack: " << packing.production_prepack_cache_available << "\n";
+  std::cout << "autotune_plan_total_pack_bytes:   " << packing.total_transient_workspace_bytes << "\n";
+  std::cout << "autotune_plan_prepack_scope:      " << packing.prepack_cache_scope << "\n";
+}
+
+void print_plan_packing_json(const rns8_plan_packing_info& packing, bool trailing_comma) {
+  std::cout << "    \"plan_packing\": {\n";
+  std::cout << "      \"backend\": \"" << backend_name(packing.backend) << "\",\n";
+  std::cout << "      \"semantics\": \"" << semantics_name(packing.semantics) << "\",\n";
+  std::cout << "      \"uses_resident_matrix_inputs\": "
+            << (packing.uses_resident_matrix_inputs ? "true" : "false") << ",\n";
+  std::cout << "      \"uses_transient_pack_workspace\": "
+            << (packing.uses_transient_pack_workspace ? "true" : "false") << ",\n";
+  std::cout << "      \"uses_matrix_engine_pack_layout\": "
+            << (packing.uses_matrix_engine_pack_layout ? "true" : "false") << ",\n";
+  std::cout << "      \"reusable_prepack_cache_available\": "
+            << (packing.reusable_prepack_cache_available ? "true" : "false") << ",\n";
+  std::cout << "      \"production_prepack_cache_available\": "
+            << (packing.production_prepack_cache_available ? "true" : "false") << ",\n";
+  std::cout << "      \"a_pack_workspace_bytes\": " << packing.a_pack_workspace_bytes << ",\n";
+  std::cout << "      \"b_pack_workspace_bytes\": " << packing.b_pack_workspace_bytes << ",\n";
+  std::cout << "      \"accumulator_workspace_bytes\": " << packing.accumulator_workspace_bytes << ",\n";
+  std::cout << "      \"library_workspace_bytes\": " << packing.library_workspace_bytes << ",\n";
+  std::cout << "      \"total_transient_workspace_bytes\": " << packing.total_transient_workspace_bytes << ",\n";
+  std::cout << "      \"a_layout_version\": \"" << json_escape(packing.a_layout_version) << "\",\n";
+  std::cout << "      \"b_layout_version\": \"" << json_escape(packing.b_layout_version) << "\",\n";
+  std::cout << "      \"output_layout_version\": \"" << json_escape(packing.output_layout_version) << "\",\n";
+  std::cout << "      \"prepack_cache_scope\": \"" << json_escape(packing.prepack_cache_scope) << "\",\n";
+  std::cout << "      \"detail\": \"" << json_escape(packing.detail) << "\"\n";
+  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+}
+
 rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity(
     const rns8_device_info& info,
     const rns8_backend_capability_info& capability) {
@@ -297,6 +368,7 @@ void print_autotune_text(
     const std::string& autotune_key,
     const std::string& selected_backend,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
+    const rns8_plan_packing_info* plan_packing,
     bool show_entries) {
   std::cout << "autotune_cache_path:   " << snapshot.path.string() << "\n";
   std::cout << "autotune_cache_loaded: " << (snapshot.loaded ? 1 : 0) << "\n";
@@ -319,6 +391,9 @@ void print_autotune_text(
       std::cout << "autotune_kernel:       " << hit->selected_kernel << "\n";
       std::cout << "autotune_median_e2e:   " << hit->measured_median_end_to_end_us << "\n";
     }
+    if (plan_packing) {
+      print_plan_packing_text(*plan_packing);
+    }
   }
   if (show_entries) {
     for (const auto& entry : snapshot.entries) {
@@ -333,6 +408,7 @@ void print_autotune_json(
     const std::string& autotune_key,
     const std::string& selected_backend,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
+    const rns8_plan_packing_info* plan_packing,
     bool show_entries) {
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   std::cout << "  \"autotune_cache\": {\n";
@@ -349,8 +425,14 @@ void print_autotune_json(
   std::cout << "    \"selection_rationale\": \""
             << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
             << "\"";
-  if (hit) {
+  if (plan_packing) {
     std::cout << ",\n";
+    print_plan_packing_json(*plan_packing, hit != nullptr || show_entries);
+  }
+  if (hit) {
+    if (!plan_packing) {
+      std::cout << ",\n";
+    }
     std::cout << "    \"entry\": {\n";
     std::cout << "      \"selected_backend\": \"" << json_escape(hit->selected_backend) << "\",\n";
     std::cout << "      \"selected_kernel\": \"" << json_escape(hit->selected_kernel) << "\",\n";
@@ -385,6 +467,7 @@ void print_text(
     const rns8::detail::AutotuneCacheSnapshot* snapshot,
     const std::string& autotune_key,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
+    const rns8_plan_packing_info* plan_packing,
     bool show_autotune_cache) {
   std::cout << "RNS8 inspect\n";
   std::cout << "backend:       " << backend_name(info.backend) << "\n";
@@ -403,6 +486,7 @@ void print_text(
         autotune_key,
         backend_name(info.backend),
         runtime,
+        plan_packing,
         show_autotune_cache);
   }
 }
@@ -413,6 +497,7 @@ void print_json(
     const rns8::detail::AutotuneCacheSnapshot* snapshot,
     const std::string& autotune_key,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
+    const rns8_plan_packing_info* plan_packing,
     bool show_autotune_cache) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
@@ -431,6 +516,7 @@ void print_json(
         autotune_key,
         backend_name(info.backend),
         runtime,
+        plan_packing,
         show_autotune_cache);
   }
   std::cout << "}\n";
@@ -535,9 +621,20 @@ int main(int argc, char** argv) {
   }
 
   auto runtime = autotune_runtime_identity(info, selected_capability);
+  rns8_plan_packing_info autotune_plan_packing{};
+  bool autotune_plan_packing_available = false;
   if (inspect_autotune && !autotune_key.empty()) {
-    runtime = runtime_identity_with_plan_version(ctx, info.backend, snapshot, autotune_key, runtime);
+    runtime = runtime_identity_with_plan_version(
+        ctx,
+        info.backend,
+        snapshot,
+        autotune_key,
+        runtime,
+        &autotune_plan_packing,
+        &autotune_plan_packing_available);
   }
+  const rns8_plan_packing_info* plan_packing =
+      autotune_plan_packing_available ? &autotune_plan_packing : nullptr;
 
   if (json) {
     print_json(
@@ -546,6 +643,7 @@ int main(int argc, char** argv) {
         inspect_autotune ? &snapshot : nullptr,
         autotune_key,
         runtime,
+        plan_packing,
         show_autotune_cache);
   } else {
     print_text(
@@ -554,6 +652,7 @@ int main(int argc, char** argv) {
         inspect_autotune ? &snapshot : nullptr,
         autotune_key,
         runtime,
+        plan_packing,
         show_autotune_cache);
   }
   rns8_destroy_context(ctx);
