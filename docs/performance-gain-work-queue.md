@@ -245,6 +245,11 @@ RNS8-specific notes:
 Likely first slices:
 
 - Prefix-9 and prefix-20 bounded export specializations.
+  Implemented for Direct-HIP fixed-prefix host exports as compile-time
+  fixed-prefix CRT reconstruction kernels for prefix 9 and prefix 20, with the
+  generic runtime-prefix export kernel retained as fallback for all other
+  prefixes. Exact-wide Direct-HIP limb export also dispatches the prefix-20
+  fixed-prefix reconstruction kernel.
 - Exact-wide 1/2/4/8/16/32 limb export variants with compact D2H staging.
   Implemented benchmark coverage for the limb-count variants via
   `rns8-bench --exact-wide-limbs` and

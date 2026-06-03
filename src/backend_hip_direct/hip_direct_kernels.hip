@@ -36,6 +36,8 @@ constexpr int kRns8HipTileK = 64;
 constexpr int kRns8HipTileNPadded = kRns8HipTileN + 1;
 constexpr int kRns8SafeInt32KBlock = 65536;
 constexpr int kRns8MaxInt = 2147483647;
+constexpr int kRns8DefaultBoundedPrefix = 9;
+constexpr int kRns8MaxSupportedPrefix = 20;
 
 static_assert(
     kRns8HipTileM * kRns8HipTileN == 256,
@@ -348,6 +350,35 @@ __device__ void rns8_reconstruct_canonical_wide_device(
   *out_product = product;
 }
 
+template <int Prefix>
+__device__ void rns8_reconstruct_canonical_wide_fixed_prefix_device(
+    const int8_t* residues,
+    int cell,
+    int elements,
+    rns8_u192_device* out_x,
+    rns8_u192_device* out_product) {
+  rns8_u192_device x = rns8_u192_from_u64_device(0);
+  rns8_u192_device product = rns8_u192_from_u64_device(1);
+#pragma unroll
+  for (int i = 0; i < Prefix; ++i) {
+    const int modulus = rns8_default_moduli_device[i];
+    const uint32_t target =
+        rns8_canonical_from_centered_device(residues[static_cast<int64_t>(i) * elements + cell], modulus);
+    const uint32_t x_mod = rns8_u192_mod_u32_device(x, static_cast<uint32_t>(modulus));
+    const uint32_t product_mod = rns8_u192_mod_u32_device(product, static_cast<uint32_t>(modulus));
+    const uint32_t inverse = rns8_mod_inverse_device(product_mod, static_cast<uint32_t>(modulus));
+    int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
+    delta_mod %= modulus;
+    delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
+    const uint32_t coefficient = static_cast<uint32_t>(
+        (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
+    x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+    product = rns8_u192_mul_u32_device(product, static_cast<uint32_t>(modulus));
+  }
+  *out_x = x;
+  *out_product = product;
+}
+
 __device__ int8_t rns8_center_i64_device(int64_t value, int modulus) {
   int64_t residue = value % static_cast<int64_t>(modulus);
   residue += static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue < 0);
@@ -613,17 +644,12 @@ __global__ void rns8_export_u8_modulus_kernel(
 }
 
 __device__ void rns8_export_i64_cell_device(
-    const int8_t* residues,
     int64_t* dst,
     int cell,
-    int elements,
-    int prefix,
+    rns8_u192_device x,
+    rns8_u192_device product,
     uint64_t bound,
     int* status) {
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
-
   if (rns8_u192_centered_is_negative_device(x, product)) {
     const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
     constexpr uint64_t int64_min_magnitude = 0x8000000000000000ULL;
@@ -647,6 +673,47 @@ __device__ void rns8_export_i64_cell_device(
 }
 
 __device__ void rns8_export_u64_cell_device(
+    uint64_t* dst,
+    int cell,
+    rns8_u192_device x,
+    uint64_t bound,
+    int* status) {
+  if (rns8_u192_gt_u64_device(x, bound)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  dst[cell] = x.limb0;
+}
+
+__device__ void rns8_export_i64_cell_device(
+    const int8_t* residues,
+    int64_t* dst,
+    int cell,
+    int elements,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  rns8_export_i64_cell_device(dst, cell, x, product, bound, status);
+}
+
+template <int Prefix>
+__device__ void rns8_export_i64_fixed_prefix_cell_device(
+    const int8_t* residues,
+    int64_t* dst,
+    int cell,
+    int elements,
+    uint64_t bound,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_i64_cell_device(dst, cell, x, product, bound, status);
+}
+
+__device__ void rns8_export_u64_cell_device(
     const int8_t* residues,
     uint64_t* dst,
     int cell,
@@ -657,11 +724,21 @@ __device__ void rns8_export_u64_cell_device(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
-  if (rns8_u192_gt_u64_device(x, bound)) {
-    atomicCAS(status, 0, 5);
-    return;
-  }
-  dst[cell] = x.limb0;
+  rns8_export_u64_cell_device(dst, cell, x, bound, status);
+}
+
+template <int Prefix>
+__device__ void rns8_export_u64_fixed_prefix_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    uint64_t bound,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_u64_cell_device(dst, cell, x, bound, status);
 }
 
 __global__ void rns8_export_i64_kernel(
@@ -680,6 +757,22 @@ __global__ void rns8_export_i64_kernel(
   rns8_export_i64_cell_device(residues, dst, cell, elements, prefix, bound, status);
 }
 
+template <int Prefix>
+__global__ void rns8_export_i64_fixed_prefix_kernel(
+    const int8_t* residues,
+    int64_t* dst,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_i64_fixed_prefix_cell_device<Prefix>(residues, dst, cell, elements, bound, status);
+}
+
 __global__ void rns8_export_u64_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -694,6 +787,22 @@ __global__ void rns8_export_u64_kernel(
     return;
   }
   rns8_export_u64_cell_device(residues, dst, cell, elements, prefix, bound, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_u64_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_u64_fixed_prefix_cell_device<Prefix>(residues, dst, cell, elements, bound, status);
 }
 
 __global__ void rns8_export_i64_scheduled_kernel(
@@ -772,29 +881,26 @@ __global__ void rns8_export_u64_scheduled_kernel(
       residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
 
-__global__ void rns8_export_exact_wide_unsigned_limbs_kernel(
-    const int8_t* residues,
+__device__ void rns8_export_exact_wide_unsigned_limbs_device(
     uint64_t* dst,
-    int rows,
-    int cols,
-    int prefix,
+    int cell,
+    rns8_u192_device x,
     int limb_count,
     int* status) {
-  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
-  const int elements = rows * cols;
-  if (cell >= elements) {
-    return;
-  }
-
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
   if (!rns8_u192_unsigned_fits_limbs_device(x, limb_count)) {
     atomicCAS(status, 0, 5);
     return;
   }
   rns8_store_u192_unsigned_limbs_device(dst + static_cast<int64_t>(cell) * limb_count, x, limb_count);
 }
+
+__device__ void rns8_export_exact_wide_signed_limbs_device(
+    uint64_t* dst,
+    int cell,
+    rns8_u192_device x,
+    rns8_u192_device product,
+    int limb_count,
+    int* status);
 
 __global__ void rns8_export_exact_wide_signed_limbs_kernel(
     const int8_t* residues,
@@ -813,6 +919,56 @@ __global__ void rns8_export_exact_wide_signed_limbs_kernel(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  rns8_export_exact_wide_signed_limbs_device(dst, cell, x, product, limb_count, status);
+}
+
+__global__ void rns8_export_exact_wide_unsigned_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_device(residues, cell, elements, prefix, &x, &product);
+  rns8_export_exact_wide_unsigned_limbs_device(dst, cell, x, limb_count, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_limbs_device(dst, cell, x, limb_count, status);
+}
+
+__device__ void rns8_export_exact_wide_signed_limbs_device(
+    uint64_t* dst,
+    int cell,
+    rns8_u192_device x,
+    rns8_u192_device product,
+    int limb_count,
+    int* status) {
   uint64_t* cell_dst = dst + static_cast<int64_t>(cell) * limb_count;
   if (rns8_u192_centered_is_negative_device(x, product)) {
     const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
@@ -829,6 +985,26 @@ __global__ void rns8_export_exact_wide_signed_limbs_kernel(
     return;
   }
   rns8_store_u192_unsigned_limbs_device(cell_dst, x, limb_count);
+}
+
+template <int Prefix>
+__global__ void rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_limbs_device(dst, cell, x, product, limb_count, status);
 }
 
 }  // namespace
@@ -1122,19 +1298,47 @@ extern "C" int rns8_hip_direct_export_i64_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
-  hipLaunchKernelGGL(
-      rns8_export_i64_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      prefix,
-      bound,
-      d_status);
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_i64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        prefix,
+        bound,
+        d_status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -1187,19 +1391,47 @@ extern "C" int rns8_hip_direct_export_u64_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
-  hipLaunchKernelGGL(
-      rns8_export_u64_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      prefix,
-      bound,
-      d_status);
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_u64_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        prefix,
+        bound,
+        d_status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -1252,19 +1484,34 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
-  hipLaunchKernelGGL(
-      rns8_export_exact_wide_unsigned_limbs_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      prefix,
-      limb_count,
-      d_status);
+  if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        limb_count,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_exact_wide_unsigned_limbs_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        prefix,
+        limb_count,
+        d_status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -1279,18 +1526,33 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
-  hipLaunchKernelGGL(
-      rns8_export_exact_wide_signed_limbs_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      prefix,
-      limb_count,
-      d_status);
+  if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        limb_count,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_exact_wide_signed_limbs_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residues,
+        d_dst,
+        rows,
+        cols,
+        prefix,
+        limb_count,
+        d_status);
+  }
   return static_cast<int>(hipGetLastError());
 }
