@@ -332,8 +332,8 @@ group, plus complete and matching HIP SDK/ROCm version metadata for those HIP
 captures. Configured AMDGPU targets plus HIP runtime and driver versions are
 checked the same way, as are compiler identity and source git commit identity.
 Missing or mixed target, configured-target, toolchain, runtime, driver,
-compiler, or source-checkout identity blocks promotion before a cache entry can
-be written.
+compiler, source-checkout, warmup-count, or repeat-count identity blocks
+promotion before a cache entry can be written.
 The default Windows cache at `%LOCALAPPDATA%\rns8-gemm\autotune.json` has been
 populated from `temp\reviewed-autotune-production-candidate.json` with 19
 reviewed entries. The remaining gap is broader production coverage plus
