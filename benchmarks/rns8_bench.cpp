@@ -244,6 +244,16 @@ bool residue_current_output_mode(const Args& args) {
   return exact_wide_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
 }
 
+bool exact_wide_export_status_check_required(const Args& args) {
+  if (args.semantics == BenchSemantics::ExactWideUnsigned) {
+    return args.exact_wide_limb_count < 3;
+  }
+  if (args.semantics == BenchSemantics::ExactWideSigned) {
+    return args.exact_wide_limb_count < 4;
+  }
+  return true;
+}
+
 bool valid_finite_field_modulus(uint16_t modulus) {
   if (modulus < 2 || modulus > 251) {
     return false;
@@ -2267,9 +2277,12 @@ void collect_export_gpu_events(const Args& args, rns8_backend_kind selected_back
     return;
   }
   if (exact_wide_benchmark_semantics(args.semantics)) {
-    const double status_memset = optional_event_label(samples, "exact_wide_export_status_memset");
+    const bool requires_status = exact_wide_export_status_check_required(args);
+    const double status_memset =
+        requires_status ? optional_event_label(samples, "exact_wide_export_status_memset") : 0.0;
     const double kernel = sum_event_label(events, samples, "crt_export", "exact_wide_export_kernel");
-    const double status_d2h = sum_event_label(events, samples, "crt_export", "exact_wide_export_status_d2h");
+    const double status_d2h =
+        requires_status ? sum_event_label(events, samples, "crt_export", "exact_wide_export_status_d2h") : 0.0;
     const double d2h = sum_event_label(events, samples, "crt_export", "exact_wide_export_d2h");
     if (events.complete) {
       push_gpu_event_value(events, "exact_wide_export_status_memset", status_memset);
@@ -3668,6 +3681,14 @@ const char* residue_output_mode_name(const Args& args) {
   return residue_current_output_mode(args) ? "residue_current_rns" : "host_export";
 }
 
+const char* exact_wide_export_status_check_name(const Args& args) {
+  if (!exact_wide_benchmark_semantics(args.semantics)) {
+    return nullptr;
+  }
+  return exact_wide_export_status_check_required(args) ? "required_for_range_check"
+                                                      : "elided_full_width_device_reconstruction";
+}
+
 const char* packed_layout_version(const Args& args) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return "byte_limb_v1";
@@ -3986,6 +4007,9 @@ void print_json(
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"exact_wide_export_status_check\": ";
+  print_json_string_or_null(exact_wide_export_status_check_name(args));
+  std::cout << ",\n";
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
   std::cout << "  \"residue_output_mode\": \"" << residue_output_mode_name(args) << "\",\n";
   std::cout << "  \"packed_layout_version\": ";
@@ -4095,7 +4119,12 @@ void print_json(
   } else if (exact_wide_benchmark_semantics(args.semantics)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for persistent exact-wide RNS packing, RNS GEMM, "
                  "and fixed-width little-endian limb export; GPU event timing names exact-wide export operation "
-                 "groups when backend hooks are available\",\n";
+                 "groups when backend hooks are available";
+    if (!exact_wide_export_status_check_required(args)) {
+      std::cout << "; the selected limb count covers the backend 192-bit reconstruction width, so exact-wide "
+                   "range-status memset and status D2H are elided and reported as zero-valued event phases";
+    }
+    std::cout << "\",\n";
   } else if (adaptive_applied && info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU adaptive per-tile bounded "
                  "reference path; no GPU event timing is requested for this backend\",\n";
@@ -4239,7 +4268,11 @@ void print_json(
   } else if (exact_wide_benchmark_semantics(args.semantics)) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into exact-wide persistent RNS matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
-    std::cout << "      \"crt_export\": \"per-repeat host timing for fixed-width exact-wide limb export\",\n";
+    if (exact_wide_export_status_check_required(args)) {
+      std::cout << "      \"crt_export\": \"per-repeat host timing for fixed-width exact-wide limb export with range-status memset and status D2H\",\n";
+    } else {
+      std::cout << "      \"crt_export\": \"per-repeat host timing for fixed-width exact-wide limb export; selected limb width covers backend 192-bit reconstruction so range-status memset and status D2H are elided\",\n";
+    }
   } else {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";

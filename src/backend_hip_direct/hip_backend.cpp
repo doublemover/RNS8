@@ -412,6 +412,14 @@ bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {
          static_cast<uint64_t>(max_size / sizeof(uint64_t) / static_cast<std::size_t>(limb_count));
 }
 
+bool exact_wide_signed_export_requires_status(uint32_t limb_count) {
+  return limb_count < 4;
+}
+
+bool exact_wide_unsigned_export_requires_status(uint32_t limb_count) {
+  return limb_count < 3;
+}
+
 bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows, int64_t cols) {
   if (entry.struct_size != sizeof(rns8_plan_tile_schedule_entry) || entry.abi_version != RNS8_ABI_VERSION ||
       entry.flags != 0 || entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 ||
@@ -1926,16 +1934,20 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
+  const bool requires_status = exact_wide_signed_export_requires_status(limb_count);
+  if (requires_status) {
+    status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    const hipError_t memset_err = timed_hip_operation("exact_wide_export_status_memset", [&]() {
+      return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
+    });
+    if (memset_err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
   }
-  hipError_t err = timed_hip_operation(
-      "exact_wide_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("exact_wide_export_kernel", [&]() {
+  hipError_t err = timed_hip_operation("exact_wide_export_kernel", [&]() {
     const int code = rns8_hip_direct_export_exact_wide_signed_limbs_device(
         static_cast<const int8_t*>(device_residues),
         static_cast<uint64_t*>(*export_buffer),
@@ -1943,7 +1955,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
         static_cast<int>(cols),
         static_cast<int>(prefix),
         static_cast<int>(limb_count),
-        static_cast<int*>(*status_buffer));
+        requires_status ? static_cast<int*>(*status_buffer) : nullptr);
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -1952,15 +1964,17 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  int host_status = 0;
-  err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
-    return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  if (host_status != static_cast<int>(RNS8_SUCCESS)) {
-    return static_cast<rns8_status>(host_status);
+  if (requires_status) {
+    int host_status = 0;
+    err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
+      return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
+    });
+    if (err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
+    if (host_status != static_cast<int>(RNS8_SUCCESS)) {
+      return static_cast<rns8_status>(host_status);
+    }
   }
   err = timed_hip_operation("exact_wide_export_d2h", [&]() {
     return hipMemcpy2D(
@@ -2019,16 +2033,20 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
+  const bool requires_status = exact_wide_unsigned_export_requires_status(limb_count);
+  if (requires_status) {
+    status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    const hipError_t memset_err = timed_hip_operation("exact_wide_export_status_memset", [&]() {
+      return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
+    });
+    if (memset_err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
   }
-  hipError_t err = timed_hip_operation(
-      "exact_wide_export_status_memset", [&]() { return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr); });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  err = timed_hip_operation("exact_wide_export_kernel", [&]() {
+  hipError_t err = timed_hip_operation("exact_wide_export_kernel", [&]() {
     const int code = rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
         static_cast<const int8_t*>(device_residues),
         static_cast<uint64_t*>(*export_buffer),
@@ -2036,7 +2054,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
         static_cast<int>(cols),
         static_cast<int>(prefix),
         static_cast<int>(limb_count),
-        static_cast<int*>(*status_buffer));
+        requires_status ? static_cast<int*>(*status_buffer) : nullptr);
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -2045,15 +2063,17 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  int host_status = 0;
-  err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
-    return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  if (host_status != static_cast<int>(RNS8_SUCCESS)) {
-    return static_cast<rns8_status>(host_status);
+  if (requires_status) {
+    int host_status = 0;
+    err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
+      return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
+    });
+    if (err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
+    if (host_status != static_cast<int>(RNS8_SUCCESS)) {
+      return static_cast<rns8_status>(host_status);
+    }
   }
   err = timed_hip_operation("exact_wide_export_d2h", [&]() {
     return hipMemcpy2D(
