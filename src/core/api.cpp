@@ -811,6 +811,10 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
       return "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine";
     }
+    if (uses_finite_storage(plan.desc.semantics) &&
+        (plan.desc.finite_modulus == 251 || plan.desc.finite_modulus == 255 || plan.desc.finite_modulus == 256)) {
+      return "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide";
+    }
     return "rns8_hip_direct_reciprocal_isa_gate";
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {

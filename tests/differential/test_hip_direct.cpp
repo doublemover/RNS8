@@ -1234,6 +1234,7 @@ TEST_CASE("direct HIP finite u8 specialized reducers preserve K-split semantics"
     REQUIRE(rns8_get_plan_backend_info(hip_plan, &info) == RNS8_SUCCESS);
     CHECK(std::string(info.selected_kernel) == item.kernel);
     CHECK(std::string(info.autotune_key).find(std::string("kernel=") + item.kernel + ";") != std::string::npos);
+    CHECK(std::string(info.isa_evidence) == "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide");
 
     std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
     std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
