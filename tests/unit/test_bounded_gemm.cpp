@@ -4,6 +4,7 @@
 #include <limits>
 #include <vector>
 
+#include "core/internal.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -471,6 +472,82 @@ TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
   CHECK(entries[8].col_offset == 128);
   CHECK(entries[8].row_extent == 2);
   CHECK(entries[8].col_extent == 1);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix") {
+  rns8_context* ctx = create_cpu();
+  const auto prefix8_product = rns8::detail::modulus_product(RNS8_DEFAULT_BOUNDED_PREFIX - 1u);
+  const uint64_t first_full_signed_bound = (prefix8_product / 2).convert_to<uint64_t>();
+  constexpr uint64_t max_signed_bound = uint64_t{1} << 63u;
+  const uint32_t first_full_range_bits = rns8::detail::bit_length(prefix8_product);
+  const uint32_t max_signed_range_bits = rns8::detail::bit_length(
+      rns8::detail::cpp_int(2) * rns8::detail::cpp_int(max_signed_bound));
+  std::vector<uint64_t> bounds = {
+      max_signed_bound,
+      first_full_signed_bound,
+      max_signed_bound,
+      first_full_signed_bound,
+  };
+  auto desc = i64_desc(65, 65, 7, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  bounds[0] = 1;
+  REQUIRE(plan->tile_bounds.size() == 4);
+  CHECK(plan->desc.tile_bounds == nullptr);
+  CHECK(plan->desc.tile_bounds_count == 4);
+  CHECK(plan->tile_schedule.empty());
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.tile_m == 64);
+  CHECK(info.tile_n == 64);
+  CHECK(info.tile_rows == 2);
+  CHECK(info.tile_cols == 2);
+  CHECK(info.tile_count == 4);
+  CHECK(info.min_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.max_required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.prefix_group_count == 1);
+  CHECK(info.adaptive_prefix_active == 0);
+  CHECK(info.adaptive_skip_active == 0);
+  CHECK(info.range_bit_length == max_signed_range_bits);
+
+  uint64_t written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(plan, nullptr, 0, &written) == RNS8_SUCCESS);
+  CHECK(written == 4);
+
+  std::vector<rns8_plan_tile_schedule_entry> entries(4);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  for (const auto& entry : entries) {
+    CHECK(entry.required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(entry.selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(entry.group_index == 0);
+  }
+  CHECK(entries[0].range_bit_length == max_signed_range_bits);
+  CHECK(entries[1].range_bit_length == first_full_range_bits);
+  CHECK(entries[0].row_offset == 0);
+  CHECK(entries[0].col_offset == 0);
+  CHECK(entries[0].row_extent == 64);
+  CHECK(entries[0].col_extent == 64);
+  CHECK(entries[3].tile_row == 1);
+  CHECK(entries[3].tile_col == 1);
+  CHECK(entries[3].row_offset == 64);
+  CHECK(entries[3].col_offset == 64);
+  CHECK(entries[3].row_extent == 1);
+  CHECK(entries[3].col_extent == 1);
 
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);

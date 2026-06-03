@@ -122,6 +122,12 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     plan.schedule_range_bit_length = max_range_bits;
     plan.schedule_adaptive_prefix_active = groups.size() > 1 ? 1u : 0u;
     plan.schedule_adaptive_skip_active = max_selected < plan.prefix ? 1u : 0u;
+    if (plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
+        plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
+        plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
+        plan.schedule_adaptive_skip_active == 0) {
+      plan.tile_schedule.clear();
+    }
     return RNS8_SUCCESS;
   }
 
@@ -960,6 +966,19 @@ rns8_status rns8_get_plan_tile_schedule(
       return RNS8_SUCCESS;
     }
     for (uint64_t index = 0; index < plan->schedule_tile_count; ++index) {
+      if (is_per_tile_bound_kind(plan->desc.bound_kind) &&
+          static_cast<uint64_t>(plan->tile_bounds.size()) == plan->schedule_tile_count) {
+        const uint64_t bound = plan->tile_bounds[static_cast<std::size_t>(index)];
+        const boost::multiprecision::cpp_int range = bounded_range_from_bound(plan->desc.semantics, bound);
+        entries[index] = make_tile_schedule_entry(
+            *plan,
+            index,
+            rns8::detail::required_prefix_for_range(range),
+            plan->schedule_min_selected_prefix,
+            0,
+            rns8::detail::bit_length(range));
+        continue;
+      }
       entries[index] = make_tile_schedule_entry(
           *plan,
           index,

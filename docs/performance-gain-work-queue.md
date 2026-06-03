@@ -186,6 +186,10 @@ Likely first slices:
   phase-availability metadata.
 - Collapse uniform per-tile schedules back to fixed-prefix dispatch without
   duplicating the fixed-prefix implementation.
+  Implemented for no-op per-tile captures where every tile still requires the
+  existing full bounded prefix; uniform reduced-prefix schedules remain
+  materialized until their tiled dispatch path is independently validated as a
+  net win.
 
 Relation to existing queue:
 
