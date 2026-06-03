@@ -424,7 +424,10 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   production paths are still unshipped. The public `rns8_get_plan_packing_info`
   API now exposes current plan-specific resident layout names, transient
   accelerator A/B pack workspace bytes, and cache availability flags, with every
-  current backend still reporting no reusable production prepack cache.
+  current backend still reporting no reusable production prepack cache. The
+  companion `rns8_get_matrix_storage_info` API exposes matrix source versions,
+  finite modulus, resident currentness, byte counts, and layout versions so
+  future caches can reject stale or mismatched inputs.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,

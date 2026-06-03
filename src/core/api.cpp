@@ -989,14 +989,41 @@ bool wmma_pack_workspace_breakdown(
   return total_bytes == plan.backend_workspace_required_bytes;
 }
 
-const char* persistent_layout_version_for_plan(const rns8_plan& plan) {
-  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+const char* persistent_layout_version_for_semantics(rns8_semantics semantics) {
+  if (semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "wrap64_byte_limb_v1";
   }
-  if (uses_finite_storage(plan.desc.semantics)) {
+  if (uses_finite_storage(semantics)) {
     return "finite_u8_centered_residue_v1";
   }
   return "rns_centered_residue_planes_v1";
+}
+
+const char* persistent_layout_version_for_plan(const rns8_plan& plan) {
+  return persistent_layout_version_for_semantics(plan.desc.semantics);
+}
+
+const char* storage_scope_for_matrix(const rns8_matrix& matrix) {
+  if (matrix.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return matrix.backend == RNS8_BACKEND_HIP_DIRECT ? "device_byte_limb_storage" : "host_byte_limb_storage";
+  }
+  return hip_resident_rns_backend(matrix.backend) ? "device_resident_storage" : "host_resident_storage";
+}
+
+const char* storage_detail_for_matrix(const rns8_matrix& matrix) {
+  if (matrix.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return matrix.backend == RNS8_BACKEND_HIP_DIRECT
+               ? "Strict wrap64 matrix owns compact byte-limb storage on the selected HIP device."
+               : "Strict wrap64 matrix owns compact host byte-limb storage.";
+  }
+  if (uses_finite_storage(matrix.desc.semantics)) {
+    return hip_resident_rns_backend(matrix.backend)
+               ? "Finite-u8 matrix owns one centered residue plane on the selected HIP device."
+               : "Finite-u8 matrix owns one centered host residue plane.";
+  }
+  return hip_resident_rns_backend(matrix.backend)
+             ? "RNS matrix owns centered residue planes on the selected HIP device."
+             : "RNS matrix owns centered host residue planes.";
 }
 
 bool hipblaslt_scratch_bytes_for_plan(const rns8_plan& plan, std::size_t& bytes) {
@@ -2761,6 +2788,49 @@ rns8_status rns8_destroy_matrix(rns8_matrix* matrix) {
   }
   delete matrix;
   return RNS8_SUCCESS;
+}
+
+rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_storage_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!matrix || !out) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    const uint64_t struct_size = out->struct_size;
+    const uint32_t abi_version = out->abi_version;
+    *out = {};
+    out->struct_size = struct_size;
+    out->abi_version = abi_version;
+    out->backend = matrix->backend;
+    out->semantics = matrix->desc.semantics;
+    out->logical_layout = matrix->desc.logical_layout;
+    out->bound_kind = matrix->desc.bound_kind;
+    out->rows = matrix->desc.rows;
+    out->cols = matrix->desc.cols;
+    out->logical_ld = matrix->desc.logical_ld;
+    out->max_prefix = matrix->prefix;
+    out->finite_modulus = matrix->finite_modulus;
+    out->source_version = matrix->source_version;
+    out->host_residues_current = matrix->host_residues_current ? 1u : 0u;
+    out->device_residues_current = matrix->device_residues_current ? 1u : 0u;
+    out->host_byte_limbs_current = matrix->host_byte_limbs_current ? 1u : 0u;
+    out->device_byte_limbs_current = matrix->device_byte_limbs_current ? 1u : 0u;
+    out->uses_residue_storage = (!matrix->residues.empty() || matrix->hip_residues != nullptr) ? 1u : 0u;
+    out->uses_byte_limb_storage = (!matrix->byte_limbs.empty() || matrix->hip_byte_limbs != nullptr) ? 1u : 0u;
+    out->hip_device_id = static_cast<int32_t>(matrix->hip_device_id);
+    out->flags = 0;
+    out->host_residue_bytes = static_cast<uint64_t>(matrix->residues.size() * sizeof(int8_t));
+    out->device_residue_bytes = static_cast<uint64_t>(matrix->hip_residue_bytes);
+    out->host_byte_limb_bytes = static_cast<uint64_t>(matrix->byte_limbs.size() * sizeof(uint8_t));
+    out->device_byte_limb_bytes = static_cast<uint64_t>(matrix->hip_byte_limb_bytes);
+    set_text(out->layout_version, sizeof(out->layout_version), persistent_layout_version_for_semantics(matrix->desc.semantics));
+    set_text(out->storage_scope, sizeof(out->storage_scope), storage_scope_for_matrix(*matrix));
+    set_text(out->detail, sizeof(out->detail), storage_detail_for_matrix(*matrix));
+    return RNS8_SUCCESS;
+  });
 }
 
 rns8_status rns8_pack_i64(

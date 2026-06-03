@@ -147,6 +147,14 @@ class Matrix final {
 
   rns8_matrix* get() const noexcept { return handle_; }
 
+  rns8_matrix_storage_info storage_info() const {
+    rns8_matrix_storage_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_matrix_storage_info(handle_, &info));
+    return info;
+  }
+
  private:
   rns8_matrix* handle_ = nullptr;
 };

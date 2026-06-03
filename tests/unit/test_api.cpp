@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "rns8/rns8.hpp"
 
 namespace {
 
@@ -128,6 +129,14 @@ rns8_matrix_desc wrap_matrix_desc(int64_t rows, int64_t cols) {
   desc.bound_kind = RNS8_BOUND_NONE;
   desc.max_prefix = 0;
   return desc;
+}
+
+rns8_matrix_storage_info matrix_storage_info(const rns8_matrix* matrix) {
+  rns8_matrix_storage_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_matrix_storage_info(matrix, &info) == RNS8_SUCCESS);
+  return info;
 }
 
 }  // namespace
@@ -891,6 +900,129 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
   null_info.struct_size = sizeof(null_info);
   null_info.abi_version = RNS8_ABI_VERSION;
   CHECK(rns8_get_plan_backend_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("public matrix storage info exposes source-versioned resident layouts") {
+  rns8_context* cpu = create_cpu_context();
+  {
+    auto desc = bounded_matrix_desc(2, 3, RNS8_BOUNDED_I64);
+    rns8_matrix* matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &matrix) == RNS8_SUCCESS);
+
+    auto info = matrix_storage_info(matrix);
+    CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+    CHECK(info.semantics == RNS8_BOUNDED_I64);
+    CHECK(info.logical_layout == RNS8_LAYOUT_ROW_MAJOR);
+    CHECK(info.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS);
+    CHECK(info.rows == 2);
+    CHECK(info.cols == 3);
+    CHECK(info.logical_ld == 3);
+    CHECK(info.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.source_version == 0);
+    CHECK(info.host_residues_current == 1);
+    CHECK(info.device_residues_current == 0);
+    CHECK(info.host_byte_limbs_current == 0);
+    CHECK(info.device_byte_limbs_current == 0);
+    CHECK(info.uses_residue_storage == 1);
+    CHECK(info.uses_byte_limb_storage == 0);
+    CHECK(info.hip_device_id == -1);
+    CHECK(info.host_residue_bytes == 2 * 3 * RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(info.device_residue_bytes == 0);
+    CHECK(info.host_byte_limb_bytes == 0);
+    CHECK(info.device_byte_limb_bytes == 0);
+    CHECK(std::string(info.layout_version) == "rns_centered_residue_planes_v1");
+    CHECK(std::string(info.storage_scope) == "host_resident_storage");
+
+    const int64_t values[] = {1, -2, 3, 4, -5, 6};
+    REQUIRE(rns8_pack_i64(cpu, matrix, values, 3, 42) == RNS8_SUCCESS);
+    info = matrix_storage_info(matrix);
+    CHECK(info.source_version == 42);
+    CHECK(info.host_residues_current == 1);
+    CHECK(info.device_residues_current == 0);
+    CHECK(std::string(info.layout_version) == "rns_centered_residue_planes_v1");
+
+    rns8_matrix_storage_info bad_abi{};
+    bad_abi.struct_size = sizeof(bad_abi) - 1;
+    bad_abi.abi_version = RNS8_ABI_VERSION;
+    CHECK(rns8_get_matrix_storage_info(matrix, &bad_abi) == RNS8_INVALID_ARGUMENT);
+
+    rns8_destroy_matrix(matrix);
+  }
+  {
+    auto desc = finite_matrix_desc(2, 2, RNS8_FINITE_RING_U8);
+    rns8_matrix* matrix = nullptr;
+    REQUIRE(rns8_create_matrix(cpu, &desc, &matrix) == RNS8_SUCCESS);
+
+    auto info = matrix_storage_info(matrix);
+    CHECK(info.semantics == RNS8_FINITE_RING_U8);
+    CHECK(info.max_prefix == 0);
+    CHECK(info.finite_modulus == 0);
+    CHECK(info.host_residues_current == 0);
+    CHECK(info.device_residues_current == 0);
+    CHECK(info.host_residue_bytes == 4);
+    CHECK(std::string(info.layout_version) == "finite_u8_centered_residue_v1");
+    CHECK(std::string(info.storage_scope) == "host_resident_storage");
+
+    const uint8_t values[] = {1, 2, 3, 4};
+    REQUIRE(rns8_pack_finite_u8(cpu, matrix, 251, values, 2, 7) == RNS8_SUCCESS);
+    info = matrix_storage_info(matrix);
+    CHECK(info.finite_modulus == 251);
+    CHECK(info.source_version == 7);
+    CHECK(info.host_residues_current == 1);
+    CHECK(info.device_residues_current == 0);
+
+    rns8_destroy_matrix(matrix);
+  }
+  rns8_destroy_context(cpu);
+
+  rns8_context* wrap = create_wrap_context();
+  {
+    auto desc = wrap_matrix_desc(2, 3);
+    rns8_matrix* matrix = nullptr;
+    REQUIRE(rns8_create_matrix(wrap, &desc, &matrix) == RNS8_SUCCESS);
+
+    auto info = matrix_storage_info(matrix);
+    CHECK(info.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB);
+    CHECK(info.semantics == RNS8_WRAP_U64_MOD_2_64);
+    CHECK(info.max_prefix == 0);
+    CHECK(info.uses_residue_storage == 0);
+    CHECK(info.uses_byte_limb_storage == 1);
+    CHECK(info.host_residues_current == 0);
+    CHECK(info.device_residues_current == 0);
+    CHECK(info.host_byte_limbs_current == 1);
+    CHECK(info.device_byte_limbs_current == 0);
+    CHECK(info.host_residue_bytes == 0);
+    CHECK(info.host_byte_limb_bytes == 2 * 3 * 8);
+    CHECK(std::string(info.layout_version) == "wrap64_byte_limb_v1");
+    CHECK(std::string(info.storage_scope) == "host_byte_limb_storage");
+
+    const uint64_t values[] = {0, 1, 2, 3, 4, 5};
+    REQUIRE(rns8_pack_u64(wrap, matrix, values, 3, 99) == RNS8_SUCCESS);
+    info = matrix_storage_info(matrix);
+    CHECK(info.source_version == 99);
+    CHECK(info.host_byte_limbs_current == 1);
+    CHECK(info.device_byte_limbs_current == 0);
+
+    rns8_destroy_matrix(matrix);
+  }
+  rns8_destroy_context(wrap);
+
+  rns8_matrix_storage_info null_info{};
+  null_info.struct_size = sizeof(null_info);
+  null_info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_matrix_storage_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("C++ matrix wrapper exposes storage info") {
+  rns8::Context context(-1, RNS8_BACKEND_CPU_REFERENCE);
+  rns8::Matrix matrix(context, bounded_matrix_desc(1, 2, RNS8_BOUNDED_U64));
+
+  const auto info = matrix.storage_info();
+  CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+  CHECK(info.semantics == RNS8_BOUNDED_U64);
+  CHECK(info.rows == 1);
+  CHECK(info.cols == 2);
+  CHECK(std::string(info.layout_version) == "rns_centered_residue_planes_v1");
 }
 
 TEST_CASE("public plan packing info exposes resident and transient layout contracts") {

@@ -253,7 +253,11 @@ availability flags. hipBLASLt, CK, and rocWMMA plans report transient
 per-dispatch pack workspaces with backend-specific A/B layout names; CPU,
 direct-HIP, and wrap64 reference plans report persistent resident layouts and no
 transient matrix-engine pack workspace. All current plans report no reusable or
-production prepack cache.
+production prepack cache. The matching `rns8_get_matrix_storage_info` query
+reports each matrix handle's backend, semantic storage layout, source version,
+finite modulus, host/device currentness, and host/device byte counts so future
+cache tooling can reject stale or mismatched resident inputs without inferring
+state from opaque handles.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,
