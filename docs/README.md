@@ -10,6 +10,8 @@ Start here when evaluating the repository.
   exactness rules.
 - [backend-notes.md](backend-notes.md): implemented backend families,
   accelerator enablement policy, and AUTO selection boundaries.
+- [performance-wins.md](performance-wins.md): current Windows `gfx1100`
+  winning improvements, compact speedup tables, and promotion boundaries.
 - [performance-model.md](performance-model.md): benchmark schema, review
   requirements, release evidence summaries, and performance-promotion policy.
 - [platform-windows.md](platform-windows.md): Windows HIP SDK setup and local

@@ -179,6 +179,15 @@ schema-valid AUTO smokes emit `backend_requested: "auto"`,
 is reviewed Windows `gfx1100` release evidence and temp cache proof; it is not
 yet a durable installed production cache policy.
 
+A follow-up post-fix bounded-i64 validation on June 3, 2026 used seed
+`20260603` and reran the 512 and 1024 groups after the vector event-capture and
+hipBLASLt full A+B event-contract fixes. That latest local snapshot is
+summarized in [performance-wins.md](performance-wins.md): 512 stayed on direct
+HIP, while 1024 selected CK at 9222 us median end-to-end, 1.04x faster than
+direct HIP and 2.58x faster than vector ALU. No cache was written in that run.
+The winner drift between the two same-day local reviews should be treated as a
+reason to rerun target shapes before installing durable cache entries.
+
 ## Windows `gfx1100` release-reviewed bounded-u64 matrix
 
 A release-mode review on June 3, 2026 covered bounded u64 square shapes 64,
