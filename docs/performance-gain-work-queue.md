@@ -54,6 +54,41 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
   prepack caches for fixed-prefix single-K-block RNS work. Neither is a broad
   production prepack cache.
 
+## FHE/Lattice Alignment Notes
+
+FHE and lattice-crypto systems are strong workload inspiration for this queue,
+but they do not turn RNS8 into an FHE library. Modern CKKS/BFV/BGV
+implementations are RNS-heavy and GPU FHE systems are dominated by NTT/INTT,
+base conversion, key switching, rotations/automorphisms, rescale or modulus
+switching, bootstrapping linear transforms, coefficientwise modular products,
+memory residency, and key-material movement. Dense exact GEMM is an adjacent
+and conditional opportunity, not the default FHE hot path.
+
+RNS8-specific implications:
+
+- Do not claim that the byte-sized RNS8 modulus ladder is an FHE coefficient
+  modulus chain. FHE parameter sets require separate ring-dimension,
+  NTT-prime, scale/error, security, and scheme metadata.
+- Use FHE/lattice papers to sharpen RNS8 architecture: persistent residue
+  domains, lazy export, base-conversion thinking, grouped scheduling,
+  reducer/epilogue fusion, and scenario benchmarks.
+- Track external-scenario metadata explicitly: `scheme_adapter`,
+  `evidence_scope`, `semantic_contract`, `backend_family`, `wave_size`,
+  `rocm_or_hip_sdk`, and `validated_on_real_target`.
+- Treat CUDA FHE papers and libraries as design input until reproduced on AMD.
+  Porting requires wave32/wave64, lane-mask, launch-bound, LDS/register,
+  memory-coalescing, target-id, and HIP/ROCm-version audits.
+- Add FHE-derived scenario proxies for NTT/INTT pressure, key-switch digit
+  aggregation, rotation-heavy linear transforms, CKKS rescale/mod-drop chains,
+  BFV/BGV explicit-modulus arithmetic, bootstrapping stages, and
+  encrypted-inference linear layers.
+- Keep cryptographic security, RLWE parameter selection, noise growth,
+  side-channel behavior, and decryption safety out of RNS8 performance claims
+  unless a future FHE-specific project adds those contracts explicitly.
+
+See `docs/fhe-lattice-alignment.md` for the source-ranked research synthesis
+behind these notes.
+
 ## Ordered Work Items
 
 ### 1. Adaptive Prefix Minimization
@@ -111,6 +146,9 @@ Technical direction:
 - Compare direct CRT/Garner, mixed-radix reconstruction, prefix-specialized
   fixed code, partial sign/range reconstruction, and limb-count-specialized
   exact-wide export.
+- For FHE-derived scenarios, model `ModUp`, `ModDown`, base extension,
+  rescale, level drop, Q/P tower movement, and partial sign/range conversion
+  as explicit conversion phases rather than generic export.
 - Move CRT constants into constant memory, LDS, or compact device tables where
   access patterns justify it.
 - Search output layouts for reconstruction, not only for GEMM: residue-major,
@@ -222,6 +260,9 @@ Technical direction:
 
 - Search residue-major, cell-major, tile-major, prefix-major, and interleaved
   residue layouts.
+- For FHE/lattice proxies, include polynomial-tower layouts: coefficient-major,
+  NTT-domain, modulus-major, digit-major, key-switch-key-major, Q/P-basis,
+  chain-level, and automorphism-friendly permutation layouts.
 - Search B cache layouts: backend-native, residue-swizzled, K-blocked,
   modulus-interleaved, and repeated-B column-major panels.
 - Search output layouts for CRT/export: residue planes, cell-major residue
@@ -260,6 +301,9 @@ Technical direction:
 
 - Build grouped plans for same shape/many moduli, same B/many A, many small
   independent GEMMs, tile groups with the same prefix, and mixed exact workloads.
+- Include FHE-shaped task tables for many NTTs, many coefficient primes,
+  base-conversion fragments, key-switch/relinearization fragments, rotation
+  batches, bootstrapping stages, and repeated key-material reads.
 - Use persistent blocks or grouped backend dispatch to pull pack/GEMM/reduce/
   export work from a device-side task list.
 - Explore Stream-K and split-K ideas for small M/N with large K, prefix-heavy
@@ -296,6 +340,9 @@ Technical direction:
 - Define internal epilogue nodes such as `CenteredMod256`, `CenteredMod255`,
   `CenteredMod251`, `BarrettModP`, `ResidueStore`, `RangeFlag`,
   `NativeStore`, `CRTPrefix9`, `ExactWideLimbStore`, and `CanonicalU8Store`.
+- Add research vocabulary for FHE/lattice modular pipelines: `Butterfly`,
+  `PointwiseMul`, `LazyReduce`, `Montgomery`, `BaseExtend`, `ModDrop`,
+  `Rescale`, `KeySwitchDigit`, `ExternalProduct`, and `Automorphism`.
 - Compose nodes into backend-specific epilogues without duplicating arithmetic
   policy.
 - Keep backend limitations explicit: hipBLASLt may need external post kernels,
@@ -367,6 +414,10 @@ Technical direction:
 - Build a RNS8-specific roofline model for GEMM arithmetic intensity, pack
   bandwidth, B prepack amortization, residue store bandwidth, CRT/export
   bandwidth, host/device transfer, launch overhead, and API scheduling.
+- Add FHE/lattice proxy bottleneck classes: twiddle/root traffic,
+  NTT/INTT pass count, base-conversion traffic, key-material reads,
+  automorphism permutation traffic, bootstrapping stage traffic, and
+  evaluation-key residency.
 - Store benchmark knowledge as a durable corpus: target, HIP/ROCm version,
   backend, semantic, shape, selected kernel, layout, timing summaries, ISA hash,
   VGPR/SGPR/LDS, workspace bytes, correctness hash, and thermal/power metadata
@@ -438,6 +489,10 @@ Technical direction:
 - Add plan hints or explicit output modes for residue-current output,
   native-current output, final export, repeated-B reuse, many same-shape calls,
   validation-only calls, and RNS-chain continuation.
+- For FHE/lattice-derived research scenarios, model `ntt-current`,
+  `coefficient-current`, `tower-current`, key-material-current, and
+  modulus-chain-current states as planning vocabulary before exposing any
+  public API state.
 - Keep `rns8_matrix` capable of representing currentness honestly:
   residue-current, native-current, finite-current, wrap-byte-current, and stale
   host/native states must not be inferred from type alone.
@@ -475,6 +530,11 @@ Technical direction:
 - Represent operations such as `MatMul`, `Export`, `ResidueAdd`, `FiniteAdd`,
   `NativeToRns`, `RnsToNative`, `RankUpdate`, and `Batch` with semantic,
   bounds, reuse, layout, and desired-output metadata.
+- Add research-only operation labels for FHE/lattice scenario modeling:
+  `Ntt`, `Intt`, `Hadamard`, `BaseExtend`, `ModUp`, `ModDown`, `Rescale`,
+  `GadgetDecompose`, `ExternalProduct`, `KeySwitch`, `Automorphism`,
+  `Relinearize`, and `Bootstrap`. These labels should prevent dense-GEMM
+  overclaiming; they are not public FHE APIs.
 - Lower `Export(MatMul(A,B))` differently from `MatMul(A,B)` whose result feeds
   another RNS GEMM.
 - Lower repeated-B workloads toward prepack and persistent scheduling.
@@ -805,6 +865,17 @@ Technical direction:
   repeated-A/B, many small independent GEMMs, exact-wide export-heavy,
   finite fixed modulus, RNS-chain no export, adaptive bounded real
   distributions, GEMV/skinny, wrap64 carry-heavy, and large exploratory shapes.
+- Add FHE/lattice-derived proxies: NTT/INTT pressure, key-switch digit
+  aggregation, rotation/automorphism-heavy linear transforms, CKKS
+  rescale/mod-drop chains, BFV/BGV explicit-modulus arithmetic, bootstrapping
+  stages, and encrypted-inference linear-layer lowerings labeled by whether
+  they are dense GEMM, diagonal/rotation, MVM/convolution, or coefficientwise
+  arithmetic.
+- Add parameter fixtures inspired by SEAL, OpenFHE, Lattigo, HElib, HEonGPU,
+  PhantomFHE, cuHE/cuFHE, and FIDESlib: `N`/`LogN`, slot count,
+  coefficient-modulus chain, Q/P towers, plaintext modulus, scale bits,
+  decomposition digit count, ciphertext component count, and evaluation-key
+  count.
 - Add failure-mode scenarios: max bounds, negative centered residues,
   modulus-edge residues, overflow-near accumulators, stale cache layouts,
   padded dimensions, non-contiguous strides, K-block boundaries, and mismatched
@@ -825,6 +896,10 @@ Likely first slices:
   capture schema first.
 - Add scenario tables to review Markdown.
 - Include repeated-B hipBLASLt/rocWMMA and RNS-chain lazy-export cases.
+- Include FHE/lattice proxy metadata: ring dimension or polynomial degree,
+  coefficient-modulus count, decomposition digit count, transform/current
+  domain, key-material reuse profile, evidence scope, and output-domain
+  requirement.
 
 Relation to existing queue:
 
@@ -1268,6 +1343,8 @@ Technical direction:
 
 - Use graph capture for repeated fixed-shape workflows: pack, per-prefix GEMM,
   export.
+- Add FHE/lattice proxy graphs for repeated key switching, rotation batches,
+  bootstrapping stage sequences, and fixed-shape NTT/base-conversion pipelines.
 - Use host API batching for many enqueued GEMMs/exports where graph capture is
   too rigid.
 - Preserve status/error behavior during graph replay.
@@ -1311,6 +1388,9 @@ lane.
 Technical direction:
 
 - Add per-kernel/per-prefix/per-tile event hooks for CK and rocWMMA.
+- For FHE/lattice proxies, add per-transform, per-prime, per-key-switch,
+  per-rotation, and per-bootstrapping-stage timing labels before comparing
+  dense-GEMM-adjacent work against NTT/key-switch-dominated work.
 - Feed RGA/disassembly output, VGPR/SGPR/LDS, waits, stores, and occupancy into
   the evidence database.
 - Keep counters debug/probe-only and out of normal benchmark hot paths.
@@ -1472,7 +1552,8 @@ Relation to new architecture work:
   captures and review reports.
 - Add scenario benchmark families for repeated-B, exact-wide export-heavy,
   finite distributions, RNS chains, small one-shot, many-small, skinny/GEMV,
-  wrap64 carry-heavy, and large exploratory shapes.
+  wrap64 carry-heavy, FHE/lattice-derived NTT/key-switch/rotation/bootstrap
+  proxies, and large exploratory shapes.
 - Add per-kernel CK/rocWMMA event timing and RGA resource summaries.
 
 ### Batch B: Immediate Shape Wins
@@ -1487,6 +1568,8 @@ Relation to new architecture work:
 - Implement multi-modulus pack and residue-channel fusion experiments.
 - Add fused pack+GEMM for one-shot/small bounded and finite workloads.
 - Compare end-to-end layouts across RNS, finite, exact-wide, and wrap64.
+- Add polynomial-tower and Q/P-basis layout sketches for FHE/lattice proxy
+  scenarios without treating them as public RNS8 storage formats.
 
 ### Batch D: Scheduler And Reuse Wins
 
@@ -1494,6 +1577,8 @@ Relation to new architecture work:
   exact-wide.
 - Add persistent/grouped scheduler experiments for adaptive prefix groups and
   many small GEMMs.
+- Add tower/key-material reuse scenario labels so FHE/lattice-inspired reuse
+  does not get collapsed into ordinary A/B matrix reuse.
 - Add HIP Graph and host batching modes for repeated fixed-shape workflows.
 
 ### Batch E: Research And Platform Work
