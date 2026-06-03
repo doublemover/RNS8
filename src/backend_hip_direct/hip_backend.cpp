@@ -117,6 +117,20 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
     uint32_t modulus_reciprocal,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_a_i8_b_device(
+    const uint8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -1611,6 +1625,104 @@ rns8_status hip_direct_gemm_finite_u8_native_device(
   (void)modulus;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
+}
+
+rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint16_t modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_a_native || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
+      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
+      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const hipError_t err = timed_hip_operation("finite_native_a_gemm_kernel", [&]() {
+    const int code = rns8_hip_direct_finite_ring_gemm_u8_native_a_i8_b_device(
+        static_cast<const uint8_t*>(device_a_native),
+        static_cast<const int8_t*>(device_b_residues),
+        static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m),
+        static_cast<int>(n),
+        static_cast<int>(k),
+        static_cast<int>(lda),
+        static_cast<int>(ldb),
+        static_cast<int>(ldc),
+        static_cast<int>(modulus),
+        modulus_reciprocal_u32(modulus),
+        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_a_native;
+  (void)device_b_residues;
+  (void)device_c_residues;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)lda;
+  (void)ldb;
+  (void)ldc;
+  (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
+    int device_id,
+    const void* device_a_native,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    uint16_t modulus,
+    uint64_t source_version) {
+  if (!B || !C || B->finite_modulus != modulus || !B->device_residues_current ||
+      B->desc.rows != k || B->desc.cols != n || C->desc.rows != m || C->desc.cols != n) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status status = hip_direct_gemm_finite_u8_native_a_resident_b_device(
+      device_id,
+      device_a_native,
+      B->hip_residues,
+      C->hip_residues,
+      m,
+      n,
+      k,
+      lda,
+      B->desc.logical_ld,
+      C->desc.logical_ld,
+      modulus);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  C->host_residues_current = false;
+  C->device_residues_current = true;
+  C->host_byte_limbs_current = false;
+  C->device_byte_limbs_current = false;
+  C->host_native_current = false;
+  C->device_native_current = false;
+  C->finite_modulus = modulus;
+  C->source_version = source_version;
+  return RNS8_SUCCESS;
 }
 
 rns8_status hip_direct_gemm_rns_tiled_device(
