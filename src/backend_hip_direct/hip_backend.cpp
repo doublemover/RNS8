@@ -154,15 +154,66 @@ namespace rns8::detail {
 
 namespace {
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+struct hip_direct_pending_timing_sample {
+  std::vector<std::string> labels;
+  hipEvent_t start = nullptr;
+  hipEvent_t stop = nullptr;
+};
+#endif
+
 thread_local bool g_hip_direct_timing_enabled = false;
 thread_local std::vector<hip_direct_timing_sample> g_hip_direct_timing_samples;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+thread_local std::vector<hip_direct_pending_timing_sample> g_hip_direct_pending_timing_samples;
+#endif
 std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
 std::atomic<uint64_t> g_hip_direct_free_calls{0};
 std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+void destroy_pending_event_pair(hipEvent_t start, hipEvent_t stop) {
+  if (stop) {
+    (void)hipEventDestroy(stop);
+  }
+  if (start) {
+    (void)hipEventDestroy(start);
+  }
+}
+
+void hip_direct_timing_flush_pending_events() {
+  for (auto& pending : g_hip_direct_pending_timing_samples) {
+    if (!pending.start || !pending.stop || pending.labels.empty()) {
+      destroy_pending_event_pair(pending.start, pending.stop);
+      continue;
+    }
+    hipError_t status = hipEventSynchronize(pending.stop);
+    if (status == hipSuccess) {
+      float milliseconds = 0.0f;
+      status = hipEventElapsedTime(&milliseconds, pending.start, pending.stop);
+      if (status == hipSuccess && milliseconds >= 0.0f) {
+        const double microseconds = static_cast<double>(milliseconds) * 1000.0;
+        for (const auto& label : pending.labels) {
+          if (!label.empty()) {
+            g_hip_direct_timing_samples.push_back({label, microseconds});
+          }
+        }
+      }
+    }
+    destroy_pending_event_pair(pending.start, pending.stop);
+  }
+  g_hip_direct_pending_timing_samples.clear();
+}
+#endif
+
 }  // namespace
 
 void hip_direct_timing_set_enabled(bool enabled) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!enabled) {
+    hip_direct_timing_flush_pending_events();
+  }
+#endif
   g_hip_direct_timing_enabled = enabled;
   if (!enabled) {
     g_hip_direct_timing_samples.clear();
@@ -174,6 +225,9 @@ bool hip_direct_timing_enabled() {
 }
 
 void hip_direct_timing_reset() {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hip_direct_timing_flush_pending_events();
+#endif
   g_hip_direct_timing_samples.clear();
 }
 
@@ -184,7 +238,51 @@ void hip_direct_timing_record_sample(const char* label, double microseconds) {
   g_hip_direct_timing_samples.push_back({label, microseconds});
 }
 
+void hip_direct_timing_record_pending_event(const char* label, void* start_event, void* stop_event) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto start = reinterpret_cast<hipEvent_t>(start_event);
+  auto stop = reinterpret_cast<hipEvent_t>(stop_event);
+  if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
+    destroy_pending_event_pair(start, stop);
+    return;
+  }
+  g_hip_direct_pending_timing_samples.push_back({{label}, start, stop});
+#else
+  (void)label;
+  (void)start_event;
+  (void)stop_event;
+#endif
+}
+
+void hip_direct_timing_record_pending_event_with_alias(
+    const char* label,
+    const char* alias,
+    void* start_event,
+    void* stop_event) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto start = reinterpret_cast<hipEvent_t>(start_event);
+  auto stop = reinterpret_cast<hipEvent_t>(stop_event);
+  if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
+    destroy_pending_event_pair(start, stop);
+    return;
+  }
+  std::vector<std::string> labels{label};
+  if (alias && alias[0] != '\0') {
+    labels.push_back(alias);
+  }
+  g_hip_direct_pending_timing_samples.push_back({std::move(labels), start, stop});
+#else
+  (void)label;
+  (void)alias;
+  (void)start_event;
+  (void)stop_event;
+#endif
+}
+
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot() {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hip_direct_timing_flush_pending_events();
+#endif
   return g_hip_direct_timing_samples;
 }
 
@@ -234,14 +332,8 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   if (op_status == hipSuccess) {
     event_status = hipEventRecord(stop, nullptr);
     if (event_status == hipSuccess) {
-      event_status = hipEventSynchronize(stop);
-    }
-    if (event_status == hipSuccess) {
-      float milliseconds = 0.0f;
-      event_status = hipEventElapsedTime(&milliseconds, start, stop);
-      if (event_status == hipSuccess && milliseconds >= 0.0f) {
-        g_hip_direct_timing_samples.push_back({label, static_cast<double>(milliseconds) * 1000.0});
-      }
+      hip_direct_timing_record_pending_event(label, start, stop);
+      return op_status;
     }
   }
 

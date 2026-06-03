@@ -13,6 +13,7 @@
 #include "backend_vector_alu/vector_alu_backend.hpp"
 #include "core/accelerator_backend.hpp"
 #include "core/autotune_cache.hpp"
+#include "core/backend_common.hpp"
 
 namespace {
 
@@ -25,6 +26,19 @@ rns8_status guard_api(Fn&& fn) {
   } catch (...) {
     return RNS8_INTERNAL_ERROR;
   }
+}
+
+template <typename Fn>
+rns8_status run_timed_api_status(const char* label, Fn&& fn) {
+  rns8_status status = RNS8_SUCCESS;
+  const int code = rns8::detail::run_timed_device_code(label, [&]() {
+    status = fn();
+    return status == RNS8_SUCCESS ? 0 : 3;
+  });
+  if (code != 0 && status == RNS8_SUCCESS) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  return status;
 }
 
 rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend) {
@@ -2516,8 +2530,10 @@ rns8_status export_native_i64(
     int64_t* dst,
     int64_t ld) {
   std::vector<int64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
-      ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
+  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
+    return rns8::detail::hip_direct_copy_device_to_host(
+        ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
+  });
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -2545,8 +2561,10 @@ rns8_status export_native_u64(
     uint64_t* dst,
     int64_t ld) {
   std::vector<uint64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
-      ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
+  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
+    return rns8::detail::hip_direct_copy_device_to_host(
+        ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
+  });
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -3973,7 +3991,9 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      status = rns8::detail::hip_direct_zero(ctx->device_id, mutable_c->hip_status_buffer, sizeof(uint32_t));
+      status = run_timed_api_status("vector_alu_status_memset", [&]() {
+        return rns8::detail::hip_direct_zero(ctx->device_id, mutable_c->hip_status_buffer, sizeof(uint32_t));
+      });
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -4002,8 +4022,10 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       uint32_t host_status = 0;
-      status = rns8::detail::hip_direct_copy_device_to_host(
-          ctx->device_id, &host_status, mutable_c->hip_status_buffer, sizeof(host_status));
+      status = run_timed_api_status("vector_alu_status_d2h", [&]() {
+        return rns8::detail::hip_direct_copy_device_to_host(
+            ctx->device_id, &host_status, mutable_c->hip_status_buffer, sizeof(host_status));
+      });
       if (status != RNS8_SUCCESS) {
         return status;
       }

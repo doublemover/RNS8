@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +46,17 @@ HIPBLASLT_GPU_EVENT_SCOPES = {
 }
 ACCELERATOR_GPU_EVENT_SCOPES = {
     "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
     "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups",
 }
+VECTOR_ALU_GPU_EVENT_SCOPES = {
+    "vector_alu_default_stream_native_int64_operation_groups",
+}
+OLD_ACCELERATOR_GPU_EVENT_SCOPE = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+DEEP_ACCELERATOR_GPU_EVENT_SCOPE = (
+    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+)
+VECTOR_ALU_GPU_EVENT_SCOPE = "vector_alu_default_stream_native_int64_operation_groups"
 HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma", "hip-vector-alu-int64"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
 PLACEHOLDER_GPU_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
@@ -75,6 +85,33 @@ DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
 WRAP64_WMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
+CK_PREFIX_EVENT_RE = re.compile(r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$")
+ROCWMMA_PREFIX_EVENT_RE = re.compile(
+    r"^rocwmma_prefix_(\d{2})_(pack_a|pack_b|matmul|pack_a_prepacked_b|matmul_prepacked_b)$"
+)
+CK_DEEP_GPU_EVENT_LABELS = {
+    "ck_pack_a_kernel",
+    "ck_pack_b_kernel",
+    "ck_wmma_cshuffle_matmul",
+    "ck_copy_centered_kernel",
+    "ck_add_centered_kernel",
+}
+ROCWMMA_DEEP_GPU_EVENT_LABELS = {
+    "rocwmma_pack_a_kernel",
+    "rocwmma_pack_b_kernel",
+    "rocwmma_matmul_kernel",
+    "rocwmma_pack_a_prepacked_b_kernel",
+    "rocwmma_matmul_prepacked_b_kernel",
+}
+VECTOR_ALU_GPU_EVENT_LABELS = {
+    "vector_alu_pack_a_h2d",
+    "vector_alu_pack_b_h2d",
+    "vector_alu_status_memset",
+    "vector_alu_i64_kernel",
+    "vector_alu_u64_kernel",
+    "vector_alu_status_d2h",
+    "vector_alu_output_d2h",
+}
 
 
 class BenchmarkSchemaError(ValueError):
@@ -190,6 +227,12 @@ class _Validator:
             and self.data.get("backend_selected") == "wmma"
             and self.data.get("selected_kernel") == WRAP64_WMMA_CANDIDATE_KERNEL
             and self.data.get("backend_requested") == "rocwmma-wrap64-candidate"
+        )
+
+    def _is_vector_alu_runtime_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-vector-alu-int64"
+            and self.data.get("benchmark") == "rns8_bounded_gemm_hip_vector_alu_int64_runtime"
         )
 
     def _require(self, key: str, kind: str) -> Any:
@@ -349,7 +392,9 @@ class _Validator:
             "rns8_bench_wrap64_wmma_candidate"
             if self._is_wrap64_wmma_candidate()
             else (
-                "rns8_bench_vector_alu_baseline"
+                "rns8_get_plan_backend_info"
+                if self._is_vector_alu_runtime_capture()
+                else "rns8_bench_vector_alu_baseline"
                 if selected_backend == "hip-vector-alu-int64"
                 else "rns8_get_plan_backend_info"
             )
@@ -434,11 +479,18 @@ class _Validator:
             }:
                 self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
         if selected_backend == "hip-vector-alu-int64":
+            runtime_capture = self._is_vector_alu_runtime_capture()
             expected = {
                 "accelerator_library": "HIP runtime",
-                "capability_status": "benchmark_only_vector_alu_baseline",
+                "capability_status": (
+                    "implemented_native_bounded_vector_backend"
+                    if runtime_capture
+                    else "benchmark_only_vector_alu_baseline"
+                ),
                 "epilogue_mode": "direct_int64_export",
-                "workspace_mode": "benchmark_owned_device_buffers",
+                "workspace_mode": (
+                    "native_device_i64_u64_buffers" if runtime_capture else "benchmark_owned_device_buffers"
+                ),
                 "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
             for key, value in expected.items():
@@ -670,7 +722,11 @@ class _Validator:
         elif self.data.get("backend_selected") == "hipblaslt":
             expected_scope = "separate_hipblaslt_i32_scratch_residue_reduce"
         elif self.data.get("backend_selected") == "hip-vector-alu-int64":
-            expected_scope = "not_applicable_direct_int64_export"
+            expected_scope = (
+                "not_applicable_native_vector_output"
+                if self._is_vector_alu_runtime_capture()
+                else "not_applicable_direct_int64_export"
+            )
         else:
             expected_scope = "fused_into_rns_gemm"
         if reduction.get("scope") != expected_scope:
@@ -812,7 +868,13 @@ class _Validator:
         elif semantics in {"bounded_i64", "bounded_u64"}:
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")
-            if packed_layout is not None:
+            expected_native_layout = (
+                "native_i64_rowmajor_v1" if semantics == "bounded_i64" else "native_u64_rowmajor_v1"
+            )
+            if self._is_vector_alu_runtime_capture():
+                if packed_layout != expected_native_layout:
+                    self._error(f"{semantics} runtime vector captures must use packed_layout_version={expected_native_layout}")
+            elif packed_layout is not None:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
             expected_epilogue_type = (
                 "direct_int64_export" if self.data.get("backend_selected") == "hip-vector-alu-int64" else "crt_export"
@@ -1096,22 +1158,21 @@ class _Validator:
             elif self.data.get("backend_selected") == "ck":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error("CK per-tile adaptive captures must include HIP event operation-group timings")
-                expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+                expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                     self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "wmma":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error("rocWMMA per-tile adaptive captures must include HIP event operation-group timings")
-                expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+                expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                     self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "hip-vector-alu-int64":
-                if metadata.get("gpu_event_timing") is not False:
-                    self._error("vector-ALU per-tile adaptive captures must report unavailable GPU event timings")
-                if metadata.get("gpu_event_timing_status") != "not_requested_for_selected_backend":
-                    self._error(
-                        "vector-ALU per-tile adaptive captures must use gpu_event_timing_status=not_requested_for_selected_backend"
-                    )
+                if metadata.get("gpu_event_timing") is not True:
+                    self._error("vector-ALU per-tile adaptive captures must include HIP event operation-group timings")
+                expected_scope = "vector_alu_default_stream_native_int64_operation_groups"
+                if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         backend_metadata = self.data.get("backend_metadata")
         if isinstance(backend_metadata, dict):
             expected_epilogues = {
@@ -1330,6 +1391,179 @@ class _Validator:
             if not _close(float(per_modulus), expected):
                 self._error(f"avg_per_modulus_gemm_estimate_us={per_modulus} does not match expected {expected}")
 
+    def _gpu_event_selected_prefix_count(self) -> int:
+        semantics = self.data.get("semantics")
+        if semantics in {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}:
+            return 0
+        schedule = self.data.get("schedule_metadata")
+        if isinstance(schedule, dict):
+            max_selected = schedule.get("max_selected_prefix")
+            if _is_int(max_selected) and max_selected > 0:
+                return int(max_selected)
+        prefix = self.data.get("prefix")
+        return int(prefix) if _is_int(prefix) and prefix > 0 else 0
+
+    def _uses_rocwmma_prepacked_b_cache(self) -> bool:
+        if self.data.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache":
+            return True
+        metadata = self.data.get("timing_metadata")
+        return isinstance(metadata, dict) and metadata.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
+
+    @staticmethod
+    def _prefix_event_label(prefix: str, index: int, suffix: str) -> str:
+        return f"{prefix}{index:02d}_{suffix}"
+
+    def _ck_deep_gpu_event_phases(self, prefix_count: int) -> list[str]:
+        phases = [
+            "ck_pack_a_kernel",
+            "ck_pack_b_kernel",
+            "ck_wmma_cshuffle_matmul",
+            "ck_copy_centered_kernel",
+            "ck_add_centered_kernel",
+        ]
+        for index in range(prefix_count):
+            phases.extend(
+                [
+                    self._prefix_event_label("ck_prefix_", index, "pack_a"),
+                    self._prefix_event_label("ck_prefix_", index, "pack_b"),
+                    self._prefix_event_label("ck_prefix_", index, "matmul"),
+                    self._prefix_event_label("ck_prefix_", index, "copy_centered"),
+                    self._prefix_event_label("ck_prefix_", index, "add_centered"),
+                ]
+            )
+        return phases
+
+    def _rocwmma_deep_gpu_event_phases(self, prefix_count: int, use_prepacked_b: bool) -> list[str]:
+        if use_prepacked_b:
+            phases = ["rocwmma_pack_a_prepacked_b_kernel", "rocwmma_matmul_prepacked_b_kernel"]
+            for index in range(prefix_count):
+                phases.extend(
+                    [
+                        self._prefix_event_label("rocwmma_prefix_", index, "pack_a_prepacked_b"),
+                        self._prefix_event_label("rocwmma_prefix_", index, "matmul_prepacked_b"),
+                    ]
+                )
+            return phases
+        phases = ["rocwmma_pack_a_kernel", "rocwmma_pack_b_kernel", "rocwmma_matmul_kernel"]
+        for index in range(prefix_count):
+            phases.extend(
+                [
+                    self._prefix_event_label("rocwmma_prefix_", index, "pack_a"),
+                    self._prefix_event_label("rocwmma_prefix_", index, "pack_b"),
+                    self._prefix_event_label("rocwmma_prefix_", index, "matmul"),
+                ]
+            )
+        return phases
+
+    def _expected_vector_gpu_event_phases(self) -> list[str]:
+        kernel = (
+            "vector_alu_i64_kernel"
+            if self.data.get("semantics") == "bounded_i64"
+            or self.data.get("selected_kernel") == "hip_vector_alu_i64_exact_192b_v1"
+            else "vector_alu_u64_kernel"
+        )
+        return [
+            "vector_alu_pack_a_h2d",
+            "vector_alu_pack_b_h2d",
+            "pack",
+            "vector_alu_status_memset",
+            kernel,
+            "rns_gemm",
+            "vector_alu_status_d2h",
+            "vector_alu_output_d2h",
+            "crt_export",
+        ]
+
+    def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
+        backend = self.data.get("backend_selected")
+        if backend not in {"ck", "wmma"} or self._is_wrap64_wmma_candidate():
+            return None
+        semantics = self.data.get("semantics")
+        use_prepacked_b = backend == "wmma" and self._uses_rocwmma_prepacked_b_cache()
+        gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
+        if semantics in {"finite_ring_u8", "finite_field_u8"}:
+            phases = ["finite_pack_h2d", "finite_pack_kernel", "pack", "rns_gemm_kernel_group"]
+        elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            phases = ["pack_h2d", "pack_kernel", "pack", gemm_group]
+        else:
+            phases = ["pack_h2d", "pack_kernel", "pack", gemm_group]
+        prefix_count = self._gpu_event_selected_prefix_count()
+        if backend == "ck":
+            phases.extend(self._ck_deep_gpu_event_phases(prefix_count))
+        else:
+            phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b))
+        phases.append("rns_gemm")
+        if semantics in {"finite_ring_u8", "finite_field_u8"}:
+            phases.extend(["finite_export_kernel", "finite_export_d2h", "crt_export"])
+        elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            phases.extend(
+                [
+                    "exact_wide_export_status_memset",
+                    "exact_wide_export_kernel",
+                    "exact_wide_export_status_d2h",
+                    "exact_wide_export_d2h",
+                    "crt_export",
+                ]
+            )
+        else:
+            phases.extend(
+                [
+                    "crt_export_status_memset",
+                    "crt_export_kernel",
+                    "crt_export_status_d2h",
+                    "crt_export_d2h",
+                    "crt_export",
+                ]
+            )
+        return phases
+
+    @staticmethod
+    def _is_deep_accelerator_gpu_event_label(phase: str) -> bool:
+        return (
+            phase in CK_DEEP_GPU_EVENT_LABELS
+            or phase in ROCWMMA_DEEP_GPU_EVENT_LABELS
+            or CK_PREFIX_EVENT_RE.match(phase) is not None
+            or ROCWMMA_PREFIX_EVENT_RE.match(phase) is not None
+        )
+
+    def _validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> None:
+        backend = self.data.get("backend_selected")
+        if backend == "hip-vector-alu-int64":
+            expected = self._expected_vector_gpu_event_phases()
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(f"vector-ALU GPU event phase set is incomplete; missing {', '.join(missing)}")
+                if extra:
+                    self._error(f"vector-ALU GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                if not missing and not extra:
+                    self._error("vector-ALU GPU event phase order must match the native int64 operation order")
+            return
+        if backend not in {"ck", "wmma"} or self._is_wrap64_wmma_candidate():
+            return
+        deep_labels = [phase for phase in phases if self._is_deep_accelerator_gpu_event_label(phase)]
+        if scope == OLD_ACCELERATOR_GPU_EVENT_SCOPE:
+            if deep_labels:
+                self._error(
+                    "deep accelerator GPU event labels require "
+                    f"timing_metadata.gpu_event_timing_source_scope={DEEP_ACCELERATOR_GPU_EVENT_SCOPE}"
+                )
+            return
+        if scope != DEEP_ACCELERATOR_GPU_EVENT_SCOPE:
+            return
+        expected = self._expected_accelerator_deep_gpu_event_phases()
+        if expected is None or phases == expected:
+            return
+        missing = [phase for phase in expected if phase not in phases]
+        extra = [phase for phase in phases if phase not in expected]
+        if missing:
+            self._error(f"deep accelerator GPU event phase set is incomplete; missing {', '.join(missing)}")
+        if extra:
+            self._error(f"deep accelerator GPU event phase set contains undeclared phases: {', '.join(extra)}")
+        if not missing and not extra:
+            self._error("deep accelerator GPU event phase order must match the selected backend operation order")
+
     def _validate_gpu_events(self) -> None:
         metadata = self.data.get("timing_metadata")
         if not isinstance(metadata, dict):
@@ -1339,7 +1573,7 @@ class _Validator:
         if not isinstance(enabled, bool) or not _is_int(repeats):
             return
         selected_backend = self.data.get("backend_selected")
-        if selected_backend in {"ck", "wmma"} and enabled is not True:
+        if selected_backend in {"ck", "wmma", "hip-vector-alu-int64"} and enabled is not True:
             self._error(f"{selected_backend} captures must include HIP event operation-group timings")
         timings = self.data.get("gpu_event_timings_us")
         summary = self.data.get("gpu_event_timing_summary_us")
@@ -1372,12 +1606,16 @@ class _Validator:
         elif selected_backend in {"ck", "wmma"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
+        elif selected_backend == "hip-vector-alu-int64" and scope not in VECTOR_ALU_GPU_EVENT_SCOPES:
+            expected = ", ".join(sorted(VECTOR_ALU_GPU_EVENT_SCOPES))
+            self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known vector-ALU scope: {expected}")
         if not isinstance(timings, dict):
             self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
             return
         phases = self._gpu_event_phases(metadata)
         if not phases:
             return
+        self._validate_expected_gpu_event_phases(scope, phases)
         phase_set = set(phases)
         timing_keys = set(timings.keys())
         if timing_keys != phase_set:

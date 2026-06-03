@@ -248,11 +248,26 @@ Do not iterate lightly on the current candidate; it loses structurally.
 
 ### 18. Instrumentation
 
-- Add per-kernel/per-prefix event hooks for CK and rocWMMA; operation-group
-  timing is not enough.
-- Add RGA/disassembly capture under `temp/`, checking `v_wmma`, LDS use,
-  stores, waits, VGPR/SGPR, and occupancy.
-- Keep counters debug/probe-only; do not poison normal benchmark paths.
+Status: instrumentation helper lane in progress on
+`codex/gfx1100-signal-forge`.
+
+- CK and rocWMMA event captures now have a deep scope,
+  `accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export`,
+  with aggregate pack/matmul/copy/add labels plus zero-based per-prefix labels.
+  This is attribution evidence only; it is not a speedup claim.
+- Native vector-ALU captures use
+  `vector_alu_default_stream_native_int64_operation_groups` and expose pack A,
+  pack B, status memset, native kernel, status D2H, output D2H, and aggregate
+  pack/GEMM/export labels.
+- Use `tools/gpu_event_report.py` to validate a capture and rank event phases by
+  median/share before deciding where the optimizer should spend time.
+- Use `tools/gpu_isa_report.py --target gfx1100 --object <hip-object>` or
+  `--build-tree <build-dir>` to write LLVM objdump ISA summaries under
+  `temp/isa-reports/`. The report records symbols, WMMA/MFMA counts, global
+  stores, LDS mentions, waits, and VGPR/SGPR/occupancy when available. RGA CLI
+  reporting remains optional.
+- Keep all captures, dumps, and reports in ignored `temp/`; do not promote
+  instrumentation output into autotune cache entries or performance claims.
 
 ### 19. Host/Transfer
 

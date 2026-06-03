@@ -1,6 +1,7 @@
 #include "backend_vector_alu/vector_alu_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "core/backend_common.hpp"
 
 #include <limits>
 
@@ -68,15 +69,17 @@ rns8_status vector_alu_gemm_i64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const int status = rns8_vector_alu_i64_gemm_device(
-      device_id,
-      static_cast<const int64_t*>(device_a),
-      static_cast<const int64_t*>(device_b),
-      static_cast<int64_t*>(device_c),
-      static_cast<uint32_t*>(device_status),
-      m,
-      n,
-      k);
+  const int status = run_timed_device_code("vector_alu_i64_kernel", [&]() {
+    return rns8_vector_alu_i64_gemm_device(
+        device_id,
+        static_cast<const int64_t*>(device_a),
+        static_cast<const int64_t*>(device_b),
+        static_cast<int64_t*>(device_c),
+        static_cast<uint32_t*>(device_status),
+        m,
+        n,
+        k);
+  });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   static_cast<void>(device_id);
@@ -104,15 +107,17 @@ rns8_status vector_alu_gemm_u64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const int status = rns8_vector_alu_u64_gemm_device(
-      device_id,
-      static_cast<const uint64_t*>(device_a),
-      static_cast<const uint64_t*>(device_b),
-      static_cast<uint64_t*>(device_c),
-      static_cast<uint32_t*>(device_status),
-      m,
-      n,
-      k);
+  const int status = run_timed_device_code("vector_alu_u64_kernel", [&]() {
+    return rns8_vector_alu_u64_gemm_device(
+        device_id,
+        static_cast<const uint64_t*>(device_a),
+        static_cast<const uint64_t*>(device_b),
+        static_cast<uint64_t*>(device_c),
+        static_cast<uint32_t*>(device_status),
+        m,
+        n,
+        k);
+  });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   static_cast<void>(device_id);
