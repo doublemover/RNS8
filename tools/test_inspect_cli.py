@@ -189,6 +189,23 @@ def main() -> int:
             '"next_op_flags": 3',
             "autotune exact hit json",
         )
+        expect_text(autotune_hit.stdout, '"plan_lowering": {', "autotune exact hit json")
+        expect_text(autotune_hit.stdout, '"operation": "MatMul"', "autotune exact hit json")
+        expect_text(
+            autotune_hit.stdout,
+            '"desired_output": "final_export_or_rns_chain"',
+            "autotune exact hit json",
+        )
+        expect_text(
+            autotune_hit.stdout,
+            '"schedule_strategy": "fixed_prefix_9"',
+            "autotune exact hit json",
+        )
+        expect_text(
+            autotune_hit.stdout,
+            '"lowering_path": "MatMul[rns_residue_current] -> RnsResidueCurrent; FinalExport only at requested boundary"',
+            "autotune exact hit json",
+        )
         expect_text(
             autotune_hit.stdout,
             '"production_prepack_cache_available": false',
