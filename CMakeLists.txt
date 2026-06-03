@@ -128,7 +128,7 @@ set(RNS8_SOURCES
   src/backend_hip_direct/hip_backend.cpp
   src/backend_vector_alu/vector_alu_backend.cpp
   src/backend_ck/ck_backend.cpp
-  src/backend_wmma/wmma_backend.cpp
+  src/backend_rocwmma/rocwmma_backend.cpp
   src/backend_wrap64/wrap64_reference.cpp
   src/backend_wrap64/wrap64_hip.cpp
 )
@@ -229,11 +229,11 @@ if(RNS8_ENABLE_HIP)
     find_package(RNS8ROCWMMA REQUIRED)
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_ROCWMMA_INCLUDE_DIR}")
     rns8_compile_hip_source(
-      RNS8_WMMA_KERNEL_OBJECT
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wmma/wmma_backend_kernels.hip"
+      RNS8_ROCWMMA_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_backend_kernels.hip"
     )
     unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
-    list(APPEND RNS8_SOURCES "${RNS8_WMMA_KERNEL_OBJECT}")
+    list(APPEND RNS8_SOURCES "${RNS8_ROCWMMA_KERNEL_OBJECT}")
   endif()
 endif()
 
@@ -686,17 +686,17 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
 
     if(RNS8_ENABLE_ROCWMMA)
       add_test(
-        NAME benchmark_wrap64_wmma_candidate_smoke
+        NAME benchmark_rocwmma_wrap64_candidate_smoke
         COMMAND
           "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_wrap64_wmma_candidate.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_rocwmma_wrap64_candidate.py"
           "$<TARGET_FILE:rns8-bench>"
           "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
-          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-wrap64-wmma-candidate-smoke"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-rocwmma-wrap64-candidate-smoke"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
       )
       set_tests_properties(
-        benchmark_wrap64_wmma_candidate_smoke
+        benchmark_rocwmma_wrap64_candidate_smoke
         PROPERTIES LABELS "benchmark;hip;rocwmma;wrap64"
       )
 
@@ -809,7 +809,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/differential/test_hip_direct.cpp
     tests/differential/test_hipblaslt.cpp
     tests/differential/test_ck.cpp
-    tests/differential/test_wmma.cpp
+    tests/differential/test_rocwmma.cpp
   )
   target_include_directories(
     rns8_tests
@@ -872,19 +872,19 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     set_tests_properties(ck_kernel_matrix_isa_check PROPERTIES LABELS "ck;isa;accelerator")
   endif()
   if(RNS8_ENABLE_ROCWMMA)
-    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_WMMA_ISA_CHECK_TARGET)
+    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_ROCWMMA_ISA_CHECK_TARGET)
     add_test(
-      NAME wmma_kernel_matrix_isa_check
+      NAME rocwmma_kernel_matrix_isa_check
       COMMAND
         "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_wmma_kernel_isa.py"
-        --object "${RNS8_WMMA_KERNEL_OBJECT}"
-        --target "${RNS8_WMMA_ISA_CHECK_TARGET}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_rocwmma_kernel_isa.py"
+        --object "${RNS8_ROCWMMA_KERNEL_OBJECT}"
+        --target "${RNS8_ROCWMMA_ISA_CHECK_TARGET}"
         --hipcc "${RNS8_HIP_HIPCC}"
         --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
-    set_tests_properties(wmma_kernel_matrix_isa_check PROPERTIES LABELS "rocwmma;isa;accelerator")
+    set_tests_properties(rocwmma_kernel_matrix_isa_check PROPERTIES LABELS "rocwmma;isa;accelerator")
   endif()
 endif()
 

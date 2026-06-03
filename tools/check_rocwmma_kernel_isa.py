@@ -42,7 +42,7 @@ def main() -> int:
         "Compiled rocWMMA HIP host object containing .hip_fatbin",
         "rocWMMA HIP object",
     )
-    with extracted_device_code_object(config, "rns8-wmma-isa-", "wmma_backend_kernels.fatbin") as code_object:
+    with extracted_device_code_object(config, "rns8-rocwmma-isa-", "rocwmma_backend_kernels.fatbin") as code_object:
         symbols = wmma_symbols(config.objdump, code_object)
         wmma_count, forbidden_stores, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
         if wmma_count <= 0:

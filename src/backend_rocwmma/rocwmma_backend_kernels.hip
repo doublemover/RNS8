@@ -49,12 +49,12 @@ constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
-enum wmma_status_code {
-  wmma_success = 0,
-  wmma_invalid_argument = 1,
-  wmma_unsupported_backend = 2,
-  wmma_backend_failure = 3,
-  wmma_range_error = 4,
+enum rocwmma_status_code {
+  rocwmma_success = 0,
+  rocwmma_invalid_argument = 1,
+  rocwmma_unsupported_backend = 2,
+  rocwmma_backend_failure = 3,
+  rocwmma_range_error = 4,
 };
 
 void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* suffix) {
@@ -197,7 +197,7 @@ bool round_up_aligned_i64(int64_t value, int64_t alignment, int64_t* out) {
   return true;
 }
 
-bool wmma_workspace_requirements_u64(
+bool rocwmma_workspace_requirements_u64(
     int64_t max_m,
     int64_t max_n,
     int64_t k,
@@ -592,7 +592,7 @@ int launch_pack_and_gemm(
   int64_t padded_cols64 = 0;
   if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
       !round_up_aligned_i64(cols, kRns8WmmaTileN, &padded_cols64)) {
-    return wmma_range_error;
+    return rocwmma_range_error;
   }
   const int padded_rows = static_cast<int>(padded_rows64);
   const int padded_cols = static_cast<int>(padded_cols64);
@@ -604,7 +604,7 @@ int launch_pack_and_gemm(
       gemm_k_block64 = kRns8WmmaTileK;
     }
     if (!round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-      return wmma_range_error;
+      return rocwmma_range_error;
     }
     const int gemm_k_block = static_cast<int>(gemm_k_block64);
     const dim3 pack_block(16, 16, 1);
@@ -622,7 +622,7 @@ int launch_pack_and_gemm(
       return hipGetLastError();
     });
     if (err != hipSuccess) {
-      return wmma_backend_failure;
+      return rocwmma_backend_failure;
     }
     err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
       pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
@@ -630,7 +630,7 @@ int launch_pack_and_gemm(
       return hipGetLastError();
     });
     if (err != hipSuccess) {
-      return wmma_backend_failure;
+      return rocwmma_backend_failure;
     }
     const dim3 grid(
         static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
@@ -653,11 +653,11 @@ int launch_pack_and_gemm(
       return hipGetLastError();
     });
     if (err != hipSuccess) {
-      return wmma_backend_failure;
+      return rocwmma_backend_failure;
     }
     accumulate = 1;
   }
-  return wmma_success;
+  return rocwmma_success;
 }
 
 int run_rns_prefix(
@@ -675,15 +675,15 @@ int run_rns_prefix(
     int ldc,
     uint32_t prefix) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
-  if (!wmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
-    return wmma_range_error;
+  if (!rocwmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
   }
   if (!workspace || workspace_bytes < a_bytes + b_bytes) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   auto* a_pack = workspace;
   auto* b_pack = workspace + a_bytes;
@@ -709,12 +709,12 @@ int run_rns_prefix(
         modulus_reciprocal_u32(modulus),
         safe_k_block,
         static_cast<int>(modulus_index));
-    if (status != wmma_success) {
+    if (status != rocwmma_success) {
       return status;
     }
   }
-  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? wmma_success
-                                                                                       : wmma_backend_failure;
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
+                                                                                       : rocwmma_backend_failure;
 }
 
 int prepack_b_rns_prefix(
@@ -727,24 +727,24 @@ int prepack_b_rns_prefix(
     int ldb,
     uint32_t prefix) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
-  if (!wmma_workspace_requirements_u64(16, n, k, &a_bytes, &b_bytes)) {
-    return wmma_range_error;
+  if (!rocwmma_workspace_requirements_u64(16, n, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
   }
   if (b_bytes != 0 && static_cast<uint64_t>(prefix) > UINT64_MAX / b_bytes) {
-    return wmma_range_error;
+    return rocwmma_range_error;
   }
   if (!b_prepack || b_prepack_bytes < static_cast<uint64_t>(prefix) * b_bytes) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   int64_t padded_n64 = 0;
   int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
   if (!round_up_aligned_i64(n, kRns8WmmaTileN, &padded_n64) ||
       !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-    return wmma_range_error;
+    return rocwmma_range_error;
   }
   const int padded_n = static_cast<int>(padded_n64);
   const int gemm_k_block = static_cast<int>(gemm_k_block64);
@@ -759,11 +759,11 @@ int prepack_b_rns_prefix(
     pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
         plane_b, plane_b_prepack, k, gemm_k_block, n, padded_n, ldb, 0);
     if (hipGetLastError() != hipSuccess) {
-      return wmma_backend_failure;
+      return rocwmma_backend_failure;
     }
   }
-  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? wmma_success
-                                                                                       : wmma_backend_failure;
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
+                                                                                       : rocwmma_backend_failure;
 }
 
 int launch_pack_a_and_gemm_prepacked_b(
@@ -793,7 +793,7 @@ int launch_pack_a_and_gemm_prepacked_b(
   const char* pack_a_alias = have_prefix_label ? "rocwmma_pack_a_prepacked_b_kernel" : nullptr;
   const char* matmul_alias = have_prefix_label ? "rocwmma_matmul_prepacked_b_kernel" : nullptr;
   if (k <= 0 || k > kRns8SignedSafeInt32KBlock) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   int64_t padded_rows64 = 0;
   int64_t padded_cols64 = 0;
@@ -801,7 +801,7 @@ int launch_pack_a_and_gemm_prepacked_b(
   if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
       !round_up_aligned_i64(cols, kRns8WmmaTileN, &padded_cols64) ||
       !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
-    return wmma_range_error;
+    return rocwmma_range_error;
   }
   const int padded_rows = static_cast<int>(padded_rows64);
   const int padded_cols = static_cast<int>(padded_cols64);
@@ -816,7 +816,7 @@ int launch_pack_a_and_gemm_prepacked_b(
     return hipGetLastError();
   });
   if (err != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   const dim3 grid(
       static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
@@ -838,7 +838,7 @@ int launch_pack_a_and_gemm_prepacked_b(
         0);
     return hipGetLastError();
   });
-  return err == hipSuccess ? wmma_success : wmma_backend_failure;
+  return err == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }
 
 int run_rns_prefix_prepacked_b(
@@ -855,15 +855,15 @@ int run_rns_prefix_prepacked_b(
     int ldc,
     uint32_t prefix) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
-  if (!wmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
-    return wmma_range_error;
+  if (!rocwmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
   }
   if (!workspace || workspace_bytes < a_bytes || !b_prepack) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   auto* a_pack = workspace;
   for (uint32_t modulus_index = 0; modulus_index < prefix; ++modulus_index) {
@@ -884,17 +884,17 @@ int run_rns_prefix_prepacked_b(
         static_cast<int>(modulus),
         modulus_reciprocal_u32(modulus),
         static_cast<int>(modulus_index));
-    if (status != wmma_success) {
+    if (status != rocwmma_success) {
       return status;
     }
   }
-  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? wmma_success
-                                                                                       : wmma_backend_failure;
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
+                                                                                       : rocwmma_backend_failure;
 }
 
 }  // namespace
 
-extern "C" int rns8_wmma_gemm_rns_device(
+extern "C" int rns8_rocwmma_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -909,12 +909,12 @@ extern "C" int rns8_wmma_gemm_rns_device(
     long long ldc,
     unsigned int prefix) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
       lda < k || ldb < n || ldc < n || !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) ||
       !checked_i32_shape(lda) || !checked_i32_shape(ldb) || !checked_i32_shape(ldc)) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   return run_rns_prefix(
       device_id,
@@ -932,7 +932,7 @@ extern "C" int rns8_wmma_gemm_rns_device(
       prefix);
 }
 
-extern "C" int rns8_wmma_prepack_b_rns_device(
+extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,
     const void* device_b_residues,
     void* device_b_prepack,
@@ -942,11 +942,11 @@ extern "C" int rns8_wmma_prepack_b_rns_device(
     long long ldb,
     unsigned int prefix) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_b_residues || !device_b_prepack || k <= 0 || n <= 0 || ldb < n ||
       !checked_i32_shape(k) || !checked_i32_shape(n) || !checked_i32_shape(ldb)) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   return prepack_b_rns_prefix(
       device_id,
@@ -959,7 +959,7 @@ extern "C" int rns8_wmma_prepack_b_rns_device(
       prefix);
 }
 
-extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
+extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_prepack,
@@ -973,12 +973,12 @@ extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
     long long ldc,
     unsigned int prefix) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_a_residues || !device_b_prepack || !device_c_residues || !workspace || m <= 0 || n <= 0 || k <= 0 ||
       lda < k || ldc < n || !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) ||
       !checked_i32_shape(lda) || !checked_i32_shape(ldc)) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   return run_rns_prefix_prepacked_b(
       device_id,
@@ -995,7 +995,7 @@ extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
       prefix);
 }
 
-extern "C" int rns8_wmma_gemm_rns_tiled_device(
+extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -1011,13 +1011,13 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
     const rns8_plan_tile_schedule_entry* entries,
     unsigned long long entry_count) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_a_residues || !device_b_residues || !device_c_residues || !entries || entry_count == 0 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || !checked_i32_shape(m) ||
       !checked_i32_shape(n) || !checked_i32_shape(k) || !checked_i32_shape(lda) || !checked_i32_shape(ldb) ||
       !checked_i32_shape(ldc)) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   auto* a_pack = static_cast<int8_t*>(workspace);
   const auto* a = static_cast<const int8_t*>(device_a_residues);
@@ -1030,7 +1030,7 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
     if (entry.row_extent <= 0 || entry.col_extent <= 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
         entry.row_offset + entry.row_extent > m || entry.col_offset + entry.col_extent > n ||
         entry.selected_prefix == 0 || entry.selected_prefix > kRns8MaxSupportedPrefix) {
-      return wmma_invalid_argument;
+      return rocwmma_invalid_argument;
     }
     if (entry.row_extent > max_rows) {
       max_rows = static_cast<int>(entry.row_extent);
@@ -1041,11 +1041,11 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
   }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
-  if (!wmma_workspace_requirements_u64(max_rows, max_cols, k, &a_bytes, &b_bytes)) {
-    return wmma_range_error;
+  if (!rocwmma_workspace_requirements_u64(max_rows, max_cols, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
   }
   if (!workspace || workspace_bytes < a_bytes + b_bytes) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   auto* b_pack = a_pack + a_bytes;
   const int safe_k_block = k < kRns8SignedSafeInt32KBlock ? static_cast<int>(k) : kRns8SignedSafeInt32KBlock;
@@ -1075,15 +1075,15 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
           modulus_reciprocal_u32(modulus),
           safe_k_block,
           static_cast<int>(modulus_index));
-      if (status != wmma_success) {
+      if (status != rocwmma_success) {
         return status;
       }
     }
   }
-  return hipDeviceSynchronize() == hipSuccess ? wmma_success : wmma_backend_failure;
+  return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }
 
-extern "C" int rns8_wmma_gemm_finite_u8_device(
+extern "C" int rns8_rocwmma_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -1098,21 +1098,21 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
     long long ldc,
     unsigned int modulus) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || !checked_i32_shape(m) ||
       !checked_i32_shape(n) || !checked_i32_shape(k) || !checked_i32_shape(lda) || !checked_i32_shape(ldb) ||
       !checked_i32_shape(ldc)) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
-  if (!wmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
-    return wmma_range_error;
+  if (!rocwmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
   }
   if (!workspace || workspace_bytes < a_bytes + b_bytes) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   auto* a_pack = static_cast<int8_t*>(workspace);
   auto* b_pack = a_pack + a_bytes;
@@ -1133,13 +1133,13 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
       modulus_reciprocal_u32(static_cast<uint16_t>(modulus)),
       safe_k_block,
       -1);
-  if (status != wmma_success) {
+  if (status != rocwmma_success) {
     return status;
   }
-  return hipDeviceSynchronize() == hipSuccess ? wmma_success : wmma_backend_failure;
+  return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }
 
-extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+extern "C" int rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
     int device_id,
     const void* device_a_limbs,
     const void* device_b_limbs,
@@ -1148,11 +1148,11 @@ extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
     long long n,
     long long k) {
   if (hipSetDevice(device_id) != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
   if (!device_a_limbs || !device_b_limbs || !device_c_limbs || m <= 0 || n <= 0 || k <= 0 ||
       !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) || k > 32768) {
-    return wmma_invalid_argument;
+    return rocwmma_invalid_argument;
   }
   const dim3 grid(
       static_cast<unsigned int>((n + kRns8WmmaTileN - 1) / kRns8WmmaTileN),
@@ -1166,7 +1166,7 @@ extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
       n,
       k);
   if (hipGetLastError() != hipSuccess) {
-    return wmma_backend_failure;
+    return rocwmma_backend_failure;
   }
-  return hipDeviceSynchronize() == hipSuccess ? wmma_success : wmma_backend_failure;
+  return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }

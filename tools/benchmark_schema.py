@@ -58,8 +58,10 @@ DEEP_ACCELERATOR_GPU_EVENT_SCOPE = (
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
 )
 VECTOR_ALU_GPU_EVENT_SCOPE = "vector_alu_default_stream_native_int64_operation_groups"
-HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "wmma", "hip-vector-alu-int64"}
+HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"}
 CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
+BACKEND_SELECTED_VALUES = HIP_RESIDENT_BACKENDS | {"cpu-reference", "wrap64-byte-limb"}
+BACKEND_REQUESTED_VALUES = BACKEND_SELECTED_VALUES | {"auto", "rocwmma-wrap64-candidate"}
 PLACEHOLDER_GPU_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
 VECTOR_ALU_SELECTED_KERNELS = {
     "hip_vector_alu_i64_exact_192b_v1",
@@ -70,7 +72,7 @@ CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
 }
-WMMA_SELECTED_KERNELS = {
+ROCWMMA_SELECTED_KERNELS = {
     "rocwmma_i8_i32_signed_hot_residue_v1",
     "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
@@ -85,7 +87,7 @@ DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
-WRAP64_WMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
+WRAP64_ROCWMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
 CK_PREFIX_EVENT_RE = re.compile(r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$")
 ROCWMMA_PREFIX_EVENT_RE = re.compile(
     r"^rocwmma_prefix_(\d{2})_(pack_a|pack_b|matmul|pack_a_prepacked_b|matmul_prepacked_b)$"
@@ -222,11 +224,11 @@ class _Validator:
     def _error(self, message: str) -> None:
         self.errors.append(f"{self.path}: {message}")
 
-    def _is_wrap64_wmma_candidate(self) -> bool:
+    def _is_wrap64_rocwmma_candidate(self) -> bool:
         return (
             self.data.get("semantics") == "wrap_u64_mod_2_64"
-            and self.data.get("backend_selected") == "wmma"
-            and self.data.get("selected_kernel") == WRAP64_WMMA_CANDIDATE_KERNEL
+            and self.data.get("backend_selected") == "rocwmma"
+            and self.data.get("selected_kernel") == WRAP64_ROCWMMA_CANDIDATE_KERNEL
             and self.data.get("backend_requested") == "rocwmma-wrap64-candidate"
         )
 
@@ -272,6 +274,12 @@ class _Validator:
         selected_kernel = self.data.get("selected_kernel")
         if selected_kernel is not None and not isinstance(selected_kernel, str):
             self._error("selected_kernel must be a string or null")
+        selected_backend = self.data.get("backend_selected")
+        if isinstance(selected_backend, str) and selected_backend not in BACKEND_SELECTED_VALUES:
+            self._error(f"backend_selected must be one of {sorted(BACKEND_SELECTED_VALUES)}")
+        requested_backend = self.data.get("backend_requested")
+        if isinstance(requested_backend, str) and requested_backend not in BACKEND_REQUESTED_VALUES:
+            self._error(f"backend_requested must be one of {sorted(BACKEND_REQUESTED_VALUES)}")
         self._require("bound_mode", "str")
         for key in [
             "bound",
@@ -390,8 +398,8 @@ class _Validator:
             return
         selected_backend = self.data.get("backend_selected")
         expected_source = (
-            "rns8_bench_wrap64_wmma_candidate"
-            if self._is_wrap64_wmma_candidate()
+            "rns8_bench_wrap64_rocwmma_candidate"
+            if self._is_wrap64_rocwmma_candidate()
             else (
                 "rns8_get_plan_backend_info"
                 if self._is_vector_alu_runtime_capture()
@@ -601,10 +609,10 @@ class _Validator:
                 "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
             }:
                 self._error("CK captures must report a fused CK centered-residue epilogue")
-        if selected_backend == "wmma":
-            if self._is_wrap64_wmma_candidate():
+        if selected_backend == "rocwmma":
+            if self._is_wrap64_rocwmma_candidate():
                 expected = {
-                    "selected_kernel": WRAP64_WMMA_CANDIDATE_KERNEL,
+                    "selected_kernel": WRAP64_ROCWMMA_CANDIDATE_KERNEL,
                     "accelerator_library": "rocWMMA",
                     "accelerator_version": "repo-local release/rocm-rel-7.1",
                     "capability_status": "internal_wrap64_matrix_engine_candidate",
@@ -637,7 +645,7 @@ class _Validator:
                 for key, value in expected.items():
                     if metadata.get(key) != value:
                         self._error(f"rocWMMA captures must use backend_metadata.{key}={value}")
-                if metadata.get("selected_kernel") not in WMMA_SELECTED_KERNELS:
+                if metadata.get("selected_kernel") not in ROCWMMA_SELECTED_KERNELS:
                     self._error("rocWMMA captures must report a known rocWMMA selected_kernel")
                 bool_expected = {
                     "accelerator_backend": True,
@@ -675,8 +683,8 @@ class _Validator:
             if scheduling.get("timing_key") != "scheduling":
                 self._error("timing_metadata.phase_availability.scheduling.timing_key must be scheduling")
             expected_scope = (
-                "benchmark_static_wrap64_wmma_candidate_schedule"
-                if self._is_wrap64_wmma_candidate()
+                "benchmark_static_wrap64_rocwmma_candidate_schedule"
+                if self._is_wrap64_rocwmma_candidate()
                 else "one_time_schedule_info_query"
             )
             if scheduling.get("scope") != expected_scope:
@@ -774,7 +782,7 @@ class _Validator:
         if not _is_int(value):
             self._error(f"{key} must be an integer")
             return
-        if self._is_wrap64_wmma_candidate():
+        if self._is_wrap64_rocwmma_candidate():
             if value != 16:
                 self._error(f"{key} must be 16 for rocWMMA wrap64 candidate captures")
             return
@@ -788,8 +796,8 @@ class _Validator:
         if not isinstance(schedule, dict):
             return
         expected_source = (
-            "rns8_bench_wrap64_wmma_candidate_static_schedule"
-            if self._is_wrap64_wmma_candidate()
+            "rns8_bench_wrap64_rocwmma_candidate_static_schedule"
+            if self._is_wrap64_rocwmma_candidate()
             else "rns8_get_plan_schedule_info"
         )
         if schedule.get("source") != expected_source:
@@ -840,7 +848,7 @@ class _Validator:
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
         if semantics == "wrap_u64_mod_2_64":
-            is_candidate = self._is_wrap64_wmma_candidate()
+            is_candidate = self._is_wrap64_rocwmma_candidate()
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"} and not is_candidate:
                 self._error(
                     "wrap64 captures must select wrap64-byte-limb, hip-direct, or rocWMMA candidate backend"
@@ -860,8 +868,8 @@ class _Validator:
                     if backend_metadata.get("isa_evidence") != expected_isa:
                         self._error(f"direct-HIP wrap64 captures must use backend_metadata.isa_evidence={expected_isa}")
             if is_candidate:
-                if self.data.get("selected_kernel") != WRAP64_WMMA_CANDIDATE_KERNEL:
-                    self._error(f"rocWMMA wrap64 candidate captures must use selected_kernel={WRAP64_WMMA_CANDIDATE_KERNEL}")
+                if self.data.get("selected_kernel") != WRAP64_ROCWMMA_CANDIDATE_KERNEL:
+                    self._error(f"rocWMMA wrap64 candidate captures must use selected_kernel={WRAP64_ROCWMMA_CANDIDATE_KERNEL}")
                 if isinstance(backend_metadata, dict):
                     if backend_metadata.get("epilogue_mode") != "low64_wrap_export":
                         self._error("rocWMMA wrap64 candidate captures must use backend_metadata.epilogue_mode=low64_wrap_export")
@@ -953,11 +961,11 @@ class _Validator:
                     "cpu-reference",
                     "hip-direct",
                     "ck",
-                    "wmma",
+                    "rocwmma",
                     "hip-vector-alu-int64",
                 }:
                     self._error(
-                        "per-tile adaptive captures must select cpu-reference, hip-direct, ck, wmma, "
+                        "per-tile adaptive captures must select cpu-reference, hip-direct, ck, rocwmma, "
                         "or hip-vector-alu-int64 backend"
                     )
                 if self.data.get("bound") != 0:
@@ -965,8 +973,8 @@ class _Validator:
                 self._validate_v4_tile_bounds(semantics, schedule)
                 self._validate_v4_adaptive_schedule(prefix, schedule)
         elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "wmma"}:
-                self._error("exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, or wmma backend")
+            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
+                self._error("exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
             if bound_mode != "global":
                 self._error("exact-wide captures must use bound_mode=global")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
@@ -998,7 +1006,7 @@ class _Validator:
                 expected_epilogues = {
                     "hipblaslt": "separate_i32_scratch_reduce_rns_output",
                     "ck": "ck_fused_i32_to_centered_residue_rns_output",
-                    "wmma": "rocwmma_fused_i32_to_centered_residue_rns_output",
+                    "rocwmma": "rocwmma_fused_i32_to_centered_residue_rns_output",
                 }
                 expected_backend_epilogue = expected_epilogues.get(str(backend))
                 if (
@@ -1020,8 +1028,8 @@ class _Validator:
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"finite_ring_u8", "finite_field_u8"}:
-            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "wmma"}:
-                self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or wmma backend")
+            if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
+                self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
             if bound_mode != "global":
                 self._error("finite-u8 captures must use bound_mode=global")
             if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
@@ -1156,7 +1164,7 @@ class _Validator:
             expected_kernels = {
                 "hip-direct": "direct_hip_tiled_rns_gemm_v1",
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
-                "wmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+                "rocwmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
             }
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:
@@ -1194,7 +1202,7 @@ class _Validator:
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                     self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
-            elif self.data.get("backend_selected") == "wmma":
+            elif self.data.get("backend_selected") == "rocwmma":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error("rocWMMA per-tile adaptive captures must include HIP event operation-group timings")
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
@@ -1210,7 +1218,7 @@ class _Validator:
         if isinstance(backend_metadata, dict):
             expected_epilogues = {
                 "ck": "ck_fused_i32_to_centered_residue_then_crt_export",
-                "wmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+                "rocwmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
                 "hip-vector-alu-int64": "direct_int64_export",
             }
             expected_epilogue = expected_epilogues.get(
@@ -1223,7 +1231,7 @@ class _Validator:
             expected_workspaces = {
                 "cpu-reference": "host_reference_workspace",
                 "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
-                "wmma": "resident_device_buffers_with_rocwmma_pack_workspace",
+                "rocwmma": "resident_device_buffers_with_rocwmma_pack_workspace",
                 "hip-vector-alu-int64": "benchmark_owned_device_buffers",
             }
             expected_workspace = expected_workspaces.get(
@@ -1236,7 +1244,7 @@ class _Validator:
             expected_isas = {
                 "cpu-reference": "not_applicable_cpu",
                 "ck": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
-                "wmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+                "rocwmma": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
             expected_isa = expected_isas.get(
@@ -1306,8 +1314,8 @@ class _Validator:
                     self._error("rocwmma_reusable_b_cache captures must use pack_mode=prepacked_reuse_b")
                 if operands is not None and operands != ["B"]:
                     self._error("rocwmma_reusable_b_cache captures must reuse only operand B")
-                if self.data.get("backend_selected") != "wmma":
-                    self._error("rocwmma_reusable_b_cache captures must select backend_selected=wmma")
+                if self.data.get("backend_selected") != "rocwmma":
+                    self._error("rocwmma_reusable_b_cache captures must select backend_selected=rocwmma")
 
         prepack_setup = self.data.get("prepack_setup_us")
         avg_prepack_setup = self.data.get("avg_prepack_setup_us")
@@ -1521,10 +1529,10 @@ class _Validator:
 
     def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
         backend = self.data.get("backend_selected")
-        if backend not in {"ck", "wmma"} or self._is_wrap64_wmma_candidate():
+        if backend not in {"ck", "rocwmma"} or self._is_wrap64_rocwmma_candidate():
             return None
         semantics = self.data.get("semantics")
-        use_prepacked_b = backend == "wmma" and self._uses_rocwmma_prepacked_b_cache()
+        use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
         gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
             phases = ["finite_pack_h2d", "finite_pack_kernel", "pack", "rns_gemm_kernel_group"]
@@ -1585,7 +1593,7 @@ class _Validator:
                 if not missing and not extra:
                     self._error("vector-ALU GPU event phase order must match the native int64 operation order")
             return
-        if backend not in {"ck", "wmma"} or self._is_wrap64_wmma_candidate():
+        if backend not in {"ck", "rocwmma"} or self._is_wrap64_rocwmma_candidate():
             return
         deep_labels = [phase for phase in phases if self._is_deep_accelerator_gpu_event_label(phase)]
         if scope == OLD_ACCELERATOR_GPU_EVENT_SCOPE:
@@ -1618,7 +1626,7 @@ class _Validator:
         if not isinstance(enabled, bool) or not _is_int(repeats):
             return
         selected_backend = self.data.get("backend_selected")
-        if selected_backend in {"ck", "wmma", "hip-vector-alu-int64"} and enabled is not True:
+        if selected_backend in {"ck", "rocwmma", "hip-vector-alu-int64"} and enabled is not True:
             self._error(f"{selected_backend} captures must include HIP event operation-group timings")
         timings = self.data.get("gpu_event_timings_us")
         summary = self.data.get("gpu_event_timing_summary_us")
@@ -1648,7 +1656,7 @@ class _Validator:
         elif selected_backend == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
-        elif selected_backend in {"ck", "wmma"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
+        elif selected_backend in {"ck", "rocwmma"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
             expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
             self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
         elif selected_backend == "hip-vector-alu-int64" and scope not in VECTOR_ALU_GPU_EVENT_SCOPES:

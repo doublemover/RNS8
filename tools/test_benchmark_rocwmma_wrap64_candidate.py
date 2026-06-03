@@ -67,7 +67,7 @@ def run_capture(
 
 def assert_candidate_capture(capture: dict, *, m: int, n: int, k: int) -> None:
     assert capture["backend_requested"] == "rocwmma-wrap64-candidate"
-    assert capture["backend_selected"] == "wmma"
+    assert capture["backend_selected"] == "rocwmma"
     assert capture["selected_kernel"] == "rocwmma_wrap64_byte_gemm36_candidate_v0"
     assert capture["m"] == m
     assert capture["n"] == n
@@ -75,7 +75,7 @@ def assert_candidate_capture(capture: dict, *, m: int, n: int, k: int) -> None:
     assert capture["backend_metadata"]["correctness_backend"] is False
     assert capture["backend_metadata"]["performance_validated"] is False
     assert capture["timing_metadata"]["gpu_event_timing"] is True
-    assert "wrap64_wmma_candidate_gemm36_kernel_group" in capture["gpu_event_timings_us"]
+    assert "wrap64_rocwmma_candidate_gemm36_kernel_group" in capture["gpu_event_timings_us"]
 
 
 def assert_wrap64_release_baselines(captures: list[dict]) -> None:
@@ -99,7 +99,7 @@ def assert_release_shape_checksums_match(captures: list[dict]) -> None:
 def main() -> int:
     if len(sys.argv) != 4:
         print(
-            "usage: test_benchmark_wrap64_wmma_candidate.py RNS8_BENCH BENCHMARK_SCHEMA OUT_DIR",
+            "usage: test_benchmark_rocwmma_wrap64_candidate.py RNS8_BENCH BENCHMARK_SCHEMA OUT_DIR",
             file=sys.stderr,
         )
         return 2
@@ -113,7 +113,7 @@ def main() -> int:
         bench,
         schema,
         out_dir,
-        label="wrap64-wmma-candidate-smoke",
+        label="wrap64-rocwmma-candidate-smoke",
         backend="rocwmma-wrap64-candidate",
         m=16,
         n=16,
@@ -144,7 +144,7 @@ def main() -> int:
             bench,
             schema,
             out_dir,
-            label="wrap64-release-shape-wmma-candidate",
+            label="wrap64-release-shape-rocwmma-candidate",
             backend="rocwmma-wrap64-candidate",
             **release_shape,
         ),

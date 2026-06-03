@@ -37,15 +37,15 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
     out = RNS8_BACKEND_CK;
     return true;
   }
-  if (value == "rocwmma" || value == "wmma") {
-    out = RNS8_BACKEND_WMMA;
+  if (value == "rocwmma") {
+    out = RNS8_BACKEND_ROCWMMA;
     return true;
   }
   return false;
 }
 
 bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
 }
 
 void print_usage(std::ostream& out) {
@@ -67,8 +67,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "hipblaslt";
     case RNS8_BACKEND_CK:
       return "ck";
-    case RNS8_BACKEND_WMMA:
-      return "wmma";
+    case RNS8_BACKEND_ROCWMMA:
+      return "rocwmma";
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return "wrap64-byte-limb";
   }

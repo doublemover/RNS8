@@ -36,7 +36,7 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
     case RNS8_BACKEND_AUTO:
       return false;
     case RNS8_BACKEND_CK:
-    case RNS8_BACKEND_WMMA:
+    case RNS8_BACKEND_ROCWMMA:
       return rns8::detail::accelerator_backend_supports_semantics(backend, semantics);
   }
   return false;
@@ -49,7 +49,7 @@ bool known_backend_kind(rns8_backend_kind backend) {
     case RNS8_BACKEND_HIP_DIRECT:
     case RNS8_BACKEND_HIPBLASLT:
     case RNS8_BACKEND_CK:
-    case RNS8_BACKEND_WMMA:
+    case RNS8_BACKEND_ROCWMMA:
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
       return true;
@@ -69,8 +69,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "hipblaslt";
     case RNS8_BACKEND_CK:
       return "ck";
-    case RNS8_BACKEND_WMMA:
-      return "wmma";
+    case RNS8_BACKEND_ROCWMMA:
+      return "rocwmma";
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return "wrap64-byte-limb";
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
@@ -80,7 +80,7 @@ const char* backend_name(rns8_backend_kind backend) {
 }
 
 bool accelerator_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
 }
 
 uint32_t direct_hip_compiled() {
@@ -309,7 +309,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif
       break;
-    case RNS8_BACKEND_WMMA:
+    case RNS8_BACKEND_ROCWMMA:
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
       info.is_available = 1;
       info.is_correctness_backend = 1;
