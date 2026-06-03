@@ -75,6 +75,7 @@ The benchmark reports:
   timing arrays when hooks collect a complete repeat,
 - one-time planning and matrix allocation time,
 - one-time schedule metadata query time,
+- one-time per-tile bound scan time for adaptive bounded captures,
 - average packing time,
 - average persistent RNS GEMM time,
 - average per-modulus GEMM estimate for RNS captures,

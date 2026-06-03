@@ -181,6 +181,9 @@ Likely first slices:
 - Add a benchmark workload family for adaptive real distributions, not only the
   default 65x65x64 and 1024x1024x1024 cases.
 - Add row/column/tile-bound scan timing as explicit benchmark phases.
+  Implemented for current per-tile bounded captures as `tile_bound_scan` host
+  timing, with schema-required raw timing, summary, phase-order, and
+  phase-availability metadata.
 - Collapse uniform per-tile schedules back to fixed-prefix dispatch without
   duplicating the fixed-prefix implementation.
 

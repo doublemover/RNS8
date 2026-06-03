@@ -115,6 +115,7 @@
     "phase_order": [
       "planning",
       "scheduling",
+      "tile_bound_scan",
       "matrix_alloc",
       "pack",
       "rns_gemm",
@@ -125,6 +126,7 @@
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
+      "tile_bound_scan": "one-time exact seeded input prepass that computes per-output-tile bounds before plan creation",
       "matrix_alloc": "one-time persistent matrix allocation host timing",
       "pack": "per-repeat host timing for packing A and B into persistent RNS matrices",
       "rns_gemm": "per-repeat host timing for rns8_gemm_rns",
@@ -137,6 +139,12 @@
         "timing_key": "scheduling",
         "scope": "one_time_schedule_info_query",
         "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "tile_bound_scan": {
+        "timed": true,
+        "timing_key": "tile_bound_scan",
+        "scope": "exact_seeded_input_prepass",
+        "reason": "measured with host steady_clock around exact per-output-tile bound computation before plan creation"
       },
       "reduction": {
         "timed": false,
@@ -204,6 +212,8 @@
   "avg_planning_us": 161287,
   "schedule_query_us": 23,
   "avg_scheduling_us": 23,
+  "tile_bound_scan_us": 31,
+  "avg_tile_bound_scan_us": 31,
   "matrix_alloc_us": 8106,
   "avg_matrix_alloc_us": 8106,
   "avg_pack_us": 369,
@@ -218,6 +228,9 @@
     ],
     "scheduling": [
       23
+    ],
+    "tile_bound_scan": [
+      31
     ],
     "matrix_alloc": [
       8106
@@ -249,6 +262,11 @@
       "avg": 23,
       "median": 23,
       "p95": 23
+    },
+    "tile_bound_scan": {
+      "avg": 31,
+      "median": 31,
+      "p95": 31
     },
     "matrix_alloc": {
       "avg": 8106,

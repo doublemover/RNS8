@@ -27,6 +27,7 @@ COMPARISON_BASELINE_STATUSES = {
     BASELINE_STATUS_MISSING_REVIEWED,
 }
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
@@ -683,6 +684,35 @@ class _Validator:
             if not isinstance(scheduling.get("reason"), str) or not scheduling.get("reason"):
                 self._error("timing_metadata.phase_availability.scheduling.reason must be a nonempty string")
 
+        per_tile = self.data.get("bound_mode") == "per_tile"
+        tile_bound_scan = availability.get(PER_TILE_TIMING_PHASE)
+        if per_tile and not isinstance(tile_bound_scan, dict):
+            self._error("timing_metadata.phase_availability.tile_bound_scan must be an object for per-tile captures")
+        elif tile_bound_scan is not None:
+            if not isinstance(tile_bound_scan, dict):
+                self._error("timing_metadata.phase_availability.tile_bound_scan must be an object")
+            else:
+                expected_timed = per_tile
+                expected_key = PER_TILE_TIMING_PHASE if per_tile else None
+                expected_scope = "exact_seeded_input_prepass" if per_tile else "not_applicable_global_bound"
+                if tile_bound_scan.get("timed") is not expected_timed:
+                    self._error(
+                        "timing_metadata.phase_availability.tile_bound_scan.timed must be "
+                        f"{str(expected_timed).lower()}"
+                    )
+                if tile_bound_scan.get("timing_key") != expected_key:
+                    self._error(
+                        "timing_metadata.phase_availability.tile_bound_scan.timing_key must be "
+                        f"{expected_key}"
+                    )
+                if tile_bound_scan.get("scope") != expected_scope:
+                    self._error(
+                        "timing_metadata.phase_availability.tile_bound_scan.scope must be "
+                        f"{expected_scope}"
+                    )
+                if not isinstance(tile_bound_scan.get("reason"), str) or not tile_bound_scan.get("reason"):
+                    self._error("timing_metadata.phase_availability.tile_bound_scan.reason must be a nonempty string")
+
         reuse_packed = self.data.get("reuse_packed_inputs") is True
         prepack = availability.get("prepack_setup")
         if reuse_packed and not isinstance(prepack, dict):
@@ -735,7 +765,10 @@ class _Validator:
             self._error("timing_metadata.phase_availability.reduction.reason must be a nonempty string")
 
     def _timing_phases(self) -> list[str]:
-        return TIMING_PHASES
+        phases = list(TIMING_PHASES)
+        if self.data.get("bound_mode") == "per_tile":
+            phases.insert(phases.index("matrix_alloc"), PER_TILE_TIMING_PHASE)
+        return phases
 
     def _validate_tile_value(self, key: str, value: Any) -> None:
         if not _is_int(value):
@@ -1366,6 +1399,8 @@ class _Validator:
             ("avg_end_to_end_us", "end_to_end"),
         ]
         fields.insert(1, ("avg_scheduling_us", "scheduling"))
+        if PER_TILE_TIMING_PHASE in self._timing_phases():
+            fields.insert(2, ("avg_tile_bound_scan_us", PER_TILE_TIMING_PHASE))
         for field, phase in fields:
             value = self._require(field, "number")
             values = raw_timings.get(phase)
@@ -1377,6 +1412,16 @@ class _Validator:
             float(schedule_query), _average(scheduling_values)
         ):
             self._error(f"schedule_query_us={schedule_query} does not match raw average {_average(scheduling_values)}")
+        if PER_TILE_TIMING_PHASE in raw_timings:
+            tile_bound_scan = self._require("tile_bound_scan_us", "number")
+            tile_bound_values = raw_timings.get(PER_TILE_TIMING_PHASE)
+            if _is_number(tile_bound_scan) and tile_bound_values is not None and not _close(
+                float(tile_bound_scan), _average(tile_bound_values)
+            ):
+                self._error(
+                    f"tile_bound_scan_us={tile_bound_scan} does not match raw average "
+                    f"{_average(tile_bound_values)}"
+                )
         prefix = self.data.get("prefix")
         applicable = self.data.get("per_modulus_gemm_estimate_applicable")
         per_modulus = self._require("avg_per_modulus_gemm_estimate_us", "number")

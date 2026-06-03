@@ -15,6 +15,7 @@ from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capt
 TIMING_PHASES = [
     "planning",
     "scheduling",
+    "tile_bound_scan",
     "matrix_alloc",
     "prepack_setup",
     "pack",
@@ -104,6 +105,7 @@ BACKEND_EVIDENCE_KEYS = [
     "timing_source",
     "timing_metadata.gpu_event_timing_source_scope",
     "timing_metadata.phase_availability.scheduling.scope",
+    "timing_metadata.phase_availability.tile_bound_scan.scope",
     "timing_metadata.phase_availability.reduction.scope",
 ]
 
@@ -192,6 +194,15 @@ def phase_applicable(data: dict[str, Any], phase: str) -> bool:
     if phase == "prepack_setup":
         value = data.get("avg_prepack_setup_us")
         return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if phase == "tile_bound_scan":
+        value = data.get("avg_tile_bound_scan_us")
+        summary = data.get("timing_summary_us")
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and isinstance(summary, dict)
+            and isinstance(summary.get("tile_bound_scan"), dict)
+        )
     return True
 
 
