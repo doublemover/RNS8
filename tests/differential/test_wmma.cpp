@@ -611,6 +611,7 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP and CPU oracl
       {"exact WMMA tile", 16, 16, 16, 2, 3, 4, 0x77726f6336343136ull},
       {"padded carry-heavy tile tails", 17, 19, 33, 3, 5, 7, 0x6436776d6d617572ull},
       {"ragged two-tile output", 31, 33, 47, 1, 2, 3, 0x7461696c73363477ull},
+      {"release-shape 64x64x64 full output", 64, 64, 64, 0, 0, 0, 0x3634783634783634ull},
   };
   for (const auto& candidate_case : cases) {
     require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(candidate_case);

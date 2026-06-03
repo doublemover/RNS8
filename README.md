@@ -453,11 +453,12 @@ the same compact byte-limb device buffers, decomposes each unsigned byte
 product into signed WMMA plus high-bit correction WMMA terms, and matches
 direct HIP plus the CPU byte-pair oracle on Windows `gfx1100` across
 single-cell K tails, exact 16x16x16 WMMA tiles, padded carry-heavy tile tails,
-ragged two-tile output, and the current `k=32768` accepted / `k=32769`
-rejected boundary. The benchmark smoke also runs same-seed 64x64x64 CPU
-byte-limb, direct-HIP, and rocWMMA-candidate captures and requires matching
-`checksum_u64` values. It is not a public backend, not selected by AUTO, and
-not release performance evidence. Raw timing capture is available only through
+ragged two-tile output, a release-shaped 64x64x64 full-output differential,
+and the current `k=32768` accepted / `k=32769` rejected boundary. The benchmark
+smoke also runs same-seed 64x64x64 CPU byte-limb, direct-HIP, and
+rocWMMA-candidate captures and requires matching `checksum_u64` values. It is
+not a public backend, not selected by AUTO, and not release performance
+evidence. Raw timing capture is available only through
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64`, which
 reports `backend_selected: "wmma"`, a benchmark-owned static 16x16 schedule,
 candidate-specific HIP event label
@@ -471,9 +472,9 @@ used by other release reviews, plus optional exploratory large shapes when
 the review report; the reviewer marks them with
 `internal_candidate_not_public_backend`, so they cannot produce autotune cache
 entries. The matrix-engine path still needs public backend integration, full
-release-shape correctness evidence beyond the 64x64x64 checksum smoke, and
-reviewed release captures proving it beats direct-HIP v3 before it can displace
-the current production GPU path.
+larger-shape correctness evidence beyond the 64x64x64 full-output differential
+and checksum smoke, and reviewed release captures proving it beats direct-HIP
+v3 before it can displace the current production GPU path.
 
 The packed low-bit matrix-engine pipeline is also roadmap work, not a completed
 runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,
