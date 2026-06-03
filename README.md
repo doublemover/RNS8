@@ -336,7 +336,10 @@ fields before writing. Durable reviewed cache entries are limited to public
 HIP-resident accelerator backends for bounded, exact-wide, and finite-u8
 contracts; direct-HIP baselines, CPU/reference baselines, strict wrap64
 byte-limb baselines, and internal wrap64 matrix-engine candidates are rejected
-instead of being installed as production AUTO entries:
+instead of being installed as production AUTO entries. Reviewed entries must
+also use the current public selected-kernel and epilogue family for the
+backend/semantic contract, so stale or internal kernels cannot be installed
+under an otherwise valid backend name:
 
 ```powershell
 python tools\install_autotune_cache.py --source temp\reviewed-autotune-bounded-i64-full.json --source temp\reviewed-autotune-adaptive-bounded-full.json --source temp\reviewed-autotune-finite-full-plan-keyed.json --source temp\reviewed-autotune-exact-wide-full.json --destination temp\reviewed-autotune-production-candidate.json

@@ -21,6 +21,9 @@ PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
     "finite_ring_u8",
     "finite_field_u8",
 }
+BOUNDED_SEMANTICS = {"bounded_i64", "bounded_u64"}
+EXACT_WIDE_SEMANTICS = {"exact_wide_signed", "exact_wide_unsigned"}
+FINITE_U8_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
 
 
 class AutotuneCacheInstallError(ValueError):
@@ -117,6 +120,61 @@ def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_
     )
 
 
+def reviewed_kernel_supported_for_contract(
+    selected_backend: str, semantic_contract: str, selected_kernel: str
+) -> bool:
+    if selected_backend == "hipblaslt":
+        return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1"
+    if selected_backend == "ck":
+        if semantic_contract in FINITE_U8_SEMANTICS:
+            return selected_kernel == "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        if semantic_contract in EXACT_WIDE_SEMANTICS:
+            return selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+        if semantic_contract in BOUNDED_SEMANTICS:
+            return selected_kernel in {
+                "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+                "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+            }
+    if selected_backend == "wmma":
+        if semantic_contract in FINITE_U8_SEMANTICS:
+            return selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+        if semantic_contract in EXACT_WIDE_SEMANTICS:
+            return selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1"
+        if semantic_contract in BOUNDED_SEMANTICS:
+            return selected_kernel in {
+                "rocwmma_i8_i32_signed_hot_residue_v1",
+                "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+            }
+    return False
+
+
+def reviewed_epilogue_supported_for_contract(
+    selected_backend: str, semantic_contract: str, epilogue: str
+) -> bool:
+    if selected_backend == "hipblaslt":
+        if semantic_contract in FINITE_U8_SEMANTICS:
+            return epilogue == "separate_i32_scratch_reduce_then_canonical_u8_export"
+        if semantic_contract in EXACT_WIDE_SEMANTICS:
+            return epilogue == "separate_i32_scratch_reduce_rns_output"
+        if semantic_contract in BOUNDED_SEMANTICS:
+            return epilogue == "separate_i32_scratch_reduce_then_crt_export"
+    if selected_backend == "ck":
+        if semantic_contract in FINITE_U8_SEMANTICS:
+            return epilogue == "ck_fused_i32_to_centered_residue_then_canonical_u8_export"
+        if semantic_contract in EXACT_WIDE_SEMANTICS:
+            return epilogue == "ck_fused_i32_to_centered_residue_rns_output"
+        if semantic_contract in BOUNDED_SEMANTICS:
+            return epilogue == "ck_fused_i32_to_centered_residue_then_crt_export"
+    if selected_backend == "wmma":
+        if semantic_contract in FINITE_U8_SEMANTICS:
+            return epilogue == "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export"
+        if semantic_contract in EXACT_WIDE_SEMANTICS:
+            return epilogue == "rocwmma_fused_i32_to_centered_residue_rns_output"
+        if semantic_contract in BOUNDED_SEMANTICS:
+            return epilogue == "rocwmma_fused_i32_to_centered_residue_then_crt_export"
+    return False
+
+
 def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
     if not isinstance(entry, dict):
         raise AutotuneCacheInstallError(f"{source}: entry {index} must be an object")
@@ -191,6 +249,11 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
         elif "finite_modulus" in fields:
             raise AutotuneCacheInstallError("unexpected_key_finite_modulus")
         entry["finite_modulus"] = finite_modulus
+
+        if not reviewed_kernel_supported_for_contract(selected_backend, semantic_contract, selected_kernel):
+            raise AutotuneCacheInstallError("unsupported_autotune_kernel_for_contract")
+        if not reviewed_epilogue_supported_for_contract(selected_backend, semantic_contract, epilogue):
+            raise AutotuneCacheInstallError("unsupported_autotune_epilogue_for_contract")
     except AutotuneCacheInstallError as exc:
         raise AutotuneCacheInstallError(f"{source}: entry {index}: {exc}") from exc
     return entry

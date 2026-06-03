@@ -11,6 +11,13 @@
 
 namespace {
 
+constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
+constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
+constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
+constexpr const char* kWmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
+constexpr const char* kWmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
+
 rns8::detail::AutotuneCacheEntry cache_entry(
     const char* key,
     const char* backend,
@@ -20,7 +27,7 @@ rns8::detail::AutotuneCacheEntry cache_entry(
   rns8::detail::AutotuneCacheEntry entry{};
   entry.key = key;
   entry.selected_backend = backend;
-  entry.selected_kernel = "unit_kernel";
+  entry.selected_kernel = kCkBoundedKernel;
   entry.target_id = "gfx1100";
   entry.hip_sdk_or_library_version = "7.1";
   entry.semantic_contract = "bounded_u64";
@@ -32,8 +39,8 @@ rns8::detail::AutotuneCacheEntry cache_entry(
   entry.k_block_size = 512;
   entry.tile_m = 128;
   entry.tile_n = 128;
-  entry.epilogue = "crt_export";
-  entry.kernel_family = "unit_kernel";
+  entry.epilogue = kCkBoundedEpilogue;
+  entry.kernel_family = kCkBoundedKernel;
   entry.performance_validated = performance_validated;
   entry.validation_status = validation_status;
   entry.schema_version = schema_version;
@@ -52,8 +59,8 @@ std::string reviewed_key(
     int64_t k_block_size = 512,
     uint32_t tile_m = 128,
     uint32_t tile_n = 128,
-    const char* kernel = "unit_kernel",
-    const char* epilogue = "crt_export") {
+    const char* kernel = kCkBoundedKernel,
+    const char* epilogue = kCkBoundedEpilogue) {
   return std::string("backend=") + backend +
          ";target=" + target +
          ";version=" + version +
@@ -105,7 +112,7 @@ void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bo
   output << "\"entries\":[{"
          << "\"key\":\"" << key << "\","
          << "\"selected_backend\":\"ck\","
-         << "\"selected_kernel\":\"unit_kernel\","
+         << "\"selected_kernel\":\"" << kCkBoundedKernel << "\","
          << "\"target_id\":\"gfx1100\","
          << "\"hip_sdk_or_library_version\":\"7.1\","
          << "\"semantic_contract\":\"bounded_u64\","
@@ -115,8 +122,8 @@ void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bo
          << "\"k_block_size\":512,"
          << "\"tile_m\":128,"
          << "\"tile_n\":128,"
-         << "\"epilogue\":\"crt_export\","
-         << "\"kernel_family\":\"unit_kernel\","
+         << "\"epilogue\":\"" << kCkBoundedEpilogue << "\","
+         << "\"kernel_family\":\"" << kCkBoundedKernel << "\","
          << "\"workspace_bytes\":0,"
          << "\"measured_medians_us\":{\"pack\":1.0,\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
          << "\"performance_validated\":true,"
@@ -137,7 +144,10 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
   const std::string validated_key = reviewed_key().c_str();
   const std::string unvalidated_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 513);
   const std::string bad_schema_key = reviewed_key("wmma", "gfx1100", "7.1", "bounded_u64", 512, 513, 512);
-  const std::string bad_status_key = reviewed_key("wmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512);
+  const std::string bad_status_key =
+      reviewed_key(
+          "wmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512, "row_major", 512, 128, 128,
+          kWmmaBoundedKernel, kWmmaBoundedEpilogue);
   const std::string old_reviewed_status_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 514, 512, 512);
   snapshot.entries.push_back(
       cache_entry(validated_key.c_str(), "ck", true, "reviewed_release_same_contract_fastest_windows_gfx1100"));
@@ -149,6 +159,9 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
   snapshot.entries.back().n = 513;
   snapshot.entries.push_back(cache_entry(bad_status_key.c_str(), "wmma", true, "raw_capture_fastest"));
   snapshot.entries.back().m = 513;
+  snapshot.entries.back().selected_kernel = kWmmaBoundedKernel;
+  snapshot.entries.back().epilogue = kWmmaBoundedEpilogue;
+  snapshot.entries.back().kernel_family = kWmmaBoundedKernel;
   snapshot.entries.push_back(
       cache_entry(old_reviewed_status_key.c_str(), "ck", true, "reviewed_same_contract_fastest_windows_gfx1100"));
   snapshot.entries.back().m = 514;
@@ -181,10 +194,10 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
 
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, validated_key, "hip-direct") ==
-      "exact_cache_hit_validated:ck/unit_kernel");
+      std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, unvalidated_key, "hip-direct") ==
-      "exact_cache_hit_rejected_unvalidated:ck/unit_kernel");
+      std::string("exact_cache_hit_rejected_unvalidated:ck/") + kCkBoundedKernel);
   CHECK(
       rns8::detail::autotune_selection_rationale(snapshot, bad_schema_key, "hip-direct") ==
       "exact_cache_hit_rejected_schema_version:99");
@@ -236,29 +249,56 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unexpected_key_finite_modulus"});
   }
   {
-    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8") + ";finite_modulus=251";
+    std::string key =
+        reviewed_key(
+            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
+            kCkFiniteKernel, kCkFiniteEpilogue) +
+        ";finite_modulus=251";
     auto item = entry(key);
+    item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 251;
+    item.epilogue = kCkFiniteEpilogue;
+    item.kernel_family = kCkFiniteKernel;
     cases.push_back({item.key, item, ""});
   }
   {
-    auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8"));
+    auto item = entry(
+        reviewed_key(
+            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
+            kCkFiniteKernel, kCkFiniteEpilogue));
+    item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 251;
+    item.epilogue = kCkFiniteEpilogue;
+    item.kernel_family = kCkFiniteKernel;
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_or_invalid_key_finite_modulus"});
   }
   {
-    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8") + ";finite_modulus=251";
+    std::string key =
+        reviewed_key(
+            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
+            kCkFiniteKernel, kCkFiniteEpilogue) +
+        ";finite_modulus=251";
     auto item = entry(key);
+    item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
+    item.epilogue = kCkFiniteEpilogue;
+    item.kernel_family = kCkFiniteKernel;
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_entry_finite_modulus"});
   }
   {
-    std::string key = reviewed_key("ck", "gfx1100", "7.1", "finite_ring_u8") + ";finite_modulus=251";
+    std::string key =
+        reviewed_key(
+            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
+            kCkFiniteKernel, kCkFiniteEpilogue) +
+        ";finite_modulus=251";
     auto item = entry(key);
+    item.selected_kernel = kCkFiniteKernel;
     item.semantic_contract = "finite_ring_u8";
     item.finite_modulus = 255;
+    item.epilogue = kCkFiniteEpilogue;
+    item.kernel_family = kCkFiniteKernel;
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_finite_modulus_mismatch"});
   }
   {
@@ -316,6 +356,45 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
         {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
   }
   {
+    std::string key = reviewed_key(
+        "ck",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        "rocwmma_wrap64_byte_gemm36_candidate_v0",
+        kCkBoundedEpilogue);
+    auto item = entry(key);
+    item.selected_kernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
+    item.kernel_family = "rocwmma_wrap64_byte_gemm36_candidate_v0";
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    std::string key = reviewed_key(
+        "ck",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kCkBoundedKernel,
+        "low64_wrap_export");
+    auto item = entry(key);
+    item.epilogue = "low64_wrap_export";
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_epilogue_for_contract"});
+  }
+  {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
     item.target_id = "gfx1101";
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_target_id_mismatch"});
@@ -356,7 +435,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) != nullptr);
       CHECK(
           rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") ==
-          "exact_cache_hit_validated:ck/unit_kernel");
+          std::string("exact_cache_hit_validated:ck/") + kCkFiniteKernel);
     } else {
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) == nullptr);
       CHECK(rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") == item.expected);
@@ -401,7 +480,7 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     REQUIRE(rns8::detail::find_validated_autotune_entry(snapshot, key) != nullptr);
     CHECK(
         rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
-        "exact_cache_hit_validated:ck/unit_kernel");
+        std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);
   }
 
   std::filesystem::remove(path);

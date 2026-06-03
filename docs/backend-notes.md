@@ -494,7 +494,10 @@ promotion with `internal_candidate_not_public_backend`. The reviewed autotune
 cache installer and runtime cache reader also reject durable cache entries whose
 backend/semantic pairing is not a public HIP-resident accelerator contract, so
 hand-authored wrap64 candidate or direct-HIP baseline entries cannot become
-validated production AUTO entries.
+validated production AUTO entries. The same validation pins the public
+selected-kernel and epilogue family for each backend/semantic contract, blocking
+stale reviewed entries that keep a valid backend name but name an internal
+kernel or a wrap64 epilogue.
 
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and

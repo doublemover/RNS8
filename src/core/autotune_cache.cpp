@@ -249,6 +249,86 @@ bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEnt
   return public_accelerator && hip_resident_rns_semantic;
 }
 
+bool is_bounded_rns_semantic(const std::string& semantic_contract) {
+  return semantic_contract == "bounded_i64" || semantic_contract == "bounded_u64";
+}
+
+bool is_exact_wide_semantic(const std::string& semantic_contract) {
+  return semantic_contract == "exact_wide_signed" || semantic_contract == "exact_wide_unsigned";
+}
+
+bool is_finite_u8_semantic(const std::string& semantic_contract) {
+  return semantic_contract == "finite_ring_u8" || semantic_contract == "finite_field_u8";
+}
+
+bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hipblaslt") {
+    return entry.selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
+  }
+  if (entry.selected_backend == "ck") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1" ||
+             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1";
+    }
+  }
+  if (entry.selected_backend == "wmma") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1" ||
+             entry.selected_kernel == "rocwmma_i8_i32_signed_tiled_hot_residue_v1";
+    }
+  }
+  return false;
+}
+
+bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hipblaslt") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "separate_i32_scratch_reduce_then_canonical_u8_export";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "separate_i32_scratch_reduce_rns_output";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "separate_i32_scratch_reduce_then_crt_export";
+    }
+  }
+  if (entry.selected_backend == "ck") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "ck_fused_i32_to_centered_residue_rns_output";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "ck_fused_i32_to_centered_residue_then_crt_export";
+    }
+  }
+  if (entry.selected_backend == "wmma") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "rocwmma_fused_i32_to_centered_residue_rns_output";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "rocwmma_fused_i32_to_centered_residue_then_crt_export";
+    }
+  }
+  return false;
+}
+
 std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (entry.key.empty() || entry.selected_backend.empty() || entry.selected_kernel.empty() ||
       entry.target_id.empty() || entry.hip_sdk_or_library_version.empty() ||
@@ -308,6 +388,13 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
     return "unexpected_entry_finite_modulus";
   } else if (!key_field(fields, "finite_modulus").empty()) {
     return "unexpected_key_finite_modulus";
+  }
+
+  if (!reviewed_autotune_kernel_supported_for_contract(entry)) {
+    return "unsupported_autotune_kernel_for_contract";
+  }
+  if (!reviewed_autotune_epilogue_supported_for_contract(entry)) {
+    return "unsupported_autotune_epilogue_for_contract";
   }
 
   if (const std::string target = first_key_field(fields, "target_id", "target"); !target.empty() &&
