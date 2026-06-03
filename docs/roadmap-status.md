@@ -441,6 +441,9 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   currentness, source-version, and finite-modulus mismatches before reporting
   cache availability. Created caches now expose the matching key/hash material,
   device id, and allocation byte contract through `rns8_get_prepack_cache_info`.
+  Windows rocWMMA differentials cover cached-B GEMM against CPU output for
+  bounded i64, bounded u64, exact-wide signed, and exact-wide unsigned RNS
+  semantics.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
