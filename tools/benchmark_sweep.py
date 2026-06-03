@@ -442,6 +442,8 @@ def promotion_blockers(
     release_review_satisfied: bool,
     gpu_target_identity_complete: bool,
     gpu_target_compatible: bool,
+    hip_toolchain_version_complete: bool,
+    hip_toolchain_version_compatible: bool,
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
@@ -458,6 +460,10 @@ def promotion_blockers(
         blockers.append("missing_gpu_target_id")
     elif not gpu_target_compatible:
         blockers.append("gpu_target_mismatch")
+    if not hip_toolchain_version_complete:
+        blockers.append("missing_hip_toolchain_version")
+    elif not hip_toolchain_version_compatible:
+        blockers.append("hip_toolchain_version_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
     if internal_candidate:
@@ -521,6 +527,19 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         gpu_target_identity_complete = not missing_gpu_targets
         gpu_target_values = {value for value in gpu_targets.values() if value}
         gpu_target_compatible = gpu_target_identity_complete and len(gpu_target_values) <= 1
+        hip_toolchain_versions = {
+            backend: normalized_target_id(capture_hip_toolchain(capture).get("hip_sdk_or_rocm_version"))
+            for backend, capture in by_backend.items()
+            if backend_requires_gpu_target(backend)
+        }
+        missing_hip_toolchain_versions = sorted(
+            backend for backend, version in hip_toolchain_versions.items() if version is None
+        )
+        hip_toolchain_version_complete = not missing_hip_toolchain_versions
+        hip_toolchain_version_values = {version for version in hip_toolchain_versions.values() if version}
+        hip_toolchain_version_compatible = (
+            hip_toolchain_version_complete and len(hip_toolchain_version_values) <= 1
+        )
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
@@ -537,6 +556,8 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 release_review_satisfied=release_review_satisfied,
                 gpu_target_identity_complete=gpu_target_identity_complete,
                 gpu_target_compatible=gpu_target_compatible,
+                hip_toolchain_version_complete=hip_toolchain_version_complete,
+                hip_toolchain_version_compatible=hip_toolchain_version_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
@@ -614,6 +635,10 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "missing_gpu_targets": missing_gpu_targets,
                 "gpu_target_identity_complete": gpu_target_identity_complete,
                 "gpu_target_compatible": gpu_target_compatible,
+                "hip_toolchain_versions": hip_toolchain_versions,
+                "missing_hip_toolchain_versions": missing_hip_toolchain_versions,
+                "hip_toolchain_version_complete": hip_toolchain_version_complete,
+                "hip_toolchain_version_compatible": hip_toolchain_version_compatible,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -965,6 +990,11 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
         lines.append(f"- missing_gpu_targets: `{','.join(missing_targets) if missing_targets else 'none'}`")
         lines.append(f"- gpu_target_compatible: `{group.get('gpu_target_compatible')}`")
+        missing_versions = group.get("missing_hip_toolchain_versions") or []
+        lines.append(
+            f"- missing_hip_toolchain_versions: `{','.join(missing_versions) if missing_versions else 'none'}`"
+        )
+        lines.append(f"- hip_toolchain_version_compatible: `{group.get('hip_toolchain_version_compatible')}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
