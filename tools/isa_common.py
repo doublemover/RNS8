@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass
+import glob
+import os
 import re
 import shutil
 import subprocess
@@ -40,17 +42,70 @@ def run_command(command: list[str]) -> str:
     return completed.stdout
 
 
-def sibling_tool(hipcc: Path | None, name: str) -> str:
+def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
     suffixes = [".exe", ".bat", ".cmd", ""] if sys.platform == "win32" else ["", ".exe"]
     candidates: list[Path] = []
+    seen: set[str] = set()
+
+    def append_tool_dir(directory: Path) -> None:
+        for suffix in suffixes:
+            candidate = directory / f"{name}{suffix}"
+            key = str(candidate).lower() if sys.platform == "win32" else str(candidate)
+            if key not in seen:
+                candidates.append(candidate)
+                seen.add(key)
+
+    def append_hip_root(root: str | None) -> None:
+        if not root:
+            return
+        root_path = Path(root)
+        append_tool_dir(root_path / "bin")
+        append_tool_dir(root_path / "llvm" / "bin")
+
     if hipcc is not None:
-        candidates.extend(hipcc.parent / f"{name}{suffix}" for suffix in suffixes)
+        append_tool_dir(hipcc.parent)
+    for env_name in ("HIP_PATH", "HIP_ROOT", "ROCM_PATH", "ROCM_ROOT", "ROCM_HOME", "HIP_HOME"):
+        append_hip_root(os.environ.get(env_name))
+    inferred_hipcc = shutil.which("hipcc.exe") or shutil.which("hipcc")
+    if inferred_hipcc:
+        append_tool_dir(Path(inferred_hipcc).parent)
+    if sys.platform == "win32":
+        for root_pattern in (
+            r"C:\Program Files\AMD\ROCm\*\bin",
+            r"C:\Program Files\AMD\ROCm\bin",
+            r"C:\Program Files\AMD\HIP SDK\bin",
+        ):
+            for directory in sorted(glob.glob(root_pattern), reverse=True):
+                append_tool_dir(Path(directory))
     for suffix in suffixes:
         found = shutil.which(f"{name}{suffix}")
         if found:
-            candidates.append(Path(found))
+            key = found.lower() if sys.platform == "win32" else found
+            if key not in seen:
+                candidates.append(Path(found))
+                seen.add(key)
+    return candidates
+
+
+def objdump_supports_amdgcn(candidate: Path) -> bool:
+    try:
+        completed = subprocess.run(
+            [str(candidate), "--version"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    output = f"{completed.stdout}\n{completed.stderr}".lower()
+    return "amdgcn" in output or "amd gcn" in output
+
+
+def sibling_tool(hipcc: Path | None, name: str) -> str:
+    candidates = hip_sdk_tool_candidates(hipcc, name)
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.exists() and (name != "llvm-objdump" or objdump_supports_amdgcn(candidate)):
             return str(candidate)
     raise RuntimeError(f"required HIP/LLVM tool not found: {name}")
 

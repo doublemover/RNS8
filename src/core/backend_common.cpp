@@ -64,14 +64,8 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
   if (code == 0) {
     event_status = hipEventRecord(stop, nullptr);
     if (event_status == hipSuccess) {
-      event_status = hipEventSynchronize(stop);
-    }
-    if (event_status == hipSuccess) {
-      float milliseconds = 0.0f;
-      event_status = hipEventElapsedTime(&milliseconds, start, stop);
-      if (event_status == hipSuccess) {
-        hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
-      }
+      hip_direct_timing_record_pending_event(label, start, stop);
+      return code;
     }
   }
 

@@ -1,4 +1,7 @@
+#include <chrono>
 #include <cstdint>
+#include <cstddef>
+#include <cstdio>
 
 #include <hip/hip_runtime.h>
 #include <rocwmma/rocwmma.hpp>
@@ -18,6 +21,17 @@ struct rns8_plan_tile_schedule_entry {
   uint32_t group_index;
   uint32_t range_bit_length;
 };
+
+namespace rns8::detail {
+bool hip_direct_timing_enabled();
+void hip_direct_timing_flush_pending_events();
+void hip_direct_timing_record_sample(const char* label, double microseconds);
+void hip_direct_timing_record_pending_event_with_alias(
+    const char* label,
+    const char* alias,
+    void* start_event,
+    void* stop_event);
+}  // namespace rns8::detail
 
 namespace {
 
@@ -42,6 +56,114 @@ enum wmma_status_code {
   wmma_backend_failure = 3,
   wmma_range_error = 4,
 };
+
+void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* suffix) {
+  std::snprintf(buffer, size, "rocwmma_prefix_%02d_%s", prefix_index, suffix);
+}
+
+void destroy_timing_event_pair(hipEvent_t start, hipEvent_t stop) {
+  if (stop) {
+    (void)hipEventDestroy(stop);
+  }
+  if (start) {
+    (void)hipEventDestroy(start);
+  }
+}
+
+bool create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop) {
+  *start = nullptr;
+  *stop = nullptr;
+  for (int attempt = 0; attempt < 8; ++attempt) {
+    hipEvent_t candidate_start = nullptr;
+    hipEvent_t candidate_stop = nullptr;
+    hipError_t status = hipEventCreate(&candidate_start);
+    if (status == hipSuccess) {
+      status = hipEventCreate(&candidate_stop);
+    }
+    if (status == hipSuccess) {
+      status = hipEventRecord(candidate_start, nullptr);
+    }
+    if (status == hipSuccess) {
+      *start = candidate_start;
+      *stop = candidate_stop;
+      return true;
+    }
+    destroy_timing_event_pair(candidate_start, candidate_stop);
+    if (attempt == 0) {
+      rns8::detail::hip_direct_timing_flush_pending_events();
+    }
+    if (attempt + 1 < 8) {
+      (void)hipDeviceSynchronize();
+    }
+  }
+  return false;
+}
+
+void record_synchronized_host_timing(
+    const char* label,
+    const char* alias,
+    std::chrono::steady_clock::time_point start) {
+  (void)hipDeviceSynchronize();
+  const auto stop = std::chrono::steady_clock::now();
+  const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
+  rns8::detail::hip_direct_timing_record_sample(label, microseconds);
+  if (alias && alias[0] != '\0') {
+    rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
+  }
+}
+
+template <typename Fn>
+hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
+  if (!rns8::detail::hip_direct_timing_enabled()) {
+    return fn();
+  }
+  const auto host_start = std::chrono::steady_clock::now();
+  hipEvent_t start = nullptr;
+  hipEvent_t stop = nullptr;
+  if (!create_recorded_timing_event_pair(&start, &stop)) {
+    const hipError_t status = fn();
+    if (status == hipSuccess) {
+      record_synchronized_host_timing(label, alias, host_start);
+    }
+    return status;
+  }
+  hipError_t status = fn();
+  if (status == hipSuccess) {
+    hipError_t stop_status = hipEventRecord(stop, nullptr);
+    if (stop_status != hipSuccess) {
+      rns8::detail::hip_direct_timing_flush_pending_events();
+      (void)hipDeviceSynchronize();
+      stop_status = hipEventRecord(stop, nullptr);
+    }
+    if (stop_status == hipSuccess) {
+      hipError_t sync_status = hipEventSynchronize(stop);
+      if (sync_status != hipSuccess) {
+        (void)hipDeviceSynchronize();
+        sync_status = hipEventSynchronize(stop);
+      }
+      if (sync_status == hipSuccess) {
+        float milliseconds = 0.0f;
+        hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+        if (elapsed_status != hipSuccess) {
+          (void)hipDeviceSynchronize();
+          elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+        }
+        if (elapsed_status == hipSuccess && milliseconds >= 0.0f) {
+          const double microseconds = static_cast<double>(milliseconds) * 1000.0;
+          rns8::detail::hip_direct_timing_record_sample(label, microseconds);
+          if (alias && alias[0] != '\0') {
+            rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
+          }
+          destroy_timing_event_pair(start, stop);
+          return status;
+        }
+      }
+    }
+    record_synchronized_host_timing(label, alias, host_start);
+  }
+  destroy_timing_event_pair(start, stop);
+  return status;
+}
 
 uint32_t modulus_reciprocal_u32(uint16_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / static_cast<uint32_t>(modulus));
@@ -449,7 +571,23 @@ int launch_pack_and_gemm(
     int ldc,
     int modulus,
     uint32_t reciprocal,
-    int safe_k_block) {
+    int safe_k_block,
+    int prefix_index) {
+  char pack_a_label[72];
+  char pack_b_label[72];
+  char matmul_label[72];
+  const bool have_prefix_label = prefix_index >= 0;
+  if (have_prefix_label) {
+    prefix_label(pack_a_label, sizeof(pack_a_label), prefix_index, "pack_a");
+    prefix_label(pack_b_label, sizeof(pack_b_label), prefix_index, "pack_b");
+    prefix_label(matmul_label, sizeof(matmul_label), prefix_index, "matmul");
+  }
+  const char* pack_a_timing_label = have_prefix_label ? pack_a_label : "rocwmma_pack_a_kernel";
+  const char* pack_b_timing_label = have_prefix_label ? pack_b_label : "rocwmma_pack_b_kernel";
+  const char* matmul_timing_label = have_prefix_label ? matmul_label : "rocwmma_matmul_kernel";
+  const char* pack_a_alias = have_prefix_label ? "rocwmma_pack_a_kernel" : nullptr;
+  const char* pack_b_alias = have_prefix_label ? "rocwmma_pack_b_kernel" : nullptr;
+  const char* matmul_alias = have_prefix_label ? "rocwmma_matmul_kernel" : nullptr;
   int64_t padded_rows64 = 0;
   int64_t padded_cols64 = 0;
   if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
@@ -478,34 +616,43 @@ int launch_pack_and_gemm(
         static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
         static_cast<unsigned int>((padded_cols + pack_block.y - 1) / pack_block.y),
         1);
-    pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(
-        a, a_pack, rows, padded_rows, valid_k_block, gemm_k_block, lda, k_offset);
-    if (hipGetLastError() != hipSuccess) {
+    hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
+      pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(
+          a, a_pack, rows, padded_rows, valid_k_block, gemm_k_block, lda, k_offset);
+      return hipGetLastError();
+    });
+    if (err != hipSuccess) {
       return wmma_backend_failure;
     }
-    pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
-        b, b_pack, valid_k_block, gemm_k_block, cols, padded_cols, ldb, k_offset);
-    if (hipGetLastError() != hipSuccess) {
+    err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
+      pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
+          b, b_pack, valid_k_block, gemm_k_block, cols, padded_cols, ldb, k_offset);
+      return hipGetLastError();
+    });
+    if (err != hipSuccess) {
       return wmma_backend_failure;
     }
     const dim3 grid(
         static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
         static_cast<unsigned int>(padded_rows / kRns8WmmaTileM),
         1);
-    rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
-        a_pack,
-        b_pack,
-        c,
-        rows,
-        cols,
-        padded_rows,
-        padded_cols,
-        gemm_k_block,
-        ldc,
-        modulus,
-        reciprocal,
-        accumulate);
-    if (hipGetLastError() != hipSuccess) {
+    err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
+      rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
+          a_pack,
+          b_pack,
+          c,
+          rows,
+          cols,
+          padded_rows,
+          padded_cols,
+          gemm_k_block,
+          ldc,
+          modulus,
+          reciprocal,
+          accumulate);
+      return hipGetLastError();
+    });
+    if (err != hipSuccess) {
       return wmma_backend_failure;
     }
     accumulate = 1;
@@ -560,7 +707,8 @@ int run_rns_prefix(
         ldc,
         static_cast<int>(modulus),
         modulus_reciprocal_u32(modulus),
-        safe_k_block);
+        safe_k_block,
+        static_cast<int>(modulus_index));
     if (status != wmma_success) {
       return status;
     }
@@ -629,7 +777,21 @@ int launch_pack_a_and_gemm_prepacked_b(
     int lda,
     int ldc,
     int modulus,
-    uint32_t reciprocal) {
+    uint32_t reciprocal,
+    int prefix_index) {
+  char pack_a_label[80];
+  char matmul_label[80];
+  const bool have_prefix_label = prefix_index >= 0;
+  if (have_prefix_label) {
+    prefix_label(pack_a_label, sizeof(pack_a_label), prefix_index, "pack_a_prepacked_b");
+    prefix_label(matmul_label, sizeof(matmul_label), prefix_index, "matmul_prepacked_b");
+  }
+  const char* pack_a_timing_label =
+      have_prefix_label ? pack_a_label : "rocwmma_pack_a_prepacked_b_kernel";
+  const char* matmul_timing_label =
+      have_prefix_label ? matmul_label : "rocwmma_matmul_prepacked_b_kernel";
+  const char* pack_a_alias = have_prefix_label ? "rocwmma_pack_a_prepacked_b_kernel" : nullptr;
+  const char* matmul_alias = have_prefix_label ? "rocwmma_matmul_prepacked_b_kernel" : nullptr;
   if (k <= 0 || k > kRns8SignedSafeInt32KBlock) {
     return wmma_invalid_argument;
   }
@@ -649,28 +811,34 @@ int launch_pack_a_and_gemm_prepacked_b(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
       static_cast<unsigned int>((padded_rows + pack_block.y - 1) / pack_block.y),
       1);
-  pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(a, a_pack, rows, padded_rows, k, gemm_k_block, lda, 0);
-  if (hipGetLastError() != hipSuccess) {
+  hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
+    pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(a, a_pack, rows, padded_rows, k, gemm_k_block, lda, 0);
+    return hipGetLastError();
+  });
+  if (err != hipSuccess) {
     return wmma_backend_failure;
   }
   const dim3 grid(
       static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
       static_cast<unsigned int>(padded_rows / kRns8WmmaTileM),
       1);
-  rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
-      a_pack,
-      b_pack,
-      c,
-      rows,
-      cols,
-      padded_rows,
-      padded_cols,
-      gemm_k_block,
-      ldc,
-      modulus,
-      reciprocal,
-      0);
-  return hipGetLastError() == hipSuccess ? wmma_success : wmma_backend_failure;
+  err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
+    rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
+        a_pack,
+        b_pack,
+        c,
+        rows,
+        cols,
+        padded_rows,
+        padded_cols,
+        gemm_k_block,
+        ldc,
+        modulus,
+        reciprocal,
+        0);
+    return hipGetLastError();
+  });
+  return err == hipSuccess ? wmma_success : wmma_backend_failure;
 }
 
 int run_rns_prefix_prepacked_b(
@@ -714,7 +882,8 @@ int run_rns_prefix_prepacked_b(
         lda,
         ldc,
         static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus));
+        modulus_reciprocal_u32(modulus),
+        static_cast<int>(modulus_index));
     if (status != wmma_success) {
       return status;
     }
@@ -904,7 +1073,8 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
           static_cast<int>(ldc),
           static_cast<int>(modulus),
           modulus_reciprocal_u32(modulus),
-          safe_k_block);
+          safe_k_block,
+          static_cast<int>(modulus_index));
       if (status != wmma_success) {
         return status;
       }
@@ -961,7 +1131,8 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
       static_cast<int>(ldc),
       static_cast<int>(modulus),
       modulus_reciprocal_u32(static_cast<uint16_t>(modulus)),
-      safe_k_block);
+      safe_k_block,
+      -1);
   if (status != wmma_success) {
     return status;
   }
