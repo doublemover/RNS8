@@ -9,6 +9,29 @@ resident_oneshot_state::~resident_oneshot_state() {
   rns8_destroy_matrix(A);
   rns8_destroy_plan(plan);
 }
+
+struct direct_hip_native_oneshot_state {
+  int device_id = -1;
+  rns8_plan* plan = nullptr;
+  rns8_matrix* C = nullptr;
+  void* device_a = nullptr;
+  void* device_b = nullptr;
+
+  direct_hip_native_oneshot_state() = default;
+  direct_hip_native_oneshot_state(const direct_hip_native_oneshot_state&) = delete;
+  direct_hip_native_oneshot_state& operator=(const direct_hip_native_oneshot_state&) = delete;
+  ~direct_hip_native_oneshot_state() {
+    if (device_b) {
+      (void)rns8::detail::hip_direct_free(device_id, device_b);
+    }
+    if (device_a) {
+      (void)rns8::detail::hip_direct_free(device_id, device_a);
+    }
+    rns8_destroy_matrix(C);
+    rns8_destroy_plan(plan);
+  }
+};
+
 bool uses_rns_storage(rns8_semantics semantics) {
   return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
          semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED;
@@ -109,6 +132,168 @@ rns8_status create_resident_oneshot_state(
   if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &b_desc, &state.B);
   if (status == RNS8_SUCCESS) status = rns8_create_matrix(ctx, &c_desc, &state.C);
   if (status == RNS8_SUCCESS) status = rns8_create_workspace(ctx, state.plan, &state.workspace);
+  return status;
+}
+
+bool checked_native_input_bytes(int64_t rows, int64_t ld, std::size_t element_size, std::size_t& bytes) {
+  bytes = 0;
+  if (rows <= 0 || ld <= 0 || element_size == 0) {
+    return false;
+  }
+  const auto max_size = std::numeric_limits<std::size_t>::max();
+  if (static_cast<uint64_t>(rows) >
+      static_cast<uint64_t>(max_size / element_size / static_cast<std::size_t>(ld))) {
+    return false;
+  }
+  bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * element_size;
+  return true;
+}
+
+bool direct_hip_native_prefix9_oneshot_eligible(
+    const rns8_context& ctx,
+    const rns8_gemm_desc& desc,
+    const rns8_plan& plan,
+    rns8_semantics semantics) {
+  if (ctx.backend != RNS8_BACKEND_HIP_DIRECT || plan.backend != RNS8_BACKEND_HIP_DIRECT ||
+      plan.desc.semantics != semantics || plan.prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
+      !plan.tile_schedule.empty() || desc.flags != 0 || desc.tile_bounds || desc.tile_bounds_count != 0) {
+    return false;
+  }
+  if (semantics == RNS8_BOUNDED_I64) {
+    return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS;
+  }
+  if (semantics == RNS8_BOUNDED_U64) {
+    return desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  }
+  return false;
+}
+
+rns8_status create_direct_hip_native_oneshot_state(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    rns8_semantics semantics,
+    direct_hip_native_oneshot_state& state) {
+  state.device_id = ctx->device_id;
+  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (!direct_hip_native_prefix9_oneshot_eligible(*ctx, desc, *state.plan, semantics)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  const rns8_matrix_desc c_desc =
+      make_matrix_desc(desc.m, desc.n, desc.semantics, desc.bound_kind, state.plan->prefix,
+                       state.plan->desc.tile_m, state.plan->desc.tile_n);
+  return rns8_create_matrix(ctx, &c_desc, &state.C);
+}
+
+rns8_status direct_hip_i64_native_prefix9_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    const int64_t* A,
+    int64_t lda,
+    const int64_t* B,
+    int64_t ldb,
+    int64_t* C,
+    int64_t ldc) {
+  direct_hip_native_oneshot_state state;
+  rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_I64, state);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t b_bytes = 0;
+  if (!checked_native_input_bytes(desc.m, lda, sizeof(int64_t), a_bytes) ||
+      !checked_native_input_bytes(desc.k, ldb, sizeof(int64_t), b_bytes)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  status = rns8::detail::hip_direct_allocate(ctx->device_id, a_bytes, &state.device_a);
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_allocate(ctx->device_id, b_bytes, &state.device_b);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a, A, a_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_gemm_i64_native_prefix9_device(
+        ctx->device_id,
+        state.device_a,
+        state.device_b,
+        state.C->hip_residues,
+        desc.m,
+        desc.n,
+        desc.k,
+        lda,
+        ldb,
+        state.C->desc.logical_ld);
+  }
+  if (status == RNS8_SUCCESS) {
+    state.C->host_residues_current = false;
+    state.C->device_residues_current = true;
+    state.C->host_byte_limbs_current = false;
+    state.C->device_byte_limbs_current = false;
+    state.C->host_native_current = false;
+    state.C->device_native_current = false;
+    status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
+  }
+  return status;
+}
+
+rns8_status direct_hip_u64_native_prefix9_oneshot(
+    rns8_context* ctx,
+    const rns8_gemm_desc& desc,
+    const uint64_t* A,
+    int64_t lda,
+    const uint64_t* B,
+    int64_t ldb,
+    uint64_t* C,
+    int64_t ldc) {
+  direct_hip_native_oneshot_state state;
+  rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_U64, state);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t b_bytes = 0;
+  if (!checked_native_input_bytes(desc.m, lda, sizeof(uint64_t), a_bytes) ||
+      !checked_native_input_bytes(desc.k, ldb, sizeof(uint64_t), b_bytes)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  status = rns8::detail::hip_direct_allocate(ctx->device_id, a_bytes, &state.device_a);
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_allocate(ctx->device_id, b_bytes, &state.device_b);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_a, A, a_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_gemm_u64_native_prefix9_device(
+        ctx->device_id,
+        state.device_a,
+        state.device_b,
+        state.C->hip_residues,
+        desc.m,
+        desc.n,
+        desc.k,
+        lda,
+        ldb,
+        state.C->desc.logical_ld);
+  }
+  if (status == RNS8_SUCCESS) {
+    state.C->host_residues_current = false;
+    state.C->device_residues_current = true;
+    state.C->host_byte_limbs_current = false;
+    state.C->device_byte_limbs_current = false;
+    state.C->host_native_current = false;
+    state.C->device_native_current = false;
+    status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
+  }
   return status;
 }
 
@@ -220,6 +405,14 @@ rns8_status rns8_gemm_i64_oneshot(
       return preflight;
     }
 
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT && desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS &&
+        (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
+      const rns8_status status = direct_hip_i64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc);
+      if (status != RNS8_UNSUPPORTED_BACKEND) {
+        return status;
+      }
+    }
+
     resident_oneshot_state state;
     rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
     if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.A, A, lda, 1);
@@ -247,6 +440,14 @@ rns8_status rns8_gemm_u64_oneshot(
         validate_typed_oneshot_contract(*ctx, *desc, RNS8_BOUNDED_U64, lda, ldb, ldc);
     if (preflight != RNS8_SUCCESS) {
       return preflight;
+    }
+
+    if (ctx->backend == RNS8_BACKEND_HIP_DIRECT && desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED &&
+        (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
+      const rns8_status status = direct_hip_u64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc);
+      if (status != RNS8_UNSUPPORTED_BACKEND) {
+        return status;
+      }
     }
 
     resident_oneshot_state state;

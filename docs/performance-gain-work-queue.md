@@ -347,6 +347,15 @@ RNS8-specific notes:
 Likely first slices:
 
 - Direct-HIP one-shot bounded prefix-9 fused load/compute path.
+  Implemented for direct-HIP global bounded i64/u64 one-shot calls whose plan
+  resolves to prefix 9: A and B are copied as native int64/uint64 device
+  buffers, the grouped prefix-9 direct-HIP kernel centers native inputs inside
+  the CTA tile load path, and C is materialized directly as resident RNS
+  residues for the existing CRT export path. Per-tile/adaptive plans,
+  wider-prefix stress cases, persistent matrix APIs, and non-direct-HIP
+  backends keep the established resident pack/GEMM/export route. This is not
+  yet a reviewed speedup claim; release benchmark coverage still needs to split
+  one-shot from persistent reuse.
 - rocWMMA transient-A fused pack against reusable B for non-tiled RNS.
 - Benchmark split between one-shot and persistent reuse so wins are not hidden.
 
