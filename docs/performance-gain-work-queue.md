@@ -121,6 +121,21 @@ behind these notes.
 - CUDA exact-algebra artifacts such as Linac and CUMODP are design inputs and
   port-risk studies until HIP-native kernels produce target-specific RNS8
   correctness and timing evidence.
+- CAS domain and coercion models should be used as scenario metadata, not
+  inherited semantics. Track parent/domain family, coefficient ring, finite
+  modulus, prime/composite status, extension degree, exactness mode,
+  coercion/export policy, and oracle role explicitly. AUTO backend selection is
+  not algebraic coercion.
+- Treat CAS systems as workload and oracle ecosystems. Sage, Magma, Maple,
+  Wolfram, Singular, Macaulay2, GAP, Oscar/Nemo/Hecke, PARI/GP, and Normaliz
+  can classify phases and provide external comparison outputs, but RNS8 should
+  not imply CAS-wide correctness, implicit coercion, symbolic orchestration, or
+  package-runtime behavior from GEMM evidence.
+- Do not use phrases such as "CAS-correct", "certified exact LA", or "secure
+  probabilistic verification" for raw GEMM evidence. Certificates,
+  Freivalds-style checks, bad-prime handling, CRA early termination, and
+  redundant residues are scenario or research metadata unless implemented as
+  explicit APIs.
 
 ## Ordered Work Items
 
@@ -488,7 +503,15 @@ RNS8-specific notes:
   reconstruction/export can dominate even when the dense modular GEMM phase is
   fast.
 - External CAS or exact-algebra libraries should be recorded by role: CPU
-  oracle, CAS oracle, algorithm reference, benchmark comparison, or non-goal.
+  oracle, CAS semantic oracle, finite-field reference, algorithm reference,
+  benchmark comparison, workload source, CUDA translation study, or non-goal.
+  Record licensing and dependency status separately so optional or proprietary
+  oracles never become implied production dependencies.
+- CAS-oriented evidence rows should include domain/coercion metadata:
+  `domain_family`, `parent_domain_id`, `coercion_policy`,
+  `coefficient_ring`, `exactness_mode`, `finite_modulus`,
+  `prime_or_composite`, `extension_degree`, `phase_label`, `oracle_role`,
+  `dense_kernel_extracted`, and `reconstruction_mode`.
 
 Likely first slices:
 
@@ -915,13 +938,17 @@ RNS8-specific notes:
 - Computational-algebra libraries should be tracked by role rather than
   dependency status: FLINT/NTL/Boost as CPU exact oracles, FFLAS-FFPACK/Givaro
   as finite-field references, LinBox/IML as workload and certificate sources,
-  Sage/Nemo/Magma/Maple/Singular/Wolfram as CAS oracles or phase classifiers
-  where available, and M4RI/M4RIE as small-characteristic non-goals unless a
-  real extension-field backend appears.
+  Sage/Magma/Maple/Wolfram/Singular/Macaulay2/GAP/Oscar/Nemo/Hecke/PARI/GP as
+  CAS semantic oracles or phase classifiers where available, Normaliz and GAP
+  packages as workload sources, and M4RI/M4RIE as small-characteristic
+  non-goals unless a real extension-field backend appears.
 - CUDA artifacts such as Linac, CUMODP, and GPU NTT systems are translation
   studies. Review their lane assumptions, CUDA library dependencies,
   warp-size assumptions, memory layouts, and NVIDIA-specific instructions
   before any HIP experiment is scoped.
+- Proprietary or differently licensed CAS artifacts should stay external:
+  compare against their outputs or documented phases when useful, but do not
+  make them hidden runtime, build, or correctness dependencies.
 
 Likely first slices:
 
@@ -988,6 +1015,17 @@ RNS8-specific notes:
   include `phase_id`, `symbolic_precompute`, `controller_mode`,
   `certificate_mode`, `structure_declared`, and whether the reported timing is
   raw dense GEMM, dense-LA phase, reconstruction, or whole symbolic workflow.
+  CAS-oriented metadata should further include `source_role`, `cas_system`,
+  `parent_domain_id`, `coercion_policy`, `coefficient_ring`,
+  `prime_or_composite`, `extension_degree`, `exactness_mode`, `oracle_role`,
+  `dense_kernel_extracted`, and `artifact_lineage` for CUDA or external
+  comparison artifacts.
+- CAS scenario labels should include full-workflow non-goals as well as direct
+  dense-kernel extraction: `SageMatrixBenchmark`, `PARIGPLewisWester`,
+  `F4DenseFiniteFieldPhase`, `F4SparseReduction`, `F5SignatureControl`,
+  `FGLMMultiplicationMatrix`, `CUMODPPolynomial`, `LinacFiniteFieldElim`,
+  `GBLAF4DenseBlock`, `MagmaDenseF4`, `NormalizConeMatrix`,
+  `GAPPackageMatrix`, and `CUDATranslationStudy`.
 
 Likely first slices:
 
