@@ -372,7 +372,11 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def cli_backend(backend: str) -> str:
-    return "rocwmma" if backend == "wmma" else backend
+    if backend == "wmma":
+        return "rocwmma"
+    if backend == "hip-vector-alu-int64":
+        return "hip-vector-alu-int64-runtime"
+    return backend
 
 
 def normalize_semantics(value: str) -> str:

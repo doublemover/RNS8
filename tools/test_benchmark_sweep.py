@@ -344,6 +344,9 @@ def main() -> int:
     assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
     assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
     assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
+    assert benchmark_sweep.cli_backend("wmma") == "rocwmma"
+    assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
+    assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
 
     wrap64_args = argparse.Namespace(
         bench=Path("rns8-bench"),
@@ -442,6 +445,16 @@ def main() -> int:
         "exact-wide-signed-small-16x16x16-hip-direct.json",
     ]
     assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
+
+    vector_args = copy.copy(exact_args)
+    vector_args.out_root = Path("temp") / "vector-runtime"
+    vector_args.backends = ["hip-vector-alu-int64"]
+    vector_args.semantics = ["bounded-i64"]
+    vector_args.case = ["small:16,16,16"]
+    vector_commands = benchmark_sweep.sweep_commands(vector_args)
+    vector_name, vector_command, _vector_output = vector_commands[0]
+    assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
+    assert vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
 
     exact_include_args = argparse.Namespace(
         bench=Path("rns8-bench"),

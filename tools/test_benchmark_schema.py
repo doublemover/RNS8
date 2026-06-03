@@ -102,6 +102,19 @@ def as_reused_pack_capture(capture: dict) -> dict:
     return reused
 
 
+def as_hipblaslt_reused_ab_capture(capture: dict) -> dict:
+    reused = as_reused_pack_capture(capture)
+    phase = "hipblaslt_pack_transpose_centered"
+    phase_order = reused["timing_metadata"].get("gpu_event_phase_order")
+    if isinstance(phase_order, list) and phase in phase_order:
+        phase_order.remove(phase)
+    for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
+        values = reused.get(field)
+        if isinstance(values, dict):
+            values.pop(phase, None)
+    return reused
+
+
 def as_reused_a_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     reused["reuse_packed_inputs"] = True
@@ -341,6 +354,8 @@ def main() -> int:
     validate_capture(reused_ck_i64)
     reused_a_ck_i64 = as_reused_a_capture(v4_ck_i64)
     validate_capture(reused_a_ck_i64)
+    reused_hipblaslt_i64 = as_hipblaslt_reused_ab_capture(v4_hipblaslt_i64)
+    validate_capture(reused_hipblaslt_i64)
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)
@@ -394,6 +409,18 @@ def main() -> int:
     bad_reused_metadata_strategy = copy.deepcopy(reused_ck_i64)
     bad_reused_metadata_strategy["timing_metadata"]["prepack_reuse_strategy"] = "none"
     expect_invalid(bad_reused_metadata_strategy, "timing_metadata.prepack_reuse_strategy")
+
+    bad_hipblaslt_full_reuse_stale_event = copy.deepcopy(reused_hipblaslt_i64)
+    bad_hipblaslt_full_reuse_stale_event["gpu_event_timings_us"]["hipblaslt_pack_transpose_centered"] = [
+        0.0
+    ] * bad_hipblaslt_full_reuse_stale_event["repeats"]
+    bad_hipblaslt_full_reuse_stale_event["gpu_event_timing_summary_us"][
+        "hipblaslt_pack_transpose_centered"
+    ] = zero_summary()
+    expect_invalid(
+        bad_hipblaslt_full_reuse_stale_event,
+        "undeclared phase hipblaslt_pack_transpose_centered",
+    )
 
     bad_repack_prepack = copy.deepcopy(v4_ck_i64)
     bad_repack_prepack["reuse_packed_inputs"] = False

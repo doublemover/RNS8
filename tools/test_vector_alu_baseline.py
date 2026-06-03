@@ -83,7 +83,7 @@ def main() -> int:
             bench,
             vector_path,
             "--backend",
-            "hip-vector-alu-int64",
+            "hip-vector-alu-int64-baseline",
             "--semantics",
             semantics,
             "--seed",
