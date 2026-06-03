@@ -251,6 +251,22 @@ sharpens scenario and phase language:
   implementation adds explicit APIs and tests for the corresponding algebra
   phase.
 
+## Computer Algebra Systems Follow-Up
+
+The CAS-focused follow-up in
+[computer-algebra-systems-alignment.md](computer-algebra-systems-alignment.md)
+reinforces the same exact-LA/symbolic boundary:
+
+- CAS domain and coercion models support RNS8's explicit semantic descriptors,
+  plan-cache keys, and mismatched-domain rejection, but they should not become
+  implicit runtime coercion.
+- External CAS systems should be recorded by role: semantic oracle, phase
+  classifier, workload source, benchmark comparison, or non-goal.
+- Dense F4, FGLM, rank/determinant/solve, CRA, and certificate scenarios need
+  phase and controller metadata before any GEMM result is generalized to a
+  broader symbolic or exact-LA workflow.
+- CUDA CAS artifacts remain port-risk studies, not AMD/RNS8 evidence.
+
 ## Spec Alignment
 
 No spec mismatch was found in this pass.

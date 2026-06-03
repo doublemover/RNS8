@@ -249,6 +249,25 @@ main correction is precision, not a product-direction change:
 - Structured and polynomial-matrix workloads need declared structure and
   polynomial-domain metadata before any dense-GEMM lowering claim.
 
+## Computer Algebra Systems Follow-Up
+
+A CAS-focused follow-up is recorded in
+[computer-algebra-systems-alignment.md](computer-algebra-systems-alignment.md).
+It keeps the same product boundary and sharpens how external CAS evidence
+should be used:
+
+- CAS systems are semantic, orchestration, oracle, and workload ecosystems.
+  They can provide domain/coercion vocabulary, phase labels, benchmark shapes,
+  and external comparison outputs; they should not define RNS8 product scope.
+- RNS8 scenario metadata should record domain family, parent/domain id,
+  coefficient ring, finite modulus, prime/composite status, extension degree,
+  coercion/export policy, exactness mode, source role, and oracle role.
+- AUTO backend selection is not algebraic coercion. RNS8 should continue to
+  reject ambiguous finite-ring, prime-field, exact-wide, wrap64, and external
+  CAS semantics unless a caller supplies an explicit contract.
+- CUDA CAS artifacts such as CUMODP, Linac, and Magma dense-F4 notes are
+  translation studies until HIP-native AMD evidence exists.
+
 ## PGWQ Alignment
 
 The current PGWQ already has the right architecture hooks: adaptive prefix
