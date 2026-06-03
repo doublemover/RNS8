@@ -219,6 +219,143 @@ void require_wrap64_output_matches_oracle(
     }
   }
 }
+
+struct Wrap64CandidateShape {
+  const char* name;
+  int64_t m;
+  int64_t n;
+  int64_t k;
+  int64_t lda_padding;
+  int64_t ldb_padding;
+  int64_t ldc_padding;
+  uint64_t seed;
+};
+
+uint64_t wrap64_candidate_a_value(int64_t row, int64_t col, std::mt19937_64& rng) {
+  const auto selector = static_cast<uint32_t>((row * 13 + col * 17) % 11);
+  if (selector == 0) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  if (selector == 1) {
+    return 0x8080808080808080ull;
+  }
+  if (selector == 2) {
+    return 0x7f807f807f807f80ull;
+  }
+  if (selector == 3) {
+    return 0x0000000000000001ull << static_cast<uint32_t>((row + col) % 63);
+  }
+  return rng();
+}
+
+uint64_t wrap64_candidate_b_value(int64_t row, int64_t col, std::mt19937_64& rng) {
+  const auto selector = static_cast<uint32_t>((row * 19 + col * 23) % 11);
+  if (selector == 0) {
+    return std::numeric_limits<uint64_t>::max() - 1;
+  }
+  if (selector == 1) {
+    return 0xfefdfcfbfaf9f8f7ull;
+  }
+  if (selector == 2) {
+    return 0x0102030405060708ull;
+  }
+  if (selector == 3) {
+    return 0x8000000000000000ull >> static_cast<uint32_t>((row + col) % 63);
+  }
+  return rng();
+}
+
+void require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(const Wrap64CandidateShape& shape) {
+  INFO(shape.name);
+
+  constexpr int device_id = 0;
+  constexpr uint64_t sentinel = 0xfeedfacecafebeefull;
+  const int64_t lda = shape.k + shape.lda_padding;
+  const int64_t ldb = shape.n + shape.ldb_padding;
+  const int64_t ldc = shape.n + shape.ldc_padding;
+  REQUIRE(lda >= shape.k);
+  REQUIRE(ldb >= shape.n);
+  REQUIRE(ldc >= shape.n);
+
+  std::vector<uint64_t> A(static_cast<std::size_t>(shape.m * lda), 0xaaaaaaaaaaaaaaaaull);
+  std::vector<uint64_t> B(static_cast<std::size_t>(shape.k * ldb), 0xbbbbbbbbbbbbbbbbull);
+  std::vector<uint64_t> direct_out(static_cast<std::size_t>(shape.m * ldc), sentinel);
+  std::vector<uint64_t> wmma_out(static_cast<std::size_t>(shape.m * ldc), sentinel);
+  std::mt19937_64 rng(shape.seed);
+
+  for (int64_t row = 0; row < shape.m; ++row) {
+    for (int64_t col = 0; col < shape.k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] = wrap64_candidate_a_value(row, col, rng);
+    }
+  }
+  for (int64_t row = 0; row < shape.k; ++row) {
+    for (int64_t col = 0; col < shape.n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] = wrap64_candidate_b_value(row, col, rng);
+    }
+  }
+
+  const std::size_t a_limb_bytes = static_cast<std::size_t>(shape.m * shape.k * 8);
+  const std::size_t b_limb_bytes = static_cast<std::size_t>(shape.k * shape.n * 8);
+  const std::size_t c_limb_bytes = static_cast<std::size_t>(shape.m * shape.n * 8);
+  HipBuffer a_limbs(a_limb_bytes);
+  HipBuffer b_limbs(b_limb_bytes);
+  HipBuffer direct_limbs(c_limb_bytes);
+  HipBuffer wmma_limbs(c_limb_bytes);
+  HipScratchBuffer upload_buffer;
+  HipScratchBuffer export_buffer;
+
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
+              device_id,
+              A.data(),
+              upload_buffer.ptr_address(),
+              upload_buffer.bytes_address(),
+              a_limbs.get(),
+              shape.m,
+              shape.k,
+              lda) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
+              device_id,
+              B.data(),
+              upload_buffer.ptr_address(),
+              upload_buffer.bytes_address(),
+              b_limbs.get(),
+              shape.k,
+              shape.n,
+              ldb) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
+              device_id, a_limbs.get(), b_limbs.get(), direct_limbs.get(), shape.m, shape.n, shape.k) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wmma_wrap64_gemm_byte_limbs_candidate_device(
+              device_id, a_limbs.get(), b_limbs.get(), wmma_limbs.get(), shape.m, shape.n, shape.k) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
+              device_id,
+              direct_limbs.get(),
+              export_buffer.ptr_address(),
+              export_buffer.bytes_address(),
+              shape.m,
+              shape.n,
+              direct_out.data(),
+              ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
+              device_id,
+              wmma_limbs.get(),
+              export_buffer.ptr_address(),
+              export_buffer.bytes_address(),
+              shape.m,
+              shape.n,
+              wmma_out.data(),
+              ldc) == RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < shape.m; ++row) {
+    for (int64_t col = shape.n; col < ldc; ++col) {
+      CHECK(direct_out[static_cast<std::size_t>(row * ldc + col)] == sentinel);
+      CHECK(wmma_out[static_cast<std::size_t>(row * ldc + col)] == sentinel);
+    }
+  }
+  require_same_u64(direct_out, wmma_out);
+  require_wrap64_output_matches_oracle(A, lda, B, ldb, wmma_out, ldc, shape.m, shape.n, shape.k);
+}
 #endif
 
 }  // namespace
@@ -464,102 +601,35 @@ TEST_CASE("rocWMMA finite u8 K-split preserves signed centered accumulation") {
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP and CPU oracle") {
+TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP and CPU oracle across tails") {
+  if (!wmma_available()) {
+    SKIP("rocWMMA backend is not available on this device");
+  }
+
+  const std::vector<Wrap64CandidateShape> cases = {
+      {"single-cell K tail", 1, 1, 1, 1, 1, 1, 0x6436776d6d617572ull},
+      {"exact WMMA tile", 16, 16, 16, 2, 3, 4, 0x77726f6336343136ull},
+      {"padded carry-heavy tile tails", 17, 19, 33, 3, 5, 7, 0x6436776d6d617572ull},
+      {"ragged two-tile output", 31, 33, 47, 1, 2, 3, 0x7461696c73363477ull},
+  };
+  for (const auto& candidate_case : cases) {
+    require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(candidate_case);
+  }
+}
+
+TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate enforces K boundary") {
   if (!wmma_available()) {
     SKIP("rocWMMA backend is not available on this device");
   }
 
   constexpr int device_id = 0;
-  constexpr int64_t m = 17;
-  constexpr int64_t n = 19;
-  constexpr int64_t k = 33;
-  constexpr int64_t lda = k + 3;
-  constexpr int64_t ldb = n + 5;
-  constexpr int64_t ldc = n + 7;
-  constexpr uint64_t sentinel = 0xfeedfacecafebeefull;
-  std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), 0xaaaaaaaaaaaaaaaaull);
-  std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), 0xbbbbbbbbbbbbbbbbull);
-  std::vector<uint64_t> direct_out(static_cast<std::size_t>(m * ldc), sentinel);
-  std::vector<uint64_t> wmma_out(static_cast<std::size_t>(m * ldc), sentinel);
-  std::mt19937_64 rng(0x6436776d6d617572ull);
+  require_wrap64_wmma_candidate_matches_direct_hip_and_oracle(
+      {"maximum accepted K", 1, 1, 32768, 0, 0, 0, 0x3332373638776d6dull});
 
-  for (int64_t row = 0; row < m; ++row) {
-    for (int64_t col = 0; col < k; ++col) {
-      const auto selector = static_cast<uint32_t>((row * 13 + col * 17) % 7);
-      uint64_t value = rng();
-      if (selector == 0) {
-        value = std::numeric_limits<uint64_t>::max();
-      } else if (selector == 1) {
-        value = 0x8080808080808080ull;
-      } else if (selector == 2) {
-        value = 0x7f807f807f807f80ull;
-      }
-      A[static_cast<std::size_t>(row * lda + col)] = value;
-    }
-  }
-  for (int64_t row = 0; row < k; ++row) {
-    for (int64_t col = 0; col < n; ++col) {
-      const auto selector = static_cast<uint32_t>((row * 19 + col * 23) % 7);
-      uint64_t value = rng();
-      if (selector == 0) {
-        value = std::numeric_limits<uint64_t>::max() - 1;
-      } else if (selector == 1) {
-        value = 0xfefdfcfbfaf9f8f7ull;
-      } else if (selector == 2) {
-        value = 0x0102030405060708ull;
-      }
-      B[static_cast<std::size_t>(row * ldb + col)] = value;
-    }
-  }
-
-  const std::size_t a_limb_bytes = static_cast<std::size_t>(m * k * 8);
-  const std::size_t b_limb_bytes = static_cast<std::size_t>(k * n * 8);
-  const std::size_t c_limb_bytes = static_cast<std::size_t>(m * n * 8);
-  HipBuffer a_limbs(a_limb_bytes);
-  HipBuffer b_limbs(b_limb_bytes);
-  HipBuffer direct_limbs(c_limb_bytes);
-  HipBuffer wmma_limbs(c_limb_bytes);
-  HipScratchBuffer upload_buffer;
-  HipScratchBuffer export_buffer;
-
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              device_id, A.data(), upload_buffer.ptr_address(), upload_buffer.bytes_address(), a_limbs.get(), m, k, lda) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
-              device_id, B.data(), upload_buffer.ptr_address(), upload_buffer.bytes_address(), b_limbs.get(), k, n, ldb) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(
-              device_id, a_limbs.get(), b_limbs.get(), direct_limbs.get(), m, n, k) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wmma_wrap64_gemm_byte_limbs_candidate_device(
-              device_id, a_limbs.get(), b_limbs.get(), wmma_limbs.get(), m, n, k) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id,
-              direct_limbs.get(),
-              export_buffer.ptr_address(),
-              export_buffer.bytes_address(),
-              m,
-              n,
-              direct_out.data(),
-              ldc) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
-              device_id,
-              wmma_limbs.get(),
-              export_buffer.ptr_address(),
-              export_buffer.bytes_address(),
-              m,
-              n,
-              wmma_out.data(),
-              ldc) ==
-          RNS8_SUCCESS);
-
-  for (int64_t row = 0; row < m; ++row) {
-    for (int64_t col = n; col < ldc; ++col) {
-      CHECK(direct_out[static_cast<std::size_t>(row * ldc + col)] == sentinel);
-      CHECK(wmma_out[static_cast<std::size_t>(row * ldc + col)] == sentinel);
-    }
-  }
-  require_same_u64(direct_out, wmma_out);
-  require_wrap64_output_matches_oracle(A, lda, B, ldb, wmma_out, ldc, m, n, k);
+  HipBuffer a_limbs(8);
+  HipBuffer b_limbs(8);
+  HipBuffer c_limbs(8);
+  CHECK(rns8::detail::wmma_wrap64_gemm_byte_limbs_candidate_device(
+            device_id, a_limbs.get(), b_limbs.get(), c_limbs.get(), 1, 1, 32769) == RNS8_INVALID_ARGUMENT);
 }
 #endif
