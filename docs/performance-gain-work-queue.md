@@ -180,6 +180,10 @@ Likely first slices:
 
 - Add a benchmark workload family for adaptive real distributions, not only the
   default 65x65x64 and 1024x1024x1024 cases.
+  Implemented as `rns8-bench --input-profile adaptive-bands` plus
+  `tools/benchmark_sweep.py --include-adaptive-workloads`, which adds
+  profile-driven 256, 512x1024 rectangular, and 1024 adaptive cases while
+  preserving the old uniform default-adaptive cases.
 - Add row/column/tile-bound scan timing as explicit benchmark phases.
   Implemented for current per-tile bounded captures as `tile_bound_scan` host
   timing, with schema-required raw timing, summary, phase-order, and
