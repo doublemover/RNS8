@@ -20,6 +20,7 @@ BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "c
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
+WRAP64_WMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 REVIEW_SCHEMA_VERSION = 3
@@ -93,6 +94,9 @@ def parse_case(value: str, *, adaptive: bool = False, promotable: bool = True) -
 def capture_contract_key(capture: dict[str, Any]) -> str:
     tile_bounds = capture.get("tile_bounds_u64")
     tile_hash = tile_bounds.get("hash_u64") if isinstance(tile_bounds, dict) else None
+    wrap64_contract = capture.get("semantics") == "wrap_u64_mod_2_64"
+    tile_m = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_m")
+    tile_n = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_n")
     parts = [
         f"semantics={capture.get('semantics')}",
         f"finite_modulus={capture.get('finite_modulus')}",
@@ -104,8 +108,8 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"k={capture.get('k')}",
         f"prefix={capture.get('prefix')}",
         f"layout={capture.get('layout')}",
-        f"tile_m={capture.get('tile_m')}",
-        f"tile_n={capture.get('tile_n')}",
+        f"tile_m={tile_m}",
+        f"tile_n={tile_n}",
         f"k_block={capture.get('k_block_size')}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
@@ -128,6 +132,8 @@ def median_phase(capture: dict[str, Any], phase: str) -> float | None:
 
 
 def backend_id(capture: dict[str, Any]) -> str:
+    if capture.get("backend_requested") == WRAP64_WMMA_CANDIDATE_BACKEND:
+        return WRAP64_WMMA_CANDIDATE_BACKEND
     return str(capture.get("backend_selected"))
 
 
@@ -387,6 +393,7 @@ def promotion_blockers(
     release_review_satisfied: bool,
     gpu_target_compatible: bool,
     accelerator: bool,
+    internal_candidate: bool,
     prepacked_reuse: bool,
     end_to_end: float | None,
     direct: float | None,
@@ -401,6 +408,8 @@ def promotion_blockers(
         blockers.append("gpu_target_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
+    if internal_candidate:
+        blockers.append("internal_candidate_not_public_backend")
     if prepacked_reuse:
         blockers.append("prepacked_reuse_not_autotune_promotable")
     if end_to_end is None:
@@ -464,6 +473,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             backend = backend_id(item)
             metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
+            internal_candidate = backend == WRAP64_WMMA_CANDIDATE_BACKEND
             end_to_end = median_phase(item, "end_to_end")
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
@@ -473,6 +483,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 release_review_satisfied=release_review_satisfied,
                 gpu_target_compatible=gpu_target_compatible,
                 accelerator=accelerator,
+                internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) == "prepacked_reuse",
                 end_to_end=end_to_end,
                 direct=direct,
@@ -724,6 +735,13 @@ def wrap64_cases(args: argparse.Namespace) -> list[SweepCase]:
     ]
 
 
+def wrap64_backends_for(args: argparse.Namespace) -> list[str]:
+    backends = list(WRAP64_BACKENDS)
+    if args.include_wrap64_wmma_candidate:
+        backends.append(WRAP64_WMMA_CANDIDATE_BACKEND)
+    return backends
+
+
 def finite_moduli_for(semantics: str, args: argparse.Namespace) -> list[int | None]:
     if semantics == "finite-u8-ring":
         return args.modulus or DEFAULT_FINITE_RING_MODULI
@@ -746,7 +764,7 @@ def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
 
 def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
     if semantics == "wrap-u64":
-        return backend in WRAP64_BACKENDS
+        return backend in WRAP64_BACKENDS or backend == WRAP64_WMMA_CANDIDATE_BACKEND
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return backend in FINITE_BACKENDS
     if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
@@ -784,6 +802,8 @@ def command_for(
     modulus: int | None,
     args: argparse.Namespace,
 ) -> list[str]:
+    tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_WMMA_CANDIDATE_BACKEND else case.tile_m
+    tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_WMMA_CANDIDATE_BACKEND else case.tile_n
     command = [
         str(bench),
         "--backend",
@@ -797,9 +817,9 @@ def command_for(
         "--k",
         str(case.k),
         "--tile-m",
-        str(case.tile_m),
+        str(tile_m),
         "--tile-n",
-        str(case.tile_n),
+        str(tile_n),
         "--bound-mode",
         case.bound_mode,
         "--warmups",
@@ -825,7 +845,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
         raise SystemExit("--adaptive-only requires --adaptive-case or --include-default-adaptive")
-    if args.include_wrap64 and "wrap-u64" not in semantics_values:
+    if (args.include_wrap64 or args.include_wrap64_wmma_candidate) and "wrap-u64" not in semantics_values:
         semantics_values.append("wrap-u64")
     if args.include_exact_wide:
         for exact_semantics in EXACT_WIDE_SEMANTICS:
@@ -839,7 +859,9 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         else:
             active_cases = cases
         for case in active_cases:
-            backends = args.backends or default_backends_for(semantics, case)
+            backends = args.backends or (
+                wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
+            )
             for modulus in finite_moduli_for(semantics, args):
                 for backend in backends:
                     if not backend_allowed_for(semantics, case, backend):
@@ -930,6 +952,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
     parser.add_argument("--adaptive-only", action="store_true", help="run only adaptive cases, skipping global cases")
     parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
+    parser.add_argument(
+        "--include-wrap64-wmma-candidate",
+        action="store_true",
+        help="include the internal rocWMMA wrap64 byte-GEMM36 candidate in wrap64 sweeps",
+    )
     parser.add_argument(
         "--include-exact-wide",
         action="store_true",

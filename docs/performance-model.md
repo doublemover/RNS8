@@ -262,7 +262,7 @@ A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,
 direct HIP captures from release builds. Every capture used three warmups, nine
 measured repeats, and seed `20260602`. The report produced eight captures, four
 same-contract review groups, no missing required baselines, and no cache entries
-because no wrap64 accelerator candidate exists.
+because no public wrap64 accelerator backend exists.
 
 Direct HIP `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` remains the measured
 production GPU correctness path at 1828 us for 64, 2090 us for 128, 7757 us for
@@ -273,6 +273,16 @@ using exact unsigned `uint64_t` wraparound arithmetic for the low-64 product.
 Any future wrap64 matrix-engine candidate must beat the direct-HIP v3 release
 baseline with exact byte-limb differentials and ISA evidence before it can
 displace the current path.
+
+The internal rocWMMA wrap64 byte-GEMM36 candidate can now be captured with
+`rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` or added to
+wrap64 sweeps with `--include-wrap64-wmma-candidate`. Candidate captures use a
+fixed 16x16 WMMA schedule, report `backend_selected: "wmma"` and
+`selected_kernel: "rocwmma_wrap64_byte_gemm36_candidate_v0"`, expose the
+`wrap64_wmma_candidate_gemm36_kernel_group` HIP event phase, and remain
+`performance_validated: false`. Sweep promotion keeps an explicit
+`internal_candidate_not_public_backend` blocker until this path becomes a real
+public backend with reviewed release evidence.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with

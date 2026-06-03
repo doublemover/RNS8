@@ -453,14 +453,22 @@ the same compact byte-limb device buffers, decomposes each unsigned byte
 product into signed WMMA plus high-bit correction WMMA terms, and matches
 direct HIP plus the CPU byte-pair oracle on a padded carry-heavy `gfx1100`
 smoke. It is not a public backend, not selected by AUTO, and not release
-performance evidence.
+performance evidence. Raw timing capture is available only through
+`rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64`, which
+reports `backend_selected: "wmma"`, a benchmark-owned static 16x16 schedule,
+candidate-specific HIP event label
+`wrap64_wmma_candidate_gemm36_kernel_group`, and
+`performance_validated: false`.
 `tools\benchmark_sweep.py --include-wrap64 --release-matrix` now generates the
 same 64, 128, 512, and 1024 square-shape wrap64 CPU/direct-HIP baseline matrix
 used by other release reviews, plus optional exploratory large shapes when
-`--include-exploratory-large` is set. The matrix-engine path still needs public
-backend integration, broader exact differentials, and reviewed release captures
-proving it beats direct-HIP v3 before it can displace the current production
-GPU path.
+`--include-exploratory-large` is set. Add
+`--include-wrap64-wmma-candidate` to include raw internal candidate captures in
+the review report; the reviewer marks them with
+`internal_candidate_not_public_backend`, so they cannot produce autotune cache
+entries. The matrix-engine path still needs public backend integration, broader
+exact differentials, and reviewed release captures proving it beats direct-HIP
+v3 before it can displace the current production GPU path.
 
 The packed low-bit matrix-engine pipeline is also roadmap work, not a completed
 runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,

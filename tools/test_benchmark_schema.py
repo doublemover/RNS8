@@ -120,6 +120,100 @@ def as_exact_wide_capture(capture: dict) -> dict:
     return exact
 
 
+def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
+    candidate = copy.deepcopy(capture)
+    repeats = candidate["repeats"]
+    candidate["backend_requested"] = "rocwmma-wrap64-candidate"
+    candidate["backend_selected"] = "wmma"
+    candidate["selected_kernel"] = "rocwmma_wrap64_byte_gemm36_candidate_v0"
+    candidate["tile_m"] = 16
+    candidate["tile_n"] = 16
+    candidate["command_line"] = (
+        "rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64 "
+        "--m 4 --n 4 --k 8 --tile-m 16 --tile-n 16"
+    )
+    candidate["backend_metadata"].update(
+        {
+            "source": "rns8_bench_wrap64_wmma_candidate",
+            "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+            "accelerator_backend": True,
+            "correctness_backend": False,
+            "matrix_engine_backend": True,
+            "compiled_kernel_available": True,
+            "exact_differential_validated": True,
+            "performance_validated": False,
+            "accelerator_library": "rocWMMA",
+            "accelerator_version": "repo-local release/rocm-rel-7.1",
+            "capability_status": "internal_wrap64_matrix_engine_candidate",
+            "epilogue_mode": "low64_wrap_export",
+            "workspace_mode": "benchmark_owned_compact_byte_limb_device_buffers",
+            "workspace_required_bytes": 640,
+            "isa_evidence": "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide",
+            "autotune_key": (
+                "backend=rocwmma-wrap64-candidate;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
+                "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"
+                "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
+            ),
+        }
+    )
+    candidate["schedule_metadata"].update(
+        {
+            "source": "rns8_bench_wrap64_wmma_candidate_static_schedule",
+            "tile_m": 16,
+            "tile_n": 16,
+            "tile_rows": 1,
+            "tile_cols": 1,
+            "tile_count": 1,
+        }
+    )
+    candidate["timing_note"] = (
+        "host wall-clock timings for the internal rocWMMA wrap64 byte-GEMM36 candidate; GPU event timing uses "
+        "direct-HIP byte-limb pack/export labels plus one candidate operation-group label and this path is not "
+        "public or AUTO-selected"
+    )
+    candidate["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_internal_rocwmma_wrap64_candidate_hooks"
+    )
+    candidate["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups"
+    )
+    candidate["timing_metadata"]["gpu_event_timing_caveat"] = (
+        "HIP event timings record direct-HIP byte-limb pack/export operation groups plus one internal rocWMMA "
+        "wrap64 byte-GEMM36 candidate operation group; host wall-clock timings remain required for CPU scheduling "
+        "overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream"
+    )
+    candidate["timing_metadata"]["phase_notes"].update(
+        {
+            "planning": "one-time benchmark-owned metadata initialization for the internal rocWMMA wrap64 candidate",
+            "scheduling": "one-time fixed 16x16 WMMA candidate schedule derivation from the matrix shape",
+            "matrix_alloc": "one-time benchmark-owned compact byte-limb HIP device buffer allocation host timing",
+            "pack": "per-repeat host timing for direct-HIP packing of A and B into compact byte-limb device buffers",
+            "rns_gemm": "per-repeat host timing for the internal rocWMMA wrap64 byte-GEMM36 candidate",
+            "crt_export": "per-repeat host timing for direct-HIP low-64-bit byte-limb export",
+        }
+    )
+    candidate["timing_metadata"]["phase_availability"]["scheduling"] = {
+        "timed": True,
+        "timing_key": "scheduling",
+        "scope": "benchmark_static_wrap64_wmma_candidate_schedule",
+        "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
+    }
+    renamed = {
+        "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_wmma_candidate_gemm36_kernel_group",
+    }
+    phase_order = candidate["timing_metadata"].get("gpu_event_phase_order")
+    if isinstance(phase_order, list):
+        candidate["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+    for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
+        values = candidate.get(field)
+        if isinstance(values, dict):
+            for old, new in renamed.items():
+                if old in values:
+                    values[new] = values.pop(old)
+    assert len(candidate["gpu_event_timings_us"]["wrap64_wmma_candidate_gemm36_kernel_group"]) == repeats
+    return candidate
+
+
 def main() -> int:
     v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
@@ -135,6 +229,8 @@ def main() -> int:
     v4_finite_field_wmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
+    v4_wrap64_wmma_candidate = as_wrap64_wmma_candidate_capture(v4_wrap64_hip)
+    validate_capture(v4_wrap64_wmma_candidate)
 
     v4_cpu_adaptive_i64 = copy.deepcopy(v4_adaptive_i64)
     v4_cpu_adaptive_i64["backend_requested"] = "cpu-reference"
@@ -325,11 +421,25 @@ def main() -> int:
 
     bad_wrap_backend = copy.deepcopy(wrap64)
     bad_wrap_backend["backend_selected"] = "cpu-reference"
-    expect_invalid(bad_wrap_backend, "wrap64 captures must select wrap64-byte-limb or hip-direct backend")
+    expect_invalid(bad_wrap_backend, "rocWMMA candidate")
 
     bad_wrap64_hip_phase = copy.deepcopy(v4_wrap64_hip)
     bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
     expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
+
+    bad_candidate_schedule_source = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_schedule_source["schedule_metadata"]["source"] = "rns8_get_plan_schedule_info"
+    expect_invalid(bad_candidate_schedule_source, "rns8_bench_wrap64_wmma_candidate_static_schedule")
+
+    bad_candidate_scope = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+    )
+    expect_invalid(bad_candidate_scope, "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups")
+
+    bad_candidate_correctness_flag = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_correctness_flag["backend_metadata"]["correctness_backend"] = True
+    expect_invalid(bad_candidate_correctness_flag, "correctness_backend=False")
 
     bad_baseline_prereq = copy.deepcopy(v4_adaptive_u64)
     bad_baseline_prereq["comparison_baseline"]["required_before_speedup_claim"] = ["same_contract_cpu_reference"]
