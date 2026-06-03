@@ -436,6 +436,27 @@ std::size_t packed_b_plane_bytes_for(const padded_block_shape& shape) {
   return static_cast<std::size_t>(shape.n) * static_cast<std::size_t>(shape.k);
 }
 
+std::size_t packed_a_plane_bytes_for(const padded_block_shape& shape) {
+  return static_cast<std::size_t>(shape.m) * static_cast<std::size_t>(shape.k);
+}
+
+rns8_status clear_a_prepack_cache(rns8_workspace& state) {
+  rns8_status status = RNS8_SUCCESS;
+  if (state.hipblaslt_a_prepack_cache) {
+    status = hip_direct_free(state.hipblaslt_a_prepack_device_id, state.hipblaslt_a_prepack_cache);
+  }
+  state.hipblaslt_a_prepack_cache = nullptr;
+  state.hipblaslt_a_prepack_cache_bytes = 0;
+  state.hipblaslt_a_prepack_source_version = 0;
+  state.hipblaslt_a_prepack_m = 0;
+  state.hipblaslt_a_prepack_k = 0;
+  state.hipblaslt_a_prepack_lda = 0;
+  state.hipblaslt_a_prepack_prefix = 0;
+  state.hipblaslt_a_prepack_device_id = -1;
+  state.hipblaslt_a_prepack_current = false;
+  return status;
+}
+
 rns8_status clear_b_prepack_cache(rns8_workspace& state) {
   rns8_status status = RNS8_SUCCESS;
   if (state.hipblaslt_b_prepack_cache) {
@@ -451,6 +472,26 @@ rns8_status clear_b_prepack_cache(rns8_workspace& state) {
   state.hipblaslt_b_prepack_device_id = -1;
   state.hipblaslt_b_prepack_current = false;
   return status;
+}
+
+bool a_prepack_cache_matches(
+    const rns8_workspace& state,
+    int device_id,
+    uint64_t source_version,
+    int64_t m,
+    int64_t k,
+    int64_t lda,
+    uint32_t prefix,
+    std::size_t total_bytes) {
+  return state.hipblaslt_a_prepack_current &&
+         state.hipblaslt_a_prepack_cache != nullptr &&
+         state.hipblaslt_a_prepack_cache_bytes == total_bytes &&
+         state.hipblaslt_a_prepack_source_version == source_version &&
+         state.hipblaslt_a_prepack_m == m &&
+         state.hipblaslt_a_prepack_k == k &&
+         state.hipblaslt_a_prepack_lda == lda &&
+         state.hipblaslt_a_prepack_prefix == prefix &&
+         state.hipblaslt_a_prepack_device_id == device_id;
 }
 
 bool b_prepack_cache_matches(
@@ -471,6 +512,76 @@ bool b_prepack_cache_matches(
          state.hipblaslt_b_prepack_ldb == ldb &&
          state.hipblaslt_b_prepack_prefix == prefix &&
          state.hipblaslt_b_prepack_device_id == device_id;
+}
+
+rns8_status ensure_a_prepack_cache(
+    int device_id,
+    const int8_t* a_base,
+    rns8_workspace& state,
+    uint64_t source_version,
+    int64_t m,
+    int64_t k,
+    int64_t lda,
+    uint32_t prefix,
+    const padded_block_shape& shape) {
+  if (!a_base || prefix == 0 || k > static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const std::size_t plane_bytes = packed_a_plane_bytes_for(shape);
+  if (plane_bytes == 0 || prefix > std::numeric_limits<std::size_t>::max() / plane_bytes) {
+    return RNS8_RANGE_ERROR;
+  }
+  const std::size_t total_bytes = plane_bytes * static_cast<std::size_t>(prefix);
+  if (a_prepack_cache_matches(state, device_id, source_version, m, k, lda, prefix, total_bytes)) {
+    return RNS8_SUCCESS;
+  }
+  state.hipblaslt_a_prepack_current = false;
+  if (state.hipblaslt_a_prepack_cache &&
+      (state.hipblaslt_a_prepack_cache_bytes != total_bytes ||
+       state.hipblaslt_a_prepack_device_id != device_id)) {
+    const rns8_status clear_status = clear_a_prepack_cache(state);
+    if (clear_status != RNS8_SUCCESS) {
+      return clear_status;
+    }
+  }
+  if (!state.hipblaslt_a_prepack_cache) {
+    rns8_status alloc_status = hip_direct_allocate(device_id, total_bytes, &state.hipblaslt_a_prepack_cache);
+    if (alloc_status != RNS8_SUCCESS) {
+      state.hipblaslt_a_prepack_cache = nullptr;
+      state.hipblaslt_a_prepack_cache_bytes = 0;
+      return alloc_status;
+    }
+    state.hipblaslt_a_prepack_cache_bytes = total_bytes;
+    state.hipblaslt_a_prepack_device_id = device_id;
+  }
+
+  auto* cache_base = static_cast<int8_t*>(state.hipblaslt_a_prepack_cache);
+  for (uint32_t p = 0; p < prefix; ++p) {
+    const std::size_t a_offset =
+        static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(lda);
+    const rns8_status pack_status = pack_transpose_centered(
+        a_base + a_offset,
+        cache_base + static_cast<std::size_t>(p) * plane_bytes,
+        static_cast<int>(m),
+        static_cast<int>(k),
+        static_cast<int>(lda),
+        shape.k,
+        shape.m,
+        shape.k);
+    if (pack_status != RNS8_SUCCESS) {
+      state.hipblaslt_a_prepack_current = false;
+      return pack_status;
+    }
+  }
+
+  state.hipblaslt_a_prepack_source_version = source_version;
+  state.hipblaslt_a_prepack_m = m;
+  state.hipblaslt_a_prepack_k = k;
+  state.hipblaslt_a_prepack_lda = lda;
+  state.hipblaslt_a_prepack_prefix = prefix;
+  state.hipblaslt_a_prepack_device_id = device_id;
+  state.hipblaslt_a_prepack_current = true;
+  return RNS8_SUCCESS;
 }
 
 rns8_status ensure_b_prepack_cache(
@@ -584,6 +695,7 @@ rns8_status gemm_one_plane(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus,
+    const int8_t* cached_packed_a_t,
     const int8_t* cached_packed_b_t) {
   int64_t k_offset = 0;
   bool accumulate = false;
@@ -605,20 +717,29 @@ rns8_status gemm_one_plane(
     auto* workspace_bytes_base = static_cast<std::byte*>(workspace);
     auto* packed_a_t = reinterpret_cast<int8_t*>(workspace_bytes_base);
     auto* packed_b_t = reinterpret_cast<int8_t*>(workspace_bytes_base + packed_a_bytes);
+    const int8_t* matmul_a_t = packed_a_t;
     const int8_t* matmul_b_t = packed_b_t;
     void* library_workspace = workspace_bytes_base + packed_a_bytes + packed_b_bytes;
     const std::size_t library_workspace_bytes = workspace_bytes - packed_a_bytes - packed_b_bytes;
-    rns8_status pack_status = pack_transpose_centered(
-        a + k_offset,
-        packed_a_t,
-        static_cast<int>(m),
-        static_cast<int>(k_block),
-        static_cast<int>(lda),
-        shape.k,
-        shape.m,
-        shape.k);
-    if (pack_status != RNS8_SUCCESS) {
-      return pack_status;
+    rns8_status pack_status = RNS8_SUCCESS;
+    if (cached_packed_a_t) {
+      if (k_offset != 0 || k_block != k) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      matmul_a_t = cached_packed_a_t;
+    } else {
+      pack_status = pack_transpose_centered(
+          a + k_offset,
+          packed_a_t,
+          static_cast<int>(m),
+          static_cast<int>(k_block),
+          static_cast<int>(lda),
+          shape.k,
+          shape.m,
+          shape.k);
+      if (pack_status != RNS8_SUCCESS) {
+        return pack_status;
+      }
     }
     if (cached_packed_b_t) {
       if (k_offset != 0 || k_block != k) {
@@ -642,7 +763,7 @@ rns8_status gemm_one_plane(
     const hipblasStatus_t matmul_status = run_matmul_block(
         device_id,
         handle,
-        packed_a_t,
+        matmul_a_t,
         matmul_b_t,
         scratch,
         library_workspace,
@@ -750,6 +871,7 @@ rns8_status hipblaslt_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix,
     rns8_workspace* workspace_state,
+    uint64_t a_source_version,
     uint64_t b_source_version) {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if (!handle || !device_a_residues || !device_b_residues || !device_c_residues || !int32_scratch ||
@@ -767,6 +889,8 @@ rns8_status hipblaslt_gemm_rns_device(
   auto* c_base = static_cast<int8_t*>(device_c_residues);
   auto* scratch = static_cast<int32_t*>(int32_scratch);
   const auto typed_handle = static_cast<hipblasLtHandle_t>(handle);
+  const int8_t* cached_a_base = nullptr;
+  std::size_t cached_a_plane_bytes = 0;
   const int8_t* cached_b_base = nullptr;
   std::size_t cached_b_plane_bytes = 0;
   if (workspace_state && k <= static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK)) {
@@ -774,12 +898,19 @@ rns8_status hipblaslt_gemm_rns_device(
     if (!padded_block_shape_for(m, n, k, cache_shape)) {
       return RNS8_RANGE_ERROR;
     }
+    cached_a_plane_bytes = packed_a_plane_bytes_for(cache_shape);
     cached_b_plane_bytes = packed_b_plane_bytes_for(cache_shape);
-    const rns8_status cache_status =
+    rns8_status cache_status =
+        ensure_a_prepack_cache(device_id, a_base, *workspace_state, a_source_version, m, k, lda, prefix, cache_shape);
+    if (cache_status != RNS8_SUCCESS) {
+      return cache_status;
+    }
+    cache_status =
         ensure_b_prepack_cache(device_id, b_base, *workspace_state, b_source_version, k, n, ldb, prefix, cache_shape);
     if (cache_status != RNS8_SUCCESS) {
       return cache_status;
     }
+    cached_a_base = static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
     cached_b_base = static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
   }
   for (uint32_t p = 0; p < prefix; ++p) {
@@ -789,6 +920,8 @@ rns8_status hipblaslt_gemm_rns_device(
         static_cast<std::size_t>(p) * static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb);
     const std::size_t c_offset =
         static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc);
+    const int8_t* cached_a_for_plane =
+        cached_a_base ? cached_a_base + static_cast<std::size_t>(p) * cached_a_plane_bytes : nullptr;
     const int8_t* cached_b_for_plane =
         cached_b_base ? cached_b_base + static_cast<std::size_t>(p) * cached_b_plane_bytes : nullptr;
     const rns8_status status = gemm_one_plane(
@@ -807,6 +940,7 @@ rns8_status hipblaslt_gemm_rns_device(
         ldb,
         ldc,
         kHipblasLtDefaultModuli[p],
+        cached_a_for_plane,
         cached_b_for_plane);
     if (status != RNS8_SUCCESS) {
       return status;
@@ -832,6 +966,7 @@ rns8_status hipblaslt_gemm_rns_device(
   (void)ldc;
   (void)prefix;
   (void)workspace_state;
+  (void)a_source_version;
   (void)b_source_version;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
@@ -880,6 +1015,7 @@ rns8_status hipblaslt_gemm_finite_u8_device(
       ldb,
       ldc,
       modulus,
+      nullptr,
       nullptr);
   if (status != RNS8_SUCCESS) {
     return status;

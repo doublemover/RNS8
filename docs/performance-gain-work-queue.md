@@ -100,6 +100,13 @@ repeated-A run was 9.2 ms. The hipBLASLt transpose-pack event dropped to
 0.35-0.38 ms for repeated-B versus 2.1 ms for repeated-A. This is still
 workspace-local repeated-workload evidence, not a durable production cache or
 full 64/128/512/1024/2048 promotion sweep.
+A matching A-cache slice now caches stable repeated-A operands in the same
+workspace-local style. On Windows `gfx1100`, 1024 bounded-i64 repeated-A
+captures in `temp\benchmark-sweeps\hipblaslt-a-prepack` reported host RNS GEMM
+at 6.6 ms and 7.5 ms versus the earlier 9.2 ms paired repeated-A capture; a
+repeated-A/B capture reported 5.0 ms host RNS GEMM with zero per-repeat pack
+phase. These are repeated-workload tuning captures, not production-cache
+promotion evidence.
 
 ### 4. Large-Shape Release Matrix
 
@@ -139,6 +146,11 @@ size match. The cache is skipped for finite-u8, adaptive/tiled plans, and
 split-K. It reduces repeated-B hot dispatch work but does not expose a public
 hipBLASLt prepack cache and does not satisfy the durable production-cache
 identity requirements.
+The same path now caches A with matching source-version/device/shape/prefix
+identity, so repeated-A and repeated-A/B can avoid the corresponding
+transpose-pack after warmup. The caches remain workspace-local and
+non-serialized; timing split, split-K cache support, finite-u8 support, and
+durable cache identity remain open.
 
 ### 6. CK Path
 

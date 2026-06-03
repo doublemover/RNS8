@@ -10,11 +10,11 @@ residue plane into 16-aligned transposed INT8 buffers, runs hipBLASLt
 `int8_t` residues with a separate HIP kernel.
 
 For fixed-prefix RNS GEMM with `k <= RNS8_SAFE_INT32_K_BLOCK`, the caller
-workspace keeps a non-durable B prepack cache keyed by HIP device, B source
-version, `k/n/ldb`, prefix, and cache byte size. Stable repeated-B calls skip
-the transient B transpose-pack kernel after the first warmup/materialization.
-Finite-u8, adaptive schedules, and split-K calls still use the transient B pack
-path.
+workspace keeps non-durable A and B prepack caches keyed by HIP device, operand
+source version, shape/leading-dimension metadata, prefix, and cache byte size.
+Stable repeated-A, repeated-B, or repeated-A/B calls skip the matching
+transpose-pack kernel after the first warmup/materialization. Finite-u8,
+adaptive schedules, and split-K calls still use the transient pack path.
 
 Supported contracts:
 
