@@ -1246,7 +1246,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   rns8_destroy_context(hip);
 }
 
-TEST_CASE("direct HIP finite u8 specialized reducers and pack/export kernels preserve K-split semantics") {
+TEST_CASE("direct HIP finite u8 fixed-modulus kernels preserve K-split semantics") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP finite reducer smoke");
   }
