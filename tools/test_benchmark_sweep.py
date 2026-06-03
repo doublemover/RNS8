@@ -574,6 +574,7 @@ def main() -> int:
     assert group["missing_repeat_counts"] == []
     assert group["repeat_count_complete"] is True
     assert group["repeat_count_compatible"] is True
+    assert group["duplicate_backends"] == []
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
@@ -865,6 +866,18 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_repeats_group["candidates"]
     }
     assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
+
+    duplicate_ck_report = benchmark_sweep.review_captures(
+        [ck, copy.deepcopy(ck), direct, cpu],
+        review_mode="release",
+    )
+    duplicate_ck_group = duplicate_ck_report["groups"][0]
+    assert duplicate_ck_report["promotable_autotune_entries"] == []
+    assert duplicate_ck_group["duplicate_backends"] == ["ck"]
+    duplicate_ck_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in duplicate_ck_group["candidates"]
+    }
+    assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
