@@ -156,6 +156,12 @@ def backend_requires_gpu_target(backend: str) -> bool:
     return backend not in {"cpu-reference", "wrap64-byte-limb"}
 
 
+def normalized_positive_int(value: Any) -> str | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return str(value)
+    return None
+
+
 def capture_backend_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     metadata = capture.get("backend_metadata")
     return metadata if isinstance(metadata, dict) else {}
@@ -241,6 +247,8 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     return {
         "target_id": normalized_target_id(device.get("gcn_arch")),
         "device_name": device.get("name"),
+        "hip_runtime_version": device.get("hip_runtime_version"),
+        "hip_driver_version": device.get("hip_driver_version"),
         "hip_sdk_or_rocm_version": toolchain.get("hip_sdk_or_rocm_version"),
         "accelerator_library": metadata.get("accelerator_library"),
         "accelerator_version": metadata.get("accelerator_version"),
@@ -292,6 +300,27 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
             if item.get("accelerator_version")
         }
     )
+    configured_targets = sorted(
+        {
+            str(item.get("configured_amdgpu_targets"))
+            for item in source_items
+            if item.get("configured_amdgpu_targets")
+        }
+    )
+    runtime_versions = sorted(
+        {
+            str(item.get("hip_runtime_version"))
+            for item in source_items
+            if item.get("hip_runtime_version")
+        }
+    )
+    driver_versions = sorted(
+        {
+            str(item.get("hip_driver_version"))
+            for item in source_items
+            if item.get("hip_driver_version")
+        }
+    )
     compilers = sorted(
         {
             f"{compiler.get('id')} {compiler.get('version')}"
@@ -303,6 +332,9 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
         "target_ids": targets,
         "hip_sdk_or_rocm_versions": hip_versions,
         "accelerator_versions": accelerator_versions,
+        "configured_amdgpu_targets": configured_targets,
+        "hip_runtime_versions": runtime_versions,
+        "hip_driver_versions": driver_versions,
         "compilers": compilers,
         "git_commits": sorted({str(item.get("git_commit")) for item in items if item.get("git_commit")}),
         "seeds": sorted({int(item.get("seed")) for item in items if isinstance(item.get("seed"), int)}),
@@ -442,8 +474,14 @@ def promotion_blockers(
     release_review_satisfied: bool,
     gpu_target_identity_complete: bool,
     gpu_target_compatible: bool,
+    configured_target_identity_complete: bool,
+    configured_target_compatible: bool,
     hip_toolchain_version_complete: bool,
     hip_toolchain_version_compatible: bool,
+    hip_runtime_version_complete: bool,
+    hip_runtime_version_compatible: bool,
+    hip_driver_version_complete: bool,
+    hip_driver_version_compatible: bool,
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
@@ -460,10 +498,22 @@ def promotion_blockers(
         blockers.append("missing_gpu_target_id")
     elif not gpu_target_compatible:
         blockers.append("gpu_target_mismatch")
+    if not configured_target_identity_complete:
+        blockers.append("missing_configured_gpu_target")
+    elif not configured_target_compatible:
+        blockers.append("configured_gpu_target_mismatch")
     if not hip_toolchain_version_complete:
         blockers.append("missing_hip_toolchain_version")
     elif not hip_toolchain_version_compatible:
         blockers.append("hip_toolchain_version_mismatch")
+    if not hip_runtime_version_complete:
+        blockers.append("missing_hip_runtime_version")
+    elif not hip_runtime_version_compatible:
+        blockers.append("hip_runtime_version_mismatch")
+    if not hip_driver_version_complete:
+        blockers.append("missing_hip_driver_version")
+    elif not hip_driver_version_compatible:
+        blockers.append("hip_driver_version_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
     if internal_candidate:
@@ -527,6 +577,17 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         gpu_target_identity_complete = not missing_gpu_targets
         gpu_target_values = {value for value in gpu_targets.values() if value}
         gpu_target_compatible = gpu_target_identity_complete and len(gpu_target_values) <= 1
+        configured_gpu_targets = {
+            backend: normalized_target_id(capture.get("configured_amdgpu_targets"))
+            for backend, capture in by_backend.items()
+            if backend_requires_gpu_target(backend)
+        }
+        missing_configured_gpu_targets = sorted(
+            backend for backend, target in configured_gpu_targets.items() if target is None
+        )
+        configured_target_identity_complete = not missing_configured_gpu_targets
+        configured_target_values = {target for target in configured_gpu_targets.values() if target}
+        configured_target_compatible = configured_target_identity_complete and len(configured_target_values) <= 1
         hip_toolchain_versions = {
             backend: normalized_target_id(capture_hip_toolchain(capture).get("hip_sdk_or_rocm_version"))
             for backend, capture in by_backend.items()
@@ -540,6 +601,28 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         hip_toolchain_version_compatible = (
             hip_toolchain_version_complete and len(hip_toolchain_version_values) <= 1
         )
+        hip_runtime_versions = {
+            backend: normalized_positive_int(capture_device(capture).get("hip_runtime_version"))
+            for backend, capture in by_backend.items()
+            if backend_requires_gpu_target(backend)
+        }
+        missing_hip_runtime_versions = sorted(
+            backend for backend, version in hip_runtime_versions.items() if version is None
+        )
+        hip_runtime_version_complete = not missing_hip_runtime_versions
+        hip_runtime_version_values = {version for version in hip_runtime_versions.values() if version}
+        hip_runtime_version_compatible = hip_runtime_version_complete and len(hip_runtime_version_values) <= 1
+        hip_driver_versions = {
+            backend: normalized_positive_int(capture_device(capture).get("hip_driver_version"))
+            for backend, capture in by_backend.items()
+            if backend_requires_gpu_target(backend)
+        }
+        missing_hip_driver_versions = sorted(
+            backend for backend, version in hip_driver_versions.items() if version is None
+        )
+        hip_driver_version_complete = not missing_hip_driver_versions
+        hip_driver_version_values = {version for version in hip_driver_versions.values() if version}
+        hip_driver_version_compatible = hip_driver_version_complete and len(hip_driver_version_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
@@ -556,8 +639,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 release_review_satisfied=release_review_satisfied,
                 gpu_target_identity_complete=gpu_target_identity_complete,
                 gpu_target_compatible=gpu_target_compatible,
+                configured_target_identity_complete=configured_target_identity_complete,
+                configured_target_compatible=configured_target_compatible,
                 hip_toolchain_version_complete=hip_toolchain_version_complete,
                 hip_toolchain_version_compatible=hip_toolchain_version_compatible,
+                hip_runtime_version_complete=hip_runtime_version_complete,
+                hip_runtime_version_compatible=hip_runtime_version_compatible,
+                hip_driver_version_complete=hip_driver_version_complete,
+                hip_driver_version_compatible=hip_driver_version_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
@@ -635,10 +724,22 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "missing_gpu_targets": missing_gpu_targets,
                 "gpu_target_identity_complete": gpu_target_identity_complete,
                 "gpu_target_compatible": gpu_target_compatible,
+                "configured_gpu_targets": configured_gpu_targets,
+                "missing_configured_gpu_targets": missing_configured_gpu_targets,
+                "configured_target_identity_complete": configured_target_identity_complete,
+                "configured_target_compatible": configured_target_compatible,
                 "hip_toolchain_versions": hip_toolchain_versions,
                 "missing_hip_toolchain_versions": missing_hip_toolchain_versions,
                 "hip_toolchain_version_complete": hip_toolchain_version_complete,
                 "hip_toolchain_version_compatible": hip_toolchain_version_compatible,
+                "hip_runtime_versions": hip_runtime_versions,
+                "missing_hip_runtime_versions": missing_hip_runtime_versions,
+                "hip_runtime_version_complete": hip_runtime_version_complete,
+                "hip_runtime_version_compatible": hip_runtime_version_compatible,
+                "hip_driver_versions": hip_driver_versions,
+                "missing_hip_driver_versions": missing_hip_driver_versions,
+                "hip_driver_version_complete": hip_driver_version_complete,
+                "hip_driver_version_compatible": hip_driver_version_compatible,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -990,11 +1091,24 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
         lines.append(f"- missing_gpu_targets: `{','.join(missing_targets) if missing_targets else 'none'}`")
         lines.append(f"- gpu_target_compatible: `{group.get('gpu_target_compatible')}`")
+        missing_configured = group.get("missing_configured_gpu_targets") or []
+        lines.append(
+            f"- missing_configured_gpu_targets: `{','.join(missing_configured) if missing_configured else 'none'}`"
+        )
+        lines.append(f"- configured_target_compatible: `{group.get('configured_target_compatible')}`")
         missing_versions = group.get("missing_hip_toolchain_versions") or []
         lines.append(
             f"- missing_hip_toolchain_versions: `{','.join(missing_versions) if missing_versions else 'none'}`"
         )
         lines.append(f"- hip_toolchain_version_compatible: `{group.get('hip_toolchain_version_compatible')}`")
+        missing_runtime = group.get("missing_hip_runtime_versions") or []
+        lines.append(
+            f"- missing_hip_runtime_versions: `{','.join(missing_runtime) if missing_runtime else 'none'}`"
+        )
+        lines.append(f"- hip_runtime_version_compatible: `{group.get('hip_runtime_version_compatible')}`")
+        missing_driver = group.get("missing_hip_driver_versions") or []
+        lines.append(f"- missing_hip_driver_versions: `{','.join(missing_driver) if missing_driver else 'none'}`")
+        lines.append(f"- hip_driver_version_compatible: `{group.get('hip_driver_version_compatible')}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:

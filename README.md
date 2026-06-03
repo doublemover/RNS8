@@ -336,6 +336,11 @@ with `missing_gpu_target_id`, and mixed GPU targets block promotion with
 `gpu_target_mismatch`. The same review gate requires complete and matching HIP
 SDK/ROCm version metadata for HIP-resident captures, blocking release groups
 with `missing_hip_toolchain_version` or `hip_toolchain_version_mismatch`.
+Configured AMDGPU targets and HIP runtime/driver versions are enforced the
+same way through `missing_configured_gpu_target`,
+`configured_gpu_target_mismatch`, `missing_hip_runtime_version`,
+`hip_runtime_version_mismatch`, `missing_hip_driver_version`, and
+`hip_driver_version_mismatch`.
 Reviewed temp cache files can be merged into an installable cache only through
 the validating installer; it rejects non-reviewed entries and stale identity
 fields before writing. Durable reviewed cache entries are limited to public
