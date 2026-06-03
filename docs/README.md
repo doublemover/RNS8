@@ -6,6 +6,14 @@ Start here when evaluating the repository.
   architecture, roadmap, exact semantics, backend policy, and acceptance gates.
 - [roadmap-status.md](roadmap-status.md): current implementation status and
   remaining gaps against the spec.
+- [public-roadmap.md](public-roadmap.md): compact public roadmap for pre-1.0
+  validation and implementation gates.
+- [release-checklist.md](release-checklist.md): release-candidate metadata,
+  package, validation, evidence, and documentation gate.
+- [glossary.md](glossary.md): concise terminology map for semantic modes,
+  backend names, and evidence terms.
+- [prior-art.md](prior-art.md): related compute and exact-arithmetic systems
+  plus project scope boundaries.
 - [correctness.md](correctness.md): test coverage, semantic guardrails, and
   exactness rules.
 - [backend-notes.md](backend-notes.md): implemented backend families,
