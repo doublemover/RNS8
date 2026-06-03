@@ -507,7 +507,8 @@ Configured AMDGPU target metadata plus HIP runtime and driver versions are
 also complete-and-compatible promotion gates. Compiler identity and source
 checkout identity must be complete and consistent across the same-contract
 group before a cache entry can be written. Warmup and repeat counts must be
-present, meet the release minimum, and match across the reviewed group.
+present, meet the release minimum, and match across the reviewed group. Review
+groups with duplicate captures for the same backend are not promotable.
 
 Bounded i64/u64 promotion requires CPU reference, direct-HIP correctness, and
 `hip-vector-alu-int64` baselines for the same semantic contract, shape, layout,

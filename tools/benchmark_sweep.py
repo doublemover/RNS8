@@ -508,6 +508,7 @@ def promotion_blockers(
     warmup_count_compatible: bool,
     repeat_count_complete: bool,
     repeat_count_compatible: bool,
+    duplicate_backends: list[str],
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
@@ -556,6 +557,8 @@ def promotion_blockers(
         blockers.append("missing_repeat_count")
     elif not repeat_count_compatible:
         blockers.append("repeat_count_mismatch")
+    if duplicate_backends:
+        blockers.append("duplicate_backend_capture")
     if not accelerator:
         blockers.append("not_accelerator_backend")
     if internal_candidate:
@@ -600,6 +603,10 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
     groups = []
     promotable_entries = []
     for key, items in sorted(grouped.items()):
+        backend_counts: dict[str, int] = defaultdict(int)
+        for item in items:
+            backend_counts[backend_id(item)] += 1
+        duplicate_backends = sorted(backend for backend, count in backend_counts.items() if count > 1)
         by_backend = {backend_id(item): item for item in items}
         semantics = items[0].get("semantics")
         required = required_baselines(semantics)
@@ -721,6 +728,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 warmup_count_compatible=warmup_count_compatible,
                 repeat_count_complete=repeat_count_complete,
                 repeat_count_compatible=repeat_count_compatible,
+                duplicate_backends=duplicate_backends,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
@@ -830,6 +838,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "missing_repeat_counts": missing_repeat_counts,
                 "repeat_count_complete": repeat_count_complete,
                 "repeat_count_compatible": repeat_count_compatible,
+                "duplicate_backends": duplicate_backends,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -1211,6 +1220,8 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         missing_repeats = group.get("missing_repeat_counts") or []
         lines.append(f"- missing_repeat_counts: `{','.join(missing_repeats) if missing_repeats else 'none'}`")
         lines.append(f"- repeat_count_compatible: `{group.get('repeat_count_compatible')}`")
+        duplicates = group.get("duplicate_backends") or []
+        lines.append(f"- duplicate_backends: `{','.join(duplicates) if duplicates else 'none'}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
