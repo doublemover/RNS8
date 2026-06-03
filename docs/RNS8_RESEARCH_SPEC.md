@@ -518,9 +518,13 @@ int32 partial
 Reduction implementation order:
 
 1. Special-case `m = 256`.
-2. Constant reciprocal multiply-high reduction for all fixed moduli.
-3. Branchless correction into canonical centered range.
-4. Barrett reduction only where reciprocal reduction fails benchmark gates.
+2. Special-case named finite moduli when the algebra is simple and exact.
+   The initial direct-HIP case is `m = 251`, using byte folding from
+   `256 == 5 (mod 251)` and reporting
+   `direct_hip_tiled_finite_u8_gemm_mod251_v1`.
+3. Constant reciprocal multiply-high reduction for all other fixed moduli.
+4. Branchless correction into canonical centered range.
+5. Barrett reduction only where reciprocal reduction fails benchmark gates.
 
 No production kernel writes full INT32 output matrices to global memory except
 for baseline backends.
@@ -1516,6 +1520,11 @@ Ship rule: a specialized reducer ships only for named moduli or modulus
 families such as `251`, `255`, powers/composites in `[2, 256]`, or
 prime-field-only cases after CPU/direct-HIP differentials and reviewed release
 captures beat the generic finite-u8 path for the same modulus and shape.
+
+Current implementation: direct HIP ships a narrow modulus-251 byte-fold reducer
+with CPU/direct-HIP differential coverage and schema-valid raw benchmark
+metadata. It is not a broad finite-field optimization claim until reviewed
+release captures prove same-contract wins over the generic finite-u8 path.
 
 ## 18. Experiment Matrix
 

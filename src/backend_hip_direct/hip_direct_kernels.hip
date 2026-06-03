@@ -55,7 +55,33 @@ __device__ uint32_t rns8_reduce_u32_small_modulus_device(uint32_t value, uint32_
   return residue;
 }
 
+__device__ uint32_t rns8_reduce_u32_mod251_device(uint32_t value) {
+  uint32_t residue = (value & 0xffu) + 5u * ((value >> 8u) & 0xffu) +
+                     25u * ((value >> 16u) & 0xffu) + 125u * ((value >> 24u) & 0xffu);
+  residue = (residue & 0xffu) + 5u * (residue >> 8u);
+  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
+  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
+  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
+  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
+  return residue;
+}
+
+__device__ int8_t rns8_reduce_to_centered_mod251_device(int value) {
+  const uint32_t magnitude =
+      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
+  uint32_t residue = rns8_reduce_u32_mod251_device(magnitude);
+  const uint32_t negative_nonzero =
+      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
+  const uint32_t negative_mask = 0u - negative_nonzero;
+  residue = (residue & ~negative_mask) | ((251u - residue) & negative_mask);
+  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 126u));
+  return static_cast<int8_t>(static_cast<int32_t>(residue));
+}
+
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus, uint32_t reciprocal) {
+  if (modulus == 251) {
+    return rns8_reduce_to_centered_mod251_device(value);
+  }
   const uint32_t unsigned_modulus = static_cast<uint32_t>(modulus);
   const uint32_t magnitude =
       value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
@@ -308,6 +334,9 @@ __device__ int8_t rns8_center_u64_device(uint64_t value, int modulus) {
 }
 
 __device__ int8_t rns8_center_u8_device(uint8_t value, int modulus) {
+  if (modulus == 251) {
+    return rns8_reduce_to_centered_mod251_device(static_cast<int>(value));
+  }
   int residue = static_cast<int>(value) % modulus;
   const int threshold = (modulus + 1) / 2;
   residue -= modulus & -static_cast<int>(residue >= threshold);

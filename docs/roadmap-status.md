@@ -445,7 +445,10 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   bounded i64, bounded u64, exact-wide signed, and exact-wide unsigned RNS
   semantics.
 - Optimized finite-field algorithms beyond the explicit-modulus
-  correctness-grade CPU/direct-HIP finite path.
+  correctness-grade CPU/direct-HIP finite path. A narrow direct-HIP modulus-251
+  reducer now uses byte folding from `256 == 5 (mod 251)` and reports
+  `direct_hip_tiled_finite_u8_gemm_mod251_v1`, but broader finite-field
+  specialization and reviewed release proof remain open.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
