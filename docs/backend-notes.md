@@ -557,9 +557,12 @@ one-plane residues plus matrix-owned upload/export buffers, and the resident
 GEMM calls the inspectable tiled INT8xINT8->INT32 ring kernel with fused
 centered reduction for the explicit modulus. Modulus 251 uses a named
 direct-HIP byte-fold reducer (`direct_hip_tiled_finite_u8_gemm_mod251_v1`)
-because `256 == 5 (mod 251)`; other finite moduli remain on the generic
-reciprocal reducer. HIP launch wrappers reject stale reciprocal metadata before
-queueing work. The one-shot direct HIP finite path is still available as a
-convenience surface but does not define a separate backend contract. Finite is
-not an odd-modulus CRT route, not exact-wide export, and not strict mod 2^64
-wraparound.
+because `256 == 5 (mod 251)`, modulus 255 uses byte-sum folding
+(`direct_hip_tiled_finite_u8_gemm_mod255_v1`) because `256 == 1 (mod 255)`,
+and modulus 256 uses the low byte directly
+(`direct_hip_tiled_finite_u8_gemm_mod256_v1`). Other finite moduli remain on
+the generic reciprocal reducer. HIP launch wrappers reject stale reciprocal
+metadata before queueing work. The one-shot direct HIP finite path is still
+available as a convenience surface but does not define a separate backend
+contract. Finite is not an odd-modulus CRT route, not exact-wide export, and
+not strict mod 2^64 wraparound.

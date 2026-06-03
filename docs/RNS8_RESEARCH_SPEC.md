@@ -519,9 +519,12 @@ Reduction implementation order:
 
 1. Special-case `m = 256`.
 2. Special-case named finite moduli when the algebra is simple and exact.
-   The initial direct-HIP case is `m = 251`, using byte folding from
-   `256 == 5 (mod 251)` and reporting
-   `direct_hip_tiled_finite_u8_gemm_mod251_v1`.
+   Direct HIP currently names `m = 251`, using byte folding from
+   `256 == 5 (mod 251)`, `m = 255`, using byte-sum folding from
+   `256 == 1 (mod 255)`, and `m = 256`, using the low byte directly. These
+   report `direct_hip_tiled_finite_u8_gemm_mod251_v1`,
+   `direct_hip_tiled_finite_u8_gemm_mod255_v1`, and
+   `direct_hip_tiled_finite_u8_gemm_mod256_v1`.
 3. Constant reciprocal multiply-high reduction for all other fixed moduli.
 4. Branchless correction into canonical centered range.
 5. Barrett reduction only where reciprocal reduction fails benchmark gates.
@@ -1521,10 +1524,11 @@ families such as `251`, `255`, powers/composites in `[2, 256]`, or
 prime-field-only cases after CPU/direct-HIP differentials and reviewed release
 captures beat the generic finite-u8 path for the same modulus and shape.
 
-Current implementation: direct HIP ships a narrow modulus-251 byte-fold reducer
-with CPU/direct-HIP differential coverage and schema-valid raw benchmark
-metadata. It is not a broad finite-field optimization claim until reviewed
-release captures prove same-contract wins over the generic finite-u8 path.
+Current implementation: direct HIP ships narrow modulus-251, modulus-255, and
+modulus-256 reducers with CPU/direct-HIP differential coverage and schema-valid
+raw benchmark metadata for the modulus-251 finite-field path. This is not a
+broad finite-field optimization claim until reviewed release captures prove
+same-contract wins over the generic finite-u8 path.
 
 ## 18. Experiment Matrix
 
