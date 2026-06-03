@@ -185,12 +185,12 @@ def main() -> int:
         wrap64_candidate.update(
             {
                 "key": (
-                    "backend=wmma;target=gfx1100;version=repo-local release/rocm-rel-7.1;"
+                    "backend=rocwmma;target=gfx1100;version=repo-local release/rocm-rel-7.1;"
                     "semantics=wrap_u64_mod_2_64;m=64;n=64;k=64;layout=row_major;"
                     "k_block_size=64;tile_m=16;tile_n=16;"
                     "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
                 ),
-                "selected_backend": "wmma",
+                "selected_backend": "rocwmma",
                 "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
                 "semantic_contract": "wrap_u64_mod_2_64",
                 "shape": {"m": 64, "n": 64, "k": 64},

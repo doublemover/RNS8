@@ -11,7 +11,7 @@ path; Windows evidence does not validate those targets.
 - AMD HIP SDK for Windows.
 - Visual Studio 2022 Build Tools or Community with MSVC C++ and Windows SDK.
 - CMake, Ninja, Git, Python 3.11 or newer.
-- vcpkg at `C:\vcpkg` with packages from `vcpkg.json`.
+- vcpkg at `C:\vcpkg` or `VCPKG_ROOT` with packages from `vcpkg.json`.
 - Optional Radeon Developer Tool Suite CLI utilities for ISA/profiling work.
 
 Use `tools\check_dependencies.py` for the authoritative local readiness report:
@@ -43,9 +43,9 @@ on CMake `enable_language(HIP)`. The default local offload target is `gfx1100`.
 CPU-only scaffold validation remains available:
 
 ```powershell
-cmake -S . -B build\cpu-debug -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DRNS8_ENABLE_HIP=OFF
-cmake --build build\cpu-debug
-ctest --test-dir build\cpu-debug --output-on-failure
+cmake --preset cpu-debug
+cmake --build --preset cpu-debug
+ctest --preset cpu-debug --output-on-failure
 ```
 
 ## Optional Accelerators

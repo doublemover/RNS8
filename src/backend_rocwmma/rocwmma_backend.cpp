@@ -1,4 +1,4 @@
-#include "backend_wmma/wmma_backend.hpp"
+#include "backend_rocwmma/rocwmma_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/backend_common.hpp"
@@ -7,7 +7,7 @@
 #include <limits>
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-extern "C" int rns8_wmma_gemm_rns_device(
+extern "C" int rns8_rocwmma_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -22,7 +22,7 @@ extern "C" int rns8_wmma_gemm_rns_device(
     long long ldc,
     unsigned int prefix);
 
-extern "C" int rns8_wmma_gemm_rns_tiled_device(
+extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -38,7 +38,7 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
     const rns8_plan_tile_schedule_entry* entries,
     unsigned long long entry_count);
 
-extern "C" int rns8_wmma_prepack_b_rns_device(
+extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,
     const void* device_b_residues,
     void* device_b_prepack,
@@ -48,7 +48,7 @@ extern "C" int rns8_wmma_prepack_b_rns_device(
     long long ldb,
     unsigned int prefix);
 
-extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
+extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_prepack,
@@ -62,7 +62,7 @@ extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
     long long ldc,
     unsigned int prefix);
 
-extern "C" int rns8_wmma_gemm_finite_u8_device(
+extern "C" int rns8_rocwmma_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -77,7 +77,7 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
     long long ldc,
     unsigned int modulus);
 
-extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+extern "C" int rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
     int device_id,
     const void* device_a_limbs,
     const void* device_b_limbs,
@@ -89,7 +89,7 @@ extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
 
 namespace rns8::detail {
 
-bool wmma_compiled() {
+bool rocwmma_compiled() {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   return true;
 #else
@@ -97,13 +97,13 @@ bool wmma_compiled() {
 #endif
 }
 
-rns8_status wmma_probe(int device_id, rns8_device_info& out) {
+rns8_status rocwmma_probe(int device_id, rns8_device_info& out) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   rns8_status status = hip_direct_probe(device_id, out);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  out.backend = RNS8_BACKEND_WMMA;
+  out.backend = RNS8_BACKEND_ROCWMMA;
   copy_c_string(out.detail, sizeof(out.detail), "rocWMMA accelerator backend detected through HIP runtime");
   return RNS8_SUCCESS;
 #else
@@ -113,7 +113,7 @@ rns8_status wmma_probe(int device_id, rns8_device_info& out) {
 #endif
 }
 
-bool wmma_workspace_requirements(
+bool rocwmma_workspace_requirements(
     int64_t max_m,
     int64_t max_n,
     int64_t k,
@@ -157,7 +157,7 @@ bool wmma_workspace_requirements(
   return true;
 }
 
-rns8_status wmma_gemm_rns_device(
+rns8_status rocwmma_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -173,7 +173,7 @@ rns8_status wmma_gemm_rns_device(
     uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
-    return rns8_wmma_gemm_rns_device(
+    return rns8_rocwmma_gemm_rns_device(
         device_id,
         device_a_residues,
         device_b_residues,
@@ -207,7 +207,7 @@ rns8_status wmma_gemm_rns_device(
 #endif
 }
 
-rns8_status wmma_gemm_rns_tiled_device(
+rns8_status rocwmma_gemm_rns_tiled_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -224,7 +224,7 @@ rns8_status wmma_gemm_rns_tiled_device(
     uint64_t entry_count) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
-    return rns8_wmma_gemm_rns_tiled_device(
+    return rns8_rocwmma_gemm_rns_tiled_device(
         device_id,
         device_a_residues,
         device_b_residues,
@@ -260,7 +260,7 @@ rns8_status wmma_gemm_rns_tiled_device(
 #endif
 }
 
-rns8_status wmma_prepack_b_rns_device(
+rns8_status rocwmma_prepack_b_rns_device(
     int device_id,
     const void* device_b_residues,
     void* device_b_prepack,
@@ -271,7 +271,7 @@ rns8_status wmma_prepack_b_rns_device(
     uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_prepack_b_kernel_group", [&]() {
-    return rns8_wmma_prepack_b_rns_device(
+    return rns8_rocwmma_prepack_b_rns_device(
         device_id,
         device_b_residues,
         device_b_prepack,
@@ -295,7 +295,7 @@ rns8_status wmma_prepack_b_rns_device(
 #endif
 }
 
-rns8_status wmma_gemm_rns_prepacked_b_device(
+rns8_status rocwmma_gemm_rns_prepacked_b_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_prepack,
@@ -310,7 +310,7 @@ rns8_status wmma_gemm_rns_prepacked_b_device(
     uint32_t prefix) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_prepacked_b_kernel_group", [&]() {
-    return rns8_wmma_gemm_rns_prepacked_b_device(
+    return rns8_rocwmma_gemm_rns_prepacked_b_device(
         device_id,
         device_a_residues,
         device_b_prepack,
@@ -342,7 +342,7 @@ rns8_status wmma_gemm_rns_prepacked_b_device(
 #endif
 }
 
-rns8_status wmma_gemm_finite_u8_device(
+rns8_status rocwmma_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -358,7 +358,7 @@ rns8_status wmma_gemm_finite_u8_device(
     uint16_t modulus) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
-    return rns8_wmma_gemm_finite_u8_device(
+    return rns8_rocwmma_gemm_finite_u8_device(
         device_id,
         device_a_residues,
         device_b_residues,
@@ -392,7 +392,7 @@ rns8_status wmma_gemm_finite_u8_device(
 #endif
 }
 
-rns8_status wmma_wrap64_gemm_byte_limbs_candidate_device(
+rns8_status rocwmma_wrap64_gemm_byte_limbs_candidate_device(
     int device_id,
     const void* device_a_limbs,
     const void* device_b_limbs,
@@ -401,8 +401,8 @@ rns8_status wmma_wrap64_gemm_byte_limbs_candidate_device(
     int64_t n,
     int64_t k) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-  const int code = run_timed_device_code("wrap64_wmma_candidate_gemm36_kernel_group", [&]() {
-    return rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+  const int code = run_timed_device_code("wrap64_rocwmma_candidate_gemm36_kernel_group", [&]() {
+    return rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
         device_id,
         device_a_limbs,
         device_b_limbs,

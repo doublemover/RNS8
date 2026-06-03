@@ -1,8 +1,8 @@
 {
   "schema_version": 4,
   "benchmark": "rns8_bounded_gemm_persistent_rns",
-  "backend_requested": "wmma",
-  "backend_selected": "wmma",
+  "backend_requested": "rocwmma",
+  "backend_selected": "rocwmma",
   "selected_kernel": "rocwmma_i8_i32_signed_hot_residue_v1",
   "backend_metadata": {
     "source": "rns8_get_plan_backend_info",
@@ -20,7 +20,7 @@
     "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
     "workspace_required_bytes": 12288,
     "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
-    "autotune_key": "backend=wmma;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=rocwmma_i8_i32_signed_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_crt_export"
+    "autotune_key": "backend=rocwmma;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=rocwmma_i8_i32_signed_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_crt_export"
   },
   "semantics": "bounded_i64",
   "bound_kind": "global_max_abs",

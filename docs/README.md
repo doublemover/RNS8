@@ -6,12 +6,22 @@ Start here when evaluating the repository.
   architecture, roadmap, exact semantics, backend policy, and acceptance gates.
 - [roadmap-status.md](roadmap-status.md): current implementation status and
   remaining gaps against the spec.
+- [public-roadmap.md](public-roadmap.md): compact public roadmap for pre-1.0
+  validation and implementation gates.
+- [release-checklist.md](release-checklist.md): release-candidate metadata,
+  package, validation, evidence, and documentation gate.
+- [glossary.md](glossary.md): concise terminology map for semantic modes,
+  backend names, and evidence terms.
+- [prior-art.md](prior-art.md): related compute and exact-arithmetic systems
+  plus project scope boundaries.
 - [correctness.md](correctness.md): test coverage, semantic guardrails, and
   exactness rules.
 - [backend-notes.md](backend-notes.md): implemented backend families,
   accelerator enablement policy, and AUTO selection boundaries.
 - [performance-wins.md](performance-wins.md): current Windows `gfx1100`
   winning improvements, compact speedup tables, and promotion boundaries.
+- [reviewed-local-evidence.md](reviewed-local-evidence.md): durable summaries
+  of reviewed local benchmark claims and reproduction command families.
 - [performance-model.md](performance-model.md): benchmark schema, review
   requirements, release evidence summaries, and performance-promotion policy.
 - [platform-windows.md](platform-windows.md): Windows HIP SDK setup and local

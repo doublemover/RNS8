@@ -18,7 +18,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"
-#include "backend_wmma/wmma_backend.hpp"
+#include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/accelerator_backend.hpp"
 #include "core/autotune_cache.hpp"
@@ -189,7 +189,7 @@ bool ck_pack_workspace_breakdown(
     uint64_t& accumulator_bytes,
     uint64_t& total_bytes);
 
-bool wmma_pack_workspace_breakdown(
+bool rocwmma_pack_workspace_breakdown(
     const rns8_plan& plan,
     uint64_t& a_pack_bytes,
     uint64_t& b_pack_bytes,
@@ -301,19 +301,19 @@ bool matrix_backend_can_feed_plan(const rns8_matrix& matrix, const rns8_plan& pl
 
 const char* prepack_operand_layout_version_for_plan(const rns8_plan& plan, rns8_operand_role operand_role);
 
-const char* wmma_b_prepack_kernel_variant();
+const char* rocwmma_b_prepack_kernel_variant();
 
 uint64_t prepack_prefix_schedule_fingerprint(const rns8_plan& plan);
 
-uint64_t wmma_b_prepack_k_block_cap();
+uint64_t rocwmma_b_prepack_k_block_cap();
 
-uint64_t wmma_b_prepack_k_block_size(const rns8_plan& plan);
+uint64_t rocwmma_b_prepack_k_block_size(const rns8_plan& plan);
 
 std::string prepack_target_id_for_device(int hip_device_id);
 
 std::string prepack_target_id_for_context(const rns8_context& ctx);
 
-bool wmma_b_prepack_cache_supported(const rns8_plan& plan);
+bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan);
 
 bool prepack_operand_matrix_compatible(
     const rns8_plan& plan,
@@ -336,9 +336,9 @@ std::string build_prepack_cache_key(
     const std::string& matrix_layout_version,
     const std::string& operand_layout_version);
 
-bool wmma_b_prepack_cache_supported(const rns8_plan& plan);
+bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan);
 
-bool wmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes);
+bool rocwmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes);
 
 bool cache_key_contains_field(const std::string& key, const std::string& field, const std::string& value);
 

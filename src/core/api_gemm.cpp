@@ -8,7 +8,7 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
     const rns8_matrix& A,
     const rns8_prepack_cache& B,
     const rns8_matrix& C) {
-  if (!context_accepts_backend(ctx, plan.backend) || !wmma_b_prepack_cache_supported(plan) ||
+  if (!context_accepts_backend(ctx, plan.backend) || !rocwmma_b_prepack_cache_supported(plan) ||
       !prepack_cache_matches_plan(B, plan) || B.hip_device_id != ctx.device_id ||
       B.target_id != prepack_target_id_for_context(ctx) ||
       !matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
@@ -424,11 +424,11 @@ rns8_status rns8_gemm_rns(
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
-    if (plan->backend == RNS8_BACKEND_WMMA) {
+    if (plan->backend == RNS8_BACKEND_ROCWMMA) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
       rns8_status status = RNS8_SUCCESS;
       if (!plan->tile_schedule.empty()) {
-        status = rns8::detail::wmma_gemm_rns_tiled_device(
+        status = rns8::detail::rocwmma_gemm_rns_tiled_device(
             ctx->device_id,
             A->hip_residues,
             B->hip_residues,
@@ -444,7 +444,7 @@ rns8_status rns8_gemm_rns(
             plan->tile_schedule.data(),
             static_cast<uint64_t>(plan->tile_schedule.size()));
       } else {
-        status = rns8::detail::wmma_gemm_rns_device(
+        status = rns8::detail::rocwmma_gemm_rns_device(
             ctx->device_id,
             A->hip_residues,
             B->hip_residues,
@@ -496,10 +496,10 @@ rns8_status rns8_gemm_rns_prepacked_b(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
-    if (plan->backend != RNS8_BACKEND_WMMA) {
+    if (plan->backend != RNS8_BACKEND_ROCWMMA) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    const rns8_status status = rns8::detail::wmma_gemm_rns_prepacked_b_device(
+    const rns8_status status = rns8::detail::rocwmma_gemm_rns_prepacked_b_device(
         ctx->device_id,
         A->hip_residues,
         B->device_data,
@@ -653,9 +653,9 @@ rns8_status rns8_gemm_finite_u8(
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
-    if (plan->backend == RNS8_BACKEND_WMMA) {
+    if (plan->backend == RNS8_BACKEND_ROCWMMA) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-      const rns8_status status = rns8::detail::wmma_gemm_finite_u8_device(
+      const rns8_status status = rns8::detail::rocwmma_gemm_finite_u8_device(
           ctx->device_id,
           A->hip_residues,
           B->hip_residues,
