@@ -628,10 +628,17 @@ Likely first slices:
   Implemented for bounded i64/u64 `rns8-bench --residue-chain-length` with
   explicit RNS backends, global chain-safe bounds, square RNS chain shapes, and
   zero-valued measured `crt_export`; the benchmark exports once after measured
-  repeats only for checksum generation. AUTO/vector-ALU and per-tile bounded
-  chains stay rejected until native-to-RNS conversion and adaptive chain bounds
-  exist.
+  repeats only for checksum generation. AUTO/vector-ALU chains stay rejected at
+  the benchmark CLI until mixed-backend chain lowering selects explicit
+  conversion points; per-tile bounded chains stay rejected until adaptive chain
+  bounds exist.
 - Device native-to-RNS bounded conversion kernels.
+  Implemented as internal HIP device-to-device `native_i64_to_rns_kernel` and
+  `native_u64_to_rns_kernel` wrappers that reuse the centered direct-HIP pack
+  kernels with device-native sources. AUTO/direct-HIP bounded matrices can now
+  lazily materialize stale RNS residues from current native device storage
+  before an RNS-backend GEMM consumes them. This is an internal transition
+  primitive, not a public output-domain API or vector autotune promotion policy.
 - Plan metadata exposing next-op hints and chosen output domain.
 
 Relation to existing queue:

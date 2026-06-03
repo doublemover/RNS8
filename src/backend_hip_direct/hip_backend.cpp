@@ -1,5 +1,6 @@
 #include "backend_hip_direct/hip_backend.hpp"
 
+#include "core/backend_common.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>
@@ -1011,6 +1012,94 @@ rns8_status hip_direct_pack_u64_device(
   (void)rows;
   (void)cols;
   (void)ld;
+  (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_native_i64_to_rns_device(
+    int device_id,
+    const void* device_native,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_native || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!checked_pack_elements(rows, cols, prefix)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const int code = rns8::detail::run_timed_device_code("native_i64_to_rns_kernel", [&]() {
+    const int launch_status = rns8_hip_direct_pack_i64_device(
+        static_cast<const int64_t*>(device_native),
+        static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(cols),
+        static_cast<int>(prefix));
+    if (launch_status != static_cast<int>(hipSuccess)) {
+      return launch_status;
+    }
+    const hipError_t sync_status = hipDeviceSynchronize();
+    return sync_status == hipSuccess ? 0 : static_cast<int>(sync_status);
+  });
+  return code == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_native;
+  (void)device_residues;
+  (void)rows;
+  (void)cols;
+  (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_native_u64_to_rns_device(
+    int device_id,
+    const void* device_native,
+    void* device_residues,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_native || !device_residues || !checked_i32_shape(rows, cols, cols, prefix)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!checked_pack_elements(rows, cols, prefix)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const int code = rns8::detail::run_timed_device_code("native_u64_to_rns_kernel", [&]() {
+    const int launch_status = rns8_hip_direct_pack_u64_device(
+        static_cast<const uint64_t*>(device_native),
+        static_cast<int8_t*>(device_residues),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(cols),
+        static_cast<int>(prefix));
+    if (launch_status != static_cast<int>(hipSuccess)) {
+      return launch_status;
+    }
+    const hipError_t sync_status = hipDeviceSynchronize();
+    return sync_status == hipSuccess ? 0 : static_cast<int>(sync_status);
+  });
+  return code == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)device_native;
+  (void)device_residues;
+  (void)rows;
+  (void)cols;
   (void)prefix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
