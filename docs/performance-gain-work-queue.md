@@ -89,6 +89,29 @@ RNS8-specific implications:
 See `docs/fhe-lattice-alignment.md` for the source-ranked research synthesis
 behind these notes.
 
+## Computational Algebra Alignment Notes
+
+- RNS8 maps most directly to exact dense GEMM and to small explicit finite
+  rings or prime fields. It is not a general computer algebra system, a
+  polynomial/NTT library, or a full finite-field BLAS/LAPACK replacement.
+- Dense modular GEMM is a real kernel beneath exact rank, determinant, solve,
+  nullspace, characteristic/minimal polynomial, and rational-reconstruction
+  workflows. Those workflows also need factorization, triangular solve,
+  CRT/CRA, verification, and certificate phases that RNS8 does not yet expose.
+- Finite-u8 should distinguish `Z/qZ` rings from prime fields `GF(p)`.
+  Extension fields such as `GF(2^e)` and word-size prime fields are not current
+  RNS8 contracts.
+- Polynomial workloads should be scenario and lowering vocabulary first:
+  NTT/FFT, product trees, remainder trees, interpolation, modular composition,
+  subresultants, Sylvester matrices, and polynomial matrices do not imply that
+  the current dense GEMM core replaces polynomial kernels.
+- External libraries such as FFLAS-FFPACK, Givaro, LinBox, FLINT, NTL, Sage,
+  Nemo, Magma, M4RI, and M4RIE are oracle/reference/comparison sources, not
+  required production backends.
+- CUDA exact-algebra artifacts such as Linac and CUMODP are design inputs and
+  port-risk studies until HIP-native kernels produce target-specific RNS8
+  correctness and timing evidence.
+
 ## Ordered Work Items
 
 ### 1. Adaptive Prefix Minimization
@@ -146,6 +169,10 @@ Technical direction:
 - Compare direct CRT/Garner, mixed-radix reconstruction, prefix-specialized
   fixed code, partial sign/range reconstruction, and limb-count-specialized
   exact-wide export.
+- Compare reconstruction controllers, not only kernels: prefix-specialized
+  Garner/MRS, balanced or product-tree batched CRT, residue-current no-export,
+  optional rational reconstruction, and diagnostic check-residue modes should
+  have separate identities.
 - For FHE-derived scenarios, model `ModUp`, `ModDown`, base extension,
   rescale, level drop, Q/P tower movement, and partial sign/range conversion
   as explicit conversion phases rather than generic export.
@@ -167,12 +194,21 @@ RNS8-specific notes:
 - Lazy export must not blur semantics: bounded native output, exact-wide limbs,
   finite canonical bytes, strict wrap64 low64 output, and residue-current
   output remain distinct plan outcomes.
+- Rational reconstruction is useful for computational-algebra consumers, but it
+  is an explicit future export surface, not a reinterpretation of bounded,
+  exact-wide, finite-u8, or wrap64 outputs.
+- Product-tree or balanced CRT should be benchmarked for exact-wide,
+  many-output, and many-small workloads, but prefix-9 bounded export should not
+  assume it beats prefix-specialized Garner until measured.
 
 Likely first slices:
 
 - Prefix-9 and prefix-20 bounded export specializations.
 - Exact-wide 1/2/4/8/16/32 limb export variants with compact D2H staging.
 - A residue-current output mode for chained RNS GEMM benchmarks.
+- A batched CRT/reconstruction report that separates kernel time, status
+  handling, compact copy time, constants placement, prefix grouping, limb count,
+  and tree setup cost.
 
 Relation to existing queue:
 
@@ -432,6 +468,12 @@ RNS8-specific notes:
   next implementer what to optimize first.
 - Exact-wide and finite-u8 should be modeled separately from bounded i64/u64;
   their export and modulus costs differ.
+- Computational-algebra scenarios need phase labels in the evidence database:
+  dense GEMM, modular factorization, triangular solve, CRT/CRA combine,
+  rational reconstruction, verification, certificate generation, polynomial
+  transform, product/remainder tree, and black-box sparse matvec.
+- External CAS or exact-algebra libraries should be recorded by role: CPU
+  oracle, CAS oracle, algorithm reference, benchmark comparison, or non-goal.
 
 Likely first slices:
 
@@ -535,6 +577,12 @@ Technical direction:
   `GadgetDecompose`, `ExternalProduct`, `KeySwitch`, `Automorphism`,
   `Relinearize`, and `Bootstrap`. These labels should prevent dense-GEMM
   overclaiming; they are not public FHE APIs.
+- Include computational-algebra vocabulary in the internal IR even before those
+  operations become public APIs: `Rank`, `Determinant`, `Solve`, `Nullspace`,
+  `TriangularSolve`, `CRABuild`, `RationalReconstruct`, `FreivaldsCheck`,
+  `Ntt`, `Intt`, `PointwiseMul`, `ProductTree`, `RemainderTree`,
+  `Interpolate`, `ModularCompose`, `SubresultantPRS`, `SylvesterMat`, and
+  `PolyMatMul`.
 - Lower `Export(MatMul(A,B))` differently from `MatMul(A,B)` whose result feeds
   another RNS GEMM.
 - Lower repeated-B workloads toward prepack and persistent scheduling.
@@ -547,6 +595,10 @@ RNS8-specific notes:
   finite, or wraparound behavior from C++ types.
 - The first version can be internal to plan creation and benchmark tooling
   without changing the public ABI.
+- Polynomial and structured-matrix terms are classification and scenario
+  vocabulary until a real backend exists. The IR should prevent overclaiming by
+  distinguishing dense GEMM lowerings from NTT, product-tree, black-box sparse,
+  or structured-matrix workloads.
 
 Likely first slices:
 
@@ -842,12 +894,23 @@ RNS8-specific notes:
   separate validation targets and cannot inherit Windows evidence.
 - CK and rocWMMA move quickly; a tuned parameter set can become stale when the
   pinned dependency changes.
+- Computational-algebra libraries should be tracked by role rather than
+  dependency status: FLINT/NTL/Boost as CPU exact oracles, FFLAS-FFPACK/Givaro
+  as finite-field references, LinBox/IML as workload and certificate sources,
+  Sage/Nemo/Magma as CAS oracles where available, and M4RI/M4RIE as
+  small-characteristic non-goals unless a real extension-field backend appears.
+- CUDA artifacts such as Linac, CUMODP, and GPU NTT systems are translation
+  studies. Review their lane assumptions, CUDA library dependencies,
+  warp-size assumptions, memory layouts, and NVIDIA-specific instructions
+  before any HIP experiment is scoped.
 
 Likely first slices:
 
 - Toolchain comparison report format using existing benchmark metadata.
 - Pin generated-kernel ISA hashes to compiler/library identity.
 - Add Linux ROCm placeholders that require real host captures before any claim.
+- Add a computational-algebra oracle matrix to the evidence database so future
+  reports separate optional CPU/CAS comparison from RNS8 production evidence.
 
 Relation to existing queue:
 
@@ -876,6 +939,13 @@ Technical direction:
   coefficient-modulus chain, Q/P towers, plaintext modulus, scale bits,
   decomposition digit count, ciphertext component count, and evaluation-key
   count.
+- Add computational-algebra scenarios: dense finite-field BLAS, modular rank,
+  determinant, solve, nullspace, rational reconstruction, Freivalds-verified
+  product, block LU/TRSM-like update, rectangular rank-k, polynomial matrix
+  multiplication, modular-composition BSGS, NTT pressure, batched NTT,
+  product/remainder tree, subresultant/PRS, Sylvester determinant, structured
+  band/triangular/diagonal, Toeplitz/Hankel, low-rank, and black-box
+  Wiedemann/Lanczos matvec.
 - Add failure-mode scenarios: max bounds, negative centered residues,
   modulus-edge residues, overflow-near accumulators, stale cache layouts,
   padded dimensions, non-contiguous strides, K-block boundaries, and mismatched
@@ -889,6 +959,10 @@ RNS8-specific notes:
   finite distribution-sensitive workloads.
 - Scenario labels should flow into review reports and the evidence database so
   future queue ordering is driven by real workload classes.
+- Scenario metadata should include `algebra_family`, `structure_id`,
+  `shape_signature`, `bound_profile`, `prefix_budget`, `density`, `reuse_mode`,
+  `fast_mm_level`, `determinism_mode`, field/ring metadata, and reconstruction
+  profile where applicable.
 
 Likely first slices:
 
@@ -900,6 +974,8 @@ Likely first slices:
   coefficient-modulus count, decomposition digit count, transform/current
   domain, key-material reuse profile, evidence scope, and output-domain
   requirement.
+- Add a computational-algebra scenario table before promoting any dense-GEMM
+  claim into rank/determinant/solve/polynomial wording.
 
 Relation to existing queue:
 
@@ -1134,6 +1210,13 @@ Technical direction:
 - Benchmark ring 251, ring 255, ring 256, field 251, generic prime, and
   generic composite cases.
 - Include finite modulus and finite data profile in plan/autotune identity.
+- Keep finite semantics explicit: `RNS8_FINITE_RING_U8` is `Z/qZ`, while
+  `RNS8_FINITE_FIELD_U8` is a prime-field `GF(p)` contract for `p <= 251`.
+  `GF(2^e)` extension fields and word-size prime fields require separate
+  future semantics or lowering.
+- Treat FFLAS-FFPACK/Givaro as algorithm references and optional CPU
+  comparisons, not as evidence that current finite-u8 covers all computational
+  finite-field BLAS workloads.
 
 Likely first slices:
 
@@ -1508,6 +1591,9 @@ Technical direction:
   the number of low-precision GEMMs or high-bit correction passes.
 - Treat Strassen and structured sparsity as workload-backed experiments, not
   default dense GEMM work.
+- Account for Strassen/Winograd prefix inflation: added/subtracted
+  intermediates can widen bounds, increase selected modulus count, add pack and
+  temporary traffic, and erase the multiplication-count win.
 - Add sparse/structured-zero exact paths only for explicit workload structure:
   zero rows/cols, block sparse, diagonal/banded, triangular, or Gram products.
 
@@ -1552,8 +1638,14 @@ Relation to new architecture work:
   captures and review reports.
 - Add scenario benchmark families for repeated-B, exact-wide export-heavy,
   finite distributions, RNS chains, small one-shot, many-small, skinny/GEMV,
-  wrap64 carry-heavy, FHE/lattice-derived NTT/key-switch/rotation/bootstrap
-  proxies, and large exploratory shapes.
+  wrap64 carry-heavy, and large exploratory shapes.
+- Add computational-algebra scenarios for finite-field BLAS, modular
+  rank/determinant/solve/nullspace, rational reconstruction, polynomial
+  matrix/modular-composition lowerings, NTT/product-tree pressure, rectangular
+  rank-k, and structured matrix families.
+- Add FHE/lattice-derived NTT/key-switch/rotation/bootstrap proxies to the
+  same scenario benchmark family, with evidence scope and output-domain
+  metadata recorded separately from dense-GEMM claims.
 - Add per-kernel CK/rocWMMA event timing and RGA resource summaries.
 
 ### Batch B: Immediate Shape Wins

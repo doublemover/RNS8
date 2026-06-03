@@ -402,6 +402,13 @@ canonical `uint8_t` values reduced modulo `q`, and outputs are canonical
 `uint8_t` residues. For `q <= 255`, every output is in `[0, q - 1]`; for
 `q = 256`, every byte value is canonical.
 
+The finite-field contract is a prime-field `GF(q)` contract only. RNS8 does not
+currently implement extension fields such as `GF(2^e)`: `RNS8_FINITE_RING_U8`
+with `q = 2^e` is arithmetic in the ring `Z/(2^e)Z`, not arithmetic in a binary
+extension field with an irreducible polynomial. Word-size prime fields above
+`251` likewise require a future finite backend or explicit multimodular
+lowering; they are not implied by the byte-sized finite-u8 API.
+
 Finite APIs do not use the CRT prefix ladder. Descriptors must use
 `RNS8_BOUND_NONE`, `bound = 0`, `max_prefix = 0`, no tile-bound metadata, and the
 matching finite semantic. CPU and direct HIP implementations pack canonical
@@ -565,6 +572,12 @@ output = x
 
 The API returns `RNS8_RANGE_ERROR` when the supplied bound does not satisfy the
 selected modulus product.
+
+Computational-algebra rational reconstruction is a separate optional export
+surface if added in the future. It must be requested through an explicit
+semantic or API, with its own denominator, failure, and verification metadata.
+It must not reinterpret bounded `int64_t`/`uint64_t` export, exact-wide limb
+export, finite-u8 output, or strict wrap64 output.
 
 ## 9. Bounds And Adaptive Moduli
 
@@ -1432,6 +1445,12 @@ Decision: opt-in research mode only.
 Ship rule: never used by default exact APIs. It ships only as
 `RNS8_PROBABILISTIC_VERIFIED` when two Freivalds checks are used and the result
 metadata records the probability bound.
+
+Computational-algebra CRA early termination, Freivalds product verification,
+and redundant/check-residue experiments belong under the same opt-in research
+policy. They can reduce verification or reconstruction cost only when their
+probability, modulus set, random seed, repetition count, and failure semantics
+are recorded; they do not replace deterministic exact default APIs.
 
 ### 17.3 Strassen And Winograd
 
