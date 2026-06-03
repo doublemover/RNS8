@@ -6,6 +6,7 @@
 #include <limits>
 #include <string>
 
+#include "core/backend_common.hpp"
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
@@ -15,19 +16,10 @@ constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = 32u * 1024u * 1024u;
 
 inline bool hipblaslt_round_up_aligned(uint64_t value, uint64_t& rounded) {
   constexpr uint64_t alignment = static_cast<uint64_t>(kHipblasLtAlignment);
-  if (value == 0 || value > std::numeric_limits<uint64_t>::max() - (alignment - 1u)) {
+  if (!round_up_aligned_u64(value, alignment, rounded)) {
     return false;
   }
-  rounded = ((value + alignment - 1u) / alignment) * alignment;
   return rounded <= static_cast<uint64_t>(std::numeric_limits<int>::max());
-}
-
-inline bool hipblaslt_checked_mul(uint64_t a, uint64_t b, uint64_t& product) {
-  if (a != 0 && b > std::numeric_limits<uint64_t>::max() / a) {
-    return false;
-  }
-  product = a * b;
-  return true;
 }
 
 inline bool hipblaslt_baseline_workspace_requirements(
@@ -54,7 +46,7 @@ inline bool hipblaslt_baseline_workspace_requirements(
     return false;
   }
   uint64_t scratch_elements = 0;
-  if (!hipblaslt_checked_mul(padded_m, padded_n, scratch_elements) ||
+  if (!checked_mul_u64(padded_m, padded_n, scratch_elements) ||
       scratch_elements > std::numeric_limits<std::size_t>::max() / sizeof(int32_t)) {
     return false;
   }
@@ -63,8 +55,8 @@ inline bool hipblaslt_baseline_workspace_requirements(
   uint64_t pack_a_bytes = 0;
   uint64_t pack_b_bytes = 0;
   uint64_t pack_bytes = 0;
-  if (!hipblaslt_checked_mul(padded_m, padded_k, pack_a_bytes) ||
-      !hipblaslt_checked_mul(padded_n, padded_k, pack_b_bytes) ||
+  if (!checked_mul_u64(padded_m, padded_k, pack_a_bytes) ||
+      !checked_mul_u64(padded_n, padded_k, pack_b_bytes) ||
       pack_a_bytes > std::numeric_limits<std::size_t>::max() ||
       pack_b_bytes > std::numeric_limits<std::size_t>::max() ||
       pack_a_bytes > std::numeric_limits<uint64_t>::max() - pack_b_bytes) {

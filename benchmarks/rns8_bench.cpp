@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
-#include "core/autotune_cache.hpp"
 #include "rns8/rns8.h"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -51,10 +50,13 @@
 namespace {
 
 constexpr uint32_t kBenchmarkSchemaVersion = 4;
+constexpr uint32_t kExactWideBenchmarkLimbCount = 4;
 
 enum class BenchSemantics {
   BoundedI64,
   BoundedU64,
+  ExactWideSigned,
+  ExactWideUnsigned,
   WrapU64Mod2_64,
   FiniteRingU8,
   FiniteFieldU8,
@@ -82,6 +84,7 @@ struct Args {
   BoundMode bound_mode = BoundMode::Global;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
+  bool reuse_packed_inputs = false;
 };
 
 struct TimingSamples {
@@ -127,6 +130,8 @@ struct BenchmarkResult {
   bool backend_info_available = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
+  uint64_t prepack_setup_us = 0;
+  bool prepack_setup_available = false;
   uint64_t checksum = 0;
 };
 
@@ -161,14 +166,15 @@ uint32_t benchmark_prefix(const Args& args);
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
+      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--require-adaptive-execution]\n"
-      << "                  [--write-autotune-cache]\n"
+      << "                  [--reuse-packed-inputs]\n"
+      << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
 }
@@ -206,6 +212,10 @@ bool finite_benchmark_semantics(BenchSemantics semantics) {
   return semantics == BenchSemantics::FiniteRingU8 || semantics == BenchSemantics::FiniteFieldU8;
 }
 
+bool exact_wide_benchmark_semantics(BenchSemantics semantics) {
+  return semantics == BenchSemantics::ExactWideSigned || semantics == BenchSemantics::ExactWideUnsigned;
+}
+
 bool valid_finite_field_modulus(uint16_t modulus) {
   if (modulus < 2 || modulus > 251) {
     return false;
@@ -230,6 +240,10 @@ bool valid_finite_modulus(BenchSemantics semantics, uint16_t modulus) {
 
 void parse_backend_option(const std::string& value, Args& args) {
   args.vector_alu_baseline = false;
+  if (value == "auto") {
+    args.backend = RNS8_BACKEND_AUTO;
+    return;
+  }
   if (value == "cpu" || value == "cpu-reference") {
     args.backend = RNS8_BACKEND_CPU_REFERENCE;
     return;
@@ -265,6 +279,10 @@ void parse_backend_option(const std::string& value, Args& args) {
 BenchSemantics parse_semantics(const std::string& value) {
   if (value == "bounded-i64") return BenchSemantics::BoundedI64;
   if (value == "bounded-u64") return BenchSemantics::BoundedU64;
+  if (value == "exact-wide-signed" || value == "exact-wide-i64" || value == "exact_wide_signed")
+    return BenchSemantics::ExactWideSigned;
+  if (value == "exact-wide-unsigned" || value == "exact-wide-u64" || value == "exact_wide_unsigned")
+    return BenchSemantics::ExactWideUnsigned;
   if (value == "wrap-u64" || value == "wrap-u64-mod-2-64") return BenchSemantics::WrapU64Mod2_64;
   if (value == "finite-u8-ring" || value == "finite-ring-u8") return BenchSemantics::FiniteRingU8;
   if (value == "finite-u8-field" || value == "finite-field-u8") return BenchSemantics::FiniteFieldU8;
@@ -313,17 +331,20 @@ Args parse_args(int argc, char** argv) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
+    } else if (arg == "--reuse-packed-inputs") {
+      args.reuse_packed_inputs = true;
     } else if (arg == "--write-autotune-cache") {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
-          << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
+          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
+          << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--require-adaptive-execution]\n"
+          << "                  [--reuse-packed-inputs]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
@@ -339,12 +360,16 @@ Args parse_args(int argc, char** argv) {
     usage_error("tile dimensions must be powers of two from 64 through 512");
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-      args.backend != RNS8_BACKEND_HIP_DIRECT) {
-    usage_error("wrap-u64 benchmark requires --backend wrap64-byte-limb or --backend hip-direct");
+      args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_AUTO) {
+    usage_error("wrap-u64 benchmark requires --backend auto, wrap64-byte-limb, or hip-direct");
   }
   if (args.vector_alu_baseline &&
-      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))) {
+      (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+       finite_benchmark_semantics(args.semantics))) {
     usage_error("hip-vector-alu-int64 baseline is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  if (args.reuse_packed_inputs && args.vector_alu_baseline) {
+    usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
   if (args.vector_alu_baseline) {
@@ -363,12 +388,13 @@ Args parse_args(int argc, char** argv) {
     }
   }
   if (args.bound_mode == BoundMode::PerTile) {
-    if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+    if (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+        finite_benchmark_semantics(args.semantics)) {
       usage_error("--bound-mode per-tile is only valid for bounded semantics");
     }
     if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_CPU_REFERENCE &&
         args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
-        args.backend != RNS8_BACKEND_WMMA) {
+        args.backend != RNS8_BACKEND_WMMA && args.backend != RNS8_BACKEND_AUTO) {
       usage_error(
           "--bound-mode per-tile currently captures CPU, direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
     }
@@ -379,7 +405,7 @@ Args parse_args(int argc, char** argv) {
   if (args.device_id == std::numeric_limits<int>::min()) {
     args.device_id =
         (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
-         args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA)
+         args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_WMMA || args.backend == RNS8_BACKEND_AUTO)
             ? 0
             : -1;
   }
@@ -410,12 +436,22 @@ const char* requested_backend_name(const Args& args) {
   return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(args.backend);
 }
 
-const char* selected_backend_name(const Args& args, const rns8_device_info& info) {
-  return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(info.backend);
+const char* selected_backend_name(const Args& args, const rns8_device_info& info, const BenchmarkResult* result = nullptr) {
+  if (args.vector_alu_baseline) {
+    return "hip-vector-alu-int64";
+  }
+  if (result && result->backend_info_available) {
+    return backend_name(result->backend_info.backend);
+  }
+  return backend_name(info.backend);
 }
 
 const char* backend_metadata_source(const Args& args) {
   return args.vector_alu_baseline ? "rns8_bench_vector_alu_baseline" : "rns8_get_plan_backend_info";
+}
+
+const char* pack_mode_name(const Args& args) {
+  return args.reuse_packed_inputs ? "prepacked_reuse" : "per_repeat_repack";
 }
 
 void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
@@ -432,6 +468,10 @@ const char* semantics_name(BenchSemantics semantics) {
       return "bounded_i64";
     case BenchSemantics::BoundedU64:
       return "bounded_u64";
+    case BenchSemantics::ExactWideSigned:
+      return "exact_wide_signed";
+    case BenchSemantics::ExactWideUnsigned:
+      return "exact_wide_unsigned";
     case BenchSemantics::WrapU64Mod2_64:
       return "wrap_u64_mod_2_64";
     case BenchSemantics::FiniteRingU8:
@@ -448,6 +488,10 @@ rns8_semantics c_semantics(BenchSemantics semantics) {
       return RNS8_BOUNDED_I64;
     case BenchSemantics::BoundedU64:
       return RNS8_BOUNDED_U64;
+    case BenchSemantics::ExactWideSigned:
+      return RNS8_EXACT_WIDE_SIGNED;
+    case BenchSemantics::ExactWideUnsigned:
+      return RNS8_EXACT_WIDE_UNSIGNED;
     case BenchSemantics::WrapU64Mod2_64:
       return RNS8_WRAP_U64_MOD_2_64;
     case BenchSemantics::FiniteRingU8:
@@ -464,6 +508,8 @@ rns8_bound_kind global_bound_kind(BenchSemantics semantics) {
       return RNS8_BOUND_GLOBAL_MAX_ABS;
     case BenchSemantics::BoundedU64:
       return RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+    case BenchSemantics::ExactWideSigned:
+    case BenchSemantics::ExactWideUnsigned:
     case BenchSemantics::WrapU64Mod2_64:
     case BenchSemantics::FiniteRingU8:
     case BenchSemantics::FiniteFieldU8:
@@ -479,6 +525,8 @@ rns8_bound_kind bound_kind(const Args& args) {
         return RNS8_BOUND_PER_TILE_MAX_ABS;
       case BenchSemantics::BoundedU64:
         return RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+      case BenchSemantics::ExactWideSigned:
+      case BenchSemantics::ExactWideUnsigned:
       case BenchSemantics::WrapU64Mod2_64:
       case BenchSemantics::FiniteRingU8:
       case BenchSemantics::FiniteFieldU8:
@@ -495,6 +543,8 @@ const char* bound_kind_name(const Args& args) {
         return "per_tile_max_abs";
       case BenchSemantics::BoundedU64:
         return "per_tile_max_unsigned";
+      case BenchSemantics::ExactWideSigned:
+      case BenchSemantics::ExactWideUnsigned:
       case BenchSemantics::WrapU64Mod2_64:
       case BenchSemantics::FiniteRingU8:
       case BenchSemantics::FiniteFieldU8:
@@ -506,6 +556,8 @@ const char* bound_kind_name(const Args& args) {
       return "global_max_abs";
     case BenchSemantics::BoundedU64:
       return "global_max_unsigned";
+    case BenchSemantics::ExactWideSigned:
+    case BenchSemantics::ExactWideUnsigned:
     case BenchSemantics::WrapU64Mod2_64:
     case BenchSemantics::FiniteRingU8:
     case BenchSemantics::FiniteFieldU8:
@@ -656,6 +708,14 @@ std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
   return static_cast<std::size_t>(u_rows * u_cols);
 }
 
+std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count, const char* label) {
+  const std::size_t elements = checked_elements(rows, cols, label);
+  if (limb_count == 0 || elements > std::numeric_limits<std::size_t>::max() / limb_count) {
+    usage_error(std::string("limb output size overflows size_t for ") + label);
+  }
+  return elements * static_cast<std::size_t>(limb_count);
+}
+
 uint64_t ceil_div_i64_u32(int64_t value, uint32_t divisor) {
   const auto unsigned_value = static_cast<uint64_t>(value);
   return (unsigned_value + static_cast<uint64_t>(divisor) - 1u) / static_cast<uint64_t>(divisor);
@@ -676,8 +736,8 @@ std::size_t row_major_index(int64_t row, int64_t col, int64_t ld, const char* la
 }
 
 uint64_t benchmark_bound(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics) ||
-      args.bound_mode == BoundMode::PerTile) {
+  if (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
+      finite_benchmark_semantics(args.semantics) || args.bound_mode == BoundMode::PerTile) {
     return 0;
   }
   const uint64_t max_term = 16u * 16u;
@@ -789,6 +849,16 @@ void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
   result.tile_bound_hash = hash;
 }
 
+uint32_t benchmark_prefix(const Args& args) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+    return 0;
+  }
+  if (exact_wide_benchmark_semantics(args.semantics)) {
+    return RNS8_MAX_SUPPORTED_PREFIX;
+  }
+  return RNS8_DEFAULT_BOUNDED_PREFIX;
+}
+
 rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -801,10 +871,7 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   desc.bound_kind = bound_kind(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
-  desc.max_prefix =
-      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
-          ? 0
-          : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix = benchmark_prefix(args);
   return desc;
 }
 
@@ -819,12 +886,12 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uin
   desc.n = args.n;
   desc.k = args.k;
   desc.bound = bound;
-  desc.max_prefix =
-      (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
-          ? 0
-          : RNS8_DEFAULT_BOUNDED_PREFIX;
+  desc.max_prefix = benchmark_prefix(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
+  if (finite_benchmark_semantics(args.semantics)) {
+    desc.finite_modulus = args.finite_modulus;
+  }
   if (args.bound_mode == BoundMode::PerTile) {
     if (!tile_bounds) {
       usage_error("per-tile bound mode requires generated tile bounds");
@@ -1013,6 +1080,13 @@ std::vector<std::string> required_speedup_baselines(const Args& args, const char
         baselines.push_back("same_contract_direct_hip_correctness");
       }
       break;
+    case BenchSemantics::ExactWideSigned:
+    case BenchSemantics::ExactWideUnsigned:
+      baselines.push_back("same_contract_cpu_reference");
+      if (selected != "hip-direct") {
+        baselines.push_back("same_contract_direct_hip_correctness");
+      }
+      break;
     case BenchSemantics::WrapU64Mod2_64:
       baselines.push_back("same_contract_cpu_wrap64_byte_limb_reference");
       baselines.push_back("same_contract_direct_hip_wrap64_byte_gemm36");
@@ -1030,10 +1104,10 @@ std::vector<std::string> required_speedup_baselines(const Args& args, const char
 
 void print_comparison_baseline(const Args& args, const rns8_device_info& info, const BenchmarkResult& result) {
   const bool performance_validated = result.backend_info.performance_validated != 0;
-  const char* selected = selected_backend_name(args, info);
+  const char* selected = selected_backend_name(args, info, &result);
   std::cout << "  \"comparison_baseline\": {\n";
   std::cout << "    \"status\": \""
-            << (performance_validated ? "missing_reviewed_same_contract_baseline"
+            << (performance_validated ? "reviewed_release_same_contract_baseline"
                                       : "required_not_recorded")
             << "\",\n";
   std::cout << "    \"speedup_claimed\": false,\n";
@@ -1043,8 +1117,7 @@ void print_comparison_baseline(const Args& args, const rns8_device_info& info, c
   std::cout << ",\n";
   std::cout << "    \"reason\": \"";
   if (performance_validated) {
-    std::cout << "backend metadata requested performance validation but this capture has no reviewed same-contract "
-                 "baseline record";
+    std::cout << "performance_validated=true from an exact reviewed release autotune cache hit for this plan key";
   } else {
     std::cout << "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU "
                  "baseline evidence";
@@ -1127,7 +1200,7 @@ void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uin
   result.backend_info_available = true;
 }
 
-std::vector<std::string> gpu_event_phase_order(const Args& args) {
+std::vector<std::string> gpu_event_phase_order(const Args& args, rns8_backend_kind selected_backend) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return {
         "pack_h2d",
@@ -1139,7 +1212,59 @@ std::vector<std::string> gpu_event_phase_order(const Args& args) {
         "wrap64_export_d2h",
         "crt_export"};
   }
-  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+  if (finite_benchmark_semantics(args.semantics)) {
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      return {
+          "finite_pack_h2d",
+          "finite_pack_kernel",
+          "pack",
+          "hipblaslt_pack_transpose_centered",
+          "hipblaslt_int8_i32_matmul",
+          "hipblaslt_i32_to_residue_reduce",
+          "rns_gemm",
+          "finite_export_kernel",
+          "finite_export_d2h",
+          "crt_export"};
+    }
+    return {
+        "finite_pack_h2d",
+        "finite_pack_kernel",
+        "pack",
+        selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group",
+        "rns_gemm",
+        "finite_export_kernel",
+        "finite_export_d2h",
+        "crt_export"};
+  }
+  if (exact_wide_benchmark_semantics(args.semantics)) {
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      return {
+          "pack_h2d",
+          "pack_kernel",
+          "pack",
+          "hipblaslt_pack_transpose_centered",
+          "hipblaslt_int8_i32_matmul",
+          "hipblaslt_i32_to_residue_reduce",
+          "rns_gemm",
+          "exact_wide_export_status_memset",
+          "exact_wide_export_kernel",
+          "exact_wide_export_status_d2h",
+          "exact_wide_export_d2h",
+          "crt_export"};
+    }
+    return {
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "exact_wide_export_status_memset",
+        "exact_wide_export_kernel",
+        "exact_wide_export_status_d2h",
+        "exact_wide_export_d2h",
+        "crt_export"};
+  }
+  if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     return {
         "pack_h2d",
         "pack_kernel",
@@ -1197,7 +1322,7 @@ void print_named_gpu_event_array(const char* name, const std::vector<double>& va
   std::cout << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
+void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backend, const GpuEventSamples& events) {
   std::cout << "  \"gpu_event_timings_us\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
@@ -1208,7 +1333,46 @@ void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
     print_named_gpu_event_array("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_named_gpu_event_array("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
     print_named_gpu_event_array("crt_export", events.crt_export_us, false);
-  } else if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+  } else if (finite_benchmark_semantics(args.semantics)) {
+    print_named_gpu_event_array("finite_pack_h2d", events.pack_h2d_us, true);
+    print_named_gpu_event_array("finite_pack_kernel", events.pack_kernel_us, true);
+    print_named_gpu_event_array("pack", events.pack_us, true);
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      print_named_gpu_event_array(
+          "hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+      print_named_gpu_event_array("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+      print_named_gpu_event_array(
+          "hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    } else {
+      print_named_gpu_event_array(
+          selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group",
+          events.rns_gemm_kernel_group_us,
+          true);
+    }
+    print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
+    print_named_gpu_event_array("finite_export_kernel", events.crt_export_kernel_us, true);
+    print_named_gpu_event_array("finite_export_d2h", events.crt_export_d2h_us, true);
+    print_named_gpu_event_array("crt_export", events.crt_export_us, false);
+  } else if (exact_wide_benchmark_semantics(args.semantics)) {
+    print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
+    print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
+    print_named_gpu_event_array("pack", events.pack_us, true);
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      print_named_gpu_event_array(
+          "hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+      print_named_gpu_event_array("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+      print_named_gpu_event_array(
+          "hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    } else {
+      print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    }
+    print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
+    print_named_gpu_event_array("exact_wide_export_status_memset", events.crt_export_status_memset_us, true);
+    print_named_gpu_event_array("exact_wide_export_kernel", events.crt_export_kernel_us, true);
+    print_named_gpu_event_array("exact_wide_export_status_d2h", events.crt_export_status_d2h_us, true);
+    print_named_gpu_event_array("exact_wide_export_d2h", events.crt_export_d2h_us, true);
+    print_named_gpu_event_array("crt_export", events.crt_export_us, false);
+  } else if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
     print_named_gpu_event_array("pack", events.pack_us, true);
@@ -1238,7 +1402,7 @@ void print_gpu_event_timings(const Args& args, const GpuEventSamples& events) {
   std::cout << "  },\n";
 }
 
-void print_gpu_event_timing_summary(const Args& args, const GpuEventSamples& events) {
+void print_gpu_event_timing_summary(const Args& args, rns8_backend_kind selected_backend, const GpuEventSamples& events) {
   std::cout << "  \"gpu_event_timing_summary_us\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
@@ -1249,7 +1413,42 @@ void print_gpu_event_timing_summary(const Args& args, const GpuEventSamples& eve
     print_gpu_event_summary("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_gpu_event_summary("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
     print_gpu_event_summary("crt_export", events.crt_export_us, false);
-  } else if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+  } else if (finite_benchmark_semantics(args.semantics)) {
+    print_gpu_event_summary("finite_pack_h2d", events.pack_h2d_us, true);
+    print_gpu_event_summary("finite_pack_kernel", events.pack_kernel_us, true);
+    print_gpu_event_summary("pack", events.pack_us, true);
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      print_gpu_event_summary("hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+      print_gpu_event_summary("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+      print_gpu_event_summary("hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    } else {
+      print_gpu_event_summary(
+          selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group",
+          events.rns_gemm_kernel_group_us,
+          true);
+    }
+    print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
+    print_gpu_event_summary("finite_export_kernel", events.crt_export_kernel_us, true);
+    print_gpu_event_summary("finite_export_d2h", events.crt_export_d2h_us, true);
+    print_gpu_event_summary("crt_export", events.crt_export_us, false);
+  } else if (exact_wide_benchmark_semantics(args.semantics)) {
+    print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
+    print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
+    print_gpu_event_summary("pack", events.pack_us, true);
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      print_gpu_event_summary("hipblaslt_pack_transpose_centered", events.hipblaslt_pack_transpose_centered_us, true);
+      print_gpu_event_summary("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
+      print_gpu_event_summary("hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
+    } else {
+      print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    }
+    print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
+    print_gpu_event_summary("exact_wide_export_status_memset", events.crt_export_status_memset_us, true);
+    print_gpu_event_summary("exact_wide_export_kernel", events.crt_export_kernel_us, true);
+    print_gpu_event_summary("exact_wide_export_status_d2h", events.crt_export_status_d2h_us, true);
+    print_gpu_event_summary("exact_wide_export_d2h", events.crt_export_d2h_us, true);
+    print_gpu_event_summary("crt_export", events.crt_export_us, false);
+  } else if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
     print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
     print_gpu_event_summary("pack", events.pack_us, true);
@@ -1301,9 +1500,17 @@ uint64_t checksum_u8(const std::vector<uint8_t>& values) {
   return checksum;
 }
 
-bool gpu_event_capture_requested(const Args& args) {
-  return !args.vector_alu_baseline &&
-         (args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT);
+bool backend_supports_gpu_event_capture(rns8_backend_kind backend) {
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
+         backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+}
+
+rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkResult& result) {
+  return result.backend_info_available ? result.backend_info.backend : args.backend;
+}
+
+bool gpu_event_capture_requested(const Args& args, rns8_backend_kind selected_backend) {
+  return !args.vector_alu_baseline && backend_supports_gpu_event_capture(selected_backend);
 }
 
 void add_unavailable_reason(GpuEventSamples& events, const std::string& reason) {
@@ -1345,14 +1552,23 @@ double optional_event_label(
   return total;
 }
 
-void collect_pack_gpu_events(GpuEventSamples& events) {
+void collect_pack_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double h2d = sum_event_label(events, samples, "pack", "pack_h2d");
-  const double kernel = sum_event_label(events, samples, "pack", "pack_kernel");
+  const bool finite = finite_benchmark_semantics(args.semantics);
+  const double h2d = sum_event_label(events, samples, "pack", finite ? "finite_pack_h2d" : "pack_h2d");
+  const double kernel = sum_event_label(events, samples, "pack", finite ? "finite_pack_kernel" : "pack_kernel");
   if (events.complete) {
     events.pack_h2d_us.push_back(h2d);
     events.pack_kernel_us.push_back(kernel);
     events.pack_us.push_back(h2d + kernel);
+  }
+}
+
+void record_reused_pack_gpu_events(GpuEventSamples& events) {
+  if (events.complete) {
+    events.pack_h2d_us.push_back(0.0);
+    events.pack_kernel_us.push_back(0.0);
+    events.pack_us.push_back(0.0);
   }
 }
 
@@ -1362,6 +1578,15 @@ void collect_gemm_gpu_events(GpuEventSamples& events) {
   if (events.complete) {
     events.rns_gemm_kernel_group_us.push_back(kernel_group);
     events.rns_gemm_us.push_back(kernel_group);
+  }
+}
+
+void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double kernel = sum_event_label(events, samples, "rns_gemm", "finite_resident_gemm_kernel");
+  if (events.complete) {
+    events.rns_gemm_kernel_group_us.push_back(kernel);
+    events.rns_gemm_us.push_back(kernel);
   }
 }
 
@@ -1379,9 +1604,11 @@ void collect_hipblaslt_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_rns_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
-  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+void collect_rns_gemm_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
+  if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     collect_hipblaslt_gemm_gpu_events(events);
+  } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+    collect_finite_direct_gemm_gpu_events(events);
   } else {
     collect_gemm_gpu_events(events);
   }
@@ -1396,8 +1623,32 @@ void collect_wrap64_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_export_gpu_events(GpuEventSamples& events) {
+void collect_export_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  if (finite_benchmark_semantics(args.semantics)) {
+    const double kernel = sum_event_label(events, samples, "crt_export", "finite_export_kernel");
+    const double d2h = sum_event_label(events, samples, "crt_export", "finite_export_d2h");
+    if (events.complete) {
+      events.crt_export_kernel_us.push_back(kernel);
+      events.crt_export_d2h_us.push_back(d2h);
+      events.crt_export_us.push_back(kernel + d2h);
+    }
+    return;
+  }
+  if (exact_wide_benchmark_semantics(args.semantics)) {
+    const double status_memset = optional_event_label(samples, "exact_wide_export_status_memset");
+    const double kernel = sum_event_label(events, samples, "crt_export", "exact_wide_export_kernel");
+    const double status_d2h = sum_event_label(events, samples, "crt_export", "exact_wide_export_status_d2h");
+    const double d2h = sum_event_label(events, samples, "crt_export", "exact_wide_export_d2h");
+    if (events.complete) {
+      events.crt_export_status_memset_us.push_back(status_memset);
+      events.crt_export_kernel_us.push_back(kernel);
+      events.crt_export_status_d2h_us.push_back(status_d2h);
+      events.crt_export_d2h_us.push_back(d2h);
+      events.crt_export_us.push_back(status_memset + kernel + status_d2h + d2h);
+    }
+    return;
+  }
   const double status_memset = optional_event_label(samples, "crt_export_status_memset");
   const double kernel = sum_event_label(events, samples, "crt_export", "crt_export_kernel");
   const double status_d2h = sum_event_label(events, samples, "crt_export", "crt_export_status_d2h");
@@ -1441,6 +1692,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
   if (!result.gpu_events.requested || !result.gpu_events.complete) {
     return false;
   }
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const std::size_t repeats = result.samples.pack_us.size();
   if (repeats == 0 || result.gpu_events.pack_us.size() != repeats ||
       result.gpu_events.rns_gemm_us.size() != repeats || result.gpu_events.crt_export_us.size() != repeats) {
@@ -1451,7 +1703,19 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
            result.gpu_events.wrap64_export_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_d2h_us.size() == repeats;
   }
-  if (args.backend == RNS8_BACKEND_HIPBLASLT) {
+  if (finite_benchmark_semantics(args.semantics)) {
+    if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
+      return result.gpu_events.hipblaslt_pack_transpose_centered_us.size() == repeats &&
+             result.gpu_events.hipblaslt_int8_i32_matmul_us.size() == repeats &&
+             result.gpu_events.hipblaslt_i32_to_residue_reduce_us.size() == repeats &&
+             result.gpu_events.crt_export_kernel_us.size() == repeats &&
+             result.gpu_events.crt_export_d2h_us.size() == repeats;
+    }
+    return result.gpu_events.rns_gemm_kernel_group_us.size() == repeats &&
+           result.gpu_events.crt_export_kernel_us.size() == repeats &&
+           result.gpu_events.crt_export_d2h_us.size() == repeats;
+  }
+  if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     return result.gpu_events.hipblaslt_pack_transpose_centered_us.size() == repeats &&
            result.gpu_events.hipblaslt_int8_i32_matmul_us.size() == repeats &&
            result.gpu_events.hipblaslt_i32_to_residue_reduce_us.size() == repeats &&
@@ -1697,7 +1961,6 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   for (auto& value : B) value = dist(rng);
 
   BenchmarkResult result{};
-  result.gpu_events.requested = gpu_event_capture_requested(args);
   if (args.bound_mode == BoundMode::PerTile) {
     record_tile_bounds(result, compute_i64_tile_bounds(args, A, B));
   }
@@ -1709,6 +1972,8 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -1731,27 +1996,45 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
-    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    const auto pack_start = repeat_start;
-    begin_gpu_event_phase(collect_gpu_events);
+  const auto pack_inputs = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
     status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
-    if (collect_gpu_events) {
-      collect_pack_gpu_events(result.gpu_events);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -1761,13 +2044,13 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(result.gpu_events);
+      collect_export_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -1803,7 +2086,6 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   for (auto& value : B) value = dist(rng);
 
   BenchmarkResult result{};
-  result.gpu_events.requested = gpu_event_capture_requested(args);
   if (args.bound_mode == BoundMode::PerTile) {
     record_tile_bounds(result, compute_u64_tile_bounds(args, A, B));
   }
@@ -1815,6 +2097,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -1837,27 +2121,45 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
-    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    const auto pack_start = repeat_start;
-    begin_gpu_event_phase(collect_gpu_events);
+  const auto pack_inputs = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
-    if (collect_gpu_events) {
-      collect_pack_gpu_events(result.gpu_events);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -1867,13 +2169,253 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(result.gpu_events);
+      collect_export_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  }
+  result.checksum = checksum_u64(C);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  return result;
+}
+
+BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint64_t bound) {
+  (void)bound;
+  std::mt19937_64 rng(args.seed);
+  std::uniform_int_distribution<int64_t> dist(-16, 16);
+  std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, kExactWideBenchmarkLimbCount, "C"));
+  for (auto& value : A) value = dist(rng);
+  for (auto& value : B) value = dist(rng);
+
+  BenchmarkResult result{};
+  auto desc = gemm_desc(args, 0);
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
+  rns8_workspace* workspace = nullptr;
+  status = rns8_create_workspace(ctx, plan, &workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
+  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  const auto pack_inputs = [&](uint64_t source_version) {
+    status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
+    status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
+    }
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    if (collect_gpu_events) {
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status =
+        rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, kExactWideBenchmarkLimbCount);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  }
+  result.checksum = checksum_u64(C);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  return result;
+}
+
+BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uint64_t bound) {
+  (void)bound;
+  std::mt19937_64 rng(args.seed);
+  std::uniform_int_distribution<uint64_t> dist(0, 16);
+  std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, kExactWideBenchmarkLimbCount, "C"));
+  for (auto& value : A) value = dist(rng);
+  for (auto& value : B) value = dist(rng);
+
+  BenchmarkResult result{};
+  auto desc = gemm_desc(args, 0);
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* plan = nullptr;
+  rns8_status status = rns8_create_plan(ctx, &desc, &plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
+  rns8_workspace* workspace = nullptr;
+  status = rns8_create_workspace(ctx, plan, &workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  auto a_desc = matrix_desc(args.m, args.k, args);
+  auto b_desc = matrix_desc(args.k, args.n, args);
+  auto c_desc = matrix_desc(args.m, args.n, args);
+  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  const auto pack_inputs = [&](uint64_t source_version) {
+    status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+    status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
+    }
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    if (collect_gpu_events) {
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status =
+        rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, kExactWideBenchmarkLimbCount);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -1908,7 +2450,6 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
 
   BenchmarkResult result{};
-  result.gpu_events.requested = gpu_event_capture_requested(args);
   auto desc = gemm_desc(args, 0);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
@@ -1916,6 +2457,8 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -1938,27 +2481,45 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
-    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    const auto pack_start = repeat_start;
-    begin_gpu_event_phase(collect_gpu_events);
+  const auto pack_inputs = [&](uint64_t source_version) {
     status = rns8_pack_finite_u8(ctx, a_matrix, args.finite_modulus, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(A)", status);
     status = rns8_pack_finite_u8(ctx, b_matrix, args.finite_modulus, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(B)", status);
-    if (collect_gpu_events) {
-      collect_pack_gpu_events(result.gpu_events);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8", status);
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -1968,13 +2529,13 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     status = rns8_export_finite_u8(ctx, plan, args.finite_modulus, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(result.gpu_events);
+      collect_export_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2007,7 +2568,6 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   for (auto& value : B) value = rng();
 
   BenchmarkResult result{};
-  result.gpu_events.requested = gpu_event_capture_requested(args);
   auto desc = gemm_desc(args, 0);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
@@ -2015,6 +2575,8 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
@@ -2037,20 +2599,38 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
-    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
-    const auto repeat_start = std::chrono::steady_clock::now();
-    const auto pack_start = repeat_start;
-    begin_gpu_event_phase(collect_gpu_events);
+  const auto pack_inputs = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
-    if (collect_gpu_events) {
-      collect_pack_gpu_events(result.gpu_events);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs(1);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs(source_version);
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto pack_end = std::chrono::steady_clock::now();
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
@@ -2073,7 +2653,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2096,12 +2676,6 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   return result;
 }
 
-uint32_t benchmark_prefix(const Args& args) {
-  return (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics))
-             ? 0
-             : RNS8_DEFAULT_BOUNDED_PREFIX;
-}
-
 const char* benchmark_name(const Args& args) {
   if (args.vector_alu_baseline) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_baseline";
@@ -2111,6 +2685,9 @@ const char* benchmark_name(const Args& args) {
   }
   if (finite_benchmark_semantics(args.semantics)) {
     return "rns8_finite_u8_persistent_residue";
+  }
+  if (exact_wide_benchmark_semantics(args.semantics)) {
+    return "rns8_exact_wide_persistent_rns";
   }
   return "rns8_bounded_gemm_persistent_rns";
 }
@@ -2122,14 +2699,22 @@ const char* epilogue_type(const Args& args) {
   if (finite_benchmark_semantics(args.semantics)) {
     return "canonical_u8_export";
   }
+  if (args.semantics == BenchSemantics::ExactWideSigned) {
+    return "exact_wide_signed_limb_export";
+  }
+  if (args.semantics == BenchSemantics::ExactWideUnsigned) {
+    return "exact_wide_unsigned_limb_export";
+  }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "low64_wrap_export" : "crt_export";
 }
 
 const char* input_distribution(const Args& args) {
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
+    case BenchSemantics::ExactWideSigned:
       return "signed_uniform_-16_16";
     case BenchSemantics::BoundedU64:
+    case BenchSemantics::ExactWideUnsigned:
       return "unsigned_uniform_0_16";
     case BenchSemantics::WrapU64Mod2_64:
       return "unsigned_rng_u64_full_range";
@@ -2146,6 +2731,8 @@ const char* tile_bound_pattern(const Args& args) {
       return "exact_output_tile_max_abs_v1";
     case BenchSemantics::BoundedU64:
       return "exact_output_tile_max_unsigned_v1";
+    case BenchSemantics::ExactWideSigned:
+    case BenchSemantics::ExactWideUnsigned:
     case BenchSemantics::WrapU64Mod2_64:
     case BenchSemantics::FiniteRingU8:
     case BenchSemantics::FiniteFieldU8:
@@ -2158,9 +2745,11 @@ bool adaptive_execution_applied(
     const Args& args,
     const rns8_device_info& info,
     const BenchmarkResult& result) {
+  const rns8_backend_kind selected_backend =
+      result.backend_info_available ? result.backend_info.backend : info.backend;
   return args.bound_mode == BoundMode::PerTile &&
-         (info.backend == RNS8_BACKEND_CPU_REFERENCE || info.backend == RNS8_BACKEND_HIP_DIRECT ||
-          info.backend == RNS8_BACKEND_CK || info.backend == RNS8_BACKEND_WMMA) &&
+         (selected_backend == RNS8_BACKEND_CPU_REFERENCE || selected_backend == RNS8_BACKEND_HIP_DIRECT ||
+          selected_backend == RNS8_BACKEND_CK || selected_backend == RNS8_BACKEND_WMMA) &&
          schedule_uses_adaptive_work(result);
 }
 
@@ -2197,52 +2786,6 @@ std::string schedule_hash_string(const Args& args, const BenchmarkResult& result
   return out.str();
 }
 
-std::string backend_version_for_cache(const BenchmarkResult& result) {
-  if (result.backend_info.accelerator_version[0] != '\0') {
-    return result.backend_info.accelerator_version;
-  }
-  if (RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION[0] != '\0') {
-    return RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION;
-  }
-  if (RNS8_CONFIGURED_HIPCC_VERSION[0] != '\0') {
-    return RNS8_CONFIGURED_HIPCC_VERSION;
-  }
-  return "unknown";
-}
-
-rns8::detail::AutotuneCacheEntry make_autotune_cache_entry(
-    const Args& args,
-    const rns8_device_info& info,
-    const BenchmarkResult& result) {
-  rns8::detail::AutotuneCacheEntry entry{};
-  entry.key = result.backend_info.autotune_key;
-  entry.selected_backend = selected_backend_name(args, info);
-  entry.selected_kernel = result.backend_info.selected_kernel;
-  entry.target_id = info.gcn_arch[0] != '\0' ? info.gcn_arch : "cpu";
-  entry.hip_sdk_or_library_version = backend_version_for_cache(result);
-  entry.semantic_contract = semantics_name(args.semantics);
-  entry.m = args.m;
-  entry.n = args.n;
-  entry.k = args.k;
-  entry.layout = "row_major";
-  entry.prefix_schedule_hash = schedule_hash_string(args, result);
-  entry.k_block_size = benchmark_k_block_size(args);
-  entry.tile_m = args.tile_m;
-  entry.tile_n = args.tile_n;
-  entry.epilogue = epilogue_type(args);
-  entry.kernel_family = result.backend_info.selected_kernel;
-  entry.workspace_bytes = result.backend_info.workspace_required_bytes;
-  entry.measured_median_pack_us = median(result.samples.pack_us);
-  entry.measured_median_gemm_us = median(result.samples.gemm_us);
-  entry.measured_median_export_us = median(result.samples.export_us);
-  entry.measured_median_end_to_end_us = median(result.samples.end_to_end_us);
-  entry.performance_validated = result.backend_info.performance_validated != 0;
-  entry.validation_status =
-      entry.performance_validated ? "performance_validated" : "schema_v4_capture_emitted_unreviewed";
-  entry.schema_version = 1;
-  return entry;
-}
-
 void print_json(
     const Args& args,
     const rns8_device_info& info,
@@ -2259,19 +2802,62 @@ void print_json(
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
+  const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
   const bool wrap64_hip_events = gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64;
   const bool adaptive_hip_events = gpu_events_available && adaptive_applied;
-  const char* selected_backend = selected_backend_name(args, info);
-  const bool hipblaslt_events = gpu_events_available && std::string(selected_backend) == "hipblaslt";
-  const char* gpu_event_reason = gpu_events_available
-                                     ? (hipblaslt_events ? "captured_by_hipblaslt_backend_hooks"
-                                                         : "captured_by_direct_hip_backend_hooks")
-                                     : (result.gpu_events.requested ? "backend_event_capture_incomplete"
-                                                                    : "backend_has_no_gpu_event_hooks");
-  const char* gpu_event_status = gpu_events_available
-                                     ? "available"
-                                     : (result.gpu_events.requested ? "unavailable_missing_expected_events"
-                                                                    : "not_requested_for_selected_backend");
+  const char* selected_backend = selected_backend_name(args, info, &result);
+  const std::string selected_backend_string(selected_backend);
+  const bool hipblaslt_events = gpu_events_available && selected_backend_string == "hipblaslt";
+  const bool accelerator_operation_group_events =
+      gpu_events_available && (selected_backend_string == "ck" || selected_backend_string == "wmma");
+  const char* gpu_event_reason = "backend_has_no_gpu_event_hooks";
+  const char* gpu_event_status = "not_requested_for_selected_backend";
+  const char* gpu_event_scope = "null";
+  const char* gpu_event_caveat = "null";
+  if (gpu_events_available) {
+    gpu_event_status = "available";
+    gpu_event_scope = "\"direct_hip_default_stream_backend_operation_groups\"";
+    gpu_event_caveat =
+        "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain "
+        "required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead "
+        "not represented on the HIP stream\"";
+    if (hipblaslt_events) {
+      gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
+      gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record hipBLASLt baseline default-stream operation groups only; host wall-clock "
+          "timings remain required for API dispatch, descriptor setup, allocations, and synchronous host-side "
+          "overhead not represented on the HIP stream\"";
+    } else if (wrap64_hip_events) {
+      gpu_event_reason = "captured_by_direct_hip_backend_hooks";
+      gpu_event_scope = "\"direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb "
+          "GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain "
+          "required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not "
+          "represented on the HIP stream\"";
+    } else if (accelerator_operation_group_events) {
+      gpu_event_reason = "captured_by_accelerator_backend_operation_group_hooks";
+      gpu_event_scope = "\"accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export\"";
+      gpu_event_caveat =
+          "\"HIP event timings record direct-HIP pack/export operation groups plus one accelerator GEMM operation "
+          "group; per-kernel accelerator internals and host-side API overhead remain represented only by host "
+          "wall-clock timings\"";
+    } else if (adaptive_hip_events) {
+      gpu_event_reason = "captured_by_direct_hip_backend_hooks";
+      gpu_event_scope = "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures "
+          "aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or "
+          "per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, "
+          "allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+    } else {
+      gpu_event_reason = "captured_by_direct_hip_backend_hooks";
+    }
+  } else if (result.gpu_events.requested) {
+    gpu_event_reason = "backend_event_capture_incomplete";
+    gpu_event_status = "unavailable_missing_expected_events";
+  }
 
   std::cout << "{\n";
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
@@ -2387,6 +2973,15 @@ void print_json(
   std::cout << "  \"seed\": " << args.seed << ",\n";
   std::cout << "  \"warmups\": " << args.warmups << ",\n";
   std::cout << "  \"repeats\": " << args.repeats << ",\n";
+  std::cout << "  \"reuse_packed_inputs\": " << (args.reuse_packed_inputs ? "true" : "false") << ",\n";
+  std::cout << "  \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "  \"prepack_setup_us\": ";
+  if (result.prepack_setup_available) {
+    std::cout << result.prepack_setup_us;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
@@ -2428,11 +3023,15 @@ void print_json(
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (args.vector_alu_baseline) {
+  if (args.reuse_packed_inputs) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for repeated GEMM/export against persistent "
+                 "packed A/B inputs; pack is a zero-valued per-repeat phase and prepack_setup_us records the "
+                 "one-time pack before warmups, which end_to_end excludes\",\n";
+  } else if (args.vector_alu_baseline) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the benchmark-only HIP vector-ALU exact "
                  "int64 baseline; phases are raw input H2D copies, one 192-bit-limb exact output kernel, "
                  "and direct output D2H export with range-status validation\",\n";
-  } else if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend == RNS8_BACKEND_HIP_DIRECT) {
+  } else if (args.semantics == BenchSemantics::WrapU64Mod2_64 && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 tiled byte-limb "
                  "path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus "
                  "current rns_gemm/crt_export aggregate phase labels\",\n";
@@ -2442,16 +3041,24 @@ void print_json(
   } else if (finite_benchmark_semantics(args.semantics)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for persistent finite-u8 packing, finite residue "
                  "GEMM, and canonical uint8 export with an explicit benchmark modulus\",\n";
+  } else if (exact_wide_benchmark_semantics(args.semantics)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for persistent exact-wide RNS packing, RNS GEMM, "
+                 "and fixed-width little-endian limb export; GPU event timing names exact-wide export operation "
+                 "groups when backend hooks are available\",\n";
   } else if (adaptive_applied && info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the CPU adaptive per-tile bounded "
                  "reference path; no GPU event timing is requested for this backend\",\n";
+  } else if (adaptive_applied && accelerator_operation_group_events) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for an adaptive per-tile bounded accelerator "
+                 "path; GPU event timing combines direct-HIP pack/export labels with one accelerator GEMM "
+                 "operation-group label\",\n";
   } else if (adaptive_applied && gpu_events_available) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP adaptive per-tile bounded "
                  "correctness path; GPU event timing aggregates all selected-prefix tiled GEMM launches and tiled "
                  "CRT export work into backend operation-group labels\",\n";
   } else if (adaptive_applied) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for an adaptive per-tile bounded accelerator path; "
-                 "GPU event timing is unavailable until the selected backend exposes event hooks\",\n";
+                 "GPU event timing was not captured for this selected backend/path\",\n";
   } else if (info.backend == RNS8_BACKEND_HIPBLASLT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the hipBLASLt baseline path; GPU event timing "
                  "separates persistent RNS packing, hipBLASLt INT8-to-INT32 matmul, separate centered-residue "
@@ -2465,33 +3072,14 @@ void print_json(
   std::cout << "    \"unit\": \"microseconds\",\n";
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
+  std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
   std::cout << "    \"gpu_event_timing\": " << (gpu_events_available ? "true" : "false") << ",\n";
   std::cout << "    \"gpu_event_timing_reason\": \"" << gpu_event_reason << "\",\n";
   std::cout << "    \"gpu_event_timing_status\": \"" << gpu_event_status << "\",\n";
   std::cout << "    \"gpu_event_timing_source\": "
             << (gpu_events_available ? "\"hipEventElapsedTime\"" : "null") << ",\n";
-  std::cout << "    \"gpu_event_timing_source_scope\": "
-            << (gpu_events_available
-                    ? (hipblaslt_events
-                           ? "\"hipblaslt_baseline_default_stream_backend_operation_groups\""
-                           : (wrap64_hip_events
-                           ? "\"direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups\""
-                           : (adaptive_hip_events
-                                  ? "\"direct_hip_bounded_adaptive_default_stream_backend_operation_groups\""
-                                  : "\"direct_hip_default_stream_backend_operation_groups\"")))
-                    : "null")
-            << ",\n";
-  std::cout << "    \"gpu_event_timing_caveat\": "
-            << (hipblaslt_events
-                    ? "\"HIP event timings record hipBLASLt baseline default-stream operation groups only; host wall-clock timings remain required for API dispatch, descriptor setup, allocations, and synchronous host-side overhead not represented on the HIP stream\""
-                    : (wrap64_hip_events
-                           ? "\"HIP event timings record backend default-stream operation groups only; wrap64 uses a tiled byte-limb GEMM kernel and current rns_gemm/crt_export aggregate phase labels; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
-                           : (adaptive_hip_events
-                           ? "\"HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels rather than exposing per-tile or per-prefix timings; host wall-clock timings remain required for scheduling overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\""
-                           : (gpu_events_available
-                                  ? "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead not represented on the HIP stream\""
-                                  : "null"))))
-            << ",\n";
+  std::cout << "    \"gpu_event_timing_source_scope\": " << gpu_event_scope << ",\n";
+  std::cout << "    \"gpu_event_timing_caveat\": " << gpu_event_caveat << ",\n";
   if (!gpu_events_available && !result.gpu_events.unavailable_reasons.empty()) {
     std::cout << "    \"gpu_event_timing_unavailable_reasons\": ";
     print_string_array(result.gpu_events.unavailable_reasons);
@@ -2502,7 +3090,7 @@ void print_json(
          "\"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"gpu_event_phase_order\": ";
   if (gpu_events_available) {
-    print_string_array(gpu_event_phase_order(args));
+    print_string_array(gpu_event_phase_order(args, selected_backend_kind));
   } else {
     std::cout << "null";
   }
@@ -2519,7 +3107,22 @@ void print_json(
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
-  if (args.vector_alu_baseline) {
+  if (args.reuse_packed_inputs) {
+    std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
+    if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+      std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64 against reused byte-limb inputs\",\n";
+      std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64\",\n";
+    } else if (finite_benchmark_semantics(args.semantics)) {
+      std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_finite_u8 against reused finite-u8 inputs\",\n";
+      std::cout << "      \"crt_export\": \"per-repeat host timing for canonical uint8 rns8_export_finite_u8\",\n";
+    } else if (exact_wide_benchmark_semantics(args.semantics)) {
+      std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns against reused exact-wide persistent RNS inputs\",\n";
+      std::cout << "      \"crt_export\": \"per-repeat host timing for fixed-width exact-wide limb export\",\n";
+    } else {
+      std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns against reused persistent RNS inputs\",\n";
+      std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
+    }
+  } else if (args.vector_alu_baseline) {
     std::cout << "      \"pack\": \"per-repeat host timing for raw bounded inputs copied to benchmark-owned HIP buffers\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one exact 192-bit-limb vector-ALU output kernel\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for range-status D2H plus direct logical output D2H\",\n";
@@ -2531,12 +3134,20 @@ void print_json(
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent finite-u8 matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_finite_u8\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for canonical uint8 rns8_export_finite_u8\",\n";
+  } else if (exact_wide_benchmark_semantics(args.semantics)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into exact-wide persistent RNS matrices\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for fixed-width exact-wide limb export\",\n";
   } else {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
-  std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
+  if (args.reuse_packed_inputs) {
+    std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
+  } else {
+    std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
+  }
   std::cout << "    },\n";
   std::cout << "    \"phase_availability\": {\n";
   std::cout << "      \"scheduling\": {\n";
@@ -2544,6 +3155,19 @@ void print_json(
   std::cout << "        \"timing_key\": \"scheduling\",\n";
   std::cout << "        \"scope\": \"one_time_schedule_info_query\",\n";
   std::cout << "        \"reason\": \"measured with host steady_clock around rns8_get_plan_schedule_info\"\n";
+  std::cout << "      },\n";
+  std::cout << "      \"prepack_setup\": {\n";
+  std::cout << "        \"timed\": " << (result.prepack_setup_available ? "true" : "false") << ",\n";
+  std::cout << "        \"timing_key\": "
+            << (result.prepack_setup_available ? "\"prepack_setup_us\"" : "null") << ",\n";
+  std::cout << "        \"scope\": \""
+            << (result.prepack_setup_available ? "one_time_before_warmups" : "not_requested_per_repeat_repack")
+            << "\",\n";
+  std::cout << "        \"reason\": \""
+            << (result.prepack_setup_available
+                    ? "A and B were packed once before warmups and reused for every measured repeat"
+                    : "benchmark mode packs A and B inside every measured repeat")
+            << "\"\n";
   std::cout << "      },\n";
   std::cout << "      \"reduction\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
@@ -2571,8 +3195,8 @@ void print_json(
   std::cout << "    }\n";
   std::cout << "  },\n";
   if (gpu_events_available) {
-    print_gpu_event_timings(args, result.gpu_events);
-    print_gpu_event_timing_summary(args, result.gpu_events);
+    print_gpu_event_timings(args, selected_backend_kind, result.gpu_events);
+    print_gpu_event_timing_summary(args, selected_backend_kind, result.gpu_events);
   } else {
     std::cout << "  \"gpu_event_timings_us\": null,\n";
     std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
@@ -2583,6 +3207,13 @@ void print_json(
   std::cout << "  \"avg_scheduling_us\": " << static_cast<double>(result.schedule_query_us) << ",\n";
   std::cout << "  \"matrix_alloc_us\": " << result.matrix_alloc_us << ",\n";
   std::cout << "  \"avg_matrix_alloc_us\": " << static_cast<double>(result.matrix_alloc_us) << ",\n";
+  std::cout << "  \"avg_prepack_setup_us\": ";
+  if (result.prepack_setup_available) {
+    std::cout << static_cast<double>(result.prepack_setup_us);
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
   std::cout << "  \"avg_rns_gemm_us\": " << avg_gemm_us << ",\n";
   std::cout << "  \"per_modulus_gemm_estimate_applicable\": "
@@ -2632,6 +3263,11 @@ int main(int argc, char** argv) {
   const Args args = parse_args(argc, argv);
   const uint64_t bound = benchmark_bound(args);
   const std::string cmdline = command_line(argc, argv);
+  if (args.write_autotune_cache) {
+    std::cerr << "write autotune cache: refused raw benchmark cache write; use "
+                 "tools\\benchmark_sweep.py --review-mode release --write-autotune-cache\n";
+    return 1;
+  }
 
   rns8_context_options options{};
   options.struct_size = sizeof(options);
@@ -2662,6 +3298,12 @@ int main(int argc, char** argv) {
     case BenchSemantics::BoundedU64:
       result = run_bounded_u64(ctx, args, bound);
       break;
+    case BenchSemantics::ExactWideSigned:
+      result = run_exact_wide_signed(ctx, args, bound);
+      break;
+    case BenchSemantics::ExactWideUnsigned:
+      result = run_exact_wide_unsigned(ctx, args, bound);
+      break;
     case BenchSemantics::WrapU64Mod2_64:
       result = run_wrap_u64(ctx, args, bound);
       break;
@@ -2671,19 +3313,6 @@ int main(int argc, char** argv) {
       break;
   }
   rns8_destroy_context(ctx);
-  if (args.write_autotune_cache) {
-    if (result.backend_info.performance_validated == 0) {
-      std::cerr << "write autotune cache: refused unreviewed raw capture; use reviewed promotion tooling for "
-                   "performance_validated entries\n";
-      return 1;
-    }
-    std::string error;
-    if (!rns8::detail::write_autotune_cache_entry(make_autotune_cache_entry(args, info, result), error)) {
-      std::cerr << "write autotune cache: " << error << "\n";
-      return 1;
-    }
-    std::cerr << "autotune cache updated: " << rns8::detail::autotune_cache_path().string() << "\n";
-  }
   print_json(args, info, result, bound, cmdline);
   return 0;
 }

@@ -86,6 +86,7 @@ set(RNS8_SOURCES
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
   src/core/api.cpp
+  src/core/backend_common.cpp
   src/core/moduli.cpp
   src/core/status.cpp
   src/cpu/cpu_reference.cpp
@@ -96,6 +97,52 @@ set(RNS8_SOURCES
   src/backend_wrap64/wrap64_reference.cpp
   src/backend_wrap64/wrap64_hip.cpp
 )
+
+function(rns8_apply_ck_wmma_no_divide_patch out_include_dir out_header)
+  set(_ck_gridwise_source "${RNS8_CK_INCLUDE_DIR}/ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp")
+  set(_ck_patch_include_dir "${CMAKE_CURRENT_BINARY_DIR}/rns8_ck_wmma_no_divide_include")
+  set(_ck_gridwise "${_ck_patch_include_dir}/ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp")
+  if(NOT EXISTS "${_ck_gridwise_source}")
+    message(FATAL_ERROR "CK WMMA gridwise header not found: ${_ck_gridwise_source}")
+  endif()
+
+  set(_ck_old [=[    // return block_id to C matrix tile idx (m0, n0) mapping
+    __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap(
+        const CGridDesc_M_N& c_grid_desc_m_n, index_t /* M01 */, index_t /* N01 */)
+    {
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
+            c_grid_desc_m_n);
+    }]=])
+  set(_ck_new [=[    // return block_id to C matrix tile idx (m0, n0) mapping
+    __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap(
+        const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t /* N01 */)
+    {
+        return BlockToCTileMap_M00_N0_M01<MPerBlock, NPerBlock, CGridDesc_M_N>(
+            c_grid_desc_m_n, M01);
+    }]=])
+
+  file(READ "${_ck_gridwise_source}" _ck_gridwise_text)
+  string(FIND "${_ck_gridwise_text}" "${_ck_new}" _ck_new_offset)
+  if(_ck_new_offset EQUAL -1)
+    string(FIND "${_ck_gridwise_text}" "${_ck_old}" _ck_old_offset)
+    if(_ck_old_offset EQUAL -1)
+      message(
+        FATAL_ERROR
+        "CK WMMA no-divide integration patch does not match ${_ck_gridwise_source}; "
+        "inspect CK's MakeDefaultBlock2CTileMap before enabling RNS8_ENABLE_CK"
+      )
+    endif()
+    string(REPLACE "${_ck_old}" "${_ck_new}" _ck_gridwise_text "${_ck_gridwise_text}")
+    message(STATUS "RNS8 generated CK WMMA no-divide block-map include overlay: ${_ck_gridwise}")
+  else()
+    message(STATUS "RNS8 CK WMMA no-divide block-map patch already present in source: ${_ck_gridwise_source}")
+  endif()
+  get_filename_component(_ck_gridwise_dir "${_ck_gridwise}" DIRECTORY)
+  file(MAKE_DIRECTORY "${_ck_gridwise_dir}")
+  file(WRITE "${_ck_gridwise}" "${_ck_gridwise_text}")
+  set(${out_include_dir} "${_ck_patch_include_dir}" PARENT_SCOPE)
+  set(${out_header} "${_ck_gridwise}" PARENT_SCOPE)
+endfunction()
 
 if(RNS8_ENABLE_HIP)
   find_package(RNS8HIP REQUIRED)
@@ -118,12 +165,15 @@ if(RNS8_ENABLE_HIP)
   endif()
   if(RNS8_ENABLE_CK)
     find_package(RNS8CK REQUIRED)
-    set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
+    rns8_apply_ck_wmma_no_divide_patch(RNS8_CK_WMMA_PATCH_INCLUDE_DIR RNS8_CK_WMMA_PATCHED_HEADER)
+    set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_CK_WMMA_PATCH_INCLUDE_DIR}" "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
+    set(RNS8_HIP_SOURCE_DEPENDS "${RNS8_CK_WMMA_PATCHED_HEADER}")
     rns8_compile_hip_source(
       RNS8_CK_KERNEL_OBJECT
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_ck/ck_backend_kernels.hip"
     )
     unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
+    unset(RNS8_HIP_SOURCE_DEPENDS)
     list(APPEND RNS8_SOURCES "${RNS8_CK_KERNEL_OBJECT}")
   endif()
   if(RNS8_ENABLE_ROCWMMA)
@@ -330,6 +380,58 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(benchmark_sweep_self_test PROPERTIES LABELS "benchmark;sweep;autotune")
 
   add_test(
+    NAME autotune_cache_install_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_autotune_cache_install.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(autotune_cache_install_self_test PROPERTIES LABELS "tools;autotune")
+
+  if(TARGET rns8-bench)
+    add_test(
+      NAME benchmark_raw_autotune_cache_write_refused
+      COMMAND
+        "$<TARGET_FILE:rns8-bench>"
+        --backend cpu
+        --semantics bounded-i64
+        --m 1
+        --n 1
+        --k 1
+        --write-autotune-cache
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(
+      benchmark_raw_autotune_cache_write_refused
+      PROPERTIES
+        LABELS "benchmark;autotune"
+        WILL_FAIL TRUE
+    )
+
+    add_test(
+      NAME benchmark_reuse_packed_inputs_smoke
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_reuse_packed_inputs.py"
+        "$<TARGET_FILE:rns8-bench>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-reuse-packed-inputs-smoke"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(benchmark_reuse_packed_inputs_smoke PROPERTIES LABELS "benchmark;schema")
+
+    add_test(
+      NAME benchmark_exact_wide_smoke
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_exact_wide.py"
+        "$<TARGET_FILE:rns8-bench>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-exact-wide-smoke"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(benchmark_exact_wide_smoke PROPERTIES LABELS "benchmark;schema")
+  endif()
+
+  add_test(
     NAME dependency_checker_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_dependencies.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -359,6 +461,168 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
 
   if(TARGET rns8-bench AND RNS8_ENABLE_HIP)
     add_test(
+      NAME benchmark_auto_backend_smoke
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_backend.py"
+        "$<TARGET_FILE:rns8-bench>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-smoke"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(benchmark_auto_backend_smoke PROPERTIES LABELS "benchmark;hip;autotune")
+
+    if(RNS8_ENABLE_HIPBLASLT)
+      add_test(
+        NAME benchmark_auto_default_cache_hit_hipblaslt
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          hipblaslt
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_hit_hipblaslt
+        PROPERTIES LABELS "benchmark;hip;autotune;hipblaslt"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_exact_wide_hit_hipblaslt
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          hipblaslt
+          exact-wide-signed
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_exact_wide_hit_hipblaslt
+        PROPERTIES LABELS "benchmark;hip;autotune;hipblaslt"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_finite_field_hit_hipblaslt
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          hipblaslt
+          finite-u8-field
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_finite_field_hit_hipblaslt
+        PROPERTIES LABELS "benchmark;hip;autotune;hipblaslt;finite-u8"
+      )
+    endif()
+
+    if(RNS8_ENABLE_CK)
+      add_test(
+        NAME benchmark_auto_default_cache_hit_ck
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          ck
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_hit_ck
+        PROPERTIES LABELS "benchmark;hip;autotune;ck"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_exact_wide_hit_ck
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          ck
+          exact-wide-signed
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_exact_wide_hit_ck
+        PROPERTIES LABELS "benchmark;hip;autotune;ck"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_finite_ring_hit_ck
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          ck
+          finite-u8-ring
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_finite_ring_hit_ck
+        PROPERTIES LABELS "benchmark;hip;autotune;ck;finite-u8"
+      )
+    endif()
+
+    if(RNS8_ENABLE_ROCWMMA)
+      add_test(
+        NAME benchmark_auto_default_cache_hit_rocwmma
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          rocwmma
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_hit_rocwmma
+        PROPERTIES LABELS "benchmark;hip;autotune;rocwmma"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_exact_wide_hit_rocwmma
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          rocwmma
+          exact-wide-signed
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_exact_wide_hit_rocwmma
+        PROPERTIES LABELS "benchmark;hip;autotune;rocwmma"
+      )
+      add_test(
+        NAME benchmark_auto_default_cache_finite_field_hit_rocwmma
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_auto_default_cache.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-auto-default-cache-smoke"
+          rocwmma
+          finite-u8-field
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_auto_default_cache_finite_field_hit_rocwmma
+        PROPERTIES LABELS "benchmark;hip;autotune;rocwmma;finite-u8"
+      )
+    endif()
+
+    add_test(
       NAME benchmark_vector_alu_baseline_smoke
       COMMAND
         "${Python3_EXECUTABLE}"
@@ -382,6 +646,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_result_compare_same_contract PROPERTIES LABELS "benchmark;schema;compare")
+
+  add_test(
+    NAME benchmark_result_compare_self_test
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_result_compare.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_result_compare_self_test PROPERTIES LABELS "benchmark;schema;compare")
 
   if(TARGET rns8-inspect)
     add_test(

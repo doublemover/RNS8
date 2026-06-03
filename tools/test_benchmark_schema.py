@@ -30,6 +30,96 @@ def expect_invalid(data: dict, needle: str) -> None:
     raise AssertionError(f"expected validation error containing {needle!r}")
 
 
+def zero_summary() -> dict:
+    return {"avg": 0.0, "median": 0.0, "p95": 0.0}
+
+
+def as_reused_pack_capture(capture: dict) -> dict:
+    reused = copy.deepcopy(capture)
+    repeats = reused["repeats"]
+    reused["reuse_packed_inputs"] = True
+    reused["pack_mode"] = "prepacked_reuse"
+    reused["prepack_setup_us"] = 123
+    reused["avg_prepack_setup_us"] = 123.0
+    reused["avg_pack_us"] = 0.0
+    reused["raw_timings_us"]["pack"] = [0] * repeats
+    reused["timing_summary_us"]["pack"] = zero_summary()
+    reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
+    reused["timing_metadata"]["phase_notes"]["pack"] = (
+        "zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups"
+    )
+    reused["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us"
+    )
+    reused["timing_metadata"]["phase_availability"]["prepack_setup"] = {
+        "timed": True,
+        "timing_key": "prepack_setup_us",
+        "scope": "one_time_before_warmups",
+        "reason": "A and B were packed once before warmups and reused for every measured repeat",
+    }
+    for phase in ["pack_h2d", "pack_kernel", "finite_pack_h2d", "finite_pack_kernel", "pack"]:
+        timings = reused.get("gpu_event_timings_us")
+        summaries = reused.get("gpu_event_timing_summary_us")
+        if isinstance(timings, dict) and phase in timings:
+            timings[phase] = [0.0] * repeats
+        if isinstance(summaries, dict) and phase in summaries:
+            summaries[phase] = zero_summary()
+    return reused
+
+
+def as_exact_wide_capture(capture: dict) -> dict:
+    exact = copy.deepcopy(capture)
+    exact["benchmark"] = "rns8_exact_wide_persistent_rns"
+    exact["semantics"] = "exact_wide_signed"
+    exact["bound_kind"] = "none"
+    exact["bound_mode"] = "global"
+    exact["bound"] = 0
+    exact["prefix"] = 20
+    exact["finite_modulus"] = None
+    exact["tile_bounds_u64"] = None
+    exact["epilogue_type"] = "exact_wide_signed_limb_export"
+    exact["input_distribution"] = "signed_uniform_-16_16"
+    exact["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_correctness",
+    ]
+    exact["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_rns_output"
+    exact["backend_metadata"]["autotune_key"] = (
+        "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
+        "epilogue=ck_fused_i32_to_centered_residue_rns_output"
+    )
+    exact["schedule_metadata"]["min_selected_prefix"] = 20
+    exact["schedule_metadata"]["max_selected_prefix"] = 20
+    exact["schedule_metadata"]["prefix_group_count"] = 1
+    exact["schedule_metadata"]["adaptive_execution_applied"] = False
+    exact["avg_per_modulus_gemm_estimate_us"] = float(exact["avg_rns_gemm_us"]) / 20.0
+    exact["timing_note"] = (
+        "host wall-clock timings for persistent exact-wide RNS packing, RNS GEMM, and fixed-width little-endian "
+        "limb export; GPU event timing names exact-wide export operation groups when backend hooks are available"
+    )
+    exact["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "per-repeat host timing for fixed-width exact-wide limb export"
+    )
+
+    renamed = {
+        "crt_export_status_memset": "exact_wide_export_status_memset",
+        "crt_export_kernel": "exact_wide_export_kernel",
+        "crt_export_status_d2h": "exact_wide_export_status_d2h",
+        "crt_export_d2h": "exact_wide_export_d2h",
+    }
+    phase_order = exact["timing_metadata"].get("gpu_event_phase_order")
+    if isinstance(phase_order, list):
+        exact["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+    for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
+        values = exact.get(field)
+        if isinstance(values, dict):
+            for old, new in renamed.items():
+                if old in values:
+                    values[new] = values.pop(old)
+    return exact
+
+
 def main() -> int:
     v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
@@ -89,6 +179,44 @@ def main() -> int:
     v4_cpu_adaptive_i64["gpu_event_timing_summary_us"] = None
     validate_capture(v4_cpu_adaptive_i64)
 
+    reused_ck_i64 = as_reused_pack_capture(v4_ck_i64)
+    validate_capture(reused_ck_i64)
+
+    exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
+    validate_capture(exact_wide_ck)
+
+    bad_exact_bound = copy.deepcopy(exact_wide_ck)
+    bad_exact_bound["bound_kind"] = "global_max_abs"
+    expect_invalid(bad_exact_bound, "exact-wide captures must use bound_kind=none and bound=0")
+
+    bad_exact_epilogue = copy.deepcopy(exact_wide_ck)
+    bad_exact_epilogue["epilogue_type"] = "crt_export"
+    expect_invalid(bad_exact_epilogue, "exact_wide_signed_limb_export")
+
+    bad_exact_backend_epilogue = copy.deepcopy(exact_wide_ck)
+    bad_exact_backend_epilogue["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_then_crt_export"
+    expect_invalid(bad_exact_backend_epilogue, "ck_fused_i32_to_centered_residue_rns_output")
+
+    bad_reused_pack = copy.deepcopy(reused_ck_i64)
+    bad_reused_pack["raw_timings_us"]["pack"][0] = 1
+    expect_invalid(bad_reused_pack, "zero-valued repeats")
+
+    bad_reused_prepack = copy.deepcopy(reused_ck_i64)
+    bad_reused_prepack["prepack_setup_us"] = None
+    expect_invalid(bad_reused_prepack, "prepack_setup_us")
+
+    bad_reused_mode = copy.deepcopy(reused_ck_i64)
+    bad_reused_mode["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    expect_invalid(bad_reused_mode, "timing_metadata.pack_mode")
+
+    bad_repack_prepack = copy.deepcopy(v4_ck_i64)
+    bad_repack_prepack["reuse_packed_inputs"] = False
+    bad_repack_prepack["pack_mode"] = "per_repeat_repack"
+    bad_repack_prepack["prepack_setup_us"] = 1
+    bad_repack_prepack["avg_prepack_setup_us"] = 1.0
+    bad_repack_prepack["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    expect_invalid(bad_repack_prepack, "prepack_setup_us=null")
+
     bad_length = copy.deepcopy(bounded)
     bad_length["raw_timings_us"]["pack"].pop()
     expect_invalid(bad_length, "raw_timings_us.pack length")
@@ -119,13 +247,8 @@ def main() -> int:
     expect_invalid(bad_ck_kernel, "per-tile adaptive ck captures")
 
     bad_ck_events = copy.deepcopy(v4_ck_adaptive_u64)
-    bad_ck_events["timing_metadata"]["gpu_event_timing"] = True
-    bad_ck_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
     bad_ck_events["timing_metadata"]["gpu_event_timing_source_scope"] = "ck_default_stream"
-    bad_ck_events["timing_metadata"]["gpu_event_phase_order"] = ["pack"]
-    bad_ck_events["gpu_event_timings_us"] = {"pack": [1.0, 1.0]}
-    bad_ck_events["gpu_event_timing_summary_us"] = {"pack": {"avg": 1.0, "median": 1.0, "p95": 1.0}}
-    expect_invalid(bad_ck_events, "CK per-tile adaptive captures must report unavailable GPU event timings")
+    expect_invalid(bad_ck_events, "accelerator_backend_default_stream_operation_groups")
 
     bad_wmma_library = copy.deepcopy(v4_wmma_i64)
     bad_wmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
@@ -137,16 +260,8 @@ def main() -> int:
     expect_invalid(bad_wmma_kernel, "per-tile adaptive wmma captures")
 
     bad_wmma_events = copy.deepcopy(v4_wmma_adaptive_u64)
-    bad_wmma_events["timing_metadata"]["gpu_event_timing"] = True
-    bad_wmma_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
     bad_wmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
-    bad_wmma_events["timing_metadata"]["gpu_event_phase_order"] = ["pack"]
-    bad_wmma_events["gpu_event_timings_us"] = {"pack": [1.0, 1.0]}
-    bad_wmma_events["gpu_event_timing_summary_us"] = {"pack": {"avg": 1.0, "median": 1.0, "p95": 1.0}}
-    expect_invalid(
-        bad_wmma_events,
-        "rocWMMA per-tile adaptive captures must report unavailable GPU event timings",
-    )
+    expect_invalid(bad_wmma_events, "accelerator_backend_default_stream_operation_groups")
 
     bad_vector_source = copy.deepcopy(v4_vector_i64)
     bad_vector_source["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
@@ -175,6 +290,13 @@ def main() -> int:
     bad_finite_prefix = copy.deepcopy(v4_finite_ring_ck)
     bad_finite_prefix["prefix"] = 9
     expect_invalid(bad_finite_prefix, "finite-u8 captures must use prefix=0")
+
+    bad_finite_key = copy.deepcopy(v4_finite_ring_ck)
+    bad_finite_key["backend_metadata"]["autotune_key"] = bad_finite_key["backend_metadata"]["autotune_key"].replace(
+        ";finite_modulus=255",
+        "",
+    )
+    expect_invalid(bad_finite_key, "finite-u8 backend_metadata.autotune_key must include finite_modulus")
 
     bad_finite_epilogue = copy.deepcopy(v4_finite_field_wmma)
     bad_finite_epilogue["epilogue_type"] = "crt_export"
@@ -217,12 +339,54 @@ def main() -> int:
     bad_speedup_claim["comparison_baseline"]["speedup_claimed"] = True
     expect_invalid(bad_speedup_claim, "speedup claims require a reviewed same-contract comparison baseline")
 
+    legacy_reviewed_speedup = copy.deepcopy(v4_ck_i64)
+    legacy_reviewed_speedup["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
+    legacy_reviewed_speedup["comparison_baseline"]["speedup_claimed"] = True
+    legacy_reviewed_speedup["comparison_baseline"]["selected_reference"] = "hip-direct"
+    validate_capture(legacy_reviewed_speedup)
+
     bad_performance_promotion = copy.deepcopy(v4_wmma_i64)
     bad_performance_promotion["backend_metadata"]["performance_validated"] = True
     expect_invalid(
         bad_performance_promotion,
-        "performance_validated captures require comparison_baseline.status=reviewed_same_contract_baseline",
+        "performance_validated captures require comparison_baseline.status=reviewed_release_same_contract_baseline",
     )
+
+    bad_legacy_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    bad_legacy_performance_promotion["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
+    bad_legacy_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
+    bad_legacy_performance_promotion["backend_metadata"]["performance_validated"] = True
+    expect_invalid(
+        bad_legacy_performance_promotion,
+        "performance_validated captures require comparison_baseline.status=reviewed_release_same_contract_baseline",
+    )
+
+    bad_legacy_derived_tops = copy.deepcopy(v4_ck_i64)
+    bad_legacy_derived_tops["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
+    bad_legacy_derived_tops["comparison_baseline"]["selected_reference"] = "hip-direct"
+    bad_legacy_derived_tops["derived_tops_equivalent"] = 123.0
+    expect_invalid(
+        bad_legacy_derived_tops,
+        "derived_tops_equivalent requires a reviewed release same-contract comparison baseline",
+    )
+
+    release_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    release_performance_promotion["comparison_baseline"]["status"] = "reviewed_release_same_contract_baseline"
+    release_performance_promotion["comparison_baseline"]["speedup_claimed"] = True
+    release_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
+    release_performance_promotion["backend_metadata"]["performance_validated"] = True
+    release_performance_promotion["derived_tops_equivalent"] = 123.0
+    validate_capture(release_performance_promotion)
+
+    release_performance_capture_without_speedup_claim = copy.deepcopy(v4_wmma_i64)
+    release_performance_capture_without_speedup_claim["backend_requested"] = "auto"
+    release_performance_capture_without_speedup_claim["comparison_baseline"]["status"] = (
+        "reviewed_release_same_contract_baseline"
+    )
+    release_performance_capture_without_speedup_claim["comparison_baseline"]["speedup_claimed"] = False
+    release_performance_capture_without_speedup_claim["comparison_baseline"]["selected_reference"] = None
+    release_performance_capture_without_speedup_claim["backend_metadata"]["performance_validated"] = True
+    validate_capture(release_performance_capture_without_speedup_claim)
 
     bad_current_version = copy.deepcopy(v4_adaptive_u64)
     bad_current_version["schema_version"] = 3

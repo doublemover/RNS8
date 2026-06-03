@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import argparse
 import json
 import tempfile
 from pathlib import Path
@@ -29,6 +30,8 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     capture["_path"] = f"{backend}.json"
     capture["backend_requested"] = backend
     capture["backend_selected"] = backend
+    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
+    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
     metadata = capture["backend_metadata"]
     metadata["source"] = "rns8_get_plan_backend_info"
     if backend == "cpu-reference":
@@ -68,6 +71,162 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     return capture
 
 
+def bounded_capture(backend: str, end_to_end: int) -> dict:
+    capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json"))
+    capture["_path"] = f"{backend}-bounded.json"
+    capture["backend_requested"] = backend
+    capture["backend_selected"] = backend
+    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
+    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+    metadata = capture["backend_metadata"]
+    metadata["source"] = "rns8_get_plan_backend_info"
+    if backend == "cpu-reference":
+        capture["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
+        metadata["selected_kernel"] = "cpu_reference_scalar_rns_gemm_v1"
+        metadata["accelerator_backend"] = False
+        metadata["matrix_engine_backend"] = False
+        metadata["accelerator_library"] = None
+        metadata["capability_status"] = "implemented_correctness_backend"
+        metadata["epilogue_mode"] = "fused_centered_residue_then_crt_export"
+        metadata["workspace_mode"] = "host_reference_workspace"
+        metadata["workspace_required_bytes"] = 0
+        metadata["isa_evidence"] = "not_applicable_cpu"
+        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference").replace(
+            "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+            "kernel=cpu_reference_scalar_rns_gemm_v1",
+        ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
+        capture["device"] = {
+            "device_id": -1,
+            "name": "CPU reference",
+            "gcn_arch": "none",
+            "hip_available": 0,
+            "hip_runtime_version": 0,
+            "hip_driver_version": 0,
+            "global_mem_bytes": 0,
+        }
+    elif backend == "hip-direct":
+        capture["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+        metadata["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+        metadata["accelerator_backend"] = False
+        metadata["matrix_engine_backend"] = False
+        metadata["accelerator_library"] = "HIP runtime"
+        metadata["capability_status"] = "implemented_correctness_backend"
+        metadata["epilogue_mode"] = "fused_centered_residue_then_crt_export"
+        metadata["workspace_mode"] = "resident_device_buffers"
+        metadata["workspace_required_bytes"] = 0
+        metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct").replace(
+            "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+            "kernel=direct_hip_tiled_rns_gemm_v1",
+        ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
+    elif backend == "hip-vector-alu-int64":
+        vector = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_vector_alu.json"))
+        vector["_path"] = capture["_path"]
+        vector["m"] = capture["m"]
+        vector["n"] = capture["n"]
+        vector["k"] = capture["k"]
+        vector["bound"] = capture["bound"]
+        vector["k_block_size"] = capture["k_block_size"]
+        vector["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
+        vector["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+        vector["seed"] = capture["seed"]
+        vector["backend_metadata"]["autotune_key"] = (
+            "backend=hip-vector-alu-int64;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
+            "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "kernel=hip_vector_alu_i64_exact_192b_v1;epilogue=direct_int64_export"
+        )
+        capture = vector
+    set_phase(capture, end_to_end)
+    return capture
+
+
+def exact_wide_capture(backend: str, end_to_end: int) -> dict:
+    capture = bounded_capture(backend, end_to_end)
+    capture["_path"] = f"{backend}-exact-wide.json"
+    capture["benchmark"] = "rns8_exact_wide_persistent_rns"
+    capture["semantics"] = "exact_wide_signed"
+    capture["bound_kind"] = "none"
+    capture["bound_mode"] = "global"
+    capture["bound"] = 0
+    capture["prefix"] = 20
+    capture["finite_modulus"] = None
+    capture["tile_bounds_u64"] = None
+    capture["epilogue_type"] = "exact_wide_signed_limb_export"
+    capture["input_distribution"] = "signed_uniform_-16_16"
+    capture["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_correctness",
+    ]
+    capture["schedule_metadata"]["min_selected_prefix"] = 20
+    capture["schedule_metadata"]["max_selected_prefix"] = 20
+    capture["schedule_metadata"]["prefix_group_count"] = 1
+    capture["schedule_metadata"]["adaptive_execution_applied"] = False
+    metadata = capture["backend_metadata"]
+    if backend == "ck":
+        metadata["epilogue_mode"] = "ck_fused_i32_to_centered_residue_rns_output"
+    elif backend == "hipblaslt":
+        metadata["epilogue_mode"] = "separate_i32_scratch_reduce_rns_output"
+    elif backend == "wmma":
+        metadata["epilogue_mode"] = "rocwmma_fused_i32_to_centered_residue_rns_output"
+    else:
+        metadata["epilogue_mode"] = "fused_centered_residue_rns_output"
+    metadata["autotune_key"] = (
+        f"backend={backend};semantics=exact_wide_signed;m={capture['m']};n={capture['n']};k={capture['k']};"
+        "prefix=20;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        f"kernel={capture['selected_kernel']};epilogue={metadata['epilogue_mode']}"
+    )
+    return capture
+
+
+def wrap64_capture(backend: str, end_to_end: int) -> dict:
+    capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_wrap64_hip.json"))
+    capture["_path"] = f"{backend}-wrap64.json"
+    capture["backend_requested"] = backend
+    capture["backend_selected"] = backend
+    capture["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
+    capture["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
+    metadata = capture["backend_metadata"]
+    metadata["source"] = "rns8_get_plan_backend_info"
+    metadata["accelerator_backend"] = False
+    metadata["matrix_engine_backend"] = False
+    metadata["performance_validated"] = False
+    metadata["autotune_key"] = metadata["autotune_key"].replace("backend=hip-direct", f"backend={backend}")
+    if backend == "wrap64-byte-limb":
+        capture["selected_kernel"] = "cpu_wrap64_byte_limb_reference_v1"
+        metadata["selected_kernel"] = "cpu_wrap64_byte_limb_reference_v1"
+        metadata["selected_backend"] = "wrap64-byte-limb"
+        metadata["accelerator_library"] = None
+        metadata["capability_status"] = "implemented_cpu_wrap64_byte_limb_reference"
+        metadata["workspace_mode"] = "host_byte_limb_reference_workspace"
+        metadata["workspace_required_bytes"] = 0
+        metadata["isa_evidence"] = "not_applicable_cpu"
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "kernel=direct_hip_wrap64_byte_gemm36_tiled_2d_v3",
+            "kernel=cpu_wrap64_byte_limb_reference_v1",
+        )
+        capture["device"] = {
+            "device_id": -1,
+            "name": "CPU wrap64 byte-limb reference",
+            "gcn_arch": "none",
+            "hip_available": 0,
+            "hip_runtime_version": 0,
+            "hip_driver_version": 0,
+            "global_mem_bytes": 0,
+        }
+    set_phase(capture, end_to_end)
+    return capture
+
+
+def mark_reused_pack(capture: dict) -> dict:
+    reused = copy.deepcopy(capture)
+    reused["reuse_packed_inputs"] = True
+    reused["pack_mode"] = "prepacked_reuse"
+    reused["prepack_setup_us"] = 11
+    reused["avg_prepack_setup_us"] = 11.0
+    reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
+    return reused
+
+
 def main() -> int:
     parsed = benchmark_sweep.parse_case("rect:64,128,256")
     assert parsed.name == "rect"
@@ -78,30 +237,267 @@ def main() -> int:
     assert benchmark_sweep.backend_allowed_for("wrap-u64", parsed, "wrap64-byte-limb") is True
     assert benchmark_sweep.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
     assert benchmark_sweep.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64") is False
+    assert benchmark_sweep.backend_allowed_for("exact-wide-signed", parsed, "ck") is True
+    assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
+    assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
     assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
+
+    wrap64_args = argparse.Namespace(
+        bench=Path("rns8-bench"),
+        bench_for=[],
+        out_root=Path("temp") / "wrap64-release",
+        backends=None,
+        semantics=["wrap-u64"],
+        case=None,
+        adaptive_case=None,
+        shapes=None,
+        modulus=None,
+        include_default_adaptive=False,
+        adaptive_only=False,
+        include_wrap64=False,
+        include_exact_wide=False,
+        reuse_packed_inputs=False,
+        release_matrix=True,
+        include_exploratory_large=False,
+        review_mode="release",
+        warmups=benchmark_sweep.RELEASE_MIN_WARMUPS,
+        repeats=benchmark_sweep.RELEASE_MIN_REPEATS,
+        seed=20260602,
+        write_autotune_cache=False,
+        autotune_cache=None,
+    )
+    wrap64_commands = benchmark_sweep.sweep_commands(wrap64_args)
+    assert len(wrap64_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 2
+    assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
+    assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
+    assert all("--semantics" in command and "wrap-u64" in command for _name, command, _output in wrap64_commands)
+    wrap64_args.reuse_packed_inputs = True
+    reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
+    assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
+    assert all("--reuse-packed-inputs" in command for _name, command, _output in reuse_commands)
+    wrap64_args.reuse_packed_inputs = False
+    wrap64_args.adaptive_only = True
+    try:
+        benchmark_sweep.sweep_commands(wrap64_args)
+    except SystemExit as exc:
+        assert "--adaptive-only requires" in str(exc)
+    else:
+        raise AssertionError("adaptive-only without adaptive cases should fail even when wrap64 is requested")
+    wrap64_args.adaptive_only = False
+
+    exact_args = argparse.Namespace(
+        bench=Path("rns8-bench"),
+        bench_for=[],
+        out_root=Path("temp") / "exact-wide",
+        backends=["cpu", "hip-direct"],
+        semantics=["exact_wide_signed"],
+        case=["small:16,16,16"],
+        adaptive_case=None,
+        shapes=None,
+        modulus=None,
+        include_default_adaptive=False,
+        adaptive_only=False,
+        include_wrap64=False,
+        include_exact_wide=False,
+        reuse_packed_inputs=False,
+        release_matrix=False,
+        include_exploratory_large=False,
+        review_mode="smoke",
+        warmups=1,
+        repeats=2,
+        seed=7,
+        write_autotune_cache=False,
+        autotune_cache=None,
+    )
+    exact_commands = benchmark_sweep.sweep_commands(exact_args)
+    assert [name for name, _command, _output in exact_commands] == [
+        "exact-wide-signed-small-16x16x16-cpu.json",
+        "exact-wide-signed-small-16x16x16-hip-direct.json",
+    ]
+    assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
+
+    exact_include_args = argparse.Namespace(
+        bench=Path("rns8-bench"),
+        bench_for=[],
+        out_root=Path("temp") / "exact-wide-release",
+        backends=None,
+        semantics=None,
+        case=["small:16,16,16"],
+        adaptive_case=None,
+        shapes=None,
+        modulus=None,
+        include_default_adaptive=False,
+        adaptive_only=False,
+        include_wrap64=False,
+        include_exact_wide=True,
+        reuse_packed_inputs=False,
+        release_matrix=False,
+        include_exploratory_large=False,
+        review_mode="smoke",
+        warmups=1,
+        repeats=2,
+        seed=7,
+        write_autotune_cache=False,
+        autotune_cache=None,
+    )
+    exact_include_commands = benchmark_sweep.sweep_commands(exact_include_args)
+    exact_include_names = [name for name, _command, _output in exact_include_commands]
+    assert "exact-wide-signed-small-16x16x16-cpu.json" in exact_include_names
+    assert "exact-wide-unsigned-small-16x16x16-rocwmma.json" in exact_include_names
+    assert len(exact_include_commands) == 10 + (2 * len(benchmark_sweep.BOUNDED_BACKENDS))
+
+    adaptive_only_args = argparse.Namespace(
+        bench=Path("rns8-bench"),
+        bench_for=[],
+        out_root=Path("temp") / "adaptive-only",
+        backends=["cpu"],
+        semantics=["bounded-i64"],
+        case=None,
+        adaptive_case=None,
+        shapes=None,
+        modulus=None,
+        include_default_adaptive=True,
+        adaptive_only=True,
+        include_wrap64=False,
+        include_exact_wide=False,
+        reuse_packed_inputs=False,
+        release_matrix=True,
+        include_exploratory_large=False,
+        review_mode="release",
+        warmups=benchmark_sweep.RELEASE_MIN_WARMUPS,
+        repeats=benchmark_sweep.RELEASE_MIN_REPEATS,
+        seed=20260602,
+        write_autotune_cache=False,
+        autotune_cache=None,
+    )
+    commands = benchmark_sweep.sweep_commands(adaptive_only_args)
+    assert len(commands) == 2
+    assert all("--require-adaptive-execution" in command for _name, command, _output in commands)
+    assert all("--bound-mode" in command and "per-tile" in command for _name, command, _output in commands)
+    assert [name for name, _command, _output in commands] == [
+        "bounded-i64-tiny-adaptive-65x65x64-cpu.json",
+        "bounded-i64-medium-adaptive-1024x1024x1024-cpu.json",
+    ]
+    adaptive_only_args.include_default_adaptive = False
+    try:
+        benchmark_sweep.sweep_commands(adaptive_only_args)
+    except SystemExit as exc:
+        assert "--adaptive-only requires" in str(exc)
+    else:
+        raise AssertionError("adaptive-only without adaptive cases should fail")
 
     ck = finite_capture("ck", 190)
     direct = finite_capture("hip-direct", 300)
     cpu = finite_capture("cpu-reference", 500)
-    report = benchmark_sweep.review_captures([ck, direct, cpu])
+    smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
+    assert smoke_report["schema_version"] == 3
+    assert smoke_report["review_mode"] == "smoke"
+    assert smoke_report["promotable_autotune_entries"] == []
+    assert "not_release_review" in smoke_report["groups"][0]["candidates"][0]["promotion_blockers"]
+
+    report = benchmark_sweep.review_captures([ck, direct, cpu], review_mode="release")
+    benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
+    assert report["schema_version"] == 3
+    assert report["review_mode"] == "release"
     assert report["group_count"] == 1
     assert len(report["promotable_autotune_entries"]) == 1
     assert report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
     group = report["groups"][0]
     assert group["missing_required_baselines"] == []
+    assert group["release_review_satisfied"] is True
+    assert group["source_metadata"]["target_ids"] == ["gfx1100"]
+    assert group["source_metadata"]["seeds"] == [13]
+    assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
+    assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
+    assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
+    assert group["candidates"][0]["promotion_blockers"] == []
 
-    blocked = benchmark_sweep.review_captures([ck])
-    assert blocked["promotable_autotune_entries"] == []
-    assert blocked["groups"][0]["missing_required_baselines"] == ["cpu-reference", "hip-direct"]
+    reuse_report = benchmark_sweep.review_captures(
+        [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
+        review_mode="release",
+    )
+    reuse_group = reuse_report["groups"][0]
+    assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
+    assert reuse_report["promotable_autotune_entries"] == []
+    reuse_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
+    }
+    assert "prepacked_reuse_not_autotune_promotable" in reuse_blockers["ck"]
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        cache_path = Path(temp_dir) / "autotune.json"
+        cache_path = Path(temp_dir) / "finite-autotune.json"
         promoted = benchmark_sweep.write_promoted_cache_entries(report, [ck, direct, cpu], cache_path)
+        benchmark_sweep.attach_cache_write_status(report, True, cache_path, promoted)
         assert promoted == 1
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
-        assert cache["entries"][0]["performance_validated"] is True
-        assert cache["entries"][0]["validation_status"] == "reviewed_same_contract_fastest_windows_gfx1100"
+        entry = cache["entries"][0]
+        assert entry["finite_modulus"] == 255
+        assert ";finite_modulus=255;" in f";{entry['key']};"
+
+    blocked = benchmark_sweep.review_captures([ck], review_mode="release")
+    benchmark_sweep.attach_cache_write_status(blocked, False, Path("unused.json"), 0)
+    assert blocked["promotable_autotune_entries"] == []
+    assert blocked["cache_write"]["status"] == "not_requested"
+    assert blocked["groups"][0]["missing_required_baselines"] == ["cpu-reference", "hip-direct"]
+
+    wrap64_direct = wrap64_capture("hip-direct", 200)
+    wrap64_cpu = wrap64_capture("wrap64-byte-limb", 500)
+    wrap64_report = benchmark_sweep.review_captures([wrap64_direct, wrap64_cpu], review_mode="release")
+    assert wrap64_report["promotable_autotune_entries"] == []
+    wrap64_group = wrap64_report["groups"][0]
+    assert wrap64_group["semantics"] == "wrap_u64_mod_2_64"
+    assert wrap64_group["missing_required_baselines"] == []
+    assert wrap64_group["release_review_satisfied"] is True
+    assert wrap64_group["fastest_promotable"] is None
+    blockers_by_backend = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in wrap64_group["candidates"]
+    }
+    assert "not_accelerator_backend" in blockers_by_backend["hip-direct"]
+    assert "not_accelerator_backend" in blockers_by_backend["wrap64-byte-limb"]
+    assert "not_faster_than_direct_hip" in blockers_by_backend["wrap64-byte-limb"]
+
+    exact_ck = exact_wide_capture("ck", 170)
+    exact_direct = exact_wide_capture("hip-direct", 300)
+    exact_cpu = exact_wide_capture("cpu-reference", 520)
+    exact_report = benchmark_sweep.review_captures([exact_ck, exact_direct, exact_cpu], review_mode="release")
+    exact_group = exact_report["groups"][0]
+    assert exact_group["semantics"] == "exact_wide_signed"
+    assert exact_group["required_baselines"] == ["cpu-reference", "hip-direct"]
+    assert exact_group["missing_required_baselines"] == []
+    assert len(exact_report["promotable_autotune_entries"]) == 1
+    assert exact_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+
+    exact_blocked = benchmark_sweep.review_captures([exact_ck], review_mode="release")
+    assert exact_blocked["groups"][0]["missing_required_baselines"] == ["cpu-reference", "hip-direct"]
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        bounded_ck = bounded_capture("ck", 180)
+        bounded_direct = bounded_capture("hip-direct", 300)
+        bounded_vector = bounded_capture("hip-vector-alu-int64", 240)
+        bounded_cpu = bounded_capture("cpu-reference", 500)
+        bounded_report = benchmark_sweep.review_captures(
+            [bounded_ck, bounded_direct, bounded_vector, bounded_cpu], review_mode="release"
+        )
+        assert len(bounded_report["promotable_autotune_entries"]) == 1
+        assert bounded_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+        assert bounded_report["promotable_autotune_entries"][0]["target_id"] == "gfx1100"
+        assert bounded_report["groups"][0]["fastest_promotable"]["backend"] == "ck"
+        cache_path = Path(temp_dir) / "autotune.json"
+        promoted = benchmark_sweep.write_promoted_cache_entries(
+            bounded_report, [bounded_ck, bounded_direct, bounded_vector, bounded_cpu], cache_path
+        )
+        benchmark_sweep.attach_cache_write_status(bounded_report, True, cache_path, promoted)
+        assert promoted == 1
+        assert bounded_report["cache_write"]["status"] == "written"
+        assert bounded_report["groups"][0]["fastest_promotable"]["cache_write_status"] == "written"
+        assert bounded_report["groups"][0]["candidates"][1]["cache_write_status"] != "written"
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+        entry = cache["entries"][0]
+        assert entry["performance_validated"] is True
+        assert entry["validation_status"] == "reviewed_release_same_contract_fastest_windows_gfx1100"
+        assert entry["epilogue"] == bounded_ck["backend_metadata"]["epilogue_mode"]
+        assert f";epilogue={entry['epilogue']}" in entry["key"]
 
     validate_capture(load_capture(FIXTURE_DIR / "v4_finite_ring_u8_ck.json"))
     validate_capture(load_capture(FIXTURE_DIR / "v4_finite_field_u8_rocwmma.json"))

@@ -25,6 +25,14 @@ std::size_t wrap_byte_limb_index(const rns8_matrix& matrix, int64_t row, int64_t
   return wrap_compact_limb_index(row, col, matrix.desc.cols, limb);
 }
 
+uint64_t load_wrap_compact_u64_limbs(const uint8_t* limbs) {
+  uint64_t value = 0;
+  for (uint32_t limb = 0; limb < kWrap64ByteLimbs; ++limb) {
+    value |= static_cast<uint64_t>(limbs[limb]) << (8u * limb);
+  }
+  return value;
+}
+
 bool expected_wrap_byte_limb_count(int64_t rows, int64_t cols, std::size_t& count) {
   if (rows <= 0 || cols <= 0) {
     return false;
@@ -114,13 +122,16 @@ uint64_t wrap64_compact_byte_limb_gemm_cell(
     int64_t row,
     int64_t col,
     int64_t k) {
-  std::array<cpp_int, kWrap64LowProductDiagonals> diagonals{};
+  uint64_t acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     const uint8_t* a_limbs = A.byte_limbs.data() + wrap_byte_limb_index(A, row, kk, 0);
     const uint8_t* b_limbs = B.byte_limbs.data() + wrap_byte_limb_index(B, kk, col, 0);
-    accumulate_wrap64_low_diagonals_from_limbs(a_limbs, b_limbs, diagonals);
+    // The CPU reference still consumes byte-limb resident storage. Native
+    // uint64_t multiplication is defined modulo 2^64 and is equivalent to the
+    // byte-pair low-diagonal oracle without per-cell cpp_int carry work.
+    acc += load_wrap_compact_u64_limbs(a_limbs) * load_wrap_compact_u64_limbs(b_limbs);
   }
-  return wrap64_low64_from_diagonals(diagonals);
+  return acc;
 }
 
 }  // namespace
@@ -193,11 +204,7 @@ void pack_wrap_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) 
 }
 
 uint64_t wrap_u64_matrix_cell(const rns8_matrix& matrix, int64_t row, int64_t col) {
-  uint64_t value = 0;
-  for (uint32_t limb = 0; limb < 8; ++limb) {
-    value |= static_cast<uint64_t>(matrix.byte_limbs[wrap_byte_limb_index(matrix, row, col, limb)]) << (8u * limb);
-  }
-  return value;
+  return load_wrap_compact_u64_limbs(matrix.byte_limbs.data() + wrap_byte_limb_index(matrix, row, col, 0));
 }
 
 void set_wrap_u64_matrix_cell(rns8_matrix& matrix, int64_t row, int64_t col, uint64_t value) {

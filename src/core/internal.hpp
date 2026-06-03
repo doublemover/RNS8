@@ -12,6 +12,7 @@
 
 struct rns8_context {
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  bool auto_backend_selection = false;
   int device_id = -1;
   rns8_device_info device_info{};
   void* hipblaslt_handle = nullptr;
@@ -44,6 +45,7 @@ struct rns8_plan {
   std::string backend_workspace_mode;
   std::string backend_isa_evidence;
   std::string backend_autotune_key;
+  uint32_t backend_performance_validated = 0;
   std::vector<uint64_t> tile_bounds;
   std::vector<rns8_plan_tile_schedule_entry> tile_schedule;
 };
@@ -89,6 +91,7 @@ struct rns8_workspace {
   int64_t n = 0;
   int64_t k = 0;
   uint64_t bound = 0;
+  uint32_t finite_modulus = 0;
   uint32_t tile_m = 0;
   uint32_t tile_n = 0;
   uint32_t prefix = 0;
@@ -114,6 +117,7 @@ struct rns8_workspace {
   std::string backend_workspace_mode;
   std::string backend_isa_evidence;
   std::string backend_autotune_key;
+  uint32_t backend_performance_validated = 0;
   int hip_device_id = -1;
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
@@ -142,6 +146,9 @@ void fill_wrap64_device_info(rns8_device_info& info);
 void copy_c_string(char* dst, std::size_t dst_size, const std::string& src);
 
 bool default_moduli_pairwise_coprime();
+bool valid_finite_ring_modulus(uint32_t modulus);
+bool valid_finite_field_modulus(uint32_t modulus);
+bool valid_finite_modulus_for_semantics(rns8_semantics semantics, uint32_t modulus);
 cpp_int modulus_product(uint32_t prefix);
 uint32_t bit_length(const cpp_int& value);
 uint32_t required_prefix_for_range(const cpp_int& range);

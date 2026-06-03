@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 
 #include "core/autotune_cache.hpp"
@@ -102,6 +103,131 @@ std::string json_escape(const std::string& input) {
   return json_escape(input.c_str());
 }
 
+bool parse_key_u32_field(const std::string& key, const std::string& name, uint32_t& out) {
+  const std::string prefix = name + "=";
+  std::size_t begin = 0;
+  while (begin <= key.size()) {
+    const std::size_t end = key.find(';', begin);
+    const std::string field = key.substr(begin, end == std::string::npos ? std::string::npos : end - begin);
+    if (field.rfind(prefix, 0) == 0) {
+      try {
+        const unsigned long parsed = std::stoul(field.substr(prefix.size()));
+        if (parsed > std::numeric_limits<uint32_t>::max()) {
+          return false;
+        }
+        out = static_cast<uint32_t>(parsed);
+        return true;
+      } catch (...) {
+        return false;
+      }
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    begin = end + 1;
+  }
+  return false;
+}
+
+bool fill_plan_desc_from_autotune_entry(
+    const rns8::detail::AutotuneCacheEntry& entry,
+    rns8_backend_kind backend,
+    rns8_gemm_desc& desc) {
+  if (entry.selected_backend != backend_name(backend) || entry.m <= 0 || entry.n <= 0 || entry.k <= 0) {
+    return false;
+  }
+
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  rns8_bound_kind bound_kind = RNS8_BOUND_NONE;
+  uint64_t bound = 0;
+  uint32_t max_prefix = 0;
+  uint32_t finite_modulus = 0;
+  if (entry.semantic_contract == "bounded_i64") {
+    semantics = RNS8_BOUNDED_I64;
+    bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+    bound = 127;
+    max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  } else if (entry.semantic_contract == "bounded_u64") {
+    semantics = RNS8_BOUNDED_U64;
+    bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+    bound = 255;
+    max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  } else if (entry.semantic_contract == "exact_wide_signed") {
+    semantics = RNS8_EXACT_WIDE_SIGNED;
+    bound_kind = RNS8_BOUND_NONE;
+    max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  } else if (entry.semantic_contract == "exact_wide_unsigned") {
+    semantics = RNS8_EXACT_WIDE_UNSIGNED;
+    bound_kind = RNS8_BOUND_NONE;
+    max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  } else if (entry.semantic_contract == "finite_ring_u8") {
+    semantics = RNS8_FINITE_RING_U8;
+    bound_kind = RNS8_BOUND_NONE;
+    max_prefix = 0;
+    finite_modulus = entry.finite_modulus;
+  } else if (entry.semantic_contract == "finite_field_u8") {
+    semantics = RNS8_FINITE_FIELD_U8;
+    bound_kind = RNS8_BOUND_NONE;
+    max_prefix = 0;
+    finite_modulus = entry.finite_modulus;
+  } else {
+    return false;
+  }
+
+  uint32_t parsed_prefix = max_prefix;
+  if (parse_key_u32_field(entry.key, "prefix", parsed_prefix)) {
+    max_prefix = parsed_prefix;
+  }
+
+  desc = {};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = bound_kind;
+  desc.requested_backend = backend;
+  desc.m = entry.m;
+  desc.n = entry.n;
+  desc.k = entry.k;
+  desc.bound = bound;
+  desc.max_prefix = max_prefix;
+  desc.finite_modulus = finite_modulus;
+  desc.tile_m = entry.tile_m;
+  desc.tile_n = entry.tile_n;
+  return true;
+}
+
+rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
+    rns8_context* ctx,
+    rns8_backend_kind backend,
+    const rns8::detail::AutotuneCacheSnapshot& snapshot,
+    const std::string& autotune_key,
+    rns8::detail::AutotuneRuntimeIdentity runtime) {
+  const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
+  if (!hit) {
+    return runtime;
+  }
+
+  rns8_gemm_desc desc{};
+  if (!fill_plan_desc_from_autotune_entry(*hit, backend, desc)) {
+    return runtime;
+  }
+
+  rns8_plan* plan = nullptr;
+  if (rns8_create_plan(ctx, &desc, &plan) != RNS8_SUCCESS || !plan) {
+    return runtime;
+  }
+
+  rns8_plan_backend_info plan_info{};
+  plan_info.struct_size = sizeof(plan_info);
+  plan_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status status = rns8_get_plan_backend_info(plan, &plan_info);
+  rns8_destroy_plan(plan);
+  if (status == RNS8_SUCCESS && plan_info.accelerator_version[0] != '\0') {
+    runtime.hip_sdk_or_library_version = plan_info.accelerator_version;
+  }
+  return runtime;
+}
+
 void print_capability_text(const rns8_backend_capability_info& capability) {
   std::cout << "capability_status: " << capability.status << "\n";
   std::cout << "selected_kernel:   " << capability.selected_kernel << "\n";
@@ -149,10 +275,28 @@ void print_capability_json(const rns8_backend_capability_info& capability, bool 
   std::cout << "  }" << (trailing_comma ? "," : "") << "\n";
 }
 
+rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity(
+    const rns8_device_info& info,
+    const rns8_backend_capability_info& capability) {
+  rns8::detail::AutotuneRuntimeIdentity runtime{};
+  const std::string target = info.gcn_arch;
+  if (!target.empty() && target != "none") {
+    runtime.target_id = target;
+  } else if (!info.hip_available) {
+    runtime.target_id = "cpu";
+  }
+  if (capability.library_version[0] != '\0' &&
+      std::string(capability.library_version) != "runtime_queried_in_context") {
+    runtime.hip_sdk_or_library_version = capability.library_version;
+  }
+  return runtime;
+}
+
 void print_autotune_text(
     const rns8::detail::AutotuneCacheSnapshot& snapshot,
     const std::string& autotune_key,
     const std::string& selected_backend,
+    const rns8::detail::AutotuneRuntimeIdentity& runtime,
     bool show_entries) {
   std::cout << "autotune_cache_path:   " << snapshot.path.string() << "\n";
   std::cout << "autotune_cache_loaded: " << (snapshot.loaded ? 1 : 0) << "\n";
@@ -165,8 +309,11 @@ void print_autotune_text(
     const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
     std::cout << "autotune_key:          " << autotune_key << "\n";
     std::cout << "autotune_exact_hit:    " << (hit ? 1 : 0) << "\n";
+    std::cout << "autotune_runtime_target:  " << runtime.target_id << "\n";
+    std::cout << "autotune_runtime_version: " << runtime.hip_sdk_or_library_version << "\n";
     std::cout << "selection_rationale:   "
-              << rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend) << "\n";
+              << rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime)
+              << "\n";
     if (hit) {
       std::cout << "autotune_backend:      " << hit->selected_backend << "\n";
       std::cout << "autotune_kernel:       " << hit->selected_kernel << "\n";
@@ -185,6 +332,7 @@ void print_autotune_json(
     const rns8::detail::AutotuneCacheSnapshot& snapshot,
     const std::string& autotune_key,
     const std::string& selected_backend,
+    const rns8::detail::AutotuneRuntimeIdentity& runtime,
     bool show_entries) {
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   std::cout << "  \"autotune_cache\": {\n";
@@ -196,8 +344,10 @@ void print_autotune_json(
   std::cout << "    \"error\": \"" << json_escape(snapshot.error) << "\",\n";
   std::cout << "    \"queried_key\": \"" << json_escape(autotune_key) << "\",\n";
   std::cout << "    \"exact_hit\": " << (hit ? "true" : "false") << ",\n";
+  std::cout << "    \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
+  std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
   std::cout << "    \"selection_rationale\": \""
-            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend))
+            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
             << "\"";
   if (hit) {
     std::cout << ",\n";
@@ -234,6 +384,7 @@ void print_text(
     const rns8_backend_capability_info& capability,
     const rns8::detail::AutotuneCacheSnapshot* snapshot,
     const std::string& autotune_key,
+    const rns8::detail::AutotuneRuntimeIdentity& runtime,
     bool show_autotune_cache) {
   std::cout << "RNS8 inspect\n";
   std::cout << "backend:       " << backend_name(info.backend) << "\n";
@@ -247,7 +398,12 @@ void print_text(
   std::cout << "detail:        " << info.detail << "\n";
   print_capability_text(capability);
   if (snapshot) {
-    print_autotune_text(*snapshot, autotune_key, backend_name(info.backend), show_autotune_cache);
+    print_autotune_text(
+        *snapshot,
+        autotune_key,
+        backend_name(info.backend),
+        runtime,
+        show_autotune_cache);
   }
 }
 
@@ -256,6 +412,7 @@ void print_json(
     const rns8_backend_capability_info& capability,
     const rns8::detail::AutotuneCacheSnapshot* snapshot,
     const std::string& autotune_key,
+    const rns8::detail::AutotuneRuntimeIdentity& runtime,
     bool show_autotune_cache) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
@@ -269,7 +426,12 @@ void print_json(
   std::cout << "  \"detail\": \"" << json_escape(info.detail) << "\",\n";
   print_capability_json(capability, snapshot != nullptr);
   if (snapshot) {
-    print_autotune_json(*snapshot, autotune_key, backend_name(info.backend), show_autotune_cache);
+    print_autotune_json(
+        *snapshot,
+        autotune_key,
+        backend_name(info.backend),
+        runtime,
+        show_autotune_cache);
   }
   std::cout << "}\n";
 }
@@ -349,8 +511,8 @@ int main(int argc, char** argv) {
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
   status = rns8_get_device_info(ctx, &info);
-  rns8_destroy_context(ctx);
   if (status != RNS8_SUCCESS) {
+    rns8_destroy_context(ctx);
     std::cerr << "rns8_get_device_info: " << rns8_status_string(status) << "\n";
     return 1;
   }
@@ -360,6 +522,7 @@ int main(int argc, char** argv) {
   selected_capability.abi_version = RNS8_ABI_VERSION;
   status = rns8_get_backend_capability_info(info.backend, &selected_capability);
   if (status != RNS8_SUCCESS) {
+    rns8_destroy_context(ctx);
     std::cerr << "rns8_get_backend_capability_info(" << backend_name(info.backend) << "): "
               << rns8_status_string(status) << "\n";
     return 1;
@@ -371,10 +534,28 @@ int main(int argc, char** argv) {
     snapshot = rns8::detail::read_autotune_cache();
   }
 
-  if (json) {
-    print_json(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key, show_autotune_cache);
-  } else {
-    print_text(info, selected_capability, inspect_autotune ? &snapshot : nullptr, autotune_key, show_autotune_cache);
+  auto runtime = autotune_runtime_identity(info, selected_capability);
+  if (inspect_autotune && !autotune_key.empty()) {
+    runtime = runtime_identity_with_plan_version(ctx, info.backend, snapshot, autotune_key, runtime);
   }
+
+  if (json) {
+    print_json(
+        info,
+        selected_capability,
+        inspect_autotune ? &snapshot : nullptr,
+        autotune_key,
+        runtime,
+        show_autotune_cache);
+  } else {
+    print_text(
+        info,
+        selected_capability,
+        inspect_autotune ? &snapshot : nullptr,
+        autotune_key,
+        runtime,
+        show_autotune_cache);
+  }
+  rns8_destroy_context(ctx);
   return 0;
 }

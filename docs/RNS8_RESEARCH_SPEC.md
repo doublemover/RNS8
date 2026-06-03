@@ -257,6 +257,10 @@ The repository produces:
 - `rns8-bench`: benchmark runner.
 - `rns8-verify`: correctness and differential-test runner.
 - `rns8-inspect`: device, backend, and autotune cache inspector.
+- `tools/install_autotune_cache.py`: validates and merges reviewed release
+  autotune cache entries into an explicit or default cache path, with an
+  explicit replacement mode for discarding stale or non-reviewed destination
+  entries.
 - Python package `rns8bench` for benchmark sweeps only.
 
 ## 6. Integer Semantics
@@ -915,10 +919,21 @@ Exact-wide descriptors use `RNS8_BOUND_NONE`, `bound = 0`, and no tile-bound
 storage. Global bounded descriptors also carry no tile-bound pointer/count.
 Stale bound metadata is rejected as `RNS8_INVALID_ARGUMENT` rather than ignored
 or reported as an unsupported backend.
-`RNS8_BACKEND_AUTO` selects only the current context's default backend. It does
-not translate valid semantic descriptors across backend families: CPU AUTO does
-not route wrap64 to byte-limb storage, and wrap64 AUTO does not route bounded or
-exact-wide descriptors to the CPU/RNS path.
+The production target for `RNS8_BACKEND_AUTO` is reviewed-evidence selection,
+not semantic coercion. A valid AUTO plan may select a concrete backend only when
+the reviewed autotune key exactly matches the explicit semantic contract, shape,
+layout, target id, HIP or accelerator library version, prefix schedule, K-block,
+tile size, epilogue, and kernel family. It must reject unvalidated, stale,
+debug-only, wrong-target, wrong-version, wrong-shape, or wrong-semantic cache
+entries with inspectable rationale. Without a validated exact cache hit or
+reviewed fastest accelerator entry, AUTO uses the direct-HIP GPU correctness
+path for GPU-supported RNS and wrap64 semantics, and uses CPU only when GPU
+support is unavailable. It does not translate valid semantic descriptors across
+backend families: CPU fallback does not reinterpret wrap64 as bounded CRT, and
+wrap64 storage does not route bounded or exact-wide descriptors to an unrelated
+RNS path. finite-u8 descriptors carry the explicit finite modulus in the plan
+descriptor and autotune key, so reviewed-cache AUTO selection is
+shape-and-modulus scoped and cannot alias different rings or fields.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a
@@ -1010,6 +1025,11 @@ semantic coverage, exact CPU differentials, direct-HIP differentials,
 benchmark-schema coverage, and target ISA evidence exist. Production promotion
 still requires measured performance evidence. AMDGPU builtin paths remain
 accelerator candidates until the same correctness and evidence gates exist.
+CK integration patches to pinned repo-local CK headers must be deterministic,
+exact-match guarded at configure time, emitted as build-tree include overlays,
+and tracked as source dependencies for the compiled HIP object they affect. If
+the expected upstream or patched header block is not present, the CK enable
+flag must fail fast instead of compiling an untested CK variant.
 Configure-time enable flags for accelerator backends must continue to fail fast
 while only evidence probes exist. The test suite should include
 configure-negative coverage so discovery probes cannot become placeholder
@@ -1038,6 +1058,30 @@ CK only after a real exact correctness backend exists and is faster
 rocWMMA/builtins only after target-specific exact hot kernels exist
 ```
 
+Production AUTO selection is stricter than this ladder. It is:
+
+```text
+exact validated autotune cache hit for the full plan key
+reviewed fastest accelerator entry for the same full plan key
+direct HIP correctness fallback on available GPU
+CPU reference only when GPU support is unavailable
+```
+
+Dependency discovery, raw benchmark captures, and unreviewed cache entries are
+never backend enablement signals. An accelerator dependency can be present,
+compile-probed, and reported by `rns8-inspect` while still being ineligible for
+AUTO selection. The implementation status of this policy is tracked in
+`docs/roadmap-status.md`; the selector may consume reviewed release cache
+entries for HIP-resident accelerator candidates, including finite-u8 entries
+whose full plan keys include the explicit modulus, after those entries have
+been installed by the reviewed-cache installer. `rns8-bench --backend auto` is
+an allowed validation surface for reviewed-cache runtime selection: captures
+must report `backend_requested=auto`, the concrete `backend_selected`, and
+reviewed-release comparison metadata when the selected plan is
+`performance_validated=true`. Hermetic AUTO validation must be able to redirect
+the default cache root and prove selection without relying on the developer
+machine's real cache state.
+
 ### 12.3 Signedness And INT8 Contract
 
 Centered residues use signed `int8_t`. Backends that expose only signed INT8
@@ -1049,7 +1093,95 @@ documented biasing correction or routed to a backend with native unsigned/mixed
 signed support. This signedness path is part of correctness testing and cannot
 be hidden inside backend-specific assumptions.
 
-### 12.4 Target-Specific Notes
+### 12.4 Accelerator Control Plane
+
+Accelerator plan metadata is backend-owned and immutable after plan creation.
+Every concrete accelerator plan records selected backend, selected kernel,
+target id, accelerator library version, workspace bytes, epilogue mode, ISA
+evidence state, validation status, and the full autotune key. Workspaces are
+created for a specific plan and must reject mismatched backend metadata instead
+of silently sharing scratch buffers across semantic contracts or backend
+families.
+
+Disabled accelerator descriptors must describe the real state of the backend:
+missing dependency, present but unprobed, compile-probed dependency evidence,
+compiled opt-in correctness backend, ISA validated, release-reviewed, or
+AUTO-promoted. Phrases such as "pending" or "evidence-only" are acceptable only
+when they describe the precise unavailable state; they must not appear as
+selected kernels for implemented opt-in correctness backends.
+
+Malformed descriptors always win status precedence. Invalid ABI sizes, unknown
+semantics, stale bound metadata, unsupported finite modulus arguments, invalid
+tile-bound storage, and wrong layout values return `RNS8_INVALID_ARGUMENT`
+before accelerator support checks or fail-fast paths run.
+
+### 12.5 Packed Low-Bit Matrix-Engine Pipeline
+
+The packed low-bit pipeline is the long-term path toward near-ideal matrix
+engine utilization while preserving exact arithmetic semantics. It is a
+separate roadmap track, not a license to approximate the public exact APIs.
+
+Persistent layout versions:
+
+- `rns_i8_modulus_major_v2`: centered `int8_t` RNS planes stored by modulus,
+  with backend-aligned leading dimensions and explicit source-version stamps.
+- `rns_i8_tile_swizzled_b_v1`: pre-transposed or tile-swizzled B panels for
+  repeated-B workloads and rocWMMA/CK hot kernels.
+- `finite_u8_centered_plane_v2`: canonical `uint8_t` finite inputs packed into
+  centered signed residue planes for matrix-engine consumption, with explicit
+  modulus metadata.
+- `wrap64_byte_limb_gemm36_v2`: unsigned byte-limb panels containing only the
+  36 low-64-relevant byte-product diagonals, with signed-INT8 correction
+  metadata when native unsigned byte matrix multiply is unavailable.
+- `rns_i4_packed_v0`: research-only INT4/IU4 packing for narrow residue subsets
+  or finite fields; never production until exactness and performance gates are
+  met.
+
+Prepack caches are keyed by matrix source version, backend, target id, layout
+version, tile shape, K-block, modulus, prefix schedule hash, operand role,
+transpose state, and epilogue family. Cache hits are valid only when the source
+matrix version is unchanged and the exact backend layout contract matches the
+selected plan. The benchmark model must separate one-shot packing cost from
+repeated-A, repeated-B, and repeated-A/B amortized workloads.
+
+Production dataflow target:
+
+```text
+host or resident source matrix
+explicit semantic pack or prepack
+matrix-engine GEMM over selected moduli or byte pairs
+fused residue, finite-u8, exact-wide, or low64 epilogue
+checked export or persistent RNS output stamp
+```
+
+INT8 is the default production low-bit lane for bounded RNS, exact-wide RNS
+output, and finite-u8. CK owns grouped/fused production scheduling, rocWMMA owns
+RNS8 hot kernels for `gfx1100`, hipBLASLt remains a baseline or shape-specific
+winner, and AMDGPU builtins are admitted only when a measured bottleneck needs
+instruction-level control. Global INT32 scratch is a baseline/debug artifact
+and cannot be the production path for fused CK/rocWMMA/builtin kernels unless a
+reviewed target proves it faster than direct fused reduction.
+
+Strict wrap64 remains separate from odd-modulus CRT. A matrix-engine wrap64
+candidate must compute the 36 byte-product pairs that can affect the low 64
+bits, apply unsigned-byte or signed-correction algebra explicitly, fuse
+diagonal accumulation and carry propagation, and write low-64 output without
+materializing full per-cell INT32 scratch. It ships only after exact CPU
+byte-limb and direct-HIP wrap64 differentials, ISA matrix-instruction evidence,
+and release timings beat `direct_hip_wrap64_byte_gemm36_tiled_2d_v3`.
+
+Low-bit research retirement rules are mandatory:
+
+- retire INT4/IU4 for a semantic/target if it fails to beat tuned INT8 after
+  layout, epilogue, and ISA-confirmed matrix-instruction tuning;
+- retire a packed layout version when pack amortization is negative for
+  one-shot and repeated-A/B workloads after tuning;
+- retire FP8/Ozaki from exact integer production routing unless it is isolated
+  as a research mode with explicit verification metadata;
+- retire a builtin kernel when it does not beat CK/rocWMMA for the same
+  semantic contract, shape, target, and release review conditions.
+
+### 12.6 Target-Specific Notes
 
 - `gfx1030` RDNA2: functional HIP/vector target; matrix-core acceleration is
   not assumed.
@@ -1230,6 +1362,9 @@ Unreviewed benchmark-emitted entries must not be treated as performance
 validation or as permission to promote an accelerator backend.
 Raw benchmark captures are not allowed to write production autotune entries
 directly; reviewed same-contract reports are the promotion boundary.
+The reviewed-cache installer must reject stale or non-reviewed destination
+entries during normal merges and require an explicit replacement operation
+before discarding them.
 
 Benchmark outputs include:
 
@@ -1259,6 +1394,12 @@ Benchmark outputs include:
 - median and p95 timings,
 - derived TOPS-equivalent,
 - comparison baseline.
+
+Exact-wide benchmark captures use explicit `exact_wide_signed` or
+`exact_wide_unsigned` semantic contracts, `RNS8_BOUND_NONE`, a nonzero RNS
+prefix, fixed-width little-endian limb export epilogues, and same-contract
+CPU/direct-HIP baseline requirements. They are not bounded i64/u64, finite-u8,
+or strict wrap64 captures.
 
 Exact deterministic benchmarks use fixed seeds. Early-termination research
 benchmarks record RNG seeds and false-acceptance bounds.
@@ -1301,6 +1442,58 @@ Decision: split by modulus, not by K.
 
 Ship rule: multi-GPU ships only on Linux ROCm after the modulus split reaches
 at least 1.55x speedup for 8192 square bounded GEMM.
+
+### 17.6 AMDGPU Builtins
+
+Decision: not production until CK or rocWMMA diagnostics identify a concrete
+shape bottleneck that requires builtin-level instruction control.
+
+Ship rule: a builtin path ships only for a named semantic, shape class, and
+target id after exact CPU/direct-HIP differentials, ISA evidence for the
+expected integer matrix instructions, no scalar divide/remainder/reciprocal
+fallback, no unintended global INT32 stores in fused kernels, and reviewed
+release timings that beat CK or rocWMMA.
+
+### 17.7 Strict Wrap64 Matrix Engine
+
+Decision: direct-HIP byte-limb GEMM remains production until displaced.
+
+Ship rule: a matrix-engine wrap64 path ships only after it proves unsigned-byte
+or signed-corrected byte-GEMM36 algebra against the CPU byte-limb oracle,
+matches direct-HIP wrap64 output across carry-heavy and padded/tail cases,
+emits real matrix instructions, fuses carry propagation into low-64 export, and
+beats `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` in reviewed release captures.
+
+### 17.8 Packed Layout And Prepack Cache
+
+Decision: persistent packed layouts are versioned ABI-adjacent internal
+contracts.
+
+Ship rule: a packed layout or prepack cache ships only when correctness tests
+cover source-version invalidation, operand role, layout mismatch rejection,
+tile tails, K-block splits, and pack amortization across one-shot, repeated-A,
+repeated-B, and repeated-A/B workloads.
+Benchmark captures for repeated-A/B workloads use `--reuse-packed-inputs` and
+must keep one-time `prepack_setup_us` separate from repeated `rns_gemm`/export
+timings; this measurement mode is not itself a production prepack cache.
+
+### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
+
+Decision: FP8/Ozaki paths are research modes only.
+
+Ship rule: no default exact integer API may route through FP8/Ozaki. A research
+mode may be accepted only with explicit verification metadata, exact reference
+differentials for the advertised contract, split-matrix and K-block accounting,
+and measured verification overhead.
+
+### 17.10 Finite-U8 Specialized Reducers
+
+Decision: finite-u8 reducers are production candidates for explicit moduli.
+
+Ship rule: a specialized reducer ships only for named moduli or modulus
+families such as `251`, `255`, powers/composites in `[2, 256]`, or
+prime-field-only cases after CPU/direct-HIP differentials and reviewed release
+captures beat the generic finite-u8 path for the same modulus and shape.
 
 ## 18. Experiment Matrix
 
@@ -1368,6 +1561,18 @@ exist.
 | E093 | strict wraparound byte-limb backend | wraparound semantics accepted |
 | E094 | exact-wide RNS output | exact-wide milestone |
 | E095 | multi-GPU modulus split | Linux-only production if >1.55x |
+| E096 | reviewed AUTO cache selection | production after exact cache hit and fallback tests |
+| E097 | benchmark review V3 phase telemetry | promotion gate for speedup claims |
+| E098 | CK tile/scheduler/pipeline sweep | tune or retire per shape |
+| E099 | rocWMMA layout/prepack sweep | tune or retire per shape |
+| E100 | AMDGPU builtin IU8/IU4 hot kernel | ship only if faster than CK/rocWMMA |
+| E101 | wrap64 matrix-engine byte-GEMM36 | ship only if faster than direct-HIP v3 across the reviewed wrap64 release matrix |
+| E102 | packed layout prepack cache | production after amortization proof |
+| E103 | INT4/IU4 matrix-engine research | retire unless faster than tuned INT8 |
+| E104 | FP8/Ozaki exact-arithmetic research | research-only with verification metadata |
+| E105 | finite-u8 specialized reducers | ship per modulus after reviewed win |
+| E106 | pack amortization repeated A/B | required for persistent packed layouts |
+| E107 | durable production autotune promotion | docs updated only after reviewed release cache |
 
 ## 19. Development Roadmap
 
@@ -1472,14 +1677,16 @@ Exit gate:
 
 Deliverables:
 
-- RDNA3/RDNA4 hot kernels,
-- CDNA3/CDNA4 hot kernels,
-- backend autotune selection.
+- Windows `gfx1100` CK and rocWMMA optimized hot paths,
+- CK Tile or WMMA/CShuffle scheduler and epilogue sweeps,
+- rocWMMA layout and prepack variants,
+- AMDGPU builtin experiments only for measured CK/rocWMMA bottlenecks,
+- reviewed-cache AUTO selection and rejection/fallback tests.
 
 Exit gate:
 
-- E007, E008, E092 pass and architecture-family performance gates are
-  evaluated.
+- E096 through E100 pass for Windows `gfx1100`, and no accelerator is selected
+  by AUTO from discovery or raw benchmark evidence.
 
 ### Phase 8: Instinct Production
 
@@ -1501,11 +1708,14 @@ Deliverables:
 - exact-wide RNS output and CPU/direct-HIP limb export,
 - strict `mod 2^64` CPU and direct-HIP byte-limb correctness backend,
 - optimized strict `mod 2^64` byte-GEMM backend decision,
-- INT4, Strassen, sparsity, and multi-GPU decisions.
+- packed low-bit layout and prepack cache decisions,
+- INT4/IU4, FP8/Ozaki, Strassen, sparsity, and multi-GPU decisions,
+- finite-u8 specialized reducer decisions.
 
 Exit gate:
 
-- E093 through E095 produce ship or retire outcomes.
+- E093 through E107 produce ship or retire outcomes for the supported target
+  scope.
 
 ## 20. Completeness Audit
 

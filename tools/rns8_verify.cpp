@@ -182,6 +182,7 @@ rns8_gemm_desc finite_desc_for_backend(
   desc.n = n;
   desc.k = k;
   desc.max_prefix = 0;
+  desc.finite_modulus = 255;
   return desc;
 }
 

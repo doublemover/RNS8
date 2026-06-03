@@ -75,7 +75,13 @@ rns8_gemm_desc per_tile_u64_desc(
   return desc;
 }
 
-rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics, rns8_backend_kind backend) {
+rns8_gemm_desc finite_desc(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    rns8_semantics semantics,
+    rns8_backend_kind backend,
+    uint16_t modulus = 0) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -85,6 +91,8 @@ rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics seman
   desc.m = m;
   desc.n = n;
   desc.k = k;
+  desc.finite_modulus =
+      modulus != 0 ? modulus : (semantics == RNS8_FINITE_FIELD_U8 ? uint16_t{251} : uint16_t{255});
   return desc;
 }
 
@@ -361,9 +369,9 @@ TEST_CASE("rocWMMA finite u8 K-split preserves signed centered accumulation") {
   std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * n), 0);
   std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * n), 0);
   std::vector<uint8_t> wmma_out(static_cast<std::size_t>(m * n), 0);
-  auto cpu_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE);
-  auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT);
-  auto wmma_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_WMMA);
+  auto cpu_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE, 256);
+  auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, 256);
+  auto wmma_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_WMMA, 256);
 
   REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), n, cpu_out.data(), n) ==
           RNS8_SUCCESS);

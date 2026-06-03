@@ -52,6 +52,13 @@ typedef struct rns8_gemm_desc {
   uint32_t max_prefix;
   uint32_t tile_m;
   uint32_t tile_n;
+  /*
+   * Required for RNS8_FINITE_RING_U8 and RNS8_FINITE_FIELD_U8 plans, and must
+   * be zero for every non-finite semantic contract. Persistent finite
+   * pack/GEMM/export calls still take an explicit modulus and reject any value
+   * that differs from this plan-level contract.
+   */
+  uint32_t finite_modulus;
   /* Reserved for future hard-cut ABI versions. Must be zero. */
   uint32_t flags;
   const uint64_t* tile_bounds;
@@ -159,7 +166,7 @@ typedef struct rns8_plan_backend_info {
   char epilogue_mode[64];
   char workspace_mode[64];
   char isa_evidence[128];
-  char autotune_key[256];
+  char autotune_key[512];
 } rns8_plan_backend_info;
 
 /*
@@ -271,7 +278,8 @@ RNS8_API rns8_status rns8_gemm_wrap_u64(
  * Persistent finite-ring/finite-field GEMM over resident uint8_t matrices.
  * The plan and all matrices must have matching finite semantics,
  * RNS8_BOUND_NONE, max_prefix = 0, row-major resident storage, and an explicit
- * modulus valid for that semantic. Inputs must already be packed with the same
+ * descriptor finite_modulus valid for that semantic. The modulus argument must
+ * match the plan descriptor. Inputs must already be packed with the same
  * modulus. Output is resident centered finite residues and must be exported
  * with rns8_export_finite_u8 using the same modulus. This API does not route
  * through bounded CRT, exact-wide export, or strict mod 2^64 byte-limb paths.
@@ -417,11 +425,11 @@ RNS8_API rns8_status rns8_gemm_wrap_u64_oneshot(
  * One-shot finite-ring GEMM over uint8_t storage with an explicit modulus.
  *
  * The descriptor must use RNS8_FINITE_RING_U8, RNS8_BOUND_NONE, bound = 0,
- * max_prefix = 0, no tile bounds, and row-major byte matrices. `modulus` must
- * be in [2, 256]. Inputs are reduced modulo `modulus`; outputs are canonical
- * residues in [0, modulus - 1] for modulus <= 255 and full bytes for
- * modulus == 256. This API is separate from bounded CRT, exact-wide export,
- * and strict mod 2^64 wraparound.
+ * max_prefix = 0, finite_modulus = `modulus`, no tile bounds, and row-major
+ * byte matrices. `modulus` must be in [2, 256]. Inputs are reduced modulo
+ * `modulus`; outputs are canonical residues in [0, modulus - 1] for
+ * modulus <= 255 and full bytes for modulus == 256. This API is separate from
+ * bounded CRT, exact-wide export, and strict mod 2^64 wraparound.
  */
 RNS8_API rns8_status rns8_gemm_finite_ring_u8_oneshot(
     rns8_context* ctx,

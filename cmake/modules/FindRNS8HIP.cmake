@@ -92,7 +92,7 @@ function(rns8_compile_hip_source out_var source)
       ${_include_args}
       -c "${_source_abs}"
       -o "${_object}"
-    DEPENDS "${_source_abs}"
+    DEPENDS "${_source_abs}" ${RNS8_HIP_SOURCE_DEPENDS}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )

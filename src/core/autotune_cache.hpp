@@ -15,6 +15,7 @@ struct AutotuneCacheEntry {
   std::string target_id;
   std::string hip_sdk_or_library_version;
   std::string semantic_contract;
+  uint32_t finite_modulus = 0;
   int64_t m = 0;
   int64_t n = 0;
   int64_t k = 0;
@@ -45,6 +46,11 @@ struct AutotuneCacheSnapshot {
   std::string error;
 };
 
+struct AutotuneRuntimeIdentity {
+  std::string target_id;
+  std::string hip_sdk_or_library_version;
+};
+
 std::filesystem::path autotune_cache_path();
 AutotuneCacheSnapshot read_autotune_cache();
 const AutotuneCacheEntry* find_exact_autotune_entry(
@@ -53,11 +59,20 @@ const AutotuneCacheEntry* find_exact_autotune_entry(
 const AutotuneCacheEntry* find_validated_autotune_entry(
     const AutotuneCacheSnapshot& snapshot,
     const std::string& key);
+const AutotuneCacheEntry* find_validated_autotune_entry_for_runtime(
+    const AutotuneCacheSnapshot& snapshot,
+    const std::string& key,
+    const AutotuneRuntimeIdentity& runtime);
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error);
 std::string autotune_selection_rationale(
     const AutotuneCacheSnapshot& snapshot,
     const std::string& key,
     const std::string& selected_backend);
+std::string autotune_selection_rationale(
+    const AutotuneCacheSnapshot& snapshot,
+    const std::string& key,
+    const std::string& selected_backend,
+    const AutotuneRuntimeIdentity& runtime);
 
 }  // namespace rns8::detail
 

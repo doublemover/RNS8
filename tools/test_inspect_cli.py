@@ -64,7 +64,11 @@ def main() -> int:
         expect_text(ck.stdout, "selected_kernel:   ck_wmma_cshuffle_i8_i32_centered_epilogue_v1", "ck")
         expect_text(ck.stdout, "exact_validated:   1", "ck")
         expect_text(ck.stdout, "perf_validated:    0", "ck")
-        expect_text(ck.stdout, "isa_evidence:      ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store", "ck")
+        expect_text(
+            ck.stdout,
+            "isa_evidence:      ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+            "ck",
+        )
     else:
         expect_exit(ck, 1, "ck")
         expect_text(ck.stderr, "unsupported backend", "ck")
@@ -108,6 +112,7 @@ def main() -> int:
         expect_exit(autotune, 0, "autotune json")
         expect_text(autotune.stdout, '"autotune_cache": {', "autotune json")
         expect_text(autotune.stdout, '"exact_hit": false', "autotune json")
+        expect_text(autotune.stdout, '"runtime_target_id": "cpu"', "autotune json")
         expect_text(autotune.stdout, "missing_cache_using_cpu_reference", "autotune json")
 
     print("rns8-inspect CLI self-test: PASS")
