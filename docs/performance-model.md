@@ -380,10 +380,12 @@ unavailable, explicit event phase order for event-enabled captures, exact
 matching of event timing keys to that phase order, and the strict wrap64
 `prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
 also checks schedule metadata and the optional repeated packed-input contract:
-`reuse_packed_inputs=true` requires `pack_mode: "prepacked_reuse"`,
-`prepack_setup_us`, zero-valued repeated `pack` timing arrays, and zero-valued
-pack HIP-event arrays when event timing is present. The CTest suite runs the
-schema self-test, all
+`reuse_packed_inputs=true` requires one of `pack_mode: "prepacked_reuse"`,
+`"prepacked_reuse_a"`, or `"prepacked_reuse_b"`, matching
+`prepack_reuse_operands`, and `prepack_setup_us`. Full A/B reuse requires
+zero-valued repeated `pack` timing arrays and zero-valued pack HIP-event arrays
+when event timing is present; A-only and B-only reuse keep per-repeat `pack`
+timings for the non-reused operand. The CTest suite runs the schema self-test, all
 tracked current schema fixtures, and a same-contract `result_compare.py` check
 so retired schemas and stale event labels are not only rejected manually.
 
@@ -405,12 +407,13 @@ Exact-wide HIP event captures report `exact_wide_export_status_memset`,
 phase used by the stable benchmark timing schema.
 
 With `--reuse-packed-inputs`, the benchmark packs A/B once before warmups and
-then times repeated GEMM/export calls against those persistent matrices. Such
-captures report `pack_mode: "prepacked_reuse"`, `prepack_setup_us`,
-`avg_prepack_setup_us`, and zero-valued per-repeat `pack` host/GPU-event
-timings. `end_to_end` excludes the one-time setup. This mode is for pack
+then times repeated GEMM/export calls against those persistent matrices. With
+`--reuse-packed-a` or `--reuse-packed-b`, it pre-packs only the selected operand
+and includes per-repeat packing of the other operand in `pack` and
+`end_to_end`. Such captures report `prepack_reuse_operands`,
+`prepack_setup_us`, and `avg_prepack_setup_us`. This mode family is for pack
 amortization evidence and does not imply a production prepack cache exists.
-Release review marks `prepacked_reuse` captures ineligible for normal AUTO
+Release review marks all prepacked-reuse captures ineligible for normal AUTO
 autotune-cache promotion.
 
 ## Direct-HIP event timing status

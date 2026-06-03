@@ -280,12 +280,14 @@ python tools\benchmark_sweep.py --review-only --out-root temp\benchmark-sweeps\w
 ```
 
 Add `--reuse-packed-inputs` to `rns8-bench` or `tools\benchmark_sweep.py`
-when the contract is repeated use of the same packed A/B inputs. This packs A/B
-once before warmups, reports `pack_mode=prepacked_reuse`, records
-`prepack_setup_us`, emits zero-valued per-repeat `pack` timings, and keeps
-`end_to_end` scoped to repeated GEMM plus export. It is benchmark evidence for
-pack amortization, not a production prepack cache; review tooling marks these
-captures ineligible for normal AUTO autotune-cache promotion.
+when the contract is repeated use of the same packed A/B inputs. Use
+`--reuse-packed-a` or `--reuse-packed-b` for repeated-A or repeated-B
+amortization sweeps that keep one operand resident and repack the other per
+repeat. These modes report explicit `pack_mode` and `prepack_reuse_operands`
+metadata, record `prepack_setup_us`, and keep `end_to_end` scoped to the
+measured repeated workload. They are benchmark evidence for pack amortization,
+not production prepack caches; review tooling marks these captures ineligible
+for normal AUTO autotune-cache promotion.
 
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. Exact-wide
@@ -494,10 +496,11 @@ runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,
 `wrap64_byte_limb_gemm36_v2`, and research-only `rns_i4_packed_v0`. Those
 layouts must prove source-version invalidation, layout mismatch rejection,
 exact CPU/direct-HIP differentials, ISA evidence, and pack amortization for
-one-shot and repeated-A/B workloads before they can displace current layouts.
-The current benchmark can generate repeated-A/B evidence with
-`--reuse-packed-inputs`, but durable packed-layout/prepack-cache production work
-still remains roadmap work.
+one-shot, repeated-A, repeated-B, and repeated-A/B workloads before they can
+displace current layouts. The current benchmark can generate those repeated
+workload evidence modes with `--reuse-packed-a`, `--reuse-packed-b`, and
+`--reuse-packed-inputs`, but durable packed-layout/prepack-cache production
+work still remains roadmap work.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP

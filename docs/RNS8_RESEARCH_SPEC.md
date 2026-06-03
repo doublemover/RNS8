@@ -1473,9 +1473,11 @@ Ship rule: a packed layout or prepack cache ships only when correctness tests
 cover source-version invalidation, operand role, layout mismatch rejection,
 tile tails, K-block splits, and pack amortization across one-shot, repeated-A,
 repeated-B, and repeated-A/B workloads.
-Benchmark captures for repeated-A/B workloads use `--reuse-packed-inputs` and
-must keep one-time `prepack_setup_us` separate from repeated `rns_gemm`/export
-timings; this measurement mode is not itself a production prepack cache.
+Benchmark captures for repeated-A, repeated-B, and repeated-A/B workloads use
+`--reuse-packed-a`, `--reuse-packed-b`, and `--reuse-packed-inputs`, and must
+keep one-time `prepack_setup_us` plus reused operand metadata separate from
+repeated workload timings; these measurement modes are not themselves a
+production prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

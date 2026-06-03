@@ -71,11 +71,14 @@ def main() -> int:
     reused_gpu = copy.deepcopy(gpu)
     reused_gpu["reuse_packed_inputs"] = True
     reused_gpu["pack_mode"] = "prepacked_reuse"
+    reused_gpu["prepack_reuse_operands"] = ["A", "B"]
     reused_gpu["timing_metadata"]["pack_mode"] = "prepacked_reuse"
+    reused_gpu["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
     repack_vs_reuse = result_compare.compare(gpu, reused_gpu, Path("gpu-repack.json"), Path("gpu-reuse.json"))
     assert repack_vs_reuse["matching_contract"] is False
     assert repack_vs_reuse["contract"]["reuse_packed_inputs"]["match"] is False
     assert repack_vs_reuse["contract"]["pack_mode"]["match"] is False
+    assert repack_vs_reuse["contract"]["prepack_reuse_operands"]["match"] is False
 
     print("result compare self-test: PASS")
     return 0

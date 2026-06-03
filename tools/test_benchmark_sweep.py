@@ -301,9 +301,23 @@ def mark_reused_pack(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse"
+    reused["prepack_reuse_operands"] = ["A", "B"]
     reused["prepack_setup_us"] = 11
     reused["avg_prepack_setup_us"] = 11.0
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
+    return reused
+
+
+def mark_reused_a_pack(capture: dict) -> dict:
+    reused = copy.deepcopy(capture)
+    reused["reuse_packed_inputs"] = True
+    reused["pack_mode"] = "prepacked_reuse_a"
+    reused["prepack_reuse_operands"] = ["A"]
+    reused["prepack_setup_us"] = 11
+    reused["avg_prepack_setup_us"] = 11.0
+    reused["timing_metadata"]["pack_mode"] = "prepacked_reuse_a"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
     return reused
 
 
@@ -338,6 +352,8 @@ def main() -> int:
         include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
         release_matrix=True,
         include_exploratory_large=False,
         review_mode="release",
@@ -365,6 +381,16 @@ def main() -> int:
     assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
     assert all("--reuse-packed-inputs" in command for _name, command, _output in reuse_commands)
     wrap64_args.reuse_packed_inputs = False
+    wrap64_args.reuse_packed_a = True
+    reuse_a_commands = benchmark_sweep.sweep_commands(wrap64_args)
+    assert reuse_a_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-a-wrap64-byte-limb.json"
+    assert all("--reuse-packed-a" in command for _name, command, _output in reuse_a_commands)
+    wrap64_args.reuse_packed_a = False
+    wrap64_args.reuse_packed_b = True
+    reuse_b_commands = benchmark_sweep.sweep_commands(wrap64_args)
+    assert reuse_b_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-b-wrap64-byte-limb.json"
+    assert all("--reuse-packed-b" in command for _name, command, _output in reuse_b_commands)
+    wrap64_args.reuse_packed_b = False
     wrap64_args.adaptive_only = True
     try:
         benchmark_sweep.sweep_commands(wrap64_args)
@@ -390,6 +416,8 @@ def main() -> int:
         include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
         release_matrix=False,
         include_exploratory_large=False,
         review_mode="smoke",
@@ -422,6 +450,8 @@ def main() -> int:
         include_wrap64_wmma_candidate=False,
         include_exact_wide=True,
         reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
         release_matrix=False,
         include_exploratory_large=False,
         review_mode="smoke",
@@ -453,6 +483,8 @@ def main() -> int:
         include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
         release_matrix=True,
         include_exploratory_large=False,
         review_mode="release",
@@ -511,11 +543,24 @@ def main() -> int:
     )
     reuse_group = reuse_report["groups"][0]
     assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
+    assert reuse_group["source_metadata"]["prepack_reuse_operands"] == ["A/B"]
     assert reuse_report["promotable_autotune_entries"] == []
     reuse_blockers = {
         candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
     }
     assert "prepacked_reuse_not_autotune_promotable" in reuse_blockers["ck"]
+
+    reuse_a_report = benchmark_sweep.review_captures(
+        [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
+        review_mode="release",
+    )
+    reuse_a_group = reuse_a_report["groups"][0]
+    assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
+    assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
+    reuse_a_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
+    }
+    assert "prepacked_reuse_not_autotune_promotable" in reuse_a_blockers["ck"]
 
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_path = Path(temp_dir) / "finite-autotune.json"

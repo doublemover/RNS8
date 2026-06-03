@@ -57,6 +57,7 @@ CONTRACT_KEYS = [
     "packed_layout_version",
     "reuse_packed_inputs",
     "pack_mode",
+    "prepack_reuse_operands",
     "seed",
     "input_distribution",
 ]
