@@ -244,7 +244,7 @@ bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEnt
     return entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64";
   }
   const bool public_accelerator =
-      entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" || entry.selected_backend == "wmma";
+      entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" || entry.selected_backend == "rocwmma";
   const bool hip_resident_rns_semantic =
       entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64" ||
       entry.semantic_contract == "exact_wide_signed" || entry.semantic_contract == "exact_wide_unsigned" ||
@@ -289,7 +289,7 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
              entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1";
     }
   }
-  if (entry.selected_backend == "wmma") {
+  if (entry.selected_backend == "rocwmma") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
       return entry.selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
     }
@@ -331,7 +331,7 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
       return entry.epilogue == "ck_fused_i32_to_centered_residue_then_crt_export";
     }
   }
-  if (entry.selected_backend == "wmma") {
+  if (entry.selected_backend == "rocwmma") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
       return entry.epilogue == "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export";
     }

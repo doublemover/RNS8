@@ -25,6 +25,15 @@ find_library(
 set(RNS8_GMP_FOUND FALSE)
 if(RNS8_GMP_INCLUDE_DIR AND RNS8_GMP_LIBRARY)
   set(RNS8_GMP_FOUND TRUE)
+  if(NOT TARGET RNS8::GMP)
+    add_library(RNS8::GMP UNKNOWN IMPORTED)
+    set_target_properties(
+      RNS8::GMP
+      PROPERTIES
+        IMPORTED_LOCATION "${RNS8_GMP_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${RNS8_GMP_INCLUDE_DIR}"
+    )
+  endif()
 endif()
 
 find_path(
@@ -42,6 +51,15 @@ find_library(
 set(RNS8_FLINT_FOUND FALSE)
 if(RNS8_FLINT_INCLUDE_DIR AND RNS8_FLINT_LIBRARY)
   set(RNS8_FLINT_FOUND TRUE)
+  if(NOT TARGET RNS8::FLINT)
+    add_library(RNS8::FLINT UNKNOWN IMPORTED)
+    set_target_properties(
+      RNS8::FLINT
+      PROPERTIES
+        IMPORTED_LOCATION "${RNS8_FLINT_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${RNS8_FLINT_INCLUDE_DIR}"
+    )
+  endif()
 endif()
 
 set(RNS8ThirdParty_FOUND TRUE)

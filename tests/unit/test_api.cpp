@@ -96,6 +96,48 @@ rns8_gemm_desc exact_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_
   return desc;
 }
 
+rns8_gemm_desc bounded_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.bound = static_cast<uint64_t>(k > 0 ? k : 0);
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return desc;
+}
+
+rns8_gemm_desc finite_gemm_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t modulus) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.finite_modulus = modulus;
+  return desc;
+}
+
+rns8_gemm_desc wrap_gemm_desc(int64_t m, int64_t n, int64_t k) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_WRAP_U64_MOD_2_64;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  return desc;
+}
+
 rns8_matrix_desc exact_matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -172,6 +214,111 @@ rns8_prepack_cache_key_info prepack_cache_key_info(
 }
 
 }  // namespace
+
+TEST_CASE("public one-shot APIs reject invalid leading dimensions before access") {
+  rns8_context* cpu = create_cpu_context();
+  const int64_t a_i64[] = {1, 2, 3, 4};
+  const int64_t b_i64[] = {5, 6, 7, 8};
+  int64_t c_i64[] = {-1, -1, -1, -1};
+  const uint64_t a_u64[] = {1, 2, 3, 4};
+  const uint64_t b_u64[] = {5, 6, 7, 8};
+  uint64_t c_u64[] = {99, 99, 99, 99};
+  const uint8_t a_u8[] = {1, 2, 3, 4};
+  const uint8_t b_u8[] = {5, 6, 7, 8};
+  uint8_t c_u8[] = {77, 77, 77, 77};
+
+  auto i64_desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 2, 2, 2);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 1, b_i64, 2, c_i64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 1, c_i64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 2, c_i64, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto u64_desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 2, 2, 2);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 1, b_u64, 2, c_u64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 1, c_u64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 2, c_u64, 1) == RNS8_INVALID_ARGUMENT);
+
+  auto ring_desc = finite_gemm_desc(RNS8_FINITE_RING_U8, 2, 2, 2, 251);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(cpu, &ring_desc, 251, a_u8, 1, b_u8, 2, c_u8, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(cpu, &ring_desc, 251, a_u8, 2, b_u8, 1, c_u8, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(cpu, &ring_desc, 251, a_u8, 2, b_u8, 2, c_u8, 1) ==
+        RNS8_INVALID_ARGUMENT);
+
+  auto field_desc = finite_gemm_desc(RNS8_FINITE_FIELD_U8, 2, 2, 2, 251);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(cpu, &field_desc, 251, a_u8, 1, b_u8, 2, c_u8, 2) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_context* wrap = create_wrap_context();
+  auto wrap_desc = wrap_gemm_desc(2, 2, 2);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 1, b_u64, 2, c_u64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 1, c_u64, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 2, c_u64, 1) == RNS8_INVALID_ARGUMENT);
+
+  CHECK(c_i64[0] == -1);
+  CHECK(c_u64[0] == 99);
+  CHECK(c_u8[0] == 77);
+  rns8_destroy_context(wrap);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("public APIs reject overflow dimensions before allocation or access") {
+  rns8_context* cpu = create_cpu_context();
+  const int64_t max_i64 = std::numeric_limits<int64_t>::max();
+  const int64_t huge = max_i64 / 2 + 1;
+
+  const int64_t a_i64[] = {1, 2, 3, 4};
+  const int64_t b_i64[] = {5, 6, 7, 8};
+  int64_t c_i64[] = {-7, -7, -7, -7};
+  auto address_overflow = bounded_gemm_desc(RNS8_BOUNDED_I64, huge, huge, 2);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &address_overflow, a_i64, 2, b_i64, huge, c_i64, huge) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(c_i64[0] == -7);
+
+  auto per_tile = bounded_gemm_desc(RNS8_BOUNDED_I64, max_i64, max_i64, 1);
+  per_tile.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
+  per_tile.bound = 0;
+  per_tile.tile_m = 64;
+  per_tile.tile_n = 64;
+  const uint64_t tile_bound = 1;
+  per_tile.tile_bounds = &tile_bound;
+  per_tile.tile_bounds_count = std::numeric_limits<uint64_t>::max();
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(cpu, &per_tile, &plan) == RNS8_RANGE_ERROR);
+  CHECK(plan == nullptr);
+
+  rns8_matrix* matrix = nullptr;
+  auto rns_matrix = bounded_matrix_desc(huge, 3, RNS8_BOUNDED_I64);
+  CHECK(rns8_create_matrix(cpu, &rns_matrix, &matrix) == RNS8_RANGE_ERROR);
+  CHECK(matrix == nullptr);
+
+  auto finite_matrix = finite_matrix_desc(max_i64, max_i64, RNS8_FINITE_RING_U8);
+  CHECK(rns8_create_matrix(cpu, &finite_matrix, &matrix) == RNS8_RANGE_ERROR);
+  CHECK(matrix == nullptr);
+
+  rns8_context* wrap = create_wrap_context();
+  auto wrap_matrix = wrap_matrix_desc(huge, 3);
+  CHECK(rns8_create_matrix(wrap, &wrap_matrix, &matrix) == RNS8_RANGE_ERROR);
+  CHECK(matrix == nullptr);
+
+  auto bad_ld = bounded_matrix_desc(2, 3, RNS8_BOUNDED_I64);
+  bad_ld.logical_ld = 2;
+  CHECK(rns8_create_matrix(cpu, &bad_ld, &matrix) == RNS8_INVALID_ARGUMENT);
+  CHECK(matrix == nullptr);
+
+  auto bad_finite_ld = finite_matrix_desc(2, 3, RNS8_FINITE_RING_U8);
+  bad_finite_ld.logical_ld = 2;
+  CHECK(rns8_create_matrix(cpu, &bad_finite_ld, &matrix) == RNS8_INVALID_ARGUMENT);
+  CHECK(matrix == nullptr);
+
+  auto bad_wrap_ld = wrap_matrix_desc(2, 3);
+  bad_wrap_ld.logical_ld = 2;
+  CHECK(rns8_create_matrix(wrap, &bad_wrap_ld, &matrix) == RNS8_INVALID_ARGUMENT);
+  CHECK(matrix == nullptr);
+
+  rns8_destroy_context(wrap);
+  rns8_destroy_context(cpu);
+}
 
 TEST_CASE("public exact-wide export ABI rejects invalid limb layout") {
   rns8_context* ctx = create_cpu_context();
@@ -668,7 +815,7 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
 TEST_CASE("public accelerator backend context kinds fail fast") {
   std::vector<rns8_backend_kind> backends;
 #if !defined(RNS8_ENABLE_ROCWMMA) || !RNS8_ENABLE_ROCWMMA
-  backends.push_back(RNS8_BACKEND_WMMA);
+  backends.push_back(RNS8_BACKEND_ROCWMMA);
 #endif
 #if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
   backends.push_back(RNS8_BACKEND_CK);
@@ -689,7 +836,7 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
 
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
-  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
 
   for (const rns8_backend_kind backend : backends) {
     rns8_gemm_desc desc{};
@@ -743,7 +890,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(wrap.supports_wrap64 == 1);
   CHECK(std::string(wrap.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
 
-  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
   for (const rns8_backend_kind backend : accelerators) {
     rns8_backend_capability_info capability{};
     capability.struct_size = sizeof(capability);
@@ -789,7 +936,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     }
 #endif
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-    if (backend == RNS8_BACKEND_WMMA) {
+    if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(capability.is_correctness_backend == 1);
       CHECK(capability.requires_feature_detection == 1);
       CHECK(capability.enable_flag_fail_fast == 0);
@@ -826,7 +973,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
-    } else if (backend == RNS8_BACKEND_WMMA) {
+    } else if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(std::string(capability.status) == "not_enabled_or_builtin_not_implemented");
       CHECK(std::string(capability.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1_disabled");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
@@ -1573,7 +1720,7 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   rns8_context_options options{};
   options.struct_size = sizeof(options);
   options.abi_version = RNS8_ABI_VERSION;
-  options.requested_backend = RNS8_BACKEND_WMMA;
+  options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS);
 
@@ -1582,7 +1729,7 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   desc.abi_version = RNS8_ABI_VERSION;
   desc.semantics = RNS8_BOUNDED_I64;
   desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
-  desc.requested_backend = RNS8_BACKEND_WMMA;
+  desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   desc.m = m;
   desc.n = n;
   desc.k = k;
@@ -1887,7 +2034,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   rns8_context_options wmma_options{};
   wmma_options.struct_size = sizeof(wmma_options);
   wmma_options.abi_version = RNS8_ABI_VERSION;
-  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* wmma_ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
 
@@ -1901,7 +2048,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   wmma_desc.abi_version = RNS8_ABI_VERSION;
   wmma_desc.semantics = RNS8_BOUNDED_I64;
   wmma_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
-  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   wmma_desc.m = m;
   wmma_desc.n = n;
   wmma_desc.k = k;
@@ -1915,14 +2062,14 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   wmma_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(wmma_plan, &wmma_info) == RNS8_SUCCESS);
 
-  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-wmma-cache");
+  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-rocwmma-cache");
   {
     std::ofstream cache(cache_path, std::ios::trunc);
     cache << "{"
           << "\"schema_version\":1,"
           << "\"entries\":[{"
           << "\"key\":\"" << wmma_info.autotune_key << "\","
-          << "\"selected_backend\":\"wmma\","
+          << "\"selected_backend\":\"rocwmma\","
           << "\"selected_kernel\":\"" << wmma_info.selected_kernel << "\","
           << "\"target_id\":\"" << wmma_device.gcn_arch << "\","
           << "\"hip_sdk_or_library_version\":\"" << wmma_info.accelerator_version << "\","
@@ -1963,7 +2110,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   auto_info.struct_size = sizeof(auto_info);
   auto_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
-  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_ROCWMMA);
   CHECK(auto_info.performance_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
 
@@ -2008,7 +2155,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   rns8_context_options wmma_options{};
   wmma_options.struct_size = sizeof(wmma_options);
   wmma_options.abi_version = RNS8_ABI_VERSION;
-  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* wmma_ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
 
@@ -2022,7 +2169,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   wmma_desc.abi_version = RNS8_ABI_VERSION;
   wmma_desc.semantics = RNS8_FINITE_RING_U8;
   wmma_desc.bound_kind = RNS8_BOUND_NONE;
-  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   wmma_desc.m = m;
   wmma_desc.n = n;
   wmma_desc.k = k;
@@ -2037,14 +2184,14 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   CHECK(std::string(wmma_info.autotune_key).find(";finite_modulus=251;") != std::string::npos);
   CHECK(std::string(wmma_info.autotune_key).find(";epilogue=") != std::string::npos);
 
-  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-wmma-finite-cache");
+  const std::filesystem::path cache_path = unique_cache_fixture_path("rns8-auto-reviewed-rocwmma-finite-cache");
   {
     std::ofstream cache(cache_path, std::ios::trunc);
     cache << "{"
           << "\"schema_version\":1,"
           << "\"entries\":[{"
           << "\"key\":\"" << wmma_info.autotune_key << "\","
-          << "\"selected_backend\":\"wmma\","
+          << "\"selected_backend\":\"rocwmma\","
           << "\"selected_kernel\":\"" << wmma_info.selected_kernel << "\","
           << "\"target_id\":\"" << wmma_device.gcn_arch << "\","
           << "\"hip_sdk_or_library_version\":\"" << wmma_info.accelerator_version << "\","
@@ -2086,7 +2233,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   auto_info.struct_size = sizeof(auto_info);
   auto_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
-  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_ROCWMMA);
   CHECK(auto_info.performance_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
 

@@ -8,13 +8,16 @@ project(
 )
 
 include(CTest)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_BUILD_TESTS "Build RNS8 correctness tests" ON)
 option(RNS8_BUILD_TOOLS "Build RNS8 command-line tools" ON)
+option(RNS8_BUILD_EXAMPLES "Build CPU-only public API examples" ON)
 option(RNS8_BUILD_BENCHMARKS "Build RNS8 benchmark shell" ON)
-option(RNS8_ENABLE_GMP "Detect GMP for future optional differential references" OFF)
-option(RNS8_ENABLE_FLINT "Detect FLINT for future optional differential references" OFF)
+option(RNS8_ENABLE_GMP "Require GMP and build the optional exact-reference link smoke" OFF)
+option(RNS8_ENABLE_FLINT "Require FLINT and build the optional exact-reference link smoke" OFF)
 option(RNS8_PROBE_ACCELERATORS "Run CMake evidence-only discovery for optional accelerator components" OFF)
 option(RNS8_ENABLE_HIPBLASLT "Enable hipBLASLt accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_CK "Enable CK accelerator backend after validated implementation" OFF)
@@ -72,6 +75,30 @@ find_path(
   REQUIRED
 )
 find_package(nlohmann_json CONFIG REQUIRED)
+get_target_property(RNS8_NLOHMANN_JSON_INCLUDE_DIRS nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT RNS8_NLOHMANN_JSON_INCLUDE_DIRS)
+  set(RNS8_NLOHMANN_JSON_INCLUDE_DIRS "")
+endif()
+
+if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
+  find_package(RNS8ThirdParty REQUIRED)
+endif()
+
+if(RNS8_ENABLE_GMP AND NOT RNS8_GMP_FOUND)
+  message(
+    FATAL_ERROR
+      "RNS8_ENABLE_GMP=ON requires GMP headers and library. "
+      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing gmp.h and gmp/libgmp."
+  )
+endif()
+
+if(RNS8_ENABLE_FLINT AND NOT RNS8_FLINT_FOUND)
+  message(
+    FATAL_ERROR
+      "RNS8_ENABLE_FLINT=ON requires FLINT headers and library. "
+      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing flint/flint.h and flint/libflint."
+  )
+endif()
 
 set(RNS8_PUBLIC_HEADERS
   include/rns8/status.h
@@ -102,7 +129,7 @@ set(RNS8_SOURCES
   src/backend_hip_direct/hip_backend.cpp
   src/backend_vector_alu/vector_alu_backend.cpp
   src/backend_ck/ck_backend.cpp
-  src/backend_wmma/wmma_backend.cpp
+  src/backend_rocwmma/rocwmma_backend.cpp
   src/backend_wrap64/wrap64_reference.cpp
   src/backend_wrap64/wrap64_hip.cpp
 )
@@ -203,11 +230,11 @@ if(RNS8_ENABLE_HIP)
     find_package(RNS8ROCWMMA REQUIRED)
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_ROCWMMA_INCLUDE_DIR}")
     rns8_compile_hip_source(
-      RNS8_WMMA_KERNEL_OBJECT
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wmma/wmma_backend_kernels.hip"
+      RNS8_ROCWMMA_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_backend_kernels.hip"
     )
     unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
-    list(APPEND RNS8_SOURCES "${RNS8_WMMA_KERNEL_OBJECT}")
+    list(APPEND RNS8_SOURCES "${RNS8_ROCWMMA_KERNEL_OBJECT}")
   endif()
 endif()
 
@@ -221,6 +248,7 @@ function(rns8_configure_library target_name)
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
+      ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS}
   )
   target_compile_definitions(
     ${target_name}
@@ -229,6 +257,8 @@ function(rns8_configure_library target_name)
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
       $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>
       $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>
+      $<$<BOOL:${RNS8_ENABLE_GMP}>:RNS8_ENABLE_GMP=1>
+      $<$<BOOL:${RNS8_ENABLE_FLINT}>:RNS8_ENABLE_FLINT=1>
   )
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
@@ -260,7 +290,6 @@ function(rns8_configure_library target_name)
   if(RNS8_ENABLE_ROCWMMA)
     target_include_directories(${target_name} PRIVATE "${RNS8_ROCWMMA_INCLUDE_DIR}")
   endif()
-  target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
 endfunction()
 
 add_library(rns8 SHARED ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
@@ -380,6 +409,10 @@ if(RNS8_BUILD_BENCHMARKS)
   endif()
 endif()
 
+if(RNS8_BUILD_EXAMPLES)
+  add_subdirectory(examples)
+endif()
+
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -471,6 +504,59 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(dependency_checker_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
+
+  add_test(
+    NAME release_tree_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_release_tree.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(release_tree_self_test PROPERTIES LABELS "tools;release")
+
+  add_test(
+    NAME bootstrap_rocm_accelerators_dry_run_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bootstrap_rocm_accelerators.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(bootstrap_rocm_accelerators_dry_run_self_test PROPERTIES LABELS "tools;accelerator")
+
+  add_test(
+    NAME release_tree_current_check
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_release_tree.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(release_tree_current_check PROPERTIES LABELS "tools;release")
+
+  if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
+    add_executable(rns8_optional_exact_libs_smoke tests/unit/test_optional_exact_libs.cpp)
+    if(RNS8_ENABLE_GMP)
+      target_compile_definitions(rns8_optional_exact_libs_smoke PRIVATE RNS8_ENABLE_GMP=1)
+      target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::GMP)
+    endif()
+    if(RNS8_ENABLE_FLINT)
+      target_compile_definitions(rns8_optional_exact_libs_smoke PRIVATE RNS8_ENABLE_FLINT=1)
+      target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::FLINT)
+      if(TARGET RNS8::GMP)
+        target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::GMP)
+      endif()
+    endif()
+    add_test(NAME optional_exact_libs_link_smoke COMMAND rns8_optional_exact_libs_smoke)
+    set_tests_properties(optional_exact_libs_link_smoke PROPERTIES LABELS "tools;dependencies;optional-exact")
+  endif()
+
+  add_test(
+    NAME install_downstream_cmake_smoke
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+      "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+      "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/temp/install-rns8/${CMAKE_BUILD_TYPE}"
+      "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_SOURCE_DIR}/temp/downstream-rns8/${CMAKE_BUILD_TYPE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu")
 
   add_test(
     NAME benchmark_schema_current_fixtures
@@ -608,17 +694,17 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
 
     if(RNS8_ENABLE_ROCWMMA)
       add_test(
-        NAME benchmark_wrap64_wmma_candidate_smoke
+        NAME benchmark_rocwmma_wrap64_candidate_smoke
         COMMAND
           "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_wrap64_wmma_candidate.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_rocwmma_wrap64_candidate.py"
           "$<TARGET_FILE:rns8-bench>"
           "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
-          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-wrap64-wmma-candidate-smoke"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-rocwmma-wrap64-candidate-smoke"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
       )
       set_tests_properties(
-        benchmark_wrap64_wmma_candidate_smoke
+        benchmark_rocwmma_wrap64_candidate_smoke
         PROPERTIES LABELS "benchmark;hip;rocwmma;wrap64"
       )
 
@@ -731,7 +817,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/differential/test_hip_direct.cpp
     tests/differential/test_hipblaslt.cpp
     tests/differential/test_ck.cpp
-    tests/differential/test_wmma.cpp
+    tests/differential/test_rocwmma.cpp
   )
   target_include_directories(
     rns8_tests
@@ -794,18 +880,62 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     set_tests_properties(ck_kernel_matrix_isa_check PROPERTIES LABELS "ck;isa;accelerator")
   endif()
   if(RNS8_ENABLE_ROCWMMA)
-    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_WMMA_ISA_CHECK_TARGET)
+    list(GET RNS8_AMDGPU_TARGETS 0 RNS8_ROCWMMA_ISA_CHECK_TARGET)
     add_test(
-      NAME wmma_kernel_matrix_isa_check
+      NAME rocwmma_kernel_matrix_isa_check
       COMMAND
         "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_wmma_kernel_isa.py"
-        --object "${RNS8_WMMA_KERNEL_OBJECT}"
-        --target "${RNS8_WMMA_ISA_CHECK_TARGET}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_rocwmma_kernel_isa.py"
+        --object "${RNS8_ROCWMMA_KERNEL_OBJECT}"
+        --target "${RNS8_ROCWMMA_ISA_CHECK_TARGET}"
         --hipcc "${RNS8_HIP_HIPCC}"
         --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
-    set_tests_properties(wmma_kernel_matrix_isa_check PROPERTIES LABELS "rocwmma;isa;accelerator")
+    set_tests_properties(rocwmma_kernel_matrix_isa_check PROPERTIES LABELS "rocwmma;isa;accelerator")
   endif()
 endif()
+
+set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
+
+install(
+  TARGETS rns8 rns8_static
+  EXPORT RNS8Targets
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Runtime
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+)
+
+install(
+  DIRECTORY include/rns8
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  COMPONENT Development
+)
+
+install(
+  EXPORT RNS8Targets
+  FILE RNS8Targets.cmake
+  NAMESPACE rns8::
+  DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+  COMPONENT Development
+)
+
+configure_package_config_file(
+  cmake/RNS8Config.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
+  INSTALL_DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY SameMajorVersion
+)
+
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
+  DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+  COMPONENT Development
+)

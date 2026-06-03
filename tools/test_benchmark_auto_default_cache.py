@@ -25,10 +25,6 @@ def default_cache_path(env: dict[str, str], root: Path) -> Path:
     return xdg / "rns8-gemm" / "autotune.json"
 
 
-def backend_arg(value: str) -> str:
-    return "rocwmma" if value == "wmma" else value
-
-
 def safe_name(value: str) -> str:
     return value.replace("_", "-").replace("/", "-")
 
@@ -86,7 +82,7 @@ def main() -> int:
     bench = Path(sys.argv[1])
     schema = Path(sys.argv[2])
     out_dir = Path(sys.argv[3])
-    requested_backend = backend_arg(sys.argv[4])
+    requested_backend = sys.argv[4]
     semantics = sys.argv[5] if len(sys.argv) == 6 else "bounded-i64"
 
     common = [

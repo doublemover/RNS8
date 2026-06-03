@@ -349,14 +349,14 @@ const char* prepack_operand_layout_version_for_plan(const rns8_plan& plan, rns8_
     return operand_role == RNS8_OPERAND_A ? "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1"
                                           : "ck_b_canonical_colmajor_i8_n64_kblock32768_v1";
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return operand_role == RNS8_OPERAND_A ? "rocwmma_a_rowmajor_i8_m16_kblock65536_v1"
                                           : "rns_i8_tile_swizzled_b_v1";
   }
   return persistent_layout_version_for_plan(plan);
 }
 
-const char* wmma_b_prepack_kernel_variant() {
+const char* rocwmma_b_prepack_kernel_variant() {
   return "rocwmma_rns_i8_tile_swizzled_b_prepack_v1";
 }
 
@@ -398,14 +398,14 @@ uint64_t prepack_prefix_schedule_fingerprint(const rns8_plan& plan) {
   return hash == 0 ? 1 : hash;
 }
 
-uint64_t wmma_b_prepack_k_block_cap() {
+uint64_t rocwmma_b_prepack_k_block_cap() {
   return static_cast<uint64_t>(RNS8_SAFE_INT32_K_BLOCK);
 }
 
-uint64_t wmma_b_prepack_k_block_size(const rns8_plan& plan) {
-  uint64_t k_block = static_cast<uint64_t>(plan.desc.k) < wmma_b_prepack_k_block_cap()
+uint64_t rocwmma_b_prepack_k_block_size(const rns8_plan& plan) {
+  uint64_t k_block = static_cast<uint64_t>(plan.desc.k) < rocwmma_b_prepack_k_block_cap()
                          ? static_cast<uint64_t>(plan.desc.k)
-                         : wmma_b_prepack_k_block_cap();
+                         : rocwmma_b_prepack_k_block_cap();
   if (k_block < 16) {
     k_block = 16;
   }
@@ -436,7 +436,7 @@ std::string prepack_target_id_for_context(const rns8_context& ctx) {
   return prepack_target_id_for_device(ctx.device_id);
 }
 
-bool wmma_b_prepack_cache_supported(const rns8_plan& plan);
+bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan);
 
 bool prepack_operand_matrix_compatible(
     const rns8_plan& plan,
@@ -484,17 +484,17 @@ uint64_t prepack_cache_key_hash(
   uint64_t hash = plan_workspace_fingerprint(plan);
   hash = workspace_fingerprint_mix_string(hash, prepack_target_id_for_device(matrix.hip_device_id));
   hash = workspace_fingerprint_mix_string(hash, plan.backend_selected_kernel);
-  hash = workspace_fingerprint_mix_string(hash, wmma_b_prepack_cache_supported(plan) && operand_role == RNS8_OPERAND_B
-                                                    ? wmma_b_prepack_kernel_variant()
+  hash = workspace_fingerprint_mix_string(hash, rocwmma_b_prepack_cache_supported(plan) && operand_role == RNS8_OPERAND_B
+                                                    ? rocwmma_b_prepack_kernel_variant()
                                                     : "none");
   hash = workspace_fingerprint_mix(hash, prepack_prefix_schedule_fingerprint(plan));
   hash = workspace_fingerprint_mix(hash, plan.desc.tile_m);
   hash = workspace_fingerprint_mix(hash, plan.desc.tile_n);
-  if (plan.backend == RNS8_BACKEND_WMMA && operand_role == RNS8_OPERAND_B) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA && operand_role == RNS8_OPERAND_B) {
     hash = workspace_fingerprint_mix(hash, 16);
     hash = workspace_fingerprint_mix(hash, 16);
-    hash = workspace_fingerprint_mix(hash, wmma_b_prepack_k_block_size(plan));
-    hash = workspace_fingerprint_mix(hash, wmma_b_prepack_k_block_cap());
+    hash = workspace_fingerprint_mix(hash, rocwmma_b_prepack_k_block_size(plan));
+    hash = workspace_fingerprint_mix(hash, rocwmma_b_prepack_k_block_cap());
   } else {
     hash = workspace_fingerprint_mix(hash, 0);
     hash = workspace_fingerprint_mix(hash, 0);
@@ -534,7 +534,7 @@ std::string build_prepack_cache_key(
   key += ";target_id=" + prepack_target_id_for_device(matrix.hip_device_id);
   key += ";kernel=" + plan.backend_selected_kernel;
   key += ";prepack_kernel=";
-  key += wmma_b_prepack_cache_supported(plan) && operand_role == RNS8_OPERAND_B ? wmma_b_prepack_kernel_variant()
+  key += rocwmma_b_prepack_cache_supported(plan) && operand_role == RNS8_OPERAND_B ? rocwmma_b_prepack_kernel_variant()
                                                                                 : "none";
   key += ";semantics=";
   key += semantics_name_for_key(plan.desc.semantics);
@@ -542,13 +542,13 @@ std::string build_prepack_cache_key(
   key += ";tile_m=" + std::to_string(plan.desc.tile_m);
   key += ";tile_n=" + std::to_string(plan.desc.tile_n);
   key += ";operand_tile_m=" + std::to_string(
-      plan.backend == RNS8_BACKEND_WMMA && operand_role == RNS8_OPERAND_B ? 16 : 0);
+      plan.backend == RNS8_BACKEND_ROCWMMA && operand_role == RNS8_OPERAND_B ? 16 : 0);
   key += ";operand_tile_n=" + std::to_string(
-      plan.backend == RNS8_BACKEND_WMMA && operand_role == RNS8_OPERAND_B ? 16 : 0);
+      plan.backend == RNS8_BACKEND_ROCWMMA && operand_role == RNS8_OPERAND_B ? 16 : 0);
   key += ";k_block_size=" + std::to_string(
-      plan.backend == RNS8_BACKEND_WMMA && operand_role == RNS8_OPERAND_B ? wmma_b_prepack_k_block_size(plan) : 0);
+      plan.backend == RNS8_BACKEND_ROCWMMA && operand_role == RNS8_OPERAND_B ? rocwmma_b_prepack_k_block_size(plan) : 0);
   key += ";k_block_cap=" + std::to_string(
-      plan.backend == RNS8_BACKEND_WMMA && operand_role == RNS8_OPERAND_B ? wmma_b_prepack_k_block_cap() : 0);
+      plan.backend == RNS8_BACKEND_ROCWMMA && operand_role == RNS8_OPERAND_B ? rocwmma_b_prepack_k_block_cap() : 0);
   key += ";operand=";
   key += operand_role_name(operand_role);
   key += ";m=" + std::to_string(plan.desc.m);
@@ -567,21 +567,21 @@ std::string build_prepack_cache_key(
   return key;
 }
 
-bool wmma_b_prepack_cache_supported(const rns8_plan& plan) {
-  return plan.backend == RNS8_BACKEND_WMMA && !uses_finite_storage(plan.desc.semantics) &&
+bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan) {
+  return plan.backend == RNS8_BACKEND_ROCWMMA && !uses_finite_storage(plan.desc.semantics) &&
          plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 && plan.tile_schedule.empty() && plan.desc.k > 0 &&
          plan.desc.k <= static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) && plan_schedule_contract_matches(plan);
 }
 
-bool wmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes) {
+bool rocwmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes) {
   b_pack_bytes = 0;
   total_cache_bytes = 0;
-  if (!wmma_b_prepack_cache_supported(plan)) {
+  if (!rocwmma_b_prepack_cache_supported(plan)) {
     return false;
   }
   std::size_t a_bytes = 0;
   std::size_t total_workspace = 0;
-  if (!rns8::detail::wmma_workspace_requirements(
+  if (!rns8::detail::rocwmma_workspace_requirements(
           plan.desc.m, plan.desc.n, plan.desc.k, a_bytes, b_pack_bytes, total_workspace)) {
     return false;
   }
@@ -616,18 +616,18 @@ bool prepack_cache_key_self_consistent(const rns8_prepack_cache& cache) {
 bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan& plan) {
   std::size_t b_pack_bytes = 0;
   std::size_t total_cache_bytes = 0;
-  return wmma_b_prepack_bytes_for_plan(plan, b_pack_bytes, total_cache_bytes) &&
+  return rocwmma_b_prepack_bytes_for_plan(plan, b_pack_bytes, total_cache_bytes) &&
          cache.backend == plan.backend && cache.semantics == plan.desc.semantics &&
          cache.operand_role == RNS8_OPERAND_B && cache.rows == plan.desc.k && cache.cols == plan.desc.n &&
          cache.k == plan.desc.k && cache.tile_m == plan.desc.tile_m && cache.tile_n == plan.desc.tile_n &&
          cache.prefix == plan.prefix &&
          cache.finite_modulus == plan.desc.finite_modulus &&
          cache.prefix_schedule_fingerprint == prepack_prefix_schedule_fingerprint(plan) &&
-         cache.k_block_size == wmma_b_prepack_k_block_size(plan) &&
-         cache.k_block_cap == wmma_b_prepack_k_block_cap() &&
+         cache.k_block_size == rocwmma_b_prepack_k_block_size(plan) &&
+         cache.k_block_cap == rocwmma_b_prepack_k_block_cap() &&
          cache.plan_fingerprint == plan_workspace_fingerprint(plan) &&
          cache.selected_kernel == plan.backend_selected_kernel &&
-         cache.prepack_kernel_variant == wmma_b_prepack_kernel_variant() &&
+         cache.prepack_kernel_variant == rocwmma_b_prepack_kernel_variant() &&
          cache.matrix_layout_version == persistent_layout_version_for_semantics(plan.desc.semantics) &&
          cache.operand_layout_version == prepack_operand_layout_version_for_plan(plan, RNS8_OPERAND_B) &&
          prepack_cache_key_self_consistent(cache) &&
@@ -1466,7 +1466,7 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->operand_role = operand_role;
     out->cache_key_valid = 1;
     out->reusable_prepack_cache_available =
-        (operand_role == RNS8_OPERAND_B && wmma_b_prepack_cache_supported(*plan)) ? 1u : 0u;
+        (operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan)) ? 1u : 0u;
     out->production_prepack_cache_available = 0;
     out->flags = 0;
     out->hip_device_id = matrix->hip_device_id;
@@ -1504,7 +1504,7 @@ rns8_status rns8_create_prepack_cache(
     if (!valid_prepack_operand_role(operand_role)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (operand_role != RNS8_OPERAND_B || !wmma_b_prepack_cache_supported(*plan)) {
+    if (operand_role != RNS8_OPERAND_B || !rocwmma_b_prepack_cache_supported(*plan)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
@@ -1514,7 +1514,7 @@ rns8_status rns8_create_prepack_cache(
 
     std::size_t b_pack_bytes = 0;
     std::size_t total_cache_bytes = 0;
-    if (!wmma_b_prepack_bytes_for_plan(*plan, b_pack_bytes, total_cache_bytes)) {
+    if (!rocwmma_b_prepack_bytes_for_plan(*plan, b_pack_bytes, total_cache_bytes)) {
       return RNS8_RANGE_ERROR;
     }
 
@@ -1533,13 +1533,13 @@ rns8_status rns8_create_prepack_cache(
     cache->prefix = plan->prefix;
     cache->finite_modulus = matrix->finite_modulus;
     cache->prefix_schedule_fingerprint = prepack_prefix_schedule_fingerprint(*plan);
-    cache->k_block_size = wmma_b_prepack_k_block_size(*plan);
-    cache->k_block_cap = wmma_b_prepack_k_block_cap();
+    cache->k_block_size = rocwmma_b_prepack_k_block_size(*plan);
+    cache->k_block_cap = rocwmma_b_prepack_k_block_cap();
     cache->source_version = matrix->source_version;
     cache->plan_fingerprint = plan_workspace_fingerprint(*plan);
     cache->target_id = prepack_target_id_for_device(matrix->hip_device_id);
     cache->selected_kernel = plan->backend_selected_kernel;
-    cache->prepack_kernel_variant = wmma_b_prepack_kernel_variant();
+    cache->prepack_kernel_variant = rocwmma_b_prepack_kernel_variant();
     cache->matrix_layout_version = persistent_layout_version_for_semantics(matrix->desc.semantics);
     cache->operand_layout_version = prepack_operand_layout_version_for_plan(*plan, operand_role);
     cache->cache_key_hash =
@@ -1561,7 +1561,7 @@ rns8_status rns8_create_prepack_cache(
       delete cache;
       return status;
     }
-    status = rns8::detail::wmma_prepack_b_rns_device(
+    status = rns8::detail::rocwmma_prepack_b_rns_device(
         ctx->device_id,
         matrix->hip_residues,
         cache->device_data,

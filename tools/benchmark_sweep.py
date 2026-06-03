@@ -20,7 +20,7 @@ BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "c
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
-WRAP64_WMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
+WRAP64_ROCWMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
 BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 RNS_CHAIN_SEMANTICS = BOUNDED_SEMANTICS + EXACT_WIDE_SEMANTICS
@@ -152,8 +152,8 @@ def median_phase(capture: dict[str, Any], phase: str) -> float | None:
 
 
 def backend_id(capture: dict[str, Any]) -> str:
-    if capture.get("backend_requested") == WRAP64_WMMA_CANDIDATE_BACKEND:
-        return WRAP64_WMMA_CANDIDATE_BACKEND
+    if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
+        return WRAP64_ROCWMMA_CANDIDATE_BACKEND
     return str(capture.get("backend_selected"))
 
 
@@ -391,8 +391,6 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def cli_backend(backend: str) -> str:
-    if backend == "wmma":
-        return "rocwmma"
     if backend == "hip-vector-alu-int64":
         return "hip-vector-alu-int64-runtime"
     return backend
@@ -725,7 +723,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             backend = backend_id(item)
             metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
-            internal_candidate = backend == WRAP64_WMMA_CANDIDATE_BACKEND
+            internal_candidate = backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
             end_to_end = median_phase(item, "end_to_end")
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
@@ -1045,8 +1043,8 @@ def wrap64_cases(args: argparse.Namespace) -> list[SweepCase]:
 
 def wrap64_backends_for(args: argparse.Namespace) -> list[str]:
     backends = list(WRAP64_BACKENDS)
-    if args.include_wrap64_wmma_candidate:
-        backends.append(WRAP64_WMMA_CANDIDATE_BACKEND)
+    if args.include_wrap64_rocwmma_candidate:
+        backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
     return backends
 
 
@@ -1087,7 +1085,7 @@ def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
 
 def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
     if semantics == "wrap-u64":
-        return backend in WRAP64_BACKENDS or backend == WRAP64_WMMA_CANDIDATE_BACKEND
+        return backend in WRAP64_BACKENDS or backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return backend in FINITE_BACKENDS
     if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
@@ -1136,8 +1134,8 @@ def command_for(
     exact_wide_limb_count: int | None,
     args: argparse.Namespace,
 ) -> list[str]:
-    tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_WMMA_CANDIDATE_BACKEND else case.tile_m
-    tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_WMMA_CANDIDATE_BACKEND else case.tile_n
+    tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_m
+    tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_n
     command = [
         str(bench),
         "--backend",
@@ -1190,7 +1188,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
         raise SystemExit("--adaptive-only requires --adaptive-case, --include-default-adaptive, or --include-adaptive-workloads")
-    if (args.include_wrap64 or args.include_wrap64_wmma_candidate) and "wrap-u64" not in semantics_values:
+    if (args.include_wrap64 or args.include_wrap64_rocwmma_candidate) and "wrap-u64" not in semantics_values:
         semantics_values.append("wrap-u64")
     if args.include_exact_wide:
         for exact_semantics in EXACT_WIDE_SEMANTICS:
@@ -1379,7 +1377,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--adaptive-only", action="store_true", help="run only adaptive cases, skipping global cases")
     parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
     parser.add_argument(
-        "--include-wrap64-wmma-candidate",
+        "--include-rocwmma-wrap64-candidate",
         action="store_true",
         help="include the internal rocWMMA wrap64 byte-GEMM36 candidate in wrap64 sweeps",
     )

@@ -30,7 +30,7 @@ std::string backend_family(const rns8_plan_backend_info& backend) {
     return "native_vector_alu";
   }
   if (backend.backend == RNS8_BACKEND_HIPBLASLT || backend.backend == RNS8_BACKEND_CK ||
-      backend.backend == RNS8_BACKEND_WMMA) {
+      backend.backend == RNS8_BACKEND_ROCWMMA) {
     return "matrix_engine";
   }
   if (backend.backend == RNS8_BACKEND_HIP_DIRECT) {

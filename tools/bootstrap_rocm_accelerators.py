@@ -184,9 +184,83 @@ def probe_dependencies(target: str, probe_root: Path) -> dict[str, object]:
     }
 
 
+def dry_run_bootstrap_report(root: Path, target: str, probe_root: Path, init: bool, probe: bool) -> dict[str, object]:
+    submodule_items: dict[str, object] = {}
+    for name, spec in deps.EXPECTED_ROCM_SUBMODULES.items():
+        path = str(spec["path"])
+        dependency = deps.repo_local_dependency_report(name)
+        submodule_items[name] = {
+            "ok": True,
+            "dependency": dependency,
+            "planned_command": ["git", "submodule", "update", "--init", "--checkout", "--", path] if init else [],
+            "planned_write": "submodule checkout/update" if init else "",
+        }
+
+    probe_items: dict[str, object] = {}
+    if probe:
+        for name in ("ck", "rocwmma"):
+            suffix = ".exe" if platform.system() == "Windows" else ""
+            probe_items[name] = {
+                "ok": True,
+                "status": "dry_run_probe_planned",
+                "name": name,
+                "source": str(probe_root / f"{name}_probe.cpp"),
+                "binary": str(probe_root / f"{name}_probe{suffix}"),
+                "primitive_probe_status": "DRY_RUN_PLANNED",
+                "primitive_probe_ok": None,
+                "planned_write": "probe source, probe binary, and primitive probe artifacts",
+            }
+
+    record_path = probe_root / "bootstrap_rocm_accelerators.json"
+    return {
+        "repo_root": str(root),
+        "target": target,
+        "artifact_root": str(probe_root),
+        "record_path": str(record_path),
+        "record_written": False,
+        "dry_run": True,
+        "policy": "repo-local dependencies only; no source clones or installs under C:\\",
+        "planned_actions": {
+            "submodule_update": bool(init),
+            "compile_probes": bool(probe),
+            "write_report": False,
+            "note": "dry-run reports planned actions without creating directories, updating submodules, writing probe files, compiling, or writing the JSON record",
+        },
+        "submodules": {
+            "ok": True,
+            "dry_run": True,
+            "items": submodule_items,
+            "note": "submodule update planned only" if init else "submodule update not requested",
+        },
+        "toolchain": {
+            "ok": True,
+            "dry_run": True,
+            "requested": False,
+            "requested_target": target,
+            "note": "toolchain probes not executed in dry-run mode",
+        },
+        "probes": {
+            "ok": True,
+            "dry_run": True,
+            "requested": bool(probe),
+            "target": target,
+            "probe_root": str(probe_root),
+            "items": probe_items,
+            "note": "compile probes planned only" if probe else "compile probes not requested",
+        },
+    }
+
+
 def print_human(report: dict[str, object]) -> None:
     print("RNS8 ROCm accelerator dependency bootstrap")
     print("==========================================")
+    if report.get("dry_run"):
+        print("mode: dry-run")
+        planned = report.get("planned_actions")
+        if isinstance(planned, dict):
+            print(f"planned submodule update: {planned.get('submodule_update')}")
+            print(f"planned compile probes: {planned.get('compile_probes')}")
+            print(f"planned report write: {planned.get('write_report')}")
     if report.get("submodules"):
         submodules = report["submodules"]
         assert isinstance(submodules, dict)
@@ -238,11 +312,25 @@ def main() -> int:
         default=None,
         help="probe artifact directory; defaults to temp/accelerator-deps/bootstrap",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print planned submodule/probe/report actions without writing, compiling, or updating submodules",
+    )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args()
 
     root = deps.repo_root()
     probe_root = args.probe_root or (root / "temp" / "accelerator-deps" / "bootstrap")
+    if args.dry_run:
+        report = dry_run_bootstrap_report(root, args.target, probe_root, args.init, args.probe)
+        if args.json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print_human(report)
+            print(f"record: {probe_root / 'bootstrap_rocm_accelerators.json'} (not written; dry-run)")
+        return 0
+
     report: dict[str, object] = {
         "repo_root": str(root),
         "target": args.target,

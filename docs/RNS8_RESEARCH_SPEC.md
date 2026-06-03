@@ -33,7 +33,7 @@ shape, installed toolchain, or a single AMD GPU generation.
 | D15 | GPU CRT reconstruction is required for production bounded `int64` and `uint64` export on supported GPU targets. CPU CRT is the reference and debug path. |
 | D16 | Public APIs are explicit about semantics and never infer signed, unsigned, bounded, wide, or wraparound behavior from a C++ type alone. |
 | D17 | The build system must use portable CMake for host code and explicit HIP compiler integration that works on Windows, where CMake HIP language support is not available. |
-| D18 | License is Apache-2.0, with third-party notices for AMD, academic, and CPU reference dependencies. |
+| D18 | First-party code and documentation use the MIT License, with third-party notices for AMD, academic, and CPU reference dependencies. |
 | D19 | RNS8 development uses hard cutovers only. Retired APIs, schema fields, backend paths, kernels, tests, docs, and tools are deleted or rewritten in-place instead of preserved as legacy, compatibility, fallback, or shim layers. |
 
 ### 1.1 Hard-Cutover Discipline
@@ -1350,7 +1350,7 @@ rns8-gemm/
     backend_hip_direct/
     backend_hipblaslt/
     backend_ck/
-    backend_wmma/
+    backend_rocwmma/
     backend_wrap64/
     reconstruct/
     pack/

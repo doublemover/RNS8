@@ -12,7 +12,7 @@ from typing import Any
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
-PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS = {"hipblaslt", "ck", "wmma"}
+PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS = {"hipblaslt", "ck", "rocwmma"}
 NATIVE_VECTOR_AUTOTUNE_BACKEND = "hip-vector-alu-int64"
 PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
     "bounded_i64",
@@ -144,7 +144,7 @@ def reviewed_kernel_supported_for_contract(
                 "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
                 "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
             }
-    if selected_backend == "wmma":
+    if selected_backend == "rocwmma":
         if semantic_contract in FINITE_U8_SEMANTICS:
             return selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
         if semantic_contract in EXACT_WIDE_SEMANTICS:
@@ -176,7 +176,7 @@ def reviewed_epilogue_supported_for_contract(
             return epilogue == "ck_fused_i32_to_centered_residue_rns_output"
         if semantic_contract in BOUNDED_SEMANTICS:
             return epilogue == "ck_fused_i32_to_centered_residue_then_crt_export"
-    if selected_backend == "wmma":
+    if selected_backend == "rocwmma":
         if semantic_contract in FINITE_U8_SEMANTICS:
             return epilogue == "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export"
         if semantic_contract in EXACT_WIDE_SEMANTICS:

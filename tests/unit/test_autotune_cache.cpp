@@ -15,10 +15,10 @@ constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_centered_epilo
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
-constexpr const char* kWmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
-constexpr const char* kWmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kVectorU64Kernel = "hip_vector_alu_u64_exact_192b_v1";
 constexpr const char* kVectorEpilogue = "direct_int64_export";
+constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
+constexpr const char* kRocwmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
 
 rns8::detail::AutotuneCacheEntry cache_entry(
     const char* key,
@@ -145,11 +145,11 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
   snapshot.exists = true;
   const std::string validated_key = reviewed_key().c_str();
   const std::string unvalidated_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 512, 512, 513);
-  const std::string bad_schema_key = reviewed_key("wmma", "gfx1100", "7.1", "bounded_u64", 512, 513, 512);
+  const std::string bad_schema_key = reviewed_key("rocwmma", "gfx1100", "7.1", "bounded_u64", 512, 513, 512);
   const std::string bad_status_key =
       reviewed_key(
-          "wmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512, "row_major", 512, 128, 128,
-          kWmmaBoundedKernel, kWmmaBoundedEpilogue);
+          "rocwmma", "gfx1100", "7.1", "bounded_u64", 513, 512, 512, "row_major", 512, 128, 128,
+          kRocwmmaBoundedKernel, kRocwmmaBoundedEpilogue);
   const std::string old_reviewed_status_key = reviewed_key("ck", "gfx1100", "7.1", "bounded_u64", 514, 512, 512);
   snapshot.entries.push_back(
       cache_entry(validated_key.c_str(), "ck", true, "reviewed_release_same_contract_fastest_windows_gfx1100"));
@@ -157,13 +157,13 @@ TEST_CASE("autotune cache exposes only reviewed validated entries for selection"
       cache_entry(unvalidated_key.c_str(), "ck", false, "schema_v4_capture_emitted_unreviewed"));
   snapshot.entries.back().k = 513;
   snapshot.entries.push_back(
-      cache_entry(bad_schema_key.c_str(), "wmma", true, "reviewed_release_same_contract_fastest_windows_gfx1100", 99));
+      cache_entry(bad_schema_key.c_str(), "rocwmma", true, "reviewed_release_same_contract_fastest_windows_gfx1100", 99));
   snapshot.entries.back().n = 513;
-  snapshot.entries.push_back(cache_entry(bad_status_key.c_str(), "wmma", true, "raw_capture_fastest"));
+  snapshot.entries.push_back(cache_entry(bad_status_key.c_str(), "rocwmma", true, "raw_capture_fastest"));
   snapshot.entries.back().m = 513;
-  snapshot.entries.back().selected_kernel = kWmmaBoundedKernel;
-  snapshot.entries.back().epilogue = kWmmaBoundedEpilogue;
-  snapshot.entries.back().kernel_family = kWmmaBoundedKernel;
+  snapshot.entries.back().selected_kernel = kRocwmmaBoundedKernel;
+  snapshot.entries.back().epilogue = kRocwmmaBoundedEpilogue;
+  snapshot.entries.back().kernel_family = kRocwmmaBoundedKernel;
   snapshot.entries.push_back(
       cache_entry(old_reviewed_status_key.c_str(), "ck", true, "reviewed_same_contract_fastest_windows_gfx1100"));
   snapshot.entries.back().m = 514;
@@ -330,6 +330,30 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
         "wmma",
         "gfx1100",
         "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kRocwmmaBoundedKernel,
+        kRocwmmaBoundedEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "wmma";
+    item.selected_kernel = kRocwmmaBoundedKernel;
+    item.semantic_contract = "bounded_u64";
+    item.epilogue = kRocwmmaBoundedEpilogue;
+    item.kernel_family = kRocwmmaBoundedKernel;
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+  }
+  {
+    std::string key = reviewed_key(
+        "rocwmma",
+        "gfx1100",
+        "7.1",
         "wrap_u64_mod_2_64",
         64,
         64,
@@ -341,7 +365,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
         "rocwmma_wrap64_byte_gemm36_candidate_v0",
         "low64_wrap_export");
     auto item = entry(key);
-    item.selected_backend = "wmma";
+    item.selected_backend = "rocwmma";
     item.selected_kernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
     item.semantic_contract = "wrap_u64_mod_2_64";
     item.m = 64;

@@ -25,9 +25,9 @@ constexpr accelerator_backend_descriptor kCkDescriptor{
     1,
 };
 
-constexpr accelerator_backend_descriptor kWmmaDescriptor{
-    RNS8_BACKEND_WMMA,
-    "wmma",
+constexpr accelerator_backend_descriptor kRocwmmaDescriptor{
+    RNS8_BACKEND_ROCWMMA,
+    "rocwmma",
     "rocWMMA/AMDGPU builtins",
     "RNS8_ENABLE_ROCWMMA/RNS8_ENABLE_AMDGPU_BUILTINS",
     "rocwmma_i8_i32_signed_hot_residue_v1_disabled",
@@ -52,7 +52,7 @@ void set_text(char* dst, std::size_t dst_size, const char* text) {
 }  // namespace
 
 bool accelerator_backend_kind(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+  return backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
 }
 
 bool accelerator_backend_compiled(rns8_backend_kind backend) {
@@ -63,7 +63,7 @@ bool accelerator_backend_compiled(rns8_backend_kind backend) {
 #else
       return false;
 #endif
-    case RNS8_BACKEND_WMMA:
+    case RNS8_BACKEND_ROCWMMA:
 #if (defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA) || \
     (defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS)
       return true;
@@ -103,8 +103,8 @@ const accelerator_backend_descriptor* accelerator_backend_descriptor_for(rns8_ba
   switch (backend) {
     case RNS8_BACKEND_CK:
       return &kCkDescriptor;
-    case RNS8_BACKEND_WMMA:
-      return &kWmmaDescriptor;
+    case RNS8_BACKEND_ROCWMMA:
+      return &kRocwmmaDescriptor;
     default:
       return nullptr;
   }

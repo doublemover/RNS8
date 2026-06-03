@@ -197,7 +197,6 @@ def as_exact_wide_capture(capture: dict) -> dict:
                     values[new] = values.pop(old)
     return exact
 
-
 def as_residue_current_chain_capture(capture: dict) -> dict:
     chain = as_exact_wide_capture(capture)
     repeats = chain["repeats"]
@@ -299,11 +298,11 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     return chain
 
 
-def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
+def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
     candidate = copy.deepcopy(capture)
     repeats = candidate["repeats"]
     candidate["backend_requested"] = "rocwmma-wrap64-candidate"
-    candidate["backend_selected"] = "wmma"
+    candidate["backend_selected"] = "rocwmma"
     candidate["selected_kernel"] = "rocwmma_wrap64_byte_gemm36_candidate_v0"
     candidate["tile_m"] = 16
     candidate["tile_n"] = 16
@@ -313,7 +312,7 @@ def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
     )
     candidate["backend_metadata"].update(
         {
-            "source": "rns8_bench_wrap64_wmma_candidate",
+            "source": "rns8_bench_wrap64_rocwmma_candidate",
             "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
             "accelerator_backend": True,
             "correctness_backend": False,
@@ -337,7 +336,7 @@ def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
     )
     candidate["schedule_metadata"].update(
         {
-            "source": "rns8_bench_wrap64_wmma_candidate_static_schedule",
+            "source": "rns8_bench_wrap64_rocwmma_candidate_static_schedule",
             "tile_m": 16,
             "tile_n": 16,
             "tile_rows": 1,
@@ -374,11 +373,11 @@ def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
     candidate["timing_metadata"]["phase_availability"]["scheduling"] = {
         "timed": True,
         "timing_key": "scheduling",
-        "scope": "benchmark_static_wrap64_wmma_candidate_schedule",
+        "scope": "benchmark_static_wrap64_rocwmma_candidate_schedule",
         "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
     }
     renamed = {
-        "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_wmma_candidate_gemm36_kernel_group",
+        "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_rocwmma_candidate_gemm36_kernel_group",
     }
     phase_order = candidate["timing_metadata"].get("gpu_event_phase_order")
     if isinstance(phase_order, list):
@@ -389,7 +388,7 @@ def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
             for old, new in renamed.items():
                 if old in values:
                     values[new] = values.pop(old)
-    assert len(candidate["gpu_event_timings_us"]["wrap64_wmma_candidate_gemm36_kernel_group"]) == repeats
+    assert len(candidate["gpu_event_timings_us"]["wrap64_rocwmma_candidate_gemm36_kernel_group"]) == repeats
     return candidate
 
 
@@ -400,16 +399,32 @@ def main() -> int:
     v4_hipblaslt_i64 = expect_valid("v4_bounded_i64_hipblaslt.json")
     v4_ck_i64 = expect_valid("v4_bounded_i64_ck.json")
     v4_ck_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_ck.json")
-    v4_wmma_i64 = expect_valid("v4_bounded_i64_rocwmma.json")
-    v4_wmma_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_rocwmma.json")
+    v4_rocwmma_i64 = expect_valid("v4_bounded_i64_rocwmma.json")
+    v4_rocwmma_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_rocwmma.json")
     v4_vector_i64 = expect_valid("v4_bounded_i64_vector_alu.json")
     v4_vector_u64 = expect_valid("v4_bounded_u64_vector_alu.json")
     v4_finite_ring_ck = expect_valid("v4_finite_ring_u8_ck.json")
-    v4_finite_field_wmma = expect_valid("v4_finite_field_u8_rocwmma.json")
+    v4_finite_field_rocwmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
     wrap64 = v4_wrap64_hip
-    v4_wrap64_wmma_candidate = as_wrap64_wmma_candidate_capture(v4_wrap64_hip)
-    validate_capture(v4_wrap64_wmma_candidate)
+    v4_wrap64_rocwmma_candidate = as_wrap64_rocwmma_candidate_capture(v4_wrap64_hip)
+    validate_capture(v4_wrap64_rocwmma_candidate)
+
+    stale_rocwmma_backend_spelling = copy.deepcopy(v4_rocwmma_i64)
+    stale_rocwmma_backend_spelling["backend_requested"] = "wmma"
+    stale_rocwmma_backend_spelling["backend_selected"] = "wmma"
+    stale_rocwmma_backend_spelling["backend_metadata"]["autotune_key"] = stale_rocwmma_backend_spelling[
+        "backend_metadata"
+    ]["autotune_key"].replace("backend=rocwmma;", "backend=wmma;")
+    expect_invalid(stale_rocwmma_backend_spelling, "backend_selected must be one of")
+
+    stale_candidate_request_spelling = copy.deepcopy(v4_wrap64_rocwmma_candidate)
+    stale_candidate_request_spelling["backend_requested"] = "wrap64-wmma-candidate"
+    stale_candidate_request_spelling["backend_selected"] = "wmma"
+    stale_candidate_request_spelling["backend_metadata"]["autotune_key"] = stale_candidate_request_spelling[
+        "backend_metadata"
+    ]["autotune_key"].replace("backend=rocwmma-wrap64-candidate;", "backend=wrap64-wmma-candidate;")
+    expect_invalid(stale_candidate_request_spelling, "backend_selected must be one of")
 
     v4_cpu_adaptive_i64 = copy.deepcopy(v4_adaptive_i64)
     v4_cpu_adaptive_i64["backend_requested"] = "cpu-reference"
@@ -581,7 +596,7 @@ def main() -> int:
     bad_reused_strategy_backend["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
     bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_operands"] = ["B"]
     bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
-    expect_invalid(bad_reused_strategy_backend, "backend_selected=wmma")
+    expect_invalid(bad_reused_strategy_backend, "backend_selected=rocwmma")
 
     bad_reused_metadata_strategy = copy.deepcopy(reused_ck_i64)
     bad_reused_metadata_strategy["timing_metadata"]["prepack_reuse_strategy"] = "none"
@@ -645,24 +660,24 @@ def main() -> int:
     bad_ck_events["timing_metadata"]["gpu_event_timing_source_scope"] = "ck_default_stream"
     expect_invalid(bad_ck_events, "accelerator_backend_default_stream_deep_kernel_events")
 
-    bad_wmma_library = copy.deepcopy(v4_wmma_i64)
-    bad_wmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
-    expect_invalid(bad_wmma_library, "rocWMMA")
+    bad_rocwmma_library = copy.deepcopy(v4_rocwmma_i64)
+    bad_rocwmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    expect_invalid(bad_rocwmma_library, "rocWMMA")
 
-    bad_wmma_kernel = copy.deepcopy(v4_wmma_adaptive_u64)
-    bad_wmma_kernel["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
-    bad_wmma_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
-    expect_invalid(bad_wmma_kernel, "per-tile adaptive wmma captures")
+    bad_rocwmma_kernel = copy.deepcopy(v4_rocwmma_adaptive_u64)
+    bad_rocwmma_kernel["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    bad_rocwmma_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    expect_invalid(bad_rocwmma_kernel, "per-tile adaptive rocwmma captures")
 
-    bad_wmma_events = copy.deepcopy(v4_wmma_adaptive_u64)
-    bad_wmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
-    expect_invalid(bad_wmma_events, "accelerator_backend_default_stream_deep_kernel_events")
+    bad_rocwmma_events = copy.deepcopy(v4_rocwmma_adaptive_u64)
+    bad_rocwmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
+    expect_invalid(bad_rocwmma_events, "accelerator_backend_default_stream_deep_kernel_events")
 
     bad_hip_target = copy.deepcopy(v4_ck_i64)
     bad_hip_target["device"]["gcn_arch"] = "unknown"
     expect_invalid(bad_hip_target, "HIP backend captures must include non-placeholder device.gcn_arch")
 
-    bad_hip_available = copy.deepcopy(v4_wmma_i64)
+    bad_hip_available = copy.deepcopy(v4_rocwmma_i64)
     bad_hip_available["device"]["hip_available"] = 0
     expect_invalid(bad_hip_available, "HIP backend captures must use device.hip_available=1")
 
@@ -686,7 +701,7 @@ def main() -> int:
     bad_finite_ring_modulus["finite_modulus"] = 1
     expect_invalid(bad_finite_ring_modulus, "finite_ring_u8 finite_modulus")
 
-    bad_finite_field_modulus = copy.deepcopy(v4_finite_field_wmma)
+    bad_finite_field_modulus = copy.deepcopy(v4_finite_field_rocwmma)
     bad_finite_field_modulus["finite_modulus"] = 255
     expect_invalid(bad_finite_field_modulus, "finite_field_u8 finite_modulus")
 
@@ -701,7 +716,7 @@ def main() -> int:
     )
     expect_invalid(bad_finite_key, "finite-u8 backend_metadata.autotune_key must include finite_modulus")
 
-    bad_finite_epilogue = copy.deepcopy(v4_finite_field_wmma)
+    bad_finite_epilogue = copy.deepcopy(v4_finite_field_rocwmma)
     bad_finite_epilogue["epilogue_type"] = "crt_export"
     expect_invalid(bad_finite_epilogue, "canonical_u8_export")
 
@@ -802,17 +817,17 @@ def main() -> int:
     bad_wrap64_hip_phase["gpu_event_timing_summary_us"]["wrap64_export_d2h"]["avg"] = 999.0
     expect_invalid(bad_wrap64_hip_phase, "gpu_event_timing_summary_us.wrap64_export_d2h.avg")
 
-    bad_candidate_schedule_source = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_schedule_source = copy.deepcopy(v4_wrap64_rocwmma_candidate)
     bad_candidate_schedule_source["schedule_metadata"]["source"] = "rns8_get_plan_schedule_info"
-    expect_invalid(bad_candidate_schedule_source, "rns8_bench_wrap64_wmma_candidate_static_schedule")
+    expect_invalid(bad_candidate_schedule_source, "rns8_bench_wrap64_rocwmma_candidate_static_schedule")
 
-    bad_candidate_scope = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_scope = copy.deepcopy(v4_wrap64_rocwmma_candidate)
     bad_candidate_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
         "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
     )
     expect_invalid(bad_candidate_scope, "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups")
 
-    bad_candidate_correctness_flag = copy.deepcopy(v4_wrap64_wmma_candidate)
+    bad_candidate_correctness_flag = copy.deepcopy(v4_wrap64_rocwmma_candidate)
     bad_candidate_correctness_flag["backend_metadata"]["correctness_backend"] = True
     expect_invalid(bad_candidate_correctness_flag, "correctness_backend=False")
 
@@ -830,14 +845,14 @@ def main() -> int:
     legacy_reviewed_speedup["comparison_baseline"]["selected_reference"] = "hip-direct"
     validate_capture(legacy_reviewed_speedup)
 
-    bad_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    bad_performance_promotion = copy.deepcopy(v4_rocwmma_i64)
     bad_performance_promotion["backend_metadata"]["performance_validated"] = True
     expect_invalid(
         bad_performance_promotion,
         "performance_validated captures require comparison_baseline.status=reviewed_release_same_contract_baseline",
     )
 
-    bad_legacy_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    bad_legacy_performance_promotion = copy.deepcopy(v4_rocwmma_i64)
     bad_legacy_performance_promotion["comparison_baseline"]["status"] = "reviewed_same_contract_baseline"
     bad_legacy_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
     bad_legacy_performance_promotion["backend_metadata"]["performance_validated"] = True
@@ -855,7 +870,7 @@ def main() -> int:
         "derived_tops_equivalent requires a reviewed release same-contract comparison baseline",
     )
 
-    release_performance_promotion = copy.deepcopy(v4_wmma_i64)
+    release_performance_promotion = copy.deepcopy(v4_rocwmma_i64)
     release_performance_promotion["comparison_baseline"]["status"] = "reviewed_release_same_contract_baseline"
     release_performance_promotion["comparison_baseline"]["speedup_claimed"] = True
     release_performance_promotion["comparison_baseline"]["selected_reference"] = "hip-direct"
@@ -863,7 +878,7 @@ def main() -> int:
     release_performance_promotion["derived_tops_equivalent"] = 123.0
     validate_capture(release_performance_promotion)
 
-    release_performance_capture_without_speedup_claim = copy.deepcopy(v4_wmma_i64)
+    release_performance_capture_without_speedup_claim = copy.deepcopy(v4_rocwmma_i64)
     release_performance_capture_without_speedup_claim["backend_requested"] = "auto"
     release_performance_capture_without_speedup_claim["comparison_baseline"]["status"] = (
         "reviewed_release_same_contract_baseline"

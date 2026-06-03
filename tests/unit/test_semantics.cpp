@@ -30,6 +30,12 @@ rns8_context* create_wrap64() {
   return ctx;
 }
 
+template <typename Enum>
+Enum invalid_public_enum_value() {
+  volatile unsigned value = 0x7fffu;
+  return static_cast<Enum>(value);
+}
+
 rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -485,10 +491,10 @@ TEST_CASE("finite u8 persistent descriptors reject stale CRT metadata and modulu
 
 TEST_CASE("unknown public enum values are invalid before backend routing") {
   rns8_context* ctx = create_cpu();
-  constexpr auto unknown_semantics = static_cast<rns8_semantics>(0x7fffu);
-  constexpr auto unknown_bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
-  constexpr auto unknown_layout = static_cast<rns8_layout>(0x7fffu);
-  constexpr auto unknown_backend = static_cast<rns8_backend_kind>(0x7fffu);
+  const auto unknown_semantics = invalid_public_enum_value<rns8_semantics>();
+  const auto unknown_bound_kind = invalid_public_enum_value<rns8_bound_kind>();
+  const auto unknown_layout = invalid_public_enum_value<rns8_layout>();
+  const auto unknown_backend = invalid_public_enum_value<rns8_backend_kind>();
 
   {
     auto desc = gemm_desc(RNS8_BOUNDED_U64, unknown_bound_kind);
@@ -533,7 +539,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
   }
   {
     auto desc = gemm_desc(RNS8_FINITE_RING_U8, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-    desc.requested_backend = RNS8_BACKEND_WMMA;
+    desc.requested_backend = RNS8_BACKEND_ROCWMMA;
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
@@ -757,7 +763,7 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
 TEST_CASE("future backend context kinds report unsupported status") {
   std::vector<rns8_backend_kind> backends;
 #if !defined(RNS8_ENABLE_ROCWMMA) || !RNS8_ENABLE_ROCWMMA
-  backends.push_back(RNS8_BACKEND_WMMA);
+  backends.push_back(RNS8_BACKEND_ROCWMMA);
 #endif
 #if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
   backends.push_back(RNS8_BACKEND_CK);

@@ -132,13 +132,13 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 #endif
     }
 
-    if (requested == RNS8_BACKEND_WMMA) {
+    if (requested == RNS8_BACKEND_ROCWMMA) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-      ctx->backend = RNS8_BACKEND_WMMA;
+      ctx->backend = RNS8_BACKEND_ROCWMMA;
       ctx->device_id = device_id < 0 ? 0 : device_id;
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
-      const rns8_status status = rns8::detail::wmma_probe(ctx->device_id, ctx->device_info);
+      const rns8_status status = rns8::detail::rocwmma_probe(ctx->device_id, ctx->device_info);
       if (status != RNS8_SUCCESS) {
         delete ctx;
         return status;

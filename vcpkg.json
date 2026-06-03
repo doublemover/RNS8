@@ -3,17 +3,20 @@
   "name": "rns8-gemm",
   "version-string": "0.1.0",
   "description": "Exact integer GEMM with AMD GPU matrix engines, RNS, and CRT reconstruction.",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "builtin-baseline": "2979dbff1b38167a2a0d2b47b7c549c61273eabf",
   "dependencies": [
-    "benchmark",
     "boost-multiprecision",
     "catch2",
-    "cli11",
-    "flint",
-    "fmt",
-    "gmp",
-    "nlohmann-json",
-    "spdlog"
-  ]
+    "nlohmann-json"
+  ],
+  "features": {
+    "optional-exact-libs": {
+      "description": "Optional GMP and FLINT link checks for exact-reference development.",
+      "dependencies": [
+        "gmp",
+        "flint"
+      ]
+    }
+  }
 }
