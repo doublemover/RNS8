@@ -1184,6 +1184,47 @@ TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP bounded prefix-9 plans advertise grouped GEMM kernel") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP bounded metadata smoke");
+  }
+
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr const char* grouped_kernel = "direct_hip_prefix9_grouped_rns_gemm_v1";
+  for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
+    CAPTURE(semantics);
+    auto desc = semantics == RNS8_BOUNDED_I64
+                    ? signed_desc(32, 32, 32, 32u * 127u * 127u, RNS8_BACKEND_HIP_DIRECT)
+                    : unsigned_desc(32, 32, 32, 32u * 127u * 127u, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
+    REQUIRE(plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    CHECK(plan->tile_schedule.empty());
+
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(std::string(info.selected_kernel) == grouped_kernel);
+    CHECK(std::string(info.autotune_key).find(std::string("kernel=") + grouped_kernel + ";") != std::string::npos);
+
+    rns8_destroy_plan(plan);
+  }
+
+  const std::vector<uint64_t> bounds = {7, 1000, 7000000, 1000000000};
+  auto adaptive_desc = per_tile_signed_desc(65, 65, 64, bounds, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* adaptive_plan = nullptr;
+  REQUIRE(rns8_create_plan(hip, &adaptive_desc, &adaptive_plan) == RNS8_SUCCESS);
+  REQUIRE_FALSE(adaptive_plan->tile_schedule.empty());
+  rns8_plan_backend_info adaptive_info{};
+  adaptive_info.struct_size = sizeof(adaptive_info);
+  adaptive_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(adaptive_plan, &adaptive_info) == RNS8_SUCCESS);
+  CHECK(std::string(adaptive_info.selected_kernel) == "direct_hip_tiled_rns_gemm_v1");
+  rns8_destroy_plan(adaptive_plan);
+  rns8_destroy_context(hip);
+}
+
 TEST_CASE("direct HIP finite u8 specialized reducers preserve K-split semantics") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP finite reducer smoke");
