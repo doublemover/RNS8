@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
+#include "core/internal.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -128,6 +129,25 @@ void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<u
     CHECK(actual[i] == expected[i]);
   }
 }
+
+std::vector<int64_t> reference_i64(
+    const std::vector<int64_t>& A,
+    const std::vector<int64_t>& B,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  std::vector<int64_t> out(static_cast<std::size_t>(m * n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      int64_t acc = 0;
+      for (int64_t kk = 0; kk < k; ++kk) {
+        acc += A[static_cast<std::size_t>(row * k + kk)] * B[static_cast<std::size_t>(kk * n + col)];
+      }
+      out[static_cast<std::size_t>(row * n + col)] = acc;
+    }
+  }
+  return out;
+}
 #endif
 
 }  // namespace
@@ -199,6 +219,97 @@ TEST_CASE("hipBLASLt bounded baseline one-shot matches CPU and direct HIP") {
   rns8_destroy_context(hipblaslt);
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
+}
+
+TEST_CASE("hipBLASLt workspace B prepack cache reuses stable source versions") {
+  if (!hipblaslt_available()) {
+    SKIP("hipBLASLt backend is not available on this device");
+  }
+
+  rns8_context* hipblaslt = create_backend_context(RNS8_BACKEND_HIPBLASLT);
+  constexpr int64_t m = 4;
+  constexpr int64_t n = 3;
+  constexpr int64_t k = 5;
+  const std::vector<int64_t> A0 = {
+      1, -2, 3, -4, 5,
+      6, 7, -8, 9, -10,
+      -11, 12, 13, -14, 15,
+      16, -17, 18, 19, -20};
+  const std::vector<int64_t> A1 = {
+      -3, 4, 5, -6, 7,
+      8, -9, 10, 11, -12,
+      13, 14, -15, 16, -17,
+      -18, 19, 20, -21, 22};
+  const std::vector<int64_t> B0 = {
+      2, -3, 4,
+      -5, 6, -7,
+      8, 9, -10,
+      -11, 12, 13,
+      14, -15, 16};
+  const std::vector<int64_t> B1 = {
+      -2, 5, -8,
+      11, -14, 17,
+      -20, 23, -26,
+      29, -32, 35,
+      -38, 41, -44};
+
+  auto desc = bounded_i64_desc(m, n, k, 10000, RNS8_BACKEND_HIPBLASLT);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a_matrix = nullptr;
+  rns8_matrix* b_matrix = nullptr;
+  rns8_matrix* c_matrix = nullptr;
+  REQUIRE(rns8_create_plan(hipblaslt, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hipblaslt, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  REQUIRE(rns8_create_matrix(hipblaslt, &a_desc, &a_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hipblaslt, &b_desc, &b_matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hipblaslt, &c_desc, &c_matrix) == RNS8_SUCCESS);
+  CHECK(workspace->hipblaslt_b_prepack_cache == nullptr);
+  CHECK_FALSE(workspace->hipblaslt_b_prepack_current);
+
+  std::vector<int64_t> out(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_pack_i64(hipblaslt, a_matrix, A0.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B0.data(), n, 10) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(reference_i64(A0, B0, m, n, k), out);
+  REQUIRE(workspace->hipblaslt_b_prepack_cache != nullptr);
+  CHECK(workspace->hipblaslt_b_prepack_current);
+  CHECK(workspace->hipblaslt_b_prepack_source_version == 10);
+  CHECK(workspace->hipblaslt_b_prepack_k == k);
+  CHECK(workspace->hipblaslt_b_prepack_n == n);
+  CHECK(workspace->hipblaslt_b_prepack_ldb == n);
+  CHECK(workspace->hipblaslt_b_prepack_prefix == plan->prefix);
+  const void* first_cache_ptr = workspace->hipblaslt_b_prepack_cache;
+  const std::size_t first_cache_bytes = workspace->hipblaslt_b_prepack_cache_bytes;
+
+  REQUIRE(rns8_pack_i64(hipblaslt, a_matrix, A1.data(), k, 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(reference_i64(A1, B0, m, n, k), out);
+  CHECK(workspace->hipblaslt_b_prepack_cache == first_cache_ptr);
+  CHECK(workspace->hipblaslt_b_prepack_cache_bytes == first_cache_bytes);
+  CHECK(workspace->hipblaslt_b_prepack_current);
+  CHECK(workspace->hipblaslt_b_prepack_source_version == 10);
+
+  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B1.data(), n, 11) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(reference_i64(A1, B1, m, n, k), out);
+  CHECK(workspace->hipblaslt_b_prepack_cache == first_cache_ptr);
+  CHECK(workspace->hipblaslt_b_prepack_cache_bytes == first_cache_bytes);
+  CHECK(workspace->hipblaslt_b_prepack_current);
+  CHECK(workspace->hipblaslt_b_prepack_source_version == 11);
+
+  rns8_destroy_matrix(c_matrix);
+  rns8_destroy_matrix(b_matrix);
+  rns8_destroy_matrix(a_matrix);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(hipblaslt);
 }
 
 TEST_CASE("hipBLASLt baseline preserves K-split modular accumulation") {

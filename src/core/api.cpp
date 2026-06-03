@@ -3456,6 +3456,22 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
       workspace->hipblaslt_workspace = nullptr;
       workspace->hipblaslt_workspace_bytes = 0;
     }
+    if (workspace->hipblaslt_b_prepack_cache) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hipblaslt_b_prepack_device_id, workspace->hipblaslt_b_prepack_cache);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hipblaslt_b_prepack_cache = nullptr;
+      workspace->hipblaslt_b_prepack_cache_bytes = 0;
+      workspace->hipblaslt_b_prepack_current = false;
+      workspace->hipblaslt_b_prepack_source_version = 0;
+      workspace->hipblaslt_b_prepack_k = 0;
+      workspace->hipblaslt_b_prepack_n = 0;
+      workspace->hipblaslt_b_prepack_ldb = 0;
+      workspace->hipblaslt_b_prepack_prefix = 0;
+      workspace->hipblaslt_b_prepack_device_id = -1;
+    }
     if (workspace->accelerator_auxiliary) {
       const rns8_status free_status =
           rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->accelerator_auxiliary);
@@ -4251,7 +4267,9 @@ rns8_status rns8_gemm_rns(
           A->desc.cols,
           B->desc.cols,
           C->desc.cols,
-          plan->prefix);
+          plan->prefix,
+          workspace,
+          B->source_version);
       if (status != RNS8_SUCCESS) {
         return status;
       }

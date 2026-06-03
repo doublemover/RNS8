@@ -134,6 +134,15 @@ struct rns8_workspace {
   std::size_t hipblaslt_int32_scratch_bytes = 0;
   void* hipblaslt_workspace = nullptr;
   std::size_t hipblaslt_workspace_bytes = 0;
+  void* hipblaslt_b_prepack_cache = nullptr;
+  std::size_t hipblaslt_b_prepack_cache_bytes = 0;
+  uint64_t hipblaslt_b_prepack_source_version = 0;
+  int64_t hipblaslt_b_prepack_k = 0;
+  int64_t hipblaslt_b_prepack_n = 0;
+  int64_t hipblaslt_b_prepack_ldb = 0;
+  uint32_t hipblaslt_b_prepack_prefix = 0;
+  int hipblaslt_b_prepack_device_id = -1;
+  bool hipblaslt_b_prepack_current = false;
   void* accelerator_workspace = nullptr;
   std::size_t accelerator_workspace_bytes = 0;
   void* accelerator_auxiliary = nullptr;

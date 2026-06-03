@@ -92,6 +92,14 @@ and workspace size. Windows `gfx1100` smoke captures in
 sample from 26.6 ms end-to-end / 12.4 ms host RNS GEMM to 14.6 ms then 12.8 ms
 end-to-end / 6.3 ms then 5.6 ms host RNS GEMM, but those are five-repeat smoke
 captures with visible component-timing noise, not promotion-grade evidence.
+The next hipBLASLt repeated-B slice adds a workspace-local B prepack cache for
+single-K-block fixed-prefix RNS GEMM. On Windows `gfx1100`, 1024 bounded-i64
+release repeated-B captures in `temp\benchmark-sweeps\hipblaslt-b-prepack`
+reported host RNS GEMM at 5.1 ms and 4.7 ms with B reuse, while the paired
+repeated-A run was 9.2 ms. The hipBLASLt transpose-pack event dropped to
+0.35-0.38 ms for repeated-B versus 2.1 ms for repeated-A. This is still
+workspace-local repeated-workload evidence, not a durable production cache or
+full 64/128/512/1024/2048 promotion sweep.
 
 ### 4. Large-Shape Release Matrix
 
@@ -125,6 +133,12 @@ matching device/shape/workspace lookup inside the running process. This cache
 is intentionally non-durable and does not replace reviewed autotune-cache
 identity, library-version rejection, stale-kernel rejection, or the remaining
 A/B pack, timing-split, scratch, and reduce-kernel work.
+The fixed-prefix RNS path now also caches B's transposed hipBLASLt operand
+inside `rns8_workspace` when B source version, device, shape, prefix, and byte
+size match. The cache is skipped for finite-u8, adaptive/tiled plans, and
+split-K. It reduces repeated-B hot dispatch work but does not expose a public
+hipBLASLt prepack cache and does not satisfy the durable production-cache
+identity requirements.
 
 ### 6. CK Path
 
