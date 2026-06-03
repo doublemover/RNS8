@@ -17,12 +17,34 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benc
 
 
 def set_phase(capture: dict, end_to_end: int) -> None:
-    capture["raw_timings_us"]["end_to_end"] = [end_to_end - 10, end_to_end]
-    capture["timing_summary_us"]["end_to_end"] = {
-        "avg": float(end_to_end - 5),
-        "median": float(end_to_end),
-        "p95": float(end_to_end),
-    }
+    repeats = capture.get("repeats", 2)
+    for phase in benchmark_sweep.PHASES:
+        value = end_to_end if phase == "end_to_end" else int(capture["timing_summary_us"][phase]["median"])
+        capture["raw_timings_us"][phase] = [value] * repeats
+        capture["timing_summary_us"][phase] = {
+            "avg": float(value),
+            "median": float(value),
+            "p95": float(value),
+        }
+        avg_field = {
+            "pack": "avg_pack_us",
+            "rns_gemm": "avg_rns_gemm_us",
+            "crt_export": "avg_crt_export_us",
+            "end_to_end": "avg_end_to_end_us",
+        }[phase]
+        capture[avg_field] = float(value)
+    timings = capture.get("gpu_event_timings_us")
+    summaries = capture.get("gpu_event_timing_summary_us")
+    if isinstance(timings, dict) and isinstance(summaries, dict):
+        for phase, values in list(timings.items()):
+            current = summaries.get(phase, {})
+            value = float(current.get("median", values[-1] if values else 0.0))
+            timings[phase] = [value] * repeats
+            summaries[phase] = {
+                "avg": value,
+                "median": value,
+                "p95": value,
+            }
 
 
 def finite_capture(backend: str, end_to_end: int) -> dict:
@@ -213,6 +235,64 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "hip_driver_version": 0,
             "global_mem_bytes": 0,
         }
+    elif backend == benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND:
+        capture["backend_requested"] = benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND
+        capture["backend_selected"] = "wmma"
+        capture["selected_kernel"] = "rocwmma_wrap64_byte_gemm36_candidate_v0"
+        capture["tile_m"] = 16
+        capture["tile_n"] = 16
+        capture["schedule_metadata"].update(
+            {
+                "source": "rns8_bench_wrap64_wmma_candidate_static_schedule",
+                "tile_m": 16,
+                "tile_n": 16,
+                "tile_rows": 1,
+                "tile_cols": 1,
+                "tile_count": 1,
+            }
+        )
+        metadata.update(
+            {
+                "source": "rns8_bench_wrap64_wmma_candidate",
+                "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+                "accelerator_backend": True,
+                "correctness_backend": False,
+                "matrix_engine_backend": True,
+                "accelerator_library": "rocWMMA",
+                "accelerator_version": "repo-local release/rocm-rel-7.1",
+                "capability_status": "internal_wrap64_matrix_engine_candidate",
+                "workspace_mode": "benchmark_owned_compact_byte_limb_device_buffers",
+                "workspace_required_bytes": 640,
+                "isa_evidence": "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide",
+                "autotune_key": (
+                    "backend=rocwmma-wrap64-candidate;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
+                    "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"
+                    "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
+                ),
+            }
+        )
+        renamed = {
+            "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_wmma_candidate_gemm36_kernel_group",
+        }
+        phase_order = capture["timing_metadata"].get("gpu_event_phase_order")
+        if isinstance(phase_order, list):
+            capture["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+        for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
+            values = capture.get(field)
+            if isinstance(values, dict):
+                for old, new in renamed.items():
+                    if old in values:
+                        values[new] = values.pop(old)
+        capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_internal_rocwmma_wrap64_candidate_hooks"
+        capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups"
+        )
+        capture["timing_metadata"]["phase_availability"]["scheduling"] = {
+            "timed": True,
+            "timing_key": "scheduling",
+            "scope": "benchmark_static_wrap64_wmma_candidate_schedule",
+            "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
+        }
     set_phase(capture, end_to_end)
     return capture
 
@@ -255,6 +335,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
+        include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         release_matrix=True,
@@ -271,6 +352,14 @@ def main() -> int:
     assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
     assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
     assert all("--semantics" in command and "wrap-u64" in command for _name, command, _output in wrap64_commands)
+    wrap64_args.include_wrap64_wmma_candidate = True
+    candidate_commands = benchmark_sweep.sweep_commands(wrap64_args)
+    assert len(candidate_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 3
+    candidate_name, candidate_command, _candidate_output = candidate_commands[2]
+    assert candidate_name == "wrap-u64-wrap64-64-64x64x64-rocwmma-wrap64-candidate.json"
+    assert "--backend" in candidate_command and "rocwmma-wrap64-candidate" in candidate_command
+    assert "--tile-m" in candidate_command and "16" in candidate_command
+    wrap64_args.include_wrap64_wmma_candidate = False
     wrap64_args.reuse_packed_inputs = True
     reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
     assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
@@ -298,6 +387,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
+        include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         release_matrix=False,
@@ -329,6 +419,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
+        include_wrap64_wmma_candidate=False,
         include_exact_wide=True,
         reuse_packed_inputs=False,
         release_matrix=False,
@@ -359,6 +450,7 @@ def main() -> int:
         include_default_adaptive=True,
         adaptive_only=True,
         include_wrap64=False,
+        include_wrap64_wmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         release_matrix=True,
@@ -456,6 +548,21 @@ def main() -> int:
     assert "not_accelerator_backend" in blockers_by_backend["hip-direct"]
     assert "not_accelerator_backend" in blockers_by_backend["wrap64-byte-limb"]
     assert "not_faster_than_direct_hip" in blockers_by_backend["wrap64-byte-limb"]
+
+    wrap64_candidate = wrap64_capture(benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND, 150)
+    validate_capture(wrap64_candidate)
+    wrap64_candidate_report = benchmark_sweep.review_captures(
+        [wrap64_direct, wrap64_cpu, wrap64_candidate], review_mode="release"
+    )
+    candidate_group = wrap64_candidate_report["groups"][0]
+    assert candidate_group["missing_required_baselines"] == []
+    assert wrap64_candidate_report["promotable_autotune_entries"] == []
+    candidate_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in candidate_group["candidates"]
+    }
+    assert "internal_candidate_not_public_backend" in candidate_blockers[
+        benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND
+    ]
 
     exact_ck = exact_wide_capture("ck", 170)
     exact_direct = exact_wide_capture("hip-direct", 300)

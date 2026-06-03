@@ -326,7 +326,10 @@ reviewed entries. The remaining gap is broader production coverage plus
 promotion of the internal wrap64 matrix-engine candidate into a public,
 release-reviewed backend if it beats direct HIP, not selector dispatch or
 default-cache installation tooling for reviewed finite, exact-wide, or bounded
-plan keys.
+plan keys. The wrap64 candidate now has a raw benchmark capture route through
+`--backend rocwmma-wrap64-candidate` and opt-in sweep inclusion through
+`--include-wrap64-wmma-candidate`, but those captures carry an
+`internal_candidate_not_public_backend` promotion blocker.
 
 ## Not Yet Implemented
 

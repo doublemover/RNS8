@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_wmma/wmma_backend.hpp"
+#include "backend_wrap64/wrap64_hip.hpp"
 #include "rns8/rns8.h"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -51,6 +53,13 @@ namespace {
 
 constexpr uint32_t kBenchmarkSchemaVersion = 4;
 constexpr uint32_t kExactWideBenchmarkLimbCount = 4;
+constexpr uint32_t kWrap64WmmaCandidateTile = 16;
+constexpr int64_t kWrap64WmmaCandidateMaxK = 32768;
+constexpr const char* kWrap64WmmaCandidateRequestedBackend = "rocwmma-wrap64-candidate";
+constexpr const char* kWrap64WmmaCandidateSelectedKernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
+constexpr const char* kWrap64WmmaCandidateScheduleSource = "rns8_bench_wrap64_wmma_candidate_static_schedule";
+constexpr const char* kWrap64WmmaCandidateBackendSource = "rns8_bench_wrap64_wmma_candidate";
+constexpr const char* kWrap64WmmaCandidateEventLabel = "wrap64_wmma_candidate_gemm36_kernel_group";
 
 enum class BenchSemantics {
   BoundedI64,
@@ -79,6 +88,7 @@ struct Args {
   int device_id = std::numeric_limits<int>::min();
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool vector_alu_baseline = false;
+  bool wrap64_wmma_candidate = false;
   BenchSemantics semantics = BenchSemantics::BoundedI64;
   uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
@@ -106,6 +116,7 @@ struct GpuEventSamples {
   std::vector<double> hipblaslt_int8_i32_matmul_us;
   std::vector<double> hipblaslt_i32_to_residue_reduce_us;
   std::vector<double> wrap64_byte_gemm36_tiled_2d_kernel_us;
+  std::vector<double> wrap64_wmma_candidate_gemm36_kernel_group_us;
   std::vector<double> rns_gemm_us;
   std::vector<double> crt_export_status_memset_us;
   std::vector<double> crt_export_kernel_us;
@@ -126,6 +137,7 @@ struct BenchmarkResult {
   uint64_t tile_bound_hash = 0;
   rns8_plan_schedule_info schedule_info{};
   bool schedule_info_available = false;
+  std::string schedule_source = "rns8_get_plan_schedule_info";
   rns8_plan_backend_info backend_info{};
   bool backend_info_available = false;
   TimingSamples samples{};
@@ -240,6 +252,7 @@ bool valid_finite_modulus(BenchSemantics semantics, uint16_t modulus) {
 
 void parse_backend_option(const std::string& value, Args& args) {
   args.vector_alu_baseline = false;
+  args.wrap64_wmma_candidate = false;
   if (value == "auto") {
     args.backend = RNS8_BACKEND_AUTO;
     return;
@@ -262,6 +275,11 @@ void parse_backend_option(const std::string& value, Args& args) {
   }
   if (value == "rocwmma" || value == "wmma" || value == "amdgpu-builtins") {
     args.backend = RNS8_BACKEND_WMMA;
+    return;
+  }
+  if (value == kWrap64WmmaCandidateRequestedBackend || value == "wrap64-wmma-candidate") {
+    args.backend = RNS8_BACKEND_WMMA;
+    args.wrap64_wmma_candidate = true;
     return;
   }
   if (value == "wrap64-byte-limb") {
@@ -297,6 +315,8 @@ BoundMode parse_bound_mode(const std::string& value) {
 
 Args parse_args(int argc, char** argv) {
   Args args;
+  bool tile_m_set = false;
+  bool tile_n_set = false;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--m" && i + 1 < argc) {
@@ -313,8 +333,10 @@ Args parse_args(int argc, char** argv) {
       args.seed = parse_u64_seed(argv[++i]);
     } else if (arg == "--tile-m" && i + 1 < argc) {
       args.tile_m = parse_u32(argv[++i], "--tile-m");
+      tile_m_set = true;
     } else if (arg == "--tile-n" && i + 1 < argc) {
       args.tile_n = parse_u32(argv[++i], "--tile-n");
+      tile_n_set = true;
     } else if (arg == "--device" && i + 1 < argc) {
       args.device_id = static_cast<int>(parse_i64(argv[++i], "--device"));
     } else if (arg == "--backend" && i + 1 < argc) {
@@ -337,7 +359,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64]\n"
+          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64]\n"
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -356,12 +378,25 @@ Args parse_args(int argc, char** argv) {
   if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
     usage_error("matrix dimensions must be positive and repeats must be nonzero");
   }
-  if (!valid_tile_size(args.tile_m) || !valid_tile_size(args.tile_n)) {
+  if (args.wrap64_wmma_candidate) {
+    if (args.semantics != BenchSemantics::WrapU64Mod2_64) {
+      usage_error("rocwmma-wrap64-candidate is only valid with --semantics wrap-u64");
+    }
+    if (!tile_m_set) {
+      args.tile_m = kWrap64WmmaCandidateTile;
+    }
+    if (!tile_n_set) {
+      args.tile_n = kWrap64WmmaCandidateTile;
+    }
+    if (args.tile_m != kWrap64WmmaCandidateTile || args.tile_n != kWrap64WmmaCandidateTile) {
+      usage_error("rocwmma-wrap64-candidate uses a fixed 16x16 WMMA tile; pass --tile-m 16 --tile-n 16 or omit tile args");
+    }
+  } else if (!valid_tile_size(args.tile_m) || !valid_tile_size(args.tile_n)) {
     usage_error("tile dimensions must be powers of two from 64 through 512");
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-      args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_AUTO) {
-    usage_error("wrap-u64 benchmark requires --backend auto, wrap64-byte-limb, or hip-direct");
+      args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_AUTO && !args.wrap64_wmma_candidate) {
+    usage_error("wrap-u64 benchmark requires --backend auto, wrap64-byte-limb, hip-direct, or rocwmma-wrap64-candidate");
   }
   if (args.vector_alu_baseline &&
       (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
@@ -433,6 +468,9 @@ const char* backend_name(rns8_backend_kind backend) {
 }
 
 const char* requested_backend_name(const Args& args) {
+  if (args.wrap64_wmma_candidate) {
+    return kWrap64WmmaCandidateRequestedBackend;
+  }
   return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(args.backend);
 }
 
@@ -447,6 +485,9 @@ const char* selected_backend_name(const Args& args, const rns8_device_info& info
 }
 
 const char* backend_metadata_source(const Args& args) {
+  if (args.wrap64_wmma_candidate) {
+    return kWrap64WmmaCandidateBackendSource;
+  }
   return args.vector_alu_baseline ? "rns8_bench_vector_alu_baseline" : "rns8_get_plan_backend_info";
 }
 
@@ -1200,8 +1241,105 @@ void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uin
   result.backend_info_available = true;
 }
 
+std::size_t wrap64_compact_limb_bytes(int64_t rows, int64_t cols, const char* label) {
+  return checked_bytes(checked_elements(rows, cols, label), sizeof(uint64_t), label);
+}
+
+uint64_t wrap64_wmma_candidate_workspace_bytes(const Args& args) {
+  const std::size_t a_bytes = wrap64_compact_limb_bytes(args.m, args.k, "candidate A byte limbs");
+  const std::size_t b_bytes = wrap64_compact_limb_bytes(args.k, args.n, "candidate B byte limbs");
+  const std::size_t c_bytes = wrap64_compact_limb_bytes(args.m, args.n, "candidate C byte limbs");
+  const std::size_t ab_bytes = checked_add_bytes(a_bytes, b_bytes, "wrap64 candidate A+B byte limbs");
+  const std::size_t total = checked_add_bytes(ab_bytes, c_bytes, "wrap64 candidate A+B+C byte limbs");
+  return static_cast<uint64_t>(total);
+}
+
+void fill_wrap64_wmma_candidate_schedule(const Args& args, BenchmarkResult& result) {
+  result.schedule_source = kWrap64WmmaCandidateScheduleSource;
+  result.schedule_info = {};
+  result.schedule_info.struct_size = sizeof(result.schedule_info);
+  result.schedule_info.abi_version = RNS8_ABI_VERSION;
+  result.schedule_info.tile_m = kWrap64WmmaCandidateTile;
+  result.schedule_info.tile_n = kWrap64WmmaCandidateTile;
+  result.schedule_info.tile_rows = ceil_div_i64_u32(args.m, kWrap64WmmaCandidateTile);
+  result.schedule_info.tile_cols = ceil_div_i64_u32(args.n, kWrap64WmmaCandidateTile);
+  result.schedule_info.tile_count = result.schedule_info.tile_rows * result.schedule_info.tile_cols;
+  result.schedule_info.min_required_prefix = 0;
+  result.schedule_info.max_required_prefix = 0;
+  result.schedule_info.min_selected_prefix = 0;
+  result.schedule_info.max_selected_prefix = 0;
+  result.schedule_info.prefix_group_count = 0;
+  result.schedule_info.adaptive_prefix_active = 0;
+  result.schedule_info.adaptive_skip_active = 0;
+  result.schedule_info.range_bit_length = 0;
+  result.schedule_info_available = true;
+}
+
+std::string wrap64_wmma_candidate_autotune_key(const Args& args, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << "backend=" << kWrap64WmmaCandidateRequestedBackend
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";prefix=0"
+      << ";tile_m=" << result.schedule_info.tile_m
+      << ";tile_n=" << result.schedule_info.tile_n
+      << ";groups=0;adaptive_prefix=0;adaptive_skip=0"
+      << ";kernel=" << kWrap64WmmaCandidateSelectedKernel
+      << ";epilogue=low64_wrap_export";
+  return out.str();
+}
+
+void fill_wrap64_wmma_candidate_backend_info(const Args& args, BenchmarkResult& result, uint64_t workspace_bytes) {
+  result.backend_info = {};
+  result.backend_info.struct_size = sizeof(result.backend_info);
+  result.backend_info.abi_version = RNS8_ABI_VERSION;
+  result.backend_info.backend = RNS8_BACKEND_WMMA;
+  result.backend_info.is_accelerator = 1;
+  result.backend_info.is_correctness_backend = 0;
+  result.backend_info.is_matrix_engine_backend = 1;
+  result.backend_info.compiled_kernel_available = 1;
+  result.backend_info.exact_differential_validated = 1;
+  result.backend_info.performance_validated = 0;
+  result.backend_info.workspace_required_bytes = workspace_bytes;
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kWrap64WmmaCandidateSelectedKernel);
+  set_backend_text(result.backend_info.accelerator_library, sizeof(result.backend_info.accelerator_library), "rocWMMA");
+  set_backend_text(
+      result.backend_info.accelerator_version,
+      sizeof(result.backend_info.accelerator_version),
+      "repo-local release/rocm-rel-7.1");
+  set_backend_text(
+      result.backend_info.capability_status,
+      sizeof(result.backend_info.capability_status),
+      "internal_wrap64_matrix_engine_candidate");
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), "low64_wrap_export");
+  set_backend_text(
+      result.backend_info.workspace_mode,
+      sizeof(result.backend_info.workspace_mode),
+      "benchmark_owned_compact_byte_limb_device_buffers");
+  set_backend_text(
+      result.backend_info.isa_evidence,
+      sizeof(result.backend_info.isa_evidence),
+      "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide");
+  const std::string key = wrap64_wmma_candidate_autotune_key(args, result);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+  result.backend_info_available = true;
+}
+
 std::vector<std::string> gpu_event_phase_order(const Args& args, rns8_backend_kind selected_backend) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    if (args.wrap64_wmma_candidate) {
+      return {
+          "pack_h2d",
+          "pack_kernel",
+          "pack",
+          kWrap64WmmaCandidateEventLabel,
+          "rns_gemm",
+          "wrap64_export_kernel",
+          "wrap64_export_d2h",
+          "crt_export"};
+    }
     return {
         "pack_h2d",
         "pack_kernel",
@@ -1328,7 +1466,13 @@ void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backen
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
     print_named_gpu_event_array("pack", events.pack_us, true);
-    print_named_gpu_event_array("wrap64_byte_gemm36_tiled_2d_kernel", events.wrap64_byte_gemm36_tiled_2d_kernel_us, true);
+    if (args.wrap64_wmma_candidate) {
+      print_named_gpu_event_array(
+          kWrap64WmmaCandidateEventLabel, events.wrap64_wmma_candidate_gemm36_kernel_group_us, true);
+    } else {
+      print_named_gpu_event_array(
+          "wrap64_byte_gemm36_tiled_2d_kernel", events.wrap64_byte_gemm36_tiled_2d_kernel_us, true);
+    }
     print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
     print_named_gpu_event_array("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_named_gpu_event_array("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -1408,7 +1552,12 @@ void print_gpu_event_timing_summary(const Args& args, rns8_backend_kind selected
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
     print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
     print_gpu_event_summary("pack", events.pack_us, true);
-    print_gpu_event_summary("wrap64_byte_gemm36_tiled_2d_kernel", events.wrap64_byte_gemm36_tiled_2d_kernel_us, true);
+    if (args.wrap64_wmma_candidate) {
+      print_gpu_event_summary(
+          kWrap64WmmaCandidateEventLabel, events.wrap64_wmma_candidate_gemm36_kernel_group_us, true);
+    } else {
+      print_gpu_event_summary("wrap64_byte_gemm36_tiled_2d_kernel", events.wrap64_byte_gemm36_tiled_2d_kernel_us, true);
+    }
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("wrap64_export_kernel", events.wrap64_export_kernel_us, true);
     print_gpu_event_summary("wrap64_export_d2h", events.wrap64_export_d2h_us, true);
@@ -1614,11 +1763,16 @@ void collect_rns_gemm_gpu_events(const Args& args, rns8_backend_kind selected_ba
   }
 }
 
-void collect_wrap64_gemm_gpu_events(GpuEventSamples& events) {
+void collect_wrap64_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double kernel = sum_event_label(events, samples, "rns_gemm", "wrap64_byte_gemm36_tiled_2d_kernel");
+  const char* label = args.wrap64_wmma_candidate ? kWrap64WmmaCandidateEventLabel : "wrap64_byte_gemm36_tiled_2d_kernel";
+  const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
-    events.wrap64_byte_gemm36_tiled_2d_kernel_us.push_back(kernel);
+    if (args.wrap64_wmma_candidate) {
+      events.wrap64_wmma_candidate_gemm36_kernel_group_us.push_back(kernel);
+    } else {
+      events.wrap64_byte_gemm36_tiled_2d_kernel_us.push_back(kernel);
+    }
     events.rns_gemm_us.push_back(kernel);
   }
 }
@@ -1699,7 +1853,11 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return false;
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
-    return result.gpu_events.wrap64_byte_gemm36_tiled_2d_kernel_us.size() == repeats &&
+    const bool gemm_events_available =
+        args.wrap64_wmma_candidate
+            ? result.gpu_events.wrap64_wmma_candidate_gemm36_kernel_group_us.size() == repeats
+            : result.gpu_events.wrap64_byte_gemm36_tiled_2d_kernel_us.size() == repeats;
+    return gemm_events_available &&
            result.gpu_events.wrap64_export_kernel_us.size() == repeats &&
            result.gpu_events.wrap64_export_d2h_us.size() == repeats;
   }
@@ -2558,7 +2716,133 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   return result;
 }
 
+BenchmarkResult run_wrap_u64_wmma_candidate(rns8_context* ctx, const Args& args, uint64_t bound) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+  (void)ctx;
+  (void)args;
+  (void)bound;
+  usage_error("rocwmma-wrap64-candidate requires a HIP-enabled benchmark build");
+#else
+  (void)ctx;
+  (void)bound;
+  if (args.k > kWrap64WmmaCandidateMaxK) {
+    usage_error("rocwmma-wrap64-candidate currently supports K <= 32768");
+  }
+
+  std::mt19937_64 rng(args.seed);
+  std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
+  std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
+  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  for (auto& value : A) value = rng();
+  for (auto& value : B) value = rng();
+
+  BenchmarkResult result{};
+  const auto plan_start = std::chrono::steady_clock::now();
+  fill_wrap64_wmma_candidate_schedule(args, result);
+  fill_wrap64_wmma_candidate_backend_info(args, result, wrap64_wmma_candidate_workspace_bytes(args));
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+  result.schedule_query_us = 0;
+  result.gpu_events.requested = gpu_event_capture_requested(args, RNS8_BACKEND_WMMA);
+
+  const std::size_t a_limb_bytes = wrap64_compact_limb_bytes(args.m, args.k, "candidate A byte limbs");
+  const std::size_t b_limb_bytes = wrap64_compact_limb_bytes(args.k, args.n, "candidate B byte limbs");
+  const std::size_t c_limb_bytes = wrap64_compact_limb_bytes(args.m, args.n, "candidate C byte limbs");
+  DeviceBuffer a_limbs;
+  DeviceBuffer b_limbs;
+  DeviceBuffer c_limbs;
+  DeviceBuffer upload_buffer;
+  DeviceBuffer export_buffer;
+  upload_buffer.device_id = args.device_id;
+  export_buffer.device_id = args.device_id;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  a_limbs.allocate(args.device_id, a_limb_bytes, "hip_direct_allocate(wrap64 candidate A limbs)");
+  b_limbs.allocate(args.device_id, b_limb_bytes, "hip_direct_allocate(wrap64 candidate B limbs)");
+  c_limbs.allocate(args.device_id, c_limb_bytes, "hip_direct_allocate(wrap64 candidate C limbs)");
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  rns8_status status = RNS8_SUCCESS;
+  const auto pack_inputs = [&]() {
+    status = rns8::detail::wrap64_hip_pack_u64_device(
+        args.device_id, A.data(), &upload_buffer.ptr, &upload_buffer.bytes, a_limbs.ptr, args.m, args.k, args.k);
+    if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(A)", status);
+    status = rns8::detail::wrap64_hip_pack_u64_device(
+        args.device_id, B.data(), &upload_buffer.ptr, &upload_buffer.bytes, b_limbs.ptr, args.k, args.n, args.n);
+    if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(B)", status);
+  };
+  if (args.reuse_packed_inputs) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    pack_inputs();
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
+  const auto run_iteration = [&](TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    auto pack_end = pack_start;
+    if (args.reuse_packed_inputs) {
+      if (collect_gpu_events) {
+        record_reused_pack_gpu_events(result.gpu_events);
+      }
+    } else {
+      begin_gpu_event_phase(collect_gpu_events);
+      pack_inputs();
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
+    }
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8::detail::wmma_wrap64_gemm_byte_limbs_candidate_device(
+        args.device_id, a_limbs.ptr, b_limbs.ptr, c_limbs.ptr, args.m, args.n, args.k);
+    if (status != RNS8_SUCCESS) fail_status("wmma_wrap64_gemm_byte_limbs_candidate_device", status);
+    if (collect_gpu_events) {
+      collect_wrap64_gemm_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8::detail::wrap64_hip_export_u64_device(
+        args.device_id, c_limbs.ptr, &export_buffer.ptr, &export_buffer.bytes, args.m, args.n, C.data(), args.n);
+    if (status != RNS8_SUCCESS) fail_status("wrap64_hip_export_u64_device(C)", status);
+    if (collect_gpu_events) {
+      collect_wrap64_export_gpu_events(result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(&result.samples);
+  }
+  result.checksum = checksum_u64(C);
+  return result;
+#endif
+}
+
 BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound) {
+  if (args.wrap64_wmma_candidate) {
+    return run_wrap_u64_wmma_candidate(ctx, args, bound);
+  }
   (void)bound;
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
@@ -2637,7 +2921,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     status = rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_wrap_u64", status);
     if (collect_gpu_events) {
-      collect_wrap64_gemm_gpu_events(result.gpu_events);
+      collect_wrap64_gemm_gpu_events(args, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -2803,7 +3087,9 @@ void print_json(
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
-  const bool wrap64_hip_events = gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64;
+  const bool wrap64_wmma_candidate_events = gpu_events_available && args.wrap64_wmma_candidate;
+  const bool wrap64_hip_events =
+      gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64 && !args.wrap64_wmma_candidate;
   const bool adaptive_hip_events = gpu_events_available && adaptive_applied;
   const char* selected_backend = selected_backend_name(args, info, &result);
   const std::string selected_backend_string(selected_backend);
@@ -2828,6 +3114,13 @@ void print_json(
           "\"HIP event timings record hipBLASLt baseline default-stream operation groups only; host wall-clock "
           "timings remain required for API dispatch, descriptor setup, allocations, and synchronous host-side "
           "overhead not represented on the HIP stream\"";
+    } else if (wrap64_wmma_candidate_events) {
+      gpu_event_reason = "captured_by_internal_rocwmma_wrap64_candidate_hooks";
+      gpu_event_scope = "\"rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record direct-HIP byte-limb pack/export operation groups plus one internal rocWMMA "
+          "wrap64 byte-GEMM36 candidate operation group; host wall-clock timings remain required for CPU scheduling "
+          "overhead, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
     } else if (wrap64_hip_events) {
       gpu_event_reason = "captured_by_direct_hip_backend_hooks";
       gpu_event_scope = "\"direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups\"";
@@ -2949,7 +3242,7 @@ void print_json(
     std::cout << "null,\n";
   }
   std::cout << "  \"schedule_metadata\": {\n";
-  std::cout << "    \"source\": \"rns8_get_plan_schedule_info\",\n";
+  std::cout << "    \"source\": \"" << json_escape(result.schedule_source) << "\",\n";
   std::cout << "    \"tile_m\": " << result.schedule_info.tile_m << ",\n";
   std::cout << "    \"tile_n\": " << result.schedule_info.tile_n << ",\n";
   std::cout << "    \"tile_rows\": " << result.schedule_info.tile_rows << ",\n";
@@ -3031,6 +3324,10 @@ void print_json(
     std::cout << "  \"timing_note\": \"host wall-clock timings for the benchmark-only HIP vector-ALU exact "
                  "int64 baseline; phases are raw input H2D copies, one 192-bit-limb exact output kernel, "
                  "and direct output D2H export with range-status validation\",\n";
+  } else if (args.wrap64_wmma_candidate) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for the internal rocWMMA wrap64 byte-GEMM36 "
+                 "candidate; GPU event timing uses direct-HIP byte-limb pack/export labels plus one candidate "
+                 "operation-group label and this path is not public or AUTO-selected\",\n";
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64 && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the direct-HIP wrap64 tiled byte-limb "
                  "path; GPU event timing uses wrap64-specific tiled byte-GEMM/export labels plus "
@@ -3096,20 +3393,31 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
-  if (args.vector_alu_baseline) {
+  if (args.wrap64_wmma_candidate) {
+    std::cout << "      \"planning\": \"one-time benchmark-owned metadata initialization for the internal rocWMMA wrap64 candidate\",\n";
+  } else if (args.vector_alu_baseline) {
     std::cout << "      \"planning\": \"one-time rns8_create_plan schedule validation for the same bounded semantic contract\",\n";
   } else {
     std::cout << "      \"planning\": \"one-time rns8_create_plan plus rns8_create_workspace host timing\",\n";
   }
-  std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing\",\n";
-  if (args.vector_alu_baseline) {
+  if (args.wrap64_wmma_candidate) {
+    std::cout << "      \"scheduling\": \"one-time fixed 16x16 WMMA candidate schedule derivation from the matrix shape\",\n";
+  } else {
+    std::cout << "      \"scheduling\": \"one-time rns8_get_plan_schedule_info host timing\",\n";
+  }
+  if (args.wrap64_wmma_candidate) {
+    std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned compact byte-limb HIP device buffer allocation host timing\",\n";
+  } else if (args.vector_alu_baseline) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned HIP device buffer allocation host timing\",\n";
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
   if (args.reuse_packed_inputs) {
     std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
-    if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    if (args.wrap64_wmma_candidate) {
+      std::cout << "      \"rns_gemm\": \"per-repeat host timing for the internal rocWMMA wrap64 byte-GEMM36 candidate against reused compact byte-limb inputs\",\n";
+      std::cout << "      \"crt_export\": \"per-repeat host timing for direct-HIP low-64-bit byte-limb export\",\n";
+    } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
       std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64 against reused byte-limb inputs\",\n";
       std::cout << "      \"crt_export\": \"per-repeat host timing for low-64-bit rns8_export_wrap_u64\",\n";
     } else if (finite_benchmark_semantics(args.semantics)) {
@@ -3126,6 +3434,10 @@ void print_json(
     std::cout << "      \"pack\": \"per-repeat host timing for raw bounded inputs copied to benchmark-owned HIP buffers\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one exact 192-bit-limb vector-ALU output kernel\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for range-status D2H plus direct logical output D2H\",\n";
+  } else if (args.wrap64_wmma_candidate) {
+    std::cout << "      \"pack\": \"per-repeat host timing for direct-HIP packing of A and B into compact byte-limb device buffers\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for the internal rocWMMA wrap64 byte-GEMM36 candidate\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for direct-HIP low-64-bit byte-limb export\",\n";
   } else if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent byte-limb matrices\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_wrap_u64\",\n";
@@ -3153,8 +3465,13 @@ void print_json(
   std::cout << "      \"scheduling\": {\n";
   std::cout << "        \"timed\": true,\n";
   std::cout << "        \"timing_key\": \"scheduling\",\n";
-  std::cout << "        \"scope\": \"one_time_schedule_info_query\",\n";
-  std::cout << "        \"reason\": \"measured with host steady_clock around rns8_get_plan_schedule_info\"\n";
+  if (args.wrap64_wmma_candidate) {
+    std::cout << "        \"scope\": \"benchmark_static_wrap64_wmma_candidate_schedule\",\n";
+    std::cout << "        \"reason\": \"measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization\"\n";
+  } else {
+    std::cout << "        \"scope\": \"one_time_schedule_info_query\",\n";
+    std::cout << "        \"reason\": \"measured with host steady_clock around rns8_get_plan_schedule_info\"\n";
+  }
   std::cout << "      },\n";
   std::cout << "      \"prepack_setup\": {\n";
   std::cout << "        \"timed\": " << (result.prepack_setup_available ? "true" : "false") << ",\n";

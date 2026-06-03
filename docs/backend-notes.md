@@ -425,6 +425,16 @@ covered by a direct-HIP/CPU-oracle differential plus the rocWMMA ISA gate. The
 candidate is intentionally shape-gated and remains outside AUTO and production
 promotion until broader correctness and release performance evidence exists.
 
+Raw benchmark captures are available through
+`rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` in
+rocWMMA-enabled builds. Those captures report the existing `wmma` backend enum,
+the internal `rocwmma_wrap64_byte_gemm36_candidate_v0` kernel,
+`backend_metadata.source: "rns8_bench_wrap64_wmma_candidate"`, a static 16x16
+candidate schedule source, and the
+`wrap64_wmma_candidate_gemm36_kernel_group` HIP event label. Sweep reviews can
+include them with `--include-wrap64-wmma-candidate`, but they are blocked from
+promotion with `internal_candidate_not_public_backend`.
+
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and
 device buffers are compact row-major `rows * cols * 8` storage. The direct-HIP

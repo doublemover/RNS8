@@ -344,6 +344,13 @@ if(RNS8_BUILD_BENCHMARKS)
   )
   target_include_directories(rns8-bench PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(rns8-bench PRIVATE rns8_static)
+  if(RNS8_ENABLE_HIP)
+    target_include_directories(rns8-bench PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
+    target_compile_definitions(rns8-bench PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+  endif()
+  if(RNS8_ENABLE_ROCWMMA)
+    target_compile_definitions(rns8-bench PRIVATE RNS8_ENABLE_ROCWMMA=1)
+  endif()
 endif()
 
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
@@ -573,6 +580,21 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     endif()
 
     if(RNS8_ENABLE_ROCWMMA)
+      add_test(
+        NAME benchmark_wrap64_wmma_candidate_smoke
+        COMMAND
+          "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_wrap64_wmma_candidate.py"
+          "$<TARGET_FILE:rns8-bench>"
+          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-wrap64-wmma-candidate-smoke"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      )
+      set_tests_properties(
+        benchmark_wrap64_wmma_candidate_smoke
+        PROPERTIES LABELS "benchmark;hip;rocwmma;wrap64"
+      )
+
       add_test(
         NAME benchmark_auto_default_cache_hit_rocwmma
         COMMAND
