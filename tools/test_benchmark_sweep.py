@@ -302,10 +302,12 @@ def mark_reused_pack(capture: dict) -> dict:
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse"
     reused["prepack_reuse_operands"] = ["A", "B"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 11
     reused["avg_prepack_setup_us"] = 11.0
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     return reused
 
 
@@ -314,10 +316,12 @@ def mark_reused_a_pack(capture: dict) -> dict:
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse_a"
     reused["prepack_reuse_operands"] = ["A"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 11
     reused["avg_prepack_setup_us"] = 11.0
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse_a"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     return reused
 
 
@@ -543,6 +547,7 @@ def main() -> int:
     )
     reuse_group = reuse_report["groups"][0]
     assert reuse_group["source_metadata"]["pack_modes"] == ["prepacked_reuse"]
+    assert reuse_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
     assert reuse_group["source_metadata"]["prepack_reuse_operands"] == ["A/B"]
     assert reuse_report["promotable_autotune_entries"] == []
     reuse_blockers = {
@@ -556,6 +561,7 @@ def main() -> int:
     )
     reuse_a_group = reuse_a_report["groups"][0]
     assert reuse_a_group["source_metadata"]["pack_modes"] == ["prepacked_reuse_a"]
+    assert reuse_a_group["source_metadata"]["prepack_reuse_strategies"] == ["persistent_matrix_residency"]
     assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
     reuse_a_blockers = {
         candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]

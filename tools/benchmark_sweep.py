@@ -115,6 +115,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"input_distribution={capture.get('input_distribution')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
+        f"prepack_reuse_strategy={capture_prepack_reuse_strategy(capture)}",
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)
@@ -169,6 +170,16 @@ def capture_pack_mode(capture: dict[str, Any]) -> str:
     if isinstance(mode, str):
         return mode
     return "prepacked_reuse" if capture.get("reuse_packed_inputs") is True else "per_repeat_repack"
+
+
+def capture_prepack_reuse_strategy(capture: dict[str, Any]) -> str:
+    timing = capture_timing_metadata(capture)
+    strategy = timing.get("prepack_reuse_strategy")
+    if strategy is None:
+        strategy = capture.get("prepack_reuse_strategy")
+    if isinstance(strategy, str):
+        return strategy
+    return "persistent_matrix_residency" if capture.get("reuse_packed_inputs") is True else "none"
 
 
 def requested_pack_mode(args: argparse.Namespace) -> str:
@@ -238,6 +249,7 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "layout": capture.get("layout"),
         "reuse_packed_inputs": capture.get("reuse_packed_inputs") is True,
         "pack_mode": capture_pack_mode(capture),
+        "prepack_reuse_strategy": capture_prepack_reuse_strategy(capture),
         "prepack_setup_us": capture.get("prepack_setup_us"),
         "prefix": capture.get("prefix"),
         "k_block_size": capture.get("k_block_size"),
@@ -294,6 +306,7 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
         "repeats": sorted({int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}),
         "reuse_packed_inputs": sorted({bool(item.get("reuse_packed_inputs") is True) for item in items}),
         "pack_modes": sorted({capture_pack_mode(item) for item in items}),
+        "prepack_reuse_strategies": sorted({capture_prepack_reuse_strategy(item) for item in items}),
         "prepack_reuse_operands": sorted({"/".join(capture_prepack_reuse_operands(item)) or "none" for item in items}),
         "event_sources": sorted(
             {

@@ -52,8 +52,10 @@ def main() -> int:
         assert capture["reuse_packed_inputs"] is True
         assert capture["pack_mode"] == expected_mode
         assert capture["prepack_reuse_operands"] == expected_operands
+        assert capture["prepack_reuse_strategy"] == "persistent_matrix_residency"
         assert capture["timing_metadata"]["pack_mode"] == expected_mode
         assert capture["timing_metadata"]["prepack_reuse_operands"] == expected_operands
+        assert capture["timing_metadata"]["prepack_reuse_strategy"] == "persistent_matrix_residency"
         assert isinstance(capture["prepack_setup_us"], int)
         assert capture["prepack_setup_us"] >= 0
         assert capture["avg_prepack_setup_us"] == float(capture["prepack_setup_us"])
@@ -66,6 +68,46 @@ def main() -> int:
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timed"] is True
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timing_key"] == "prepack_setup_us"
         assert capture["gpu_event_timings_us"] is None
+
+    capture_path = out_dir / "bounded-i64-wmma-reuse-packed-b.json"
+    command = [
+        str(bench),
+        "--backend",
+        "wmma",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "16",
+        "--k",
+        "16",
+        "--warmups",
+        "1",
+        "--repeats",
+        "1",
+        "--seed",
+        "23",
+        "--reuse-packed-b",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True)
+    if completed.returncode == 0:
+        capture_path.write_text(completed.stdout, encoding="utf-8")
+        subprocess.run([sys.executable, str(schema), str(capture_path)], check=True)
+        capture = json.loads(capture_path.read_text(encoding="utf-8"))
+        assert capture["backend_selected"] == "wmma"
+        assert capture["pack_mode"] == "prepacked_reuse_b"
+        assert capture["prepack_reuse_operands"] == ["B"]
+        assert capture["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
+        assert capture["timing_metadata"]["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
+        assert capture["timing_metadata"]["gpu_event_timing"] is True
+        assert "rns_gemm_prepacked_b_kernel_group" in capture["timing_metadata"]["gpu_event_phase_order"]
+        assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]
+    elif "unsupported backend" not in (completed.stderr + completed.stdout).lower():
+        raise SystemExit(
+            "wmma reuse-packed-b smoke failed unexpectedly\n"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+        )
     print("benchmark reuse-packed-inputs smoke: PASS")
     return 0
 

@@ -40,6 +40,7 @@ def as_reused_pack_capture(capture: dict) -> dict:
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse"
     reused["prepack_reuse_operands"] = ["A", "B"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 123
     reused["avg_prepack_setup_us"] = 123.0
     reused["avg_pack_us"] = 0.0
@@ -47,6 +48,7 @@ def as_reused_pack_capture(capture: dict) -> dict:
     reused["timing_summary_us"]["pack"] = zero_summary()
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["timing_metadata"]["phase_notes"]["pack"] = (
         "zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups"
     )
@@ -74,10 +76,12 @@ def as_reused_a_capture(capture: dict) -> dict:
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse_a"
     reused["prepack_reuse_operands"] = ["A"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 77
     reused["avg_prepack_setup_us"] = 77.0
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse_a"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["timing_metadata"]["phase_notes"]["pack"] = (
         "per-repeat host timing for packing B; A was packed once into a persistent matrix before warmups"
     )
@@ -342,6 +346,24 @@ def main() -> int:
     bad_reused_metadata_operands["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
     expect_invalid(bad_reused_metadata_operands, "timing_metadata.prepack_reuse_operands")
 
+    bad_reused_strategy = copy.deepcopy(reused_ck_i64)
+    bad_reused_strategy["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+    bad_reused_strategy["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+    expect_invalid(bad_reused_strategy, "pack_mode=prepacked_reuse_b")
+
+    bad_reused_strategy_backend = copy.deepcopy(reused_ck_i64)
+    bad_reused_strategy_backend["pack_mode"] = "prepacked_reuse_b"
+    bad_reused_strategy_backend["prepack_reuse_operands"] = ["B"]
+    bad_reused_strategy_backend["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+    bad_reused_strategy_backend["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
+    bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+    bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+    expect_invalid(bad_reused_strategy_backend, "backend_selected=wmma")
+
+    bad_reused_metadata_strategy = copy.deepcopy(reused_ck_i64)
+    bad_reused_metadata_strategy["timing_metadata"]["prepack_reuse_strategy"] = "none"
+    expect_invalid(bad_reused_metadata_strategy, "timing_metadata.prepack_reuse_strategy")
+
     bad_repack_prepack = copy.deepcopy(v4_ck_i64)
     bad_repack_prepack["reuse_packed_inputs"] = False
     bad_repack_prepack["pack_mode"] = "per_repeat_repack"
@@ -349,6 +371,11 @@ def main() -> int:
     bad_repack_prepack["avg_prepack_setup_us"] = 1.0
     bad_repack_prepack["timing_metadata"]["pack_mode"] = "per_repeat_repack"
     expect_invalid(bad_repack_prepack, "prepack_setup_us=null")
+
+    bad_repack_strategy = copy.deepcopy(v4_ck_i64)
+    bad_repack_strategy["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    bad_repack_strategy["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    expect_invalid(bad_repack_strategy, "prepack_reuse_strategy=none")
 
     bad_length = copy.deepcopy(bounded)
     bad_length["raw_timings_us"]["pack"].pop()

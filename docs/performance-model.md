@@ -411,7 +411,11 @@ then times repeated GEMM/export calls against those persistent matrices. With
 `--reuse-packed-a` or `--reuse-packed-b`, it pre-packs only the selected operand
 and includes per-repeat packing of the other operand in `pack` and
 `end_to_end`. Such captures report `prepack_reuse_operands`,
-`prepack_setup_us`, and `avg_prepack_setup_us`. This mode family is for pack
+`prepack_reuse_strategy`, `prepack_setup_us`, and `avg_prepack_setup_us`.
+Eligible rocWMMA non-tiled RNS `--reuse-packed-b` captures use
+`rns8_create_prepack_cache` plus `rns8_gemm_rns_prepacked_b` and stamp
+`prepack_reuse_strategy: "rocwmma_reusable_b_cache"`; other current reuse
+captures stamp `persistent_matrix_residency`. This mode family is for pack
 amortization evidence and does not imply a production prepack cache exists.
 Release review marks all prepacked-reuse captures ineligible for normal AUTO
 autotune-cache promotion.
