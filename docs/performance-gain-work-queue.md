@@ -625,6 +625,12 @@ RNS8-specific notes:
 Likely first slices:
 
 - Benchmark-only `output_mode=residue` path for bounded RNS chains.
+  Implemented for bounded i64/u64 `rns8-bench --residue-chain-length` with
+  explicit RNS backends, global chain-safe bounds, square RNS chain shapes, and
+  zero-valued measured `crt_export`; the benchmark exports once after measured
+  repeats only for checksum generation. AUTO/vector-ALU and per-tile bounded
+  chains stay rejected until native-to-RNS conversion and adaptive chain bounds
+  exist.
 - Device native-to-RNS bounded conversion kernels.
 - Plan metadata exposing next-op hints and chosen output domain.
 
