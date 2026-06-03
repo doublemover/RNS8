@@ -153,6 +153,7 @@ def as_exact_wide_capture(capture: dict) -> dict:
     exact["finite_modulus"] = None
     exact["tile_bounds_u64"] = None
     exact["epilogue_type"] = "exact_wide_signed_limb_export"
+    exact["exact_wide_limb_count"] = 4
     exact["input_distribution"] = "signed_uniform_-16_16"
     exact["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -367,6 +368,14 @@ def main() -> int:
     bad_exact_epilogue = copy.deepcopy(exact_wide_ck)
     bad_exact_epilogue["epilogue_type"] = "crt_export"
     expect_invalid(bad_exact_epilogue, "exact_wide_signed_limb_export")
+
+    bad_exact_limb_count = copy.deepcopy(exact_wide_ck)
+    bad_exact_limb_count["exact_wide_limb_count"] = 33
+    expect_invalid(bad_exact_limb_count, "exact_wide_limb_count in [1, 32]")
+
+    missing_exact_limb_count = copy.deepcopy(exact_wide_ck)
+    del missing_exact_limb_count["exact_wide_limb_count"]
+    expect_invalid(missing_exact_limb_count, "exact_wide_limb_count in [1, 32]")
 
     bad_exact_backend_epilogue = copy.deepcopy(exact_wide_ck)
     bad_exact_backend_epilogue["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_then_crt_export"

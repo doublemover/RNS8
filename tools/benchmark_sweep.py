@@ -41,6 +41,8 @@ ADAPTIVE_WORKLOAD_CASES = [
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
 INPUT_PROFILES = {"uniform-small", "adaptive-bands"}
+DEFAULT_EXACT_WIDE_LIMB_COUNT = 4
+EXACT_WIDE_LIMB_VARIANTS = [1, 2, 4, 8, 16, 32]
 
 
 @dataclass(frozen=True)
@@ -123,6 +125,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"tile_m={tile_m}",
         f"tile_n={tile_n}",
         f"k_block={capture.get('k_block_size')}",
+        f"exact_wide_limb_count={capture.get('exact_wide_limb_count')}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
@@ -1051,6 +1054,21 @@ def finite_moduli_for(semantics: str, args: argparse.Namespace) -> list[int | No
     return [None]
 
 
+def exact_wide_limb_counts_for(semantics: str, args: argparse.Namespace) -> list[int | None]:
+    if semantics not in EXACT_WIDE_SEMANTICS:
+        return [None]
+    if args.exact_wide_limbs:
+        counts = args.exact_wide_limbs
+    elif args.include_exact_wide_limb_variants:
+        counts = EXACT_WIDE_LIMB_VARIANTS
+    else:
+        counts = [DEFAULT_EXACT_WIDE_LIMB_COUNT]
+    invalid = [count for count in counts if count < 1 or count > 32]
+    if invalid:
+        raise SystemExit(f"--exact-wide-limbs values must be in [1, 32], got {invalid}")
+    return list(dict.fromkeys(counts))
+
+
 def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
     if semantics in {"bounded-i64", "bounded-u64"}:
         return ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"] if case.bound_mode == "per-tile" else BOUNDED_BACKENDS
@@ -1085,10 +1103,13 @@ def capture_name(
     backend: str,
     modulus: int | None,
     pack_mode: str,
+    exact_wide_limb_count: int | None = None,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
         parts.append(f"mod{modulus}")
+    if semantics in EXACT_WIDE_SEMANTICS and exact_wide_limb_count not in (None, DEFAULT_EXACT_WIDE_LIMB_COUNT):
+        parts.append(f"limbs{exact_wide_limb_count}")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
     elif pack_mode == "prepacked_reuse_a":
@@ -1105,6 +1126,7 @@ def command_for(
     semantics: str,
     case: SweepCase,
     modulus: int | None,
+    exact_wide_limb_count: int | None,
     args: argparse.Namespace,
 ) -> list[str]:
     tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_WMMA_CANDIDATE_BACKEND else case.tile_m
@@ -1140,6 +1162,8 @@ def command_for(
         command.extend(["--input-profile", case.input_profile])
     if modulus is not None:
         command.extend(["--modulus", str(modulus)])
+    if exact_wide_limb_count is not None:
+        command.extend(["--exact-wide-limbs", str(exact_wide_limb_count)])
     pack_mode = requested_pack_mode(args)
     if pack_mode == "prepacked_reuse":
         command.append("--reuse-packed-inputs")
@@ -1175,15 +1199,23 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                 wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
             )
             for modulus in finite_moduli_for(semantics, args):
-                for backend in backends:
-                    if not backend_allowed_for(semantics, case, backend):
-                        continue
-                    bench = backend_benches.get(backend, args.bench)
-                    if bench is None:
-                        raise SystemExit(f"no benchmark executable configured for backend {backend}")
-                    name = capture_name(semantics, case, backend, modulus, requested_pack_mode(args))
-                    command = command_for(bench, backend, semantics, case, modulus, args)
-                    commands.append((name, command, args.out_root / name))
+                for exact_wide_limb_count in exact_wide_limb_counts_for(semantics, args):
+                    for backend in backends:
+                        if not backend_allowed_for(semantics, case, backend):
+                            continue
+                        bench = backend_benches.get(backend, args.bench)
+                        if bench is None:
+                            raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                        name = capture_name(
+                            semantics,
+                            case,
+                            backend,
+                            modulus,
+                            requested_pack_mode(args),
+                            exact_wide_limb_count,
+                        )
+                        command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
+                        commands.append((name, command, args.out_root / name))
     return commands
 
 
@@ -1300,6 +1332,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
+    parser.add_argument("--exact-wide-limbs", type=int, action="append", help="exact-wide output limb count; repeatable")
+    parser.add_argument(
+        "--include-exact-wide-limb-variants",
+        action="store_true",
+        help="include exact-wide output limb counts 1, 2, 4, 8, 16, and 32",
+    )
     parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
     parser.add_argument(
         "--include-adaptive-workloads",

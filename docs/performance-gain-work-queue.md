@@ -246,6 +246,11 @@ Likely first slices:
 
 - Prefix-9 and prefix-20 bounded export specializations.
 - Exact-wide 1/2/4/8/16/32 limb export variants with compact D2H staging.
+  Implemented benchmark coverage for the limb-count variants via
+  `rns8-bench --exact-wide-limbs` and
+  `tools/benchmark_sweep.py --include-exact-wide-limb-variants`; this measures
+  the existing exact-wide export path at requested limb widths and does not yet
+  add a new compact staging kernel.
 - A residue-current output mode for chained RNS GEMM benchmarks.
 - A batched CRT/reconstruction report that separates kernel time, status
   handling, compact copy time, constants placement, prefix grouping, limb count,
