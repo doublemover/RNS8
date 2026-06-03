@@ -524,7 +524,9 @@ Reduction implementation order:
    `256 == 1 (mod 255)`, and `m = 256`, using the low byte directly. These
    report `direct_hip_tiled_finite_u8_gemm_mod251_v1`,
    `direct_hip_tiled_finite_u8_gemm_mod255_v1`, and
-   `direct_hip_tiled_finite_u8_gemm_mod256_v1`.
+   `direct_hip_tiled_finite_u8_gemm_mod256_v1` with
+   `rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide` plan
+   evidence.
 3. Constant reciprocal multiply-high reduction for all other fixed moduli.
 4. Branchless correction into canonical centered range.
 5. Barrett reduction only where reciprocal reduction fails benchmark gates.
@@ -1526,8 +1528,8 @@ captures beat the generic finite-u8 path for the same modulus and shape.
 
 Current implementation: direct HIP ships narrow modulus-251, modulus-255, and
 modulus-256 reducers with CPU/direct-HIP differential coverage and schema-valid
-raw benchmark metadata for the modulus-251 finite-field path. This is not a
-broad finite-field optimization claim until reviewed release captures prove
+raw benchmark metadata for the named reducer paths. This is not a broad
+finite-field optimization claim until reviewed release captures prove
 same-contract wins over the generic finite-u8 path.
 
 ## 18. Experiment Matrix

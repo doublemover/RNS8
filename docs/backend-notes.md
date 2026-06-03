@@ -561,8 +561,10 @@ because `256 == 5 (mod 251)`, modulus 255 uses byte-sum folding
 (`direct_hip_tiled_finite_u8_gemm_mod255_v1`) because `256 == 1 (mod 255)`,
 and modulus 256 uses the low byte directly
 (`direct_hip_tiled_finite_u8_gemm_mod256_v1`). Other finite moduli remain on
-the generic reciprocal reducer. HIP launch wrappers reject stale reciprocal
-metadata before queueing work. The one-shot direct HIP finite path is still
-available as a convenience surface but does not define a separate backend
-contract. Finite is not an odd-modulus CRT route, not exact-wide export, and
-not strict mod 2^64 wraparound.
+the generic reciprocal reducer. Plans using the named reducers report
+`rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide`; generic finite
+plans keep the reciprocal-reducer ISA evidence string. HIP launch wrappers
+reject stale reciprocal metadata before queueing work. The one-shot direct HIP
+finite path is still available as a convenience surface but does not define a
+separate backend contract. Finite is not an odd-modulus CRT route, not
+exact-wide export, and not strict mod 2^64 wraparound.
