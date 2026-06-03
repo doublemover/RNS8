@@ -435,9 +435,20 @@ padded carry-heavy tails, ragged two-tile output, release-shaped 64x64x64 and
 CPU-oracle cells, and its K boundary plus the rocWMMA ISA gate. A
 benchmark-level 64x64x64 checksum smoke compares CPU byte-limb, direct-HIP, and
 candidate captures for same-seed parity. The candidate is intentionally
-shape-gated and remains outside AUTO and production promotion until reviewed
-release performance evidence and any required exhaustive 512/1024 CPU-oracle
-dumps exist.
+shape-gated and remains outside AUTO and production promotion until a reviewed
+release performance win and any required exhaustive 512/1024 CPU-oracle dumps
+exist.
+
+A candidate-inclusive Windows `gfx1100` release review at
+`temp\benchmark-sweeps\windows-gfx1100-release-wrap64-wmma-candidate-current`
+used seed `20260603`, three warmups, and nine repeats for 64, 128, 512, and
+1024 square wrap64 shapes. All three same-shape checksum streams matched across
+CPU byte-limb, direct HIP, and rocWMMA candidate captures. The candidate was
+slower than direct HIP on every shape: 4825 us versus 3653 us at 64, 5202 us
+versus 1852 us at 128, 37481 us versus 9430 us at 512, and 264657 us versus
+41237 us at 1024. The review produced zero promotable entries and kept
+`internal_candidate_not_public_backend` plus `not_faster_than_direct_hip`
+blockers on the candidate.
 
 Raw benchmark captures are available through
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` in
