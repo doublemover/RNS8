@@ -249,19 +249,23 @@ recording the reused operand role; they do not create a reusable production
 prepack cache.
 The public `rns8_get_plan_packing_info` query now reports the selected plan's
 resident layout versions, transient accelerator pack workspace bytes, and cache
-availability flags. hipBLASLt, CK, and rocWMMA plans report transient
-per-dispatch pack workspaces with backend-specific A/B layout names; CPU,
-direct-HIP, and wrap64 reference plans report persistent resident layouts and no
-transient matrix-engine pack workspace. All current plans report no reusable or
-production prepack cache. The matching `rns8_get_matrix_storage_info` query
-reports each matrix handle's backend, semantic storage layout, source version,
-finite modulus, host/device currentness, and host/device byte counts so future
-cache tooling can reject stale or mismatched resident inputs without inferring
-state from opaque handles. `rns8_get_prepack_cache_key_info` combines a plan,
-operand role, and concrete matrix handle into deterministic key material only
-after validating role, shape, backend, semantic, layout, currentness,
-source-version, and finite-modulus compatibility; it still reports no reusable
-or production cache availability for current backends.
+availability flags. hipBLASLt and CK plans report transient per-dispatch pack
+workspaces with backend-specific A/B layout names. rocWMMA plans still use
+transient A workspaces, and eligible non-tiled RNS B operands now report a
+reusable B prepack cache that `rns8_create_prepack_cache` can materialize for
+`rns8_gemm_rns_prepacked_b`; finite/wrap64, tiled, A-operand, and oversize-K
+requests remain unsupported instead of falling back silently. CPU, direct-HIP,
+and wrap64 reference plans report persistent resident layouts and no transient
+matrix-engine pack workspace. All current plans still report no production
+prepack cache. The matching `rns8_get_matrix_storage_info` query reports each
+matrix handle's backend, semantic storage layout, source version, finite
+modulus, host/device currentness, and host/device byte counts so cache tooling
+can reject stale or mismatched resident inputs without inferring state from
+opaque handles. `rns8_get_prepack_cache_key_info` combines a plan, operand role,
+and concrete matrix handle into deterministic key material only after
+validating role, shape, backend, semantic, layout, currentness, source-version,
+and finite-modulus compatibility; current rocWMMA B keys may report reusable
+availability, while production cache availability remains false.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

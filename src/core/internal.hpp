@@ -132,6 +132,26 @@ struct rns8_workspace {
   std::size_t accelerator_auxiliary_bytes = 0;
 };
 
+struct rns8_prepack_cache {
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  rns8_operand_role operand_role = RNS8_OPERAND_B;
+  int64_t rows = 0;
+  int64_t cols = 0;
+  int64_t k = 0;
+  uint32_t prefix = 0;
+  uint32_t finite_modulus = 0;
+  uint64_t source_version = 0;
+  uint64_t plan_fingerprint = 0;
+  uint64_t cache_key_hash = 0;
+  std::string matrix_layout_version;
+  std::string operand_layout_version;
+  int hip_device_id = -1;
+  void* device_data = nullptr;
+  std::size_t device_bytes = 0;
+  std::size_t operand_pack_bytes = 0;
+};
+
 namespace rns8::detail {
 
 using boost::multiprecision::cpp_int;

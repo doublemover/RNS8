@@ -16,6 +16,7 @@ typedef struct rns8_context rns8_context;
 typedef struct rns8_plan rns8_plan;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_workspace rns8_workspace;
+typedef struct rns8_prepack_cache rns8_prepack_cache;
 
 typedef struct rns8_context_options {
   uint64_t struct_size;
@@ -341,6 +342,22 @@ RNS8_API rns8_status rns8_get_prepack_cache_key_info(
     rns8_operand_role operand_role,
     rns8_prepack_cache_key_info* out);
 
+/*
+ * Create or destroy a reusable accelerator prepack cache. Current production
+ * runtime code supports a narrow rocWMMA B-operand RNS cache for non-tiled
+ * plans with K <= 65536; unsupported roles, backends, or shapes return
+ * RNS8_UNSUPPORTED_BACKEND instead of silently falling back to transient pack
+ * workspaces.
+ */
+RNS8_API rns8_status rns8_create_prepack_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* matrix,
+    rns8_operand_role operand_role,
+    rns8_prepack_cache** out);
+
+RNS8_API rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache);
+
 RNS8_API rns8_status rns8_pack_i64(
     rns8_context* ctx,
     rns8_matrix* matrix,
@@ -378,6 +395,19 @@ RNS8_API rns8_status rns8_gemm_rns(
     const rns8_plan* plan,
     const rns8_matrix* A,
     const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+/*
+ * GEMM variant that consumes a reusable B prepack cache created from the same
+ * plan and source-versioned B matrix. Currently implemented for the narrow
+ * rocWMMA non-tiled RNS B-cache path only.
+ */
+RNS8_API rns8_status rns8_gemm_rns_prepacked_b(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_prepack_cache* B,
     rns8_matrix* C,
     rns8_workspace* workspace);
 

@@ -569,6 +569,160 @@ int run_rns_prefix(
                                                                                        : wmma_backend_failure;
 }
 
+int prepack_b_rns_prefix(
+    int device_id,
+    const int8_t* b,
+    int8_t* b_prepack,
+    uint64_t b_prepack_bytes,
+    int k,
+    int n,
+    int ldb,
+    uint32_t prefix) {
+  if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
+    return wmma_invalid_argument;
+  }
+  uint64_t a_bytes = 0;
+  uint64_t b_bytes = 0;
+  if (!wmma_workspace_requirements_u64(16, n, k, &a_bytes, &b_bytes)) {
+    return wmma_range_error;
+  }
+  if (b_bytes != 0 && static_cast<uint64_t>(prefix) > UINT64_MAX / b_bytes) {
+    return wmma_range_error;
+  }
+  if (!b_prepack || b_prepack_bytes < static_cast<uint64_t>(prefix) * b_bytes) {
+    return wmma_invalid_argument;
+  }
+  int64_t padded_n64 = 0;
+  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
+  if (!round_up_aligned_i64(n, kRns8WmmaTileN, &padded_n64) ||
+      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
+    return wmma_range_error;
+  }
+  const int padded_n = static_cast<int>(padded_n64);
+  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  const dim3 pack_block(16, 16, 1);
+  const dim3 pack_b_grid(
+      static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
+      static_cast<unsigned int>((padded_n + pack_block.y - 1) / pack_block.y),
+      1);
+  for (uint32_t modulus_index = 0; modulus_index < prefix; ++modulus_index) {
+    const auto plane_b = b + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(k) * ldb;
+    auto* plane_b_prepack = b_prepack + static_cast<uint64_t>(modulus_index) * b_bytes;
+    pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
+        plane_b, plane_b_prepack, k, gemm_k_block, n, padded_n, ldb, 0);
+    if (hipGetLastError() != hipSuccess) {
+      return wmma_backend_failure;
+    }
+  }
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? wmma_success
+                                                                                       : wmma_backend_failure;
+}
+
+int launch_pack_a_and_gemm_prepacked_b(
+    const int8_t* a,
+    const int8_t* b_pack,
+    int8_t* c,
+    int8_t* a_pack,
+    int rows,
+    int cols,
+    int k,
+    int lda,
+    int ldc,
+    int modulus,
+    uint32_t reciprocal) {
+  if (k <= 0 || k > kRns8SignedSafeInt32KBlock) {
+    return wmma_invalid_argument;
+  }
+  int64_t padded_rows64 = 0;
+  int64_t padded_cols64 = 0;
+  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
+  if (!round_up_aligned_i64(rows, kRns8WmmaTileM, &padded_rows64) ||
+      !round_up_aligned_i64(cols, kRns8WmmaTileN, &padded_cols64) ||
+      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
+    return wmma_range_error;
+  }
+  const int padded_rows = static_cast<int>(padded_rows64);
+  const int padded_cols = static_cast<int>(padded_cols64);
+  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  const dim3 pack_block(16, 16, 1);
+  const dim3 pack_a_grid(
+      static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
+      static_cast<unsigned int>((padded_rows + pack_block.y - 1) / pack_block.y),
+      1);
+  pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(a, a_pack, rows, padded_rows, k, gemm_k_block, lda, 0);
+  if (hipGetLastError() != hipSuccess) {
+    return wmma_backend_failure;
+  }
+  const dim3 grid(
+      static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
+      static_cast<unsigned int>(padded_rows / kRns8WmmaTileM),
+      1);
+  rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
+      a_pack,
+      b_pack,
+      c,
+      rows,
+      cols,
+      padded_rows,
+      padded_cols,
+      gemm_k_block,
+      ldc,
+      modulus,
+      reciprocal,
+      0);
+  return hipGetLastError() == hipSuccess ? wmma_success : wmma_backend_failure;
+}
+
+int run_rns_prefix_prepacked_b(
+    int device_id,
+    const int8_t* a,
+    const int8_t* b_prepack,
+    int8_t* c,
+    int8_t* workspace,
+    uint64_t workspace_bytes,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldc,
+    uint32_t prefix) {
+  if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
+    return wmma_invalid_argument;
+  }
+  uint64_t a_bytes = 0;
+  uint64_t b_bytes = 0;
+  if (!wmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {
+    return wmma_range_error;
+  }
+  if (!workspace || workspace_bytes < a_bytes || !b_prepack) {
+    return wmma_invalid_argument;
+  }
+  auto* a_pack = workspace;
+  for (uint32_t modulus_index = 0; modulus_index < prefix; ++modulus_index) {
+    const uint16_t modulus = kDefaultModuli[modulus_index];
+    const auto plane_a = a + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * lda;
+    const auto plane_b_prepack = b_prepack + static_cast<uint64_t>(modulus_index) * b_bytes;
+    auto plane_c = c + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * ldc;
+    const int status = launch_pack_a_and_gemm_prepacked_b(
+        plane_a,
+        plane_b_prepack,
+        plane_c,
+        a_pack,
+        m,
+        n,
+        k,
+        lda,
+        ldc,
+        static_cast<int>(modulus),
+        modulus_reciprocal_u32(modulus));
+    if (status != wmma_success) {
+      return status;
+    }
+  }
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? wmma_success
+                                                                                       : wmma_backend_failure;
+}
+
 }  // namespace
 
 extern "C" int rns8_wmma_gemm_rns_device(
@@ -605,6 +759,69 @@ extern "C" int rns8_wmma_gemm_rns_device(
       static_cast<int>(k),
       static_cast<int>(lda),
       static_cast<int>(ldb),
+      static_cast<int>(ldc),
+      prefix);
+}
+
+extern "C" int rns8_wmma_prepack_b_rns_device(
+    int device_id,
+    const void* device_b_residues,
+    void* device_b_prepack,
+    unsigned long long device_b_prepack_bytes,
+    long long k,
+    long long n,
+    long long ldb,
+    unsigned int prefix) {
+  if (hipSetDevice(device_id) != hipSuccess) {
+    return wmma_backend_failure;
+  }
+  if (!device_b_residues || !device_b_prepack || k <= 0 || n <= 0 || ldb < n ||
+      !checked_i32_shape(k) || !checked_i32_shape(n) || !checked_i32_shape(ldb)) {
+    return wmma_invalid_argument;
+  }
+  return prepack_b_rns_prefix(
+      device_id,
+      static_cast<const int8_t*>(device_b_residues),
+      static_cast<int8_t*>(device_b_prepack),
+      device_b_prepack_bytes,
+      static_cast<int>(k),
+      static_cast<int>(n),
+      static_cast<int>(ldb),
+      prefix);
+}
+
+extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_prepack,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldc,
+    unsigned int prefix) {
+  if (hipSetDevice(device_id) != hipSuccess) {
+    return wmma_backend_failure;
+  }
+  if (!device_a_residues || !device_b_prepack || !device_c_residues || !workspace || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldc < n || !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) ||
+      !checked_i32_shape(lda) || !checked_i32_shape(ldc)) {
+    return wmma_invalid_argument;
+  }
+  return run_rns_prefix_prepacked_b(
+      device_id,
+      static_cast<const int8_t*>(device_a_residues),
+      static_cast<const int8_t*>(device_b_prepack),
+      static_cast<int8_t*>(device_c_residues),
+      static_cast<int8_t*>(workspace),
+      workspace_bytes,
+      static_cast<int>(m),
+      static_cast<int>(n),
+      static_cast<int>(k),
+      static_cast<int>(lda),
       static_cast<int>(ldc),
       prefix);
 }

@@ -292,19 +292,21 @@ for normal AUTO autotune-cache promotion.
 Created plans expose their current packing contract through
 `rns8_get_plan_packing_info` and `rns8::Plan::packing_info()`. The query reports
 the selected backend, persistent input/output layout versions, transient A/B
-pack workspace bytes, accumulator or library workspace bytes, and whether a
-reusable production prepack cache is available. Current accelerator backends
-report transient per-dispatch pack workspaces only; every backend reports
-`production_prepack_cache_available=0` until a real source-versioned prepack
-cache exists. Matrix handles expose the matching resident storage state through
+pack workspace bytes, accumulator or library workspace bytes, and reusable or
+production prepack-cache availability. hipBLASLt and CK report transient
+per-dispatch pack workspaces only. rocWMMA reports transient A workspaces plus a
+reusable B prepack cache for eligible non-tiled RNS plans with `K <= 65536`.
+Every backend still reports `production_prepack_cache_available=0` until a
+broader source-versioned production cache policy exists. Matrix handles expose
+the matching resident storage state through
 `rns8_get_matrix_storage_info` and `rns8::Matrix::storage_info()`: source
 version, finite modulus, host/device currentness, byte counts, and persistent
-layout version. Future prepack caches must key or reject against both the plan
-packing contract and this matrix storage state. `rns8_get_prepack_cache_key_info`
-and `rns8::prepack_cache_key_info()` validate a plan plus A/B operand matrix
-before emitting deterministic key material; they reject role, shape, layout,
-backend, currentness, source-version, and finite-modulus mismatches and still
-report no production cache availability.
+layout version. Prepack caches key or reject against both the plan packing
+contract and this matrix storage state. `rns8_get_prepack_cache_key_info` and
+`rns8::prepack_cache_key_info()` validate a plan plus A/B operand matrix before
+emitting deterministic key material; they reject role, shape, layout, backend,
+currentness, source-version, and finite-modulus mismatches and still report no
+production cache availability.
 
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. Exact-wide
@@ -516,14 +518,22 @@ exact CPU/direct-HIP differentials, ISA evidence, and pack amortization for
 one-shot, repeated-A, repeated-B, and repeated-A/B workloads before they can
 displace current layouts. The current benchmark can generate those repeated
 workload evidence modes with `--reuse-packed-a`, `--reuse-packed-b`, and
-`--reuse-packed-inputs`, but durable packed-layout/prepack-cache production
-work still remains roadmap work. `rns8_get_plan_packing_info` now exposes the
-current plan-specific transient pack workspace layout and byte contract so that
-future cache tooling can reject layout/cache mismatches instead of inferring
-them from backend names; `rns8_get_matrix_storage_info` exposes the matrix
-source version and resident currentness needed for source-version invalidation,
-and `rns8_get_prepack_cache_key_info` validates concrete plan/operand key
-material before any future cache can be reused.
+`--reuse-packed-inputs`, but broad durable packed-layout/prepack-cache
+production work still remains roadmap work. A narrow reusable rocWMMA B-operand
+cache now exists for non-tiled RNS plans with `K <= 65536`:
+`rns8_create_prepack_cache` packs B into the rocWMMA column-major layout once,
+and `rns8_gemm_rns_prepacked_b` reuses that cache while A remains a transient
+per-dispatch pack. Unsupported roles, backends, finite/wrap64 semantics, tiled
+schedules, and oversize K shapes return unsupported or invalid status instead
+of falling back silently. `rns8_get_plan_packing_info` exposes the current
+plan-specific transient pack workspace layout, B-cache availability, and byte
+contract so cache tooling can reject layout/cache mismatches instead of
+inferring them from backend names; `rns8_get_matrix_storage_info` exposes the
+matrix source version and resident currentness needed for source-version
+invalidation, and `rns8_get_prepack_cache_key_info` validates concrete
+plan/operand key material before a cache can be reused. The production cache
+flag remains `production_prepack_cache_available=0` until broader validated
+production cache policy exists.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP

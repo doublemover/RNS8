@@ -38,6 +38,30 @@ extern "C" int rns8_wmma_gemm_rns_tiled_device(
     const rns8_plan_tile_schedule_entry* entries,
     unsigned long long entry_count);
 
+extern "C" int rns8_wmma_prepack_b_rns_device(
+    int device_id,
+    const void* device_b_residues,
+    void* device_b_prepack,
+    unsigned long long device_b_prepack_bytes,
+    long long k,
+    long long n,
+    long long ldb,
+    unsigned int prefix);
+
+extern "C" int rns8_wmma_gemm_rns_prepacked_b_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_prepack,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldc,
+    unsigned int prefix);
+
 extern "C" int rns8_wmma_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,
@@ -232,6 +256,88 @@ rns8_status wmma_gemm_rns_tiled_device(
   (void)ldc;
   (void)entries;
   (void)entry_count;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status wmma_prepack_b_rns_device(
+    int device_id,
+    const void* device_b_residues,
+    void* device_b_prepack,
+    std::size_t device_b_prepack_bytes,
+    int64_t k,
+    int64_t n,
+    int64_t ldb,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+  const int code = run_timed_device_code("rns_prepack_b_kernel_group", [&]() {
+    return rns8_wmma_prepack_b_rns_device(
+        device_id,
+        device_b_residues,
+        device_b_prepack,
+        static_cast<unsigned long long>(device_b_prepack_bytes),
+        static_cast<long long>(k),
+        static_cast<long long>(n),
+        static_cast<long long>(ldb),
+        prefix);
+  });
+  return status_from_device_code(code);
+#else
+  (void)device_id;
+  (void)device_b_residues;
+  (void)device_b_prepack;
+  (void)device_b_prepack_bytes;
+  (void)k;
+  (void)n;
+  (void)ldb;
+  (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status wmma_gemm_rns_prepacked_b_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_prepack,
+    void* device_c_residues,
+    void* workspace,
+    std::size_t workspace_bytes,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldc,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+  const int code = run_timed_device_code("rns_gemm_prepacked_b_kernel_group", [&]() {
+    return rns8_wmma_gemm_rns_prepacked_b_device(
+        device_id,
+        device_a_residues,
+        device_b_prepack,
+        device_c_residues,
+        workspace,
+        static_cast<unsigned long long>(workspace_bytes),
+        static_cast<long long>(m),
+        static_cast<long long>(n),
+        static_cast<long long>(k),
+        static_cast<long long>(lda),
+        static_cast<long long>(ldc),
+        prefix);
+  });
+  return status_from_device_code(code);
+#else
+  (void)device_id;
+  (void)device_a_residues;
+  (void)device_b_prepack;
+  (void)device_c_residues;
+  (void)workspace;
+  (void)workspace_bytes;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)lda;
+  (void)ldc;
+  (void)prefix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

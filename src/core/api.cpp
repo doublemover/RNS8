@@ -1255,11 +1255,15 @@ uint64_t signed_to_fingerprint(int64_t value) {
   return static_cast<uint64_t>(value);
 }
 
-uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B) {
+uint64_t gemm_output_source_version_values(uint64_t a_source_version, uint64_t b_source_version) {
   uint64_t hash = 1469598103934665603ull;
-  hash = workspace_fingerprint_mix(hash, A.source_version);
-  hash = workspace_fingerprint_mix(hash, B.source_version);
+  hash = workspace_fingerprint_mix(hash, a_source_version);
+  hash = workspace_fingerprint_mix(hash, b_source_version);
   return hash == 0 ? 1 : hash;
+}
+
+uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B) {
+  return gemm_output_source_version_values(A.source_version, B.source_version);
 }
 
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
@@ -1707,6 +1711,89 @@ std::string build_prepack_cache_key(
   key += ";plan_fingerprint=" + std::to_string(plan_fingerprint);
   key += ";hash=" + std::to_string(cache_key_hash);
   return key;
+}
+
+bool wmma_b_prepack_cache_supported(const rns8_plan& plan) {
+  return plan.backend == RNS8_BACKEND_WMMA && !uses_finite_storage(plan.desc.semantics) &&
+         plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 && plan.tile_schedule.empty() && plan.desc.k > 0 &&
+         plan.desc.k <= static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) && plan_schedule_contract_matches(plan);
+}
+
+bool wmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes) {
+  b_pack_bytes = 0;
+  total_cache_bytes = 0;
+  if (!wmma_b_prepack_cache_supported(plan)) {
+    return false;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t total_workspace = 0;
+  if (!rns8::detail::wmma_workspace_requirements(
+          plan.desc.m, plan.desc.n, plan.desc.k, a_bytes, b_pack_bytes, total_workspace)) {
+    return false;
+  }
+  if (plan.prefix != 0 && b_pack_bytes > std::numeric_limits<std::size_t>::max() / plan.prefix) {
+    return false;
+  }
+  total_cache_bytes = b_pack_bytes * static_cast<std::size_t>(plan.prefix);
+  return total_cache_bytes != 0;
+}
+
+bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan& plan) {
+  std::size_t b_pack_bytes = 0;
+  std::size_t total_cache_bytes = 0;
+  return wmma_b_prepack_bytes_for_plan(plan, b_pack_bytes, total_cache_bytes) &&
+         cache.backend == plan.backend && cache.semantics == plan.desc.semantics &&
+         cache.operand_role == RNS8_OPERAND_B && cache.rows == plan.desc.k && cache.cols == plan.desc.n &&
+         cache.k == plan.desc.k && cache.prefix == plan.prefix &&
+         cache.finite_modulus == plan.desc.finite_modulus &&
+         cache.plan_fingerprint == plan_workspace_fingerprint(plan) &&
+         cache.matrix_layout_version == persistent_layout_version_for_semantics(plan.desc.semantics) &&
+         cache.operand_layout_version == prepack_operand_layout_version_for_plan(plan, RNS8_OPERAND_B) &&
+         cache.device_data != nullptr && cache.device_bytes == total_cache_bytes &&
+         cache.operand_pack_bytes == b_pack_bytes;
+}
+
+rns8_status validate_rns_gemm_prepacked_b_operands(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_matrix& A,
+    const rns8_prepack_cache& B,
+    const rns8_matrix& C) {
+  if (!context_accepts_backend(ctx, plan.backend) || !wmma_b_prepack_cache_supported(plan) ||
+      !prepack_cache_matches_plan(B, plan) || B.hip_device_id != ctx.device_id ||
+      !matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
+      !matrix_backend_compatible_with_plan(ctx, C, plan.backend)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (hip_resident_rns_backend(plan.backend) && (A.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!matrix_descriptor_matches(
+          A,
+          plan.desc.semantics,
+          plan.desc.bound_kind,
+          plan.desc.m,
+          plan.desc.k,
+          plan.prefix,
+          plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          C,
+          plan.desc.semantics,
+          plan.desc.bound_kind,
+          plan.desc.m,
+          plan.desc.n,
+          plan.prefix,
+          plan.desc.tile_m,
+          plan.desc.tile_n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, plan.prefix) ||
+      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, plan.prefix) ||
+      !rns_residue_state_current_for_backend(A, plan.backend)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  return RNS8_SUCCESS;
 }
 
 rns8_status validate_plan_context_workspace(
@@ -2633,11 +2720,20 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(out->a_layout_version, sizeof(out->a_layout_version), "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
-      set_text(
-          out->detail,
-          sizeof(out->detail),
-          "rocWMMA packs A/B into transient INT8 matrix-engine workspaces; no reusable production prepack cache.");
+      if (wmma_b_prepack_cache_supported(*plan)) {
+        out->reusable_prepack_cache_available = 1;
+        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "reusable_b_prepack_cache");
+        set_text(
+            out->detail,
+            sizeof(out->detail),
+            "rocWMMA supports a reusable B prepack cache for this non-tiled RNS plan; A remains transient per dispatch and no production cache is reported.");
+      } else {
+        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+        set_text(
+            out->detail,
+            sizeof(out->detail),
+            "rocWMMA packs A/B into transient INT8 matrix-engine workspaces; no reusable production prepack cache.");
+      }
       return RNS8_SUCCESS;
     }
 
@@ -3021,7 +3117,8 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->semantics = plan->desc.semantics;
     out->operand_role = operand_role;
     out->cache_key_valid = 1;
-    out->reusable_prepack_cache_available = 0;
+    out->reusable_prepack_cache_available =
+        (operand_role == RNS8_OPERAND_B && wmma_b_prepack_cache_supported(*plan)) ? 1u : 0u;
     out->production_prepack_cache_available = 0;
     out->flags = 0;
     out->matrix_rows = matrix->desc.rows;
@@ -3041,6 +3138,95 @@ rns8_status rns8_get_prepack_cache_key_info(
         "Plan and operand matrix are compatible for future prepack cache keying; no production cache is available.");
     return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_create_prepack_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* matrix,
+    rns8_operand_role operand_role,
+    rns8_prepack_cache** out) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !matrix || !out) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    *out = nullptr;
+    if (!valid_prepack_operand_role(operand_role)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (operand_role != RNS8_OPERAND_B || !wmma_b_prepack_cache_supported(*plan)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
+        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    std::size_t b_pack_bytes = 0;
+    std::size_t total_cache_bytes = 0;
+    if (!wmma_b_prepack_bytes_for_plan(*plan, b_pack_bytes, total_cache_bytes)) {
+      return RNS8_RANGE_ERROR;
+    }
+
+    auto* cache = new (std::nothrow) rns8_prepack_cache();
+    if (!cache) {
+      return RNS8_INTERNAL_ERROR;
+    }
+    cache->backend = plan->backend;
+    cache->semantics = plan->desc.semantics;
+    cache->operand_role = operand_role;
+    cache->rows = matrix->desc.rows;
+    cache->cols = matrix->desc.cols;
+    cache->k = plan->desc.k;
+    cache->prefix = plan->prefix;
+    cache->finite_modulus = matrix->finite_modulus;
+    cache->source_version = matrix->source_version;
+    cache->plan_fingerprint = plan_workspace_fingerprint(*plan);
+    cache->matrix_layout_version = persistent_layout_version_for_semantics(matrix->desc.semantics);
+    cache->operand_layout_version = prepack_operand_layout_version_for_plan(*plan, operand_role);
+    cache->cache_key_hash =
+        prepack_cache_key_hash(*plan, *matrix, operand_role, cache->matrix_layout_version, cache->operand_layout_version);
+    cache->hip_device_id = ctx->device_id;
+    cache->device_bytes = total_cache_bytes;
+    cache->operand_pack_bytes = b_pack_bytes;
+
+    rns8_status status = rns8::detail::hip_direct_allocate(ctx->device_id, total_cache_bytes, &cache->device_data);
+    if (status != RNS8_SUCCESS) {
+      delete cache;
+      return status;
+    }
+    status = rns8::detail::wmma_prepack_b_rns_device(
+        ctx->device_id,
+        matrix->hip_residues,
+        cache->device_data,
+        cache->device_bytes,
+        plan->desc.k,
+        plan->desc.n,
+        matrix->desc.cols,
+        plan->prefix);
+    if (status != RNS8_SUCCESS) {
+      (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
+      cache->device_data = nullptr;
+      delete cache;
+      return status;
+    }
+    *out = cache;
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache) {
+  if (!cache) {
+    return RNS8_SUCCESS;
+  }
+  rns8_status status = RNS8_SUCCESS;
+  if (cache->device_data) {
+    status = rns8::detail::hip_direct_free(cache->hip_device_id, cache->device_data);
+    cache->device_data = nullptr;
+    cache->device_bytes = 0;
+  }
+  delete cache;
+  return status;
 }
 
 rns8_status rns8_pack_i64(
@@ -3431,6 +3617,55 @@ rns8_status rns8_gemm_rns(
 #endif
     }
     return RNS8_UNSUPPORTED_BACKEND;
+  });
+}
+
+rns8_status rns8_gemm_rns_prepacked_b(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_prepack_cache* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan || !A || !B || !C || !workspace) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (workspace_status != RNS8_SUCCESS) {
+      return workspace_status;
+    }
+    const rns8_status operand_status = validate_rns_gemm_prepacked_b_operands(*ctx, *plan, *A, *B, *C);
+    if (operand_status != RNS8_SUCCESS) {
+      return operand_status;
+    }
+    if (plan->backend != RNS8_BACKEND_WMMA) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    const rns8_status status = rns8::detail::wmma_gemm_rns_prepacked_b_device(
+        ctx->device_id,
+        A->hip_residues,
+        B->device_data,
+        C->hip_residues,
+        workspace->accelerator_workspace,
+        workspace->accelerator_workspace_bytes,
+        plan->desc.m,
+        plan->desc.n,
+        plan->desc.k,
+        A->desc.cols,
+        C->desc.cols,
+        plan->prefix);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    C->device_residues_current = true;
+    C->host_residues_current = false;
+    C->host_byte_limbs_current = false;
+    C->device_byte_limbs_current = false;
+    if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+      C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
+    }
+    return RNS8_SUCCESS;
   });
 }
 
