@@ -3202,7 +3202,7 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(
           out->detail,
           sizeof(out->detail),
-          "hipBLASLt packs A/B into transient aligned INT8 buffers and uses INT32 scratch; no reusable production prepack cache.");
+          "hipBLASLt uses aligned INT8 matrix-engine pack layouts, INT32 scratch, and workspace-local repeated-operand caches; no reusable production prepack cache.");
       return RNS8_SUCCESS;
     }
 
@@ -3455,6 +3455,22 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
       }
       workspace->hipblaslt_workspace = nullptr;
       workspace->hipblaslt_workspace_bytes = 0;
+    }
+    if (workspace->hipblaslt_a_prepack_cache) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hipblaslt_a_prepack_device_id, workspace->hipblaslt_a_prepack_cache);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hipblaslt_a_prepack_cache = nullptr;
+      workspace->hipblaslt_a_prepack_cache_bytes = 0;
+      workspace->hipblaslt_a_prepack_current = false;
+      workspace->hipblaslt_a_prepack_source_version = 0;
+      workspace->hipblaslt_a_prepack_m = 0;
+      workspace->hipblaslt_a_prepack_k = 0;
+      workspace->hipblaslt_a_prepack_lda = 0;
+      workspace->hipblaslt_a_prepack_prefix = 0;
+      workspace->hipblaslt_a_prepack_device_id = -1;
     }
     if (workspace->hipblaslt_b_prepack_cache) {
       const rns8_status free_status =
@@ -4269,6 +4285,7 @@ rns8_status rns8_gemm_rns(
           C->desc.cols,
           plan->prefix,
           workspace,
+          A->source_version,
           B->source_version);
       if (status != RNS8_SUCCESS) {
         return status;
