@@ -79,6 +79,13 @@ function(rns8_compile_hip_source out_var source)
     endif()
   endforeach()
 
+  set(_source_compile_options)
+  foreach(_option IN LISTS RNS8_HIP_SOURCE_COMPILE_OPTIONS)
+    if(_option)
+      list(APPEND _source_compile_options "${_option}")
+    endif()
+  endforeach()
+
   add_custom_command(
     OUTPUT "${_object}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
@@ -90,6 +97,7 @@ function(rns8_compile_hip_source out_var source)
       -O2
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
       ${_include_args}
+      ${_source_compile_options}
       -c "${_source_abs}"
       -o "${_object}"
     DEPENDS "${_source_abs}" ${RNS8_HIP_SOURCE_DEPENDS}
