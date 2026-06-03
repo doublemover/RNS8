@@ -869,8 +869,9 @@ class _Validator:
             self._error("bound_mode must be global or per_tile")
         if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
             self._error("exact_wide_export_status_check must be null outside exact-wide captures")
-        if residue_chain_length > 1 and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
-            self._error("residue_chain_length > 1 captures must use exact-wide semantics")
+        rns_chain_semantics = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
+        if residue_chain_length > 1 and semantics not in rns_chain_semantics:
+            self._error("residue_chain_length > 1 captures must use bounded or exact-wide RNS semantics")
         if residue_output_mode == "residue_current_rns" and residue_chain_length <= 1:
             self._error("residue_output_mode=residue_current_rns requires residue_chain_length > 1")
         if residue_chain_length == 1 and residue_output_mode != "host_export":
@@ -945,9 +946,22 @@ class _Validator:
                     self._error(f"{semantics} runtime vector captures must use packed_layout_version={expected_native_layout}")
             elif packed_layout is not None:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
-            expected_epilogue_type = (
-                "direct_int64_export" if self.data.get("backend_selected") == "hip-vector-alu-int64" else "crt_export"
-            )
+            if residue_chain_length > 1:
+                expected_epilogue_type = "residue_current_rns_output"
+                if residue_output_mode != "residue_current_rns":
+                    self._error("bounded residue-current chains must use residue_output_mode=residue_current_rns")
+                if bound_mode != "global":
+                    self._error("bounded residue-current chains must use bound_mode=global")
+                if self.data.get("backend_selected") in {"hip-vector-alu-int64"}:
+                    self._error("bounded residue-current chains must not select hip-vector-alu-int64")
+                if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
+                    self._error("bounded residue-current chains must use square m=n=k shapes")
+            else:
+                expected_epilogue_type = (
+                    "direct_int64_export" if self.data.get("backend_selected") == "hip-vector-alu-int64" else "crt_export"
+                )
+                if residue_output_mode != "host_export":
+                    self._error("bounded host-export captures must use residue_output_mode=host_export")
             if self.data.get("epilogue_type") != expected_epilogue_type:
                 self._error(f"{semantics} captures must use {expected_epilogue_type} epilogue")
             if bound_mode == "global":

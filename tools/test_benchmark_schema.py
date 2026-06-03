@@ -238,6 +238,67 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
     return chain
 
 
+def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
+    chain = copy.deepcopy(capture)
+    repeats = chain["repeats"]
+    chain["m"] = 64
+    chain["n"] = 64
+    chain["k"] = 64
+    chain["bound_mode"] = "global"
+    chain["bound_kind"] = "global_max_abs"
+    chain["bound"] = 1099511627776
+    chain["tile_bounds_u64"] = None
+    chain["schedule_metadata"]["tile_rows"] = 1
+    chain["schedule_metadata"]["tile_cols"] = 1
+    chain["schedule_metadata"]["tile_count"] = 1
+    chain["schedule_metadata"]["min_required_prefix"] = 9
+    chain["schedule_metadata"]["max_required_prefix"] = 9
+    chain["schedule_metadata"]["min_selected_prefix"] = 9
+    chain["schedule_metadata"]["max_selected_prefix"] = 9
+    chain["schedule_metadata"]["prefix_group_count"] = 1
+    chain["schedule_metadata"]["adaptive_prefix_active"] = False
+    chain["schedule_metadata"]["adaptive_skip_active"] = False
+    chain["schedule_metadata"]["adaptive_execution_applied"] = False
+    chain["schedule_metadata"]["range_bit_length"] = 41
+    chain["epilogue_type"] = "residue_current_rns_output"
+    chain["residue_chain_length"] = 3
+    chain["residue_output_mode"] = "residue_current_rns"
+    chain["backend_metadata"]["autotune_key"] = (
+        "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
+        "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
+    )
+    chain["timing_note"] = (
+        "host wall-clock timings for a residue-current RNS GEMM chain; each measured repeat runs 3 resident "
+        "RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and one final "
+        "logical export runs after measured repeats only to produce checksum_u64"
+    )
+    chain["timing_metadata"]["gpu_event_timing"] = False
+    chain["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_residue_current_chain_mode"
+    chain["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_residue_current_chain_mode"
+    chain["timing_metadata"]["gpu_event_timing_source"] = None
+    chain["timing_metadata"]["gpu_event_timing_source_scope"] = None
+    chain["timing_metadata"]["gpu_event_timing_caveat"] = None
+    chain["timing_metadata"]["gpu_event_phase_order"] = None
+    chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for 3 chained rns8_gemm_rns calls that keep the intermediate output resident "
+        "in RNS form"
+    )
+    chain["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "zero-valued per-repeat phase; residue-current chain mode defers host logical export until one final "
+        "checksum export after measured repeats"
+    )
+    chain["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only logical export"
+    )
+    chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
+    chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
+    chain["avg_crt_export_us"] = 0.0
+    chain["gpu_event_timings_us"] = None
+    chain["gpu_event_timing_summary_us"] = None
+    return chain
+
+
 def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
     candidate = copy.deepcopy(capture)
     repeats = candidate["repeats"]
@@ -415,6 +476,8 @@ def main() -> int:
     validate_capture(exact_wide_no_status)
     exact_chain_ck = as_residue_current_chain_capture(v4_ck_i64)
     validate_capture(exact_chain_ck)
+    bounded_chain_ck = as_bounded_residue_current_chain_capture(v4_ck_i64)
+    validate_capture(bounded_chain_ck)
 
     bad_exact_bound = copy.deepcopy(exact_wide_ck)
     bad_exact_bound["bound_kind"] = "global_max_abs"
@@ -475,6 +538,16 @@ def main() -> int:
     bad_chain_shape = copy.deepcopy(exact_chain_ck)
     bad_chain_shape["n"] = 128
     expect_invalid(bad_chain_shape, "square m=n=k shapes")
+
+    bad_bounded_chain_vector = copy.deepcopy(bounded_chain_ck)
+    bad_bounded_chain_vector["backend_selected"] = "hip-vector-alu-int64"
+    bad_bounded_chain_vector["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
+    bad_bounded_chain_vector["backend_metadata"]["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
+    expect_invalid(bad_bounded_chain_vector, "must not select hip-vector-alu-int64")
+
+    bad_bounded_chain_bound_mode = copy.deepcopy(bounded_chain_ck)
+    bad_bounded_chain_bound_mode["bound_mode"] = "per_tile"
+    expect_invalid(bad_bounded_chain_bound_mode, "bounded residue-current chains must use bound_mode=global")
 
     bad_reused_pack = copy.deepcopy(reused_ck_i64)
     bad_reused_pack["raw_timings_us"]["pack"][0] = 1

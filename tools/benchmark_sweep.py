@@ -21,7 +21,9 @@ EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
 WRAP64_WMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
+BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
+RNS_CHAIN_SEMANTICS = BOUNDED_SEMANTICS + EXACT_WIDE_SEMANTICS
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 REVIEW_SCHEMA_VERSION = 3
 PLACEHOLDER_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
@@ -1113,7 +1115,7 @@ def capture_name(
         parts.append(f"mod{modulus}")
     if semantics in EXACT_WIDE_SEMANTICS and exact_wide_limb_count not in (None, DEFAULT_EXACT_WIDE_LIMB_COUNT):
         parts.append(f"limbs{exact_wide_limb_count}")
-    if semantics in EXACT_WIDE_SEMANTICS and residue_chain_length > 1:
+    if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
@@ -1197,9 +1199,9 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if args.residue_chain_length > 1:
-        non_exact = [semantics for semantics in semantics_values if semantics not in EXACT_WIDE_SEMANTICS]
-        if non_exact:
-            raise SystemExit("--residue-chain-length > 1 currently requires exact-wide semantics")
+        non_rns_chain = [semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS]
+        if non_rns_chain:
+            raise SystemExit("--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics")
     for semantics in semantics_values:
         if semantics == "wrap-u64":
             if args.adaptive_only:
@@ -1209,7 +1211,9 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
             active_cases = cases
         for case in active_cases:
             if args.residue_chain_length > 1 and (case.m != case.n or case.n != case.k):
-                raise SystemExit("--residue-chain-length > 1 currently requires square exact-wide cases")
+                raise SystemExit("--residue-chain-length > 1 currently requires square RNS cases")
+            if args.residue_chain_length > 1 and semantics in BOUNDED_SEMANTICS and case.bound_mode != "global":
+                raise SystemExit("bounded --residue-chain-length > 1 currently requires global bound mode")
             backends = args.backends or (
                 wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
             )
@@ -1217,6 +1221,12 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                 for exact_wide_limb_count in exact_wide_limb_counts_for(semantics, args):
                     for backend in backends:
                         if not backend_allowed_for(semantics, case, backend):
+                            continue
+                        if (
+                            args.residue_chain_length > 1
+                            and semantics in BOUNDED_SEMANTICS
+                            and backend in {"auto", "hip-vector-alu-int64"}
+                        ):
                             continue
                         bench = backend_benches.get(backend, args.bench)
                         if bench is None:

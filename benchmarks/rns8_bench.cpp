@@ -240,8 +240,12 @@ bool exact_wide_benchmark_semantics(BenchSemantics semantics) {
   return semantics == BenchSemantics::ExactWideSigned || semantics == BenchSemantics::ExactWideUnsigned;
 }
 
+bool rns_chain_benchmark_semantics(BenchSemantics semantics) {
+  return bounded_benchmark_semantics(semantics) || exact_wide_benchmark_semantics(semantics);
+}
+
 bool residue_current_output_mode(const Args& args) {
-  return exact_wide_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
+  return rns_chain_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
 }
 
 bool exact_wide_export_status_check_required(const Args& args) {
@@ -480,11 +484,20 @@ Args parse_args(int argc, char** argv) {
     usage_error("--residue-chain-length must be positive");
   }
   if (args.residue_chain_length > 1) {
-    if (!exact_wide_benchmark_semantics(args.semantics)) {
-      usage_error("--residue-chain-length > 1 is only valid for exact-wide semantics");
+    if (!rns_chain_benchmark_semantics(args.semantics)) {
+      usage_error("--residue-chain-length > 1 is only valid for bounded or exact-wide RNS semantics");
     }
     if (args.m != args.n || args.n != args.k) {
-      usage_error("--residue-chain-length > 1 currently requires square exact-wide shapes");
+      usage_error("--residue-chain-length > 1 currently requires square m=n=k RNS shapes");
+    }
+    if (bounded_benchmark_semantics(args.semantics)) {
+      if (args.bound_mode != BoundMode::Global) {
+        usage_error("bounded --residue-chain-length > 1 currently requires --bound-mode global");
+      }
+      if (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 ||
+          args.backend == RNS8_BACKEND_AUTO) {
+        usage_error("bounded --residue-chain-length > 1 requires an explicit RNS backend, not auto or vector-ALU");
+      }
     }
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
@@ -1078,7 +1091,19 @@ uint64_t benchmark_bound(const Args& args) {
   if (u_k > std::numeric_limits<uint64_t>::max() / max_term) {
     usage_error("k is too large for the benchmark bound");
   }
-  const uint64_t bound = u_k * max_term;
+  uint64_t bound = u_k * max_term;
+  if (args.residue_chain_length > 1) {
+    if (u_k > std::numeric_limits<uint64_t>::max() / 16u) {
+      usage_error("k is too large for the bounded residue chain benchmark bound");
+    }
+    const uint64_t chain_multiplier = u_k * 16u;
+    for (uint32_t chain_index = 1; chain_index < args.residue_chain_length; ++chain_index) {
+      if (chain_multiplier != 0 && bound > std::numeric_limits<uint64_t>::max() / chain_multiplier) {
+        usage_error("bounded residue chain benchmark bound exceeds uint64_t");
+      }
+      bound *= chain_multiplier;
+    }
+  }
   if (args.semantics == BenchSemantics::BoundedI64 &&
       bound > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     usage_error("bounded-i64 benchmark bound exceeds int64 output range");
@@ -2674,6 +2699,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
@@ -2685,6 +2711,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (residue_current_output_mode(args)) {
+    status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -2721,6 +2751,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     result.prepack_setup_available = true;
   }
 
+  rns8_matrix* latest_output_matrix = c_matrix;
+  const bool chain_residue_output = residue_current_output_mode(args);
+
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
@@ -2742,26 +2775,39 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = run_rns_gemm_with_optional_b_cache(
-        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) {
-      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    rns8_matrix* lhs_matrix = a_matrix;
+    rns8_matrix* out_matrix = c_matrix;
+    rns8_matrix* final_output_matrix = c_matrix;
+    for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      status = run_rns_gemm_with_optional_b_cache(
+          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+      if (status != RNS8_SUCCESS) {
+        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+      }
+      final_output_matrix = out_matrix;
+      lhs_matrix = out_matrix;
+      out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
     }
+    latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
       collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
-    const auto export_start = std::chrono::steady_clock::now();
-    begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
-    if (collect_gpu_events) {
-      collect_export_gpu_events(args, selected_backend, result.gpu_events);
+    auto export_start = gemm_end;
+    auto export_end = gemm_end;
+    if (!chain_residue_output) {
+      export_start = std::chrono::steady_clock::now();
+      begin_gpu_event_phase(collect_gpu_events);
+      status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
+      if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
+      if (collect_gpu_events) {
+        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      export_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
@@ -2777,11 +2823,18 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
+  if (chain_residue_output) {
+    status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), args.n);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(final chain checksum)", status);
+  }
   result.checksum = checksum_i64(C);
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (scratch_matrix) {
+    rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -2824,6 +2877,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
@@ -2835,6 +2889,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (residue_current_output_mode(args)) {
+    status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -2871,6 +2929,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     result.prepack_setup_available = true;
   }
 
+  rns8_matrix* latest_output_matrix = c_matrix;
+  const bool chain_residue_output = residue_current_output_mode(args);
+
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
@@ -2892,26 +2953,39 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = run_rns_gemm_with_optional_b_cache(
-        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) {
-      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    rns8_matrix* lhs_matrix = a_matrix;
+    rns8_matrix* out_matrix = c_matrix;
+    rns8_matrix* final_output_matrix = c_matrix;
+    for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      status = run_rns_gemm_with_optional_b_cache(
+          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+      if (status != RNS8_SUCCESS) {
+        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+      }
+      final_output_matrix = out_matrix;
+      lhs_matrix = out_matrix;
+      out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
     }
+    latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
       collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
-    const auto export_start = std::chrono::steady_clock::now();
-    begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
-    if (collect_gpu_events) {
-      collect_export_gpu_events(args, selected_backend, result.gpu_events);
+    auto export_start = gemm_end;
+    auto export_end = gemm_end;
+    if (!chain_residue_output) {
+      export_start = std::chrono::steady_clock::now();
+      begin_gpu_event_phase(collect_gpu_events);
+      status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
+      if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
+      if (collect_gpu_events) {
+        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      export_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
@@ -2927,11 +3001,18 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
+  if (chain_residue_output) {
+    status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), args.n);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
+  }
   result.checksum = checksum_u64(C);
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (scratch_matrix) {
+    rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -4074,10 +4155,10 @@ void print_json(
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   if (chain_residue_output) {
-    std::cout << "  \"timing_note\": \"host wall-clock timings for an exact-wide residue-current RNS GEMM chain; "
+    std::cout << "  \"timing_note\": \"host wall-clock timings for a residue-current RNS GEMM chain; "
               << "each measured repeat runs " << args.residue_chain_length
-              << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, "
-                 "and one final fixed-width limb export runs after measured repeats only to produce checksum_u64\",\n";
+              << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and "
+                 "one final logical export runs after measured repeats only to produce checksum_u64\",\n";
   } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
@@ -4209,18 +4290,18 @@ void print_json(
   if (chain_residue_output) {
     if (args.reuse_packed_inputs) {
       if (reuses_all_packed_inputs(args)) {
-        std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent exact-wide RNS matrices before warmups\",\n";
+        std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before warmups\",\n";
       } else {
         std::cout << "      \"pack\": \"per-repeat host timing for packing " << per_repeat_pack_operand_text(args)
                   << "; " << prepack_reuse_operand_text(args)
-                  << " was packed once into a persistent exact-wide RNS matrix before warmups\",\n";
+                  << " was packed once into a persistent RNS matrix before warmups\",\n";
       }
     } else {
-      std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into exact-wide persistent RNS matrices\",\n";
+      std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
     }
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
               << " chained rns8_gemm_rns calls that keep the intermediate output resident in RNS form\",\n";
-    std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host limb export until one final checksum export after measured repeats\",\n";
+    std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host logical export until one final checksum export after measured repeats\",\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
@@ -4279,7 +4360,7 @@ void print_json(
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
   if (chain_residue_output) {
-    std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only limb export";
+    std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only logical export";
     if (args.reuse_packed_inputs) {
       std::cout << " and one-time prepack_setup_us";
     }
