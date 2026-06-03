@@ -85,7 +85,14 @@ set(RNS8_PUBLIC_HEADERS
 set(RNS8_SOURCES
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
-  src/core/api.cpp
+  src/core/api_backend_info.cpp
+  src/core/api_context.cpp
+  src/core/api_export.cpp
+  src/core/api_gemm.cpp
+  src/core/api_matrix_workspace.cpp
+  src/core/api_oneshot.cpp
+  src/core/api_pack.cpp
+  src/core/api_plan.cpp
   src/core/backend_common.cpp
   src/core/moduli.cpp
   src/core/status.cpp
