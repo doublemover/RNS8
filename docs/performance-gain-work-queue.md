@@ -34,9 +34,13 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
   the reviewed Windows `gfx1100` bounded-u64 leader at 64, 128, 512, and 1024.
   It is bounded-only and must not be generalized into exact-wide, finite, or
   wrap64 semantics.
-- Bounded i64 has reviewed Windows `gfx1100` winners split by shape:
+- Bounded i64 has prior reviewed Windows `gfx1100` winners split by shape:
   rocWMMA wins 512 with `rocwmma_i8_i32_signed_hot_residue_v1`; hipBLASLt wins
-  1024 with `hipblaslt_int8_i32_scratch_reduce_baseline_v1`.
+  1024 with `hipblaslt_int8_i32_scratch_reduce_baseline_v1`. The latest
+  post-fix 512/1024 validation snapshot in
+  [performance-wins.md](performance-wins.md) kept 512 on direct HIP and found a
+  narrow CK 1024 win, so rerun target shapes before installing durable cache
+  policy.
 - Adaptive bounded i64 at 1024 has a reviewed rocWMMA winner:
   `rocwmma_i8_i32_signed_tiled_hot_residue_v1`. Tiny adaptive cases and
   bounded-u64 adaptive cases remain blocked by vector/direct baselines.
@@ -52,7 +56,8 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
 - rocWMMA has a narrow runtime reusable B cache for non-tiled RNS plans with
   `K <= 65536`. hipBLASLt now has workspace-local repeated-A and repeated-B
   prepack caches for fixed-prefix single-K-block RNS work. Neither is a broad
-  production prepack cache.
+  production prepack cache. Current event-valid reuse wins and setup
+  break-even points are tracked in [performance-wins.md](performance-wins.md).
 
 ## FHE/Lattice Alignment Notes
 
