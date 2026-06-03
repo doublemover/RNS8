@@ -39,7 +39,9 @@ Implemented:
   Finite-ring calls accept moduli in `[2, 256]`; finite-field calls require
   prime moduli `<= 251`. These paths use explicit modulus arguments and
   prefix-zero finite storage, not the bounded CRT prefix ladder, exact-wide limb
-  export, or strict wrap64 byte-limb backend.
+  export, or strict wrap64 byte-limb backend. Direct HIP now reports and uses a
+  named byte-fold reducer for finite modulus 251; other finite moduli still use
+  the generic reciprocal reducer.
 - Default modulus ladder validation, prefix range-bit checks, composite and
   prime modulus tests, full 64-bit boundary tests, alternating-sign
   cancellation, and K-block splitting around 65536.
@@ -64,8 +66,8 @@ Not implemented yet:
 
 - Validated-fastest accelerator promotion, AMDGPU builtin hot kernels, and
   optimized GPU strict `mod 2^64` byte-GEMM kernels.
-- Optimized finite-field algorithms beyond the explicit-modulus
-  correctness-grade CPU/direct-HIP finite path.
+- Broader optimized finite-field algorithms beyond the direct-HIP modulus-251
+  reducer and the explicit-modulus correctness-grade CPU/direct-HIP finite path.
 - Reviewed production performance claims; current benchmark captures are raw
   evidence only until baselines and gates are established.
 

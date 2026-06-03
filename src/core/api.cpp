@@ -709,6 +709,9 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       return "direct_hip_wrap64_byte_gemm36_tiled_2d_v3";
     }
     if (uses_finite_storage(plan.desc.semantics)) {
+      if (plan.desc.finite_modulus == 251) {
+        return "direct_hip_tiled_finite_u8_gemm_mod251_v1";
+      }
       return "direct_hip_tiled_finite_u8_gemm_v1";
     }
     return "direct_hip_tiled_rns_gemm_v1";

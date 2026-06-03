@@ -1184,6 +1184,68 @@ TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP finite field 251 uses specialized reducer across K split") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP finite-field 251 smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr int64_t m = 3;
+  constexpr int64_t n = 2;
+  const int64_t k = static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) + 17;
+  constexpr int64_t lda = k + 3;
+  constexpr int64_t ldb = 5;
+  constexpr int64_t ldc = 4;
+  std::vector<uint8_t> A(static_cast<std::size_t>(m * lda), 0xa5);
+  std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0x5a);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] =
+          static_cast<uint8_t>((row * 97 + col * 53 + ((row + 3) ^ col) * 11) % 251);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] =
+          static_cast<uint8_t>((row * 47 + col * 89 + (row ^ (col + 7)) * 13) % 251);
+    }
+  }
+
+  auto cpu_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_CPU_REFERENCE, 251);
+  auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_HIP_DIRECT, 251);
+  rns8_plan* hip_plan = nullptr;
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  rns8_plan_backend_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(hip_plan, &info) == RNS8_SUCCESS);
+  CHECK(std::string(info.selected_kernel) == "direct_hip_tiled_finite_u8_gemm_mod251_v1");
+  CHECK(std::string(info.autotune_key).find("kernel=direct_hip_tiled_finite_u8_gemm_mod251_v1;") !=
+        std::string::npos);
+
+  std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
+  std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+              cpu, &cpu_desc, 251, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+              hip, &hip_desc, 251, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+            cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+    }
+    for (int64_t col = n; col < ldc; ++col) {
+      CHECK(cpu_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+      CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xcc);
+    }
+  }
+
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP finite u8 persistent path preserves K-split semantics") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP finite u8 persistent K-split smoke");

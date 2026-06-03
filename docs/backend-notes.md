@@ -555,8 +555,11 @@ prefix-zero residue plane and are stamped with the modulus used by
 matrix modulus state. Direct HIP persistent finite matrices own device-resident
 one-plane residues plus matrix-owned upload/export buffers, and the resident
 GEMM calls the inspectable tiled INT8xINT8->INT32 ring kernel with fused
-centered reciprocal reduction for the explicit modulus; HIP launch wrappers
-reject stale reciprocal metadata before queueing work. The one-shot direct HIP
-finite path is still available as a convenience surface but does not define a
-separate backend contract. Finite is not an odd-modulus CRT route, not
-exact-wide export, and not strict mod 2^64 wraparound.
+centered reduction for the explicit modulus. Modulus 251 uses a named
+direct-HIP byte-fold reducer (`direct_hip_tiled_finite_u8_gemm_mod251_v1`)
+because `256 == 5 (mod 251)`; other finite moduli remain on the generic
+reciprocal reducer. HIP launch wrappers reject stale reciprocal metadata before
+queueing work. The one-shot direct HIP finite path is still available as a
+convenience surface but does not define a separate backend contract. Finite is
+not an odd-modulus CRT route, not exact-wide export, and not strict mod 2^64
+wraparound.
