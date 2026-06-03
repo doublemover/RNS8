@@ -289,6 +289,17 @@ __device__ bool rns8_u192_unsigned_fits_limbs_device(rns8_u192_device value, int
   return value.limb2 == 0 && value.limb1 == 0;
 }
 
+template <int LimbCount>
+__device__ bool rns8_u192_unsigned_fits_fixed_limbs_device(rns8_u192_device value) {
+  if (LimbCount >= 3) {
+    return true;
+  }
+  if (LimbCount == 2) {
+    return value.limb2 == 0;
+  }
+  return value.limb2 == 0 && value.limb1 == 0;
+}
+
 __device__ bool rns8_u192_signed_positive_fits_limbs_device(rns8_u192_device value, int limb_count) {
   constexpr uint64_t sign_bit_limit = 0x7fffffffffffffffULL;
   if (limb_count >= 4) {
@@ -298,6 +309,21 @@ __device__ bool rns8_u192_signed_positive_fits_limbs_device(rns8_u192_device val
     return value.limb2 <= sign_bit_limit;
   }
   if (limb_count == 2) {
+    return value.limb2 == 0 && value.limb1 <= sign_bit_limit;
+  }
+  return value.limb2 == 0 && value.limb1 == 0 && value.limb0 <= sign_bit_limit;
+}
+
+template <int LimbCount>
+__device__ bool rns8_u192_signed_positive_fits_fixed_limbs_device(rns8_u192_device value) {
+  constexpr uint64_t sign_bit_limit = 0x7fffffffffffffffULL;
+  if (LimbCount >= 4) {
+    return true;
+  }
+  if (LimbCount == 3) {
+    return value.limb2 <= sign_bit_limit;
+  }
+  if (LimbCount == 2) {
     return value.limb2 == 0 && value.limb1 <= sign_bit_limit;
   }
   return value.limb2 == 0 && value.limb1 == 0 && value.limb0 <= sign_bit_limit;
@@ -329,8 +355,45 @@ __device__ bool rns8_u192_signed_negative_magnitude_fits_limbs_device(rns8_u192_
   return true;
 }
 
+template <int LimbCount>
+__device__ bool rns8_u192_signed_negative_magnitude_fits_fixed_limbs_device(rns8_u192_device magnitude) {
+  constexpr uint64_t sign_bit = 0x8000000000000000ULL;
+  if (LimbCount >= 4) {
+    return true;
+  }
+  constexpr int sign_limb = LimbCount - 1;
+#pragma unroll
+  for (int limb = LimbCount; limb < 3; ++limb) {
+    if (rns8_u192_limb_device(magnitude, limb) != 0) {
+      return false;
+    }
+  }
+  const uint64_t high = rns8_u192_limb_device(magnitude, sign_limb);
+  if (high < sign_bit) {
+    return true;
+  }
+  if (high > sign_bit) {
+    return false;
+  }
+#pragma unroll
+  for (int limb = 0; limb < sign_limb; ++limb) {
+    if (rns8_u192_limb_device(magnitude, limb) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 __device__ void rns8_store_u192_unsigned_limbs_device(uint64_t* dst, rns8_u192_device value, int limb_count) {
   for (int limb = 0; limb < limb_count; ++limb) {
+    dst[limb] = rns8_u192_limb_device(value, limb);
+  }
+}
+
+template <int LimbCount>
+__device__ void rns8_store_u192_unsigned_fixed_limbs_device(uint64_t* dst, rns8_u192_device value) {
+#pragma unroll
+  for (int limb = 0; limb < LimbCount; ++limb) {
     dst[limb] = rns8_u192_limb_device(value, limb);
   }
 }
@@ -341,6 +404,20 @@ __device__ void rns8_store_u192_negative_twos_complement_limbs_device(
     int limb_count) {
   uint64_t carry = 1;
   for (int limb = 0; limb < limb_count; ++limb) {
+    const uint64_t inverted = ~rns8_u192_limb_device(magnitude, limb);
+    const uint64_t value = inverted + carry;
+    carry = value < inverted ? 1 : 0;
+    dst[limb] = value;
+  }
+}
+
+template <int LimbCount>
+__device__ void rns8_store_u192_negative_twos_complement_fixed_limbs_device(
+    uint64_t* dst,
+    rns8_u192_device magnitude) {
+  uint64_t carry = 1;
+#pragma unroll
+  for (int limb = 0; limb < LimbCount; ++limb) {
     const uint64_t inverted = ~rns8_u192_limb_device(magnitude, limb);
     const uint64_t value = inverted + carry;
     carry = value < inverted ? 1 : 0;
@@ -1178,6 +1255,19 @@ __device__ void rns8_export_exact_wide_unsigned_limbs_device(
   rns8_store_u192_unsigned_limbs_device(dst + static_cast<int64_t>(cell) * limb_count, x, limb_count);
 }
 
+template <int LimbCount>
+__device__ void rns8_export_exact_wide_unsigned_fixed_limbs_device(
+    uint64_t* dst,
+    int cell,
+    rns8_u192_device x,
+    int* status) {
+  if (!rns8_u192_unsigned_fits_fixed_limbs_device<LimbCount>(x)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  rns8_store_u192_unsigned_fixed_limbs_device<LimbCount>(dst + static_cast<int64_t>(cell) * LimbCount, x);
+}
+
 __device__ void rns8_export_exact_wide_signed_limbs_device(
     uint64_t* dst,
     int cell,
@@ -1246,6 +1336,25 @@ __global__ void rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel(
   rns8_export_exact_wide_unsigned_limbs_device(dst, cell, x, limb_count, status);
 }
 
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+}
+
 __device__ void rns8_export_exact_wide_signed_limbs_device(
     uint64_t* dst,
     int cell,
@@ -1271,6 +1380,31 @@ __device__ void rns8_export_exact_wide_signed_limbs_device(
   rns8_store_u192_unsigned_limbs_device(cell_dst, x, limb_count);
 }
 
+template <int LimbCount>
+__device__ void rns8_export_exact_wide_signed_fixed_limbs_device(
+    uint64_t* dst,
+    int cell,
+    rns8_u192_device x,
+    rns8_u192_device product,
+    int* status) {
+  uint64_t* cell_dst = dst + static_cast<int64_t>(cell) * LimbCount;
+  if (rns8_u192_centered_is_negative_device(x, product)) {
+    const rns8_u192_device magnitude = rns8_u192_sub_device(product, x);
+    if (!rns8_u192_signed_negative_magnitude_fits_fixed_limbs_device<LimbCount>(magnitude)) {
+      atomicCAS(status, 0, 5);
+      return;
+    }
+    rns8_store_u192_negative_twos_complement_fixed_limbs_device<LimbCount>(cell_dst, magnitude);
+    return;
+  }
+
+  if (!rns8_u192_signed_positive_fits_fixed_limbs_device<LimbCount>(x)) {
+    atomicCAS(status, 0, 5);
+    return;
+  }
+  rns8_store_u192_unsigned_fixed_limbs_device<LimbCount>(cell_dst, x);
+}
+
 template <int Prefix>
 __global__ void rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel(
     const int8_t* residues,
@@ -1289,6 +1423,25 @@ __global__ void rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel(
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
   rns8_export_exact_wide_signed_limbs_device(dst, cell, x, product, limb_count, status);
+}
+
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
 }
 
 }  // namespace
@@ -2024,18 +2177,100 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
   if (prefix == kRns8MaxSupportedPrefix) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        limb_count,
-        d_status);
+    switch (limb_count) {
+      case 1:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 1>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 2:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 2>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 4:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 4>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 8:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 8>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 16:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 16>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 32:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 32>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      default:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            limb_count,
+            d_status);
+        break;
+    }
   } else {
     hipLaunchKernelGGL(
         rns8_export_exact_wide_unsigned_limbs_kernel,
@@ -2066,18 +2301,100 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
   if (prefix == kRns8MaxSupportedPrefix) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        limb_count,
-        d_status);
+    switch (limb_count) {
+      case 1:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 1>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 2:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 2>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 4:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 4>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 8:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 8>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 16:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 16>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 32:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 32>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      default:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            limb_count,
+            d_status);
+        break;
+    }
   } else {
     hipLaunchKernelGGL(
         rns8_export_exact_wide_signed_limbs_kernel,

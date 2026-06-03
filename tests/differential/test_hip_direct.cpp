@@ -4818,9 +4818,9 @@ TEST_CASE("direct HIP exact-wide signed export matches CPU fixed-width boundary 
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("direct HIP exact-wide signed sign extension matches CPU for limb widths") {
+TEST_CASE("direct HIP exact-wide fixed limb export widths match CPU") {
   if (!hip_available()) {
-    SKIP("no HIP device available for exact-wide signed limb-width smoke");
+    SKIP("no HIP device available for exact-wide fixed limb-width smoke");
   }
 
   rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
@@ -4840,7 +4840,7 @@ TEST_CASE("direct HIP exact-wide signed sign extension matches CPU for limb widt
   fill_exact_residue_matrix(hip_c, {boost::multiprecision::cpp_int(-1)});
   upload_exact_residues_to_hip(hip_c);
 
-  for (const uint32_t limb_count : {1u, 2u, 32u}) {
+  for (const uint32_t limb_count : {1u, 2u, 4u, 8u, 16u, 32u}) {
     std::vector<uint64_t> cpu_limbs(limb_count, 0);
     std::vector<uint64_t> hip_limbs(limb_count, 0);
     REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), 1, limb_count) ==
@@ -4857,6 +4857,40 @@ TEST_CASE("direct HIP exact-wide signed sign extension matches CPU for limb widt
   rns8_destroy_matrix(cpu_c);
   rns8_destroy_plan(hip_plan);
   rns8_destroy_plan(cpu_plan);
+
+  auto cpu_unsigned_desc = exact_unsigned_desc(1, 1, 1, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_unsigned_desc = exact_unsigned_desc(1, 1, 1, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* cpu_unsigned_plan = nullptr;
+  rns8_plan* hip_unsigned_plan = nullptr;
+  rns8_matrix* cpu_unsigned_c = nullptr;
+  rns8_matrix* hip_unsigned_c = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &cpu_unsigned_desc, &cpu_unsigned_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_unsigned_desc, &hip_unsigned_plan) == RNS8_SUCCESS);
+  auto unsigned_c_desc = matrix_desc(1, 1, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE);
+  REQUIRE(rns8_create_matrix(cpu, &unsigned_c_desc, &cpu_unsigned_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &unsigned_c_desc, &hip_unsigned_c) == RNS8_SUCCESS);
+  fill_exact_residue_matrix(cpu_unsigned_c, {boost::multiprecision::cpp_int(1)});
+  fill_exact_residue_matrix(hip_unsigned_c, {boost::multiprecision::cpp_int(1)});
+  upload_exact_residues_to_hip(hip_unsigned_c);
+
+  for (const uint32_t limb_count : {1u, 2u, 4u, 8u, 16u, 32u}) {
+    std::vector<uint64_t> cpu_limbs(limb_count, 0x4444444444444444ull);
+    std::vector<uint64_t> hip_limbs(limb_count, 0x5555555555555555ull);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(
+                cpu, cpu_unsigned_plan, cpu_unsigned_c, cpu_limbs.data(), 1, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(
+                hip, hip_unsigned_plan, hip_unsigned_c, hip_limbs.data(), 1, limb_count) == RNS8_SUCCESS);
+    CHECK(hip_limbs == cpu_limbs);
+    CHECK(hip_limbs[0] == 1);
+    for (uint32_t limb = 1; limb < limb_count; ++limb) {
+      CHECK(hip_limbs[limb] == 0);
+    }
+  }
+
+  rns8_destroy_matrix(hip_unsigned_c);
+  rns8_destroy_matrix(cpu_unsigned_c);
+  rns8_destroy_plan(hip_unsigned_plan);
+  rns8_destroy_plan(cpu_unsigned_plan);
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
