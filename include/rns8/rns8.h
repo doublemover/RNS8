@@ -222,6 +222,35 @@ typedef struct rns8_matrix_storage_info {
   char detail[256];
 } rns8_matrix_storage_info;
 
+typedef enum rns8_operand_role {
+  RNS8_OPERAND_A = 1,
+  RNS8_OPERAND_B = 2
+} rns8_operand_role;
+
+typedef struct rns8_prepack_cache_key_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_operand_role operand_role;
+  uint32_t cache_key_valid;
+  uint32_t reusable_prepack_cache_available;
+  uint32_t production_prepack_cache_available;
+  uint32_t flags;
+  int64_t matrix_rows;
+  int64_t matrix_cols;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t source_version;
+  uint64_t plan_fingerprint;
+  uint64_t cache_key_hash;
+  char matrix_layout_version[96];
+  char operand_layout_version[96];
+  char cache_scope[96];
+  char cache_key[512];
+  char detail[256];
+} rns8_prepack_cache_key_info;
+
 /*
  * Public ABI hard-cut status precedence: invalid struct size/version, reserved
  * flags, unknown semantics/bound/layout enum values, or malformed semantic
@@ -298,6 +327,19 @@ RNS8_API rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
 RNS8_API rns8_status rns8_get_matrix_storage_info(
     const rns8_matrix* matrix,
     rns8_matrix_storage_info* out);
+
+/*
+ * Validate and report deterministic key material for a future reusable prepack
+ * cache entry. This does not create a cache or report production cache
+ * availability; it rejects incompatible plan, operand role, matrix shape,
+ * storage layout, finite-modulus, backend, or currentness before returning a
+ * key.
+ */
+RNS8_API rns8_status rns8_get_prepack_cache_key_info(
+    const rns8_plan* plan,
+    const rns8_matrix* matrix,
+    rns8_operand_role operand_role,
+    rns8_prepack_cache_key_info* out);
 
 RNS8_API rns8_status rns8_pack_i64(
     rns8_context* ctx,

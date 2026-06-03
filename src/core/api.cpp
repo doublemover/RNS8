@@ -1560,6 +1560,155 @@ bool wrap_byte_limb_state_current_for_backend(const rns8_matrix& matrix, rns8_ba
   return matrix.host_byte_limbs_current && !matrix.device_byte_limbs_current;
 }
 
+bool valid_prepack_operand_role(rns8_operand_role operand_role) {
+  return operand_role == RNS8_OPERAND_A || operand_role == RNS8_OPERAND_B;
+}
+
+const char* operand_role_name(rns8_operand_role operand_role) {
+  switch (operand_role) {
+    case RNS8_OPERAND_A:
+      return "A";
+    case RNS8_OPERAND_B:
+      return "B";
+  }
+  return "unknown";
+}
+
+bool prepack_operand_shape_for_plan(
+    const rns8_plan& plan,
+    rns8_operand_role operand_role,
+    int64_t& rows,
+    int64_t& cols) {
+  if (operand_role == RNS8_OPERAND_A) {
+    rows = plan.desc.m;
+    cols = plan.desc.k;
+    return true;
+  }
+  if (operand_role == RNS8_OPERAND_B) {
+    rows = plan.desc.k;
+    cols = plan.desc.n;
+    return true;
+  }
+  rows = 0;
+  cols = 0;
+  return false;
+}
+
+bool matrix_backend_can_feed_plan(const rns8_matrix& matrix, const rns8_plan& plan) {
+  if (matrix.backend == plan.backend) {
+    return true;
+  }
+  return matrix.backend == RNS8_BACKEND_HIP_DIRECT && hip_resident_rns_backend(plan.backend);
+}
+
+const char* prepack_operand_layout_version_for_plan(const rns8_plan& plan, rns8_operand_role operand_role) {
+  if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
+    return operand_role == RNS8_OPERAND_A ? "hipblaslt_a_transposed_centered_i8_mk16_v1"
+                                          : "hipblaslt_b_transposed_centered_i8_nk16_v1";
+  }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    return operand_role == RNS8_OPERAND_A ? "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1"
+                                          : "ck_b_canonical_colmajor_i8_n64_kblock32768_v1";
+  }
+  if (plan.backend == RNS8_BACKEND_WMMA) {
+    return operand_role == RNS8_OPERAND_A ? "rocwmma_a_rowmajor_i8_m16_kblock65536_v1"
+                                          : "rocwmma_b_colmajor_i8_n16_kblock65536_v1";
+  }
+  return persistent_layout_version_for_plan(plan);
+}
+
+bool prepack_operand_matrix_compatible(
+    const rns8_plan& plan,
+    const rns8_matrix& matrix,
+    rns8_operand_role operand_role) {
+  if (!valid_prepack_operand_role(operand_role) || !plan_schedule_contract_matches(plan) ||
+      !matrix_backend_can_feed_plan(matrix, plan)) {
+    return false;
+  }
+  int64_t rows = 0;
+  int64_t cols = 0;
+  if (!prepack_operand_shape_for_plan(plan, operand_role, rows, cols)) {
+    return false;
+  }
+  if (!matrix_descriptor_matches(
+          matrix,
+          plan.desc.semantics,
+          plan.desc.bound_kind,
+          rows,
+          cols,
+          plan.prefix,
+          plan.desc.tile_m,
+          plan.desc.tile_n)) {
+    return false;
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return wrap_matrix_storage_matches(matrix, plan.backend, rows, cols) &&
+           wrap_byte_limb_state_current_for_backend(matrix, plan.backend);
+  }
+  if (uses_finite_storage(plan.desc.semantics)) {
+    return finite_matrix_storage_matches(matrix, plan.backend, rows, cols) &&
+           matrix.finite_modulus == plan.desc.finite_modulus &&
+           rns_residue_state_current_for_backend(matrix, plan.backend);
+  }
+  return rns_matrix_storage_matches(matrix, plan.backend, rows, cols, plan.prefix) &&
+         rns_residue_state_current_for_backend(matrix, plan.backend);
+}
+
+uint64_t prepack_cache_key_hash(
+    const rns8_plan& plan,
+    const rns8_matrix& matrix,
+    rns8_operand_role operand_role,
+    const std::string& matrix_layout_version,
+    const std::string& operand_layout_version) {
+  uint64_t hash = plan_workspace_fingerprint(plan);
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(operand_role));
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(matrix.backend));
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(matrix.desc.semantics));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(matrix.desc.rows));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(matrix.desc.cols));
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(matrix.desc.logical_ld));
+  hash = workspace_fingerprint_mix(hash, matrix.prefix);
+  hash = workspace_fingerprint_mix(hash, matrix.finite_modulus);
+  hash = workspace_fingerprint_mix(hash, matrix.source_version);
+  hash = workspace_fingerprint_mix(hash, matrix.host_residues_current ? 1u : 0u);
+  hash = workspace_fingerprint_mix(hash, matrix.device_residues_current ? 1u : 0u);
+  hash = workspace_fingerprint_mix(hash, matrix.host_byte_limbs_current ? 1u : 0u);
+  hash = workspace_fingerprint_mix(hash, matrix.device_byte_limbs_current ? 1u : 0u);
+  hash = workspace_fingerprint_mix_string(hash, matrix_layout_version);
+  hash = workspace_fingerprint_mix_string(hash, operand_layout_version);
+  return hash == 0 ? 1 : hash;
+}
+
+std::string build_prepack_cache_key(
+    const rns8_plan& plan,
+    const rns8_matrix& matrix,
+    rns8_operand_role operand_role,
+    uint64_t plan_fingerprint,
+    uint64_t cache_key_hash,
+    const std::string& matrix_layout_version,
+    const std::string& operand_layout_version) {
+  std::string key = "prepack-v1";
+  key += ";backend=";
+  key += backend_name(plan.backend);
+  key += ";semantics=";
+  key += semantics_name_for_key(plan.desc.semantics);
+  key += ";operand=";
+  key += operand_role_name(operand_role);
+  key += ";m=" + std::to_string(plan.desc.m);
+  key += ";n=" + std::to_string(plan.desc.n);
+  key += ";k=" + std::to_string(plan.desc.k);
+  key += ";matrix_rows=" + std::to_string(matrix.desc.rows);
+  key += ";matrix_cols=" + std::to_string(matrix.desc.cols);
+  key += ";prefix=" + std::to_string(matrix.prefix);
+  key += ";finite_modulus=" + std::to_string(matrix.finite_modulus);
+  key += ";source_version=" + std::to_string(matrix.source_version);
+  key += ";matrix_layout=" + matrix_layout_version;
+  key += ";operand_layout=" + operand_layout_version;
+  key += ";plan_fingerprint=" + std::to_string(plan_fingerprint);
+  key += ";hash=" + std::to_string(cache_key_hash);
+  return key;
+}
+
 rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
@@ -2829,6 +2978,67 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
     set_text(out->layout_version, sizeof(out->layout_version), persistent_layout_version_for_semantics(matrix->desc.semantics));
     set_text(out->storage_scope, sizeof(out->storage_scope), storage_scope_for_matrix(*matrix));
     set_text(out->detail, sizeof(out->detail), storage_detail_for_matrix(*matrix));
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_get_prepack_cache_key_info(
+    const rns8_plan* plan,
+    const rns8_matrix* matrix,
+    rns8_operand_role operand_role,
+    rns8_prepack_cache_key_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!plan || !matrix || !out) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!prepack_operand_matrix_compatible(*plan, *matrix, operand_role)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    const uint64_t struct_size = out->struct_size;
+    const uint32_t abi_version = out->abi_version;
+    const std::string matrix_layout_version = persistent_layout_version_for_semantics(matrix->desc.semantics);
+    const std::string operand_layout_version = prepack_operand_layout_version_for_plan(*plan, operand_role);
+    const uint64_t plan_fingerprint = plan_workspace_fingerprint(*plan);
+    const uint64_t cache_key_hash =
+        prepack_cache_key_hash(*plan, *matrix, operand_role, matrix_layout_version, operand_layout_version);
+    const std::string cache_key = build_prepack_cache_key(
+        *plan,
+        *matrix,
+        operand_role,
+        plan_fingerprint,
+        cache_key_hash,
+        matrix_layout_version,
+        operand_layout_version);
+
+    *out = {};
+    out->struct_size = struct_size;
+    out->abi_version = abi_version;
+    out->backend = plan->backend;
+    out->semantics = plan->desc.semantics;
+    out->operand_role = operand_role;
+    out->cache_key_valid = 1;
+    out->reusable_prepack_cache_available = 0;
+    out->production_prepack_cache_available = 0;
+    out->flags = 0;
+    out->matrix_rows = matrix->desc.rows;
+    out->matrix_cols = matrix->desc.cols;
+    out->max_prefix = matrix->prefix;
+    out->finite_modulus = matrix->finite_modulus;
+    out->source_version = matrix->source_version;
+    out->plan_fingerprint = plan_fingerprint;
+    out->cache_key_hash = cache_key_hash;
+    set_text(out->matrix_layout_version, sizeof(out->matrix_layout_version), matrix_layout_version);
+    set_text(out->operand_layout_version, sizeof(out->operand_layout_version), operand_layout_version);
+    set_text(out->cache_scope, sizeof(out->cache_scope), "validated_key_no_production_cache");
+    set_text(out->cache_key, sizeof(out->cache_key), cache_key);
+    set_text(
+        out->detail,
+        sizeof(out->detail),
+        "Plan and operand matrix are compatible for future prepack cache keying; no production cache is available.");
     return RNS8_SUCCESS;
   });
 }

@@ -300,7 +300,11 @@ cache exists. Matrix handles expose the matching resident storage state through
 `rns8_get_matrix_storage_info` and `rns8::Matrix::storage_info()`: source
 version, finite modulus, host/device currentness, byte counts, and persistent
 layout version. Future prepack caches must key or reject against both the plan
-packing contract and this matrix storage state.
+packing contract and this matrix storage state. `rns8_get_prepack_cache_key_info`
+and `rns8::prepack_cache_key_info()` validate a plan plus A/B operand matrix
+before emitting deterministic key material; they reject role, shape, layout,
+backend, currentness, source-version, and finite-modulus mismatches and still
+report no production cache availability.
 
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. Exact-wide
@@ -517,7 +521,9 @@ work still remains roadmap work. `rns8_get_plan_packing_info` now exposes the
 current plan-specific transient pack workspace layout and byte contract so that
 future cache tooling can reject layout/cache mismatches instead of inferring
 them from backend names; `rns8_get_matrix_storage_info` exposes the matrix
-source version and resident currentness needed for source-version invalidation.
+source version and resident currentness needed for source-version invalidation,
+and `rns8_get_prepack_cache_key_info` validates concrete plan/operand key
+material before any future cache can be reused.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP
