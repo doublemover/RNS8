@@ -17,6 +17,7 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
+BOUNDED_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
@@ -154,7 +155,10 @@ def median_phase(capture: dict[str, Any], phase: str) -> float | None:
 def backend_id(capture: dict[str, Any]) -> str:
     if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
         return WRAP64_ROCWMMA_CANDIDATE_BACKEND
-    return str(capture.get("backend_selected"))
+    backend = str(capture.get("backend_selected"))
+    if capture_execution_mode(capture) == "public_oneshot_transient_native_inputs":
+        return f"{backend}-oneshot"
+    return backend
 
 
 def selected_kernel(capture: dict[str, Any]) -> str:
@@ -207,6 +211,19 @@ def capture_backend_metadata(capture: dict[str, Any]) -> dict[str, Any]:
 def capture_timing_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     metadata = capture.get("timing_metadata")
     return metadata if isinstance(metadata, dict) else {}
+
+
+def capture_execution_mode(capture: dict[str, Any]) -> str:
+    mode = capture.get("benchmark_execution_mode")
+    if not isinstance(mode, str):
+        mode = capture_timing_metadata(capture).get("benchmark_execution_mode")
+    if isinstance(mode, str):
+        return mode
+    if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
+        return "internal_wrap64_rocwmma_candidate"
+    if capture.get("benchmark") == "rns8_bounded_gemm_public_oneshot":
+        return "public_oneshot_transient_native_inputs"
+    return "persistent_resident_matrices"
 
 
 def capture_pack_mode(capture: dict[str, Any]) -> str:
@@ -292,6 +309,8 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "compiler": {"id": compiler.get("id"), "version": compiler.get("version")},
         "configured_amdgpu_targets": capture.get("configured_amdgpu_targets"),
         "git_commit": capture.get("git_commit"),
+        "benchmark": capture.get("benchmark"),
+        "benchmark_execution_mode": capture_execution_mode(capture),
         "seed": capture.get("seed"),
         "warmups": capture.get("warmups"),
         "repeats": capture.get("repeats"),
@@ -378,6 +397,7 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
         "warmups": sorted({int(item.get("warmups")) for item in items if isinstance(item.get("warmups"), int)}),
         "repeats": sorted({int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}),
         "reuse_packed_inputs": sorted({bool(item.get("reuse_packed_inputs") is True) for item in items}),
+        "benchmark_execution_modes": sorted({capture_execution_mode(item) for item in items}),
         "pack_modes": sorted({capture_pack_mode(item) for item in items}),
         "prepack_reuse_strategies": sorted({capture_prepack_reuse_strategy(item) for item in items}),
         "prepack_reuse_operands": sorted({"/".join(capture_prepack_reuse_operands(item)) or "none" for item in items}),
@@ -533,6 +553,7 @@ def promotion_blockers(
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
+    oneshot_capture: bool,
     end_to_end: float | None,
     direct: float | None,
     vector: float | None,
@@ -586,6 +607,8 @@ def promotion_blockers(
         blockers.append("internal_candidate_not_public_backend")
     if prepacked_reuse:
         blockers.append("prepacked_reuse_not_autotune_promotable")
+    if oneshot_capture:
+        blockers.append("oneshot_api_capture_not_autotune_promotable")
     if end_to_end is None:
         blockers.append("missing_end_to_end_timing")
     if direct is None:
@@ -724,6 +747,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
             internal_candidate = backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
+            oneshot_capture = capture_execution_mode(item) == "public_oneshot_transient_native_inputs"
             end_to_end = median_phase(item, "end_to_end")
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
@@ -753,6 +777,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
+                oneshot_capture=oneshot_capture,
                 end_to_end=end_to_end,
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
@@ -1107,6 +1132,7 @@ def capture_name(
     pack_mode: str,
     exact_wide_limb_count: int | None = None,
     residue_chain_length: int = 1,
+    oneshot: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
@@ -1115,6 +1141,8 @@ def capture_name(
         parts.append(f"limbs{exact_wide_limb_count}")
     if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
+    if oneshot:
+        parts.append("oneshot")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
     elif pack_mode == "prepacked_reuse_a":
@@ -1133,6 +1161,8 @@ def command_for(
     modulus: int | None,
     exact_wide_limb_count: int | None,
     args: argparse.Namespace,
+    *,
+    oneshot: bool = False,
 ) -> list[str]:
     tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_m
     tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_n
@@ -1171,6 +1201,8 @@ def command_for(
         command.extend(["--exact-wide-limbs", str(exact_wide_limb_count)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
+    if oneshot:
+        command.append("--oneshot")
     pack_mode = requested_pack_mode(args)
     if pack_mode == "prepacked_reuse":
         command.append("--reuse-packed-inputs")
@@ -1200,6 +1232,15 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         non_rns_chain = [semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS]
         if non_rns_chain:
             raise SystemExit("--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics")
+    include_oneshot = bool(getattr(args, "include_oneshot", False))
+    oneshot_only = bool(getattr(args, "oneshot_only", False))
+    if include_oneshot or oneshot_only:
+        if args.adaptive_only:
+            raise SystemExit("--include-oneshot cannot be combined with --adaptive-only")
+        if requested_pack_mode(args) != "per_repeat_repack":
+            raise SystemExit("--include-oneshot cannot be combined with packed-input reuse modes")
+        if args.residue_chain_length > 1:
+            raise SystemExit("--include-oneshot cannot be combined with --residue-chain-length > 1")
     for semantics in semantics_values:
         if semantics == "wrap-u64":
             if args.adaptive_only:
@@ -1217,29 +1258,61 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
             )
             for modulus in finite_moduli_for(semantics, args):
                 for exact_wide_limb_count in exact_wide_limb_counts_for(semantics, args):
-                    for backend in backends:
-                        if not backend_allowed_for(semantics, case, backend):
-                            continue
-                        if (
-                            args.residue_chain_length > 1
-                            and semantics in BOUNDED_SEMANTICS
-                            and backend in {"auto", "hip-vector-alu-int64"}
-                        ):
-                            continue
-                        bench = backend_benches.get(backend, args.bench)
-                        if bench is None:
-                            raise SystemExit(f"no benchmark executable configured for backend {backend}")
-                        name = capture_name(
-                            semantics,
-                            case,
-                            backend,
-                            modulus,
-                            requested_pack_mode(args),
-                            exact_wide_limb_count,
-                            args.residue_chain_length,
-                        )
-                        command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
-                        commands.append((name, command, args.out_root / name))
+                    if not oneshot_only:
+                        for backend in backends:
+                            if not backend_allowed_for(semantics, case, backend):
+                                continue
+                            if (
+                                args.residue_chain_length > 1
+                                and semantics in BOUNDED_SEMANTICS
+                                and backend in {"auto", "hip-vector-alu-int64"}
+                            ):
+                                continue
+                            bench = backend_benches.get(backend, args.bench)
+                            if bench is None:
+                                raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                            name = capture_name(
+                                semantics,
+                                case,
+                                backend,
+                                modulus,
+                                requested_pack_mode(args),
+                                exact_wide_limb_count,
+                                args.residue_chain_length,
+                            )
+                            command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
+                            commands.append((name, command, args.out_root / name))
+                    if (include_oneshot or oneshot_only) and semantics in BOUNDED_SEMANTICS and case.bound_mode == "global":
+                        oneshot_backends = [
+                            backend
+                            for backend in (args.backends or BOUNDED_ONESHOT_BACKENDS)
+                            if backend in BOUNDED_ONESHOT_BACKENDS
+                        ]
+                        for backend in oneshot_backends:
+                            bench = backend_benches.get(backend, args.bench)
+                            if bench is None:
+                                raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                            name = capture_name(
+                                semantics,
+                                case,
+                                backend,
+                                modulus,
+                                requested_pack_mode(args),
+                                exact_wide_limb_count,
+                                args.residue_chain_length,
+                                oneshot=True,
+                            )
+                            command = command_for(
+                                bench,
+                                backend,
+                                semantics,
+                                case,
+                                modulus,
+                                exact_wide_limb_count,
+                                args,
+                                oneshot=True,
+                            )
+                            commands.append((name, command, args.out_root / name))
     return commands
 
 
@@ -1400,6 +1473,16 @@ def parse_args() -> argparse.Namespace:
         "--reuse-packed-b",
         action="store_true",
         help="pack B once before warmups and benchmark repeats that repack A",
+    )
+    parser.add_argument(
+        "--include-oneshot",
+        action="store_true",
+        help="also capture bounded CPU/direct-HIP public one-shot API runs beside persistent matrix baselines",
+    )
+    parser.add_argument(
+        "--oneshot-only",
+        action="store_true",
+        help="capture only bounded CPU/direct-HIP public one-shot API runs for the selected global cases",
     )
     parser.add_argument("--release-matrix", action="store_true", help="use promotable release bounded shapes 64..1024")
     parser.add_argument("--include-exploratory-large", action="store_true", help="include 2048/4096/8192 exploratory shapes")
