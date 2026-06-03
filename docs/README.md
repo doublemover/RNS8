@@ -20,6 +20,8 @@ Start here when evaluating the repository.
   accelerator enablement policy, and AUTO selection boundaries.
 - [performance-wins.md](performance-wins.md): current Windows `gfx1100`
   winning improvements, compact speedup tables, and promotion boundaries.
+- [reviewed-local-evidence.md](reviewed-local-evidence.md): durable summaries
+  of reviewed local benchmark claims and reproduction command families.
 - [performance-model.md](performance-model.md): benchmark schema, review
   requirements, release evidence summaries, and performance-promotion policy.
 - [platform-windows.md](platform-windows.md): Windows HIP SDK setup and local

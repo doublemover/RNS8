@@ -14,15 +14,17 @@ Scope:
   timing for GPU captures.
 - Boundary: Windows `gfx1100` evidence does not imply Linux ROCm, Linux Radeon,
   Instinct, multi-GPU, or production profiling readiness.
-- Storage: raw captures remain under ignored `temp/` paths. No durable
-  autotune cache is installed by this document.
+- Durable evidence: [reviewed-local-evidence.md](reviewed-local-evidence.md)
+  records the curated platform, command family, seed, shape, backend, result,
+  review status, caveat, and reproduction command families. Raw captures stay
+  ignored and are not durable docs.
 
 ## Current One-Shot Winners
 
 The latest post-fix bounded-i64 validation pass covered 512 and 1024 after the
 vector event-capture and hipBLASLt full A+B event fixes. It used seed
-`20260603` and wrote reviewed evidence under
-`temp\vector-hipblaslt-event-fix\release-review\`.
+`20260603`; the durable summary lives in
+[reviewed-local-evidence.md](reviewed-local-evidence.md).
 
 | Shape | Current winner | Winner median end-to-end | Direct HIP median | Vector ALU median | Speedup | Decision |
 |---:|---|---:|---:|---:|---:|---|
@@ -93,13 +95,7 @@ missing telemetry.
 - Keep experimental: hipBLASLt, vector ALU, and rocWMMA reuse/prepack wins.
   They are correct and event-visible, but they compare different reuse
   contracts and need workload-level promotion policy before AUTO selection.
+  The mechanism split is summarized in
+  [reviewed-local-evidence.md](reviewed-local-evidence.md).
 - Deprioritize for now: vector 1024 repeated-A/full-reuse and rocWMMA 1024
   repeated-B, which regressed in the latest reuse comparisons.
-
-Evidence paths:
-
-- `temp\vector-hipblaslt-event-fix\release-review\review_report.json`
-- `temp\vector-hipblaslt-event-fix\reuse-release-review\reuse-packed-a\review_report.json`
-- `temp\vector-hipblaslt-event-fix\reuse-release-review\reuse-packed-b\review_report.json`
-- `temp\vector-hipblaslt-event-fix\reuse-release-review\reuse-packed-inputs\review_report.json`
-- `temp\vector-hipblaslt-event-fix\reuse-release-review\comparisons\`

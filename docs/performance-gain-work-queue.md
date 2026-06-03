@@ -1096,26 +1096,24 @@ single-K-block RNS work. `production_prepack_cache_available` remains `0`.
 Details: the first hipBLASLt 1024 slice removes repeated heuristic selection
 from identical hot dispatches by caching the selected matmul algorithm in
 process-local memory keyed by device, padded shape, scratch leading dimension,
-and workspace size. Windows `gfx1100` smoke captures in
-`temp\benchmark-sweeps\heuristic-cache` improved the saved 1024 bounded-i64
-sample from 26.6 ms end-to-end / 12.4 ms host RNS GEMM to 14.6 ms then 12.8 ms
-end-to-end / 6.3 ms then 5.6 ms host RNS GEMM, but those are five-repeat smoke
-captures with visible component-timing noise, not promotion-grade evidence.
+and workspace size. Windows `gfx1100` smoke captures improved the saved 1024
+bounded-i64 sample from 26.6 ms end-to-end / 12.4 ms host RNS GEMM to 14.6 ms
+then 12.8 ms end-to-end / 6.3 ms then 5.6 ms host RNS GEMM, but those are
+five-repeat smoke captures with visible component-timing noise, not
+promotion-grade evidence.
 The next hipBLASLt repeated-B slice adds a workspace-local B prepack cache for
 single-K-block fixed-prefix RNS GEMM. On Windows `gfx1100`, 1024 bounded-i64
-release repeated-B captures in `temp\benchmark-sweeps\hipblaslt-b-prepack`
-reported host RNS GEMM at 5.1 ms and 4.7 ms with B reuse, while the paired
-repeated-A run was 9.2 ms. The hipBLASLt transpose-pack event dropped to
-0.35-0.38 ms for repeated-B versus 2.1 ms for repeated-A. This is still
-workspace-local repeated-workload evidence, not a durable production cache or
-full 64/128/512/1024/2048 promotion sweep.
+release repeated-B captures reported host RNS GEMM at 5.1 ms and 4.7 ms with B
+reuse, while the paired repeated-A run was 9.2 ms. The hipBLASLt transpose-pack
+event dropped to 0.35-0.38 ms for repeated-B versus 2.1 ms for repeated-A.
+This is still workspace-local repeated-workload evidence, not a durable
+production cache or full 64/128/512/1024/2048 promotion sweep.
 A matching A-cache slice now caches stable repeated-A operands in the same
 workspace-local style. On Windows `gfx1100`, 1024 bounded-i64 repeated-A
-captures in `temp\benchmark-sweeps\hipblaslt-a-prepack` reported host RNS GEMM
-at 6.6 ms and 7.5 ms versus the earlier 9.2 ms paired repeated-A capture; a
-repeated-A/B capture reported 5.0 ms host RNS GEMM with zero per-repeat pack
-phase. These are repeated-workload tuning captures, not production-cache
-promotion evidence.
+captures reported host RNS GEMM at 6.6 ms and 7.5 ms versus the earlier 9.2 ms
+paired repeated-A capture; a repeated-A/B capture reported 5.0 ms host RNS GEMM
+with zero per-repeat pack phase. These are repeated-workload tuning captures,
+not production-cache promotion evidence.
 
 Technical direction:
 
