@@ -287,11 +287,12 @@ public backend with reviewed release evidence. Current private correctness
 coverage checks single-cell K tails, exact 16x16x16 tiles, padded carry-heavy
 tails, ragged two-tile output, and the `k=32768` accepted / `k=32769` rejected
 candidate boundary against direct HIP and the CPU byte-pair oracle. It also
-checks a release-shaped 64x64x64 full-output differential against direct HIP
-and the CPU byte-pair oracle. The benchmark smoke additionally validates
-same-seed 64x64x64 CPU byte-limb, direct-HIP, and rocWMMA-candidate captures
-through matching `checksum_u64` values; this is release-shape smoke evidence,
-not reviewed release promotion or larger-shape output comparison.
+checks release-shaped 64x64x64 and 128x128x128 full-output differentials
+against direct HIP and the CPU byte-pair oracle. The benchmark smoke
+additionally validates same-seed 64x64x64 CPU byte-limb, direct-HIP, and
+rocWMMA-candidate captures through matching `checksum_u64` values; this is
+release-shape smoke evidence, not reviewed release promotion or 512/1024 output
+comparison.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
