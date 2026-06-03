@@ -179,6 +179,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
     capture["finite_modulus"] = None
     capture["tile_bounds_u64"] = None
     capture["epilogue_type"] = "exact_wide_signed_limb_export"
+    capture["exact_wide_limb_count"] = benchmark_sweep.DEFAULT_EXACT_WIDE_LIMB_COUNT
     capture["input_distribution"] = "signed_uniform_-16_16"
     capture["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -361,6 +362,8 @@ def main() -> int:
         adaptive_case=None,
         shapes=None,
         modulus=None,
+        exact_wide_limbs=None,
+        include_exact_wide_limb_variants=False,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -426,6 +429,8 @@ def main() -> int:
         adaptive_case=None,
         shapes=None,
         modulus=None,
+        exact_wide_limbs=None,
+        include_exact_wide_limb_variants=False,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -450,6 +455,23 @@ def main() -> int:
         "exact-wide-signed-small-16x16x16-hip-direct.json",
     ]
     assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
+    assert all("--exact-wide-limbs" in command and "4" in command for _name, command, _output in exact_commands)
+
+    exact_variant_args = copy.copy(exact_args)
+    exact_variant_args.backends = ["cpu"]
+    exact_variant_args.include_exact_wide_limb_variants = True
+    exact_variant_commands = benchmark_sweep.sweep_commands(exact_variant_args)
+    assert len(exact_variant_commands) == len(benchmark_sweep.EXACT_WIDE_LIMB_VARIANTS)
+    assert [name for name, _command, _output in exact_variant_commands] == [
+        "exact-wide-signed-small-16x16x16-limbs1-cpu.json",
+        "exact-wide-signed-small-16x16x16-limbs2-cpu.json",
+        "exact-wide-signed-small-16x16x16-cpu.json",
+        "exact-wide-signed-small-16x16x16-limbs8-cpu.json",
+        "exact-wide-signed-small-16x16x16-limbs16-cpu.json",
+        "exact-wide-signed-small-16x16x16-limbs32-cpu.json",
+    ]
+    assert exact_variant_commands[0][1][exact_variant_commands[0][1].index("--exact-wide-limbs") + 1] == "1"
+    assert exact_variant_commands[-1][1][exact_variant_commands[-1][1].index("--exact-wide-limbs") + 1] == "32"
 
     vector_args = copy.copy(exact_args)
     vector_args.out_root = Path("temp") / "vector-runtime"
@@ -471,6 +493,8 @@ def main() -> int:
         adaptive_case=None,
         shapes=None,
         modulus=None,
+        exact_wide_limbs=None,
+        include_exact_wide_limb_variants=False,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -505,6 +529,8 @@ def main() -> int:
         adaptive_case=None,
         shapes=None,
         modulus=None,
+        exact_wide_limbs=None,
+        include_exact_wide_limb_variants=False,
         include_default_adaptive=True,
         include_adaptive_workloads=False,
         adaptive_only=True,

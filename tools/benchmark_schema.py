@@ -986,6 +986,9 @@ class _Validator:
                 self._error(f"exact-wide captures must use {expected_epilogue_type} epilogue")
             if self.data.get("finite_modulus") is not None:
                 self._error("exact-wide captures must use finite_modulus=null")
+            limb_count = self.data.get("exact_wide_limb_count")
+            if not _is_int(limb_count) or limb_count < 1 or limb_count > 32:
+                self._error("exact-wide captures must use exact_wide_limb_count in [1, 32]")
             if isinstance(schedule, dict) and _is_int(prefix):
                 if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                     self._error("exact-wide captures must use fixed selected schedule prefix equal to prefix")

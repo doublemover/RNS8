@@ -54,7 +54,7 @@
 namespace {
 
 constexpr uint32_t kBenchmarkSchemaVersion = 4;
-constexpr uint32_t kExactWideBenchmarkLimbCount = 4;
+constexpr uint32_t kDefaultExactWideBenchmarkLimbCount = 4;
 constexpr uint32_t kWrap64WmmaCandidateTile = 16;
 constexpr int64_t kWrap64WmmaCandidateMaxK = 32768;
 constexpr const char* kWrap64WmmaCandidateRequestedBackend = "rocwmma-wrap64-candidate";
@@ -100,6 +100,7 @@ struct Args {
   uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
   InputProfile input_profile = InputProfile::UniformSmall;
+  uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
   bool reuse_packed_inputs = false;
@@ -188,6 +189,7 @@ uint32_t benchmark_prefix(const Args& args);
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--input-profile uniform-small|adaptive-bands]\n"
+      << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--require-adaptive-execution]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
@@ -373,6 +375,8 @@ Args parse_args(int argc, char** argv) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--input-profile" && i + 1 < argc) {
       args.input_profile = parse_input_profile(argv[++i]);
+    } else if (arg == "--exact-wide-limbs" && i + 1 < argc) {
+      args.exact_wide_limb_count = parse_u32(argv[++i], "--exact-wide-limbs");
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--reuse-packed-inputs") {
@@ -396,6 +400,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--input-profile uniform-small|adaptive-bands]\n"
+          << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
@@ -444,6 +449,13 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  if (args.exact_wide_limb_count == 0 || args.exact_wide_limb_count > 32) {
+    usage_error("--exact-wide-limbs must be in [1, 32]");
+  }
+  if (args.exact_wide_limb_count != kDefaultExactWideBenchmarkLimbCount &&
+      !exact_wide_benchmark_semantics(args.semantics)) {
+    usage_error("--exact-wide-limbs is only valid for exact-wide semantics");
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
   if (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -2894,7 +2906,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, kExactWideBenchmarkLimbCount, "C"));
+  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "C"));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -2987,7 +2999,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status =
-        rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, kExactWideBenchmarkLimbCount);
+        rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
     if (collect_gpu_events) {
       collect_export_gpu_events(args, selected_backend, result.gpu_events);
@@ -3029,7 +3041,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, kExactWideBenchmarkLimbCount, "C"));
+  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "C"));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -3122,7 +3134,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status =
-        rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, kExactWideBenchmarkLimbCount);
+        rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
     if (collect_gpu_events) {
       collect_export_gpu_events(args, selected_backend, result.gpu_events);
@@ -3870,6 +3882,13 @@ void print_json(
   std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
   std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";
+  std::cout << "  \"exact_wide_limb_count\": ";
+  if (exact_wide_benchmark_semantics(args.semantics)) {
+    std::cout << args.exact_wide_limb_count;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "  \"packed_layout_version\": ";
   print_json_string_or_null(packed_layout_version(args));
   std::cout << ",\n";
