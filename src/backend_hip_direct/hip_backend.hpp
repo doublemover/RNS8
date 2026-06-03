@@ -113,6 +113,28 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix);
+rns8_status hip_direct_gemm_i64_native_prefix9_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_native,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
+rns8_status hip_direct_gemm_u64_native_prefix9_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_native,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
 rns8_status hip_direct_gemm_rns_tiled_device(
     int device_id,
     const void* device_a_residues,

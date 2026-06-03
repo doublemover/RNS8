@@ -5602,6 +5602,94 @@ TEST_CASE("direct HIP bounded oneshot matches CPU for signed and unsigned APIs")
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP bounded prefix-9 oneshot skips global RNS pack kernels") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP native-input bounded oneshot timing smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  {
+    constexpr int64_t m = 2;
+    constexpr int64_t n = 3;
+    constexpr int64_t k = 4;
+    constexpr int64_t lda = k + 1;
+    constexpr int64_t ldb = n + 1;
+    constexpr int64_t ldc = n + 1;
+    std::vector<int64_t> A(static_cast<std::size_t>(m * lda), -999);
+    std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), -777);
+    std::vector<int64_t> cpu_c(static_cast<std::size_t>(m * ldc), INT64_C(-0x12345));
+    std::vector<int64_t> hip_c(static_cast<std::size_t>(m * ldc), INT64_C(-0x12345));
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A[static_cast<std::size_t>(row * lda + col)] = (row + 1) * (col % 2 == 0 ? 5 : -7);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(row * ldb + col)] = (col + 2) * (row % 2 == 0 ? -3 : 11);
+      }
+    }
+    auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), lda, B.data(), ldb, hip_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    const auto hip_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(hip_c == cpu_c);
+    CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
+    CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
+    CHECK(has_timing_label(hip_events, "crt_export_kernel"));
+    CHECK_FALSE(has_timing_label(hip_events, "pack_kernel"));
+  }
+
+  {
+    constexpr int64_t m = 3;
+    constexpr int64_t n = 2;
+    constexpr int64_t k = 5;
+    constexpr int64_t lda = k + 2;
+    constexpr int64_t ldb = n + 1;
+    constexpr int64_t ldc = n + 1;
+    std::vector<uint64_t> A(static_cast<std::size_t>(m * lda), 0xabcdefu);
+    std::vector<uint64_t> B(static_cast<std::size_t>(k * ldb), 0x123456u);
+    std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * ldc), 0xccccccccccccccccull);
+    std::vector<uint64_t> hip_c(static_cast<std::size_t>(m * ldc), 0xccccccccccccccccull);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A[static_cast<std::size_t>(row * lda + col)] = static_cast<uint64_t>((row + 3) * (col + 5));
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(row * ldb + col)] = static_cast<uint64_t>((row + 7) * (col + 11));
+      }
+    }
+    auto cpu_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
+    auto hip_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_DIRECT);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8_gemm_u64_oneshot(hip, &hip_desc, A.data(), lda, B.data(), ldb, hip_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    const auto hip_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(hip_c == cpu_c);
+    CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
+    CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
+    CHECK(has_timing_label(hip_events, "crt_export_kernel"));
+    CHECK_FALSE(has_timing_label(hip_events, "pack_kernel"));
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP bounded oneshot matches CPU for cancellation and full-width stressors") {
   if (!hip_available()) {
     SKIP("no HIP device available for public bounded GEMM stress smoke");
