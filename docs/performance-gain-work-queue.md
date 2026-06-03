@@ -334,8 +334,12 @@ Technical direction:
   layout.
 - Add finite-u8 paths that center canonical bytes in registers for moduli
   251/255/256. Direct-HIP finite-u8 pack, resident GEMM reduction, and
-  export now dispatch fixed-modulus kernels for 251, 255, and 256; the full
-  fused pack+GEMM transient-input path remains open.
+  export now dispatch fixed-modulus kernels for 251, 255, and 256.
+  Direct-HIP public finite-u8 one-shot ring/field calls now also use a native
+  transient-input GEMM path that copies canonical `uint8_t` A/B buffers,
+  centers them inside the GEMM tile load, skips resident A/B pack kernels, and
+  materializes C through the existing finite export path. This is not yet a
+  reviewed speedup claim.
 
 RNS8-specific notes:
 
@@ -366,6 +370,11 @@ Likely first slices:
   out of autotune promotion. This is a measurement surface only until release
   captures compare one-shot end-to-end time against persistent direct-HIP,
   vector-ALU, CPU, and accelerator baselines.
+- Direct-HIP one-shot finite-u8 fused load/compute path.
+  Implemented for public finite ring/field `uint8_t` one-shot calls. The
+  benchmark/schema surface reports `rns8_finite_u8_public_oneshot`, exact
+  native-input event phases, zero external pack/export timings, and a persistent
+  direct-HIP finite baseline prerequisite before any speedup claim.
 
 Relation to existing queue:
 

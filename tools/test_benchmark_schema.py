@@ -168,6 +168,93 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
     return oneshot
 
 
+def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
+    oneshot = as_direct_hip_finite_capture(
+        capture,
+        255,
+        "direct_hip_native_finite_u8_gemm_mod255_v1",
+        "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide",
+    )
+    repeats = oneshot["repeats"]
+    epilogue = "native_u8_centered_residue_then_canonical_u8_export"
+    oneshot["benchmark"] = "rns8_finite_u8_public_oneshot"
+    oneshot["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
+    oneshot["backend_metadata"]["source"] = "rns8_bench_public_oneshot_api"
+    oneshot["backend_metadata"]["epilogue_mode"] = epilogue
+    oneshot["backend_metadata"]["workspace_mode"] = "transient_native_u8_inputs_to_resident_finite_output"
+    oneshot["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
+        "tile_m=128;tile_n=128;execution=public_oneshot_transient_native_inputs;"
+        "kernel=direct_hip_native_finite_u8_gemm_mod255_v1;"
+        f"epilogue={epilogue}"
+    )
+    oneshot["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_persistent_finite_u8",
+    ]
+    oneshot["timing_note"] = (
+        "host wall-clock timings for the public finite-u8 one-shot API; raw_timings_us.rns_gemm and "
+        "raw_timings_us.end_to_end both measure one complete call"
+    )
+    oneshot["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
+    oneshot["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_oneshot_api_hooks"
+    oneshot["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_oneshot_default_stream_operation_groups"
+    oneshot["timing_metadata"]["gpu_event_phase_order"] = [
+        "oneshot_native_input_h2d",
+        "finite_native_gemm_kernel",
+        "rns_gemm",
+        "finite_export_kernel",
+        "finite_export_d2h",
+        "crt_export",
+        "oneshot_api_gpu",
+    ]
+    oneshot["timing_metadata"]["phase_notes"]["matrix_alloc"] = (
+        "zero-valued external phase; transient API allocations are inside the measured one-shot call"
+    )
+    oneshot["timing_metadata"]["phase_notes"]["pack"] = (
+        "zero-valued external phase; native input copies are inside the measured one-shot API call"
+    )
+    oneshot["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for one complete public one-shot API call"
+    )
+    oneshot["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "zero-valued external phase; logical output export is inside the measured one-shot API call"
+    )
+    oneshot["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "same measured duration as rns_gemm for one complete public one-shot API call"
+    )
+    oneshot["matrix_alloc_us"] = 0
+    oneshot["avg_matrix_alloc_us"] = 0.0
+    oneshot["avg_pack_us"] = 0.0
+    oneshot["avg_crt_export_us"] = 0.0
+    oneshot["avg_rns_gemm_us"] = 1000.0
+    oneshot["avg_end_to_end_us"] = 1000.0
+    oneshot["per_modulus_gemm_estimate_applicable"] = False
+    oneshot["avg_per_modulus_gemm_estimate_us"] = 1000.0
+    oneshot["raw_timings_us"]["matrix_alloc"] = [0]
+    oneshot["raw_timings_us"]["pack"] = [0] * repeats
+    oneshot["raw_timings_us"]["rns_gemm"] = [900, 1100][:repeats]
+    oneshot["raw_timings_us"]["crt_export"] = [0] * repeats
+    oneshot["raw_timings_us"]["end_to_end"] = [900, 1100][:repeats]
+    oneshot["timing_summary_us"]["matrix_alloc"] = zero_summary()
+    oneshot["timing_summary_us"]["pack"] = zero_summary()
+    oneshot["timing_summary_us"]["rns_gemm"] = summary(oneshot["raw_timings_us"]["rns_gemm"])
+    oneshot["timing_summary_us"]["crt_export"] = zero_summary()
+    oneshot["timing_summary_us"]["end_to_end"] = summary(oneshot["raw_timings_us"]["end_to_end"])
+    event_values = {
+        "oneshot_native_input_h2d": [10.0, 12.0][:repeats],
+        "finite_native_gemm_kernel": [100.0, 110.0][:repeats],
+        "rns_gemm": [100.0, 110.0][:repeats],
+        "finite_export_kernel": [20.0, 22.0][:repeats],
+        "finite_export_d2h": [8.0, 9.0][:repeats],
+        "crt_export": [28.0, 31.0][:repeats],
+        "oneshot_api_gpu": [138.0, 153.0][:repeats],
+    }
+    oneshot["gpu_event_timings_us"] = event_values
+    oneshot["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    return oneshot
+
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -580,6 +667,8 @@ def main() -> int:
     validate_capture(reused_hipblaslt_i64)
     direct_hip_oneshot_i64 = as_direct_hip_oneshot_capture(v4_ck_i64)
     validate_capture(direct_hip_oneshot_i64)
+    direct_hip_finite_oneshot = as_direct_hip_finite_oneshot_capture(v4_finite_ring_ck)
+    validate_capture(direct_hip_finite_oneshot)
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)
@@ -721,7 +810,7 @@ def main() -> int:
 
     bad_oneshot_pack_timing = copy.deepcopy(direct_hip_oneshot_i64)
     bad_oneshot_pack_timing["raw_timings_us"]["pack"][0] = 1
-    expect_invalid(bad_oneshot_pack_timing, "one-shot bounded captures must report raw_timings_us.pack")
+    expect_invalid(bad_oneshot_pack_timing, "public one-shot captures must report raw_timings_us.pack")
 
     bad_oneshot_scope = copy.deepcopy(direct_hip_oneshot_i64)
     bad_oneshot_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
@@ -734,6 +823,20 @@ def main() -> int:
     del bad_oneshot_event_phase["gpu_event_timings_us"]["oneshot_native_input_h2d"]
     del bad_oneshot_event_phase["gpu_event_timing_summary_us"]["oneshot_native_input_h2d"]
     expect_invalid(bad_oneshot_event_phase, "direct-HIP one-shot GPU event phase set is incomplete")
+
+    bad_finite_oneshot_pack_timing = copy.deepcopy(direct_hip_finite_oneshot)
+    bad_finite_oneshot_pack_timing["raw_timings_us"]["pack"][0] = 1
+    expect_invalid(bad_finite_oneshot_pack_timing, "public one-shot captures must report raw_timings_us.pack")
+
+    bad_finite_oneshot_stale_pack_event = copy.deepcopy(direct_hip_finite_oneshot)
+    bad_finite_oneshot_stale_pack_event["timing_metadata"]["gpu_event_phase_order"].insert(1, "finite_pack_kernel")
+    bad_finite_oneshot_stale_pack_event["gpu_event_timings_us"]["finite_pack_kernel"] = [1.0, 1.0]
+    bad_finite_oneshot_stale_pack_event["gpu_event_timing_summary_us"]["finite_pack_kernel"] = {
+        "avg": 1.0,
+        "median": 1.0,
+        "p95": 1.0,
+    }
+    expect_invalid(bad_finite_oneshot_stale_pack_event, "direct-HIP finite one-shot GPU event phase set contains undeclared phases")
 
     bad_repack_prepack = copy.deepcopy(v4_ck_i64)
     bad_repack_prepack["reuse_packed_inputs"] = False

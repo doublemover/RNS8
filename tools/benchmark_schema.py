@@ -84,10 +84,18 @@ DIRECT_HIP_FINITE_SPECIALIZED_KERNELS = {
     255: "direct_hip_tiled_finite_u8_gemm_mod255_v1",
     256: "direct_hip_tiled_finite_u8_gemm_mod256_v1",
 }
+DIRECT_HIP_FINITE_ONESHOT_GENERIC_KERNEL = "direct_hip_native_finite_u8_gemm_v1"
+DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS = {
+    251: "direct_hip_native_finite_u8_gemm_mod251_v1",
+    255: "direct_hip_native_finite_u8_gemm_mod255_v1",
+    256: "direct_hip_native_finite_u8_gemm_mod256_v1",
+}
 DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
+DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
+DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
@@ -134,6 +142,15 @@ DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
     "crt_export_kernel",
     "crt_export_status_d2h",
     "crt_export_d2h",
+    "crt_export",
+    "oneshot_api_gpu",
+]
+DIRECT_HIP_FINITE_ONESHOT_GPU_EVENT_PHASES = [
+    "oneshot_native_input_h2d",
+    "finite_native_gemm_kernel",
+    "rns_gemm",
+    "finite_export_kernel",
+    "finite_export_d2h",
     "crt_export",
     "oneshot_api_gpu",
 ]
@@ -272,6 +289,8 @@ class _Validator:
             return "internal_wrap64_rocwmma_candidate"
         if self._is_vector_alu_runtime_capture():
             return "public_runtime_vector_alu_native_buffers"
+        if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
+            return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
             return "benchmark_owned_vector_alu_native_buffers"
         return "persistent_resident_matrices"
@@ -280,7 +299,16 @@ class _Validator:
         return (
             self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
             or self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot"
-        )
+        ) and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+
+    def _is_finite_oneshot_capture(self) -> bool:
+        return (
+            self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
+            or self.data.get("benchmark") == "rns8_finite_u8_public_oneshot"
+        ) and self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+
+    def _is_public_oneshot_capture(self) -> bool:
+        return self._is_bounded_oneshot_capture() or self._is_finite_oneshot_capture()
 
     def _require(self, key: str, kind: str) -> Any:
         if key not in self.data:
@@ -322,8 +350,9 @@ class _Validator:
         if execution_mode is not None:
             if execution_mode not in BENCHMARK_EXECUTION_MODES:
                 self._error(f"benchmark_execution_mode must be one of {sorted(BENCHMARK_EXECUTION_MODES)}")
-            elif self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot" and execution_mode != (
-                "public_oneshot_transient_native_inputs"
+            elif (
+                self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}
+                and execution_mode != "public_oneshot_transient_native_inputs"
             ):
                 self._error("one-shot benchmark captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
         selected_backend = self.data.get("backend_selected")
@@ -465,7 +494,7 @@ class _Validator:
             "rns8_bench_wrap64_rocwmma_candidate"
             if self._is_wrap64_rocwmma_candidate()
             else "rns8_bench_public_oneshot_api"
-            if self._is_bounded_oneshot_capture()
+            if self._is_public_oneshot_capture()
             else (
                 "rns8_get_plan_backend_info"
                 if self._is_vector_alu_runtime_capture()
@@ -640,6 +669,11 @@ class _Validator:
                 self._error("finite-u8 captures require comparison baseline prerequisite same_contract_cpu_reference")
             if selected_backend != "hip-direct" and "same_contract_direct_hip_correctness" not in required:
                 self._error("finite-u8 captures require comparison baseline prerequisite same_contract_direct_hip_correctness")
+            if self._is_finite_oneshot_capture() and "same_contract_direct_hip_persistent_finite_u8" not in required:
+                self._error(
+                    "finite-u8 one-shot captures require comparison baseline prerequisite "
+                    "same_contract_direct_hip_persistent_finite_u8"
+                )
         if semantics in {"exact_wide_signed", "exact_wide_unsigned"} and isinstance(required, list):
             if "same_contract_cpu_reference" not in required:
                 self._error("exact-wide captures require comparison baseline prerequisite same_contract_cpu_reference")
@@ -1226,6 +1260,22 @@ class _Validator:
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"finite_ring_u8", "finite_field_u8"}:
+            finite_oneshot_capture = self._is_finite_oneshot_capture()
+            if finite_oneshot_capture:
+                if self.data.get("benchmark") != "rns8_finite_u8_public_oneshot":
+                    self._error("finite one-shot captures must use benchmark=rns8_finite_u8_public_oneshot")
+                if self._benchmark_execution_mode() != "public_oneshot_transient_native_inputs":
+                    self._error("finite one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
+                if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct"}:
+                    self._error("finite one-shot captures must select cpu-reference or hip-direct")
+                if self.data.get("backend_requested") not in {"cpu-reference", "cpu", "hip-direct"}:
+                    self._error("finite one-shot captures must request cpu or hip-direct")
+                if self.data.get("reuse_packed_inputs") is True:
+                    self._error("finite one-shot captures must not use packed-input reuse")
+                if self.data.get("pack_mode") not in {None, "per_repeat_repack"}:
+                    self._error("finite one-shot captures must use pack_mode=per_repeat_repack")
+                if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
+                    self._error("finite one-shot captures must use prepack_reuse_strategy=none")
             if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
                 self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
             if bound_mode != "global":
@@ -1256,7 +1306,16 @@ class _Validator:
                 if required_field not in normalized_key:
                     self._error("finite-u8 backend_metadata.autotune_key must include finite_modulus")
             if self.data.get("backend_selected") == "hip-direct" and _is_int(modulus):
-                specialized_kernel = DIRECT_HIP_FINITE_SPECIALIZED_KERNELS.get(modulus)
+                specialized_kernel = (
+                    DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS.get(modulus)
+                    if finite_oneshot_capture
+                    else DIRECT_HIP_FINITE_SPECIALIZED_KERNELS.get(modulus)
+                )
+                generic_kernel = (
+                    DIRECT_HIP_FINITE_ONESHOT_GENERIC_KERNEL
+                    if finite_oneshot_capture
+                    else DIRECT_HIP_FINITE_GENERIC_KERNEL
+                )
                 if specialized_kernel is not None:
                     if self.data.get("selected_kernel") != specialized_kernel:
                         self._error(
@@ -1269,15 +1328,26 @@ class _Validator:
                             f"backend_metadata.isa_evidence={DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE}"
                         )
                 else:
-                    if self.data.get("selected_kernel") != DIRECT_HIP_FINITE_GENERIC_KERNEL:
+                    if self.data.get("selected_kernel") != generic_kernel:
                         self._error(
                             "direct-HIP generic finite-u8 captures must use "
-                            f"selected_kernel={DIRECT_HIP_FINITE_GENERIC_KERNEL}"
+                            f"selected_kernel={generic_kernel}"
                         )
                     if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
                         self._error(
                             "direct-HIP generic finite-u8 captures must use "
                             f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                        )
+                if finite_oneshot_capture:
+                    if backend_metadata.get("epilogue_mode") != DIRECT_HIP_FINITE_ONESHOT_EPILOGUE:
+                        self._error(
+                            "direct-HIP finite one-shot captures must use "
+                            f"backend_metadata.epilogue_mode={DIRECT_HIP_FINITE_ONESHOT_EPILOGUE}"
+                        )
+                    if backend_metadata.get("workspace_mode") != DIRECT_HIP_FINITE_ONESHOT_WORKSPACE:
+                        self._error(
+                            "direct-HIP finite one-shot captures must use "
+                            f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_ONESHOT_WORKSPACE}"
                         )
             if isinstance(schedule, dict):
                 for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
@@ -1290,7 +1360,11 @@ class _Validator:
             metadata = self.data.get("timing_metadata")
             if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
                 if self.data.get("backend_selected") == "hip-direct":
-                    expected_scope = "direct_hip_default_stream_backend_operation_groups"
+                    expected_scope = (
+                        "direct_hip_oneshot_default_stream_operation_groups"
+                        if finite_oneshot_capture
+                        else "direct_hip_default_stream_backend_operation_groups"
+                    )
                     if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
                 if self.data.get("backend_selected") == "hipblaslt":
@@ -1306,7 +1380,7 @@ class _Validator:
         elif isinstance(applicable, bool) and _is_int(prefix):
             expected_applicable = (
                 prefix > 0
-                and not self._is_bounded_oneshot_capture()
+                and not self._is_public_oneshot_capture()
                 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
                 and self.data.get("backend_selected") != "hip-vector-alu-int64"
             )
@@ -1552,19 +1626,19 @@ class _Validator:
             self._error("residue-current chain captures must report avg_crt_export_us=0")
 
     def _validate_bounded_oneshot_timings(self, raw_timings: dict[str, list[float]]) -> None:
-        if not self._is_bounded_oneshot_capture():
+        if not self._is_public_oneshot_capture():
             return
         for phase, field in [("pack", "avg_pack_us"), ("crt_export", "avg_crt_export_us"), ("matrix_alloc", "avg_matrix_alloc_us")]:
             values = raw_timings.get(phase)
             if not isinstance(values, list) or any(value != 0.0 for value in values):
-                self._error(f"one-shot bounded captures must report raw_timings_us.{phase} as zero-valued")
+                self._error(f"public one-shot captures must report raw_timings_us.{phase} as zero-valued")
             average_value = self.data.get(field)
             if _is_number(average_value) and float(average_value) != 0.0:
-                self._error(f"one-shot bounded captures must report {field}=0")
+                self._error(f"public one-shot captures must report {field}=0")
         gemm_values = raw_timings.get("rns_gemm")
         e2e_values = raw_timings.get("end_to_end")
         if isinstance(gemm_values, list) and isinstance(e2e_values, list) and gemm_values != e2e_values:
-            self._error("one-shot bounded captures must report raw_timings_us.rns_gemm equal to end_to_end")
+            self._error("public one-shot captures must report raw_timings_us.rns_gemm equal to end_to_end")
 
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
@@ -1805,6 +1879,18 @@ class _Validator:
 
     def _validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> None:
         backend = self.data.get("backend_selected")
+        if self._is_finite_oneshot_capture() and backend == "hip-direct":
+            expected = DIRECT_HIP_FINITE_ONESHOT_GPU_EVENT_PHASES
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(f"direct-HIP finite one-shot GPU event phase set is incomplete; missing {', '.join(missing)}")
+                if extra:
+                    self._error(f"direct-HIP finite one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                if not missing and not extra:
+                    self._error("direct-HIP finite one-shot GPU event phase order must match the public API operation order")
+            return
         if self._is_bounded_oneshot_capture() and backend == "hip-direct":
             expected = DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES
             if phases != expected:

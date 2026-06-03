@@ -519,6 +519,30 @@ def main() -> int:
     ]
     assert "--oneshot" in oneshot_only_commands[0][1]
 
+    finite_oneshot_args = copy.copy(exact_args)
+    finite_oneshot_args.out_root = Path("temp") / "finite-oneshot"
+    finite_oneshot_args.backends = ["hip-direct"]
+    finite_oneshot_args.semantics = ["finite-u8-ring"]
+    finite_oneshot_args.case = ["small:16,16,16"]
+    finite_oneshot_args.modulus = [255]
+    finite_oneshot_args.include_oneshot = True
+    finite_oneshot_args.oneshot_only = False
+    finite_oneshot_commands = benchmark_sweep.sweep_commands(finite_oneshot_args)
+    assert [name for name, _command, _output in finite_oneshot_commands] == [
+        "finite-u8-ring-small-16x16x16-mod255-hip-direct.json",
+        "finite-u8-ring-small-16x16x16-mod255-oneshot-hip-direct.json",
+    ]
+    assert "--oneshot" not in finite_oneshot_commands[0][1]
+    assert "--oneshot" in finite_oneshot_commands[1][1]
+
+    finite_oneshot_only_args = copy.copy(finite_oneshot_args)
+    finite_oneshot_only_args.oneshot_only = True
+    finite_oneshot_only_commands = benchmark_sweep.sweep_commands(finite_oneshot_only_args)
+    assert [name for name, _command, _output in finite_oneshot_only_commands] == [
+        "finite-u8-ring-small-16x16x16-mod255-oneshot-hip-direct.json",
+    ]
+    assert "--oneshot" in finite_oneshot_only_commands[0][1]
+
     exact_include_args = argparse.Namespace(
         bench=Path("rns8-bench"),
         bench_for=[],

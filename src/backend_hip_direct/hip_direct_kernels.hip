@@ -795,6 +795,153 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
 }
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
+    rns8_finite_ring_gemm_u8_native_i32_kernel(
+        const uint8_t* A,
+        const uint8_t* B,
+        int8_t* C,
+        int m,
+        int n,
+        int k_offset,
+        int k_block,
+        int lda,
+        int ldb,
+        int ldc,
+        int modulus,
+        uint32_t modulus_reciprocal,
+        int accumulate) {
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col = static_cast<int>(threadIdx.x);
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = tile_row + thread_row;
+  const int col = tile_col + thread_col;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output_active = row < m && col < n;
+  int32_t acc = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int global_row = tile_row + local_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          global_row < m && local_k < tile_extent
+              ? rns8_center_u8_device(A[global_row * lda + source_k], modulus)
+              : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int global_col = tile_col + local_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && global_col < n
+              ? rns8_center_u8_device(B[source_k * ldb + global_col], modulus)
+              : 0;
+    }
+
+    __syncthreads();
+
+    if (output_active) {
+      for (int kk = 0; kk < tile_extent; ++kk) {
+        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
+      }
+    }
+
+    __syncthreads();
+  }
+
+  if (output_active && accumulate) {
+    acc += static_cast<int32_t>(C[row * ldc + col]);
+  }
+  if (output_active) {
+    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+  }
+}
+
+template <int Modulus>
+__global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
+    rns8_finite_ring_gemm_u8_native_i32_fixed_modulus_kernel(
+        const uint8_t* A,
+        const uint8_t* B,
+        int8_t* C,
+        int m,
+        int n,
+        int k_offset,
+        int k_block,
+        int lda,
+        int ldb,
+        int ldc,
+        int accumulate) {
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col = static_cast<int>(threadIdx.x);
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = tile_row + thread_row;
+  const int col = tile_col + thread_col;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output_active = row < m && col < n;
+  int32_t acc = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int global_row = tile_row + local_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          global_row < m && local_k < tile_extent
+              ? rns8_center_u8_fixed_modulus_device<Modulus>(A[global_row * lda + source_k])
+              : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int global_col = tile_col + local_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && global_col < n
+              ? rns8_center_u8_fixed_modulus_device<Modulus>(B[source_k * ldb + global_col])
+              : 0;
+    }
+
+    __syncthreads();
+
+    if (output_active) {
+      for (int kk = 0; kk < tile_extent; ++kk) {
+        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
+      }
+    }
+
+    __syncthreads();
+  }
+
+  if (output_active && accumulate) {
+    acc += static_cast<int32_t>(C[row * ldc + col]);
+  }
+  if (output_active) {
+    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
+  }
+}
+
+__global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     rns8_ring_gemm_i8_i32_grouped_prefix_kernel(
         const int8_t* A_base,
         const int8_t* B_base,
@@ -1859,6 +2006,114 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
     hipLaunchKernelGGL(
         rns8_ring_gemm_i8_i32_tiled_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        modulus,
+        modulus_reciprocal,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
+template <int Modulus>
+hipError_t launch_finite_ring_native_fixed_modulus_gemm(
+    const uint8_t* d_a,
+    const uint8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block,
+    dim3 grid,
+    dim3 block) {
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_finite_ring_gemm_u8_native_i32_fixed_modulus_kernel<Modulus>),
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return err;
+}
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
+    const uint8_t* d_a,
+    const uint8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus < 2 ||
+      modulus > 256 || modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
+  if (modulus == 256) {
+    return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<256>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  if (modulus == 255) {
+    return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<255>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  if (modulus == 251) {
+    return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<251>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_finite_ring_gemm_u8_native_i32_kernel,
         grid,
         block,
         0,

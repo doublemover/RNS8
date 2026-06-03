@@ -17,7 +17,7 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
-BOUNDED_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
+PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
@@ -221,7 +221,7 @@ def capture_execution_mode(capture: dict[str, Any]) -> str:
         return mode
     if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
         return "internal_wrap64_rocwmma_candidate"
-    if capture.get("benchmark") == "rns8_bounded_gemm_public_oneshot":
+    if capture.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
         return "public_oneshot_transient_native_inputs"
     return "persistent_resident_matrices"
 
@@ -1282,11 +1282,14 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                             commands.append((name, command, args.out_root / name))
-                    if (include_oneshot or oneshot_only) and semantics in BOUNDED_SEMANTICS and case.bound_mode == "global":
+                    if (include_oneshot or oneshot_only) and (
+                        (semantics in BOUNDED_SEMANTICS and case.bound_mode == "global")
+                        or semantics in {"finite-u8-ring", "finite-u8-field"}
+                    ):
                         oneshot_backends = [
                             backend
-                            for backend in (args.backends or BOUNDED_ONESHOT_BACKENDS)
-                            if backend in BOUNDED_ONESHOT_BACKENDS
+                            for backend in (args.backends or PUBLIC_ONESHOT_BACKENDS)
+                            if backend in PUBLIC_ONESHOT_BACKENDS
                         ]
                         for backend in oneshot_backends:
                             bench = backend_benches.get(backend, args.bench)
@@ -1477,12 +1480,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-oneshot",
         action="store_true",
-        help="also capture bounded CPU/direct-HIP public one-shot API runs beside persistent matrix baselines",
+        help="also capture bounded/finite CPU/direct-HIP public one-shot API runs beside persistent matrix baselines",
     )
     parser.add_argument(
         "--oneshot-only",
         action="store_true",
-        help="capture only bounded CPU/direct-HIP public one-shot API runs for the selected global cases",
+        help="capture only bounded/finite CPU/direct-HIP public one-shot API runs for the selected global cases",
     )
     parser.add_argument("--release-matrix", action="store_true", help="use promotable release bounded shapes 64..1024")
     parser.add_argument("--include-exploratory-large", action="store_true", help="include 2048/4096/8192 exploratory shapes")
