@@ -7,6 +7,31 @@
   },
   "configurePresets": [
     {
+      "name": "cpu-debug",
+      "displayName": "CPU + vcpkg (Debug)",
+      "description": "CPU-only development preset with HIP and accelerator backends disabled.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/cpu-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "RNS8_ENABLE_HIP": "OFF",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
+      "name": "cpu-release",
+      "displayName": "CPU + vcpkg (Release)",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/cpu-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "windows-msvc-hip-debug",
       "displayName": "Windows MSVC + HIP SDK + vcpkg (Debug)",
       "description": "Windows Radeon bring-up preset using Ninja, vcpkg, and explicit HIP SDK paths.",
@@ -27,9 +52,7 @@
         "RNS8_ROCM_DEPS_BUILD_ROOT": "${sourceDir}/out/third_party/rocm/build/windows-gfx1100",
         "RNS8_ROCM_DEPS_INSTALL_ROOT": "${sourceDir}/out/third_party/rocm/install/windows-gfx1100",
         "RNS8_CK_ROOT": "${sourceDir}/third_party/rocm/composable_kernel",
-        "RNS8_ROCWMMA_ROOT": "${sourceDir}/third_party/rocm/rocWMMA",
-        "RNS8_ENABLE_GMP": "ON",
-        "RNS8_ENABLE_FLINT": "ON"
+        "RNS8_ROCWMMA_ROOT": "${sourceDir}/third_party/rocm/rocWMMA"
       }
     },
     {
@@ -142,9 +165,7 @@
         "RNS8_ENABLE_HIP": "ON",
         "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
-        "RNS8_ROCM_COVERAGE_TARGETS": "gfx1030;gfx1100;gfx1200;gfx1201;gfx90a;gfx942;gfx950",
-        "RNS8_ENABLE_GMP": "ON",
-        "RNS8_ENABLE_FLINT": "ON"
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx1030;gfx1100;gfx1200;gfx1201;gfx90a;gfx942;gfx950"
       }
     },
     {
@@ -172,6 +193,14 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "cpu-debug",
+      "configurePreset": "cpu-debug"
+    },
+    {
+      "name": "cpu-release",
+      "configurePreset": "cpu-release"
+    },
     {
       "name": "windows-debug",
       "configurePreset": "windows-msvc-hip-debug"
@@ -222,6 +251,20 @@
     }
   ],
   "testPresets": [
+    {
+      "name": "cpu-debug",
+      "configurePreset": "cpu-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-release",
+      "configurePreset": "cpu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
     {
       "name": "windows-debug",
       "configurePreset": "windows-msvc-hip-debug",

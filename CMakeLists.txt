@@ -13,8 +13,8 @@ option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integra
 option(RNS8_BUILD_TESTS "Build RNS8 correctness tests" ON)
 option(RNS8_BUILD_TOOLS "Build RNS8 command-line tools" ON)
 option(RNS8_BUILD_BENCHMARKS "Build RNS8 benchmark shell" ON)
-option(RNS8_ENABLE_GMP "Detect GMP for future optional differential references" OFF)
-option(RNS8_ENABLE_FLINT "Detect FLINT for future optional differential references" OFF)
+option(RNS8_ENABLE_GMP "Require GMP and build the optional exact-reference link smoke" OFF)
+option(RNS8_ENABLE_FLINT "Require FLINT and build the optional exact-reference link smoke" OFF)
 option(RNS8_PROBE_ACCELERATORS "Run CMake evidence-only discovery for optional accelerator components" OFF)
 option(RNS8_ENABLE_HIPBLASLT "Enable hipBLASLt accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_CK "Enable CK accelerator backend after validated implementation" OFF)
@@ -72,6 +72,26 @@ find_path(
   REQUIRED
 )
 find_package(nlohmann_json CONFIG REQUIRED)
+
+if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
+  find_package(RNS8ThirdParty REQUIRED)
+endif()
+
+if(RNS8_ENABLE_GMP AND NOT RNS8_GMP_FOUND)
+  message(
+    FATAL_ERROR
+      "RNS8_ENABLE_GMP=ON requires GMP headers and library. "
+      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing gmp.h and gmp/libgmp."
+  )
+endif()
+
+if(RNS8_ENABLE_FLINT AND NOT RNS8_FLINT_FOUND)
+  message(
+    FATAL_ERROR
+      "RNS8_ENABLE_FLINT=ON requires FLINT headers and library. "
+      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing flint/flint.h and flint/libflint."
+  )
+endif()
 
 set(RNS8_PUBLIC_HEADERS
   include/rns8/status.h
@@ -228,6 +248,8 @@ function(rns8_configure_library target_name)
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
       $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>
       $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>
+      $<$<BOOL:${RNS8_ENABLE_GMP}>:RNS8_ENABLE_GMP=1>
+      $<$<BOOL:${RNS8_ENABLE_FLINT}>:RNS8_ENABLE_FLINT=1>
   )
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
@@ -470,6 +492,37 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(dependency_checker_self_test PROPERTIES LABELS "tools;dependencies;accelerator")
+
+  add_test(
+    NAME release_tree_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_release_tree.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(release_tree_self_test PROPERTIES LABELS "tools;release")
+
+  add_test(
+    NAME release_tree_current_check
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_release_tree.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(release_tree_current_check PROPERTIES LABELS "tools;release")
+
+  if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
+    add_executable(rns8_optional_exact_libs_smoke tests/unit/test_optional_exact_libs.cpp)
+    if(RNS8_ENABLE_GMP)
+      target_compile_definitions(rns8_optional_exact_libs_smoke PRIVATE RNS8_ENABLE_GMP=1)
+      target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::GMP)
+    endif()
+    if(RNS8_ENABLE_FLINT)
+      target_compile_definitions(rns8_optional_exact_libs_smoke PRIVATE RNS8_ENABLE_FLINT=1)
+      target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::FLINT)
+      if(TARGET RNS8::GMP)
+        target_link_libraries(rns8_optional_exact_libs_smoke PRIVATE RNS8::GMP)
+      endif()
+    endif()
+    add_test(NAME optional_exact_libs_link_smoke COMMAND rns8_optional_exact_libs_smoke)
+    set_tests_properties(optional_exact_libs_link_smoke PROPERTIES LABELS "tools;dependencies;optional-exact")
+  endif()
 
   add_test(
     NAME benchmark_schema_current_fixtures

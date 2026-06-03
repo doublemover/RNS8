@@ -31,7 +31,7 @@ WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
 LINUX_ROCM_COMMANDS = ["hipcc", "hipconfig", "rocminfo"]
 LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
 PYTHON_PACKAGES = ["numpy", "pandas", "matplotlib", "pytest", "scipy"]
-CORE_VCPKG_PACKAGES = ["boost-multiprecision", "catch2"]
+CORE_VCPKG_PACKAGES = ["boost-multiprecision", "catch2", "nlohmann-json"]
 OPTIONAL_CPP_PACKAGES = ["gmp", "flint", "ntl", "fflas-ffpack", "linbox"]
 RADEON_TOOLS = [
     "rga",

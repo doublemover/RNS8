@@ -30,6 +30,12 @@ rns8_context* create_wrap64() {
   return ctx;
 }
 
+template <typename Enum>
+Enum invalid_public_enum_value() {
+  volatile unsigned value = 0x7fffu;
+  return static_cast<Enum>(value);
+}
+
 rns8_gemm_desc gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -485,10 +491,10 @@ TEST_CASE("finite u8 persistent descriptors reject stale CRT metadata and modulu
 
 TEST_CASE("unknown public enum values are invalid before backend routing") {
   rns8_context* ctx = create_cpu();
-  constexpr auto unknown_semantics = static_cast<rns8_semantics>(0x7fffu);
-  constexpr auto unknown_bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
-  constexpr auto unknown_layout = static_cast<rns8_layout>(0x7fffu);
-  constexpr auto unknown_backend = static_cast<rns8_backend_kind>(0x7fffu);
+  const auto unknown_semantics = invalid_public_enum_value<rns8_semantics>();
+  const auto unknown_bound_kind = invalid_public_enum_value<rns8_bound_kind>();
+  const auto unknown_layout = invalid_public_enum_value<rns8_layout>();
+  const auto unknown_backend = invalid_public_enum_value<rns8_backend_kind>();
 
   {
     auto desc = gemm_desc(RNS8_BOUNDED_U64, unknown_bound_kind);

@@ -46,9 +46,9 @@ build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
 For a CPU-only build:
 
 ```powershell
-cmake -S . -B build\cpu-debug -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DRNS8_ENABLE_HIP=OFF
-cmake --build build\cpu-debug
-ctest --test-dir build\cpu-debug --output-on-failure
+cmake --preset cpu-debug
+cmake --build --preset cpu-debug
+ctest --preset cpu-debug --output-on-failure
 ```
 
 The Windows setup details are in
