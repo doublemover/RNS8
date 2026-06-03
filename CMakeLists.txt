@@ -8,10 +8,13 @@ project(
 )
 
 include(CTest)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_BUILD_TESTS "Build RNS8 correctness tests" ON)
 option(RNS8_BUILD_TOOLS "Build RNS8 command-line tools" ON)
+option(RNS8_BUILD_EXAMPLES "Build CPU-only public API examples" ON)
 option(RNS8_BUILD_BENCHMARKS "Build RNS8 benchmark shell" ON)
 option(RNS8_ENABLE_GMP "Require GMP and build the optional exact-reference link smoke" OFF)
 option(RNS8_ENABLE_FLINT "Require FLINT and build the optional exact-reference link smoke" OFF)
@@ -72,6 +75,10 @@ find_path(
   REQUIRED
 )
 find_package(nlohmann_json CONFIG REQUIRED)
+get_target_property(RNS8_NLOHMANN_JSON_INCLUDE_DIRS nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT RNS8_NLOHMANN_JSON_INCLUDE_DIRS)
+  set(RNS8_NLOHMANN_JSON_INCLUDE_DIRS "")
+endif()
 
 if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
   find_package(RNS8ThirdParty REQUIRED)
@@ -240,6 +247,7 @@ function(rns8_configure_library target_name)
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
+      ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS}
   )
   target_compile_definitions(
     ${target_name}
@@ -281,7 +289,6 @@ function(rns8_configure_library target_name)
   if(RNS8_ENABLE_ROCWMMA)
     target_include_directories(${target_name} PRIVATE "${RNS8_ROCWMMA_INCLUDE_DIR}")
   endif()
-  target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
 endfunction()
 
 add_library(rns8 SHARED ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
@@ -399,6 +406,10 @@ if(RNS8_BUILD_BENCHMARKS)
   if(RNS8_ENABLE_ROCWMMA)
     target_compile_definitions(rns8-bench PRIVATE RNS8_ENABLE_ROCWMMA=1)
   endif()
+endif()
+
+if(RNS8_BUILD_EXAMPLES)
+  add_subdirectory(examples)
 endif()
 
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
@@ -523,6 +534,21 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     add_test(NAME optional_exact_libs_link_smoke COMMAND rns8_optional_exact_libs_smoke)
     set_tests_properties(optional_exact_libs_link_smoke PROPERTIES LABELS "tools;dependencies;optional-exact")
   endif()
+
+  add_test(
+    NAME install_downstream_cmake_smoke
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+      "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+      "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/temp/install-rns8/${CMAKE_BUILD_TYPE}"
+      "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_SOURCE_DIR}/temp/downstream-rns8/${CMAKE_BUILD_TYPE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu")
 
   add_test(
     NAME benchmark_schema_current_fixtures
@@ -861,3 +887,47 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     set_tests_properties(wmma_kernel_matrix_isa_check PROPERTIES LABELS "rocwmma;isa;accelerator")
   endif()
 endif()
+
+set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
+
+install(
+  TARGETS rns8 rns8_static
+  EXPORT RNS8Targets
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Runtime
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+)
+
+install(
+  DIRECTORY include/rns8
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  COMPONENT Development
+)
+
+install(
+  EXPORT RNS8Targets
+  FILE RNS8Targets.cmake
+  NAMESPACE rns8::
+  DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+  COMPONENT Development
+)
+
+configure_package_config_file(
+  cmake/RNS8Config.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
+  INSTALL_DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY SameMajorVersion
+)
+
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/RNS8Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/RNS8ConfigVersion.cmake"
+  DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
+  COMPONENT Development
+)
