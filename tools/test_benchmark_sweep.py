@@ -152,6 +152,10 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         vector["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
         vector["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
         vector["seed"] = capture["seed"]
+        vector["compiler"] = copy.deepcopy(capture["compiler"])
+        vector["configured_amdgpu_targets"] = capture["configured_amdgpu_targets"]
+        vector["hip_toolchain"] = copy.deepcopy(capture["hip_toolchain"])
+        vector["device"] = copy.deepcopy(capture["device"])
         vector["backend_metadata"]["autotune_key"] = (
             "backend=hip-vector-alu-int64;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
             "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
@@ -534,6 +538,9 @@ def main() -> int:
     assert group["missing_required_baselines"] == []
     assert group["release_review_satisfied"] is True
     assert group["source_metadata"]["target_ids"] == ["gfx1100"]
+    assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
+    assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
+    assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
     assert group["source_metadata"]["seeds"] == [13]
     assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
     assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
@@ -543,6 +550,15 @@ def main() -> int:
     assert group["missing_hip_toolchain_versions"] == []
     assert group["hip_toolchain_version_complete"] is True
     assert group["hip_toolchain_version_compatible"] is True
+    assert group["missing_configured_gpu_targets"] == []
+    assert group["configured_target_identity_complete"] is True
+    assert group["configured_target_compatible"] is True
+    assert group["missing_hip_runtime_versions"] == []
+    assert group["hip_runtime_version_complete"] is True
+    assert group["hip_runtime_version_compatible"] is True
+    assert group["missing_hip_driver_versions"] == []
+    assert group["hip_driver_version_complete"] is True
+    assert group["hip_driver_version_compatible"] is True
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
@@ -610,6 +626,102 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_version_group["candidates"]
     }
     assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
+
+    missing_configured_direct = copy.deepcopy(direct)
+    missing_configured_direct["configured_amdgpu_targets"] = "unknown"
+    missing_configured_report = benchmark_sweep.review_captures(
+        [ck, missing_configured_direct, cpu],
+        review_mode="release",
+    )
+    missing_configured_group = missing_configured_report["groups"][0]
+    assert missing_configured_report["promotable_autotune_entries"] == []
+    assert missing_configured_group["missing_configured_gpu_targets"] == ["hip-direct"]
+    assert missing_configured_group["configured_target_identity_complete"] is False
+    assert missing_configured_group["configured_target_compatible"] is False
+    missing_configured_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_configured_group["candidates"]
+    }
+    assert "missing_configured_gpu_target" in missing_configured_blockers["ck"]
+
+    mismatched_configured_ck = copy.deepcopy(ck)
+    mismatched_configured_ck["configured_amdgpu_targets"] = "gfx1101"
+    mismatched_configured_report = benchmark_sweep.review_captures(
+        [mismatched_configured_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_configured_group = mismatched_configured_report["groups"][0]
+    assert mismatched_configured_report["promotable_autotune_entries"] == []
+    assert mismatched_configured_group["missing_configured_gpu_targets"] == []
+    assert mismatched_configured_group["configured_target_identity_complete"] is True
+    assert mismatched_configured_group["configured_target_compatible"] is False
+    mismatched_configured_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_configured_group["candidates"]
+    }
+    assert "configured_gpu_target_mismatch" in mismatched_configured_blockers["ck"]
+
+    missing_runtime_direct = copy.deepcopy(direct)
+    missing_runtime_direct["device"]["hip_runtime_version"] = 0
+    missing_runtime_report = benchmark_sweep.review_captures(
+        [ck, missing_runtime_direct, cpu],
+        review_mode="release",
+    )
+    missing_runtime_group = missing_runtime_report["groups"][0]
+    assert missing_runtime_report["promotable_autotune_entries"] == []
+    assert missing_runtime_group["missing_hip_runtime_versions"] == ["hip-direct"]
+    assert missing_runtime_group["hip_runtime_version_complete"] is False
+    assert missing_runtime_group["hip_runtime_version_compatible"] is False
+    missing_runtime_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_runtime_group["candidates"]
+    }
+    assert "missing_hip_runtime_version" in missing_runtime_blockers["ck"]
+
+    mismatched_runtime_ck = copy.deepcopy(ck)
+    mismatched_runtime_ck["device"]["hip_runtime_version"] = 70260299
+    mismatched_runtime_report = benchmark_sweep.review_captures(
+        [mismatched_runtime_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_runtime_group = mismatched_runtime_report["groups"][0]
+    assert mismatched_runtime_report["promotable_autotune_entries"] == []
+    assert mismatched_runtime_group["missing_hip_runtime_versions"] == []
+    assert mismatched_runtime_group["hip_runtime_version_complete"] is True
+    assert mismatched_runtime_group["hip_runtime_version_compatible"] is False
+    mismatched_runtime_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_runtime_group["candidates"]
+    }
+    assert "hip_runtime_version_mismatch" in mismatched_runtime_blockers["ck"]
+
+    missing_driver_direct = copy.deepcopy(direct)
+    missing_driver_direct["device"]["hip_driver_version"] = 0
+    missing_driver_report = benchmark_sweep.review_captures(
+        [ck, missing_driver_direct, cpu],
+        review_mode="release",
+    )
+    missing_driver_group = missing_driver_report["groups"][0]
+    assert missing_driver_report["promotable_autotune_entries"] == []
+    assert missing_driver_group["missing_hip_driver_versions"] == ["hip-direct"]
+    assert missing_driver_group["hip_driver_version_complete"] is False
+    assert missing_driver_group["hip_driver_version_compatible"] is False
+    missing_driver_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_driver_group["candidates"]
+    }
+    assert "missing_hip_driver_version" in missing_driver_blockers["ck"]
+
+    mismatched_driver_ck = copy.deepcopy(ck)
+    mismatched_driver_ck["device"]["hip_driver_version"] = 70260299
+    mismatched_driver_report = benchmark_sweep.review_captures(
+        [mismatched_driver_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_driver_group = mismatched_driver_report["groups"][0]
+    assert mismatched_driver_report["promotable_autotune_entries"] == []
+    assert mismatched_driver_group["missing_hip_driver_versions"] == []
+    assert mismatched_driver_group["hip_driver_version_complete"] is True
+    assert mismatched_driver_group["hip_driver_version_compatible"] is False
+    mismatched_driver_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_driver_group["candidates"]
+    }
+    assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],

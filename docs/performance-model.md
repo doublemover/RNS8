@@ -503,6 +503,8 @@ are blocked as `missing_gpu_target_id`; groups that mix GPU targets are blocked
 as `gpu_target_mismatch`. Review groups with missing or mixed HIP SDK/ROCm
 version metadata for HIP-resident captures are blocked as
 `missing_hip_toolchain_version` or `hip_toolchain_version_mismatch`.
+Configured AMDGPU target metadata plus HIP runtime and driver versions are
+also complete-and-compatible promotion gates.
 
 Bounded i64/u64 promotion requires CPU reference, direct-HIP correctness, and
 `hip-vector-alu-int64` baselines for the same semantic contract, shape, layout,
