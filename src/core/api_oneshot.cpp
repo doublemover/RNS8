@@ -54,7 +54,7 @@ bool valid_api_tile_size(uint32_t value) {
 
 bool finite_backend_supports(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT ||
-         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_WMMA;
+         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
 }
 
 rns8_status validate_finite_u8_oneshot_contract(

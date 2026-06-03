@@ -1335,7 +1335,7 @@ rns8-gemm/
     backend_hip_direct/
     backend_hipblaslt/
     backend_ck/
-    backend_wmma/
+    backend_rocwmma/
     backend_wrap64/
     reconstruct/
     pack/

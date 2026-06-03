@@ -207,7 +207,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     }
     return "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     if (!plan.tile_schedule.empty()) {
       return "rocwmma_i8_i32_signed_tiled_hot_residue_v1";
     }
@@ -244,7 +244,7 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     }
     return "ck_fused_i32_to_centered_residue_then_crt_export";
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export";
     }
@@ -276,7 +276,7 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_CK) {
     return "resident_device_buffers_with_ck_canonical_pack_workspace";
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return "resident_device_buffers_with_rocwmma_pack_workspace";
   }
   if (plan.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
@@ -305,7 +305,7 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_CK) {
     return "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide";
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide";
   }
   return "not_applicable_cpu";
@@ -345,7 +345,7 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     }
     return static_cast<uint64_t>(total_bytes);
   }
-  if (plan.backend == RNS8_BACKEND_WMMA) {
+  if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     int64_t max_m = plan.desc.m;
     int64_t max_n = plan.desc.n;
     if (!plan.tile_schedule.empty()) {
@@ -359,7 +359,7 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     std::size_t a_pack_bytes = 0;
     std::size_t b_pack_bytes = 0;
     std::size_t total_bytes = 0;
-    if (!rns8::detail::wmma_workspace_requirements(
+    if (!rns8::detail::rocwmma_workspace_requirements(
             max_m, max_n, plan.desc.k, a_pack_bytes, b_pack_bytes, total_bytes)) {
       return 0;
     }
@@ -459,7 +459,7 @@ bool ck_pack_workspace_breakdown(
   return total_bytes == plan.backend_workspace_required_bytes;
 }
 
-bool wmma_pack_workspace_breakdown(
+bool rocwmma_pack_workspace_breakdown(
     const rns8_plan& plan,
     uint64_t& a_pack_bytes,
     uint64_t& b_pack_bytes,
@@ -475,7 +475,7 @@ bool wmma_pack_workspace_breakdown(
   std::size_t a_bytes = 0;
   std::size_t b_bytes = 0;
   std::size_t total_workspace = 0;
-  if (!rns8::detail::wmma_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes, total_workspace)) {
+  if (!rns8::detail::rocwmma_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes, total_workspace)) {
     return false;
   }
   a_pack_bytes = static_cast<uint64_t>(a_bytes);
@@ -653,9 +653,9 @@ bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend
 #else
       return false;
 #endif
-    case RNS8_BACKEND_WMMA:
+    case RNS8_BACKEND_ROCWMMA:
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-      return rns8::detail::wmma_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
+      return rns8::detail::rocwmma_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
 #else
       return false;
 #endif
@@ -679,7 +679,7 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
       RNS8_BACKEND_HIP_VECTOR_ALU_INT64,
       RNS8_BACKEND_HIPBLASLT,
       RNS8_BACKEND_CK,
-      RNS8_BACKEND_WMMA,
+      RNS8_BACKEND_ROCWMMA,
   };
   const auto snapshot = rns8::detail::read_autotune_cache();
   const rns8::detail::AutotuneCacheEntry* best_hit = nullptr;
@@ -867,7 +867,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     }
     if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
         requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
-        requested != RNS8_BACKEND_WMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+        requested != RNS8_BACKEND_ROCWMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
         requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
@@ -1097,10 +1097,10 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       return RNS8_SUCCESS;
     }
 
-    if (plan->backend == RNS8_BACKEND_WMMA) {
+    if (plan->backend == RNS8_BACKEND_ROCWMMA) {
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
-      if (!wmma_pack_workspace_breakdown(
+      if (!rocwmma_pack_workspace_breakdown(
               *plan,
               out->a_pack_workspace_bytes,
               out->b_pack_workspace_bytes,
@@ -1110,7 +1110,7 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(out->a_layout_version, sizeof(out->a_layout_version), "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "rns_i8_tile_swizzled_b_v1");
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      if (wmma_b_prepack_cache_supported(*plan)) {
+      if (rocwmma_b_prepack_cache_supported(*plan)) {
         out->reusable_prepack_cache_available = 1;
         set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "reusable_b_prepack_cache");
         set_text(

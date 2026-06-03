@@ -539,7 +539,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
   }
   {
     auto desc = gemm_desc(RNS8_FINITE_RING_U8, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-    desc.requested_backend = RNS8_BACKEND_WMMA;
+    desc.requested_backend = RNS8_BACKEND_ROCWMMA;
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
@@ -763,7 +763,7 @@ TEST_CASE("auto backend selection never routes across explicit semantic backends
 TEST_CASE("future backend context kinds report unsupported status") {
   std::vector<rns8_backend_kind> backends;
 #if !defined(RNS8_ENABLE_ROCWMMA) || !RNS8_ENABLE_ROCWMMA
-  backends.push_back(RNS8_BACKEND_WMMA);
+  backends.push_back(RNS8_BACKEND_ROCWMMA);
 #endif
 #if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
   backends.push_back(RNS8_BACKEND_CK);

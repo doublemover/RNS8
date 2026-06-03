@@ -174,7 +174,7 @@ target `gfx1100`: the WMMA 512 entry uses runtime version
 `repo-local release/rocm-rel-7.1` and the hipBLASLt 1024 entry uses
 `hipBLASLt 100100`. With `RNS8_AUTOTUNE_CACHE_PATH` set to the temp full cache,
 schema-valid AUTO smokes emit `backend_requested: "auto"`,
-`backend_selected: "wmma"` for 512 and `backend_selected: "hipblaslt"` for
+`backend_selected: "rocwmma"` for 512 and `backend_selected: "hipblaslt"` for
 1024, `backend_metadata.performance_validated: true`, and
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`. This
 is reviewed Windows `gfx1100` release evidence and temp cache proof; it is not
@@ -227,7 +227,7 @@ end-to-end, followed by direct HIP at 6469 us, CK at 6854 us, vector-ALU at
 262144 bytes, runtime version `repo-local release/rocm-rel-7.1`, and validation
 status `reviewed_release_same_contract_fastest_windows_gfx1100`. `rns8-inspect`
 reports an exact validated hit for this key, and a matching adaptive
-`rns8-bench --backend auto` smoke emits `backend_selected: "wmma"`,
+`rns8-bench --backend auto` smoke emits `backend_selected: "rocwmma"`,
 `backend_metadata.performance_validated: true`, selected kernel
 `rocwmma_i8_i32_signed_tiled_hot_residue_v1`, and schema-valid
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`.
@@ -262,7 +262,7 @@ at 2327 us. `rns8-inspect` reports exact validated hits for representative
 hipBLASLt, CK, and rocWMMA keys on runtime target `gfx1100`, with runtime
 versions `hipBLASLt 100100` and `repo-local release/rocm-rel-7.1`.
 Schema-valid AUTO smokes select `backend_selected=hipblaslt`,
-`backend_selected=ck`, and `backend_selected=wmma` for those representative
+`backend_selected=ck`, and `backend_selected=rocwmma` for those representative
 keys, with `backend_metadata.performance_validated: true` and reviewed-release
 comparison metadata.
 
@@ -287,8 +287,8 @@ displace the current path.
 
 The internal rocWMMA wrap64 byte-GEMM36 candidate can now be captured with
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` or added to
-wrap64 sweeps with `--include-wrap64-wmma-candidate`. Candidate captures use a
-fixed 16x16 WMMA schedule, report `backend_selected: "wmma"` and
+wrap64 sweeps with `--include-rocwmma-wrap64-candidate`. Candidate captures use a
+fixed 16x16 WMMA schedule, report `backend_selected: "rocwmma"` and
 `selected_kernel: "rocwmma_wrap64_byte_gemm36_candidate_v0"`, expose the
 `wrap64_wmma_candidate_gemm36_kernel_group` HIP event phase, and remain
 `performance_validated: false`. Sweep promotion keeps an explicit
@@ -306,7 +306,7 @@ matching `checksum_u64` values; this is release-shape smoke evidence, not
 reviewed release promotion or performance evidence.
 
 A follow-up candidate-inclusive release review on June 3, 2026 under
-`temp\benchmark-sweeps\windows-gfx1100-release-wrap64-wmma-candidate-current`
+`temp\benchmark-sweeps\windows-gfx1100-release-rocwmma-wrap64-candidate-current`
 used three warmups, nine repeats, and seed `20260603` for 64, 128, 512, and
 1024 square wrap64 shapes. The CPU byte-limb, direct-HIP, and rocWMMA-candidate
 captures produced matching `checksum_u64` values within each shape, but the

@@ -193,7 +193,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         metadata["epilogue_mode"] = "ck_fused_i32_to_centered_residue_rns_output"
     elif backend == "hipblaslt":
         metadata["epilogue_mode"] = "separate_i32_scratch_reduce_rns_output"
-    elif backend == "wmma":
+    elif backend == "rocwmma":
         metadata["epilogue_mode"] = "rocwmma_fused_i32_to_centered_residue_rns_output"
     else:
         metadata["epilogue_mode"] = "fused_centered_residue_rns_output"
@@ -240,15 +240,15 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "hip_driver_version": 0,
             "global_mem_bytes": 0,
         }
-    elif backend == benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND:
-        capture["backend_requested"] = benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND
-        capture["backend_selected"] = "wmma"
+    elif backend == benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND:
+        capture["backend_requested"] = benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND
+        capture["backend_selected"] = "rocwmma"
         capture["selected_kernel"] = "rocwmma_wrap64_byte_gemm36_candidate_v0"
         capture["tile_m"] = 16
         capture["tile_n"] = 16
         capture["schedule_metadata"].update(
             {
-                "source": "rns8_bench_wrap64_wmma_candidate_static_schedule",
+                "source": "rns8_bench_wrap64_rocwmma_candidate_static_schedule",
                 "tile_m": 16,
                 "tile_n": 16,
                 "tile_rows": 1,
@@ -258,7 +258,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
         )
         metadata.update(
             {
-                "source": "rns8_bench_wrap64_wmma_candidate",
+                "source": "rns8_bench_wrap64_rocwmma_candidate",
                 "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
                 "accelerator_backend": True,
                 "correctness_backend": False,
@@ -277,7 +277,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             }
         )
         renamed = {
-            "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_wmma_candidate_gemm36_kernel_group",
+            "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_rocwmma_candidate_gemm36_kernel_group",
         }
         phase_order = capture["timing_metadata"].get("gpu_event_phase_order")
         if isinstance(phase_order, list):
@@ -295,7 +295,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
         capture["timing_metadata"]["phase_availability"]["scheduling"] = {
             "timed": True,
             "timing_key": "scheduling",
-            "scope": "benchmark_static_wrap64_wmma_candidate_schedule",
+            "scope": "benchmark_static_wrap64_rocwmma_candidate_schedule",
             "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
         }
     set_phase(capture, end_to_end)
@@ -344,7 +344,7 @@ def main() -> int:
     assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
     assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
     assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
-    assert benchmark_sweep.cli_backend("wmma") == "rocwmma"
+    assert benchmark_sweep.cli_backend("rocwmma") == "rocwmma"
     assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
     assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
 
@@ -361,7 +361,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
-        include_wrap64_wmma_candidate=False,
+        include_wrap64_rocwmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         reuse_packed_a=False,
@@ -380,14 +380,14 @@ def main() -> int:
     assert wrap64_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-wrap64-byte-limb.json"
     assert wrap64_commands[1][0] == "wrap-u64-wrap64-64-64x64x64-hip-direct.json"
     assert all("--semantics" in command and "wrap-u64" in command for _name, command, _output in wrap64_commands)
-    wrap64_args.include_wrap64_wmma_candidate = True
+    wrap64_args.include_wrap64_rocwmma_candidate = True
     candidate_commands = benchmark_sweep.sweep_commands(wrap64_args)
     assert len(candidate_commands) == len(benchmark_sweep.PROMOTABLE_RELEASE_SHAPES) * 3
     candidate_name, candidate_command, _candidate_output = candidate_commands[2]
     assert candidate_name == "wrap-u64-wrap64-64-64x64x64-rocwmma-wrap64-candidate.json"
     assert "--backend" in candidate_command and "rocwmma-wrap64-candidate" in candidate_command
     assert "--tile-m" in candidate_command and "16" in candidate_command
-    wrap64_args.include_wrap64_wmma_candidate = False
+    wrap64_args.include_wrap64_rocwmma_candidate = False
     wrap64_args.reuse_packed_inputs = True
     reuse_commands = benchmark_sweep.sweep_commands(wrap64_args)
     assert reuse_commands[0][0] == "wrap-u64-wrap64-64-64x64x64-reuse-packed-wrap64-byte-limb.json"
@@ -425,7 +425,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
-        include_wrap64_wmma_candidate=False,
+        include_wrap64_rocwmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         reuse_packed_a=False,
@@ -469,7 +469,7 @@ def main() -> int:
         include_default_adaptive=False,
         adaptive_only=False,
         include_wrap64=False,
-        include_wrap64_wmma_candidate=False,
+        include_wrap64_rocwmma_candidate=False,
         include_exact_wide=True,
         reuse_packed_inputs=False,
         reuse_packed_a=False,
@@ -502,7 +502,7 @@ def main() -> int:
         include_default_adaptive=True,
         adaptive_only=True,
         include_wrap64=False,
-        include_wrap64_wmma_candidate=False,
+        include_wrap64_rocwmma_candidate=False,
         include_exact_wide=False,
         reuse_packed_inputs=False,
         reuse_packed_a=False,
@@ -951,7 +951,7 @@ def main() -> int:
     assert "not_accelerator_backend" in blockers_by_backend["wrap64-byte-limb"]
     assert "not_faster_than_direct_hip" in blockers_by_backend["wrap64-byte-limb"]
 
-    wrap64_candidate = wrap64_capture(benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND, 150)
+    wrap64_candidate = wrap64_capture(benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND, 150)
     validate_capture(wrap64_candidate)
     wrap64_candidate_report = benchmark_sweep.review_captures(
         [wrap64_direct, wrap64_cpu, wrap64_candidate], review_mode="release"
@@ -963,7 +963,7 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in candidate_group["candidates"]
     }
     assert "internal_candidate_not_public_backend" in candidate_blockers[
-        benchmark_sweep.WRAP64_WMMA_CANDIDATE_BACKEND
+        benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND
     ]
 
     exact_ck = exact_wide_capture("ck", 170)

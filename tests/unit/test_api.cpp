@@ -647,7 +647,7 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
 TEST_CASE("public accelerator backend context kinds fail fast") {
   std::vector<rns8_backend_kind> backends;
 #if !defined(RNS8_ENABLE_ROCWMMA) || !RNS8_ENABLE_ROCWMMA
-  backends.push_back(RNS8_BACKEND_WMMA);
+  backends.push_back(RNS8_BACKEND_ROCWMMA);
 #endif
 #if !defined(RNS8_ENABLE_CK) || !RNS8_ENABLE_CK
   backends.push_back(RNS8_BACKEND_CK);
@@ -668,7 +668,7 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
 
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
-  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
 
   for (const rns8_backend_kind backend : backends) {
     rns8_gemm_desc desc{};
@@ -722,7 +722,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(wrap.supports_wrap64 == 1);
   CHECK(std::string(wrap.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
 
-  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_WMMA};
+  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
   for (const rns8_backend_kind backend : accelerators) {
     rns8_backend_capability_info capability{};
     capability.struct_size = sizeof(capability);
@@ -768,7 +768,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     }
 #endif
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-    if (backend == RNS8_BACKEND_WMMA) {
+    if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(capability.is_correctness_backend == 1);
       CHECK(capability.requires_feature_detection == 1);
       CHECK(capability.enable_flag_fail_fast == 0);
@@ -805,7 +805,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
-    } else if (backend == RNS8_BACKEND_WMMA) {
+    } else if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(std::string(capability.status) == "not_enabled_or_builtin_not_implemented");
       CHECK(std::string(capability.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1_disabled");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
@@ -1429,7 +1429,7 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   rns8_context_options options{};
   options.struct_size = sizeof(options);
   options.abi_version = RNS8_ABI_VERSION;
-  options.requested_backend = RNS8_BACKEND_WMMA;
+  options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS);
 
@@ -1438,7 +1438,7 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   desc.abi_version = RNS8_ABI_VERSION;
   desc.semantics = RNS8_BOUNDED_I64;
   desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
-  desc.requested_backend = RNS8_BACKEND_WMMA;
+  desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   desc.m = m;
   desc.n = n;
   desc.k = k;
@@ -1606,7 +1606,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   rns8_context_options wmma_options{};
   wmma_options.struct_size = sizeof(wmma_options);
   wmma_options.abi_version = RNS8_ABI_VERSION;
-  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* wmma_ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
 
@@ -1620,7 +1620,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   wmma_desc.abi_version = RNS8_ABI_VERSION;
   wmma_desc.semantics = RNS8_BOUNDED_I64;
   wmma_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
-  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   wmma_desc.m = m;
   wmma_desc.n = n;
   wmma_desc.k = k;
@@ -1682,7 +1682,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA bounded cache entry with HIP resi
   auto_info.struct_size = sizeof(auto_info);
   auto_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
-  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_ROCWMMA);
   CHECK(auto_info.performance_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
 
@@ -1727,7 +1727,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   rns8_context_options wmma_options{};
   wmma_options.struct_size = sizeof(wmma_options);
   wmma_options.abi_version = RNS8_ABI_VERSION;
-  wmma_options.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* wmma_ctx = nullptr;
   REQUIRE(rns8_create_context(-1, &wmma_options, &wmma_ctx) == RNS8_SUCCESS);
 
@@ -1741,7 +1741,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   wmma_desc.abi_version = RNS8_ABI_VERSION;
   wmma_desc.semantics = RNS8_FINITE_RING_U8;
   wmma_desc.bound_kind = RNS8_BOUND_NONE;
-  wmma_desc.requested_backend = RNS8_BACKEND_WMMA;
+  wmma_desc.requested_backend = RNS8_BACKEND_ROCWMMA;
   wmma_desc.m = m;
   wmma_desc.n = n;
   wmma_desc.k = k;
@@ -1805,7 +1805,7 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
   auto_info.struct_size = sizeof(auto_info);
   auto_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
-  REQUIRE(auto_info.backend == RNS8_BACKEND_WMMA);
+  REQUIRE(auto_info.backend == RNS8_BACKEND_ROCWMMA);
   CHECK(auto_info.performance_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == wmma_info.autotune_key);
 

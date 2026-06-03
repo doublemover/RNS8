@@ -69,11 +69,11 @@ def main() -> int:
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timing_key"] == "prepack_setup_us"
         assert capture["gpu_event_timings_us"] is None
 
-    capture_path = out_dir / "bounded-i64-wmma-reuse-packed-b.json"
+    capture_path = out_dir / "bounded-i64-rocwmma-reuse-packed-b.json"
     command = [
         str(bench),
         "--backend",
-        "wmma",
+        "rocwmma",
         "--semantics",
         "bounded-i64",
         "--m",
@@ -95,7 +95,7 @@ def main() -> int:
         capture_path.write_text(completed.stdout, encoding="utf-8")
         subprocess.run([sys.executable, str(schema), str(capture_path)], check=True)
         capture = json.loads(capture_path.read_text(encoding="utf-8"))
-        assert capture["backend_selected"] == "wmma"
+        assert capture["backend_selected"] == "rocwmma"
         assert capture["pack_mode"] == "prepacked_reuse_b"
         assert capture["prepack_reuse_operands"] == ["B"]
         assert capture["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
@@ -105,7 +105,7 @@ def main() -> int:
         assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]
     elif "unsupported backend" not in (completed.stderr + completed.stdout).lower():
         raise SystemExit(
-            "wmma reuse-packed-b smoke failed unexpectedly\n"
+            "rocwmma reuse-packed-b smoke failed unexpectedly\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
 
