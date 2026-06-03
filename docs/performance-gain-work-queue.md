@@ -703,6 +703,11 @@ Likely first slices:
   input/output domain, desired output, schedule, packing, reuse, conversion, and
   lowering path.
 - AUTO selection that considers desired output domain and reuse hints.
+  Implemented for the current final/native output-domain case by allowing
+  reviewed `hip-vector-alu-int64` bounded i64/u64 autotune entries to be
+  selected by AUTO. Reuse-hint promotion remains intentionally constrained by
+  the existing prepacked-reuse-not-autotune-promotable policy until setup-cost
+  and end-to-end wins are promoted as production cache behavior.
 
 Relation to existing queue:
 

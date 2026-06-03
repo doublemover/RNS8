@@ -13,6 +13,7 @@ from typing import Any
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
 PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS = {"hipblaslt", "ck", "wmma"}
+NATIVE_VECTOR_AUTOTUNE_BACKEND = "hip-vector-alu-int64"
 PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
     "bounded_i64",
     "bounded_u64",
@@ -114,6 +115,8 @@ def optional_key_int(fields: dict[str, str], name: str, expected: int) -> None:
 
 
 def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_contract: str) -> bool:
+    if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
+        return semantic_contract in BOUNDED_SEMANTICS
     return (
         selected_backend in PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS
         and semantic_contract in PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS
@@ -123,6 +126,12 @@ def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_
 def reviewed_kernel_supported_for_contract(
     selected_backend: str, semantic_contract: str, selected_kernel: str
 ) -> bool:
+    if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
+        if semantic_contract == "bounded_i64":
+            return selected_kernel == "hip_vector_alu_i64_exact_192b_v1"
+        if semantic_contract == "bounded_u64":
+            return selected_kernel == "hip_vector_alu_u64_exact_192b_v1"
+        return False
     if selected_backend == "hipblaslt":
         return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1"
     if selected_backend == "ck":
@@ -151,6 +160,8 @@ def reviewed_kernel_supported_for_contract(
 def reviewed_epilogue_supported_for_contract(
     selected_backend: str, semantic_contract: str, epilogue: str
 ) -> bool:
+    if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
+        return semantic_contract in BOUNDED_SEMANTICS and epilogue == "direct_int64_export"
     if selected_backend == "hipblaslt":
         if semantic_contract in FINITE_U8_SEMANTICS:
             return epilogue == "separate_i32_scratch_reduce_then_canonical_u8_export"

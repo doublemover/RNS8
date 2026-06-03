@@ -32,10 +32,12 @@ correctness kernels, CPU/direct-HIP differentials, and ISA evidence exist.
 ## Selection Policy
 
 `RNS8_BACKEND_AUTO` is a context-default selector. In HIP-capable contexts it
-starts from direct-HIP correctness and may select a compiled HIP-resident
-accelerator only when a reviewed release autotune-cache entry exactly matches
-the plan key, target id, and runtime library version. Without that exact hit,
-AUTO remains on the configured correctness path.
+starts from direct-HIP correctness and may select a compiled HIP backend only
+when a reviewed release autotune-cache entry exactly matches the plan key,
+target id, and runtime library version. hipBLASLt, CK, and rocWMMA entries
+remain residue-current accelerator selections; `hip-vector-alu-int64` entries
+are accepted only for bounded i64/u64 final/native-output plans. Without that
+exact hit, AUTO remains on the configured correctness path.
 
 Dependency discovery, header probes, CMake probes, and tiny compile probes are
 candidate evidence only. They do not enable CK, rocWMMA, hipBLASLt, or AMDGPU

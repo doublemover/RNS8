@@ -651,6 +651,10 @@ bool backend_library_version_matches_plan(const rns8_plan& plan, const rns8_back
     return plan.backend_library_version.rfind("hipBLASLt ", 0) == 0 ||
            plan.backend_library_version == capability.library_version;
   }
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return plan.backend_library_version.rfind("HIP runtime ", 0) == 0 ||
+           plan.backend_library_version == capability.library_version;
+  }
   return plan.backend_library_version == capability.library_version;
 }
 
@@ -678,6 +682,9 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   plan.backend_library_version = capability.library_version;
   if (plan.backend == RNS8_BACKEND_HIPBLASLT && ctx && !ctx->hipblaslt_library_version.empty()) {
     plan.backend_library_version = ctx->hipblaslt_library_version;
+  }
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && ctx && ctx->device_info.hip_runtime_version != 0) {
+    plan.backend_library_version = "HIP runtime " + std::to_string(ctx->device_info.hip_runtime_version);
   }
   plan.backend_capability_status = capability.status;
   plan.backend_epilogue_mode = epilogue_mode_for_plan(plan);

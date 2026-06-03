@@ -17,6 +17,8 @@ constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_centered_epi
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
 constexpr const char* kWmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
 constexpr const char* kWmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
+constexpr const char* kVectorU64Kernel = "hip_vector_alu_u64_exact_192b_v1";
+constexpr const char* kVectorEpilogue = "direct_int64_export";
 
 rns8::detail::AutotuneCacheEntry cache_entry(
     const char* key,
@@ -249,6 +251,28 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unexpected_key_finite_modulus"});
   }
   {
+    std::string key = reviewed_key(
+        "hip-vector-alu-int64",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kVectorU64Kernel,
+        kVectorEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "hip-vector-alu-int64";
+    item.selected_kernel = kVectorU64Kernel;
+    item.epilogue = kVectorEpilogue;
+    item.kernel_family = kVectorU64Kernel;
+    cases.push_back({item.key, item, ""});
+  }
+  {
     std::string key =
         reviewed_key(
             "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
@@ -435,7 +459,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) != nullptr);
       CHECK(
           rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") ==
-          std::string("exact_cache_hit_validated:ck/") + kCkFiniteKernel);
+          std::string("exact_cache_hit_validated:") + item.entry.selected_backend + "/" + item.entry.selected_kernel);
     } else {
       CHECK(rns8::detail::find_validated_autotune_entry(snapshot, item.key) == nullptr);
       CHECK(rns8::detail::autotune_selection_rationale(snapshot, item.key, "hip-direct") == item.expected);
