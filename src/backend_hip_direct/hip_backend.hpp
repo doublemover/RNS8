@@ -26,6 +26,12 @@ void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
 void hip_direct_timing_reset();
 void hip_direct_timing_record_sample(const char* label, double microseconds);
+void hip_direct_timing_record_pending_event(const char* label, void* start_event, void* stop_event);
+void hip_direct_timing_record_pending_event_with_alias(
+    const char* label,
+    const char* alias,
+    void* start_event,
+    void* stop_event);
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
 void hip_direct_allocation_counters_reset();
 hip_direct_allocation_counters hip_direct_allocation_counters_snapshot();

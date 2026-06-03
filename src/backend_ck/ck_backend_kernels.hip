@@ -1,4 +1,6 @@
 #include <cstdint>
+#include <cstddef>
+#include <cstdio>
 #include <exception>
 
 #include <hip/hip_runtime.h>
@@ -25,6 +27,15 @@ struct rns8_plan_tile_schedule_entry {
   uint32_t range_bit_length;
 };
 
+namespace rns8::detail {
+bool hip_direct_timing_enabled();
+void hip_direct_timing_record_pending_event_with_alias(
+    const char* label,
+    const char* alias,
+    void* start_event,
+    void* stop_event);
+}  // namespace rns8::detail
+
 namespace {
 
 constexpr uint32_t kRns8AbiVersion = 1;
@@ -44,6 +55,97 @@ enum ck_status_code {
   ck_backend_failure = 3,
   ck_range_error = 4,
 };
+
+void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* suffix) {
+  std::snprintf(buffer, size, "ck_prefix_%02d_%s", prefix_index, suffix);
+}
+
+void destroy_timing_event_pair(hipEvent_t start, hipEvent_t stop) {
+  if (stop) {
+    (void)hipEventDestroy(stop);
+  }
+  if (start) {
+    (void)hipEventDestroy(start);
+  }
+}
+
+bool create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop) {
+  *start = nullptr;
+  *stop = nullptr;
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    hipEvent_t candidate_start = nullptr;
+    hipEvent_t candidate_stop = nullptr;
+    hipError_t status = hipEventCreate(&candidate_start);
+    if (status == hipSuccess) {
+      status = hipEventCreate(&candidate_stop);
+    }
+    if (status == hipSuccess) {
+      status = hipEventRecord(candidate_start, nullptr);
+    }
+    if (status == hipSuccess) {
+      *start = candidate_start;
+      *stop = candidate_stop;
+      return true;
+    }
+    destroy_timing_event_pair(candidate_start, candidate_stop);
+    if (attempt == 0) {
+      (void)hipDeviceSynchronize();
+    }
+  }
+  return false;
+}
+
+template <typename Fn>
+hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
+  if (!rns8::detail::hip_direct_timing_enabled()) {
+    return fn();
+  }
+  hipEvent_t start = nullptr;
+  hipEvent_t stop = nullptr;
+  if (!create_recorded_timing_event_pair(&start, &stop)) {
+    return fn();
+  }
+  hipError_t status = fn();
+  if (status == hipSuccess) {
+    hipError_t stop_status = hipEventRecord(stop, nullptr);
+    if (stop_status != hipSuccess) {
+      (void)hipDeviceSynchronize();
+      stop_status = hipEventRecord(stop, nullptr);
+    }
+    if (stop_status == hipSuccess) {
+      rns8::detail::hip_direct_timing_record_pending_event_with_alias(label, alias, start, stop);
+      return status;
+    }
+  }
+  destroy_timing_event_pair(start, stop);
+  return status;
+}
+
+template <typename Fn>
+int timed_ck_operation(const char* label, const char* alias, Fn&& fn) {
+  if (!rns8::detail::hip_direct_timing_enabled()) {
+    return fn();
+  }
+  hipEvent_t start = nullptr;
+  hipEvent_t stop = nullptr;
+  if (!create_recorded_timing_event_pair(&start, &stop)) {
+    return fn();
+  }
+  const int status = fn();
+  if (status == ck_success) {
+    hipError_t stop_status = hipEventRecord(stop, nullptr);
+    if (stop_status != hipSuccess) {
+      (void)hipDeviceSynchronize();
+      stop_status = hipEventRecord(stop, nullptr);
+    }
+    if (stop_status == hipSuccess) {
+      rns8::detail::hip_direct_timing_record_pending_event_with_alias(label, alias, start, stop);
+      return status;
+    }
+  }
+  destroy_timing_event_pair(start, stop);
+  return status;
+}
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -405,7 +507,31 @@ int run_ck_tile_modulus(
     int ldb,
     int ldc,
     int modulus,
-    uint32_t reciprocal) {
+    uint32_t reciprocal,
+    int prefix_index) {
+  char pack_a_label[64];
+  char pack_b_label[64];
+  char matmul_label[64];
+  char copy_label[64];
+  char add_label[64];
+  const bool have_prefix_label = prefix_index >= 0;
+  if (have_prefix_label) {
+    prefix_label(pack_a_label, sizeof(pack_a_label), prefix_index, "pack_a");
+    prefix_label(pack_b_label, sizeof(pack_b_label), prefix_index, "pack_b");
+    prefix_label(matmul_label, sizeof(matmul_label), prefix_index, "matmul");
+    prefix_label(copy_label, sizeof(copy_label), prefix_index, "copy_centered");
+    prefix_label(add_label, sizeof(add_label), prefix_index, "add_centered");
+  }
+  const char* pack_a_timing_label = have_prefix_label ? pack_a_label : "ck_pack_a_kernel";
+  const char* pack_b_timing_label = have_prefix_label ? pack_b_label : "ck_pack_b_kernel";
+  const char* matmul_timing_label = have_prefix_label ? matmul_label : "ck_wmma_cshuffle_matmul";
+  const char* copy_timing_label = have_prefix_label ? copy_label : "ck_copy_centered_kernel";
+  const char* add_timing_label = have_prefix_label ? add_label : "ck_add_centered_kernel";
+  const char* pack_a_alias = have_prefix_label ? "ck_pack_a_kernel" : nullptr;
+  const char* pack_b_alias = have_prefix_label ? "ck_pack_b_kernel" : nullptr;
+  const char* matmul_alias = have_prefix_label ? "ck_wmma_cshuffle_matmul" : nullptr;
+  const char* copy_alias = have_prefix_label ? "ck_copy_centered_kernel" : nullptr;
+  const char* add_alias = have_prefix_label ? "ck_add_centered_kernel" : nullptr;
   bool have_accumulated = false;
   int64_t padded_m_i64 = 0;
   int64_t padded_n_i64 = 0;
@@ -423,13 +549,17 @@ int run_ck_tile_modulus(
             ? (static_cast<int64_t>(k) - k_offset)
             : kRns8CanonicalSafeInt32KBlock);
     const int gemm_k_block = valid_k_block < 64 ? 64 : valid_k_block;
-    hipError_t err = launch_pack_a(
-        a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus);
+    hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
+      return launch_pack_a(
+          a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus);
+    });
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
-    err = launch_pack_b(
-        b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus);
+    err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
+      return launch_pack_b(
+          b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus);
+    });
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
@@ -452,19 +582,29 @@ int run_ck_tile_modulus(
     if (!DeviceGemmInstance::IsSupportedArgument(arg)) {
       return ck_unsupported_backend;
     }
-    try {
-      auto invoker = DeviceGemmInstance::MakeInvoker();
-      (void)invoker.Run(arg);
-    } catch (const std::exception&) {
-      return ck_backend_failure;
-    } catch (...) {
+    const int matmul_status = timed_ck_operation(matmul_timing_label, matmul_alias, [&]() {
+      try {
+        auto invoker = DeviceGemmInstance::MakeInvoker();
+        (void)invoker.Run(arg);
+      } catch (const std::exception&) {
+        return ck_backend_failure;
+      } catch (...) {
+        return ck_backend_failure;
+      }
+      return ck_success;
+    });
+    if (matmul_status != ck_success) {
       return ck_backend_failure;
     }
     if (write_workspace_output) {
       if (have_accumulated) {
-        err = launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
+        err = timed_hip_launch(add_timing_label, add_alias, [&]() {
+          return launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
+        });
       } else {
-        err = launch_copy_centered(temp_c, c, m, n, gemm_n, ldc);
+        err = timed_hip_launch(copy_timing_label, copy_alias, [&]() {
+          return launch_copy_centered(temp_c, c, m, n, gemm_n, ldc);
+        });
       }
       if (err != hipSuccess) {
         return ck_backend_failure;
@@ -531,7 +671,8 @@ int run_ck_entry(
         static_cast<int>(ldb),
         static_cast<int>(ldc),
         static_cast<int>(modulus),
-        reciprocal);
+        reciprocal,
+        static_cast<int>(p));
     if (result != ck_success) {
       return result;
     }
@@ -570,7 +711,8 @@ int run_ck_finite(
       static_cast<int>(ldb),
       static_cast<int>(ldc),
       static_cast<int>(modulus),
-      modulus_reciprocal_u32(modulus));
+      modulus_reciprocal_u32(modulus),
+      -1);
 }
 
 int checked_common(
