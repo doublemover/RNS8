@@ -568,6 +568,12 @@ def main() -> int:
     assert group["missing_git_commits"] == []
     assert group["git_commit_identity_complete"] is True
     assert group["git_commit_identity_compatible"] is True
+    assert group["missing_warmup_counts"] == []
+    assert group["warmup_count_complete"] is True
+    assert group["warmup_count_compatible"] is True
+    assert group["missing_repeat_counts"] == []
+    assert group["repeat_count_complete"] is True
+    assert group["repeat_count_compatible"] is True
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
@@ -795,6 +801,70 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_git_group["candidates"]
     }
     assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
+
+    missing_warmups_direct = copy.deepcopy(direct)
+    missing_warmups_direct["warmups"] = 0
+    missing_warmups_report = benchmark_sweep.review_captures(
+        [ck, missing_warmups_direct, cpu],
+        review_mode="release",
+    )
+    missing_warmups_group = missing_warmups_report["groups"][0]
+    assert missing_warmups_report["promotable_autotune_entries"] == []
+    assert missing_warmups_group["missing_warmup_counts"] == ["hip-direct"]
+    assert missing_warmups_group["warmup_count_complete"] is False
+    assert missing_warmups_group["warmup_count_compatible"] is False
+    missing_warmups_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_warmups_group["candidates"]
+    }
+    assert "missing_warmup_count" in missing_warmups_blockers["ck"]
+
+    mismatched_warmups_ck = copy.deepcopy(ck)
+    mismatched_warmups_ck["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS + 1
+    mismatched_warmups_report = benchmark_sweep.review_captures(
+        [mismatched_warmups_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_warmups_group = mismatched_warmups_report["groups"][0]
+    assert mismatched_warmups_report["promotable_autotune_entries"] == []
+    assert mismatched_warmups_group["missing_warmup_counts"] == []
+    assert mismatched_warmups_group["warmup_count_complete"] is True
+    assert mismatched_warmups_group["warmup_count_compatible"] is False
+    mismatched_warmups_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_warmups_group["candidates"]
+    }
+    assert "warmup_count_mismatch" in mismatched_warmups_blockers["ck"]
+
+    missing_repeats_direct = copy.deepcopy(direct)
+    missing_repeats_direct["repeats"] = 0
+    missing_repeats_report = benchmark_sweep.review_captures(
+        [ck, missing_repeats_direct, cpu],
+        review_mode="release",
+    )
+    missing_repeats_group = missing_repeats_report["groups"][0]
+    assert missing_repeats_report["promotable_autotune_entries"] == []
+    assert missing_repeats_group["missing_repeat_counts"] == ["hip-direct"]
+    assert missing_repeats_group["repeat_count_complete"] is False
+    assert missing_repeats_group["repeat_count_compatible"] is False
+    missing_repeats_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_repeats_group["candidates"]
+    }
+    assert "missing_repeat_count" in missing_repeats_blockers["ck"]
+
+    mismatched_repeats_ck = copy.deepcopy(ck)
+    mismatched_repeats_ck["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS + 1
+    mismatched_repeats_report = benchmark_sweep.review_captures(
+        [mismatched_repeats_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_repeats_group = mismatched_repeats_report["groups"][0]
+    assert mismatched_repeats_report["promotable_autotune_entries"] == []
+    assert mismatched_repeats_group["missing_repeat_counts"] == []
+    assert mismatched_repeats_group["repeat_count_complete"] is True
+    assert mismatched_repeats_group["repeat_count_compatible"] is False
+    mismatched_repeats_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_repeats_group["candidates"]
+    }
+    assert "repeat_count_mismatch" in mismatched_repeats_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],

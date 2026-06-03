@@ -504,6 +504,10 @@ def promotion_blockers(
     compiler_identity_compatible: bool,
     git_commit_identity_complete: bool,
     git_commit_identity_compatible: bool,
+    warmup_count_complete: bool,
+    warmup_count_compatible: bool,
+    repeat_count_complete: bool,
+    repeat_count_compatible: bool,
     accelerator: bool,
     internal_candidate: bool,
     prepacked_reuse: bool,
@@ -544,6 +548,14 @@ def promotion_blockers(
         blockers.append("missing_git_commit")
     elif not git_commit_identity_compatible:
         blockers.append("git_commit_mismatch")
+    if not warmup_count_complete:
+        blockers.append("missing_warmup_count")
+    elif not warmup_count_compatible:
+        blockers.append("warmup_count_mismatch")
+    if not repeat_count_complete:
+        blockers.append("missing_repeat_count")
+    elif not repeat_count_compatible:
+        blockers.append("repeat_count_mismatch")
     if not accelerator:
         blockers.append("not_accelerator_backend")
     if internal_candidate:
@@ -667,6 +679,16 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         git_commit_identity_complete = not missing_git_commits
         git_commit_values = {commit for commit in git_commits.values() if commit}
         git_commit_identity_compatible = git_commit_identity_complete and len(git_commit_values) <= 1
+        warmup_counts = {backend: normalized_positive_int(capture.get("warmups")) for backend, capture in by_backend.items()}
+        missing_warmup_counts = sorted(backend for backend, count in warmup_counts.items() if count is None)
+        warmup_count_complete = not missing_warmup_counts
+        warmup_count_values = {count for count in warmup_counts.values() if count}
+        warmup_count_compatible = warmup_count_complete and len(warmup_count_values) <= 1
+        repeat_counts = {backend: normalized_positive_int(capture.get("repeats")) for backend, capture in by_backend.items()}
+        missing_repeat_counts = sorted(backend for backend, count in repeat_counts.items() if count is None)
+        repeat_count_complete = not missing_repeat_counts
+        repeat_count_values = {count for count in repeat_counts.values() if count}
+        repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
         candidates = []
         for item in items:
@@ -695,6 +717,10 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 compiler_identity_compatible=compiler_identity_compatible,
                 git_commit_identity_complete=git_commit_identity_complete,
                 git_commit_identity_compatible=git_commit_identity_compatible,
+                warmup_count_complete=warmup_count_complete,
+                warmup_count_compatible=warmup_count_compatible,
+                repeat_count_complete=repeat_count_complete,
+                repeat_count_compatible=repeat_count_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
@@ -796,6 +822,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "missing_git_commits": missing_git_commits,
                 "git_commit_identity_complete": git_commit_identity_complete,
                 "git_commit_identity_compatible": git_commit_identity_compatible,
+                "warmup_counts": warmup_counts,
+                "missing_warmup_counts": missing_warmup_counts,
+                "warmup_count_complete": warmup_count_complete,
+                "warmup_count_compatible": warmup_count_compatible,
+                "repeat_counts": repeat_counts,
+                "missing_repeat_counts": missing_repeat_counts,
+                "repeat_count_complete": repeat_count_complete,
+                "repeat_count_compatible": repeat_count_compatible,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -1171,6 +1205,12 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         missing_git = group.get("missing_git_commits") or []
         lines.append(f"- missing_git_commits: `{','.join(missing_git) if missing_git else 'none'}`")
         lines.append(f"- git_commit_identity_compatible: `{group.get('git_commit_identity_compatible')}`")
+        missing_warmups = group.get("missing_warmup_counts") or []
+        lines.append(f"- missing_warmup_counts: `{','.join(missing_warmups) if missing_warmups else 'none'}`")
+        lines.append(f"- warmup_count_compatible: `{group.get('warmup_count_compatible')}`")
+        missing_repeats = group.get("missing_repeat_counts") or []
+        lines.append(f"- missing_repeat_counts: `{','.join(missing_repeats) if missing_repeats else 'none'}`")
+        lines.append(f"- repeat_count_compatible: `{group.get('repeat_count_compatible')}`")
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
