@@ -876,6 +876,129 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
   return static_cast<uint64_t>(plan.tile_schedule.size()) * sizeof(rns8_plan_tile_schedule_entry);
 }
 
+bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n) {
+  max_m = plan.desc.m;
+  max_n = plan.desc.n;
+  if (!plan.tile_schedule.empty()) {
+    max_m = 0;
+    max_n = 0;
+    for (const auto& entry : plan.tile_schedule) {
+      max_m = std::max(max_m, entry.row_extent);
+      max_n = std::max(max_n, entry.col_extent);
+    }
+  }
+  return max_m > 0 && max_n > 0 && plan.desc.k > 0;
+}
+
+bool hipblaslt_pack_workspace_breakdown(
+    const rns8_plan& plan,
+    uint64_t& a_pack_bytes,
+    uint64_t& b_pack_bytes,
+    uint64_t& accumulator_bytes,
+    uint64_t& library_workspace_bytes,
+    uint64_t& total_bytes) {
+  a_pack_bytes = 0;
+  b_pack_bytes = 0;
+  accumulator_bytes = 0;
+  library_workspace_bytes = 0;
+  total_bytes = 0;
+  std::size_t scratch_bytes = 0;
+  std::size_t workspace_bytes = 0;
+  if (!rns8::detail::hipblaslt_baseline_workspace_requirements(
+          plan.desc.m, plan.desc.n, plan.desc.k, scratch_bytes, workspace_bytes)) {
+    return false;
+  }
+  uint64_t padded_m = 0;
+  uint64_t padded_n = 0;
+  uint64_t padded_k = 0;
+  const uint64_t max_k_block =
+      static_cast<uint64_t>(plan.desc.k) < static_cast<uint64_t>(RNS8_SAFE_INT32_K_BLOCK)
+          ? static_cast<uint64_t>(plan.desc.k)
+          : static_cast<uint64_t>(RNS8_SAFE_INT32_K_BLOCK);
+  if (!rns8::detail::hipblaslt_round_up_aligned(static_cast<uint64_t>(plan.desc.m), padded_m) ||
+      !rns8::detail::hipblaslt_round_up_aligned(static_cast<uint64_t>(plan.desc.n), padded_n) ||
+      !rns8::detail::hipblaslt_round_up_aligned(max_k_block, padded_k)) {
+    return false;
+  }
+  if (!rns8::detail::checked_mul_u64(padded_m, padded_k, a_pack_bytes) ||
+      !rns8::detail::checked_mul_u64(padded_n, padded_k, b_pack_bytes) ||
+      workspace_bytes < a_pack_bytes || workspace_bytes - a_pack_bytes < b_pack_bytes) {
+    return false;
+  }
+  accumulator_bytes = static_cast<uint64_t>(scratch_bytes);
+  library_workspace_bytes = static_cast<uint64_t>(workspace_bytes) - a_pack_bytes - b_pack_bytes;
+  if (accumulator_bytes > std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(workspace_bytes)) {
+    return false;
+  }
+  total_bytes = accumulator_bytes + static_cast<uint64_t>(workspace_bytes);
+  return total_bytes == plan.backend_workspace_required_bytes;
+}
+
+bool ck_pack_workspace_breakdown(
+    const rns8_plan& plan,
+    uint64_t& a_pack_bytes,
+    uint64_t& b_pack_bytes,
+    uint64_t& accumulator_bytes,
+    uint64_t& total_bytes) {
+  a_pack_bytes = 0;
+  b_pack_bytes = 0;
+  accumulator_bytes = 0;
+  total_bytes = 0;
+  int64_t max_m = 0;
+  int64_t max_n = 0;
+  if (!accelerator_workspace_shape_for_plan(plan, max_m, max_n)) {
+    return false;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t b_bytes = 0;
+  std::size_t temp_bytes = 0;
+  std::size_t total_workspace = 0;
+  if (!rns8::detail::ck_workspace_requirements(
+          max_m, max_n, plan.desc.k, a_bytes, b_bytes, temp_bytes, total_workspace)) {
+    return false;
+  }
+  a_pack_bytes = static_cast<uint64_t>(a_bytes);
+  b_pack_bytes = static_cast<uint64_t>(b_bytes);
+  accumulator_bytes = static_cast<uint64_t>(temp_bytes);
+  total_bytes = static_cast<uint64_t>(total_workspace);
+  return total_bytes == plan.backend_workspace_required_bytes;
+}
+
+bool wmma_pack_workspace_breakdown(
+    const rns8_plan& plan,
+    uint64_t& a_pack_bytes,
+    uint64_t& b_pack_bytes,
+    uint64_t& total_bytes) {
+  a_pack_bytes = 0;
+  b_pack_bytes = 0;
+  total_bytes = 0;
+  int64_t max_m = 0;
+  int64_t max_n = 0;
+  if (!accelerator_workspace_shape_for_plan(plan, max_m, max_n)) {
+    return false;
+  }
+  std::size_t a_bytes = 0;
+  std::size_t b_bytes = 0;
+  std::size_t total_workspace = 0;
+  if (!rns8::detail::wmma_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes, total_workspace)) {
+    return false;
+  }
+  a_pack_bytes = static_cast<uint64_t>(a_bytes);
+  b_pack_bytes = static_cast<uint64_t>(b_bytes);
+  total_bytes = static_cast<uint64_t>(total_workspace);
+  return total_bytes == plan.backend_workspace_required_bytes;
+}
+
+const char* persistent_layout_version_for_plan(const rns8_plan& plan) {
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "wrap64_byte_limb_v1";
+  }
+  if (uses_finite_storage(plan.desc.semantics)) {
+    return "finite_u8_centered_residue_v1";
+  }
+  return "rns_centered_residue_planes_v1";
+}
+
 bool hipblaslt_scratch_bytes_for_plan(const rns8_plan& plan, std::size_t& bytes) {
   bytes = 0;
   if (plan.backend != RNS8_BACKEND_HIPBLASLT) {
@@ -2251,6 +2374,119 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     set_text(out->workspace_mode, sizeof(out->workspace_mode), plan->backend_workspace_mode);
     set_text(out->isa_evidence, sizeof(out->isa_evidence), plan->backend_isa_evidence);
     set_text(out->autotune_key, sizeof(out->autotune_key), plan->backend_autotune_key);
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!plan_schedule_contract_matches(*plan)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    const uint64_t struct_size = out->struct_size;
+    const uint32_t abi_version = out->abi_version;
+    *out = {};
+    out->struct_size = struct_size;
+    out->abi_version = abi_version;
+    out->backend = plan->backend;
+    out->semantics = plan->desc.semantics;
+    out->uses_resident_matrix_inputs = 1;
+    out->reusable_prepack_cache_available = 0;
+    out->production_prepack_cache_available = 0;
+    out->flags = 0;
+
+    if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
+      out->uses_transient_pack_workspace = 1;
+      out->uses_matrix_engine_pack_layout = 1;
+      if (!hipblaslt_pack_workspace_breakdown(
+              *plan,
+              out->a_pack_workspace_bytes,
+              out->b_pack_workspace_bytes,
+              out->accumulator_workspace_bytes,
+              out->library_workspace_bytes,
+              out->total_transient_workspace_bytes)) {
+        return RNS8_RANGE_ERROR;
+      }
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "hipblaslt_a_transposed_centered_i8_mk16_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version), "hipblaslt_b_transposed_centered_i8_nk16_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "hipBLASLt packs A/B into transient aligned INT8 buffers and uses INT32 scratch; no reusable production prepack cache.");
+      return RNS8_SUCCESS;
+    }
+
+    if (plan->backend == RNS8_BACKEND_CK) {
+      out->uses_transient_pack_workspace = 1;
+      out->uses_matrix_engine_pack_layout = 1;
+      if (!ck_pack_workspace_breakdown(
+              *plan,
+              out->a_pack_workspace_bytes,
+              out->b_pack_workspace_bytes,
+              out->accumulator_workspace_bytes,
+              out->total_transient_workspace_bytes)) {
+        return RNS8_RANGE_ERROR;
+      }
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_canonical_colmajor_i8_n64_kblock32768_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "CK packs A/B into transient canonical INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
+      return RNS8_SUCCESS;
+    }
+
+    if (plan->backend == RNS8_BACKEND_WMMA) {
+      out->uses_transient_pack_workspace = 1;
+      out->uses_matrix_engine_pack_layout = 1;
+      if (!wmma_pack_workspace_breakdown(
+              *plan,
+              out->a_pack_workspace_bytes,
+              out->b_pack_workspace_bytes,
+              out->total_transient_workspace_bytes)) {
+        return RNS8_RANGE_ERROR;
+      }
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version), "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "rocWMMA packs A/B into transient INT8 matrix-engine workspaces; no reusable production prepack cache.");
+      return RNS8_SUCCESS;
+    }
+
+    set_text(out->a_layout_version, sizeof(out->a_layout_version), persistent_layout_version_for_plan(*plan));
+    set_text(out->b_layout_version, sizeof(out->b_layout_version), persistent_layout_version_for_plan(*plan));
+    set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "device_resident_no_prepack_cache");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "Direct HIP consumes persistent device-resident matrix storage directly; no transient matrix-engine pack workspace or reusable prepack cache.");
+    } else if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "host_byte_limb_no_prepack_cache");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "Strict wrap64 byte-limb reference consumes persistent byte-limb storage directly; no matrix-engine prepack cache.");
+    } else {
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "host_resident_no_prepack_cache");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "CPU reference consumes persistent host-resident storage directly; no matrix-engine prepack cache.");
+    }
     return RNS8_SUCCESS;
   });
 }

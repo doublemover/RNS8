@@ -289,6 +289,15 @@ measured repeated workload. They are benchmark evidence for pack amortization,
 not production prepack caches; review tooling marks these captures ineligible
 for normal AUTO autotune-cache promotion.
 
+Created plans expose their current packing contract through
+`rns8_get_plan_packing_info` and `rns8::Plan::packing_info()`. The query reports
+the selected backend, persistent input/output layout versions, transient A/B
+pack workspace bytes, accumulator or library workspace bytes, and whether a
+reusable production prepack cache is available. Current accelerator backends
+report transient per-dispatch pack workspaces only; every backend reports
+`production_prepack_cache_available=0` until a real source-versioned prepack
+cache exists.
+
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. Exact-wide
 signed/unsigned and finite-u8 reviews require CPU and direct-HIP baselines;
@@ -500,7 +509,10 @@ one-shot, repeated-A, repeated-B, and repeated-A/B workloads before they can
 displace current layouts. The current benchmark can generate those repeated
 workload evidence modes with `--reuse-packed-a`, `--reuse-packed-b`, and
 `--reuse-packed-inputs`, but durable packed-layout/prepack-cache production
-work still remains roadmap work.
+work still remains roadmap work. `rns8_get_plan_packing_info` now exposes the
+current plan-specific transient pack workspace layout and byte contract so that
+future cache tooling can reject layout/cache mismatches instead of inferring
+them from backend names.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP

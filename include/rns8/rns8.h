@@ -169,6 +169,29 @@ typedef struct rns8_plan_backend_info {
   char autotune_key[512];
 } rns8_plan_backend_info;
 
+typedef struct rns8_plan_packing_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  uint32_t uses_resident_matrix_inputs;
+  uint32_t uses_transient_pack_workspace;
+  uint32_t uses_matrix_engine_pack_layout;
+  uint32_t reusable_prepack_cache_available;
+  uint32_t production_prepack_cache_available;
+  uint32_t flags;
+  uint64_t a_pack_workspace_bytes;
+  uint64_t b_pack_workspace_bytes;
+  uint64_t accumulator_workspace_bytes;
+  uint64_t library_workspace_bytes;
+  uint64_t total_transient_workspace_bytes;
+  char a_layout_version[96];
+  char b_layout_version[96];
+  char output_layout_version[96];
+  char prepack_cache_scope[96];
+  char detail[256];
+} rns8_plan_packing_info;
+
 /*
  * Public ABI hard-cut status precedence: invalid struct size/version, reserved
  * flags, unknown semantics/bound/layout enum values, or malformed semantic
@@ -211,6 +234,17 @@ RNS8_API rns8_status rns8_get_plan_tile_schedule(
 RNS8_API rns8_status rns8_get_plan_backend_info(
     const rns8_plan* plan,
     rns8_plan_backend_info* out);
+
+/*
+ * Report the concrete packing and resident-layout contract for a created plan.
+ * The byte counts are derived from the selected backend and plan shape. Current
+ * accelerator backends use transient per-dispatch pack workspaces; no reusable
+ * production prepack cache is reported until a real cache is implemented and
+ * validated.
+ */
+RNS8_API rns8_status rns8_get_plan_packing_info(
+    const rns8_plan* plan,
+    rns8_plan_packing_info* out);
 
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,

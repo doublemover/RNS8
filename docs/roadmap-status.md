@@ -421,7 +421,10 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   `--reuse-packed-inputs` so repeated-A, repeated-B, and repeated-A/B sweeps can
   record one-time `prepack_setup_us` and reused operand metadata separately from
   repeated workload timings, but durable packed-layout and prepack-cache
-  production paths are still unshipped.
+  production paths are still unshipped. The public `rns8_get_plan_packing_info`
+  API now exposes current plan-specific resident layout names, transient
+  accelerator A/B pack workspace bytes, and cache availability flags, with every
+  current backend still reporting no reusable production prepack cache.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
