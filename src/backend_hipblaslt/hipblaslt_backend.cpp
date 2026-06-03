@@ -130,6 +130,40 @@ rns8_status status_from_hipblas(hipblasStatus_t status) {
   return RNS8_BACKEND_FAILURE;
 }
 
+void destroy_timing_event_pair(hipEvent_t start, hipEvent_t stop) {
+  if (stop) {
+    (void)hipEventDestroy(stop);
+  }
+  if (start) {
+    (void)hipEventDestroy(start);
+  }
+}
+
+hipError_t create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop) {
+  if (!start || !stop) {
+    return hipErrorInvalidValue;
+  }
+  *start = nullptr;
+  *stop = nullptr;
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    hipError_t err = hipEventCreate(start);
+    if (err == hipSuccess) {
+      err = hipEventCreate(stop);
+      if (err == hipSuccess) {
+        err = hipEventRecord(*start, nullptr);
+      }
+    }
+    if (err == hipSuccess) {
+      return hipSuccess;
+    }
+    destroy_timing_event_pair(*start, *stop);
+    *start = nullptr;
+    *stop = nullptr;
+    (void)hipDeviceSynchronize();
+  }
+  return hipErrorUnknown;
+}
+
 template <typename Fn>
 hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
   if (!hip_direct_timing_enabled()) {
@@ -137,37 +171,22 @@ hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
   }
   hipEvent_t start = nullptr;
   hipEvent_t stop = nullptr;
-  hipError_t err = hipEventCreate(&start);
-  if (err != hipSuccess) {
-    return fn();
-  }
-  err = hipEventCreate(&stop);
-  if (err != hipSuccess) {
-    (void)hipEventDestroy(start);
-    return fn();
-  }
-  err = hipEventRecord(start, nullptr);
-  if (err != hipSuccess) {
-    (void)hipEventDestroy(stop);
-    (void)hipEventDestroy(start);
+  if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
     return fn();
   }
   const hipblasStatus_t status = fn();
   if (status == HIPBLAS_STATUS_SUCCESS) {
-    err = hipEventRecord(stop, nullptr);
-    if (err == hipSuccess) {
-      err = hipEventSynchronize(stop);
+    hipError_t err = hipEventRecord(stop, nullptr);
+    if (err != hipSuccess) {
+      (void)hipDeviceSynchronize();
+      err = hipEventRecord(stop, nullptr);
     }
     if (err == hipSuccess) {
-      float milliseconds = 0.0f;
-      err = hipEventElapsedTime(&milliseconds, start, stop);
-      if (err == hipSuccess && milliseconds >= 0.0f) {
-        hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
-      }
+      hip_direct_timing_record_pending_event(label, start, stop);
+      return status;
     }
   }
-  (void)hipEventDestroy(stop);
-  (void)hipEventDestroy(start);
+  destroy_timing_event_pair(start, stop);
   return status;
 }
 
@@ -178,37 +197,22 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   }
   hipEvent_t start = nullptr;
   hipEvent_t stop = nullptr;
-  hipError_t err = hipEventCreate(&start);
-  if (err != hipSuccess) {
-    return fn();
-  }
-  err = hipEventCreate(&stop);
-  if (err != hipSuccess) {
-    (void)hipEventDestroy(start);
-    return fn();
-  }
-  err = hipEventRecord(start, nullptr);
-  if (err != hipSuccess) {
-    (void)hipEventDestroy(stop);
-    (void)hipEventDestroy(start);
+  if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
     return fn();
   }
   const hipError_t status = fn();
   if (status == hipSuccess) {
-    err = hipEventRecord(stop, nullptr);
-    if (err == hipSuccess) {
-      err = hipEventSynchronize(stop);
+    hipError_t err = hipEventRecord(stop, nullptr);
+    if (err != hipSuccess) {
+      (void)hipDeviceSynchronize();
+      err = hipEventRecord(stop, nullptr);
     }
     if (err == hipSuccess) {
-      float milliseconds = 0.0f;
-      err = hipEventElapsedTime(&milliseconds, start, stop);
-      if (err == hipSuccess && milliseconds >= 0.0f) {
-        hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
-      }
+      hip_direct_timing_record_pending_event(label, start, stop);
+      return status;
     }
   }
-  (void)hipEventDestroy(stop);
-  (void)hipEventDestroy(start);
+  destroy_timing_event_pair(start, stop);
   return status;
 }
 

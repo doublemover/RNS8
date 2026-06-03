@@ -22,6 +22,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/accelerator_backend.hpp"
 #include "core/autotune_cache.hpp"
+#include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
 
@@ -34,6 +35,19 @@ rns8_status guard_api(Fn&& fn) {
   } catch (...) {
     return RNS8_INTERNAL_ERROR;
   }
+}
+
+template <typename Fn>
+rns8_status run_timed_api_status(const char* label, Fn&& fn) {
+  rns8_status status = RNS8_SUCCESS;
+  const int code = rns8::detail::run_timed_device_code(label, [&]() {
+    status = fn();
+    return status == RNS8_SUCCESS ? 0 : 3;
+  });
+  if (code != 0 && status == RNS8_SUCCESS) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  return status;
 }
 
 struct resident_oneshot_state {

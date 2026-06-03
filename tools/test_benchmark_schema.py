@@ -439,7 +439,7 @@ def main() -> int:
 
     bad_ck_events = copy.deepcopy(v4_ck_adaptive_u64)
     bad_ck_events["timing_metadata"]["gpu_event_timing_source_scope"] = "ck_default_stream"
-    expect_invalid(bad_ck_events, "accelerator_backend_default_stream_operation_groups")
+    expect_invalid(bad_ck_events, "accelerator_backend_default_stream_deep_kernel_events")
 
     bad_wmma_library = copy.deepcopy(v4_wmma_i64)
     bad_wmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
@@ -452,7 +452,7 @@ def main() -> int:
 
     bad_wmma_events = copy.deepcopy(v4_wmma_adaptive_u64)
     bad_wmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
-    expect_invalid(bad_wmma_events, "accelerator_backend_default_stream_operation_groups")
+    expect_invalid(bad_wmma_events, "accelerator_backend_default_stream_deep_kernel_events")
 
     bad_hip_target = copy.deepcopy(v4_ck_i64)
     bad_hip_target["device"]["gcn_arch"] = "unknown"
@@ -554,6 +554,28 @@ def main() -> int:
     undeclared_event_phase = copy.deepcopy(bounded)
     undeclared_event_phase["gpu_event_timings_us"]["old_event_scope_phase"] = [1.0, 1.0, 1.0]
     expect_invalid(undeclared_event_phase, "undeclared phase old_event_scope_phase")
+
+    duplicate_event_phase_order = copy.deepcopy(v4_vector_i64)
+    duplicate_event_phase_order["timing_metadata"]["gpu_event_phase_order"].append("crt_export")
+    expect_invalid(duplicate_event_phase_order, "gpu_event_phase_order must not contain duplicates")
+
+    incomplete_vector_events = copy.deepcopy(v4_vector_i64)
+    incomplete_vector_events["timing_metadata"]["gpu_event_phase_order"].remove("vector_alu_status_d2h")
+    del incomplete_vector_events["gpu_event_timings_us"]["vector_alu_status_d2h"]
+    del incomplete_vector_events["gpu_event_timing_summary_us"]["vector_alu_status_d2h"]
+    expect_invalid(incomplete_vector_events, "vector-ALU GPU event phase set is incomplete")
+
+    stale_deep_scope = copy.deepcopy(v4_ck_adaptive_u64)
+    stale_deep_scope["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+    )
+    expect_invalid(stale_deep_scope, "deep accelerator GPU event labels require")
+
+    undeclared_deep_phase = copy.deepcopy(v4_ck_adaptive_u64)
+    undeclared_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(6, "ck_prefix_99_fake_kernel")
+    undeclared_deep_phase["gpu_event_timings_us"]["ck_prefix_99_fake_kernel"] = [1.0, 1.0]
+    undeclared_deep_phase["gpu_event_timing_summary_us"]["ck_prefix_99_fake_kernel"] = zero_summary()
+    expect_invalid(undeclared_deep_phase, "deep accelerator GPU event phase set contains undeclared phases")
 
     bad_schedule_tile = copy.deepcopy(bounded)
     bad_schedule_tile["tile_m"] = 96

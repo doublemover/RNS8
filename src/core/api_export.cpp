@@ -88,8 +88,10 @@ rns8_status export_native_i64(
     int64_t* dst,
     int64_t ld) {
   std::vector<int64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
-      ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
+  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
+    return rns8::detail::hip_direct_copy_device_to_host(
+        ctx.device_id, staged.data(), C.hip_native_i64, staged.size() * sizeof(int64_t));
+  });
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -117,8 +119,10 @@ rns8_status export_native_u64(
     uint64_t* dst,
     int64_t ld) {
   std::vector<uint64_t> staged(static_cast<std::size_t>(plan.desc.m) * static_cast<std::size_t>(plan.desc.n), 0);
-  rns8_status status = rns8::detail::hip_direct_copy_device_to_host(
-      ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
+  rns8_status status = run_timed_api_status("vector_alu_output_d2h", [&]() {
+    return rns8::detail::hip_direct_copy_device_to_host(
+        ctx.device_id, staged.data(), C.hip_native_u64, staged.size() * sizeof(uint64_t));
+  });
   if (status != RNS8_SUCCESS) {
     return status;
   }

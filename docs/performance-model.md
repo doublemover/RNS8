@@ -71,8 +71,8 @@ The benchmark reports:
   must use `comparison_baseline.status:
   "reviewed_release_same_contract_baseline"`,
 - timing source, timing caveat, and structured timing metadata,
-- explicit GPU event timing availability metadata and direct-HIP event timing
-  arrays when backend hooks collect a complete repeat,
+- explicit GPU event timing availability metadata and per-backend HIP event
+  timing arrays when hooks collect a complete repeat,
 - one-time planning and matrix allocation time,
 - one-time schedule metadata query time,
 - average packing time,
@@ -377,9 +377,10 @@ raw timing array lengths against `repeats`, average/median/p95 consistency,
 phase-availability metadata, per-tile adaptive metadata, GPU event timing
 nullability or completeness, `gpu_event_phase_order: null` when events are
 unavailable, explicit event phase order for event-enabled captures, exact
-matching of event timing keys to that phase order, and the strict wrap64
-`prefix: 0` / `packed_layout_version: "byte_limb_v1"` metadata contract. It
-also checks schedule metadata and the optional repeated packed-input contract:
+matching of event timing keys to that phase order, scope-aware deep
+accelerator/vector-ALU event labels, and the strict wrap64 `prefix: 0` /
+`packed_layout_version: "byte_limb_v1"` metadata contract. It also checks
+schedule metadata and the optional repeated packed-input contract:
 `reuse_packed_inputs=true` requires one of `pack_mode: "prepacked_reuse"`,
 `"prepacked_reuse_a"`, or `"prepacked_reuse_b"`, matching
 `prepack_reuse_operands`, and `prepack_setup_us`. Full A/B reuse requires
@@ -420,11 +421,13 @@ amortization evidence and does not imply a production prepack cache exists.
 Release review marks all prepacked-reuse captures ineligible for normal AUTO
 autotune-cache promotion.
 
-## Direct-HIP event timing status
+## GPU event timing status
 
-The benchmark enables direct-HIP event timing through internal backend hooks for
-measured repeats. Events are recorded inside the backend around operation groups
-that the public benchmark phase cannot otherwise see.
+The benchmark enables HIP event timing through internal hooks for measured
+repeats. Events are recorded around default-stream device operation groups that
+the public host phase cannot otherwise see. Event collection is deferred until a
+timing snapshot, reset, or disable call, so deep per-kernel labels do not force a
+host synchronization after every suboperation.
 
 When the selected backend has no event hook, or when a complete expected event
 set is not available, event fields remain nullable:
@@ -476,13 +479,57 @@ For finite-u8 captures, pack/export event labels are finite-specific:
 `finite_resident_gemm_kernel` for the resident finite GEMM. hipBLASLt finite
 captures combine those finite pack/export labels with the hipBLASLt operation
 labels. CK and rocWMMA finite captures combine the finite pack/export labels
-with the shared `rns_gemm_kernel_group` accelerator operation-group label.
+with `rns_gemm_kernel_group` under the older operation-group accelerator scope;
+they do not emit selected-prefix deep labels because finite-u8 GEMM uses one
+explicit benchmark modulus rather than the default RNS prefix ladder.
 
-For non-finite explicit CK and rocWMMA captures, event timing uses the same
-direct-HIP pack/export labels plus a backend-owned `rns_gemm_kernel_group`
-label around the accelerator GEMM device call. This is operation-group evidence
-only. It does not expose CK-internal or rocWMMA-internal per-kernel, per-prefix,
-or per-tile timing.
+Explicit bounded/exact CK and rocWMMA captures use
+`accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export`.
+Older valid captures with
+`accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export`
+remain readable only when they contain the old operation-group labels. New deep
+captures add aggregate accelerator labels and selected-prefix labels:
+
+- CK aggregate labels: `ck_pack_a_kernel`, `ck_pack_b_kernel`,
+  `ck_wmma_cshuffle_matmul`, `ck_copy_centered_kernel`, and
+  `ck_add_centered_kernel`.
+- CK prefix labels: `ck_prefix_XX_pack_a`, `ck_prefix_XX_pack_b`,
+  `ck_prefix_XX_matmul`, `ck_prefix_XX_copy_centered`, and
+  `ck_prefix_XX_add_centered`.
+- rocWMMA aggregate labels: `rocwmma_pack_a_kernel`,
+  `rocwmma_pack_b_kernel`, and `rocwmma_matmul_kernel`.
+- rocWMMA prepacked-B labels: `rocwmma_pack_a_prepacked_b_kernel`,
+  `rocwmma_matmul_prepacked_b_kernel`,
+  `rocwmma_prefix_XX_pack_a_prepacked_b`, and
+  `rocwmma_prefix_XX_matmul_prepacked_b`.
+- rocWMMA prefix labels without prepacked B: `rocwmma_prefix_XX_pack_a`,
+  `rocwmma_prefix_XX_pack_b`, and `rocwmma_prefix_XX_matmul`.
+
+The `XX` prefix index is zero-based. Fixed-prefix captures emit labels through
+the benchmark prefix. Adaptive captures emit labels through
+`schedule_metadata.max_selected_prefix`. Values aggregate all tiles and K-blocks
+for that prefix within one repeat. Optional copy/add labels are zero-filled
+when the corresponding operation does not launch; missing required pack/matmul
+labels make event timing unavailable.
+
+Native vector-ALU captures use
+`vector_alu_default_stream_native_int64_operation_groups` and report
+`vector_alu_pack_a_h2d`, `vector_alu_pack_b_h2d`, `pack`,
+`vector_alu_status_memset`, `vector_alu_i64_kernel` or
+`vector_alu_u64_kernel`, `rns_gemm`, `vector_alu_status_d2h`,
+`vector_alu_output_d2h`, and `crt_export`. The same labels are used by the
+benchmark-only baseline and the runtime `RNS8_BACKEND_HIP_VECTOR_ALU_INT64`
+path. Tiny status memset/D2H labels can be zero when the HIP SDK does not
+surface a measurable default-stream event for the 4-byte status operation; the
+kernel, pack, and output-copy labels remain the required attribution points.
+
+Use `tools\gpu_event_report.py <capture.json>` after schema validation to rank
+event phases by median and share. Use `tools\gpu_isa_report.py --target gfx1100
+--object <hip-object>` or `--build-tree <build-dir>` for LLVM objdump-based ISA
+summaries. Reports default to `temp\isa-reports\` and must not be committed.
+The ISA report records symbol names, WMMA/MFMA counts, global store counts, LDS
+mentions, waits, and VGPR/SGPR/occupancy fields when the disassembler exposes
+them. RGA CLI use is optional.
 
 Host timings and HIP event timings answer different questions. Host
 `std::chrono::steady_clock` timings include API dispatch, CPU scheduling,

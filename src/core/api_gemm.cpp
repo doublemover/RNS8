@@ -217,7 +217,9 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      status = rns8::detail::hip_direct_zero(ctx->device_id, mutable_c->hip_status_buffer, sizeof(uint32_t));
+      status = run_timed_api_status("vector_alu_status_memset", [&]() {
+        return rns8::detail::hip_direct_zero(ctx->device_id, mutable_c->hip_status_buffer, sizeof(uint32_t));
+      });
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -246,8 +248,10 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       uint32_t host_status = 0;
-      status = rns8::detail::hip_direct_copy_device_to_host(
-          ctx->device_id, &host_status, mutable_c->hip_status_buffer, sizeof(host_status));
+      status = run_timed_api_status("vector_alu_status_d2h", [&]() {
+        return rns8::detail::hip_direct_copy_device_to_host(
+            ctx->device_id, &host_status, mutable_c->hip_status_buffer, sizeof(host_status));
+      });
       if (status != RNS8_SUCCESS) {
         return status;
       }

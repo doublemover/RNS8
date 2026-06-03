@@ -155,8 +155,10 @@ def main() -> int:
     scope = timing.get("gpu_event_timing_source_scope")
     if selected_backend == "hipblaslt":
         expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
-    else:
+    elif semantics in {"finite-u8-ring", "finite-u8-field"}:
         expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+    else:
+        expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
     if scope != expected_scope:
         raise SystemExit(f"expected GPU event source scope {expected_scope!r}, got {scope!r}")
 
