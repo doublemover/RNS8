@@ -452,8 +452,10 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   `direct_hip_tiled_finite_u8_gemm_mod255_v1`, and
   `direct_hip_tiled_finite_u8_gemm_mod256_v1` with
   `rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide` plan
-  evidence, but broader finite-field specialization and reviewed release proof
-  remain open.
+  evidence. Tracked schema validation rejects stale generic kernel/evidence
+  pairings for those moduli and rejects specialized evidence on the generic
+  finite path, but broader finite-field specialization and reviewed release
+  proof remain open.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
   Instinct CDNA validation, profiling, power runs, and cluster reproducibility
   notes. These require a real Linux ROCm host with supported hardware.
@@ -687,8 +689,9 @@ current tracked schema contract.
 - `python tools\test_benchmark_schema.py`: current benchmark schema fixture
   self-test passed, including malformed raw timing length, GPU event summary,
   invalid schedule metadata, wrap64 prefix, event-nullability, rejected retired
-  schema versions, reduction-availability, and v4 per-tile adaptive contract
-  checks.
+  schema versions, reduction-availability, v4 per-tile adaptive contract
+  checks, and direct-HIP finite generic/specialized selected-kernel plus
+  ISA-evidence mismatch checks.
 - Current `tools\benchmark_schema.py` accepts schema v4 only. Older v1/v2/v3
   captures listed above are historical evidence and are not accepted by current
   tracked fixtures or current comparison tooling.
