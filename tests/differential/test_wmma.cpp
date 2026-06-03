@@ -525,13 +525,53 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   REQUIRE(rns8_get_prepack_cache_key_info(wmma_plan, wmma_b, RNS8_OPERAND_B, &key) == RNS8_SUCCESS);
   CHECK(key.reusable_prepack_cache_available == 1);
   CHECK(key.production_prepack_cache_available == 0);
+  CHECK(key.hip_device_id == 0);
   CHECK(std::string(key.operand_layout_version) == "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+  CHECK(std::string(key.cache_key).find("hip_device_id=0") != std::string::npos);
 
   CHECK(rns8_create_prepack_cache(cpu, cpu_plan, cpu_b, RNS8_OPERAND_B, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);
   CHECK(rns8_create_prepack_cache(wmma, wmma_plan, wmma_a, RNS8_OPERAND_A, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);
   REQUIRE(rns8_create_prepack_cache(wmma, wmma_plan, wmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_SUCCESS);
+
+  rns8_prepack_cache_info cache_info{};
+  cache_info.struct_size = sizeof(cache_info);
+  cache_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_prepack_cache_info(b_cache, &cache_info) == RNS8_SUCCESS);
+  CHECK(cache_info.backend == RNS8_BACKEND_WMMA);
+  CHECK(cache_info.semantics == RNS8_BOUNDED_I64);
+  CHECK(cache_info.operand_role == RNS8_OPERAND_B);
+  CHECK(cache_info.cache_key_valid == 1);
+  CHECK(cache_info.reusable_prepack_cache_available == 1);
+  CHECK(cache_info.production_prepack_cache_available == 0);
+  CHECK(cache_info.hip_device_id == 0);
+  CHECK(cache_info.reserved0 == 0);
+  CHECK(cache_info.matrix_rows == k);
+  CHECK(cache_info.matrix_cols == n);
+  CHECK(cache_info.k == k);
+  CHECK(cache_info.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(cache_info.finite_modulus == 0);
+  CHECK(cache_info.source_version == key.source_version);
+  CHECK(cache_info.plan_fingerprint == key.plan_fingerprint);
+  CHECK(cache_info.cache_key_hash == key.cache_key_hash);
+  CHECK(cache_info.device_bytes > 0);
+  CHECK(cache_info.operand_pack_bytes > 0);
+  CHECK(std::string(cache_info.matrix_layout_version) == std::string(key.matrix_layout_version));
+  CHECK(std::string(cache_info.operand_layout_version) == std::string(key.operand_layout_version));
+  CHECK(std::string(cache_info.cache_scope) == "runtime_reusable_b_prepack_cache");
+  CHECK(std::string(cache_info.cache_key) == std::string(key.cache_key));
+
+  rns8_prepack_cache_info bad_cache_info{};
+  bad_cache_info.struct_size = sizeof(bad_cache_info) - 1;
+  bad_cache_info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_prepack_cache_info(b_cache, &bad_cache_info) == RNS8_INVALID_ARGUMENT);
+
+  rns8_prepack_cache_info null_cache_info{};
+  null_cache_info.struct_size = sizeof(null_cache_info);
+  null_cache_info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_prepack_cache_info(nullptr, &null_cache_info) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_prepack_cache_info(b_cache, nullptr) == RNS8_INVALID_ARGUMENT);
 
   REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(wmma, wmma_plan, wmma_a, wmma_b, wmma_c, wmma_workspace) == RNS8_SUCCESS);

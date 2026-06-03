@@ -144,6 +144,7 @@ struct rns8_prepack_cache {
   uint64_t source_version = 0;
   uint64_t plan_fingerprint = 0;
   uint64_t cache_key_hash = 0;
+  std::string cache_key;
   std::string matrix_layout_version;
   std::string operand_layout_version;
   int hip_device_id = -1;

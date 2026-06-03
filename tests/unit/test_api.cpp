@@ -1071,6 +1071,8 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   CHECK(a_key.cache_key_valid == 1);
   CHECK(a_key.reusable_prepack_cache_available == 0);
   CHECK(a_key.production_prepack_cache_available == 0);
+  CHECK(a_key.hip_device_id == -1);
+  CHECK(a_key.reserved0 == 0);
   CHECK(a_key.matrix_rows == desc.m);
   CHECK(a_key.matrix_cols == desc.k);
   CHECK(a_key.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
@@ -1082,6 +1084,7 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   CHECK(std::string(a_key.cache_scope) == "validated_key_no_production_cache");
   CHECK(std::string(a_key.cache_key).find("operand=A") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("source_version=11") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("hip_device_id=-1") != std::string::npos);
 
   const auto b_key = prepack_cache_key_info(plan, b, RNS8_OPERAND_B);
   CHECK(b_key.operand_role == RNS8_OPERAND_B);
@@ -1186,6 +1189,7 @@ TEST_CASE("public prepack cache key info covers wrap64 byte-limb operands") {
   CHECK(key.matrix_cols == desc.k);
   CHECK(key.max_prefix == 0);
   CHECK(key.source_version == 55);
+  CHECK(key.hip_device_id == -1);
   CHECK(std::string(key.matrix_layout_version) == "wrap64_byte_limb_v1");
   CHECK(std::string(key.operand_layout_version) == "wrap64_byte_limb_v1");
   CHECK(std::string(key.cache_key).find("semantics=wrap_u64_mod_2_64") != std::string::npos);
@@ -1217,6 +1221,7 @@ TEST_CASE("C++ prepack cache key helper exposes validated key material") {
   const auto key = rns8::prepack_cache_key_info(plan, a, RNS8_OPERAND_A);
   CHECK(key.operand_role == RNS8_OPERAND_A);
   CHECK(key.source_version == 77);
+  CHECK(key.hip_device_id == -1);
   CHECK(key.cache_key_hash != 0);
 }
 

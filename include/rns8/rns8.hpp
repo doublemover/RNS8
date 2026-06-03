@@ -192,6 +192,14 @@ class PrepackCache final {
 
   rns8_prepack_cache* get() const noexcept { return handle_; }
 
+  rns8_prepack_cache_info info() const {
+    rns8_prepack_cache_info out{};
+    out.struct_size = sizeof(out);
+    out.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_prepack_cache_info(handle_, &out));
+    return out;
+  }
+
  private:
   rns8_prepack_cache* handle_ = nullptr;
 };

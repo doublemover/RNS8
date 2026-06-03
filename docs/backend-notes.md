@@ -266,9 +266,12 @@ modulus, host/device currentness, and host/device byte counts so cache tooling
 can reject stale or mismatched resident inputs without inferring state from
 opaque handles. `rns8_get_prepack_cache_key_info` combines a plan, operand role,
 and concrete matrix handle into deterministic key material only after
-validating role, shape, backend, semantic, layout, currentness, source-version,
-and finite-modulus compatibility; current rocWMMA B keys may report reusable
-availability, while production cache availability remains false.
+validating role, shape, backend, semantic, layout, device id, currentness,
+source-version, and finite-modulus compatibility. Created caches can be queried
+with `rns8_get_prepack_cache_info`, which returns the same key/hash material
+plus the cache's device id and allocation byte contract; current rocWMMA B keys
+may report reusable availability, while production cache availability remains
+false.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

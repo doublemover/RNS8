@@ -436,9 +436,10 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   versions, finite modulus, resident currentness, byte counts, and layout
   versions so caches can reject stale or mismatched inputs. The
   `rns8_get_prepack_cache_key_info` API validates concrete plan/operand key
-  material and rejects role, shape, backend, semantic, layout, currentness,
-  source-version, and finite-modulus mismatches before reporting cache
-  availability.
+  material and rejects role, shape, backend, semantic, layout, device id,
+  currentness, source-version, and finite-modulus mismatches before reporting
+  cache availability. Created caches now expose the matching key/hash material,
+  device id, and allocation byte contract through `rns8_get_prepack_cache_info`.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
