@@ -307,7 +307,7 @@ disagree, the spec remains the target and this file identifies the gap.
 | CK | repo-local CK headers plus opt-in preset | yes when `RNS8_ENABLE_CK=ON` | yes in opt-in preset | `v_wmma` gate with no scalar divide/rcp and no unintended INT32 stores in matched CK WMMA symbols | bounded i64 512 release-reviewed candidate at 2408 us but not fastest; closest bounded u64 candidate at 512/1024 but still slower than vector; finite ring 1024 release-reviewed fastest accelerator at 1428 us for modulus 251 and 1354 us for modulus 255; exact-wide signed 1024 and unsigned 128/512/1024 release-reviewed fastest accelerator | selector wired; bounded CK, finite ring-251 1024, and exact-wide CK AUTO cache-hit paths tested from the default local cache on Windows `gfx1100` |
 | rocWMMA | repo-local rocWMMA headers plus opt-in preset | yes when `RNS8_ENABLE_ROCWMMA=ON` for bounded/exact-wide/finite; internal wrap64 candidate only | yes in opt-in preset, plus wrap64 candidate differential against direct HIP and CPU oracle | `v_wmma` gate with no scalar divide/rcp and no unintended INT32 stores, now requiring the wrap64 candidate symbol too | bounded i64 512 release-reviewed fastest accelerator at 2399 us; adaptive bounded i64 1024 release-reviewed fastest accelerator at 5095 us; bounded u64 blocked by vector baseline; finite 64/128/512 groups release-reviewed fastest accelerator; no wrap64 release win yet | selector wired for bounded/exact-wide/finite; wrap64 candidate is not public or AUTO-selected |
 | AMDGPU builtins | no discovery-only readiness path | no | no | no | none | fail-fast |
-| Wrap64 matrix-engine | current direct-HIP byte-limb path is production baseline; rocWMMA candidate is internal | no public backend | Windows `gfx1100` private differentials cover single-cell K tails, exact 16x16x16 tiles, padded carry-heavy tails, ragged two-tile output, and the `k=32768` accepted / `k=32769` rejected boundary | rocWMMA candidate is covered by the `v_wmma` no-divide/no-INT32-global-store gate | direct-HIP v3 remains measured release GPU path at 1828 us for 64x64x64, 2090 us for 128x128x128, 7757 us for 512x512x512, and 39359 us for 1024x1024x1024 | not durable |
+| Wrap64 matrix-engine | current direct-HIP byte-limb path is production baseline; rocWMMA candidate is internal | no public backend | Windows `gfx1100` private differentials cover single-cell K tails, exact 16x16x16 tiles, padded carry-heavy tails, ragged two-tile output, and the `k=32768` accepted / `k=32769` rejected boundary; benchmark smoke also checks same-seed 64x64x64 CPU/direct-HIP/candidate `checksum_u64` parity | rocWMMA candidate is covered by the `v_wmma` no-divide/no-INT32-global-store gate | direct-HIP v3 remains measured release GPU path at 1828 us for 64x64x64, 2090 us for 128x128x128, 7757 us for 512x512x512, and 39359 us for 1024x1024x1024 | not durable |
 
 Durable AUTO promotion is not the same as a temp smoke cache entry. A shape
 enters production selection only after `--review-mode release` captures with complete
@@ -404,9 +404,11 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   not accelerator backends. An internal rocWMMA candidate now has Windows
   `gfx1100` private differentials for single-cell K tails, exact 16x16x16
   tiles, padded carry-heavy tails, ragged two-tile output, and the `k=32768`
-  accepted / `k=32769` rejected boundary, plus ISA-gated WMMA evidence; public
-  backend integration, release-shape correctness evidence, and release-speed
-  proof remain open.
+  accepted / `k=32769` rejected boundary, plus ISA-gated WMMA evidence and a
+  64x64x64 same-seed benchmark checksum smoke against CPU byte-limb and
+  direct-HIP captures; public backend integration, full release-shape
+  correctness evidence beyond that checksum smoke, and release-speed proof
+  remain open.
 - Packed low-bit matrix-engine pipeline work: persistent packed layout versions
   beyond the current correctness layouts, B prepack/tile swizzle caches,
   repeated-A/B amortization sweeps, IU4/INT4 experiments, and FP8/Ozaki
