@@ -296,7 +296,11 @@ pack workspace bytes, accumulator or library workspace bytes, and whether a
 reusable production prepack cache is available. Current accelerator backends
 report transient per-dispatch pack workspaces only; every backend reports
 `production_prepack_cache_available=0` until a real source-versioned prepack
-cache exists.
+cache exists. Matrix handles expose the matching resident storage state through
+`rns8_get_matrix_storage_info` and `rns8::Matrix::storage_info()`: source
+version, finite modulus, host/device currentness, byte counts, and persistent
+layout version. Future prepack caches must key or reject against both the plan
+packing contract and this matrix storage state.
 
 The review report groups captures by semantic input contract, reports CPU,
 direct-HIP, and vector-ALU baseline coverage for bounded i64/u64. Exact-wide
@@ -512,7 +516,8 @@ workload evidence modes with `--reuse-packed-a`, `--reuse-packed-b`, and
 work still remains roadmap work. `rns8_get_plan_packing_info` now exposes the
 current plan-specific transient pack workspace layout and byte contract so that
 future cache tooling can reject layout/cache mismatches instead of inferring
-them from backend names.
+them from backend names; `rns8_get_matrix_storage_info` exposes the matrix
+source version and resident currentness needed for source-version invalidation.
 
 `rns8-inspect --backend` accepts only explicit backend names. Unknown backend
 strings are rejected instead of being routed to `auto`. In the default HIP

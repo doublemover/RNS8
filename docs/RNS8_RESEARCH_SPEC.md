@@ -1480,9 +1480,13 @@ repeated workload timings; these measurement modes are not themselves a
 production prepack cache. Created plans must expose their current packing
 contract through `rns8_get_plan_packing_info`: persistent layout versions,
 transient pack workspace bytes, operand layout names, and explicit cache
-availability flags. Until a source-versioned reusable cache exists and is
-validated, every production plan must report no reusable or production prepack
-cache.
+availability flags. Matrix handles must expose the matching resident storage
+contract through `rns8_get_matrix_storage_info`: source version, finite modulus,
+host/device currentness, byte counts, and persistent layout version. Future
+prepack caches must reject backend, semantic, layout, shape, finite-modulus,
+operand-role, and source-version mismatches using these public contracts. Until
+a source-versioned reusable cache exists and is validated, every production
+plan must report no reusable or production prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

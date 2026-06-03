@@ -561,7 +561,11 @@ backend-specific transient A/B pack layouts, accumulator or library workspace
 bytes, and cache availability. Current hipBLASLt, CK, and rocWMMA plans report
 transient per-dispatch matrix-engine pack workspaces; CPU, direct-HIP, and
 wrap64 reference plans report resident layouts without transient pack
-workspaces. No current backend reports a reusable production prepack cache.
+workspaces. Matrix handles expose the companion source version, finite modulus,
+host/device currentness flags, byte counts, and persistent layout version
+through `rns8_get_matrix_storage_info`; reusable cache tooling must include that
+matrix-side state in cache keys and mismatch rejection. No current backend
+reports a reusable production prepack cache.
 
 INT4/IU4, AMDGPU builtins, FP8/Ozaki, and wrap64 matrix-engine paths are
 retired per semantic/target if they fail to beat the tuned INT8 or current

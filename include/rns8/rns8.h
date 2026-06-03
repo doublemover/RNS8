@@ -192,6 +192,36 @@ typedef struct rns8_plan_packing_info {
   char detail[256];
 } rns8_plan_packing_info;
 
+typedef struct rns8_matrix_storage_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_layout logical_layout;
+  rns8_bound_kind bound_kind;
+  int64_t rows;
+  int64_t cols;
+  int64_t logical_ld;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t source_version;
+  uint32_t host_residues_current;
+  uint32_t device_residues_current;
+  uint32_t host_byte_limbs_current;
+  uint32_t device_byte_limbs_current;
+  uint32_t uses_residue_storage;
+  uint32_t uses_byte_limb_storage;
+  int32_t hip_device_id;
+  uint32_t flags;
+  uint64_t host_residue_bytes;
+  uint64_t device_residue_bytes;
+  uint64_t host_byte_limb_bytes;
+  uint64_t device_byte_limb_bytes;
+  char layout_version[96];
+  char storage_scope[96];
+  char detail[256];
+} rns8_matrix_storage_info;
+
 /*
  * Public ABI hard-cut status precedence: invalid struct size/version, reserved
  * flags, unknown semantics/bound/layout enum values, or malformed semantic
@@ -259,6 +289,15 @@ RNS8_API rns8_status rns8_create_matrix(
     rns8_matrix** out);
 
 RNS8_API rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
+
+/*
+ * Report the resident storage state for a matrix handle. This exposes the
+ * source version, currentness flags, byte counts, and layout version needed to
+ * key or reject future prepack caches without mutating the matrix.
+ */
+RNS8_API rns8_status rns8_get_matrix_storage_info(
+    const rns8_matrix* matrix,
+    rns8_matrix_storage_info* out);
 
 RNS8_API rns8_status rns8_pack_i64(
     rns8_context* ctx,
