@@ -27,7 +27,8 @@ typedef enum rns8_backend_kind {
   RNS8_BACKEND_HIPBLASLT = 3,
   RNS8_BACKEND_CK = 4,
   RNS8_BACKEND_WMMA = 5,
-  RNS8_BACKEND_WRAP64_BYTE_LIMB = 6
+  RNS8_BACKEND_WRAP64_BYTE_LIMB = 6,
+  RNS8_BACKEND_HIP_VECTOR_ALU_INT64 = 7
 } rns8_backend_kind;
 
 #ifdef __cplusplus
@@ -35,4 +36,3 @@ typedef enum rns8_backend_kind {
 #endif
 
 #endif
-

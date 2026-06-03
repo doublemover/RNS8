@@ -1015,16 +1015,19 @@ Thread-safety rules:
 | B5 | CK grouped GEMM | optional by feature detection | optional by feature detection | adaptive scheduling |
 | B6 | CK custom epilogue | optional by feature detection | optional by feature detection | fused reduction |
 | B7 | rocWMMA or AMDGPU builtins | optional by feature detection | optional for hot production targets | architecture hot paths |
+| B8 | Native vector-ALU bounded i64/u64 | HIP feature detection | bounded i64/u64 only | no-RNS same-contract GPU baseline |
 
 The direct HIP backend exists to prevent the project from being blocked by
 library availability differences between Windows and Linux.
 
-Windows `gfx1100` performance validation also includes a benchmark-only
-`hip-vector-alu-int64` baseline for bounded i64/u64. It is not a public runtime
-backend enum and must not be selected by production plans. Its role is to
-provide same-contract GPU vector-ALU evidence, with exact 192-bit-limb
-accumulation and direct logical output export, before a matrix-engine backend
-can claim speedup.
+Windows `gfx1100` performance validation also includes
+`hip-vector-alu-int64` for bounded i64/u64. The public runtime backend is
+bounded-only and owns compact native HIP device storage rather than persistent
+RNS residue planes. It provides same-contract GPU vector-ALU evidence, with
+exact 192-bit-limb accumulation and direct logical output export, before a
+matrix-engine backend can claim speedup. It must not be used for exact-wide,
+finite, or wrap64 semantics; strict `mod 2^64` wraparound remains a byte-limb
+backend responsibility.
 
 Feature detection does not enable a backend. hipBLASLt is the baseline
 correctness exception only under the explicit `RNS8_ENABLE_HIPBLASLT=ON`

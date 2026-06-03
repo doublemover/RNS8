@@ -20,15 +20,14 @@ does not imply Linux ROCm or Instinct readiness.
 
 ### 1. Native Vector-ALU Production Backend
 
-Current vector path is benchmark-only in
-[benchmarks/hip_vector_alu_baseline_kernels.hip](../benchmarks/hip_vector_alu_baseline_kernels.hip).
-It wins bounded-u64, so this is probably the biggest immediate gain.
+Status: runtime backend implemented in
+[src/backend_vector_alu](../src/backend_vector_alu). The benchmark harness in
+[benchmarks/hip_vector_alu_baseline_kernels.hip](../benchmarks/hip_vector_alu_baseline_kernels.hip)
+still exists for same-contract release comparisons.
 
 - Add a real semantic-specific backend, not a generic accelerator:
   `bounded-i64/u64` only; no exact-wide, finite, wrap64, or CRT fallback.
-- Decide API shape: either add a public backend enum, or keep it as an internal
-  AUTO-only backend while reporting a concrete selected kernel. Public enum is
-  cleaner but is an ABI/API change.
+  Implemented as public `RNS8_BACKEND_HIP_VECTOR_ALU_INT64`.
 - Add native device storage to `rns8_matrix`: `hip_native_i64`,
   `hip_native_u64`, byte counts, currentness flags, and source version. Existing
   RNS matrices cannot feed vector kernels because they store residues, not
