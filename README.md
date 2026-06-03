@@ -451,9 +451,11 @@ storage and using exact unsigned `uint64_t` wraparound arithmetic for the
 low-64 product. An internal rocWMMA wrap64 byte-GEMM36 candidate now consumes
 the same compact byte-limb device buffers, decomposes each unsigned byte
 product into signed WMMA plus high-bit correction WMMA terms, and matches
-direct HIP plus the CPU byte-pair oracle on a padded carry-heavy `gfx1100`
-smoke. It is not a public backend, not selected by AUTO, and not release
-performance evidence. Raw timing capture is available only through
+direct HIP plus the CPU byte-pair oracle on Windows `gfx1100` across
+single-cell K tails, exact 16x16x16 WMMA tiles, padded carry-heavy tile tails,
+ragged two-tile output, and the current `k=32768` accepted / `k=32769`
+rejected boundary. It is not a public backend, not selected by AUTO, and not
+release performance evidence. Raw timing capture is available only through
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64`, which
 reports `backend_selected: "wmma"`, a benchmark-owned static 16x16 schedule,
 candidate-specific HIP event label
@@ -466,9 +468,9 @@ used by other release reviews, plus optional exploratory large shapes when
 `--include-wrap64-wmma-candidate` to include raw internal candidate captures in
 the review report; the reviewer marks them with
 `internal_candidate_not_public_backend`, so they cannot produce autotune cache
-entries. The matrix-engine path still needs public backend integration, broader
-exact differentials, and reviewed release captures proving it beats direct-HIP
-v3 before it can displace the current production GPU path.
+entries. The matrix-engine path still needs public backend integration,
+release-shape correctness evidence, and reviewed release captures proving it
+beats direct-HIP v3 before it can displace the current production GPU path.
 
 The packed low-bit matrix-engine pipeline is also roadmap work, not a completed
 runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,

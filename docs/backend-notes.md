@@ -222,8 +222,10 @@ storage but uses exact unsigned `uint64_t` wraparound arithmetic for the low-64
 product; the byte-pair/carry oracle remains in tests. An internal rocWMMA
 wrap64 byte-GEMM36 candidate now consumes the same compact byte-limb device
 buffers, uses signed WMMA plus explicit high-bit correction WMMA terms for the
-unsigned byte products, and matches direct HIP plus the CPU oracle on a padded
-carry-heavy Windows `gfx1100` differential. It remains non-production: no
+unsigned byte products, and matches direct HIP plus the CPU oracle on Windows
+`gfx1100` private differentials covering single-cell K tails, exact 16x16x16
+tiles, padded carry-heavy tails, ragged two-tile output, and the current
+`k=32768` accepted / `k=32769` rejected boundary. It remains non-production: no
 public backend selection, no AUTO route, and no release performance promotion.
 
 Packed low-bit work is a roadmap track, not a completed backend. The intended
@@ -421,9 +423,11 @@ The rocWMMA wrap64 candidate is an internal proof harness, not a public backend.
 It runs only in `RNS8_ENABLE_ROCWMMA=ON` builds, reads compact byte-limb A/B
 buffers, accumulates the 36 low-product byte-pair diagonals through real WMMA
 instructions and high-bit correction terms, writes compact byte-limb C, and is
-covered by a direct-HIP/CPU-oracle differential plus the rocWMMA ISA gate. The
-candidate is intentionally shape-gated and remains outside AUTO and production
-promotion until broader correctness and release performance evidence exists.
+covered by direct-HIP/CPU-oracle differentials for K tails, exact WMMA tiles,
+padded carry-heavy tails, ragged two-tile output, and its K boundary plus the
+rocWMMA ISA gate. The candidate is intentionally shape-gated and remains
+outside AUTO and production promotion until release-shape correctness and
+release performance evidence exists.
 
 Raw benchmark captures are available through
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` in

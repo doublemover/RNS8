@@ -139,12 +139,13 @@ selected CK for 64 and 128, and rocWMMA for 512 and 1024.
 Release-smoke wrap64 baseline captures kept
 `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` as the measured GPU path for strict
 `mod 2^64`. The production-threshold release baseline is recorded below. The
-internal rocWMMA wrap64 byte-GEMM36 candidate has correctness and ISA smoke
-evidence, but no wrap64 accelerator promotion was made because it has not been
-integrated as a public backend or beaten direct HIP in reviewed release
-captures. AMDGPU builtins remain fail-fast because the release-smoke reviews
-did not identify a shape requiring a builtin kernel with exact differentials,
-ISA evidence, and better timings than CK/rocWMMA.
+internal rocWMMA wrap64 byte-GEMM36 candidate has expanded Windows `gfx1100`
+private correctness differentials and ISA smoke evidence, but no wrap64
+accelerator promotion was made because it has not been integrated as a public
+backend or beaten direct HIP in reviewed release captures. AMDGPU builtins
+remain fail-fast because the release-smoke reviews did not identify a shape
+requiring a builtin kernel with exact differentials, ISA evidence, and better
+timings than CK/rocWMMA.
 
 ## Windows `gfx1100` release-reviewed bounded-i64 matrix
 
@@ -282,7 +283,10 @@ fixed 16x16 WMMA schedule, report `backend_selected: "wmma"` and
 `wrap64_wmma_candidate_gemm36_kernel_group` HIP event phase, and remain
 `performance_validated: false`. Sweep promotion keeps an explicit
 `internal_candidate_not_public_backend` blocker until this path becomes a real
-public backend with reviewed release evidence.
+public backend with reviewed release evidence. Current private correctness
+coverage checks single-cell K tails, exact 16x16x16 tiles, padded carry-heavy
+tails, ragged two-tile output, and the `k=32768` accepted / `k=32769` rejected
+candidate boundary against direct HIP and the CPU byte-pair oracle.
 
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
