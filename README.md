@@ -340,7 +340,10 @@ Configured AMDGPU targets and HIP runtime/driver versions are enforced the
 same way through `missing_configured_gpu_target`,
 `configured_gpu_target_mismatch`, `missing_hip_runtime_version`,
 `hip_runtime_version_mismatch`, `missing_hip_driver_version`, and
-`hip_driver_version_mismatch`.
+`hip_driver_version_mismatch`. Compiler identity and live source checkout
+identity must also be complete and consistent; release groups with missing or
+mixed values report `missing_compiler_identity`, `compiler_identity_mismatch`,
+`missing_git_commit`, or `git_commit_mismatch`.
 Reviewed temp cache files can be merged into an installable cache only through
 the validating installer; it rejects non-reviewed entries and stale identity
 fields before writing. Durable reviewed cache entries are limited to public

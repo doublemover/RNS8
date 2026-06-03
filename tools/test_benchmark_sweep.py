@@ -152,6 +152,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         vector["warmups"] = benchmark_sweep.RELEASE_MIN_WARMUPS
         vector["repeats"] = benchmark_sweep.RELEASE_MIN_REPEATS
         vector["seed"] = capture["seed"]
+        vector["git_commit"] = capture["git_commit"]
         vector["compiler"] = copy.deepcopy(capture["compiler"])
         vector["configured_amdgpu_targets"] = capture["configured_amdgpu_targets"]
         vector["hip_toolchain"] = copy.deepcopy(capture["hip_toolchain"])
@@ -541,6 +542,8 @@ def main() -> int:
     assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
     assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
     assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
+    assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
+    assert group["source_metadata"]["git_commits"] == ["fixture"]
     assert group["source_metadata"]["seeds"] == [13]
     assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
     assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
@@ -559,6 +562,12 @@ def main() -> int:
     assert group["missing_hip_driver_versions"] == []
     assert group["hip_driver_version_complete"] is True
     assert group["hip_driver_version_compatible"] is True
+    assert group["missing_compiler_identities"] == []
+    assert group["compiler_identity_complete"] is True
+    assert group["compiler_identity_compatible"] is True
+    assert group["missing_git_commits"] == []
+    assert group["git_commit_identity_complete"] is True
+    assert group["git_commit_identity_compatible"] is True
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
@@ -722,6 +731,70 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_driver_group["candidates"]
     }
     assert "hip_driver_version_mismatch" in mismatched_driver_blockers["ck"]
+
+    missing_compiler_direct = copy.deepcopy(direct)
+    missing_compiler_direct["compiler"]["version"] = ""
+    missing_compiler_report = benchmark_sweep.review_captures(
+        [ck, missing_compiler_direct, cpu],
+        review_mode="release",
+    )
+    missing_compiler_group = missing_compiler_report["groups"][0]
+    assert missing_compiler_report["promotable_autotune_entries"] == []
+    assert missing_compiler_group["missing_compiler_identities"] == ["hip-direct"]
+    assert missing_compiler_group["compiler_identity_complete"] is False
+    assert missing_compiler_group["compiler_identity_compatible"] is False
+    missing_compiler_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_compiler_group["candidates"]
+    }
+    assert "missing_compiler_identity" in missing_compiler_blockers["ck"]
+
+    mismatched_compiler_ck = copy.deepcopy(ck)
+    mismatched_compiler_ck["compiler"]["version"] = "1944.999999"
+    mismatched_compiler_report = benchmark_sweep.review_captures(
+        [mismatched_compiler_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_compiler_group = mismatched_compiler_report["groups"][0]
+    assert mismatched_compiler_report["promotable_autotune_entries"] == []
+    assert mismatched_compiler_group["missing_compiler_identities"] == []
+    assert mismatched_compiler_group["compiler_identity_complete"] is True
+    assert mismatched_compiler_group["compiler_identity_compatible"] is False
+    mismatched_compiler_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_compiler_group["candidates"]
+    }
+    assert "compiler_identity_mismatch" in mismatched_compiler_blockers["ck"]
+
+    missing_git_direct = copy.deepcopy(direct)
+    missing_git_direct["git_commit"] = "unknown"
+    missing_git_report = benchmark_sweep.review_captures(
+        [ck, missing_git_direct, cpu],
+        review_mode="release",
+    )
+    missing_git_group = missing_git_report["groups"][0]
+    assert missing_git_report["promotable_autotune_entries"] == []
+    assert missing_git_group["missing_git_commits"] == ["hip-direct"]
+    assert missing_git_group["git_commit_identity_complete"] is False
+    assert missing_git_group["git_commit_identity_compatible"] is False
+    missing_git_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_git_group["candidates"]
+    }
+    assert "missing_git_commit" in missing_git_blockers["ck"]
+
+    mismatched_git_ck = copy.deepcopy(ck)
+    mismatched_git_ck["git_commit"] = "different-fixture"
+    mismatched_git_report = benchmark_sweep.review_captures(
+        [mismatched_git_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_git_group = mismatched_git_report["groups"][0]
+    assert mismatched_git_report["promotable_autotune_entries"] == []
+    assert mismatched_git_group["missing_git_commits"] == []
+    assert mismatched_git_group["git_commit_identity_complete"] is True
+    assert mismatched_git_group["git_commit_identity_compatible"] is False
+    mismatched_git_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_git_group["candidates"]
+    }
+    assert "git_commit_mismatch" in mismatched_git_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
