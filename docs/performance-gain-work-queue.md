@@ -1692,6 +1692,14 @@ Technical direction:
 
 Likely first slices:
 
+- Compact contiguous export D2H fast path. Implemented for Direct-HIP bounded,
+  finite-u8, exact-wide, and wrap64 exports: contiguous host outputs now use a
+  linear `hipMemcpy`, while padded leading dimensions keep the existing
+  `hipMemcpy2D` path. Windows `gfx1100` release smokes under
+  `temp/compact-export-release/` validated schema/events across bounded i64,
+  finite-u8, exact-wide, and wrap64; finite-u8 512 median export D2H improved
+  from the prior 66.2 us r33 capture to 49.2 us, but end-to-end averages remain
+  too noisy for a headline claim.
 - Pinned staging benchmark option with metadata.
 - Async exact-wide export/D2H overlap experiment.
 - Multi-stream repeated-B pipeline scenario.
