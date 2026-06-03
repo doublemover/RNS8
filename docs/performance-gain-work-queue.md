@@ -84,6 +84,15 @@ losers.
 - Add kernel variants to autotune keys, not hidden compile-time switches.
 - Run 64/128/512/1024 plus 2048 before assuming the 512/1024 split persists.
 
+Status: the first hipBLASLt 1024 slice removes repeated heuristic selection
+from identical hot dispatches by caching the selected matmul algorithm in
+process-local memory keyed by device, padded shape, scratch leading dimension,
+and workspace size. Windows `gfx1100` smoke captures in
+`temp\benchmark-sweeps\heuristic-cache` improved the saved 1024 bounded-i64
+sample from 26.6 ms end-to-end / 12.4 ms host RNS GEMM to 14.6 ms then 12.8 ms
+end-to-end / 6.3 ms then 5.6 ms host RNS GEMM, but those are five-repeat smoke
+captures with visible component-timing noise, not promotion-grade evidence.
+
 ### 4. Large-Shape Release Matrix
 
 Before deep kernel work, run 2048/4096/8192 exploratory release matrices within
@@ -110,6 +119,12 @@ See [src/backend_hipblaslt/hipblaslt_backend.cpp](../src/backend_hipblaslt/hipbl
   where possible.
 - Ensure hipBLASLt cache entries reject wrong library version and stale kernel
   names.
+
+Status: `hipblasLtMatmulAlgoGetHeuristic` is now bypassed after the first
+matching device/shape/workspace lookup inside the running process. This cache
+is intentionally non-durable and does not replace reviewed autotune-cache
+identity, library-version rejection, stale-kernel rejection, or the remaining
+A/B pack, timing-split, scratch, and reduce-kernel work.
 
 ### 6. CK Path
 

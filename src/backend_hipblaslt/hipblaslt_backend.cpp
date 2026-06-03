@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <mutex>
 #include <string>
+#include <vector>
 
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
 #  include <hip/hip_runtime_api.h>
@@ -244,6 +246,57 @@ struct matmul_descriptors {
   }
 };
 
+struct matmul_algorithm_cache_key {
+  int device_id = -1;
+  int m = 0;
+  int n = 0;
+  int k = 0;
+  int scratch_ld = 0;
+  std::size_t workspace_bytes = 0;
+
+  bool operator==(const matmul_algorithm_cache_key& other) const {
+    return device_id == other.device_id && m == other.m && n == other.n && k == other.k &&
+           scratch_ld == other.scratch_ld && workspace_bytes == other.workspace_bytes;
+  }
+};
+
+struct matmul_algorithm_cache_entry {
+  matmul_algorithm_cache_key key{};
+  hipblasLtMatmulAlgo_t algo{};
+};
+
+std::mutex& matmul_algorithm_cache_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::vector<matmul_algorithm_cache_entry>& matmul_algorithm_cache_entries() {
+  static std::vector<matmul_algorithm_cache_entry> entries;
+  return entries;
+}
+
+bool find_cached_matmul_algorithm(const matmul_algorithm_cache_key& key, hipblasLtMatmulAlgo_t& algo) {
+  std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
+  const auto& entries = matmul_algorithm_cache_entries();
+  const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
+  if (it == entries.end()) {
+    return false;
+  }
+  algo = it->algo;
+  return true;
+}
+
+void remember_matmul_algorithm(const matmul_algorithm_cache_key& key, const hipblasLtMatmulAlgo_t& algo) {
+  std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
+  auto& entries = matmul_algorithm_cache_entries();
+  const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
+  if (it != entries.end()) {
+    it->algo = algo;
+    return;
+  }
+  entries.push_back(matmul_algorithm_cache_entry{key, algo});
+}
+
 hipblasStatus_t create_matmul_descriptors(
     const padded_block_shape& shape,
     int64_t scratch_ld,
@@ -292,6 +345,7 @@ hipblasStatus_t create_matmul_descriptors(
 }
 
 hipblasStatus_t run_matmul_block(
+    int device_id,
     hipblasLtHandle_t handle,
     const int8_t* packed_a_t,
     const int8_t* packed_b_t,
@@ -306,24 +360,36 @@ hipblasStatus_t run_matmul_block(
     return status;
   }
 
-  hipblasLtMatmulHeuristicResult_t heuristic{};
-  int heuristic_count = 0;
-  status = hipblasLtMatmulAlgoGetHeuristic(
-      handle,
-      descriptors.op,
-      descriptors.a,
-      descriptors.b,
-      descriptors.c,
-      descriptors.d,
-      descriptors.preference,
-      1,
-      &heuristic,
-      &heuristic_count);
-  if (status == HIPBLAS_STATUS_SUCCESS && heuristic_count > 0 && heuristic.state == HIPBLAS_STATUS_SUCCESS) {
-  } else if (status == HIPBLAS_STATUS_SUCCESS || status == HIPBLAS_STATUS_NOT_SUPPORTED) {
-    return HIPBLAS_STATUS_NOT_SUPPORTED;
-  } else {
-    return status;
+  const matmul_algorithm_cache_key cache_key{
+      device_id,
+      shape.m,
+      shape.n,
+      shape.k,
+      static_cast<int>(scratch_ld),
+      workspace_bytes};
+  hipblasLtMatmulAlgo_t algo{};
+  if (!find_cached_matmul_algorithm(cache_key, algo)) {
+    hipblasLtMatmulHeuristicResult_t heuristic{};
+    int heuristic_count = 0;
+    status = hipblasLtMatmulAlgoGetHeuristic(
+        handle,
+        descriptors.op,
+        descriptors.a,
+        descriptors.b,
+        descriptors.c,
+        descriptors.d,
+        descriptors.preference,
+        1,
+        &heuristic,
+        &heuristic_count);
+    if (status == HIPBLAS_STATUS_SUCCESS && heuristic_count > 0 && heuristic.state == HIPBLAS_STATUS_SUCCESS) {
+      algo = heuristic.algo;
+      remember_matmul_algorithm(cache_key, algo);
+    } else if (status == HIPBLAS_STATUS_SUCCESS || status == HIPBLAS_STATUS_NOT_SUPPORTED) {
+      return HIPBLAS_STATUS_NOT_SUPPORTED;
+    } else {
+      return status;
+    }
   }
 
   const int32_t alpha = 1;
@@ -342,7 +408,7 @@ hipblasStatus_t run_matmul_block(
         descriptors.c,
         scratch,
         descriptors.d,
-        &heuristic.algo,
+        &algo,
         workspace,
         workspace_bytes,
         nullptr);
@@ -392,6 +458,7 @@ rns8_status run_reduce_block(
 }
 
 rns8_status gemm_one_plane(
+    int device_id,
     hipblasLtHandle_t handle,
     const int8_t* a,
     const int8_t* b,
@@ -453,6 +520,7 @@ rns8_status gemm_one_plane(
       return pack_status;
     }
     const hipblasStatus_t matmul_status = run_matmul_block(
+        device_id,
         handle,
         packed_a_t,
         packed_b_t,
@@ -585,6 +653,7 @@ rns8_status hipblaslt_gemm_rns_device(
     const std::size_t c_offset =
         static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc);
     const rns8_status status = gemm_one_plane(
+        device_id,
         typed_handle,
         a_base + a_offset,
         b_base + b_offset,
@@ -654,6 +723,7 @@ rns8_status hipblaslt_gemm_finite_u8_device(
     return device_status;
   }
   const rns8_status status = gemm_one_plane(
+      device_id,
       static_cast<hipblasLtHandle_t>(handle),
       static_cast<const int8_t*>(device_a_residues),
       static_cast<const int8_t*>(device_b_residues),
