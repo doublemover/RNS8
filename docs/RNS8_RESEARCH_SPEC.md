@@ -947,15 +947,18 @@ the reviewed autotune key exactly matches the explicit semantic contract, shape,
 layout, target id, HIP or accelerator library version, prefix schedule, K-block,
 tile size, epilogue, and kernel family. It must reject unvalidated, stale,
 debug-only, wrong-target, wrong-version, wrong-shape, or wrong-semantic cache
-entries with inspectable rationale. Without a validated exact cache hit or
-reviewed fastest accelerator entry, AUTO uses the direct-HIP GPU correctness
-path for GPU-supported RNS and wrap64 semantics, and uses CPU only when GPU
-support is unavailable. It does not translate valid semantic descriptors across
-backend families: CPU fallback does not reinterpret wrap64 as bounded CRT, and
-wrap64 storage does not route bounded or exact-wide descriptors to an unrelated
-RNS path. finite-u8 descriptors carry the explicit finite modulus in the plan
-descriptor and autotune key, so reviewed-cache AUTO selection is
-shape-and-modulus scoped and cannot alias different rings or fields.
+entries with inspectable rationale. hipBLASLt, CK, and rocWMMA reviewed entries
+are residue-current accelerator selections; `hip-vector-alu-int64` reviewed
+entries are accepted only for bounded i64/u64 final/native-output plans. Without
+a validated exact cache hit or reviewed fastest accelerator entry, AUTO uses the
+direct-HIP GPU correctness path for GPU-supported RNS and wrap64 semantics, and
+uses CPU only when GPU support is unavailable. It does not translate valid
+semantic descriptors across backend families: CPU fallback does not reinterpret
+wrap64 as bounded CRT, and wrap64 storage does not route bounded or exact-wide
+descriptors to an unrelated RNS path. finite-u8 descriptors carry the explicit
+finite modulus in the plan descriptor and autotune key, so reviewed-cache AUTO
+selection is shape-and-modulus scoped and cannot alias different rings or
+fields.
 
 Strict wrap output is row-major `uint64_t` with caller-supplied leading
 dimension in both the one-shot API and `rns8_export_wrap_u64`. It is a

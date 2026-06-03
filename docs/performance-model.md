@@ -101,7 +101,10 @@ production promotion path.
 `tools/install_autotune_cache.py` is the deterministic install surface for
 reviewed cache files: it validates schema-v1 reviewed-release entries, checks
 identity fields against the autotune key including finite modulus, merges by
-key, and writes either an explicit destination or the default cache path.
+key, and writes either an explicit destination or the default cache path. The
+installer accepts `hip-vector-alu-int64` only for bounded i64/u64 reviewed
+entries with native final/export epilogues; finite, exact-wide, and wrap64
+entries still require their explicit residue or byte-limb backend contracts.
 
 ## Windows `gfx1100` release-smoke snapshot
 

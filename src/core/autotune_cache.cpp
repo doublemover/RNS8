@@ -240,6 +240,9 @@ std::string require_optional_key_i64(
 }
 
 bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64";
+  }
   const bool public_accelerator =
       entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" || entry.selected_backend == "wmma";
   const bool hip_resident_rns_semantic =
@@ -262,6 +265,15 @@ bool is_finite_u8_semantic(const std::string& semantic_contract) {
 }
 
 bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    if (entry.semantic_contract == "bounded_i64") {
+      return entry.selected_kernel == "hip_vector_alu_i64_exact_192b_v1";
+    }
+    if (entry.semantic_contract == "bounded_u64") {
+      return entry.selected_kernel == "hip_vector_alu_u64_exact_192b_v1";
+    }
+    return false;
+  }
   if (entry.selected_backend == "hipblaslt") {
     return entry.selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
   }
@@ -293,6 +305,10 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
 }
 
 bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return (entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64") &&
+           entry.epilogue == "direct_int64_export";
+  }
   if (entry.selected_backend == "hipblaslt") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
       return entry.epilogue == "separate_i32_scratch_reduce_then_canonical_u8_export";

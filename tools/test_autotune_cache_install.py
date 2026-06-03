@@ -56,6 +56,40 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     }
 
 
+def vector_entry(key_suffix: str = "") -> dict:
+    target_id = f"gfx1100{key_suffix}"
+    selected_kernel = "hip_vector_alu_u64_exact_192b_v1"
+    epilogue = "direct_int64_export"
+    key = (
+        f"backend=hip-vector-alu-int64;target={target_id};version=repo-local release/rocm-rel-7.1;"
+        "semantics=bounded_u64;m=512;n=512;k=512;layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
+        f"kernel={selected_kernel};epilogue={epilogue}"
+    )
+    return {
+        "key": key,
+        "selected_backend": "hip-vector-alu-int64",
+        "selected_kernel": selected_kernel,
+        "target_id": target_id,
+        "hip_sdk_or_library_version": "repo-local release/rocm-rel-7.1",
+        "semantic_contract": "bounded_u64",
+        "finite_modulus": 0,
+        "shape": {"m": 512, "n": 512, "k": 512},
+        "layout": "row_major",
+        "prefix_schedule_hash": "groups=1;adaptive_prefix=0;adaptive_skip=0",
+        "k_block_size": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "epilogue": epilogue,
+        "kernel_family": selected_kernel,
+        "workspace_bytes": 0,
+        "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
+        "performance_validated": True,
+        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "schema_version": 1,
+        "updated_utc": "2026-06-03T00:00:00Z",
+    }
+
+
 def write_cache(path: Path, entries: list[dict]) -> None:
     path.write_text(json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8")
 
@@ -111,27 +145,29 @@ def main() -> int:
         replacement = copy.deepcopy(old)
         replacement["measured_medians_us"]["end_to_end"] = 1.5
         finite = entry("-finite", finite_modulus=251)
+        vector = vector_entry("-vector")
         write_cache(destination, [old])
         write_cache(source_a, [replacement])
-        write_cache(source_b, [finite])
+        write_cache(source_b, [finite, vector])
 
         dry_run = install_autotune_cache.install_cache([source_a, source_b], destination, dry_run=True)
         assert dry_run["dry_run"] is True
         assert dry_run["replace_existing"] is False
-        assert dry_run["installed_entries"] == 2
+        assert dry_run["installed_entries"] == 3
         assert json.loads(destination.read_text(encoding="utf-8"))["entries"][0]["measured_medians_us"][
             "end_to_end"
         ] == 4.0
 
         summary = install_autotune_cache.install_cache([source_a, source_b], destination)
-        assert summary["source_entries"] == 2
+        assert summary["source_entries"] == 3
         assert summary["existing_entries"] == 1
-        assert summary["installed_entries"] == 2
-        assert summary["added_entries"] == 1
+        assert summary["installed_entries"] == 3
+        assert summary["added_entries"] == 2
         assert summary["replaced_entries"] == 1
         installed = json.loads(destination.read_text(encoding="utf-8"))["entries"]
         assert [item["key"] for item in installed] == sorted(item["key"] for item in installed)
         assert any(item["finite_modulus"] == 251 for item in installed)
+        assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
 
         bad = copy.deepcopy(finite)
@@ -198,6 +234,24 @@ def main() -> int:
             assert "unsupported_autotune_backend_semantic_contract" in str(exc)
         else:
             raise AssertionError("direct-HIP baseline cache entry was accepted")
+
+        vector_exact_wide = vector_entry("-exact-wide")
+        vector_exact_wide.update(
+            {
+                "key": vector_exact_wide["key"]
+                .replace("semantics=bounded_u64", "semantics=exact_wide_unsigned")
+                .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1"),
+                "semantic_contract": "exact_wide_unsigned",
+            }
+        )
+        vector_exact_wide_source = root / "vector-exact-wide.json"
+        write_cache(vector_exact_wide_source, [vector_exact_wide])
+        try:
+            install_autotune_cache.install_cache([vector_exact_wide_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_backend_semantic_contract" in str(exc)
+        else:
+            raise AssertionError("non-bounded vector cache entry was accepted")
 
         stale_kernel = entry("-stale-kernel")
         stale_kernel.update(
