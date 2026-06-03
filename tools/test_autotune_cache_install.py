@@ -134,6 +134,60 @@ def main() -> int:
         else:
             raise AssertionError("invalid finite cache entry was accepted")
 
+        wrap64_candidate = entry("-wrap64-candidate")
+        wrap64_candidate.update(
+            {
+                "key": (
+                    "backend=wmma;target=gfx1100;version=repo-local release/rocm-rel-7.1;"
+                    "semantics=wrap_u64_mod_2_64;m=64;n=64;k=64;layout=row_major;"
+                    "k_block_size=64;tile_m=16;tile_n=16;"
+                    "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
+                ),
+                "selected_backend": "wmma",
+                "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+                "semantic_contract": "wrap_u64_mod_2_64",
+                "shape": {"m": 64, "n": 64, "k": 64},
+                "k_block_size": 64,
+                "tile_m": 16,
+                "tile_n": 16,
+                "epilogue": "low64_wrap_export",
+                "kernel_family": "rocwmma_wrap64_byte_gemm36_candidate_v0",
+            }
+        )
+        wrap64_source = root / "wrap64-candidate.json"
+        write_cache(wrap64_source, [wrap64_candidate])
+        try:
+            install_autotune_cache.install_cache([wrap64_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_backend_semantic_contract" in str(exc)
+        else:
+            raise AssertionError("wrap64 matrix-engine candidate cache entry was accepted")
+
+        direct_baseline = entry("-hip-direct")
+        direct_baseline.update(
+            {
+                "key": (
+                    "backend=hip-direct;target=gfx1100;version=HIP runtime;semantics=bounded_i64;"
+                    "m=512;n=512;k=512;layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
+                    "kernel=direct_hip_tiled_rns_gemm_v1;epilogue=fused_centered_residue_then_crt_export"
+                ),
+                "selected_backend": "hip-direct",
+                "selected_kernel": "direct_hip_tiled_rns_gemm_v1",
+                "hip_sdk_or_library_version": "HIP runtime",
+                "semantic_contract": "bounded_i64",
+                "epilogue": "fused_centered_residue_then_crt_export",
+                "kernel_family": "direct_hip_tiled_rns_gemm_v1",
+            }
+        )
+        direct_source = root / "hip-direct-baseline.json"
+        write_cache(direct_source, [direct_baseline])
+        try:
+            install_autotune_cache.install_cache([direct_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_backend_semantic_contract" in str(exc)
+        else:
+            raise AssertionError("direct-HIP baseline cache entry was accepted")
+
         stale = root / "stale.json"
         stale_entry = copy.deepcopy(old)
         stale_entry["validation_status"] = "smoke_only"

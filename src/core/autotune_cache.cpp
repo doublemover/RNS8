@@ -239,12 +239,25 @@ std::string require_optional_key_i64(
   return {};
 }
 
+bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEntry& entry) {
+  const bool public_accelerator =
+      entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" || entry.selected_backend == "wmma";
+  const bool hip_resident_rns_semantic =
+      entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64" ||
+      entry.semantic_contract == "exact_wide_signed" || entry.semantic_contract == "exact_wide_unsigned" ||
+      entry.semantic_contract == "finite_ring_u8" || entry.semantic_contract == "finite_field_u8";
+  return public_accelerator && hip_resident_rns_semantic;
+}
+
 std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (entry.key.empty() || entry.selected_backend.empty() || entry.selected_kernel.empty() ||
       entry.target_id.empty() || entry.hip_sdk_or_library_version.empty() ||
       entry.semantic_contract.empty() || entry.layout.empty() || entry.prefix_schedule_hash.empty() ||
       entry.epilogue.empty() || entry.kernel_family.empty()) {
     return "missing_required_entry_identity_field";
+  }
+  if (!reviewed_autotune_backend_supports_semantic_contract(entry)) {
+    return "unsupported_autotune_backend_semantic_contract";
   }
   if (entry.m <= 0 || entry.n <= 0 || entry.k <= 0 || entry.tile_m == 0 || entry.tile_n == 0 ||
       entry.k_block_size < 0) {

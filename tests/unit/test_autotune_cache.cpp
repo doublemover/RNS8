@@ -262,6 +262,60 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_finite_modulus_mismatch"});
   }
   {
+    std::string key = reviewed_key(
+        "wmma",
+        "gfx1100",
+        "7.1",
+        "wrap_u64_mod_2_64",
+        64,
+        64,
+        64,
+        "row_major",
+        64,
+        16,
+        16,
+        "rocwmma_wrap64_byte_gemm36_candidate_v0",
+        "low64_wrap_export");
+    auto item = entry(key);
+    item.selected_backend = "wmma";
+    item.selected_kernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
+    item.semantic_contract = "wrap_u64_mod_2_64";
+    item.m = 64;
+    item.n = 64;
+    item.k = 64;
+    item.k_block_size = 64;
+    item.tile_m = 16;
+    item.tile_n = 16;
+    item.epilogue = "low64_wrap_export";
+    item.kernel_family = "rocwmma_wrap64_byte_gemm36_candidate_v0";
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+  }
+  {
+    std::string key = reviewed_key(
+        "hip-direct",
+        "gfx1100",
+        "HIP runtime",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        "direct_hip_tiled_rns_gemm_v1",
+        "fused_centered_residue_then_crt_export");
+    auto item = entry(key);
+    item.selected_backend = "hip-direct";
+    item.selected_kernel = "direct_hip_tiled_rns_gemm_v1";
+    item.hip_sdk_or_library_version = "HIP runtime";
+    item.epilogue = "fused_centered_residue_then_crt_export";
+    item.kernel_family = "direct_hip_tiled_rns_gemm_v1";
+    cases.push_back(
+        {item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_backend_semantic_contract"});
+  }
+  {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
     item.target_id = "gfx1101";
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_target_id_mismatch"});

@@ -490,7 +490,11 @@ the internal `rocwmma_wrap64_byte_gemm36_candidate_v0` kernel,
 candidate schedule source, and the
 `wrap64_wmma_candidate_gemm36_kernel_group` HIP event label. Sweep reviews can
 include them with `--include-wrap64-wmma-candidate`, but they are blocked from
-promotion with `internal_candidate_not_public_backend`.
+promotion with `internal_candidate_not_public_backend`. The reviewed autotune
+cache installer and runtime cache reader also reject durable cache entries whose
+backend/semantic pairing is not a public HIP-resident accelerator contract, so
+hand-authored wrap64 candidate or direct-HIP baseline entries cannot become
+validated production AUTO entries.
 
 Wrap64 host leading dimensions are boundary-only metadata. CPU and direct-HIP
 pack/export accept padded host layouts, but persistent byte-limb matrices and

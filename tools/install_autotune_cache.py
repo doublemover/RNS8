@@ -12,6 +12,15 @@ from typing import Any
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
+PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS = {"hipblaslt", "ck", "wmma"}
+PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
+    "bounded_i64",
+    "bounded_u64",
+    "exact_wide_signed",
+    "exact_wide_unsigned",
+    "finite_ring_u8",
+    "finite_field_u8",
+}
 
 
 class AutotuneCacheInstallError(ValueError):
@@ -101,6 +110,13 @@ def optional_key_int(fields: dict[str, str], name: str, expected: int) -> None:
     require_key_int(fields, name, expected)
 
 
+def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_contract: str) -> bool:
+    return (
+        selected_backend in PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS
+        and semantic_contract in PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS
+    )
+
+
 def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
     if not isinstance(entry, dict):
         raise AutotuneCacheInstallError(f"{source}: entry {index} must be an object")
@@ -122,6 +138,8 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             raise AutotuneCacheInstallError("validation_status must start with reviewed_release_")
         if require_int(entry, "schema_version", minimum=0) != 1:
             raise AutotuneCacheInstallError("entry schema_version must be 1")
+        if not reviewed_backend_supports_semantic_contract(selected_backend, semantic_contract):
+            raise AutotuneCacheInstallError("unsupported_autotune_backend_semantic_contract")
 
         shape = entry.get("shape")
         if not isinstance(shape, dict):
