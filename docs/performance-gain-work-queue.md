@@ -249,8 +249,10 @@ Likely first slices:
   Implemented benchmark coverage for the limb-count variants via
   `rns8-bench --exact-wide-limbs` and
   `tools/benchmark_sweep.py --include-exact-wide-limb-variants`; this measures
-  the existing exact-wide export path at requested limb widths and does not yet
-  add a new compact staging kernel.
+  the exact-wide export path at requested limb widths. Direct-HIP export stages
+  and copies `rows * cols * limb_count` limbs, and full-width device exports
+  now elide range-status memset/D2H traffic when overflow is structurally
+  impossible: signed limb counts 4..32 and unsigned limb counts 3..32.
 - A residue-current output mode for chained RNS GEMM benchmarks. Implemented as
   exact-wide benchmark/tooling coverage via `rns8-bench --residue-chain-length`
   and `tools/benchmark_sweep.py --residue-chain-length`: measured repeats keep

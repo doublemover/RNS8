@@ -402,6 +402,17 @@ def main() -> int:
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)
+    exact_wide_no_status = copy.deepcopy(exact_wide_ck)
+    exact_wide_no_status["exact_wide_export_status_check"] = "elided_full_width_device_reconstruction"
+    exact_wide_no_status["gpu_event_timings_us"]["exact_wide_export_status_memset"] = [
+        0.0 for _ in range(exact_wide_no_status["repeats"])
+    ]
+    exact_wide_no_status["gpu_event_timings_us"]["exact_wide_export_status_d2h"] = [
+        0.0 for _ in range(exact_wide_no_status["repeats"])
+    ]
+    exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_memset"] = zero_summary()
+    exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_d2h"] = zero_summary()
+    validate_capture(exact_wide_no_status)
     exact_chain_ck = as_residue_current_chain_capture(v4_ck_i64)
     validate_capture(exact_chain_ck)
 
@@ -424,6 +435,14 @@ def main() -> int:
     bad_exact_backend_epilogue = copy.deepcopy(exact_wide_ck)
     bad_exact_backend_epilogue["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_then_crt_export"
     expect_invalid(bad_exact_backend_epilogue, "ck_fused_i32_to_centered_residue_rns_output")
+
+    bad_exact_status_check = copy.deepcopy(exact_wide_no_status)
+    bad_exact_status_check["exact_wide_export_status_check"] = "required_for_range_check"
+    expect_invalid(bad_exact_status_check, "exact_wide_export_status_check")
+
+    bad_exact_status_elision_events = copy.deepcopy(exact_wide_no_status)
+    bad_exact_status_elision_events["gpu_event_timings_us"]["exact_wide_export_status_d2h"][0] = 1.0
+    expect_invalid(bad_exact_status_elision_events, "status-elided captures")
 
     bad_chain_export = copy.deepcopy(exact_chain_ck)
     bad_chain_export["raw_timings_us"]["crt_export"][0] = 1

@@ -864,8 +864,11 @@ class _Validator:
         bound_mode = self.data.get("bound_mode", "global")
         residue_chain_length = self._residue_chain_length()
         residue_output_mode = self._residue_output_mode()
+        status_check = self.data.get("exact_wide_export_status_check")
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
+        if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
+            self._error("exact_wide_export_status_check must be null outside exact-wide captures")
         if residue_chain_length > 1 and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
             self._error("residue_chain_length > 1 captures must use exact-wide semantics")
         if residue_output_mode == "residue_current_rns" and residue_chain_length <= 1:
@@ -1031,6 +1034,28 @@ class _Validator:
             limb_count = self.data.get("exact_wide_limb_count")
             if not _is_int(limb_count) or limb_count < 1 or limb_count > 32:
                 self._error("exact-wide captures must use exact_wide_limb_count in [1, 32]")
+            elif status_check is not None:
+                expected_status_check = (
+                    "required_for_range_check"
+                    if (
+                        (semantics == "exact_wide_signed" and limb_count < 4)
+                        or (semantics == "exact_wide_unsigned" and limb_count < 3)
+                    )
+                    else "elided_full_width_device_reconstruction"
+                )
+                if status_check != expected_status_check:
+                    self._error(f"exact_wide_export_status_check must be {expected_status_check}")
+                if status_check == "elided_full_width_device_reconstruction":
+                    event_timings = self.data.get("gpu_event_timings_us")
+                    if isinstance(event_timings, dict):
+                        for phase in ("exact_wide_export_status_memset", "exact_wide_export_status_d2h"):
+                            values = event_timings.get(phase)
+                            if isinstance(values, list) and any(
+                                _is_number(value) and float(value) != 0.0 for value in values
+                            ):
+                                self._error(
+                                    f"exact-wide status-elided captures must report gpu_event_timings_us.{phase} as zero"
+                                )
             if isinstance(schedule, dict) and _is_int(prefix):
                 if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                     self._error("exact-wide captures must use fixed selected schedule prefix equal to prefix")
