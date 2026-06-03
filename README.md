@@ -448,13 +448,19 @@ and 39359 us at 1024 median end-to-end. The CPU
 `cpu_wrap64_byte_limb_reference_v1` path measured 710 us, 5845 us, 576082 us,
 and 4729230 us at those shapes while still consuming persistent byte-limb
 storage and using exact unsigned `uint64_t` wraparound arithmetic for the
-low-64 product. No wrap64 matrix-engine accelerator candidate exists yet.
+low-64 product. An internal rocWMMA wrap64 byte-GEMM36 candidate now consumes
+the same compact byte-limb device buffers, decomposes each unsigned byte
+product into signed WMMA plus high-bit correction WMMA terms, and matches
+direct HIP plus the CPU byte-pair oracle on a padded carry-heavy `gfx1100`
+smoke. It is not a public backend, not selected by AUTO, and not release
+performance evidence.
 `tools\benchmark_sweep.py --include-wrap64 --release-matrix` now generates the
 same 64, 128, 512, and 1024 square-shape wrap64 CPU/direct-HIP baseline matrix
 used by other release reviews, plus optional exploratory large shapes when
-`--include-exploratory-large` is set. The matrix-engine candidate still needs
-exact differentials, ISA evidence, and reviewed release captures proving it
-beats direct-HIP v3.
+`--include-exploratory-large` is set. The matrix-engine path still needs public
+backend integration, broader exact differentials, and reviewed release captures
+proving it beats direct-HIP v3 before it can displace the current production
+GPU path.
 
 The packed low-bit matrix-engine pipeline is also roadmap work, not a completed
 runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,

@@ -138,11 +138,13 @@ selected CK for 64 and 128, and rocWMMA for 512 and 1024.
 
 Release-smoke wrap64 baseline captures kept
 `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` as the measured GPU path for strict
-`mod 2^64`. The production-threshold release baseline is recorded below. No
-wrap64 matrix-engine candidate exists yet, so no wrap64 accelerator promotion
-was made. AMDGPU builtins remain fail-fast because the release-smoke reviews did
-not identify a shape requiring a builtin kernel with exact differentials, ISA
-evidence, and better timings than CK/rocWMMA.
+`mod 2^64`. The production-threshold release baseline is recorded below. The
+internal rocWMMA wrap64 byte-GEMM36 candidate has correctness and ISA smoke
+evidence, but no wrap64 accelerator promotion was made because it has not been
+integrated as a public backend or beaten direct HIP in reviewed release
+captures. AMDGPU builtins remain fail-fast because the release-smoke reviews
+did not identify a shape requiring a builtin kernel with exact differentials,
+ISA evidence, and better timings than CK/rocWMMA.
 
 ## Windows `gfx1100` release-reviewed bounded-i64 matrix
 

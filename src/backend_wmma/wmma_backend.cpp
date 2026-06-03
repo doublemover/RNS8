@@ -52,6 +52,15 @@ extern "C" int rns8_wmma_gemm_finite_u8_device(
     long long ldb,
     long long ldc,
     unsigned int modulus);
+
+extern "C" int rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+    int device_id,
+    const void* device_a_limbs,
+    const void* device_b_limbs,
+    void* device_c_limbs,
+    long long m,
+    long long n,
+    long long k);
 #endif
 
 namespace rns8::detail {
@@ -273,6 +282,38 @@ rns8_status wmma_gemm_finite_u8_device(
   (void)ldb;
   (void)ldc;
   (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status wmma_wrap64_gemm_byte_limbs_candidate_device(
+    int device_id,
+    const void* device_a_limbs,
+    const void* device_b_limbs,
+    void* device_c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+  const int code = run_timed_device_code("wrap64_wmma_candidate_gemm36_kernel_group", [&]() {
+    return rns8_wmma_wrap64_gemm_byte_limbs_candidate_device(
+        device_id,
+        device_a_limbs,
+        device_b_limbs,
+        device_c_limbs,
+        static_cast<long long>(m),
+        static_cast<long long>(n),
+        static_cast<long long>(k));
+  });
+  return status_from_device_code(code);
+#else
+  (void)device_id;
+  (void)device_a_limbs;
+  (void)device_b_limbs;
+  (void)device_c_limbs;
+  (void)m;
+  (void)n;
+  (void)k;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
