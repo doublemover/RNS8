@@ -258,6 +258,9 @@ Likely first slices:
   and copies `rows * cols * limb_count` limbs, and full-width device exports
   now elide range-status memset/D2H traffic when overflow is structurally
   impossible: signed limb counts 4..32 and unsigned limb counts 3..32.
+  Prefix-20 Direct-HIP signed and unsigned export kernels also dispatch
+  compile-time fixed limb-count variants for 1/2/4/8/16/32 limbs, with the
+  runtime limb-count kernel retained for other widths.
 - A residue-current output mode for chained RNS GEMM benchmarks. Implemented as
   exact-wide benchmark/tooling coverage via `rns8-bench --residue-chain-length`
   and `tools/benchmark_sweep.py --residue-chain-length`: measured repeats keep
@@ -1382,8 +1385,12 @@ Technical direction:
 
 Likely first slices:
 
-- 1/2/4/8/16/32 limb export variants.
-- Prefix-specialized exact-wide export kernels.
+- 1/2/4/8/16/32 limb export variants. Implemented for Direct-HIP prefix-20
+  signed and unsigned exports with compile-time fixed limb-count kernels,
+  plus existing benchmark sweep coverage for those widths.
+- Prefix-specialized exact-wide export kernels. Implemented for Direct-HIP
+  prefix-20 reconstruction; nonstandard prefixes still use the generic export
+  kernel.
 - Exact-wide RNS-chain scenario benchmark.
 
 Relation to new architecture work:
