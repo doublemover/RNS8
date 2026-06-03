@@ -65,6 +65,13 @@ and `rns8_gemm_rns_prepacked_b` in [src/core/api.cpp](../src/core/api.cpp) and
   mismatch, stale matrix, device mismatch, and source-version rejection are all
   tested.
 
+Status: the runtime rocWMMA repeated-B path now reports
+`rns_i8_tile_swizzled_b_v1`, emits a `prepack-v2` key with explicit
+target/kernel/schedule/tile/K-block/source-version identity, and rejects stale
+device-current matrices plus role, target, device, and source-version identity
+mismatches. `production_prepack_cache_available` remains `0`; finite/tiled
+promotion and production cache invalidation are still deferred.
+
 ### 3. Bounded-i64 Winner Tuning
 
 Current winners are rocWMMA at 512 and hipBLASLt at 1024. Tune winners, not

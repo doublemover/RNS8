@@ -540,13 +540,30 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(key.reusable_prepack_cache_available == 1);
   CHECK(key.production_prepack_cache_available == 0);
   CHECK(key.hip_device_id == 0);
-  CHECK(std::string(key.operand_layout_version) == "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+  CHECK(std::string(key.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
+  CHECK(std::string(key.cache_key).find("prepack-v2") == 0);
+  CHECK(std::string(key.cache_key).find("target_id=") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("kernel=rocwmma_i8_i32_signed_hot_residue_v1") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("prepack_kernel=rocwmma_rns_i8_tile_swizzled_b_prepack_v1") !=
+        std::string::npos);
+  CHECK(std::string(key.cache_key).find("prefix_schedule_hash=") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("tile_m=128") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("tile_n=128") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("operand_tile_m=16") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("operand_tile_n=16") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("k_block_size=48") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("k_block_cap=65536") != std::string::npos);
+  CHECK(std::string(key.cache_key).find("source_version=202") != std::string::npos);
   CHECK(std::string(key.cache_key).find("hip_device_id=0") != std::string::npos);
 
   CHECK(rns8_create_prepack_cache(cpu, cpu_plan, cpu_b, RNS8_OPERAND_B, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);
   CHECK(rns8_create_prepack_cache(wmma, wmma_plan, wmma_a, RNS8_OPERAND_A, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);
+  wmma_b->device_residues_current = false;
+  CHECK(rns8_create_prepack_cache(wmma, wmma_plan, wmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_INVALID_ARGUMENT);
+  CHECK(b_cache == nullptr);
+  wmma_b->device_residues_current = true;
   REQUIRE(rns8_create_prepack_cache(wmma, wmma_plan, wmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_SUCCESS);
 
   rns8_prepack_cache_info cache_info{};
@@ -599,6 +616,27 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   REQUIRE(rns8_export_i64(wmma, wmma_plan, cached_c, cached_out.data(), n) == RNS8_SUCCESS);
   require_same_i64(cpu_out, wmma_out);
   require_same_i64(cpu_out, cached_out);
+
+  rns8_prepack_cache role_mismatch = *b_cache;
+  role_mismatch.operand_role = RNS8_OPERAND_A;
+  CHECK(rns8_gemm_rns_prepacked_b(wmma, wmma_plan, wmma_a, &role_mismatch, cached_c, cached_workspace) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_prepack_cache target_mismatch = *b_cache;
+  target_mismatch.target_id = "gfx0000";
+  CHECK(rns8_gemm_rns_prepacked_b(wmma, wmma_plan, wmma_a, &target_mismatch, cached_c, cached_workspace) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_prepack_cache device_mismatch = *b_cache;
+  device_mismatch.hip_device_id = 999;
+  CHECK(rns8_gemm_rns_prepacked_b(wmma, wmma_plan, wmma_a, &device_mismatch, cached_c, cached_workspace) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_prepack_cache source_version_mismatch = *b_cache;
+  ++source_version_mismatch.source_version;
+  CHECK(rns8_gemm_rns_prepacked_b(
+            wmma, wmma_plan, wmma_a, &source_version_mismatch, cached_c, cached_workspace) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_prepack_cache(b_cache);
   rns8_destroy_matrix(cached_c);
