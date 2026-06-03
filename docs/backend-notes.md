@@ -257,7 +257,11 @@ production prepack cache. The matching `rns8_get_matrix_storage_info` query
 reports each matrix handle's backend, semantic storage layout, source version,
 finite modulus, host/device currentness, and host/device byte counts so future
 cache tooling can reject stale or mismatched resident inputs without inferring
-state from opaque handles.
+state from opaque handles. `rns8_get_prepack_cache_key_info` combines a plan,
+operand role, and concrete matrix handle into deterministic key material only
+after validating role, shape, backend, semantic, layout, currentness,
+source-version, and finite-modulus compatibility; it still reports no reusable
+or production cache availability for current backends.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

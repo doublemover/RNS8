@@ -1482,11 +1482,12 @@ contract through `rns8_get_plan_packing_info`: persistent layout versions,
 transient pack workspace bytes, operand layout names, and explicit cache
 availability flags. Matrix handles must expose the matching resident storage
 contract through `rns8_get_matrix_storage_info`: source version, finite modulus,
-host/device currentness, byte counts, and persistent layout version. Future
-prepack caches must reject backend, semantic, layout, shape, finite-modulus,
-operand-role, and source-version mismatches using these public contracts. Until
-a source-versioned reusable cache exists and is validated, every production
-plan must report no reusable or production prepack cache.
+host/device currentness, byte counts, and persistent layout version. Plan plus
+operand key material must be validated through `rns8_get_prepack_cache_key_info`
+before reuse; it must reject backend, semantic, layout, shape, finite-modulus,
+operand-role, currentness, and source-version mismatches using these public
+contracts. Until a source-versioned reusable cache exists and is validated,
+every production plan must report no reusable or production prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

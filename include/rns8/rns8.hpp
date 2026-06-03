@@ -159,6 +159,17 @@ class Matrix final {
   rns8_matrix* handle_ = nullptr;
 };
 
+inline rns8_prepack_cache_key_info prepack_cache_key_info(
+    const Plan& plan,
+    const Matrix& matrix,
+    rns8_operand_role operand_role) {
+  rns8_prepack_cache_key_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  check(rns8_get_prepack_cache_key_info(plan.get(), matrix.get(), operand_role, &info));
+  return info;
+}
+
 class Workspace final {
  public:
   Workspace(Context& context, const Plan& plan) {

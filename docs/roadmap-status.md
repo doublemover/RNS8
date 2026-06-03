@@ -427,7 +427,11 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   current backend still reporting no reusable production prepack cache. The
   companion `rns8_get_matrix_storage_info` API exposes matrix source versions,
   finite modulus, resident currentness, byte counts, and layout versions so
-  future caches can reject stale or mismatched inputs.
+  future caches can reject stale or mismatched inputs. The
+  `rns8_get_prepack_cache_key_info` API validates concrete plan/operand key
+  material and rejects role, shape, backend, semantic, layout, currentness,
+  source-version, and finite-modulus mismatches, but it does not create a
+  reusable production cache.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
