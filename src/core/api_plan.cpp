@@ -285,6 +285,72 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   return "host_reference_workspace";
 }
 
+rns8_output_domain output_domain_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64;
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB;
+  }
+  if (uses_finite_storage(plan.desc.semantics)) {
+    return RNS8_OUTPUT_DOMAIN_FINITE_U8;
+  }
+  return RNS8_OUTPUT_DOMAIN_RNS_RESIDUE;
+}
+
+const char* output_domain_name(rns8_output_domain domain) {
+  switch (domain) {
+    case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
+      return "rns_residue_current";
+    case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
+      return "native_i64_u64_current";
+    case RNS8_OUTPUT_DOMAIN_FINITE_U8:
+      return "finite_u8_current";
+    case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
+      return "wrap64_byte_limb_current";
+  }
+  return "unknown";
+}
+
+bool plan_output_device_current(const rns8_plan& plan) {
+  return hip_device_backend(plan.backend) ? true : false;
+}
+
+uint32_t next_op_flags_for_plan(const rns8_plan& plan) {
+  uint32_t flags = RNS8_NEXT_OP_FINAL_EXPORT;
+  const rns8_output_domain domain = output_domain_for_plan(plan);
+  if (domain == RNS8_OUTPUT_DOMAIN_RNS_RESIDUE) {
+    flags |= RNS8_NEXT_OP_RNS_GEMM;
+  }
+  if (domain == RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64) {
+    flags |= RNS8_NEXT_OP_NATIVE_GEMM;
+    if (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64) {
+      flags |= RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE;
+    }
+  }
+  if (wmma_b_prepack_cache_supported(plan)) {
+    flags |= RNS8_NEXT_OP_REUSABLE_B_PREPACK;
+  }
+  return flags;
+}
+
+const char* next_op_hint_for_plan(const rns8_plan& plan) {
+  const rns8_output_domain domain = output_domain_for_plan(plan);
+  if (domain == RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64) {
+    return "produces native bounded device output; next native GEMM can consume it directly, and native-to-RNS conversion is available for mixed-storage AUTO chains";
+  }
+  if (domain == RNS8_OUTPUT_DOMAIN_RNS_RESIDUE) {
+    return "produces residue-current RNS output; next same-contract RNS GEMM can consume it without logical export";
+  }
+  if (domain == RNS8_OUTPUT_DOMAIN_FINITE_U8) {
+    return "produces finite-current centered residues; export converts to canonical uint8 output";
+  }
+  if (domain == RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB) {
+    return "produces wrap64 byte-limb-current output; export reconstructs low 64-bit words";
+  }
+  return "unknown output domain";
+}
+
 std::string isa_evidence_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
@@ -1051,6 +1117,15 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     out->reusable_prepack_cache_available = 0;
     out->production_prepack_cache_available = 0;
     out->flags = 0;
+    out->input_domain = output_domain_for_plan(*plan);
+    out->output_domain = output_domain_for_plan(*plan);
+    out->output_host_current = plan_output_device_current(*plan) ? 0u : 1u;
+    out->output_device_current = plan_output_device_current(*plan) ? 1u : 0u;
+    out->next_op_flags = next_op_flags_for_plan(*plan);
+    out->reserved0 = 0;
+    set_text(out->input_domain_name, sizeof(out->input_domain_name), output_domain_name(out->input_domain));
+    set_text(out->output_domain_name, sizeof(out->output_domain_name), output_domain_name(out->output_domain));
+    set_text(out->next_op_hint, sizeof(out->next_op_hint), next_op_hint_for_plan(*plan));
 
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
       out->uses_transient_pack_workspace = 1;

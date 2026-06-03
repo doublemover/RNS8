@@ -1006,6 +1006,12 @@ epilogue mode, workspace mode, workspace byte requirement, ISA evidence, and
 autotune key. Workspaces must preserve this metadata from the plan, and runtime
 validation must reject mismatched metadata instead of silently routing through a
 different backend path.
+Plan packing metadata also reports the selected input/output domain,
+host/device output currentness expectation, and next-operation flags. These
+flags distinguish final export, residue-current RNS GEMM continuation,
+native-current bounded GEMM continuation, native-to-RNS conversion eligibility,
+and reusable B prepack availability without inferring semantics from a C++ type
+or backend name alone.
 
 Thread-safety rules:
 
@@ -1512,8 +1518,9 @@ rocWMMA repeated-B captures must exercise the real reusable B prepack cache and
 report that strategy explicitly; these measurement modes are not themselves a
 production prepack cache. Created plans must expose their current packing
 contract through `rns8_get_plan_packing_info`: persistent layout versions,
-transient pack workspace bytes, operand layout names, and explicit cache
-availability flags. Matrix handles must expose the matching resident storage
+transient pack workspace bytes, operand layout names, selected input/output
+domains, next-operation flags, and explicit cache availability flags. Matrix
+handles must expose the matching resident storage
 contract through `rns8_get_matrix_storage_info`: source version, finite modulus,
 host/device currentness, byte counts, and persistent layout version. Plan plus
 operand key material must be validated through `rns8_get_prepack_cache_key_info`

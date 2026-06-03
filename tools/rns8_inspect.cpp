@@ -95,6 +95,20 @@ const char* semantics_name(rns8_semantics semantics) {
   return "unknown";
 }
 
+const char* output_domain_name(rns8_output_domain domain) {
+  switch (domain) {
+    case RNS8_OUTPUT_DOMAIN_RNS_RESIDUE:
+      return "rns_residue_current";
+    case RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64:
+      return "native_i64_u64_current";
+    case RNS8_OUTPUT_DOMAIN_FINITE_U8:
+      return "finite_u8_current";
+    case RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB:
+      return "wrap64_byte_limb_current";
+  }
+  return "unknown";
+}
+
 std::string json_escape(const char* input) {
   std::string escaped;
   if (!input) {
@@ -321,8 +335,12 @@ void print_plan_packing_text(const rns8_plan_packing_info& packing) {
   std::cout << "autotune_plan_matrix_engine_pack: " << packing.uses_matrix_engine_pack_layout << "\n";
   std::cout << "autotune_plan_reusable_prepack:   " << packing.reusable_prepack_cache_available << "\n";
   std::cout << "autotune_plan_production_prepack: " << packing.production_prepack_cache_available << "\n";
+  std::cout << "autotune_plan_input_domain:       " << output_domain_name(packing.input_domain) << "\n";
+  std::cout << "autotune_plan_output_domain:      " << output_domain_name(packing.output_domain) << "\n";
+  std::cout << "autotune_plan_next_op_flags:      " << packing.next_op_flags << "\n";
   std::cout << "autotune_plan_total_pack_bytes:   " << packing.total_transient_workspace_bytes << "\n";
   std::cout << "autotune_plan_prepack_scope:      " << packing.prepack_cache_scope << "\n";
+  std::cout << "autotune_plan_next_op_hint:       " << packing.next_op_hint << "\n";
 }
 
 void print_plan_packing_json(const rns8_plan_packing_info& packing, bool trailing_comma) {
@@ -339,6 +357,14 @@ void print_plan_packing_json(const rns8_plan_packing_info& packing, bool trailin
             << (packing.reusable_prepack_cache_available ? "true" : "false") << ",\n";
   std::cout << "      \"production_prepack_cache_available\": "
             << (packing.production_prepack_cache_available ? "true" : "false") << ",\n";
+  std::cout << "      \"input_domain\": \"" << json_escape(output_domain_name(packing.input_domain)) << "\",\n";
+  std::cout << "      \"output_domain\": \"" << json_escape(output_domain_name(packing.output_domain)) << "\",\n";
+  std::cout << "      \"input_domain_name\": \"" << json_escape(packing.input_domain_name) << "\",\n";
+  std::cout << "      \"output_domain_name\": \"" << json_escape(packing.output_domain_name) << "\",\n";
+  std::cout << "      \"output_host_current\": " << (packing.output_host_current ? "true" : "false") << ",\n";
+  std::cout << "      \"output_device_current\": " << (packing.output_device_current ? "true" : "false") << ",\n";
+  std::cout << "      \"next_op_flags\": " << packing.next_op_flags << ",\n";
+  std::cout << "      \"next_op_hint\": \"" << json_escape(packing.next_op_hint) << "\",\n";
   std::cout << "      \"a_pack_workspace_bytes\": " << packing.a_pack_workspace_bytes << ",\n";
   std::cout << "      \"b_pack_workspace_bytes\": " << packing.b_pack_workspace_bytes << ",\n";
   std::cout << "      \"accumulator_workspace_bytes\": " << packing.accumulator_workspace_bytes << ",\n";
