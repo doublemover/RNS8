@@ -101,6 +101,7 @@ struct Args {
   BoundMode bound_mode = BoundMode::Global;
   InputProfile input_profile = InputProfile::UniformSmall;
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
+  uint32_t residue_chain_length = 1;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
   bool reuse_packed_inputs = false;
@@ -190,6 +191,7 @@ uint32_t benchmark_prefix(const Args& args);
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--input-profile uniform-small|adaptive-bands]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
+      << "                  [--residue-chain-length N]\n"
       << "                  [--require-adaptive-execution]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
@@ -236,6 +238,10 @@ bool bounded_benchmark_semantics(BenchSemantics semantics) {
 
 bool exact_wide_benchmark_semantics(BenchSemantics semantics) {
   return semantics == BenchSemantics::ExactWideSigned || semantics == BenchSemantics::ExactWideUnsigned;
+}
+
+bool residue_current_output_mode(const Args& args) {
+  return exact_wide_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
 }
 
 bool valid_finite_field_modulus(uint16_t modulus) {
@@ -377,6 +383,8 @@ Args parse_args(int argc, char** argv) {
       args.input_profile = parse_input_profile(argv[++i]);
     } else if (arg == "--exact-wide-limbs" && i + 1 < argc) {
       args.exact_wide_limb_count = parse_u32(argv[++i], "--exact-wide-limbs");
+    } else if (arg == "--residue-chain-length" && i + 1 < argc) {
+      args.residue_chain_length = parse_u32(argv[++i], "--residue-chain-length");
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--reuse-packed-inputs") {
@@ -401,6 +409,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--input-profile uniform-small|adaptive-bands]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
+          << "                  [--residue-chain-length N]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
@@ -456,6 +465,17 @@ Args parse_args(int argc, char** argv) {
   if (args.exact_wide_limb_count != kDefaultExactWideBenchmarkLimbCount &&
       !exact_wide_benchmark_semantics(args.semantics)) {
     usage_error("--exact-wide-limbs is only valid for exact-wide semantics");
+  }
+  if (args.residue_chain_length == 0) {
+    usage_error("--residue-chain-length must be positive");
+  }
+  if (args.residue_chain_length > 1) {
+    if (!exact_wide_benchmark_semantics(args.semantics)) {
+      usage_error("--residue-chain-length > 1 is only valid for exact-wide semantics");
+    }
+    if (args.m != args.n || args.n != args.k) {
+      usage_error("--residue-chain-length > 1 currently requires square exact-wide shapes");
+    }
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
   if (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -1753,6 +1773,9 @@ std::vector<std::string> gpu_event_phase_order(
           "pack",
       };
       append_hipblaslt_gemm_event_phases(phases, args);
+      if (residue_current_output_mode(args)) {
+        return phases;
+      }
       phases.push_back("exact_wide_export_status_memset");
       phases.push_back("exact_wide_export_kernel");
       phases.push_back("exact_wide_export_status_d2h");
@@ -1768,6 +1791,9 @@ std::vector<std::string> gpu_event_phase_order(
     };
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
+    if (residue_current_output_mode(args)) {
+      return phases;
+    }
     phases.push_back("exact_wide_export_status_memset");
     phases.push_back("exact_wide_export_kernel");
     phases.push_back("exact_wide_export_status_d2h");
@@ -1894,7 +1920,9 @@ rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkR
 }
 
 bool gpu_event_capture_requested(const Args& args, rns8_backend_kind selected_backend) {
-  (void)args;
+  if (residue_current_output_mode(args)) {
+    return false;
+  }
   return backend_supports_gpu_event_capture(selected_backend);
 }
 
@@ -2929,6 +2957,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
@@ -2940,6 +2969,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (residue_current_output_mode(args)) {
+    status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -2964,6 +2997,9 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     result.prepack_setup_available = true;
   }
 
+  rns8_matrix* latest_output_matrix = c_matrix;
+  const bool chain_residue_output = residue_current_output_mode(args);
+
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
@@ -2985,27 +3021,40 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = run_rns_gemm_with_optional_b_cache(
-        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) {
-      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    rns8_matrix* lhs_matrix = a_matrix;
+    rns8_matrix* out_matrix = c_matrix;
+    rns8_matrix* final_output_matrix = c_matrix;
+    for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      status = run_rns_gemm_with_optional_b_cache(
+          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+      if (status != RNS8_SUCCESS) {
+        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+      }
+      final_output_matrix = out_matrix;
+      lhs_matrix = out_matrix;
+      out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
     }
+    latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
       collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
-    const auto export_start = std::chrono::steady_clock::now();
-    begin_gpu_event_phase(collect_gpu_events);
-    status =
-        rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
-    if (collect_gpu_events) {
-      collect_export_gpu_events(args, selected_backend, result.gpu_events);
+    auto export_start = gemm_end;
+    auto export_end = gemm_end;
+    if (!chain_residue_output) {
+      export_start = std::chrono::steady_clock::now();
+      begin_gpu_event_phase(collect_gpu_events);
+      status =
+          rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
+      if (collect_gpu_events) {
+        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      export_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
@@ -3021,11 +3070,19 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
+  if (chain_residue_output) {
+    status = rns8_export_exact_wide_signed_limbs(
+        ctx, plan, latest_output_matrix, C.data(), args.n, args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs(final chain checksum)", status);
+  }
   result.checksum = checksum_u64(C);
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (scratch_matrix) {
+    rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -3064,6 +3121,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
@@ -3075,6 +3133,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (residue_current_output_mode(args)) {
+    status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -3099,6 +3161,9 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     result.prepack_setup_available = true;
   }
 
+  rns8_matrix* latest_output_matrix = c_matrix;
+  const bool chain_residue_output = residue_current_output_mode(args);
+
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
@@ -3120,27 +3185,40 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = run_rns_gemm_with_optional_b_cache(
-        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) {
-      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    rns8_matrix* lhs_matrix = a_matrix;
+    rns8_matrix* out_matrix = c_matrix;
+    rns8_matrix* final_output_matrix = c_matrix;
+    for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      status = run_rns_gemm_with_optional_b_cache(
+          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+      if (status != RNS8_SUCCESS) {
+        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+      }
+      final_output_matrix = out_matrix;
+      lhs_matrix = out_matrix;
+      out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
     }
+    latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
       collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
 
-    const auto export_start = std::chrono::steady_clock::now();
-    begin_gpu_event_phase(collect_gpu_events);
-    status =
-        rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
-    if (collect_gpu_events) {
-      collect_export_gpu_events(args, selected_backend, result.gpu_events);
+    auto export_start = gemm_end;
+    auto export_end = gemm_end;
+    if (!chain_residue_output) {
+      export_start = std::chrono::steady_clock::now();
+      begin_gpu_event_phase(collect_gpu_events);
+      status =
+          rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
+      if (collect_gpu_events) {
+        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      export_end = std::chrono::steady_clock::now();
     }
-    end_gpu_event_phase(collect_gpu_events);
-    const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
@@ -3156,11 +3234,19 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
+  if (chain_residue_output) {
+    status = rns8_export_exact_wide_unsigned_limbs(
+        ctx, plan, latest_output_matrix, C.data(), args.n, args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs(final chain checksum)", status);
+  }
   result.checksum = checksum_u64(C);
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (scratch_matrix) {
+    rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -3566,6 +3652,9 @@ const char* epilogue_type(const Args& args) {
   if (finite_benchmark_semantics(args.semantics)) {
     return "canonical_u8_export";
   }
+  if (residue_current_output_mode(args)) {
+    return "residue_current_rns_output";
+  }
   if (args.semantics == BenchSemantics::ExactWideSigned) {
     return "exact_wide_signed_limb_export";
   }
@@ -3573,6 +3662,10 @@ const char* epilogue_type(const Args& args) {
     return "exact_wide_unsigned_limb_export";
   }
   return args.semantics == BenchSemantics::WrapU64Mod2_64 ? "low64_wrap_export" : "crt_export";
+}
+
+const char* residue_output_mode_name(const Args& args) {
+  return residue_current_output_mode(args) ? "residue_current_rns" : "host_export";
 }
 
 const char* packed_layout_version(const Args& args) {
@@ -3686,6 +3779,7 @@ void print_json(
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
+  const bool chain_residue_output = residue_current_output_mode(args);
   const auto event_phase_order =
       gpu_events_available ? gpu_event_phase_order(args, result, selected_backend_kind, use_prepacked_b_cache)
                            : std::vector<std::string>{};
@@ -3768,6 +3862,9 @@ void print_json(
     } else {
       gpu_event_reason = "captured_by_direct_hip_backend_hooks";
     }
+  } else if (chain_residue_output) {
+    gpu_event_reason = "not_supported_for_residue_current_chain_mode";
+    gpu_event_status = "not_requested_for_residue_current_chain_mode";
   } else if (result.gpu_events.requested) {
     gpu_event_reason = "backend_event_capture_incomplete";
     gpu_event_status = "unavailable_missing_expected_events";
@@ -3889,6 +3986,8 @@ void print_json(
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
+  std::cout << "  \"residue_output_mode\": \"" << residue_output_mode_name(args) << "\",\n";
   std::cout << "  \"packed_layout_version\": ";
   print_json_string_or_null(packed_layout_version(args));
   std::cout << ",\n";
@@ -3950,7 +4049,12 @@ void print_json(
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (args.reuse_packed_inputs) {
+  if (chain_residue_output) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for an exact-wide residue-current RNS GEMM chain; "
+              << "each measured repeat runs " << args.residue_chain_length
+              << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, "
+                 "and one final fixed-width limb export runs after measured repeats only to produce checksum_u64\",\n";
+  } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
                    "prepack_setup_us records persistent B packing plus cache materialization before warmups, "
@@ -4073,7 +4177,22 @@ void print_json(
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
-  if (args.reuse_packed_inputs) {
+  if (chain_residue_output) {
+    if (args.reuse_packed_inputs) {
+      if (reuses_all_packed_inputs(args)) {
+        std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent exact-wide RNS matrices before warmups\",\n";
+      } else {
+        std::cout << "      \"pack\": \"per-repeat host timing for packing " << per_repeat_pack_operand_text(args)
+                  << "; " << prepack_reuse_operand_text(args)
+                  << " was packed once into a persistent exact-wide RNS matrix before warmups\",\n";
+      }
+    } else {
+      std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into exact-wide persistent RNS matrices\",\n";
+    }
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
+              << " chained rns8_gemm_rns calls that keep the intermediate output resident in RNS form\",\n";
+    std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host limb export until one final checksum export after measured repeats\",\n";
+  } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
     } else {
@@ -4126,7 +4245,13 @@ void print_json(
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
-  if (args.reuse_packed_inputs) {
+  if (chain_residue_output) {
+    std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only limb export";
+    if (args.reuse_packed_inputs) {
+      std::cout << " and one-time prepack_setup_us";
+    }
+    std::cout << "\"\n";
+  } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
     } else {

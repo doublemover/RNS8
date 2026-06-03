@@ -364,6 +364,7 @@ def main() -> int:
         modulus=None,
         exact_wide_limbs=None,
         include_exact_wide_limb_variants=False,
+        residue_chain_length=1,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -431,6 +432,7 @@ def main() -> int:
         modulus=None,
         exact_wide_limbs=None,
         include_exact_wide_limb_variants=False,
+        residue_chain_length=1,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -473,6 +475,17 @@ def main() -> int:
     assert exact_variant_commands[0][1][exact_variant_commands[0][1].index("--exact-wide-limbs") + 1] == "1"
     assert exact_variant_commands[-1][1][exact_variant_commands[-1][1].index("--exact-wide-limbs") + 1] == "32"
 
+    exact_chain_args = copy.copy(exact_args)
+    exact_chain_args.backends = ["cpu"]
+    exact_chain_args.residue_chain_length = 3
+    exact_chain_commands = benchmark_sweep.sweep_commands(exact_chain_args)
+    assert [name for name, _command, _output in exact_chain_commands] == [
+        "exact-wide-signed-small-16x16x16-chain3-cpu.json",
+    ]
+    exact_chain_command = exact_chain_commands[0][1]
+    assert "--residue-chain-length" in exact_chain_command
+    assert exact_chain_command[exact_chain_command.index("--residue-chain-length") + 1] == "3"
+
     vector_args = copy.copy(exact_args)
     vector_args.out_root = Path("temp") / "vector-runtime"
     vector_args.backends = ["hip-vector-alu-int64"]
@@ -495,6 +508,7 @@ def main() -> int:
         modulus=None,
         exact_wide_limbs=None,
         include_exact_wide_limb_variants=False,
+        residue_chain_length=1,
         include_default_adaptive=False,
         include_adaptive_workloads=False,
         adaptive_only=False,
@@ -531,6 +545,7 @@ def main() -> int:
         modulus=None,
         exact_wide_limbs=None,
         include_exact_wide_limb_variants=False,
+        residue_chain_length=1,
         include_default_adaptive=True,
         include_adaptive_workloads=False,
         adaptive_only=True,

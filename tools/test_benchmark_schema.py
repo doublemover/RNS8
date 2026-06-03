@@ -154,6 +154,8 @@ def as_exact_wide_capture(capture: dict) -> dict:
     exact["tile_bounds_u64"] = None
     exact["epilogue_type"] = "exact_wide_signed_limb_export"
     exact["exact_wide_limb_count"] = 4
+    exact["residue_chain_length"] = 1
+    exact["residue_output_mode"] = "host_export"
     exact["input_distribution"] = "signed_uniform_-16_16"
     exact["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -194,6 +196,46 @@ def as_exact_wide_capture(capture: dict) -> dict:
                 if old in values:
                     values[new] = values.pop(old)
     return exact
+
+
+def as_residue_current_chain_capture(capture: dict) -> dict:
+    chain = as_exact_wide_capture(capture)
+    repeats = chain["repeats"]
+    chain["m"] = 64
+    chain["n"] = 64
+    chain["k"] = 64
+    chain["epilogue_type"] = "residue_current_rns_output"
+    chain["residue_chain_length"] = 3
+    chain["residue_output_mode"] = "residue_current_rns"
+    chain["timing_note"] = (
+        "host wall-clock timings for an exact-wide residue-current RNS GEMM chain; each measured repeat runs "
+        "3 resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and one "
+        "final fixed-width limb export runs after measured repeats only to produce checksum_u64"
+    )
+    chain["timing_metadata"]["gpu_event_timing"] = False
+    chain["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_residue_current_chain_mode"
+    chain["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_residue_current_chain_mode"
+    chain["timing_metadata"]["gpu_event_timing_source"] = None
+    chain["timing_metadata"]["gpu_event_timing_source_scope"] = None
+    chain["timing_metadata"]["gpu_event_timing_caveat"] = None
+    chain["timing_metadata"]["gpu_event_phase_order"] = None
+    chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for 3 chained rns8_gemm_rns calls that keep the intermediate output resident "
+        "in RNS form"
+    )
+    chain["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "zero-valued per-repeat phase; residue-current chain mode defers host limb export until one final checksum "
+        "export after measured repeats"
+    )
+    chain["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only limb export"
+    )
+    chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
+    chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
+    chain["avg_crt_export_us"] = 0.0
+    chain["gpu_event_timings_us"] = None
+    chain["gpu_event_timing_summary_us"] = None
+    return chain
 
 
 def as_wrap64_wmma_candidate_capture(capture: dict) -> dict:
@@ -360,6 +402,8 @@ def main() -> int:
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)
+    exact_chain_ck = as_residue_current_chain_capture(v4_ck_i64)
+    validate_capture(exact_chain_ck)
 
     bad_exact_bound = copy.deepcopy(exact_wide_ck)
     bad_exact_bound["bound_kind"] = "global_max_abs"
@@ -380,6 +424,38 @@ def main() -> int:
     bad_exact_backend_epilogue = copy.deepcopy(exact_wide_ck)
     bad_exact_backend_epilogue["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_then_crt_export"
     expect_invalid(bad_exact_backend_epilogue, "ck_fused_i32_to_centered_residue_rns_output")
+
+    bad_chain_export = copy.deepcopy(exact_chain_ck)
+    bad_chain_export["raw_timings_us"]["crt_export"][0] = 1
+    bad_chain_export["timing_summary_us"]["crt_export"]["avg"] = 1
+    bad_chain_export["avg_crt_export_us"] = 1
+    expect_invalid(bad_chain_export, "residue-current chain captures must report raw_timings_us.crt_export")
+
+    bad_chain_gpu_events = copy.deepcopy(exact_chain_ck)
+    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing"] = True
+    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+    )
+    bad_chain_gpu_events["timing_metadata"]["gpu_event_phase_order"] = ["pack", "rns_gemm"]
+    bad_chain_repeats = bad_chain_gpu_events["repeats"]
+    bad_chain_gpu_events["gpu_event_timings_us"] = {
+        "pack": [1.0 for _ in range(bad_chain_repeats)],
+        "rns_gemm": [2.0 for _ in range(bad_chain_repeats)],
+    }
+    bad_chain_gpu_events["gpu_event_timing_summary_us"] = {
+        "pack": {"avg": 1.0, "median": 1.0, "p95": 1.0},
+        "rns_gemm": {"avg": 2.0, "median": 2.0, "p95": 2.0},
+    }
+    expect_invalid(bad_chain_gpu_events, "residue-current chain captures must not claim GPU event timings")
+
+    bad_chain_mode = copy.deepcopy(exact_chain_ck)
+    bad_chain_mode["residue_output_mode"] = "host_export"
+    expect_invalid(bad_chain_mode, "residue_output_mode=residue_current_rns")
+
+    bad_chain_shape = copy.deepcopy(exact_chain_ck)
+    bad_chain_shape["n"] = 128
+    expect_invalid(bad_chain_shape, "square m=n=k shapes")
 
     bad_reused_pack = copy.deepcopy(reused_ck_i64)
     bad_reused_pack["raw_timings_us"]["pack"][0] = 1
