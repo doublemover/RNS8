@@ -1012,6 +1012,12 @@ flags distinguish final export, residue-current RNS GEMM continuation,
 native-current bounded GEMM continuation, native-to-RNS conversion eligibility,
 and reusable B prepack availability without inferring semantics from a C++ type
 or backend name alone.
+Internal plan-lowering diagnostics derive an operation-level description from
+the same backend, packing, and schedule metadata. The first description is
+`MatMul`-focused and records semantic contract, backend family, desired output,
+schedule strategy, packing strategy, reuse strategy, conversion strategy, and
+lowering path for inspect/debug tooling. This is planning vocabulary, not a new
+public algebra API.
 
 Thread-safety rules:
 

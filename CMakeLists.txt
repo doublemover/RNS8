@@ -95,6 +95,7 @@ set(RNS8_SOURCES
   src/core/api_plan.cpp
   src/core/backend_common.cpp
   src/core/moduli.cpp
+  src/core/plan_lowering.cpp
   src/core/status.cpp
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp

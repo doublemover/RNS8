@@ -56,6 +56,12 @@ next-operation flags for final export, RNS continuation, native continuation,
 native-to-RNS conversion eligibility, and reusable B prepack availability. No
 current backend reports a reusable production prepack cache.
 
+`rns8-inspect` derives an internal plan-lowering description for autotune
+exact-hit plans from the same backend, packing, and schedule metadata. The
+diagnostic explains the `MatMul` semantic contract, backend family, selected
+domain transition, schedule, packing, reuse, conversion strategy, and final
+lowering path without adding a new public algebra API.
+
 ## Benchmark Promotion
 
 Raw `rns8-bench` captures cannot write production autotune entries.

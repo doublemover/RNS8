@@ -694,7 +694,14 @@ RNS8-specific notes:
 Likely first slices:
 
 - Internal plan-lowering description object populated from current descriptors.
+  Implemented as the internal `PlanLoweringDescription` helper, derived from
+  current plan backend, packing, and schedule metadata without adding another
+  public ABI surface.
 - Debug/inspect output that explains selected operation lowering.
+  Implemented in `rns8-inspect` for autotune exact-hit plans as text and JSON
+  `plan_lowering` output covering operation, semantic contract, backend family,
+  input/output domain, desired output, schedule, packing, reuse, conversion, and
+  lowering path.
 - AUTO selection that considers desired output domain and reuse hints.
 
 Relation to existing queue:

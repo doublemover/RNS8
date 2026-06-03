@@ -639,6 +639,10 @@ cache is a measured-runtime surface, not a performance claim by itself: it must
 still be benchmarked as one-time B setup plus repeated GEMM, and
 `production_prepack_cache_available` remains false. CPU, direct-HIP, and wrap64
 reference plans report resident layouts without transient pack workspaces.
+For autotune exact-hit inspection, `rns8-inspect` also reports an internal
+`plan_lowering` object derived from backend, packing, and schedule metadata so
+review can distinguish final export, residue-chain continuation, native-chain
+continuation, conversion, transient packing, and prepack reuse decisions.
 Matrix handles expose the companion source version, finite modulus, host/device
 currentness flags, byte counts, and persistent layout version through
 `rns8_get_matrix_storage_info`; reusable cache tooling must include that

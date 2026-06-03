@@ -4,6 +4,7 @@
 #include <string>
 
 #include "core/autotune_cache.hpp"
+#include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -243,9 +244,14 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
     const std::string& autotune_key,
     rns8::detail::AutotuneRuntimeIdentity runtime,
     rns8_plan_packing_info* plan_packing,
-    bool* plan_packing_available) {
+    bool* plan_packing_available,
+    rns8::detail::PlanLoweringDescription* plan_lowering,
+    bool* plan_lowering_available) {
   if (plan_packing_available) {
     *plan_packing_available = false;
+  }
+  if (plan_lowering_available) {
+    *plan_lowering_available = false;
   }
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   if (!hit) {
@@ -265,16 +271,30 @@ rns8::detail::AutotuneRuntimeIdentity runtime_identity_with_plan_version(
   rns8_plan_backend_info plan_info{};
   plan_info.struct_size = sizeof(plan_info);
   plan_info.abi_version = RNS8_ABI_VERSION;
-  const rns8_status status = rns8_get_plan_backend_info(plan, &plan_info);
+  const rns8_status backend_status = rns8_get_plan_backend_info(plan, &plan_info);
+  rns8_plan_packing_info local_packing{};
+  local_packing.struct_size = sizeof(local_packing);
+  local_packing.abi_version = RNS8_ABI_VERSION;
+  const rns8_status packing_status = rns8_get_plan_packing_info(plan, &local_packing);
+  rns8_plan_schedule_info schedule{};
+  schedule.struct_size = sizeof(schedule);
+  schedule.abi_version = RNS8_ABI_VERSION;
+  const rns8_status schedule_status = rns8_get_plan_schedule_info(plan, &schedule);
   if (plan_packing) {
-    plan_packing->struct_size = sizeof(*plan_packing);
-    plan_packing->abi_version = RNS8_ABI_VERSION;
-    if (rns8_get_plan_packing_info(plan, plan_packing) == RNS8_SUCCESS && plan_packing_available) {
+    *plan_packing = local_packing;
+    if (packing_status == RNS8_SUCCESS && plan_packing_available) {
       *plan_packing_available = true;
     }
   }
+  if (backend_status == RNS8_SUCCESS && packing_status == RNS8_SUCCESS && schedule_status == RNS8_SUCCESS &&
+      plan_lowering) {
+    *plan_lowering = rns8::detail::describe_plan_lowering(plan_info, local_packing, schedule);
+    if (plan_lowering_available) {
+      *plan_lowering_available = true;
+    }
+  }
   rns8_destroy_plan(plan);
-  if (status == RNS8_SUCCESS && plan_info.accelerator_version[0] != '\0') {
+  if (backend_status == RNS8_SUCCESS && plan_info.accelerator_version[0] != '\0') {
     runtime.hip_sdk_or_library_version = plan_info.accelerator_version;
   }
   return runtime;
@@ -378,6 +398,43 @@ void print_plan_packing_json(const rns8_plan_packing_info& packing, bool trailin
   std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
+void print_plan_lowering_text(const rns8::detail::PlanLoweringDescription& lowering) {
+  std::cout << "autotune_plan_lowering_operation:      " << lowering.operation << "\n";
+  std::cout << "autotune_plan_lowering_semantics:      " << lowering.semantic_contract << "\n";
+  std::cout << "autotune_plan_lowering_backend_family: " << lowering.backend_family << "\n";
+  std::cout << "autotune_plan_lowering_desired_output: " << lowering.desired_output << "\n";
+  std::cout << "autotune_plan_lowering_schedule:       " << lowering.schedule_strategy << "\n";
+  std::cout << "autotune_plan_lowering_packing:        " << lowering.packing_strategy << "\n";
+  std::cout << "autotune_plan_lowering_reuse:          " << lowering.reuse_strategy << "\n";
+  std::cout << "autotune_plan_lowering_conversion:     " << lowering.conversion_strategy << "\n";
+  std::cout << "autotune_plan_lowering_path:           " << lowering.lowering_path << "\n";
+}
+
+void print_plan_lowering_json(const rns8::detail::PlanLoweringDescription& lowering, bool trailing_comma) {
+  std::cout << "    \"plan_lowering\": {\n";
+  std::cout << "      \"operation\": \"" << json_escape(lowering.operation.c_str()) << "\",\n";
+  std::cout << "      \"semantic_contract\": \"" << json_escape(lowering.semantic_contract.c_str()) << "\",\n";
+  std::cout << "      \"backend_family\": \"" << json_escape(lowering.backend_family.c_str()) << "\",\n";
+  std::cout << "      \"input_domain\": \"" << json_escape(lowering.input_domain.c_str()) << "\",\n";
+  std::cout << "      \"output_domain\": \"" << json_escape(lowering.output_domain.c_str()) << "\",\n";
+  std::cout << "      \"desired_output\": \"" << json_escape(lowering.desired_output.c_str()) << "\",\n";
+  std::cout << "      \"schedule_strategy\": \"" << json_escape(lowering.schedule_strategy.c_str()) << "\",\n";
+  std::cout << "      \"packing_strategy\": \"" << json_escape(lowering.packing_strategy.c_str()) << "\",\n";
+  std::cout << "      \"reuse_strategy\": \"" << json_escape(lowering.reuse_strategy.c_str()) << "\",\n";
+  std::cout << "      \"conversion_strategy\": \"" << json_escape(lowering.conversion_strategy.c_str()) << "\",\n";
+  std::cout << "      \"lowering_path\": \"" << json_escape(lowering.lowering_path.c_str()) << "\",\n";
+  std::cout << "      \"final_export_available\": " << (lowering.final_export_available ? "true" : "false") << ",\n";
+  std::cout << "      \"rns_continuation_available\": "
+            << (lowering.rns_continuation_available ? "true" : "false") << ",\n";
+  std::cout << "      \"native_continuation_available\": "
+            << (lowering.native_continuation_available ? "true" : "false") << ",\n";
+  std::cout << "      \"native_to_rns_available\": " << (lowering.native_to_rns_available ? "true" : "false")
+            << ",\n";
+  std::cout << "      \"reusable_b_prepack_available\": "
+            << (lowering.reusable_b_prepack_available ? "true" : "false") << "\n";
+  std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
+}
+
 rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity(
     const rns8_device_info& info,
     const rns8_backend_capability_info& capability) {
@@ -401,6 +458,7 @@ void print_autotune_text(
     const std::string& selected_backend,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
+    const rns8::detail::PlanLoweringDescription* plan_lowering,
     bool show_entries) {
   std::cout << "autotune_cache_path:   " << snapshot.path.string() << "\n";
   std::cout << "autotune_cache_loaded: " << (snapshot.loaded ? 1 : 0) << "\n";
@@ -426,6 +484,9 @@ void print_autotune_text(
     if (plan_packing) {
       print_plan_packing_text(*plan_packing);
     }
+    if (plan_lowering) {
+      print_plan_lowering_text(*plan_lowering);
+    }
   }
   if (show_entries) {
     for (const auto& entry : snapshot.entries) {
@@ -441,6 +502,7 @@ void print_autotune_json(
     const std::string& selected_backend,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
+    const rns8::detail::PlanLoweringDescription* plan_lowering,
     bool show_entries) {
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   std::cout << "  \"autotune_cache\": {\n";
@@ -459,10 +521,16 @@ void print_autotune_json(
             << "\"";
   if (plan_packing) {
     std::cout << ",\n";
-    print_plan_packing_json(*plan_packing, hit != nullptr || show_entries);
+    print_plan_packing_json(*plan_packing, plan_lowering != nullptr || hit != nullptr || show_entries);
+  }
+  if (plan_lowering) {
+    if (!plan_packing) {
+      std::cout << ",\n";
+    }
+    print_plan_lowering_json(*plan_lowering, hit != nullptr || show_entries);
   }
   if (hit) {
-    if (!plan_packing) {
+    if (!plan_packing && !plan_lowering) {
       std::cout << ",\n";
     }
     std::cout << "    \"entry\": {\n";
@@ -500,6 +568,7 @@ void print_text(
     const std::string& autotune_key,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
+    const rns8::detail::PlanLoweringDescription* plan_lowering,
     bool show_autotune_cache) {
   std::cout << "RNS8 inspect\n";
   std::cout << "backend:       " << backend_name(info.backend) << "\n";
@@ -519,6 +588,7 @@ void print_text(
         backend_name(info.backend),
         runtime,
         plan_packing,
+        plan_lowering,
         show_autotune_cache);
   }
 }
@@ -530,6 +600,7 @@ void print_json(
     const std::string& autotune_key,
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
+    const rns8::detail::PlanLoweringDescription* plan_lowering,
     bool show_autotune_cache) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
@@ -549,6 +620,7 @@ void print_json(
         backend_name(info.backend),
         runtime,
         plan_packing,
+        plan_lowering,
         show_autotune_cache);
   }
   std::cout << "}\n";
@@ -655,6 +727,8 @@ int main(int argc, char** argv) {
   auto runtime = autotune_runtime_identity(info, selected_capability);
   rns8_plan_packing_info autotune_plan_packing{};
   bool autotune_plan_packing_available = false;
+  rns8::detail::PlanLoweringDescription autotune_plan_lowering{};
+  bool autotune_plan_lowering_available = false;
   if (inspect_autotune && !autotune_key.empty()) {
     runtime = runtime_identity_with_plan_version(
         ctx,
@@ -663,10 +737,14 @@ int main(int argc, char** argv) {
         autotune_key,
         runtime,
         &autotune_plan_packing,
-        &autotune_plan_packing_available);
+        &autotune_plan_packing_available,
+        &autotune_plan_lowering,
+        &autotune_plan_lowering_available);
   }
   const rns8_plan_packing_info* plan_packing =
       autotune_plan_packing_available ? &autotune_plan_packing : nullptr;
+  const rns8::detail::PlanLoweringDescription* plan_lowering =
+      autotune_plan_lowering_available ? &autotune_plan_lowering : nullptr;
 
   if (json) {
     print_json(
@@ -676,6 +754,7 @@ int main(int argc, char** argv) {
         autotune_key,
         runtime,
         plan_packing,
+        plan_lowering,
         show_autotune_cache);
   } else {
     print_text(
@@ -685,6 +764,7 @@ int main(int argc, char** argv) {
         autotune_key,
         runtime,
         plan_packing,
+        plan_lowering,
         show_autotune_cache);
   }
   rns8_destroy_context(ctx);
