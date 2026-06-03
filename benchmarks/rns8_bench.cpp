@@ -78,6 +78,11 @@ enum class BoundMode {
   PerTile,
 };
 
+enum class InputProfile {
+  UniformSmall,
+  AdaptiveBands,
+};
+
 struct Args {
   int64_t m = 64;
   int64_t n = 64;
@@ -94,6 +99,7 @@ struct Args {
   BenchSemantics semantics = BenchSemantics::BoundedI64;
   uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
+  InputProfile input_profile = InputProfile::UniformSmall;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
   bool reuse_packed_inputs = false;
@@ -181,6 +187,7 @@ uint32_t benchmark_prefix(const Args& args);
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
+      << "                  [--input-profile uniform-small|adaptive-bands]\n"
       << "                  [--require-adaptive-execution]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
@@ -219,6 +226,10 @@ bool valid_tile_size(uint32_t value) {
 
 bool finite_benchmark_semantics(BenchSemantics semantics) {
   return semantics == BenchSemantics::FiniteRingU8 || semantics == BenchSemantics::FiniteFieldU8;
+}
+
+bool bounded_benchmark_semantics(BenchSemantics semantics) {
+  return semantics == BenchSemantics::BoundedI64 || semantics == BenchSemantics::BoundedU64;
 }
 
 bool exact_wide_benchmark_semantics(BenchSemantics semantics) {
@@ -316,6 +327,12 @@ BoundMode parse_bound_mode(const std::string& value) {
   usage_error("unknown bound mode: " + value);
 }
 
+InputProfile parse_input_profile(const std::string& value) {
+  if (value == "uniform-small" || value == "uniform_small") return InputProfile::UniformSmall;
+  if (value == "adaptive-bands" || value == "adaptive_bands") return InputProfile::AdaptiveBands;
+  usage_error("unknown input profile: " + value);
+}
+
 Args parse_args(int argc, char** argv) {
   Args args;
   bool tile_m_set = false;
@@ -354,6 +371,8 @@ Args parse_args(int argc, char** argv) {
       args.finite_modulus = static_cast<uint16_t>(parsed);
     } else if (arg == "--bound-mode" && i + 1 < argc) {
       args.bound_mode = parse_bound_mode(argv[++i]);
+    } else if (arg == "--input-profile" && i + 1 < argc) {
+      args.input_profile = parse_input_profile(argv[++i]);
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--reuse-packed-inputs") {
@@ -376,6 +395,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
+          << "                  [--input-profile uniform-small|adaptive-bands]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
@@ -421,6 +441,9 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.reuse_packed_inputs && args.vector_alu_baseline) {
     usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
+  }
+  if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
+    usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
   }
 #if !RNS8_CONFIGURED_HIP_ENABLED
   if (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -926,6 +949,81 @@ std::size_t row_major_index(int64_t row, int64_t col, int64_t ld, const char* la
     usage_error(std::string("matrix index overflows size_t for ") + label);
   }
   return static_cast<std::size_t>(row_offset + u_col);
+}
+
+uint64_t profile_band_for_coordinate(int64_t coordinate, uint32_t tile_size, bool allow_zero) {
+  constexpr std::array<uint64_t, 4> zero_based = {0, 1, 4, 16};
+  constexpr std::array<uint64_t, 4> nonzero = {1, 2, 8, 16};
+  const uint64_t tile = static_cast<uint64_t>(coordinate) / static_cast<uint64_t>(tile_size);
+  return (allow_zero ? zero_based : nonzero)[static_cast<std::size_t>(tile % 4u)];
+}
+
+int64_t sample_signed_band(std::mt19937_64& rng, uint64_t magnitude) {
+  if (magnitude == 0) {
+    return 0;
+  }
+  std::uniform_int_distribution<int64_t> dist(
+      -static_cast<int64_t>(magnitude),
+      static_cast<int64_t>(magnitude));
+  return dist(rng);
+}
+
+uint64_t sample_unsigned_band(std::mt19937_64& rng, uint64_t magnitude) {
+  if (magnitude == 0) {
+    return 0;
+  }
+  std::uniform_int_distribution<uint64_t> dist(0, magnitude);
+  return dist(rng);
+}
+
+void fill_bounded_i64_inputs(
+    const Args& args,
+    std::vector<int64_t>& A,
+    std::vector<int64_t>& B,
+    std::mt19937_64& rng) {
+  if (args.input_profile == InputProfile::UniformSmall) {
+    std::uniform_int_distribution<int64_t> dist(-16, 16);
+    for (auto& value : A) value = dist(rng);
+    for (auto& value : B) value = dist(rng);
+    return;
+  }
+  for (int64_t row = 0; row < args.m; ++row) {
+    const uint64_t row_band = profile_band_for_coordinate(row, args.tile_m, true);
+    for (int64_t kk = 0; kk < args.k; ++kk) {
+      A[row_major_index(row, kk, args.k, "A")] = sample_signed_band(rng, row_band);
+    }
+  }
+  for (int64_t kk = 0; kk < args.k; ++kk) {
+    for (int64_t col = 0; col < args.n; ++col) {
+      const uint64_t col_band = profile_band_for_coordinate(col, args.tile_n, false);
+      B[row_major_index(kk, col, args.n, "B")] = sample_signed_band(rng, col_band);
+    }
+  }
+}
+
+void fill_bounded_u64_inputs(
+    const Args& args,
+    std::vector<uint64_t>& A,
+    std::vector<uint64_t>& B,
+    std::mt19937_64& rng) {
+  if (args.input_profile == InputProfile::UniformSmall) {
+    std::uniform_int_distribution<uint64_t> dist(0, 16);
+    for (auto& value : A) value = dist(rng);
+    for (auto& value : B) value = dist(rng);
+    return;
+  }
+  for (int64_t row = 0; row < args.m; ++row) {
+    const uint64_t row_band = profile_band_for_coordinate(row, args.tile_m, true);
+    for (int64_t kk = 0; kk < args.k; ++kk) {
+      A[row_major_index(row, kk, args.k, "A")] = sample_unsigned_band(rng, row_band);
+    }
+  }
+  for (int64_t kk = 0; kk < args.k; ++kk) {
+    for (int64_t col = 0; col < args.n; ++col) {
+      const uint64_t col_band = profile_band_for_coordinate(col, args.tile_n, false);
+      B[row_major_index(kk, col, args.n, "B")] = sample_unsigned_band(rng, col_band);
+    }
+  }
 }
 
 uint64_t benchmark_bound(const Args& args) {
@@ -2260,12 +2358,10 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   usage_error("hip-vector-alu-int64-baseline requires a HIP-enabled benchmark build");
 #else
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
   std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
@@ -2381,12 +2477,10 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   usage_error("hip-vector-alu-int64-baseline requires a HIP-enabled benchmark build");
 #else
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
   std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
@@ -2499,12 +2593,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     return run_vector_alu_i64(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
   std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
@@ -2651,12 +2743,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     return run_vector_alu_u64(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
   std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
   if (args.bound_mode == BoundMode::PerTile) {
@@ -3484,6 +3574,10 @@ const char* packed_layout_version(const Args& args) {
 }
 
 const char* input_distribution(const Args& args) {
+  if (args.input_profile == InputProfile::AdaptiveBands) {
+    return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
+                                                        : "unsigned_adaptive_bands_0_16";
+  }
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
     case BenchSemantics::ExactWideSigned:

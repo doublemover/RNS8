@@ -33,8 +33,14 @@ DEFAULT_ADAPTIVE_CASES = [
     "tiny-adaptive:65,65,64,64,64",
     "medium-adaptive:1024,1024,1024,128,128",
 ]
+ADAPTIVE_WORKLOAD_CASES = [
+    "banded-adaptive-256:256,256,512,64,64,adaptive-bands",
+    "banded-adaptive-1024:1024,1024,1024,128,128,adaptive-bands",
+    "banded-rect-adaptive:512,1024,512,128,128,adaptive-bands",
+]
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
+INPUT_PROFILES = {"uniform-small", "adaptive-bands"}
 
 
 @dataclass(frozen=True)
@@ -46,6 +52,7 @@ class SweepCase:
     tile_m: int = 128
     tile_n: int = 128
     bound_mode: str = "global"
+    input_profile: str = "uniform-small"
     require_adaptive: bool = False
     promotable: bool = True
 
@@ -66,15 +73,19 @@ def parse_case(value: str, *, adaptive: bool = False, promotable: bool = True) -
     if ":" in value:
         name, body = value.split(":", 1)
     parts = [part.strip() for part in body.replace("x", ",").split(",") if part.strip()]
-    expected = 5 if adaptive else 3
-    if len(parts) != expected:
-        shape = "NAME:M,N,K,TILE_M,TILE_N" if adaptive else "NAME:M,N,K"
+    min_expected = 5 if adaptive else 3
+    max_expected = 6 if adaptive else 3
+    if len(parts) < min_expected or len(parts) > max_expected:
+        shape = "NAME:M,N,K,TILE_M,TILE_N[,INPUT_PROFILE]" if adaptive else "NAME:M,N,K"
         raise SystemExit(f"case must use {shape}, got {value!r}")
     m = parse_int(parts[0], "m")
     n = parse_int(parts[1], "n")
     k = parse_int(parts[2], "k")
     tile_m = parse_int(parts[3], "tile_m") if adaptive else 128
     tile_n = parse_int(parts[4], "tile_n") if adaptive else 128
+    input_profile = parts[5] if adaptive and len(parts) == 6 else "uniform-small"
+    if input_profile not in INPUT_PROFILES:
+        raise SystemExit(f"adaptive input profile must be one of {sorted(INPUT_PROFILES)}, got {input_profile!r}")
     if not name:
         prefix = "adaptive" if adaptive else "shape"
         name = f"{prefix}-{m}x{n}x{k}"
@@ -86,6 +97,7 @@ def parse_case(value: str, *, adaptive: bool = False, promotable: bool = True) -
         tile_m=tile_m,
         tile_n=tile_n,
         bound_mode="per-tile" if adaptive else "global",
+        input_profile=input_profile,
         require_adaptive=adaptive,
         promotable=promotable,
     )
@@ -1002,11 +1014,14 @@ def default_cases(args: argparse.Namespace) -> list[SweepCase]:
 
 
 def adaptive_cases(args: argparse.Namespace) -> list[SweepCase]:
+    cases: list[SweepCase] = []
     if args.adaptive_case:
-        return [parse_case(value, adaptive=True) for value in args.adaptive_case]
+        cases.extend(parse_case(value, adaptive=True) for value in args.adaptive_case)
     if args.include_default_adaptive:
-        return [parse_case(value, adaptive=True) for value in DEFAULT_ADAPTIVE_CASES]
-    return []
+        cases.extend(parse_case(value, adaptive=True) for value in DEFAULT_ADAPTIVE_CASES)
+    if args.include_adaptive_workloads:
+        cases.extend(parse_case(value, adaptive=True) for value in ADAPTIVE_WORKLOAD_CASES)
+    return cases
 
 
 def wrap64_cases(args: argparse.Namespace) -> list[SweepCase]:
@@ -1121,6 +1136,8 @@ def command_for(
     ]
     if case.require_adaptive:
         command.append("--require-adaptive-execution")
+    if case.input_profile != "uniform-small":
+        command.extend(["--input-profile", case.input_profile])
     if modulus is not None:
         command.extend(["--modulus", str(modulus)])
     pack_mode = requested_pack_mode(args)
@@ -1139,7 +1156,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
     semantics_values = [normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
-        raise SystemExit("--adaptive-only requires --adaptive-case or --include-default-adaptive")
+        raise SystemExit("--adaptive-only requires --adaptive-case, --include-default-adaptive, or --include-adaptive-workloads")
     if (args.include_wrap64 or args.include_wrap64_wmma_candidate) and "wrap-u64" not in semantics_values:
         semantics_values.append("wrap-u64")
     if args.include_exact_wide:
@@ -1276,10 +1293,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backend", dest="backends", action="append", help="backend to sweep; repeatable")
     parser.add_argument("--semantics", action="append", help="benchmark semantics to sweep; repeatable")
     parser.add_argument("--case", action="append", help="global case NAME:M,N,K; repeatable")
-    parser.add_argument("--adaptive-case", action="append", help="adaptive case NAME:M,N,K,TILE_M,TILE_N; repeatable")
+    parser.add_argument(
+        "--adaptive-case",
+        action="append",
+        help="adaptive case NAME:M,N,K,TILE_M,TILE_N[,INPUT_PROFILE]; repeatable",
+    )
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
     parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
+    parser.add_argument(
+        "--include-adaptive-workloads",
+        action="store_true",
+        help="include profile-driven adaptive bounded workload cases",
+    )
     parser.add_argument("--adaptive-only", action="store_true", help="run only adaptive cases, skipping global cases")
     parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
     parser.add_argument(

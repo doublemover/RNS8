@@ -336,7 +336,10 @@ def main() -> int:
     assert (parsed.m, parsed.n, parsed.k) == (64, 128, 256)
     adaptive = benchmark_sweep.parse_case("adaptive:65,65,64,64,64", adaptive=True)
     assert adaptive.bound_mode == "per-tile"
+    assert adaptive.input_profile == "uniform-small"
     assert adaptive.require_adaptive is True
+    adaptive_profile = benchmark_sweep.parse_case("adaptive-bands:256,256,512,64,64,adaptive-bands", adaptive=True)
+    assert adaptive_profile.input_profile == "adaptive-bands"
     assert benchmark_sweep.backend_allowed_for("wrap-u64", parsed, "wrap64-byte-limb") is True
     assert benchmark_sweep.backend_allowed_for("bounded-i64", parsed, "wrap64-byte-limb") is False
     assert benchmark_sweep.backend_allowed_for("finite-u8-ring", parsed, "hip-vector-alu-int64") is False
@@ -359,6 +362,7 @@ def main() -> int:
         shapes=None,
         modulus=None,
         include_default_adaptive=False,
+        include_adaptive_workloads=False,
         adaptive_only=False,
         include_wrap64=False,
         include_wrap64_wmma_candidate=False,
@@ -423,6 +427,7 @@ def main() -> int:
         shapes=None,
         modulus=None,
         include_default_adaptive=False,
+        include_adaptive_workloads=False,
         adaptive_only=False,
         include_wrap64=False,
         include_wrap64_wmma_candidate=False,
@@ -467,6 +472,7 @@ def main() -> int:
         shapes=None,
         modulus=None,
         include_default_adaptive=False,
+        include_adaptive_workloads=False,
         adaptive_only=False,
         include_wrap64=False,
         include_wrap64_wmma_candidate=False,
@@ -500,6 +506,7 @@ def main() -> int:
         shapes=None,
         modulus=None,
         include_default_adaptive=True,
+        include_adaptive_workloads=False,
         adaptive_only=True,
         include_wrap64=False,
         include_wrap64_wmma_candidate=False,
@@ -531,6 +538,12 @@ def main() -> int:
         assert "--adaptive-only requires" in str(exc)
     else:
         raise AssertionError("adaptive-only without adaptive cases should fail")
+    adaptive_only_args.include_adaptive_workloads = True
+    workload_commands = benchmark_sweep.sweep_commands(adaptive_only_args)
+    assert len(workload_commands) == len(benchmark_sweep.ADAPTIVE_WORKLOAD_CASES)
+    assert all("--input-profile" in command and "adaptive-bands" in command for _name, command, _output in workload_commands)
+    assert workload_commands[0][0] == "bounded-i64-banded-adaptive-256-256x256x512-cpu.json"
+    adaptive_only_args.include_adaptive_workloads = False
 
     ck = finite_capture("ck", 190)
     direct = finite_capture("hip-direct", 300)
