@@ -333,7 +333,9 @@ requires `--review-mode release`; the default smoke review mode never writes a
 every HIP-resident capture in a same-contract release group to report a
 non-placeholder `device.gcn_arch`; missing GPU target identity blocks promotion
 with `missing_gpu_target_id`, and mixed GPU targets block promotion with
-`gpu_target_mismatch`.
+`gpu_target_mismatch`. The same review gate requires complete and matching HIP
+SDK/ROCm version metadata for HIP-resident captures, blocking release groups
+with `missing_hip_toolchain_version` or `hip_toolchain_version_mismatch`.
 Reviewed temp cache files can be merged into an installable cache only through
 the validating installer; it rejects non-reviewed entries and stale identity
 fields before writing. Durable reviewed cache entries are limited to public

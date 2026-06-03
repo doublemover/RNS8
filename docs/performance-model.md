@@ -500,7 +500,9 @@ where backend hooks exist, at least three warmups, at least nine measured
 repeats, schema v4 validation, concrete HIP `device.gcn_arch` target identity,
 and same-contract baseline groups. Review groups with a missing HIP GPU target
 are blocked as `missing_gpu_target_id`; groups that mix GPU targets are blocked
-as `gpu_target_mismatch`.
+as `gpu_target_mismatch`. Review groups with missing or mixed HIP SDK/ROCm
+version metadata for HIP-resident captures are blocked as
+`missing_hip_toolchain_version` or `hip_toolchain_version_mismatch`.
 
 Bounded i64/u64 promotion requires CPU reference, direct-HIP correctness, and
 `hip-vector-alu-int64` baselines for the same semantic contract, shape, layout,

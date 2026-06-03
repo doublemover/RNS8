@@ -328,8 +328,10 @@ baseline entries. They also require the current public selected-kernel and
 epilogue family for each supported backend/semantic contract before an entry is
 accepted as validated. The benchmark schema and sweep reviewer now require a
 concrete HIP `device.gcn_arch` for every HIP-resident capture in a release
-group; missing target identity or mixed GPU targets block promotion before a
-cache entry can be written.
+group, plus complete and matching HIP SDK/ROCm version metadata for those HIP
+captures; missing target identity, mixed GPU targets, missing toolchain
+versions, or mixed toolchain versions block promotion before a cache entry can
+be written.
 The default Windows cache at `%LOCALAPPDATA%\rns8-gemm\autotune.json` has been
 populated from `temp\reviewed-autotune-production-candidate.json` with 19
 reviewed entries. The remaining gap is broader production coverage plus

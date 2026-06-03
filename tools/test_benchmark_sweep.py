@@ -540,6 +540,9 @@ def main() -> int:
     assert group["missing_gpu_targets"] == []
     assert group["gpu_target_identity_complete"] is True
     assert group["gpu_target_compatible"] is True
+    assert group["missing_hip_toolchain_versions"] == []
+    assert group["hip_toolchain_version_complete"] is True
+    assert group["hip_toolchain_version_compatible"] is True
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
@@ -575,6 +578,38 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_target_group["candidates"]
     }
     assert "gpu_target_mismatch" in mismatched_target_blockers["ck"]
+
+    missing_version_direct = copy.deepcopy(direct)
+    missing_version_direct["hip_toolchain"]["hip_sdk_or_rocm_version"] = None
+    missing_version_report = benchmark_sweep.review_captures(
+        [ck, missing_version_direct, cpu],
+        review_mode="release",
+    )
+    missing_version_group = missing_version_report["groups"][0]
+    assert missing_version_report["promotable_autotune_entries"] == []
+    assert missing_version_group["missing_hip_toolchain_versions"] == ["hip-direct"]
+    assert missing_version_group["hip_toolchain_version_complete"] is False
+    assert missing_version_group["hip_toolchain_version_compatible"] is False
+    missing_version_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in missing_version_group["candidates"]
+    }
+    assert "missing_hip_toolchain_version" in missing_version_blockers["ck"]
+
+    mismatched_version_ck = copy.deepcopy(ck)
+    mismatched_version_ck["hip_toolchain"]["hip_sdk_or_rocm_version"] = "70260299"
+    mismatched_version_report = benchmark_sweep.review_captures(
+        [mismatched_version_ck, direct, cpu],
+        review_mode="release",
+    )
+    mismatched_version_group = mismatched_version_report["groups"][0]
+    assert mismatched_version_report["promotable_autotune_entries"] == []
+    assert mismatched_version_group["missing_hip_toolchain_versions"] == []
+    assert mismatched_version_group["hip_toolchain_version_complete"] is True
+    assert mismatched_version_group["hip_toolchain_version_compatible"] is False
+    mismatched_version_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in mismatched_version_group["candidates"]
+    }
+    assert "hip_toolchain_version_mismatch" in mismatched_version_blockers["ck"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],
