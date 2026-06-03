@@ -126,6 +126,8 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"tile_n={tile_n}",
         f"k_block={capture.get('k_block_size')}",
         f"exact_wide_limb_count={capture.get('exact_wide_limb_count')}",
+        f"residue_chain_length={capture.get('residue_chain_length', 1)}",
+        f"residue_output_mode={capture.get('residue_output_mode', 'host_export')}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
@@ -1104,12 +1106,15 @@ def capture_name(
     modulus: int | None,
     pack_mode: str,
     exact_wide_limb_count: int | None = None,
+    residue_chain_length: int = 1,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
         parts.append(f"mod{modulus}")
     if semantics in EXACT_WIDE_SEMANTICS and exact_wide_limb_count not in (None, DEFAULT_EXACT_WIDE_LIMB_COUNT):
         parts.append(f"limbs{exact_wide_limb_count}")
+    if semantics in EXACT_WIDE_SEMANTICS and residue_chain_length > 1:
+        parts.append(f"chain{residue_chain_length}")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
     elif pack_mode == "prepacked_reuse_a":
@@ -1164,6 +1169,8 @@ def command_for(
         command.extend(["--modulus", str(modulus)])
     if exact_wide_limb_count is not None:
         command.extend(["--exact-wide-limbs", str(exact_wide_limb_count)])
+    if args.residue_chain_length > 1:
+        command.extend(["--residue-chain-length", str(args.residue_chain_length)])
     pack_mode = requested_pack_mode(args)
     if pack_mode == "prepacked_reuse":
         command.append("--reuse-packed-inputs")
@@ -1187,6 +1194,12 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         for exact_semantics in EXACT_WIDE_SEMANTICS:
             if exact_semantics not in semantics_values:
                 semantics_values.append(exact_semantics)
+    if args.residue_chain_length < 1:
+        raise SystemExit("--residue-chain-length must be positive")
+    if args.residue_chain_length > 1:
+        non_exact = [semantics for semantics in semantics_values if semantics not in EXACT_WIDE_SEMANTICS]
+        if non_exact:
+            raise SystemExit("--residue-chain-length > 1 currently requires exact-wide semantics")
     for semantics in semantics_values:
         if semantics == "wrap-u64":
             if args.adaptive_only:
@@ -1195,6 +1208,8 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         else:
             active_cases = cases
         for case in active_cases:
+            if args.residue_chain_length > 1 and (case.m != case.n or case.n != case.k):
+                raise SystemExit("--residue-chain-length > 1 currently requires square exact-wide cases")
             backends = args.backends or (
                 wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
             )
@@ -1213,6 +1228,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                             modulus,
                             requested_pack_mode(args),
                             exact_wide_limb_count,
+                            args.residue_chain_length,
                         )
                         command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                         commands.append((name, command, args.out_root / name))
@@ -1333,6 +1349,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
     parser.add_argument("--exact-wide-limbs", type=int, action="append", help="exact-wide output limb count; repeatable")
+    parser.add_argument(
+        "--residue-chain-length",
+        type=int,
+        default=1,
+        help="exact-wide residue-current GEMM chain length; values above 1 skip timed host export",
+    )
     parser.add_argument(
         "--include-exact-wide-limb-variants",
         action="store_true",

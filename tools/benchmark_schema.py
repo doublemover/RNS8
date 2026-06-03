@@ -296,6 +296,7 @@ class _Validator:
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
         self._validate_pack_reuse_fields(raw_timings)
+        self._validate_residue_current_timings(raw_timings)
         self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
@@ -770,6 +771,30 @@ class _Validator:
             phases.insert(phases.index("matrix_alloc"), PER_TILE_TIMING_PHASE)
         return phases
 
+    def _residue_chain_length(self) -> int:
+        value = self.data.get("residue_chain_length", 1)
+        if not _is_int(value) or value < 1:
+            self._error("residue_chain_length must be a positive integer")
+            return 1
+        return int(value)
+
+    def _residue_output_mode(self) -> str:
+        value = self.data.get("residue_output_mode", "host_export")
+        if not isinstance(value, str):
+            self._error("residue_output_mode must be a string")
+            return "host_export"
+        if value not in {"host_export", "residue_current_rns"}:
+            self._error("residue_output_mode must be host_export or residue_current_rns")
+            return "host_export"
+        return value
+
+    def _is_residue_current_chain_capture(self) -> bool:
+        return (
+            self._residue_chain_length() > 1
+            or self._residue_output_mode() == "residue_current_rns"
+            or self.data.get("epilogue_type") == "residue_current_rns_output"
+        )
+
     def _validate_tile_value(self, key: str, value: Any) -> None:
         if not _is_int(value):
             self._error(f"{key} must be an integer")
@@ -837,8 +862,16 @@ class _Validator:
         schedule = self.data.get("schedule_metadata")
         backend_metadata = self.data.get("backend_metadata")
         bound_mode = self.data.get("bound_mode", "global")
+        residue_chain_length = self._residue_chain_length()
+        residue_output_mode = self._residue_output_mode()
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
+        if residue_chain_length > 1 and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
+            self._error("residue_chain_length > 1 captures must use exact-wide semantics")
+        if residue_output_mode == "residue_current_rns" and residue_chain_length <= 1:
+            self._error("residue_output_mode=residue_current_rns requires residue_chain_length > 1")
+        if residue_chain_length == 1 and residue_output_mode != "host_export":
+            self._error("residue_chain_length=1 captures must use residue_output_mode=host_export")
         if semantics == "wrap_u64_mod_2_64":
             is_candidate = self._is_wrap64_wmma_candidate()
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"} and not is_candidate:
@@ -977,11 +1010,20 @@ class _Validator:
                 self._error("exact-wide captures must use a positive prefix")
             if packed_layout is not None:
                 self._error("exact-wide captures must use packed_layout_version=null")
-            expected_epilogue_type = (
-                "exact_wide_signed_limb_export"
-                if semantics == "exact_wide_signed"
-                else "exact_wide_unsigned_limb_export"
-            )
+            if residue_chain_length > 1:
+                expected_epilogue_type = "residue_current_rns_output"
+                if residue_output_mode != "residue_current_rns":
+                    self._error("exact-wide residue-current chains must use residue_output_mode=residue_current_rns")
+                if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
+                    self._error("exact-wide residue-current chains must use square m=n=k shapes")
+            else:
+                expected_epilogue_type = (
+                    "exact_wide_signed_limb_export"
+                    if semantics == "exact_wide_signed"
+                    else "exact_wide_unsigned_limb_export"
+                )
+                if residue_output_mode != "host_export":
+                    self._error("exact-wide host-export captures must use residue_output_mode=host_export")
             if self.data.get("epilogue_type") != expected_epilogue_type:
                 self._error(f"exact-wide captures must use {expected_epilogue_type} epilogue")
             if self.data.get("finite_modulus") is not None:
@@ -1337,6 +1379,16 @@ class _Validator:
             if "avg_prepack_setup_us" in self.data and avg_prepack_setup is not None:
                 self._error("per-repeat repack captures must use avg_prepack_setup_us=null")
 
+    def _validate_residue_current_timings(self, raw_timings: dict[str, list[float]]) -> None:
+        if not self._is_residue_current_chain_capture():
+            return
+        values = raw_timings.get("crt_export")
+        if not isinstance(values, list) or any(value != 0.0 for value in values):
+            self._error("residue-current chain captures must report raw_timings_us.crt_export as zero-valued repeats")
+        avg_export = self.data.get("avg_crt_export_us")
+        if _is_number(avg_export) and float(avg_export) != 0.0:
+            self._error("residue-current chain captures must report avg_crt_export_us=0")
+
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
@@ -1621,7 +1673,10 @@ class _Validator:
         if not isinstance(enabled, bool) or not _is_int(repeats):
             return
         selected_backend = self.data.get("backend_selected")
-        if selected_backend in {"ck", "wmma", "hip-vector-alu-int64"} and enabled is not True:
+        residue_current_chain = self._is_residue_current_chain_capture()
+        if residue_current_chain and enabled is True:
+            self._error("residue-current chain captures must not claim GPU event timings")
+        if selected_backend in {"ck", "wmma", "hip-vector-alu-int64"} and enabled is not True and not residue_current_chain:
             self._error(f"{selected_backend} captures must include HIP event operation-group timings")
         timings = self.data.get("gpu_event_timings_us")
         summary = self.data.get("gpu_event_timing_summary_us")

@@ -251,7 +251,12 @@ Likely first slices:
   `tools/benchmark_sweep.py --include-exact-wide-limb-variants`; this measures
   the existing exact-wide export path at requested limb widths and does not yet
   add a new compact staging kernel.
-- A residue-current output mode for chained RNS GEMM benchmarks.
+- A residue-current output mode for chained RNS GEMM benchmarks. Implemented as
+  exact-wide benchmark/tooling coverage via `rns8-bench --residue-chain-length`
+  and `tools/benchmark_sweep.py --residue-chain-length`: measured repeats keep
+  intermediate outputs resident in RNS form, report zero per-repeat
+  `crt_export`, and run one final untimed host limb export only for checksum
+  evidence. This is not yet a public API output-domain mode.
 - A batched CRT/reconstruction report that separates kernel time, status
   handling, compact copy time, constants placement, prefix grouping, limb count,
   and tree setup cost.
