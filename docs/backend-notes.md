@@ -251,18 +251,25 @@ repeated-B, and repeated-A/B amortization separately before promotion. Current
 provide repeated-A, repeated-B, and repeated-A/B measurement support by
 separating one-time `prepack_setup_us` from repeated workload timings and
 recording the reused operand role plus `prepack_reuse_strategy`. Eligible
-rocWMMA non-tiled RNS repeated-B captures now exercise the real reusable B
-cache and report `rocwmma_reusable_b_cache`; other current reuse captures report
-`persistent_matrix_residency`. These captures do not create a reusable
-production prepack cache.
+rocWMMA non-tiled RNS repeated-B captures now exercise the real reusable
+`rns_i8_tile_swizzled_b_v1` B cache and report `rocwmma_reusable_b_cache`;
+other current reuse captures report `persistent_matrix_residency`. These
+captures do not create a reusable production prepack cache.
 The public `rns8_get_plan_packing_info` query now reports the selected plan's
 resident layout versions, transient accelerator pack workspace bytes, and cache
 availability flags. hipBLASLt and CK plans report transient per-dispatch pack
 workspaces with backend-specific A/B layout names. rocWMMA plans still use
 transient A workspaces, and eligible non-tiled RNS B operands now report a
-reusable B prepack cache that `rns8_create_prepack_cache` can materialize for
-`rns8_gemm_rns_prepacked_b`; finite/wrap64, tiled, A-operand, and oversize-K
-requests remain unsupported instead of falling back silently. CPU, direct-HIP,
+reusable `rns_i8_tile_swizzled_b_v1` prepack cache that
+`rns8_create_prepack_cache` can materialize for
+`rns8_gemm_rns_prepacked_b`. The serialized `prepack-v2` cache identity names
+the backend, target id, selected kernel, B prepack kernel variant, semantic,
+prefix-schedule hash, tile shape, K-block, operand role, source version, finite
+modulus, device id, matrix layout, and operand layout. Cache creation and
+prepacked GEMM reject role mismatches, stale device-current matrices, device or
+target mismatches, and internally inconsistent source-version identity.
+Finite/wrap64, tiled, A-operand, and oversize-K requests remain unsupported
+instead of falling back silently. CPU, direct-HIP,
 and wrap64 reference plans report persistent resident layouts and no transient
 matrix-engine pack workspace. All current plans still report no production
 prepack cache. The matching `rns8_get_matrix_storage_info` query reports each

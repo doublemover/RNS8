@@ -1083,6 +1083,10 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   CHECK(std::string(a_key.operand_layout_version) == "rns_centered_residue_planes_v1");
   CHECK(std::string(a_key.cache_scope) == "validated_key_no_production_cache");
   CHECK(std::string(a_key.cache_key).find("operand=A") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("target_id=cpu") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("kernel=cpu_reference_scalar_rns_gemm_v1") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("prefix_schedule_hash=") != std::string::npos);
+  CHECK(std::string(a_key.cache_key).find("k_block_size=0") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("source_version=11") != std::string::npos);
   CHECK(std::string(a_key.cache_key).find("hip_device_id=-1") != std::string::npos);
 
@@ -1460,7 +1464,7 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   CHECK(packing.library_workspace_bytes == 0);
   CHECK(packing.total_transient_workspace_bytes == backend.workspace_required_bytes);
   CHECK(std::string(packing.a_layout_version) == "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
-  CHECK(std::string(packing.b_layout_version) == "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+  CHECK(std::string(packing.b_layout_version) == "rns_i8_tile_swizzled_b_v1");
   CHECK(packing.reusable_prepack_cache_available == 1);
   CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
   CHECK(packing.production_prepack_cache_available == 0);

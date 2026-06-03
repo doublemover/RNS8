@@ -576,20 +576,25 @@ backend-specific transient A/B pack layouts, accumulator or library workspace
 bytes, and cache availability. hipBLASLt and CK plans report transient
 per-dispatch matrix-engine pack workspaces; rocWMMA plans report the same
 transient A workspace and, for eligible non-tiled RNS B operands with
-`K <= 65536`, a reusable B prepack cache path. The cache is a measured-runtime
-surface, not a performance claim by itself: it must still be benchmarked as
-one-time B setup plus repeated GEMM, and `production_prepack_cache_available`
-remains false. CPU, direct-HIP, and wrap64 reference plans report resident
-layouts without transient pack workspaces. Matrix handles expose the companion
-source version, finite modulus, host/device currentness flags, byte counts, and
-persistent layout version through `rns8_get_matrix_storage_info`; reusable cache
-tooling must include that matrix-side state in cache keys and mismatch
-rejection. `rns8_get_prepack_cache_key_info` is the current validator for
-plan/operand cache-key material and rejects incompatible role, shape, backend,
-semantic, layout, device id, currentness, source-version, and finite-modulus
-inputs before returning a key. `rns8_get_prepack_cache_info` reports the created
-runtime cache's matching key/hash material, device id, and allocation byte
-contract. No current backend reports a reusable production prepack cache.
+`K <= 65536`, a reusable `rns_i8_tile_swizzled_b_v1` B prepack cache path. The
+cache is a measured-runtime surface, not a performance claim by itself: it must
+still be benchmarked as one-time B setup plus repeated GEMM, and
+`production_prepack_cache_available` remains false. CPU, direct-HIP, and wrap64
+reference plans report resident layouts without transient pack workspaces.
+Matrix handles expose the companion source version, finite modulus, host/device
+currentness flags, byte counts, and persistent layout version through
+`rns8_get_matrix_storage_info`; reusable cache tooling must include that
+matrix-side state in cache keys and mismatch rejection.
+`rns8_get_prepack_cache_key_info` is the current validator for plan/operand
+cache-key material. Its serialized `prepack-v2` key names the backend, target
+id, selected kernel, B prepack kernel variant, semantic, prefix-schedule hash,
+tile shape, K-block, operand role, source version, finite modulus, device id,
+matrix layout, and operand layout, and it rejects incompatible role, shape,
+backend, semantic, layout, device id, currentness, source-version, and
+finite-modulus inputs before returning a key. `rns8_get_prepack_cache_info`
+reports the created runtime cache's matching key/hash material, device id, and
+allocation byte contract. No current backend reports a reusable production
+prepack cache.
 
 INT4/IU4, AMDGPU builtins, FP8/Ozaki, and wrap64 matrix-engine paths are
 retired per semantic/target if they fail to beat the tuned INT8 or current
