@@ -478,6 +478,16 @@ reviewed release captures proving it beats direct-HIP v3, and promotion review
 of any required exhaustive 512/1024 CPU-oracle dumps before it can displace the
 current production GPU path.
 
+A candidate-inclusive Windows `gfx1100` release review under
+`temp\benchmark-sweeps\windows-gfx1100-release-wrap64-wmma-candidate-current`
+used three warmups, nine repeats, and seed `20260603` for 64, 128, 512, and
+1024 square wrap64 shapes. All CPU byte-limb, direct-HIP, and rocWMMA-candidate
+captures matched `checksum_u64` within each shape, but the candidate did not win
+any shape: candidate medians were 4825 us, 5202 us, 37481 us, and 264657 us
+versus direct-HIP medians of 3653 us, 1852 us, 9430 us, and 41237 us. The review
+reported zero promotable entries with `internal_candidate_not_public_backend`
+and `not_faster_than_direct_hip` blockers for the candidate.
+
 The packed low-bit matrix-engine pipeline is also roadmap work, not a completed
 runtime backend. Planned layout families include `rns_i8_modulus_major_v2`,
 `rns_i8_tile_swizzled_b_v1`, `finite_u8_centered_plane_v2`,

@@ -295,6 +295,23 @@ CPU-oracle cells. The benchmark smoke additionally validates same-seed
 matching `checksum_u64` values; this is release-shape smoke evidence, not
 reviewed release promotion or performance evidence.
 
+A follow-up candidate-inclusive release review on June 3, 2026 under
+`temp\benchmark-sweeps\windows-gfx1100-release-wrap64-wmma-candidate-current`
+used three warmups, nine repeats, and seed `20260603` for 64, 128, 512, and
+1024 square wrap64 shapes. The CPU byte-limb, direct-HIP, and rocWMMA-candidate
+captures produced matching `checksum_u64` values within each shape, but the
+candidate lost to direct HIP at every release shape:
+
+| shape | direct-HIP v3 median us | rocWMMA candidate median us | candidate blocker |
+|---|---:|---:|---|
+| 64x64x64 | 3653 | 4825 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
+| 128x128x128 | 1852 | 5202 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
+| 512x512x512 | 9430 | 37481 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
+| 1024x1024x1024 | 41237 | 264657 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
+
+The review produced zero promotable entries, so the candidate should not be
+integrated as a public wrap64 backend without a materially different kernel.
+
 Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
 `epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
 either the CPU byte-limb reference backend or the direct-HIP tiled byte-limb
