@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import tempfile
@@ -114,6 +115,75 @@ def main() -> int:
         expect_text(autotune.stdout, '"exact_hit": false', "autotune json")
         expect_text(autotune.stdout, '"runtime_target_id": "cpu"', "autotune json")
         expect_text(autotune.stdout, "missing_cache_using_cpu_reference", "autotune json")
+
+        reviewed_key = (
+            "backend=cpu-reference;semantics=bounded_i64;m=4;n=5;k=6;prefix=9;"
+            "tile_m=0;tile_n=0;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "kernel=cpu_reference_rns_gemm_v1;epilogue=cpu_reference_crt_export"
+        )
+        Path(env["RNS8_AUTOTUNE_CACHE_PATH"]).write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "entries": [
+                        {
+                            "key": reviewed_key,
+                            "selected_backend": "cpu-reference",
+                            "selected_kernel": "cpu_reference_rns_gemm_v1",
+                            "target_id": "cpu",
+                            "hip_sdk_or_library_version": "",
+                            "semantic_contract": "bounded_i64",
+                            "finite_modulus": 0,
+                            "shape": {"m": 4, "n": 5, "k": 6},
+                            "layout": "row_major",
+                            "prefix_schedule_hash": "unit-prefix",
+                            "k_block_size": 6,
+                            "tile_m": 0,
+                            "tile_n": 0,
+                            "epilogue": "cpu_reference_crt_export",
+                            "kernel_family": "cpu_reference_rns_gemm_v1",
+                            "workspace_bytes": 0,
+                            "measured_medians_us": {
+                                "pack": 1.0,
+                                "rns_gemm": 2.0,
+                                "crt_export": 3.0,
+                                "end_to_end": 6.0,
+                            },
+                            "performance_validated": True,
+                            "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+                            "schema_version": 1,
+                            "updated_utc": "2026-06-03T00:00:00Z",
+                        }
+                    ],
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        autotune_hit = run_command(
+            inspect_exe,
+            "--backend",
+            "cpu-reference",
+            "--json",
+            "--autotune-key",
+            reviewed_key,
+            env=env,
+        )
+        expect_exit(autotune_hit, 0, "autotune exact hit json")
+        expect_text(autotune_hit.stdout, '"exact_hit": true', "autotune exact hit json")
+        expect_text(autotune_hit.stdout, '"plan_packing": {', "autotune exact hit json")
+        expect_text(autotune_hit.stdout, '"backend": "cpu-reference"', "autotune exact hit json")
+        expect_text(autotune_hit.stdout, '"semantics": "bounded_i64"', "autotune exact hit json")
+        expect_text(
+            autotune_hit.stdout,
+            '"prepack_cache_scope": "host_resident_no_prepack_cache"',
+            "autotune exact hit json",
+        )
+        expect_text(
+            autotune_hit.stdout,
+            '"production_prepack_cache_available": false',
+            "autotune exact hit json",
+        )
 
     print("rns8-inspect CLI self-test: PASS")
     return 0

@@ -375,10 +375,13 @@ The reviewed release cache entries have been merged into
 Windows `gfx1100` workstation's default local cache with 19 entries. The cache
 reader, schema checks, review reports, and `rns8-inspect --autotune-key`
 rationale exist, including runtime target/version rejection for exact cache
-hits. AUTO HIP contexts can select reviewed release cache hits for compiled,
-runtime-probed bounded-i64, adaptive bounded-i64, finite-u8, and exact-wide
-HIP-resident accelerator candidates and otherwise fall back to the configured
-direct-HIP GPU correctness path, or CPU when GPU support is unavailable. New
+hits. Exact inspect hits now also include the reconstructed plan's packing and
+prepack availability contract so reviewed cache diagnostics expose the same
+plan layout surface as runtime dispatch. AUTO HIP contexts can select reviewed
+release cache hits for compiled, runtime-probed bounded-i64, adaptive
+bounded-i64, finite-u8, and exact-wide HIP-resident accelerator candidates and
+otherwise fall back to the configured direct-HIP GPU correctness path, or CPU
+when GPU support is unavailable. New
 production entries still require `--review-mode release` and at least three
 warmups plus nine measured repeats for the complete same-contract group;
 uninstalled release-smoke cache files remain evidence only.

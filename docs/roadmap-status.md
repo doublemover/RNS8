@@ -313,10 +313,11 @@ Durable AUTO promotion is not the same as a temp smoke cache entry. A shape
 enters production selection only after `--review-mode release` captures with complete
 same-contract baselines are reviewed, the generated cache entry is accepted for
 the production cache, and `rns8-inspect` reports the exact validated hit plus
-runtime target/version-matched selection rationale for that plan key. The
-runtime target/version rejection path exists, AUTO plan dispatch from a
-validated reviewed entry is wired for bounded, adaptive bounded, exact RNS, and
-finite HIP-resident accelerator candidates, and
+runtime target/version-matched selection rationale plus reconstructed
+`plan_packing` diagnostics for that plan key. The runtime target/version
+rejection path exists, AUTO plan dispatch from a validated reviewed entry is
+wired for bounded, adaptive bounded, exact RNS, and finite HIP-resident
+accelerator candidates, and
 `tools/install_autotune_cache.py` validates and merges reviewed cache files
 into an explicit or default cache path, and `--replace-existing` intentionally
 discards stale or non-reviewed destination entries instead of preserving them.
