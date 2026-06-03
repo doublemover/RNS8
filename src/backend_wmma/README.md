@@ -12,9 +12,11 @@ INT32 scratch output.
 Eligible non-tiled RNS B operands with `K <= 65536` can be packed once into the
 rocWMMA column-major B panel layout through `rns8_create_prepack_cache` and
 reused by `rns8_gemm_rns_prepacked_b`. A remains packed through the normal
-transient workspace per dispatch. This is a narrow runtime cache path, not a
-broad production prepack-cache policy: tiled schedules, finite/wrap64
-semantics, A-operand caches, oversize K, and other backends remain unsupported.
+transient workspace per dispatch. `rns8_get_prepack_cache_info` exposes the
+created cache key, device id, and allocation byte contract. This is a narrow
+runtime cache path, not a broad production prepack-cache policy: tiled
+schedules, finite/wrap64 semantics, A-operand caches, oversize K, and other
+backends remain unsupported.
 
 The implemented rocWMMA coverage includes fixed-prefix bounded RNS plans,
 adaptive per-tile bounded schedules, exact-wide RNS output, and finite u8. The

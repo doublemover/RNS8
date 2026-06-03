@@ -1487,8 +1487,11 @@ contract through `rns8_get_matrix_storage_info`: source version, finite modulus,
 host/device currentness, byte counts, and persistent layout version. Plan plus
 operand key material must be validated through `rns8_get_prepack_cache_key_info`
 before reuse; it must reject backend, semantic, layout, shape, finite-modulus,
-operand-role, currentness, and source-version mismatches using these public
-contracts. The first validated reusable cache slice is intentionally narrow:
+operand-role, device-id, currentness, and source-version mismatches using these
+public contracts. Created cache handles must expose matching key/hash material,
+device id, and allocation byte contract through `rns8_get_prepack_cache_info`
+instead of remaining opaque after creation. The first validated reusable cache
+slice is intentionally narrow:
 rocWMMA may cache non-tiled RNS B operands for `K <= 65536`, then run GEMM with
 only A repacked per dispatch. It does not satisfy the broader production cache
 ship rule for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt,

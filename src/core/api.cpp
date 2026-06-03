@@ -1674,6 +1674,7 @@ uint64_t prepack_cache_key_hash(
   hash = workspace_fingerprint_mix(hash, matrix.prefix);
   hash = workspace_fingerprint_mix(hash, matrix.finite_modulus);
   hash = workspace_fingerprint_mix(hash, matrix.source_version);
+  hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(matrix.hip_device_id));
   hash = workspace_fingerprint_mix(hash, matrix.host_residues_current ? 1u : 0u);
   hash = workspace_fingerprint_mix(hash, matrix.device_residues_current ? 1u : 0u);
   hash = workspace_fingerprint_mix(hash, matrix.host_byte_limbs_current ? 1u : 0u);
@@ -1706,6 +1707,7 @@ std::string build_prepack_cache_key(
   key += ";prefix=" + std::to_string(matrix.prefix);
   key += ";finite_modulus=" + std::to_string(matrix.finite_modulus);
   key += ";source_version=" + std::to_string(matrix.source_version);
+  key += ";hip_device_id=" + std::to_string(matrix.hip_device_id);
   key += ";matrix_layout=" + matrix_layout_version;
   key += ";operand_layout=" + operand_layout_version;
   key += ";plan_fingerprint=" + std::to_string(plan_fingerprint);
@@ -3121,6 +3123,8 @@ rns8_status rns8_get_prepack_cache_key_info(
         (operand_role == RNS8_OPERAND_B && wmma_b_prepack_cache_supported(*plan)) ? 1u : 0u;
     out->production_prepack_cache_available = 0;
     out->flags = 0;
+    out->hip_device_id = matrix->hip_device_id;
+    out->reserved0 = 0;
     out->matrix_rows = matrix->desc.rows;
     out->matrix_cols = matrix->desc.cols;
     out->max_prefix = matrix->prefix;
@@ -3186,6 +3190,14 @@ rns8_status rns8_create_prepack_cache(
     cache->operand_layout_version = prepack_operand_layout_version_for_plan(*plan, operand_role);
     cache->cache_key_hash =
         prepack_cache_key_hash(*plan, *matrix, operand_role, cache->matrix_layout_version, cache->operand_layout_version);
+    cache->cache_key = build_prepack_cache_key(
+        *plan,
+        *matrix,
+        operand_role,
+        cache->plan_fingerprint,
+        cache->cache_key_hash,
+        cache->matrix_layout_version,
+        cache->operand_layout_version);
     cache->hip_device_id = ctx->device_id;
     cache->device_bytes = total_cache_bytes;
     cache->operand_pack_bytes = b_pack_bytes;
@@ -3211,6 +3223,51 @@ rns8_status rns8_create_prepack_cache(
       return status;
     }
     *out = cache;
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_prepack_cache_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!cache || !out) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    const uint64_t struct_size = out->struct_size;
+    const uint32_t abi_version = out->abi_version;
+    *out = {};
+    out->struct_size = struct_size;
+    out->abi_version = abi_version;
+    out->backend = cache->backend;
+    out->semantics = cache->semantics;
+    out->operand_role = cache->operand_role;
+    out->cache_key_valid = cache->cache_key_hash != 0 && !cache->cache_key.empty() ? 1u : 0u;
+    out->reusable_prepack_cache_available = 1;
+    out->production_prepack_cache_available = 0;
+    out->flags = 0;
+    out->hip_device_id = cache->hip_device_id;
+    out->reserved0 = 0;
+    out->matrix_rows = cache->rows;
+    out->matrix_cols = cache->cols;
+    out->k = cache->k;
+    out->max_prefix = cache->prefix;
+    out->finite_modulus = cache->finite_modulus;
+    out->source_version = cache->source_version;
+    out->plan_fingerprint = cache->plan_fingerprint;
+    out->cache_key_hash = cache->cache_key_hash;
+    out->device_bytes = static_cast<uint64_t>(cache->device_bytes);
+    out->operand_pack_bytes = static_cast<uint64_t>(cache->operand_pack_bytes);
+    set_text(out->matrix_layout_version, sizeof(out->matrix_layout_version), cache->matrix_layout_version);
+    set_text(out->operand_layout_version, sizeof(out->operand_layout_version), cache->operand_layout_version);
+    set_text(out->cache_scope, sizeof(out->cache_scope), "runtime_reusable_b_prepack_cache");
+    set_text(out->cache_key, sizeof(out->cache_key), cache->cache_key);
+    set_text(
+        out->detail,
+        sizeof(out->detail),
+        "Created reusable accelerator prepack cache; no production cache availability is reported.");
     return RNS8_SUCCESS;
   });
 }

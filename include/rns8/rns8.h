@@ -238,6 +238,8 @@ typedef struct rns8_prepack_cache_key_info {
   uint32_t reusable_prepack_cache_available;
   uint32_t production_prepack_cache_available;
   uint32_t flags;
+  int32_t hip_device_id;
+  uint32_t reserved0;
   int64_t matrix_rows;
   int64_t matrix_cols;
   uint32_t max_prefix;
@@ -251,6 +253,35 @@ typedef struct rns8_prepack_cache_key_info {
   char cache_key[512];
   char detail[256];
 } rns8_prepack_cache_key_info;
+
+typedef struct rns8_prepack_cache_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_operand_role operand_role;
+  uint32_t cache_key_valid;
+  uint32_t reusable_prepack_cache_available;
+  uint32_t production_prepack_cache_available;
+  uint32_t flags;
+  int32_t hip_device_id;
+  uint32_t reserved0;
+  int64_t matrix_rows;
+  int64_t matrix_cols;
+  int64_t k;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t source_version;
+  uint64_t plan_fingerprint;
+  uint64_t cache_key_hash;
+  uint64_t device_bytes;
+  uint64_t operand_pack_bytes;
+  char matrix_layout_version[96];
+  char operand_layout_version[96];
+  char cache_scope[96];
+  char cache_key[512];
+  char detail[256];
+} rns8_prepack_cache_info;
 
 /*
  * Public ABI hard-cut status precedence: invalid struct size/version, reserved
@@ -333,8 +364,8 @@ RNS8_API rns8_status rns8_get_matrix_storage_info(
  * Validate and report deterministic key material for a future reusable prepack
  * cache entry. This does not create a cache or report production cache
  * availability; it rejects incompatible plan, operand role, matrix shape,
- * storage layout, finite-modulus, backend, or currentness before returning a
- * key.
+ * storage layout, finite-modulus, backend, device id, or currentness before
+ * returning a key.
  */
 RNS8_API rns8_status rns8_get_prepack_cache_key_info(
     const rns8_plan* plan,
@@ -355,6 +386,16 @@ RNS8_API rns8_status rns8_create_prepack_cache(
     const rns8_matrix* matrix,
     rns8_operand_role operand_role,
     rns8_prepack_cache** out);
+
+/*
+ * Report deterministic metadata for a created reusable prepack cache. This is
+ * a read-only inspection API: it exposes the cache key, source version, device
+ * id, layout versions, and allocation byte counts without making the cache a
+ * production autotune artifact.
+ */
+RNS8_API rns8_status rns8_get_prepack_cache_info(
+    const rns8_prepack_cache* cache,
+    rns8_prepack_cache_info* out);
 
 RNS8_API rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache);
 
