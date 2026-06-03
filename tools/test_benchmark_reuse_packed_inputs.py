@@ -108,6 +108,50 @@ def main() -> int:
             "wmma reuse-packed-b smoke failed unexpectedly\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
+
+    capture_path = out_dir / "bounded-i64-hipblaslt-reuse-packed-inputs.json"
+    command = [
+        str(bench),
+        "--backend",
+        "hipblaslt",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "16",
+        "--k",
+        "16",
+        "--warmups",
+        "1",
+        "--repeats",
+        "1",
+        "--seed",
+        "31",
+        "--reuse-packed-inputs",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True)
+    if completed.returncode == 0:
+        capture_path.write_text(completed.stdout, encoding="utf-8")
+        subprocess.run([sys.executable, str(schema), str(capture_path)], check=True)
+        capture = json.loads(capture_path.read_text(encoding="utf-8"))
+        assert capture["backend_selected"] == "hipblaslt"
+        assert capture["pack_mode"] == "prepacked_reuse"
+        assert capture["prepack_reuse_operands"] == ["A", "B"]
+        assert capture["prepack_reuse_strategy"] == "persistent_matrix_residency"
+        assert capture["timing_metadata"]["gpu_event_timing"] is True
+        phase_order = capture["timing_metadata"]["gpu_event_phase_order"]
+        assert "hipblaslt_pack_transpose_centered" not in phase_order
+        assert "hipblaslt_int8_i32_matmul" in phase_order
+        assert "hipblaslt_i32_to_residue_reduce" in phase_order
+        assert "rns_gemm" in phase_order
+        assert "hipblaslt_pack_transpose_centered" not in capture["gpu_event_timings_us"]
+        assert capture["gpu_event_timings_us"]["pack"] == [0.0]
+    elif "unsupported backend" not in (completed.stderr + completed.stdout).lower():
+        raise SystemExit(
+            "hipblaslt reuse-packed-inputs smoke failed unexpectedly\n"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+        )
     print("benchmark reuse-packed-inputs smoke: PASS")
     return 0
 

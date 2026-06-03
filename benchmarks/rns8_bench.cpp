@@ -173,7 +173,7 @@ uint32_t benchmark_prefix(const Args& args);
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-runtime]\n"
+      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -281,11 +281,13 @@ void parse_backend_option(const std::string& value, Args& args) {
     args.backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
     return;
   }
-  if (value == "hip-vector-alu-int64-runtime" || value == "vector-alu-int64-runtime") {
+  if (value == "hip-vector-alu-int64" || value == "vector-alu-int64" ||
+      value == "hip-vector-alu-int64-runtime" || value == "vector-alu-int64-runtime") {
     args.backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
     return;
   }
-  if (value == "hip-vector-alu-int64" || value == "vector-alu-int64") {
+  if (value == "hip-vector-alu-int64-baseline" || value == "vector-alu-int64-baseline" ||
+      value == "hip-vector-alu-int64-benchmark" || value == "vector-alu-int64-benchmark") {
     args.backend = RNS8_BACKEND_HIP_DIRECT;
     args.vector_alu_baseline = true;
     return;
@@ -366,7 +368,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-runtime]\n"
+          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -408,12 +410,12 @@ Args parse_args(int argc, char** argv) {
   if (args.vector_alu_baseline &&
       (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
        finite_benchmark_semantics(args.semantics))) {
-    usage_error("hip-vector-alu-int64 baseline is only valid for bounded-i64 or bounded-u64 semantics");
+    usage_error("hip-vector-alu-int64-baseline is only valid for bounded-i64 or bounded-u64 semantics");
   }
   if (args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 &&
       (exact_wide_benchmark_semantics(args.semantics) || args.semantics == BenchSemantics::WrapU64Mod2_64 ||
        finite_benchmark_semantics(args.semantics))) {
-    usage_error("hip-vector-alu-int64-runtime is only valid for bounded-i64 or bounded-u64 semantics");
+    usage_error("hip-vector-alu-int64 is only valid for bounded-i64 or bounded-u64 semantics");
   }
   if (args.reuse_packed_inputs && args.vector_alu_baseline) {
     usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
@@ -523,6 +525,10 @@ const char* pack_mode_name(const Args& args) {
 
 bool reuses_all_packed_inputs(const Args& args) {
   return args.reuse_packed_a && args.reuse_packed_b;
+}
+
+bool expects_hipblaslt_pack_transpose_event(const Args& args) {
+  return !reuses_all_packed_inputs(args);
 }
 
 template <typename PackA, typename PackB>
@@ -1541,6 +1547,15 @@ void append_accelerator_deep_event_phases(
   }
 }
 
+void append_hipblaslt_gemm_event_phases(std::vector<std::string>& phases, const Args& args) {
+  if (expects_hipblaslt_pack_transpose_event(args)) {
+    phases.push_back("hipblaslt_pack_transpose_centered");
+  }
+  phases.push_back("hipblaslt_int8_i32_matmul");
+  phases.push_back("hipblaslt_i32_to_residue_reduce");
+  phases.push_back("rns_gemm");
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -1584,17 +1599,16 @@ std::vector<std::string> gpu_event_phase_order(
   }
   if (finite_benchmark_semantics(args.semantics)) {
     if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-      return {
+      std::vector<std::string> phases = {
           "finite_pack_h2d",
           "finite_pack_kernel",
           "pack",
-          "hipblaslt_pack_transpose_centered",
-          "hipblaslt_int8_i32_matmul",
-          "hipblaslt_i32_to_residue_reduce",
-          "rns_gemm",
-          "finite_export_kernel",
-          "finite_export_d2h",
-          "crt_export"};
+      };
+      append_hipblaslt_gemm_event_phases(phases, args);
+      phases.push_back("finite_export_kernel");
+      phases.push_back("finite_export_d2h");
+      phases.push_back("crt_export");
+      return phases;
     }
     std::vector<std::string> phases = {
         "finite_pack_h2d",
@@ -1611,19 +1625,18 @@ std::vector<std::string> gpu_event_phase_order(
   }
   if (exact_wide_benchmark_semantics(args.semantics)) {
     if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-      return {
+      std::vector<std::string> phases = {
           "pack_h2d",
           "pack_kernel",
           "pack",
-          "hipblaslt_pack_transpose_centered",
-          "hipblaslt_int8_i32_matmul",
-          "hipblaslt_i32_to_residue_reduce",
-          "rns_gemm",
-          "exact_wide_export_status_memset",
-          "exact_wide_export_kernel",
-          "exact_wide_export_status_d2h",
-          "exact_wide_export_d2h",
-          "crt_export"};
+      };
+      append_hipblaslt_gemm_event_phases(phases, args);
+      phases.push_back("exact_wide_export_status_memset");
+      phases.push_back("exact_wide_export_kernel");
+      phases.push_back("exact_wide_export_status_d2h");
+      phases.push_back("exact_wide_export_d2h");
+      phases.push_back("crt_export");
+      return phases;
     }
     std::vector<std::string> phases = {
         "pack_h2d",
@@ -1641,19 +1654,18 @@ std::vector<std::string> gpu_event_phase_order(
     return phases;
   }
   if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-    return {
+    std::vector<std::string> phases = {
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "hipblaslt_pack_transpose_centered",
-        "hipblaslt_int8_i32_matmul",
-        "hipblaslt_i32_to_residue_reduce",
-        "rns_gemm",
-        "crt_export_status_memset",
-        "crt_export_kernel",
-        "crt_export_status_d2h",
-        "crt_export_d2h",
-        "crt_export"};
+    };
+    append_hipblaslt_gemm_event_phases(phases, args);
+    phases.push_back("crt_export_status_memset");
+    phases.push_back("crt_export_kernel");
+    phases.push_back("crt_export_status_d2h");
+    phases.push_back("crt_export_d2h");
+    phases.push_back("crt_export");
+    return phases;
   }
   std::vector<std::string> phases = {
       "pack_h2d",
@@ -1809,11 +1821,58 @@ double optional_event_label(
   return total;
 }
 
+bool sum_event_label_if_present(
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    const char* label,
+    double& total) {
+  bool found = false;
+  total = 0.0;
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      found = true;
+      total += sample.microseconds;
+    }
+  }
+  return found;
+}
+
+std::vector<double> event_label_values(
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    const char* label) {
+  std::vector<double> values;
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      values.push_back(sample.microseconds);
+    }
+  }
+  return values;
+}
+
 void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
-    const double a_h2d = sum_event_label(events, samples, "pack", "vector_alu_pack_a_h2d");
-    const double b_h2d = sum_event_label(events, samples, "pack", "vector_alu_pack_b_h2d");
+    const auto h2d_samples = event_label_values(samples, "residue_h2d_sync");
+    std::size_t h2d_index = 0;
+    const auto operand_h2d = [&](bool reused, const char* label) -> double {
+      if (reused) {
+        return 0.0;
+      }
+      const bool has_fallback = h2d_index < h2d_samples.size();
+      const double fallback = has_fallback ? h2d_samples[h2d_index] : 0.0;
+      ++h2d_index;
+      double explicit_total = 0.0;
+      if (sum_event_label_if_present(samples, label, explicit_total)) {
+        return explicit_total;
+      }
+      if (has_fallback) {
+        return fallback;
+      }
+      add_unavailable_reason(
+          events, std::string("pack missing backend HIP event label ") + label + " or residue_h2d_sync");
+      return 0.0;
+    };
+    const double a_h2d = operand_h2d(args.reuse_packed_a, "vector_alu_pack_a_h2d");
+    const double b_h2d = operand_h2d(args.reuse_packed_b, "vector_alu_pack_b_h2d");
     if (events.complete) {
       push_gpu_event_value(events, "vector_alu_pack_a_h2d", a_h2d);
       push_gpu_event_value(events, "vector_alu_pack_b_h2d", b_h2d);
@@ -1867,14 +1926,18 @@ void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_hipblaslt_gemm_gpu_events(GpuEventSamples& events) {
+void collect_hipblaslt_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double pack =
-      sum_event_label(events, samples, "rns_gemm", "hipblaslt_pack_transpose_centered");
+  const bool expect_pack_transpose = expects_hipblaslt_pack_transpose_event(args);
+  const double pack = expect_pack_transpose
+      ? sum_event_label(events, samples, "rns_gemm", "hipblaslt_pack_transpose_centered")
+      : 0.0;
   const double matmul = sum_event_label(events, samples, "rns_gemm", "hipblaslt_int8_i32_matmul");
   const double reduce = sum_event_label(events, samples, "rns_gemm", "hipblaslt_i32_to_residue_reduce");
   if (events.complete) {
-    push_gpu_event_value(events, "hipblaslt_pack_transpose_centered", pack);
+    if (expect_pack_transpose) {
+      push_gpu_event_value(events, "hipblaslt_pack_transpose_centered", pack);
+    }
     push_gpu_event_value(events, "hipblaslt_int8_i32_matmul", matmul);
     push_gpu_event_value(events, "hipblaslt_i32_to_residue_reduce", reduce);
     push_gpu_event_value(events, "rns_gemm", pack + matmul + reduce);
@@ -1981,7 +2044,7 @@ void collect_rns_gemm_gpu_events(
     GpuEventSamples& events,
     bool use_prepacked_b_cache = false) {
   if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-    collect_hipblaslt_gemm_gpu_events(events);
+    collect_hipblaslt_gemm_gpu_events(args, events);
   } else if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     collect_vector_alu_gemm_gpu_events(args, events);
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
@@ -2012,9 +2075,28 @@ void collect_wrap64_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
 void collect_export_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
-    const double status_d2h =
-        args.vector_alu_baseline ? optional_event_label(samples, "vector_alu_status_d2h") : 0.0;
-    const double output_d2h = sum_event_label(events, samples, "crt_export", "vector_alu_output_d2h");
+    const auto d2h_samples = event_label_values(samples, "residue_d2h_sync");
+    std::size_t d2h_index = 0;
+    double status_d2h = 0.0;
+    if (args.vector_alu_baseline) {
+      const bool has_status_fallback = d2h_index < d2h_samples.size();
+      const double status_fallback = has_status_fallback ? d2h_samples[d2h_index] : 0.0;
+      ++d2h_index;
+      if (!sum_event_label_if_present(samples, "vector_alu_status_d2h", status_d2h) && has_status_fallback) {
+        status_d2h = status_fallback;
+      }
+    }
+    const bool has_output_fallback = d2h_index < d2h_samples.size();
+    const double output_fallback = has_output_fallback ? d2h_samples[d2h_index] : 0.0;
+    double output_d2h = 0.0;
+    if (!sum_event_label_if_present(samples, "vector_alu_output_d2h", output_d2h)) {
+      if (has_output_fallback) {
+        output_d2h = output_fallback;
+      } else {
+        add_unavailable_reason(
+            events, "crt_export missing backend HIP event label vector_alu_output_d2h or residue_d2h_sync");
+      }
+    }
     if (events.complete) {
       if (args.vector_alu_baseline) {
         push_gpu_event_value(events, "vector_alu_status_d2h", status_d2h);
@@ -2163,7 +2245,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   (void)ctx;
   (void)args;
   (void)bound;
-  usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+  usage_error("hip-vector-alu-int64-baseline requires a HIP-enabled benchmark build");
 #else
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
@@ -2284,7 +2366,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   (void)ctx;
   (void)args;
   (void)bound;
-  usage_error("hip-vector-alu-int64 baseline requires a HIP-enabled benchmark build");
+  usage_error("hip-vector-alu-int64-baseline requires a HIP-enabled benchmark build");
 #else
   std::mt19937_64 rng(args.seed);
   std::uniform_int_distribution<uint64_t> dist(0, 16);
