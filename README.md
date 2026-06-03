@@ -284,10 +284,13 @@ when the contract is repeated use of the same packed A/B inputs. Use
 `--reuse-packed-a` or `--reuse-packed-b` for repeated-A or repeated-B
 amortization sweeps that keep one operand resident and repack the other per
 repeat. These modes report explicit `pack_mode` and `prepack_reuse_operands`
-metadata, record `prepack_setup_us`, and keep `end_to_end` scoped to the
-measured repeated workload. They are benchmark evidence for pack amortization,
-not production prepack caches; review tooling marks these captures ineligible
-for normal AUTO autotune-cache promotion.
+metadata, record `prepack_setup_us`, report `prepack_reuse_strategy`, and keep
+`end_to_end` scoped to the measured repeated workload. Eligible rocWMMA
+`--reuse-packed-b` RNS captures materialize the real reusable B prepack cache
+and stamp `prepack_reuse_strategy="rocwmma_reusable_b_cache"`; other reuse
+captures currently report `persistent_matrix_residency`. They are benchmark
+evidence for pack amortization, not production prepack caches; review tooling
+marks these captures ineligible for normal AUTO autotune-cache promotion.
 
 Created plans expose their current packing contract through
 `rns8_get_plan_packing_info` and `rns8::Plan::packing_info()`. The query reports

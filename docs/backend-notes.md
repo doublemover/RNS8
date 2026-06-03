@@ -245,8 +245,11 @@ repeated-B, and repeated-A/B amortization separately before promotion. Current
 `--reuse-packed-a`, `--reuse-packed-b`, and `--reuse-packed-inputs` captures
 provide repeated-A, repeated-B, and repeated-A/B measurement support by
 separating one-time `prepack_setup_us` from repeated workload timings and
-recording the reused operand role; they do not create a reusable production
-prepack cache.
+recording the reused operand role plus `prepack_reuse_strategy`. Eligible
+rocWMMA non-tiled RNS repeated-B captures now exercise the real reusable B
+cache and report `rocwmma_reusable_b_cache`; other current reuse captures report
+`persistent_matrix_residency`. These captures do not create a reusable
+production prepack cache.
 The public `rns8_get_plan_packing_info` query now reports the selected plan's
 resident layout versions, transient accelerator pack workspace bytes, and cache
 availability flags. hipBLASLt and CK plans report transient per-dispatch pack

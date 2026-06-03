@@ -120,6 +120,7 @@ struct GpuEventSamples {
   std::vector<double> wrap64_byte_gemm36_tiled_2d_kernel_us;
   std::vector<double> wrap64_wmma_candidate_gemm36_kernel_group_us;
   std::vector<double> rns_gemm_us;
+  std::vector<double> rns_gemm_prepacked_b_kernel_group_us;
   std::vector<double> crt_export_status_memset_us;
   std::vector<double> crt_export_kernel_us;
   std::vector<double> crt_export_status_d2h_us;
@@ -127,6 +128,12 @@ struct GpuEventSamples {
   std::vector<double> wrap64_export_kernel_us;
   std::vector<double> wrap64_export_d2h_us;
   std::vector<double> crt_export_us;
+};
+
+enum class PrepackReuseStrategy {
+  None,
+  PersistentMatrixResidency,
+  RocwmmaReusableBCache,
 };
 
 struct BenchmarkResult {
@@ -146,6 +153,7 @@ struct BenchmarkResult {
   GpuEventSamples gpu_events{};
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
+  PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
   uint64_t checksum = 0;
 };
 
@@ -567,6 +575,65 @@ std::vector<std::string> prepack_reuse_operands(const Args& args) {
     operands.push_back("B");
   }
   return operands;
+}
+
+void fail_status(const char* label, rns8_status status);
+
+const char* prepack_reuse_strategy_name(PrepackReuseStrategy strategy) {
+  switch (strategy) {
+    case PrepackReuseStrategy::None:
+      return "none";
+    case PrepackReuseStrategy::PersistentMatrixResidency:
+      return "persistent_matrix_residency";
+    case PrepackReuseStrategy::RocwmmaReusableBCache:
+      return "rocwmma_reusable_b_cache";
+  }
+  return "unknown";
+}
+
+bool uses_runtime_b_prepack_cache(const BenchmarkResult& result) {
+  return result.prepack_reuse_strategy == PrepackReuseStrategy::RocwmmaReusableBCache;
+}
+
+bool should_probe_reusable_b_prepack_cache(const Args& args) {
+  return args.reuse_packed_inputs && args.reuse_packed_b && !args.reuse_packed_a;
+}
+
+rns8_status run_rns_gemm_with_optional_b_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* a_matrix,
+    const rns8_matrix* b_matrix,
+    const rns8_prepack_cache* b_cache,
+    rns8_matrix* c_matrix,
+    rns8_workspace* workspace) {
+  if (b_cache) {
+    return rns8_gemm_rns_prepacked_b(ctx, plan, a_matrix, b_cache, c_matrix, workspace);
+  }
+  return rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
+}
+
+bool maybe_create_reusable_b_prepack_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    rns8_matrix* b_matrix,
+    rns8_prepack_cache** out) {
+  *out = nullptr;
+  rns8_prepack_cache_key_info key{};
+  key.struct_size = sizeof(key);
+  key.abi_version = RNS8_ABI_VERSION;
+  const rns8_status key_status = rns8_get_prepack_cache_key_info(plan, b_matrix, RNS8_OPERAND_B, &key);
+  if (key_status != RNS8_SUCCESS) {
+    fail_status("rns8_get_prepack_cache_key_info(B)", key_status);
+  }
+  if (key.reusable_prepack_cache_available == 0) {
+    return false;
+  }
+  const rns8_status cache_status = rns8_create_prepack_cache(ctx, plan, b_matrix, RNS8_OPERAND_B, out);
+  if (cache_status != RNS8_SUCCESS) {
+    fail_status("rns8_create_prepack_cache(B)", cache_status);
+  }
+  return true;
 }
 
 void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
@@ -1401,7 +1468,10 @@ void fill_wrap64_wmma_candidate_backend_info(const Args& args, BenchmarkResult& 
   result.backend_info_available = true;
 }
 
-std::vector<std::string> gpu_event_phase_order(const Args& args, rns8_backend_kind selected_backend) {
+std::vector<std::string> gpu_event_phase_order(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    bool use_prepacked_b_cache) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     if (args.wrap64_wmma_candidate) {
       return {
@@ -1468,7 +1538,7 @@ std::vector<std::string> gpu_event_phase_order(const Args& args, rns8_backend_ki
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "rns_gemm_kernel_group",
+        use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group",
         "rns_gemm",
         "exact_wide_export_status_memset",
         "exact_wide_export_kernel",
@@ -1495,7 +1565,7 @@ std::vector<std::string> gpu_event_phase_order(const Args& args, rns8_backend_ki
       "pack_h2d",
       "pack_kernel",
       "pack",
-      "rns_gemm_kernel_group",
+      use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group",
       "rns_gemm",
       "crt_export_status_memset",
       "crt_export_kernel",
@@ -1534,7 +1604,11 @@ void print_named_gpu_event_array(const char* name, const std::vector<double>& va
   std::cout << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backend, const GpuEventSamples& events) {
+void print_gpu_event_timings(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    const GpuEventSamples& events,
+    bool use_prepacked_b_cache) {
   std::cout << "  \"gpu_event_timings_us\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
@@ -1582,7 +1656,12 @@ void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backen
       print_named_gpu_event_array(
           "hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
     } else {
-      print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+      if (use_prepacked_b_cache) {
+        print_named_gpu_event_array(
+            "rns_gemm_prepacked_b_kernel_group", events.rns_gemm_prepacked_b_kernel_group_us, true);
+      } else {
+        print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+      }
     }
     print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
     print_named_gpu_event_array("exact_wide_export_status_memset", events.crt_export_status_memset_us, true);
@@ -1609,7 +1688,12 @@ void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backen
     print_named_gpu_event_array("pack_h2d", events.pack_h2d_us, true);
     print_named_gpu_event_array("pack_kernel", events.pack_kernel_us, true);
     print_named_gpu_event_array("pack", events.pack_us, true);
-    print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    if (use_prepacked_b_cache) {
+      print_named_gpu_event_array(
+          "rns_gemm_prepacked_b_kernel_group", events.rns_gemm_prepacked_b_kernel_group_us, true);
+    } else {
+      print_named_gpu_event_array("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    }
     print_named_gpu_event_array("rns_gemm", events.rns_gemm_us, true);
     print_named_gpu_event_array("crt_export_status_memset", events.crt_export_status_memset_us, true);
     print_named_gpu_event_array("crt_export_kernel", events.crt_export_kernel_us, true);
@@ -1620,7 +1704,11 @@ void print_gpu_event_timings(const Args& args, rns8_backend_kind selected_backen
   std::cout << "  },\n";
 }
 
-void print_gpu_event_timing_summary(const Args& args, rns8_backend_kind selected_backend, const GpuEventSamples& events) {
+void print_gpu_event_timing_summary(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    const GpuEventSamples& events,
+    bool use_prepacked_b_cache) {
   std::cout << "  \"gpu_event_timing_summary_us\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
@@ -1663,7 +1751,12 @@ void print_gpu_event_timing_summary(const Args& args, rns8_backend_kind selected
       print_gpu_event_summary("hipblaslt_int8_i32_matmul", events.hipblaslt_int8_i32_matmul_us, true);
       print_gpu_event_summary("hipblaslt_i32_to_residue_reduce", events.hipblaslt_i32_to_residue_reduce_us, true);
     } else {
-      print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+      if (use_prepacked_b_cache) {
+        print_gpu_event_summary(
+            "rns_gemm_prepacked_b_kernel_group", events.rns_gemm_prepacked_b_kernel_group_us, true);
+      } else {
+        print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+      }
     }
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("exact_wide_export_status_memset", events.crt_export_status_memset_us, true);
@@ -1688,7 +1781,12 @@ void print_gpu_event_timing_summary(const Args& args, rns8_backend_kind selected
     print_gpu_event_summary("pack_h2d", events.pack_h2d_us, true);
     print_gpu_event_summary("pack_kernel", events.pack_kernel_us, true);
     print_gpu_event_summary("pack", events.pack_us, true);
-    print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    if (use_prepacked_b_cache) {
+      print_gpu_event_summary(
+          "rns_gemm_prepacked_b_kernel_group", events.rns_gemm_prepacked_b_kernel_group_us, true);
+    } else {
+      print_gpu_event_summary("rns_gemm_kernel_group", events.rns_gemm_kernel_group_us, true);
+    }
     print_gpu_event_summary("rns_gemm", events.rns_gemm_us, true);
     print_gpu_event_summary("crt_export_status_memset", events.crt_export_status_memset_us, true);
     print_gpu_event_summary("crt_export_kernel", events.crt_export_kernel_us, true);
@@ -1795,11 +1893,16 @@ void record_reused_pack_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_gemm_gpu_events(GpuEventSamples& events) {
+void collect_gemm_gpu_events(GpuEventSamples& events, bool use_prepacked_b_cache) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  const char* label = use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group";
+  const double kernel_group = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
-    events.rns_gemm_kernel_group_us.push_back(kernel_group);
+    if (use_prepacked_b_cache) {
+      events.rns_gemm_prepacked_b_kernel_group_us.push_back(kernel_group);
+    } else {
+      events.rns_gemm_kernel_group_us.push_back(kernel_group);
+    }
     events.rns_gemm_us.push_back(kernel_group);
   }
 }
@@ -1827,13 +1930,17 @@ void collect_hipblaslt_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_rns_gemm_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
+void collect_rns_gemm_gpu_events(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    GpuEventSamples& events,
+    bool use_prepacked_b_cache = false) {
   if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
     collect_hipblaslt_gemm_gpu_events(events);
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     collect_finite_direct_gemm_gpu_events(events);
   } else {
-    collect_gemm_gpu_events(events);
+    collect_gemm_gpu_events(events, use_prepacked_b_cache);
   }
 }
 
@@ -1922,6 +2029,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
   }
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const std::size_t repeats = result.samples.pack_us.size();
+  const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   if (repeats == 0 || result.gpu_events.pack_us.size() != repeats ||
       result.gpu_events.rns_gemm_us.size() != repeats || result.gpu_events.crt_export_us.size() != repeats) {
     return false;
@@ -1943,7 +2051,11 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
              result.gpu_events.crt_export_kernel_us.size() == repeats &&
              result.gpu_events.crt_export_d2h_us.size() == repeats;
     }
-    return result.gpu_events.rns_gemm_kernel_group_us.size() == repeats &&
+    const bool gemm_events_available =
+        use_prepacked_b_cache
+            ? result.gpu_events.rns_gemm_prepacked_b_kernel_group_us.size() == repeats
+            : result.gpu_events.rns_gemm_kernel_group_us.size() == repeats;
+    return gemm_events_available &&
            result.gpu_events.crt_export_kernel_us.size() == repeats &&
            result.gpu_events.crt_export_d2h_us.size() == repeats;
   }
@@ -1956,7 +2068,11 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
            result.gpu_events.crt_export_status_d2h_us.size() == repeats &&
            result.gpu_events.crt_export_d2h_us.size() == repeats;
   }
-  return result.gpu_events.rns_gemm_kernel_group_us.size() == repeats &&
+  const bool gemm_events_available =
+      use_prepacked_b_cache
+          ? result.gpu_events.rns_gemm_prepacked_b_kernel_group_us.size() == repeats
+          : result.gpu_events.rns_gemm_kernel_group_us.size() == repeats;
+  return gemm_events_available &&
          result.gpu_events.crt_export_status_memset_us.size() == repeats &&
          result.gpu_events.crt_export_kernel_us.size() == repeats &&
          result.gpu_events.crt_export_status_d2h_us.size() == repeats &&
@@ -2215,6 +2331,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
@@ -2238,7 +2355,12 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
+    result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    if (should_probe_reusable_b_prepack_cache(args) &&
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+      result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
+    }
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2265,10 +2387,13 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    status = run_rns_gemm_with_optional_b_cache(
+        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) {
+      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    }
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -2299,6 +2424,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   result.checksum = checksum_i64(C);
 
+  if (b_prepack_cache) {
+    status = rns8_destroy_prepack_cache(b_prepack_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
@@ -2342,6 +2471,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
@@ -2365,7 +2495,12 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
+    result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    if (should_probe_reusable_b_prepack_cache(args) &&
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+      result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
+    }
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2392,10 +2527,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    status = run_rns_gemm_with_optional_b_cache(
+        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) {
+      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    }
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -2426,6 +2564,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   result.checksum = checksum_u64(C);
 
+  if (b_prepack_cache) {
+    status = rns8_destroy_prepack_cache(b_prepack_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
@@ -2463,6 +2605,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
@@ -2486,7 +2629,12 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
+    result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    if (should_probe_reusable_b_prepack_cache(args) &&
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+      result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
+    }
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2513,10 +2661,13 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    status = run_rns_gemm_with_optional_b_cache(
+        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) {
+      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    }
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -2548,6 +2699,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   }
   result.checksum = checksum_u64(C);
 
+  if (b_prepack_cache) {
+    status = rns8_destroy_prepack_cache(b_prepack_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
@@ -2585,6 +2740,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
@@ -2608,7 +2764,12 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
+    result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    if (should_probe_reusable_b_prepack_cache(args) &&
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+      result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
+    }
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2635,10 +2796,13 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns", status);
+    status = run_rns_gemm_with_optional_b_cache(
+        ctx, plan, a_matrix, b_matrix, b_prepack_cache, c_matrix, workspace);
+    if (status != RNS8_SUCCESS) {
+      fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+    }
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events);
+      collect_rns_gemm_gpu_events(args, selected_backend, result.gpu_events, b_prepack_cache != nullptr);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -2670,6 +2834,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   }
   result.checksum = checksum_u64(C);
 
+  if (b_prepack_cache) {
+    status = rns8_destroy_prepack_cache(b_prepack_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   rns8_destroy_matrix(a_matrix);
@@ -3175,6 +3343,7 @@ void print_json(
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
+  const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const bool wrap64_wmma_candidate_events = gpu_events_available && args.wrap64_wmma_candidate;
   const bool wrap64_hip_events =
       gpu_events_available && args.semantics == BenchSemantics::WrapU64Mod2_64 && !args.wrap64_wmma_candidate;
@@ -3359,6 +3528,8 @@ void print_json(
   std::cout << "  \"prepack_reuse_operands\": ";
   print_string_array(prepack_reuse_operands(args));
   std::cout << ",\n";
+  std::cout << "  \"prepack_reuse_strategy\": \"" << prepack_reuse_strategy_name(result.prepack_reuse_strategy)
+            << "\",\n";
   std::cout << "  \"prepack_setup_us\": ";
   if (result.prepack_setup_available) {
     std::cout << result.prepack_setup_us;
@@ -3408,7 +3579,11 @@ void print_json(
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   if (args.reuse_packed_inputs) {
-    if (reuses_all_packed_inputs(args)) {
+    if (use_prepacked_b_cache) {
+      std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
+                   "prepack_setup_us records persistent B packing plus cache materialization before warmups, "
+                   "end_to_end includes per-repeat A packing, cached-B rns_gemm, and export\",\n";
+    } else if (reuses_all_packed_inputs(args)) {
       std::cout << "  \"timing_note\": \"host wall-clock timings for repeated GEMM/export against persistent "
                    "packed A/B inputs; pack is a zero-valued per-repeat phase and prepack_setup_us records the "
                    "one-time pack before warmups, which end_to_end excludes\",\n";
@@ -3472,6 +3647,8 @@ void print_json(
   std::cout << "    \"prepack_reuse_operands\": ";
   print_string_array(prepack_reuse_operands(args));
   std::cout << ",\n";
+  std::cout << "    \"prepack_reuse_strategy\": \"" << prepack_reuse_strategy_name(result.prepack_reuse_strategy)
+            << "\",\n";
   std::cout << "    \"gpu_event_timing\": " << (gpu_events_available ? "true" : "false") << ",\n";
   std::cout << "    \"gpu_event_timing_reason\": \"" << gpu_event_reason << "\",\n";
   std::cout << "    \"gpu_event_timing_status\": \"" << gpu_event_status << "\",\n";
@@ -3489,7 +3666,7 @@ void print_json(
          "\"crt_export\", \"end_to_end\"],\n";
   std::cout << "    \"gpu_event_phase_order\": ";
   if (gpu_events_available) {
-    print_string_array(gpu_event_phase_order(args, selected_backend_kind));
+    print_string_array(gpu_event_phase_order(args, selected_backend_kind, use_prepacked_b_cache));
   } else {
     std::cout << "null";
   }
@@ -3594,8 +3771,10 @@ void print_json(
             << "\",\n";
   std::cout << "        \"reason\": \""
             << (result.prepack_setup_available
-                    ? ("prepacked " + prepack_reuse_operand_text(args) +
-                       " once before warmups and reused for every measured repeat")
+                    ? (use_prepacked_b_cache
+                           ? "packed B into persistent matrix storage, materialized a reusable rocWMMA B cache before warmups, and reused that cache for every measured repeat"
+                           : "prepacked " + prepack_reuse_operand_text(args) +
+                                 " once before warmups and reused for every measured repeat")
                     : "benchmark mode packs A and B inside every measured repeat")
             << "\"\n";
   std::cout << "      },\n";
@@ -3625,8 +3804,8 @@ void print_json(
   std::cout << "    }\n";
   std::cout << "  },\n";
   if (gpu_events_available) {
-    print_gpu_event_timings(args, selected_backend_kind, result.gpu_events);
-    print_gpu_event_timing_summary(args, selected_backend_kind, result.gpu_events);
+    print_gpu_event_timings(args, selected_backend_kind, result.gpu_events, use_prepacked_b_cache);
+    print_gpu_event_timing_summary(args, selected_backend_kind, result.gpu_events, use_prepacked_b_cache);
   } else {
     std::cout << "  \"gpu_event_timings_us\": null,\n";
     std::cout << "  \"gpu_event_timing_summary_us\": null,\n";

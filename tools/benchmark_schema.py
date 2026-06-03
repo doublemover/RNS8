@@ -28,6 +28,7 @@ COMPARISON_BASELINE_STATUSES = {
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
+PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
     "prepacked_reuse": ["A", "B"],
@@ -1134,11 +1135,36 @@ class _Validator:
             if metadata_operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
                 if metadata_operands != PACK_MODE_OPERANDS[pack_mode]:
                     self._error("timing_metadata.prepack_reuse_operands must match pack_mode")
+            metadata_strategy = metadata.get("prepack_reuse_strategy")
+            if metadata_strategy is not None:
+                if metadata_strategy not in PREPACK_REUSE_STRATEGIES:
+                    self._error(
+                        f"timing_metadata.prepack_reuse_strategy must be one of {sorted(PREPACK_REUSE_STRATEGIES)}"
+                    )
 
         operands = self.data.get("prepack_reuse_operands")
         if operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
             if operands != PACK_MODE_OPERANDS[pack_mode]:
                 self._error("prepack_reuse_operands must match pack_mode")
+        strategy = self.data.get("prepack_reuse_strategy")
+        if strategy is not None:
+            if strategy not in PREPACK_REUSE_STRATEGIES:
+                self._error(f"prepack_reuse_strategy must be one of {sorted(PREPACK_REUSE_STRATEGIES)}")
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict) and metadata.get("prepack_reuse_strategy") is not None:
+                if metadata.get("prepack_reuse_strategy") != strategy:
+                    self._error("timing_metadata.prepack_reuse_strategy must match prepack_reuse_strategy")
+            if reuse_packed and strategy == "none":
+                self._error("prepacked reuse captures must not use prepack_reuse_strategy=none")
+            if not reuse_packed and strategy != "none":
+                self._error("per-repeat repack captures must use prepack_reuse_strategy=none")
+            if strategy == "rocwmma_reusable_b_cache":
+                if pack_mode != "prepacked_reuse_b":
+                    self._error("rocwmma_reusable_b_cache captures must use pack_mode=prepacked_reuse_b")
+                if operands is not None and operands != ["B"]:
+                    self._error("rocwmma_reusable_b_cache captures must reuse only operand B")
+                if self.data.get("backend_selected") != "wmma":
+                    self._error("rocwmma_reusable_b_cache captures must select backend_selected=wmma")
 
         prepack_setup = self.data.get("prepack_setup_us")
         avg_prepack_setup = self.data.get("avg_prepack_setup_us")

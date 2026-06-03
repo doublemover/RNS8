@@ -58,6 +58,7 @@ CONTRACT_KEYS = [
     "reuse_packed_inputs",
     "pack_mode",
     "prepack_reuse_operands",
+    "prepack_reuse_strategy",
     "seed",
     "input_distribution",
 ]
@@ -141,11 +142,23 @@ def capture_pack_mode(data: dict[str, Any]) -> str:
     return "prepacked_reuse" if data.get("reuse_packed_inputs") is True else "per_repeat_repack"
 
 
+def capture_prepack_reuse_strategy(data: dict[str, Any]) -> str:
+    metadata = data.get("timing_metadata")
+    strategy = metadata.get("prepack_reuse_strategy") if isinstance(metadata, dict) else None
+    if strategy is None:
+        strategy = data.get("prepack_reuse_strategy")
+    if isinstance(strategy, str):
+        return strategy
+    return "persistent_matrix_residency" if data.get("reuse_packed_inputs") is True else "none"
+
+
 def contract_value(data: dict[str, Any], key: str) -> Any:
     if key == "reuse_packed_inputs":
         return data.get("reuse_packed_inputs") is True
     if key == "pack_mode":
         return capture_pack_mode(data)
+    if key == "prepack_reuse_strategy":
+        return capture_prepack_reuse_strategy(data)
     return dotted_get(data, key)
 
 

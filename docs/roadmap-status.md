@@ -419,12 +419,15 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   research-mode experiments with explicit verification metadata. The benchmark
   and sweep tools now expose `--reuse-packed-a`, `--reuse-packed-b`, and
   `--reuse-packed-inputs` so repeated-A, repeated-B, and repeated-A/B sweeps can
-  record one-time `prepack_setup_us` and reused operand metadata separately from
-  repeated workload timings, but broad durable packed-layout and prepack-cache
-  production paths are still unshipped. A narrow runtime cache slice exists for
-  rocWMMA non-tiled RNS B operands with `K <= 65536`: B can be packed once with
-  `rns8_create_prepack_cache`, and `rns8_gemm_rns_prepacked_b` reuses that
-  column-major panel cache while A remains transient per dispatch. The public
+  record one-time `prepack_setup_us`, reused operand metadata, and
+  `prepack_reuse_strategy` separately from repeated workload timings, but broad
+  durable packed-layout and prepack-cache production paths are still unshipped.
+  A narrow runtime cache slice exists for rocWMMA non-tiled RNS B operands with
+  `K <= 65536`: B can be packed once with `rns8_create_prepack_cache`, and
+  `rns8_gemm_rns_prepacked_b` reuses that column-major panel cache while A
+  remains transient per dispatch. Eligible benchmark `--reuse-packed-b`
+  captures now exercise that real cache path instead of only resident-matrix
+  reuse. The public
   `rns8_get_plan_packing_info` API now exposes current plan-specific resident
   layout names, transient accelerator A/B pack workspace bytes, and cache
   availability flags; eligible rocWMMA B plans report reusable cache

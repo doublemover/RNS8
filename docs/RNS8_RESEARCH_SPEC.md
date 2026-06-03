@@ -1475,8 +1475,10 @@ tile tails, K-block splits, and pack amortization across one-shot, repeated-A,
 repeated-B, and repeated-A/B workloads.
 Benchmark captures for repeated-A, repeated-B, and repeated-A/B workloads use
 `--reuse-packed-a`, `--reuse-packed-b`, and `--reuse-packed-inputs`, and must
-keep one-time `prepack_setup_us` plus reused operand metadata separate from
-repeated workload timings; these measurement modes are not themselves a
+keep one-time `prepack_setup_us`, reused operand metadata, and
+`prepack_reuse_strategy` separate from repeated workload timings. Eligible
+rocWMMA repeated-B captures must exercise the real reusable B prepack cache and
+report that strategy explicitly; these measurement modes are not themselves a
 production prepack cache. Created plans must expose their current packing
 contract through `rns8_get_plan_packing_info`: persistent layout versions,
 transient pack workspace bytes, operand layout names, and explicit cache
