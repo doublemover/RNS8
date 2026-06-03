@@ -22,8 +22,11 @@ Backend status:
   hipBLASLt `int8 x int8 -> int32`, padded INT32 scratch, and a separate HIP
   centered-residue reduction kernel. It supports fixed-prefix bounded i64/u64,
   exact-wide RNS output, and finite u8 ring/field GEMM; adaptive per-tile
-  bounded plans and wrap64 remain unsupported. This is a correctness baseline,
-  not a performance-validated production accelerator.
+  bounded plans and wrap64 remain unsupported. Fixed-prefix RNS GEMM caches a
+  single-K-block B prepack inside the caller workspace when B's source version,
+  shape, prefix, and device identity stay stable across repeated calls; finite
+  u8 and split-K remain on the transient B pack path. This is a correctness
+  baseline, not a performance-validated production accelerator.
 - CK: implemented as an opt-in Windows `gfx1100` correctness backend under
   `RNS8_ENABLE_CK=ON`. It uses repo-local CK headers plus RNS8-owned HIP
   pack/output kernels for fused centered-residue `int8 x int8 -> int32` GEMM
@@ -252,8 +255,11 @@ provide repeated-A, repeated-B, and repeated-A/B measurement support by
 separating one-time `prepack_setup_us` from repeated workload timings and
 recording the reused operand role plus `prepack_reuse_strategy`. Eligible
 rocWMMA non-tiled RNS repeated-B captures now exercise the real reusable
-`rns_i8_tile_swizzled_b_v1` B cache and report `rocwmma_reusable_b_cache`;
-other current reuse captures report `persistent_matrix_residency`. These
+`rns_i8_tile_swizzled_b_v1` B cache and report `rocwmma_reusable_b_cache`.
+hipBLASLt repeated-B captures use a workspace-local cached B transposed pack
+after warmup when the source version remains stable, but still report
+`persistent_matrix_residency` because no public prepack-cache object is created.
+Other current reuse captures also report `persistent_matrix_residency`. These
 captures do not create a reusable production prepack cache.
 The public `rns8_get_plan_packing_info` query now reports the selected plan's
 resident layout versions, transient accelerator pack workspace bytes, and cache

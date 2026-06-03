@@ -9,6 +9,8 @@
 #include "core/backend_common.hpp"
 #include "rns8/rns8.h"
 
+struct rns8_workspace;
+
 namespace rns8::detail {
 
 constexpr std::size_t kHipblasLtAlignment = 16u;
@@ -90,7 +92,9 @@ rns8_status hipblaslt_gemm_rns_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc,
-    uint32_t prefix);
+    uint32_t prefix,
+    rns8_workspace* workspace_state,
+    uint64_t b_source_version);
 rns8_status hipblaslt_gemm_finite_u8_device(
     int device_id,
     void* handle,
