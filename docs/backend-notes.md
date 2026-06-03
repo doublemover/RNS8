@@ -242,9 +242,11 @@ by matrix source version, backend, target id, layout version, tile shape,
 K-block, operand role, and modulus or prefix schedule; prove layout mismatch
 rejection and source-version invalidation; and benchmark one-shot, repeated-A,
 repeated-B, and repeated-A/B amortization separately before promotion. Current
-`--reuse-packed-inputs` captures provide repeated-A/B measurement support by
-separating one-time `prepack_setup_us` from repeated GEMM/export timings; they
-do not create a reusable production prepack cache.
+`--reuse-packed-a`, `--reuse-packed-b`, and `--reuse-packed-inputs` captures
+provide repeated-A, repeated-B, and repeated-A/B measurement support by
+separating one-time `prepack_setup_us` from repeated workload timings and
+recording the reused operand role; they do not create a reusable production
+prepack cache.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

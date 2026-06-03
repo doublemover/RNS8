@@ -415,11 +415,13 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   CPU-oracle dumps also remain open.
 - Packed low-bit matrix-engine pipeline work: persistent packed layout versions
   beyond the current correctness layouts, B prepack/tile swizzle caches,
-  repeated-A/B amortization sweeps, IU4/INT4 experiments, and FP8/Ozaki
+  production prepack caches, IU4/INT4 experiments, and FP8/Ozaki
   research-mode experiments with explicit verification metadata. The benchmark
-  and sweep tools now expose `--reuse-packed-inputs` so those sweeps can record
-  one-time `prepack_setup_us` separately from repeated GEMM/export timings, but
-  durable packed-layout and prepack-cache production paths are still unshipped.
+  and sweep tools now expose `--reuse-packed-a`, `--reuse-packed-b`, and
+  `--reuse-packed-inputs` so repeated-A, repeated-B, and repeated-A/B sweeps can
+  record one-time `prepack_setup_us` and reused operand metadata separately from
+  repeated workload timings, but durable packed-layout and prepack-cache
+  production paths are still unshipped.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,

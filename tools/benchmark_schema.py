@@ -27,7 +27,13 @@ COMPARISON_BASELINE_STATUSES = {
 }
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
-PACK_MODES = {"per_repeat_repack", "prepacked_reuse"}
+PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
+PACK_MODE_OPERANDS = {
+    "per_repeat_repack": [],
+    "prepacked_reuse": ["A", "B"],
+    "prepacked_reuse_a": ["A"],
+    "prepacked_reuse_b": ["B"],
+}
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -1102,14 +1108,15 @@ class _Validator:
         if "reuse_packed_inputs" in self.data and not isinstance(reuse_value, bool):
             self._error("reuse_packed_inputs must be a boolean")
         reuse_packed = reuse_value is True
-        expected_mode = "prepacked_reuse" if reuse_packed else "per_repeat_repack"
 
         pack_mode = self.data.get("pack_mode")
         if pack_mode is not None:
             if pack_mode not in PACK_MODES:
                 self._error(f"pack_mode must be one of {sorted(PACK_MODES)}")
-            elif pack_mode != expected_mode:
-                self._error(f"pack_mode must be {expected_mode}")
+            elif reuse_packed and pack_mode == "per_repeat_repack":
+                self._error("pack_mode must describe a prepacked reuse mode")
+            elif not reuse_packed and pack_mode != "per_repeat_repack":
+                self._error("pack_mode must be per_repeat_repack")
 
         metadata = self.data.get("timing_metadata")
         if isinstance(metadata, dict):
@@ -1117,10 +1124,21 @@ class _Validator:
             if metadata_mode is not None:
                 if metadata_mode not in PACK_MODES:
                     self._error(f"timing_metadata.pack_mode must be one of {sorted(PACK_MODES)}")
-                elif metadata_mode != expected_mode:
-                    self._error(f"timing_metadata.pack_mode must be {expected_mode}")
+                elif reuse_packed and metadata_mode == "per_repeat_repack":
+                    self._error("timing_metadata.pack_mode must describe a prepacked reuse mode")
+                elif not reuse_packed and metadata_mode != "per_repeat_repack":
+                    self._error("timing_metadata.pack_mode must be per_repeat_repack")
                 if pack_mode is not None and metadata_mode != pack_mode:
                     self._error("timing_metadata.pack_mode must match pack_mode")
+            metadata_operands = metadata.get("prepack_reuse_operands")
+            if metadata_operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
+                if metadata_operands != PACK_MODE_OPERANDS[pack_mode]:
+                    self._error("timing_metadata.prepack_reuse_operands must match pack_mode")
+
+        operands = self.data.get("prepack_reuse_operands")
+        if operands is not None and isinstance(pack_mode, str) and pack_mode in PACK_MODE_OPERANDS:
+            if operands != PACK_MODE_OPERANDS[pack_mode]:
+                self._error("prepack_reuse_operands must match pack_mode")
 
         prepack_setup = self.data.get("prepack_setup_us")
         avg_prepack_setup = self.data.get("avg_prepack_setup_us")
@@ -1131,15 +1149,16 @@ class _Validator:
                 self._error("prepacked reuse captures must include avg_prepack_setup_us")
             elif _is_int(prepack_setup) and not _close(float(avg_prepack_setup), float(prepack_setup)):
                 self._error("avg_prepack_setup_us must match prepack_setup_us")
-            pack_values = raw_timings.get("pack")
-            if pack_values is not None and any(value != 0.0 for value in pack_values):
-                self._error("prepacked reuse captures must report raw_timings_us.pack as zero-valued repeats")
-            event_timings = self.data.get("gpu_event_timings_us")
-            if isinstance(event_timings, dict):
-                for phase in ["pack_h2d", "pack_kernel", "finite_pack_h2d", "finite_pack_kernel", "pack"]:
-                    values = event_timings.get(phase)
-                    if isinstance(values, list) and any(_is_number(value) and float(value) != 0.0 for value in values):
-                        self._error(f"prepacked reuse captures must report gpu_event_timings_us.{phase} as zero")
+            if pack_mode == "prepacked_reuse":
+                pack_values = raw_timings.get("pack")
+                if pack_values is not None and any(value != 0.0 for value in pack_values):
+                    self._error("prepacked reuse captures must report raw_timings_us.pack as zero-valued repeats")
+                event_timings = self.data.get("gpu_event_timings_us")
+                if isinstance(event_timings, dict):
+                    for phase in ["pack_h2d", "pack_kernel", "finite_pack_h2d", "finite_pack_kernel", "pack"]:
+                        values = event_timings.get(phase)
+                        if isinstance(values, list) and any(_is_number(value) and float(value) != 0.0 for value in values):
+                            self._error(f"prepacked reuse captures must report gpu_event_timings_us.{phase} as zero")
         else:
             if "prepack_setup_us" in self.data and prepack_setup is not None:
                 self._error("per-repeat repack captures must use prepack_setup_us=null")

@@ -171,6 +171,37 @@ def capture_pack_mode(capture: dict[str, Any]) -> str:
     return "prepacked_reuse" if capture.get("reuse_packed_inputs") is True else "per_repeat_repack"
 
 
+def requested_pack_mode(args: argparse.Namespace) -> str:
+    if getattr(args, "reuse_packed_inputs", False):
+        return "prepacked_reuse"
+    reuse_a = bool(getattr(args, "reuse_packed_a", False))
+    reuse_b = bool(getattr(args, "reuse_packed_b", False))
+    if reuse_a and reuse_b:
+        return "prepacked_reuse"
+    if reuse_a:
+        return "prepacked_reuse_a"
+    if reuse_b:
+        return "prepacked_reuse_b"
+    return "per_repeat_repack"
+
+
+def capture_prepack_reuse_operands(capture: dict[str, Any]) -> tuple[str, ...]:
+    operands = capture.get("prepack_reuse_operands")
+    if not isinstance(operands, list):
+        timing = capture_timing_metadata(capture)
+        operands = timing.get("prepack_reuse_operands")
+    if isinstance(operands, list):
+        return tuple(str(item) for item in operands)
+    mode = capture_pack_mode(capture)
+    if mode == "prepacked_reuse":
+        return ("A", "B")
+    if mode == "prepacked_reuse_a":
+        return ("A",)
+    if mode == "prepacked_reuse_b":
+        return ("B",)
+    return ()
+
+
 def capture_device(capture: dict[str, Any]) -> dict[str, Any]:
     device = capture.get("device")
     return device if isinstance(device, dict) else {}
@@ -263,6 +294,7 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
         "repeats": sorted({int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}),
         "reuse_packed_inputs": sorted({bool(item.get("reuse_packed_inputs") is True) for item in items}),
         "pack_modes": sorted({capture_pack_mode(item) for item in items}),
+        "prepack_reuse_operands": sorted({"/".join(capture_prepack_reuse_operands(item)) or "none" for item in items}),
         "event_sources": sorted(
             {
                 str(capture_timing_metadata(item).get("gpu_event_timing_source") or "unavailable")
@@ -484,7 +516,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 gpu_target_compatible=gpu_target_compatible,
                 accelerator=accelerator,
                 internal_candidate=internal_candidate,
-                prepacked_reuse=capture_pack_mode(item) == "prepacked_reuse",
+                prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
                 end_to_end=end_to_end,
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
@@ -783,13 +815,17 @@ def capture_name(
     case: SweepCase,
     backend: str,
     modulus: int | None,
-    reuse_packed_inputs: bool,
+    pack_mode: str,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
         parts.append(f"mod{modulus}")
-    if reuse_packed_inputs:
+    if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
+    elif pack_mode == "prepacked_reuse_a":
+        parts.append("reuse-packed-a")
+    elif pack_mode == "prepacked_reuse_b":
+        parts.append("reuse-packed-b")
     parts.append(backend)
     return "-".join(parts).replace("/", "_") + ".json"
 
@@ -833,8 +869,13 @@ def command_for(
         command.append("--require-adaptive-execution")
     if modulus is not None:
         command.extend(["--modulus", str(modulus)])
-    if args.reuse_packed_inputs:
+    pack_mode = requested_pack_mode(args)
+    if pack_mode == "prepacked_reuse":
         command.append("--reuse-packed-inputs")
+    elif pack_mode == "prepacked_reuse_a":
+        command.append("--reuse-packed-a")
+    elif pack_mode == "prepacked_reuse_b":
+        command.append("--reuse-packed-b")
     return command
 
 
@@ -869,7 +910,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                     bench = backend_benches.get(backend, args.bench)
                     if bench is None:
                         raise SystemExit(f"no benchmark executable configured for backend {backend}")
-                    name = capture_name(semantics, case, backend, modulus, args.reuse_packed_inputs)
+                    name = capture_name(semantics, case, backend, modulus, requested_pack_mode(args))
                     command = command_for(bench, backend, semantics, case, modulus, args)
                     commands.append((name, command, args.out_root / name))
     return commands
@@ -966,6 +1007,16 @@ def parse_args() -> argparse.Namespace:
         "--reuse-packed-inputs",
         action="store_true",
         help="pack A/B once before warmups and benchmark repeated GEMM/export against persistent packed inputs",
+    )
+    parser.add_argument(
+        "--reuse-packed-a",
+        action="store_true",
+        help="pack A once before warmups and benchmark repeats that repack B",
+    )
+    parser.add_argument(
+        "--reuse-packed-b",
+        action="store_true",
+        help="pack B once before warmups and benchmark repeats that repack A",
     )
     parser.add_argument("--release-matrix", action="store_true", help="use promotable release bounded shapes 64..1024")
     parser.add_argument("--include-exploratory-large", action="store_true", help="include 2048/4096/8192 exploratory shapes")

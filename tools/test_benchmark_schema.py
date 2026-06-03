@@ -39,12 +39,14 @@ def as_reused_pack_capture(capture: dict) -> dict:
     repeats = reused["repeats"]
     reused["reuse_packed_inputs"] = True
     reused["pack_mode"] = "prepacked_reuse"
+    reused["prepack_reuse_operands"] = ["A", "B"]
     reused["prepack_setup_us"] = 123
     reused["avg_prepack_setup_us"] = 123.0
     reused["avg_pack_us"] = 0.0
     reused["raw_timings_us"]["pack"] = [0] * repeats
     reused["timing_summary_us"]["pack"] = zero_summary()
     reused["timing_metadata"]["pack_mode"] = "prepacked_reuse"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
     reused["timing_metadata"]["phase_notes"]["pack"] = (
         "zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups"
     )
@@ -64,6 +66,31 @@ def as_reused_pack_capture(capture: dict) -> dict:
             timings[phase] = [0.0] * repeats
         if isinstance(summaries, dict) and phase in summaries:
             summaries[phase] = zero_summary()
+    return reused
+
+
+def as_reused_a_capture(capture: dict) -> dict:
+    reused = copy.deepcopy(capture)
+    reused["reuse_packed_inputs"] = True
+    reused["pack_mode"] = "prepacked_reuse_a"
+    reused["prepack_reuse_operands"] = ["A"]
+    reused["prepack_setup_us"] = 77
+    reused["avg_prepack_setup_us"] = 77.0
+    reused["timing_metadata"]["pack_mode"] = "prepacked_reuse_a"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["A"]
+    reused["timing_metadata"]["phase_notes"]["pack"] = (
+        "per-repeat host timing for packing B; A was packed once into a persistent matrix before warmups"
+    )
+    reused["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat pack of non-reused input plus rns_gemm plus crt_export host timing; excludes one-time "
+        "prepack_setup_us"
+    )
+    reused["timing_metadata"]["phase_availability"]["prepack_setup"] = {
+        "timed": True,
+        "timing_key": "prepack_setup_us",
+        "scope": "one_time_before_warmups",
+        "reason": "prepacked A once before warmups and reused for every measured repeat",
+    }
     return reused
 
 
@@ -277,6 +304,8 @@ def main() -> int:
 
     reused_ck_i64 = as_reused_pack_capture(v4_ck_i64)
     validate_capture(reused_ck_i64)
+    reused_a_ck_i64 = as_reused_a_capture(v4_ck_i64)
+    validate_capture(reused_a_ck_i64)
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)
@@ -304,6 +333,14 @@ def main() -> int:
     bad_reused_mode = copy.deepcopy(reused_ck_i64)
     bad_reused_mode["timing_metadata"]["pack_mode"] = "per_repeat_repack"
     expect_invalid(bad_reused_mode, "timing_metadata.pack_mode")
+
+    bad_reused_operands = copy.deepcopy(reused_a_ck_i64)
+    bad_reused_operands["prepack_reuse_operands"] = ["B"]
+    expect_invalid(bad_reused_operands, "prepack_reuse_operands")
+
+    bad_reused_metadata_operands = copy.deepcopy(reused_a_ck_i64)
+    bad_reused_metadata_operands["timing_metadata"]["prepack_reuse_operands"] = ["A", "B"]
+    expect_invalid(bad_reused_metadata_operands, "timing_metadata.prepack_reuse_operands")
 
     bad_repack_prepack = copy.deepcopy(v4_ck_i64)
     bad_repack_prepack["reuse_packed_inputs"] = False

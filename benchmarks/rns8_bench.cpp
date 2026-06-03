@@ -95,6 +95,8 @@ struct Args {
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
   bool reuse_packed_inputs = false;
+  bool reuse_packed_a = false;
+  bool reuse_packed_b = false;
 };
 
 struct TimingSamples {
@@ -185,7 +187,7 @@ uint32_t benchmark_prefix(const Args& args);
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--require-adaptive-execution]\n"
-      << "                  [--reuse-packed-inputs]\n"
+      << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
@@ -355,6 +357,14 @@ Args parse_args(int argc, char** argv) {
       args.require_adaptive_execution = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
+      args.reuse_packed_a = true;
+      args.reuse_packed_b = true;
+    } else if (arg == "--reuse-packed-a") {
+      args.reuse_packed_inputs = true;
+      args.reuse_packed_a = true;
+    } else if (arg == "--reuse-packed-b") {
+      args.reuse_packed_inputs = true;
+      args.reuse_packed_b = true;
     } else if (arg == "--write-autotune-cache") {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
@@ -366,7 +376,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--require-adaptive-execution]\n"
-          << "                  [--reuse-packed-inputs]\n"
+          << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
@@ -492,7 +502,71 @@ const char* backend_metadata_source(const Args& args) {
 }
 
 const char* pack_mode_name(const Args& args) {
-  return args.reuse_packed_inputs ? "prepacked_reuse" : "per_repeat_repack";
+  if (!args.reuse_packed_inputs) {
+    return "per_repeat_repack";
+  }
+  if (args.reuse_packed_a && args.reuse_packed_b) {
+    return "prepacked_reuse";
+  }
+  return args.reuse_packed_a ? "prepacked_reuse_a" : "prepacked_reuse_b";
+}
+
+bool reuses_all_packed_inputs(const Args& args) {
+  return args.reuse_packed_a && args.reuse_packed_b;
+}
+
+template <typename PackA, typename PackB>
+void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA& pack_a, const PackB& pack_b) {
+  if (args.reuse_packed_a) {
+    pack_a(source_version);
+  }
+  if (args.reuse_packed_b) {
+    pack_b(source_version);
+  }
+}
+
+template <typename PackA, typename PackB>
+void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const PackA& pack_a, const PackB& pack_b) {
+  if (!args.reuse_packed_a) {
+    pack_a(source_version);
+  }
+  if (!args.reuse_packed_b) {
+    pack_b(source_version);
+  }
+}
+
+std::string prepack_reuse_operand_text(const Args& args) {
+  if (args.reuse_packed_a && args.reuse_packed_b) {
+    return "A and B";
+  }
+  if (args.reuse_packed_a) {
+    return "A";
+  }
+  if (args.reuse_packed_b) {
+    return "B";
+  }
+  return "none";
+}
+
+std::string per_repeat_pack_operand_text(const Args& args) {
+  if (!args.reuse_packed_inputs) {
+    return "A and B";
+  }
+  if (reuses_all_packed_inputs(args)) {
+    return "none";
+  }
+  return args.reuse_packed_a ? "B" : "A";
+}
+
+std::vector<std::string> prepack_reuse_operands(const Args& args) {
+  std::vector<std::string> operands;
+  if (args.reuse_packed_a) {
+    operands.push_back("A");
+  }
+  if (args.reuse_packed_b) {
+    operands.push_back("B");
+  }
+  return operands;
 }
 
 void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
@@ -2154,15 +2228,17 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2173,13 +2249,13 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2208,7 +2284,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2279,15 +2355,17 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2298,13 +2376,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2333,7 +2411,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2398,15 +2476,17 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2417,13 +2497,13 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2453,7 +2533,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2518,15 +2598,17 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2537,13 +2619,13 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2573,7 +2655,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2639,15 +2721,17 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_finite_u8(ctx, a_matrix, args.finite_modulus, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_finite_u8(ctx, b_matrix, args.finite_modulus, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2658,13 +2742,13 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2693,7 +2777,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2763,17 +2847,19 @@ BenchmarkResult run_wrap_u64_wmma_candidate(rns8_context* ctx, const Args& args,
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   rns8_status status = RNS8_SUCCESS;
-  const auto pack_inputs = [&]() {
+  const auto pack_a_input = [&](uint64_t) {
     status = rns8::detail::wrap64_hip_pack_u64_device(
         args.device_id, A.data(), &upload_buffer.ptr, &upload_buffer.bytes, a_limbs.ptr, args.m, args.k, args.k);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t) {
     status = rns8::detail::wrap64_hip_pack_u64_device(
         args.device_id, B.data(), &upload_buffer.ptr, &upload_buffer.bytes, b_limbs.ptr, args.k, args.n, args.n);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_pack_u64_device(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs();
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2784,13 +2870,13 @@ BenchmarkResult run_wrap_u64_wmma_candidate(rns8_context* ctx, const Args& args,
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs();
+      pack_per_repeat_inputs(args, 1, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2821,7 +2907,7 @@ BenchmarkResult run_wrap_u64_wmma_candidate(rns8_context* ctx, const Args& args,
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -2883,15 +2969,17 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
-  const auto pack_inputs = [&](uint64_t source_version) {
+  const auto pack_a_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+  };
+  const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
-    pack_inputs(1);
+    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
     result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
     result.prepack_setup_available = true;
@@ -2902,13 +2990,13 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (args.reuse_packed_inputs) {
+    if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_inputs(source_version);
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, result.gpu_events);
       }
@@ -2937,7 +3025,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     const auto export_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      samples->pack_us.push_back(args.reuse_packed_inputs ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -3268,6 +3356,9 @@ void print_json(
   std::cout << "  \"repeats\": " << args.repeats << ",\n";
   std::cout << "  \"reuse_packed_inputs\": " << (args.reuse_packed_inputs ? "true" : "false") << ",\n";
   std::cout << "  \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "  \"prepack_reuse_operands\": ";
+  print_string_array(prepack_reuse_operands(args));
+  std::cout << ",\n";
   std::cout << "  \"prepack_setup_us\": ";
   if (result.prepack_setup_available) {
     std::cout << result.prepack_setup_us;
@@ -3317,9 +3408,17 @@ void print_json(
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
   if (args.reuse_packed_inputs) {
-    std::cout << "  \"timing_note\": \"host wall-clock timings for repeated GEMM/export against persistent "
-                 "packed A/B inputs; pack is a zero-valued per-repeat phase and prepack_setup_us records the "
-                 "one-time pack before warmups, which end_to_end excludes\",\n";
+    if (reuses_all_packed_inputs(args)) {
+      std::cout << "  \"timing_note\": \"host wall-clock timings for repeated GEMM/export against persistent "
+                   "packed A/B inputs; pack is a zero-valued per-repeat phase and prepack_setup_us records the "
+                   "one-time pack before warmups, which end_to_end excludes\",\n";
+    } else {
+      std::cout << "  \"timing_note\": \"host wall-clock timings with persistent packed "
+                << prepack_reuse_operand_text(args) << " input and per-repeat packing of "
+                << per_repeat_pack_operand_text(args)
+                << "; prepack_setup_us records the one-time pack before warmups and end_to_end includes "
+                   "the per-repeat pack phase for the non-reused operand\",\n";
+    }
   } else if (args.vector_alu_baseline) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for the benchmark-only HIP vector-ALU exact "
                  "int64 baseline; phases are raw input H2D copies, one 192-bit-limb exact output kernel, "
@@ -3370,6 +3469,9 @@ void print_json(
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "    \"prepack_reuse_operands\": ";
+  print_string_array(prepack_reuse_operands(args));
+  std::cout << ",\n";
   std::cout << "    \"gpu_event_timing\": " << (gpu_events_available ? "true" : "false") << ",\n";
   std::cout << "    \"gpu_event_timing_reason\": \"" << gpu_event_reason << "\",\n";
   std::cout << "    \"gpu_event_timing_status\": \"" << gpu_event_status << "\",\n";
@@ -3413,7 +3515,13 @@ void print_json(
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
   if (args.reuse_packed_inputs) {
-    std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
+    if (reuses_all_packed_inputs(args)) {
+      std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
+    } else {
+      std::cout << "      \"pack\": \"per-repeat host timing for packing " << per_repeat_pack_operand_text(args)
+                << "; " << prepack_reuse_operand_text(args)
+                << " was packed once into a persistent matrix before warmups\",\n";
+    }
     if (args.wrap64_wmma_candidate) {
       std::cout << "      \"rns_gemm\": \"per-repeat host timing for the internal rocWMMA wrap64 byte-GEMM36 candidate against reused compact byte-limb inputs\",\n";
       std::cout << "      \"crt_export\": \"per-repeat host timing for direct-HIP low-64-bit byte-limb export\",\n";
@@ -3456,7 +3564,11 @@ void print_json(
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
   if (args.reuse_packed_inputs) {
-    std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
+    if (reuses_all_packed_inputs(args)) {
+      std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
+    } else {
+      std::cout << "      \"end_to_end\": \"per-repeat pack of non-reused input plus rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
+    }
   } else {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus rns_gemm plus crt_export host timing\"\n";
   }
@@ -3482,7 +3594,8 @@ void print_json(
             << "\",\n";
   std::cout << "        \"reason\": \""
             << (result.prepack_setup_available
-                    ? "A and B were packed once before warmups and reused for every measured repeat"
+                    ? ("prepacked " + prepack_reuse_operand_text(args) +
+                       " once before warmups and reused for every measured repeat")
                     : "benchmark mode packs A and B inside every measured repeat")
             << "\"\n";
   std::cout << "      },\n";
