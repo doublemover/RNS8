@@ -1477,7 +1477,12 @@ Benchmark captures for repeated-A, repeated-B, and repeated-A/B workloads use
 `--reuse-packed-a`, `--reuse-packed-b`, and `--reuse-packed-inputs`, and must
 keep one-time `prepack_setup_us` plus reused operand metadata separate from
 repeated workload timings; these measurement modes are not themselves a
-production prepack cache.
+production prepack cache. Created plans must expose their current packing
+contract through `rns8_get_plan_packing_info`: persistent layout versions,
+transient pack workspace bytes, operand layout names, and explicit cache
+availability flags. Until a source-versioned reusable cache exists and is
+validated, every production plan must report no reusable or production prepack
+cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

@@ -247,6 +247,13 @@ provide repeated-A, repeated-B, and repeated-A/B measurement support by
 separating one-time `prepack_setup_us` from repeated workload timings and
 recording the reused operand role; they do not create a reusable production
 prepack cache.
+The public `rns8_get_plan_packing_info` query now reports the selected plan's
+resident layout versions, transient accelerator pack workspace bytes, and cache
+availability flags. hipBLASLt, CK, and rocWMMA plans report transient
+per-dispatch pack workspaces with backend-specific A/B layout names; CPU,
+direct-HIP, and wrap64 reference plans report persistent resident layouts and no
+transient matrix-engine pack workspace. All current plans report no reusable or
+production prepack cache.
 
 Optional accelerator discovery is platform evidence, not backend enablement.
 `tools/check_dependencies.py` and the `FindRNS8HIPBLASLT.cmake`,

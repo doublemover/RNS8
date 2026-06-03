@@ -555,6 +555,13 @@ amortization is visible. A layout cannot be promoted unless source-version
 invalidation, operand-role mismatch rejection, tile tails, K-block splits,
 adaptive prefix schedules, finite modulus metadata, and exact CPU/direct-HIP
 differentials are all covered.
+Created plans expose the current non-benchmark packing contract through
+`rns8_get_plan_packing_info`. The report names persistent resident layouts,
+backend-specific transient A/B pack layouts, accumulator or library workspace
+bytes, and cache availability. Current hipBLASLt, CK, and rocWMMA plans report
+transient per-dispatch matrix-engine pack workspaces; CPU, direct-HIP, and
+wrap64 reference plans report resident layouts without transient pack
+workspaces. No current backend reports a reusable production prepack cache.
 
 INT4/IU4, AMDGPU builtins, FP8/Ozaki, and wrap64 matrix-engine paths are
 retired per semantic/target if they fail to beat the tuned INT8 or current

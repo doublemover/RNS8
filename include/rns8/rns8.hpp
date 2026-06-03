@@ -95,6 +95,22 @@ class Plan final {
     return info;
   }
 
+  rns8_plan_backend_info backend_info() const {
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_plan_backend_info(handle_, &info));
+    return info;
+  }
+
+  rns8_plan_packing_info packing_info() const {
+    rns8_plan_packing_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_plan_packing_info(handle_, &info));
+    return info;
+  }
+
   std::vector<rns8_plan_tile_schedule_entry> tile_schedule() const {
     uint64_t count = 0;
     check(rns8_get_plan_tile_schedule(handle_, nullptr, 0, &count));
