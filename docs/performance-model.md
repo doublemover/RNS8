@@ -558,17 +558,21 @@ differentials are all covered.
 Created plans expose the current non-benchmark packing contract through
 `rns8_get_plan_packing_info`. The report names persistent resident layouts,
 backend-specific transient A/B pack layouts, accumulator or library workspace
-bytes, and cache availability. Current hipBLASLt, CK, and rocWMMA plans report
-transient per-dispatch matrix-engine pack workspaces; CPU, direct-HIP, and
-wrap64 reference plans report resident layouts without transient pack
-workspaces. Matrix handles expose the companion source version, finite modulus,
-host/device currentness flags, byte counts, and persistent layout version
-through `rns8_get_matrix_storage_info`; reusable cache tooling must include that
-matrix-side state in cache keys and mismatch rejection. `rns8_get_prepack_cache_key_info`
-is the current validator for plan/operand cache-key material and rejects
-incompatible role, shape, backend, semantic, layout, currentness,
-source-version, and finite-modulus inputs before returning a key. No current
-backend reports a reusable production prepack cache.
+bytes, and cache availability. hipBLASLt and CK plans report transient
+per-dispatch matrix-engine pack workspaces; rocWMMA plans report the same
+transient A workspace and, for eligible non-tiled RNS B operands with
+`K <= 65536`, a reusable B prepack cache path. The cache is a measured-runtime
+surface, not a performance claim by itself: it must still be benchmarked as
+one-time B setup plus repeated GEMM, and `production_prepack_cache_available`
+remains false. CPU, direct-HIP, and wrap64 reference plans report resident
+layouts without transient pack workspaces. Matrix handles expose the companion
+source version, finite modulus, host/device currentness flags, byte counts, and
+persistent layout version through `rns8_get_matrix_storage_info`; reusable cache
+tooling must include that matrix-side state in cache keys and mismatch
+rejection. `rns8_get_prepack_cache_key_info` is the current validator for
+plan/operand cache-key material and rejects incompatible role, shape, backend,
+semantic, layout, currentness, source-version, and finite-modulus inputs before
+returning a key. No current backend reports a reusable production prepack cache.
 
 INT4/IU4, AMDGPU builtins, FP8/Ozaki, and wrap64 matrix-engine paths are
 retired per semantic/target if they fail to beat the tuned INT8 or current

@@ -1412,7 +1412,7 @@ TEST_CASE("CK plan packing info reports canonical transient pack workspace") {
 #endif
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-TEST_CASE("rocWMMA plan packing info reports transient matrix-engine pack workspace") {
+TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B cache") {
   constexpr int64_t m = 64;
   constexpr int64_t n = 128;
   constexpr int64_t k = 64;
@@ -1456,6 +1456,8 @@ TEST_CASE("rocWMMA plan packing info reports transient matrix-engine pack worksp
   CHECK(packing.total_transient_workspace_bytes == backend.workspace_required_bytes);
   CHECK(std::string(packing.a_layout_version) == "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
   CHECK(std::string(packing.b_layout_version) == "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+  CHECK(packing.reusable_prepack_cache_available == 1);
+  CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
   CHECK(packing.production_prepack_cache_available == 0);
 
   rns8_destroy_plan(plan);

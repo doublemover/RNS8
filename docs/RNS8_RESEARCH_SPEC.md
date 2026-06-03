@@ -1486,8 +1486,13 @@ host/device currentness, byte counts, and persistent layout version. Plan plus
 operand key material must be validated through `rns8_get_prepack_cache_key_info`
 before reuse; it must reject backend, semantic, layout, shape, finite-modulus,
 operand-role, currentness, and source-version mismatches using these public
-contracts. Until a source-versioned reusable cache exists and is validated,
-every production plan must report no reusable or production prepack cache.
+contracts. The first validated reusable cache slice is intentionally narrow:
+rocWMMA may cache non-tiled RNS B operands for `K <= 65536`, then run GEMM with
+only A repacked per dispatch. It does not satisfy the broader production cache
+ship rule for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt,
+or cross-platform production policy. Until that broader source-versioned cache
+policy exists and is validated, every production plan must report no production
+prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

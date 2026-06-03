@@ -170,6 +170,32 @@ inline rns8_prepack_cache_key_info prepack_cache_key_info(
   return info;
 }
 
+class PrepackCache final {
+ public:
+  PrepackCache(Context& context, const Plan& plan, const Matrix& matrix, rns8_operand_role operand_role) {
+    check(rns8_create_prepack_cache(context.get(), plan.get(), matrix.get(), operand_role, &handle_));
+  }
+
+  PrepackCache(const PrepackCache&) = delete;
+  PrepackCache& operator=(const PrepackCache&) = delete;
+
+  PrepackCache(PrepackCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+  PrepackCache& operator=(PrepackCache&& other) noexcept {
+    if (this != &other) {
+      rns8_destroy_prepack_cache(handle_);
+      handle_ = std::exchange(other.handle_, nullptr);
+    }
+    return *this;
+  }
+
+  ~PrepackCache() { rns8_destroy_prepack_cache(handle_); }
+
+  rns8_prepack_cache* get() const noexcept { return handle_; }
+
+ private:
+  rns8_prepack_cache* handle_ = nullptr;
+};
+
 class Workspace final {
  public:
   Workspace(Context& context, const Plan& plan) {
@@ -195,6 +221,16 @@ class Workspace final {
  private:
   rns8_workspace* handle_ = nullptr;
 };
+
+inline void gemm_rns_prepacked_b(
+    Context& context,
+    const Plan& plan,
+    const Matrix& a,
+    const PrepackCache& b,
+    Matrix& c,
+    Workspace& workspace) {
+  check(rns8_gemm_rns_prepacked_b(context.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get()));
+}
 
 }  // namespace rns8
 

@@ -448,6 +448,121 @@ TEST_CASE("rocWMMA fused bounded RNS backend matches CPU and direct HIP") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
+  if (!wmma_available()) {
+    SKIP("rocWMMA backend is not available on this device");
+  }
+
+  rns8_context* cpu = create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* wmma = create_backend_context(RNS8_BACKEND_WMMA);
+
+  constexpr int64_t m = 37;
+  constexpr int64_t n = 53;
+  constexpr int64_t k = 35;
+  std::vector<int64_t> A(static_cast<std::size_t>(m * k), 0);
+  std::vector<int64_t> B(static_cast<std::size_t>(k * n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * k + col)] = ((row * 7 + col * 3) % 19) - 9;
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * n + col)] = ((row * 5 - col * 11) % 23) - 11;
+    }
+  }
+
+  auto cpu_desc = bounded_i64_desc(m, n, k, 4000000, RNS8_BACKEND_CPU_REFERENCE);
+  auto wmma_desc = bounded_i64_desc(m, n, k, 4000000, RNS8_BACKEND_WMMA);
+  cpu_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  wmma_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  rns8_plan* cpu_plan = nullptr;
+  rns8_plan* wmma_plan = nullptr;
+  rns8_workspace* cpu_workspace = nullptr;
+  rns8_workspace* wmma_workspace = nullptr;
+  rns8_workspace* cached_workspace = nullptr;
+  rns8_matrix* cpu_a = nullptr;
+  rns8_matrix* cpu_b = nullptr;
+  rns8_matrix* cpu_c = nullptr;
+  rns8_matrix* wmma_a = nullptr;
+  rns8_matrix* wmma_b = nullptr;
+  rns8_matrix* wmma_c = nullptr;
+  rns8_matrix* cached_c = nullptr;
+  rns8_prepack_cache* b_cache = nullptr;
+
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(wmma, &wmma_desc, &wmma_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(wmma, wmma_plan, &wmma_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(wmma, wmma_plan, &cached_workspace) == RNS8_SUCCESS);
+
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_DEFAULT_BOUNDED_PREFIX);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_DEFAULT_BOUNDED_PREFIX);
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wmma, &a_desc, &wmma_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wmma, &b_desc, &wmma_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wmma, &c_desc, &wmma_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(wmma, &c_desc, &cached_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, cpu_a, A.data(), k, 101) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, cpu_b, B.data(), n, 202) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(wmma, wmma_a, A.data(), k, 101) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(wmma, wmma_b, B.data(), n, 202) == RNS8_SUCCESS);
+
+  rns8_plan_packing_info packing{};
+  packing.struct_size = sizeof(packing);
+  packing.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_packing_info(wmma_plan, &packing) == RNS8_SUCCESS);
+  CHECK(packing.reusable_prepack_cache_available == 1);
+  CHECK(packing.production_prepack_cache_available == 0);
+  CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
+
+  rns8_prepack_cache_key_info key{};
+  key.struct_size = sizeof(key);
+  key.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_prepack_cache_key_info(wmma_plan, wmma_b, RNS8_OPERAND_B, &key) == RNS8_SUCCESS);
+  CHECK(key.reusable_prepack_cache_available == 1);
+  CHECK(key.production_prepack_cache_available == 0);
+  CHECK(std::string(key.operand_layout_version) == "rocwmma_b_colmajor_i8_n16_kblock65536_v1");
+
+  CHECK(rns8_create_prepack_cache(cpu, cpu_plan, cpu_b, RNS8_OPERAND_B, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(b_cache == nullptr);
+  CHECK(rns8_create_prepack_cache(wmma, wmma_plan, wmma_a, RNS8_OPERAND_A, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(b_cache == nullptr);
+  REQUIRE(rns8_create_prepack_cache(wmma, wmma_plan, wmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_SUCCESS);
+
+  REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(wmma, wmma_plan, wmma_a, wmma_b, wmma_c, wmma_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns_prepacked_b(wmma, wmma_plan, wmma_a, b_cache, cached_c, cached_workspace) == RNS8_SUCCESS);
+
+  std::vector<int64_t> cpu_out(static_cast<std::size_t>(m * n), 0);
+  std::vector<int64_t> wmma_out(static_cast<std::size_t>(m * n), 0);
+  std::vector<int64_t> cached_out(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_export_i64(cpu, cpu_plan, cpu_c, cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(wmma, wmma_plan, wmma_c, wmma_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(wmma, wmma_plan, cached_c, cached_out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(cpu_out, wmma_out);
+  require_same_i64(cpu_out, cached_out);
+
+  rns8_destroy_prepack_cache(b_cache);
+  rns8_destroy_matrix(cached_c);
+  rns8_destroy_matrix(wmma_c);
+  rns8_destroy_matrix(wmma_b);
+  rns8_destroy_matrix(wmma_a);
+  rns8_destroy_matrix(cpu_c);
+  rns8_destroy_matrix(cpu_b);
+  rns8_destroy_matrix(cpu_a);
+  rns8_destroy_workspace(cached_workspace);
+  rns8_destroy_workspace(wmma_workspace);
+  rns8_destroy_workspace(cpu_workspace);
+  rns8_destroy_plan(wmma_plan);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(wmma);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("rocWMMA fused adaptive bounded schedule matches CPU and direct HIP") {
   if (!wmma_available()) {
     SKIP("rocWMMA backend is not available on this device");

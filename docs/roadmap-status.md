@@ -420,18 +420,22 @@ plan keys. The wrap64 candidate now has a raw benchmark capture route through
   and sweep tools now expose `--reuse-packed-a`, `--reuse-packed-b`, and
   `--reuse-packed-inputs` so repeated-A, repeated-B, and repeated-A/B sweeps can
   record one-time `prepack_setup_us` and reused operand metadata separately from
-  repeated workload timings, but durable packed-layout and prepack-cache
-  production paths are still unshipped. The public `rns8_get_plan_packing_info`
-  API now exposes current plan-specific resident layout names, transient
-  accelerator A/B pack workspace bytes, and cache availability flags, with every
-  current backend still reporting no reusable production prepack cache. The
-  companion `rns8_get_matrix_storage_info` API exposes matrix source versions,
-  finite modulus, resident currentness, byte counts, and layout versions so
-  future caches can reject stale or mismatched inputs. The
+  repeated workload timings, but broad durable packed-layout and prepack-cache
+  production paths are still unshipped. A narrow runtime cache slice exists for
+  rocWMMA non-tiled RNS B operands with `K <= 65536`: B can be packed once with
+  `rns8_create_prepack_cache`, and `rns8_gemm_rns_prepacked_b` reuses that
+  column-major panel cache while A remains transient per dispatch. The public
+  `rns8_get_plan_packing_info` API now exposes current plan-specific resident
+  layout names, transient accelerator A/B pack workspace bytes, and cache
+  availability flags; eligible rocWMMA B plans report reusable cache
+  availability, while every current backend still reports no production prepack
+  cache. The companion `rns8_get_matrix_storage_info` API exposes matrix source
+  versions, finite modulus, resident currentness, byte counts, and layout
+  versions so caches can reject stale or mismatched inputs. The
   `rns8_get_prepack_cache_key_info` API validates concrete plan/operand key
   material and rejects role, shape, backend, semantic, layout, currentness,
-  source-version, and finite-modulus mismatches, but it does not create a
-  reusable production cache.
+  source-version, and finite-modulus mismatches before reporting cache
+  availability.
 - Optimized finite-field algorithms beyond the explicit-modulus
   correctness-grade CPU/direct-HIP finite path.
 - Linux ROCm direct HIP parity, Linux hipBLASLt baseline, Linux CK validation,
