@@ -13,8 +13,11 @@ bool matrix_descriptor_matches(
     uint32_t tile_n) {
   if (matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
       matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
-      matrix.desc.logical_ld < matrix.desc.cols || matrix.desc.flags != 0 || matrix.prefix != prefix ||
-      matrix.desc.max_prefix != prefix) {
+      matrix.desc.logical_ld < matrix.desc.cols || matrix.desc.flags != 0 || matrix.prefix < prefix ||
+      matrix.desc.max_prefix < prefix) {
+    return false;
+  }
+  if (prefix == 0 && (matrix.prefix != 0 || matrix.desc.max_prefix != 0)) {
     return false;
   }
   if (semantics == RNS8_WRAP_U64_MOD_2_64 || is_per_tile_bound_kind(bound_kind)) {
@@ -116,7 +119,7 @@ bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t&
 
 bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols, uint32_t prefix) {
   std::size_t expected_residues = 0;
-  if (!rns_residue_count(rows, cols, prefix, expected_residues)) {
+  if (matrix.prefix < prefix || !rns_residue_count(rows, cols, matrix.prefix, expected_residues)) {
     return false;
   }
   if (matrix.residues.size() != expected_residues || !matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
@@ -155,9 +158,10 @@ bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backe
 }
 
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
   if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
       !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
-      plan.desc.flags != 0 || plan.prefix != plan.desc.max_prefix) {
+      (plan.desc.flags & ~allowed_flags) != 0) {
     return false;
   }
   rns8_backend_capability_info capability{};
@@ -188,13 +192,13 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   }
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return plan.desc.bound_kind == RNS8_BOUND_NONE && plan.desc.bound == 0 && plan.prefix == 0 &&
-           plan.modulus_product == 0 && plan.tile_bounds.empty() && plan.tile_schedule.empty() &&
+           plan.desc.max_prefix == 0 && plan.modulus_product == 0 && plan.tile_bounds.empty() && plan.tile_schedule.empty() &&
            plan.desc.tile_bounds == nullptr && plan.desc.tile_bounds_count == 0 &&
            plan.schedule_min_required_prefix == 0 && plan.schedule_max_required_prefix == 0 &&
            plan.schedule_min_selected_prefix == 0 && plan.schedule_max_selected_prefix == 0 &&
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
-           plan.schedule_flags == 0;
+           plan.desc.flags == 0 && plan.schedule_flags == 0;
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return plan.desc.bound_kind == RNS8_BOUND_NONE && plan.desc.bound == 0 && plan.prefix == 0 &&
@@ -204,9 +208,12 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_min_selected_prefix == 0 && plan.schedule_max_selected_prefix == 0 &&
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
-           plan.schedule_flags == 0;
+           plan.desc.flags == 0 && plan.schedule_flags == 0;
   }
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0 || plan.prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    return false;
+  }
+  if (plan.desc.max_prefix == 0 || plan.desc.max_prefix > RNS8_MAX_SUPPORTED_PREFIX || plan.prefix > plan.desc.max_prefix) {
     return false;
   }
   if (plan.modulus_product != rns8::detail::modulus_product(plan.prefix)) {
@@ -228,12 +235,15 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   }
   const bool per_tile = is_per_tile_bound_kind(plan.desc.bound_kind);
   if (!per_tile) {
+    const bool fixed_prefix_requested = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
     return plan.desc.tile_bounds == nullptr && plan.desc.tile_bounds_count == 0 && plan.tile_bounds.empty() &&
            plan.tile_schedule.empty() && plan.schedule_min_required_prefix > 0 &&
            plan.schedule_max_required_prefix == plan.schedule_min_required_prefix &&
            plan.schedule_min_selected_prefix == plan.prefix && plan.schedule_max_selected_prefix == plan.prefix &&
            plan.schedule_prefix_group_count == 1 && plan.schedule_adaptive_prefix_active == 0 &&
-           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0;
+           plan.schedule_max_required_prefix <= plan.prefix &&
+           plan.schedule_adaptive_skip_active == (plan.prefix < plan.desc.max_prefix ? 1u : 0u) &&
+           (!fixed_prefix_requested || plan.prefix == plan.desc.max_prefix) && plan.schedule_flags == 0;
   }
   if (plan.desc.bound != 0 || plan.desc.tile_bounds_count != static_cast<uint64_t>(plan.tile_bounds.size()) ||
       plan.desc.tile_bounds_count != plan.schedule_tile_count || plan.desc.tile_bounds != nullptr ||

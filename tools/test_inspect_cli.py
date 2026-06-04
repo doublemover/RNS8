@@ -198,7 +198,7 @@ def main() -> int:
         )
         expect_text(
             autotune_hit.stdout,
-            '"schedule_strategy": "fixed_prefix_9"',
+            '"schedule_strategy": "minimum_proven_uniform_prefix_schedule"',
             "autotune exact hit json",
         )
         expect_text(

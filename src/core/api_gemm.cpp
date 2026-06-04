@@ -337,8 +337,7 @@ rns8_status rns8_gemm_rns(
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
-      if (!ctx->hipblaslt_handle || plan->schedule_adaptive_prefix_active || plan->schedule_adaptive_skip_active ||
-          !plan->tile_schedule.empty()) {
+      if (!ctx->hipblaslt_handle || plan->schedule_adaptive_prefix_active || !plan->tile_schedule.empty()) {
         return RNS8_UNSUPPORTED_BACKEND;
       }
       const rns8_status status = rns8::detail::hipblaslt_gemm_rns_device(

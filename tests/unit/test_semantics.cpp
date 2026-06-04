@@ -168,7 +168,7 @@ TEST_CASE("reserved public ABI flags are hard rejected") {
   rns8_context* ctx = create_cpu();
   {
     auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-    desc.flags = 1;
+    desc.flags = 0x80000000u;
     rns8_plan* plan = nullptr;
     CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
@@ -824,7 +824,7 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   desc.m = 2;
   desc.n = 2;
   desc.k = 2;
-  desc.bound = 100;
+  desc.bound = 100000;
 
   rns8_plan* plan = nullptr;
   rns8_workspace* workspace = nullptr;
@@ -855,7 +855,7 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   CHECK(rns8_gemm_rns(ctx, plan, a_matrix, wrong_b_shape, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
 
   rns8_matrix* wrong_c_prefix = nullptr;
-  auto wrong_c_prefix_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, 8);
+  auto wrong_c_prefix_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, 1);
   REQUIRE(rns8_create_matrix(ctx, &wrong_c_prefix_desc, &wrong_c_prefix) == RNS8_SUCCESS);
   CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, wrong_c_prefix, workspace) == RNS8_INVALID_ARGUMENT);
 
@@ -1176,7 +1176,7 @@ TEST_CASE("persistent RNS APIs reject stale plan schedule metadata before dispat
   desc.m = 1;
   desc.n = 1;
   desc.k = 1;
-  desc.bound = 100;
+  desc.bound = 100000;
 
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
@@ -1230,7 +1230,7 @@ TEST_CASE("persistent bounded export rejects output matrices outside the plan co
   desc.m = 2;
   desc.n = 2;
   desc.k = 1;
-  desc.bound = 100;
+  desc.bound = 100000;
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
 
@@ -1241,7 +1241,7 @@ TEST_CASE("persistent bounded export rejects output matrices outside the plan co
   CHECK(rns8_export_u64(ctx, plan, c_matrix, dst, 2) == RNS8_SUCCESS);
 
   rns8_matrix* wrong_c_prefix = nullptr;
-  auto wrong_c_prefix_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, 8);
+  auto wrong_c_prefix_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, 1);
   REQUIRE(rns8_create_matrix(ctx, &wrong_c_prefix_desc, &wrong_c_prefix) == RNS8_SUCCESS);
   CHECK(rns8_export_u64(ctx, plan, wrong_c_prefix, dst, 2) == RNS8_INVALID_ARGUMENT);
 

@@ -1658,6 +1658,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
     auto desc = semantics == RNS8_BOUNDED_I64
                     ? signed_desc(32, 32, 32, 32u * 127u * 127u, RNS8_BACKEND_HIP_DIRECT)
                     : unsigned_desc(32, 32, 32, 32u * 127u * 127u, RNS8_BACKEND_HIP_DIRECT);
+    desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     rns8_plan* plan = nullptr;
     REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
     REQUIRE(plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
@@ -1678,6 +1679,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
     CAPTURE(semantics);
     auto desc = semantics == RNS8_EXACT_WIDE_SIGNED ? exact_signed_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT)
                                                     : exact_unsigned_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT);
+    desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     rns8_plan* plan = nullptr;
     REQUIRE(rns8_create_plan(hip, &desc, &plan) == RNS8_SUCCESS);
     REQUIRE(plan->prefix == RNS8_MAX_SUPPORTED_PREFIX);
@@ -4220,8 +4222,8 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     rns8_matrix* hip_c = nullptr;
     REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
     REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
-    REQUIRE(cpu_plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
-    REQUIRE(hip_plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    REQUIRE(cpu_plan->prefix == 1u);
+    REQUIRE(hip_plan->prefix == 1u);
     auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
@@ -4277,8 +4279,8 @@ TEST_CASE("direct HIP bounded export range errors preserve host output and reuse
     rns8_matrix* hip_c = nullptr;
     REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
     REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
-    REQUIRE(cpu_plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
-    REQUIRE(hip_plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+    REQUIRE(cpu_plan->prefix == 1u);
+    REQUIRE(hip_plan->prefix == 1u);
     auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
@@ -4779,6 +4781,8 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
   auto cpu_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_CPU_REFERENCE);
   auto hip_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_HIP_DIRECT);
+  const uint32_t expected_prefix =
+      rns8::detail::required_prefix_for_range(boost::multiprecision::cpp_int(2) * boost::multiprecision::cpp_int(bound));
 
   rns8::detail::hip_direct_allocation_counters_reset();
   rns8_plan* plan = nullptr;
@@ -4787,15 +4791,16 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   REQUIRE(rns8_create_plan(hip, &hip_desc, &plan) == RNS8_SUCCESS);
-  REQUIRE(plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  REQUIRE(plan->prefix == expected_prefix);
 
   rns8_plan_schedule_info info{};
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
-  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
-  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.min_selected_prefix == expected_prefix);
+  CHECK(info.max_selected_prefix == expected_prefix);
   CHECK(info.adaptive_prefix_active == 0);
+  CHECK(info.adaptive_skip_active == 1);
 
   REQUIRE(rns8_create_workspace(hip, plan, &workspace) == RNS8_SUCCESS);
   auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
@@ -4924,6 +4929,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
   auto cpu_desc = unsigned_desc(m, n, k, bound, RNS8_BACKEND_CPU_REFERENCE);
   auto hip_desc = unsigned_desc(m, n, k, bound, RNS8_BACKEND_HIP_DIRECT);
+  cpu_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  hip_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
 
   rns8::detail::hip_direct_allocation_counters_reset();
   rns8_plan* plan = nullptr;
@@ -5996,6 +6003,8 @@ TEST_CASE("direct HIP bounded oneshot matches CPU for signed and unsigned APIs")
     int64_t hip_c[4] = {};
     auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
     auto hip_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
+    cpu_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+    hip_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     CHECK(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A, k, B, n, cpu_c, n) == RNS8_SUCCESS);
     CHECK(rns8_gemm_i64_oneshot(hip, &hip_desc, A, k, B, n, hip_c, n) == RNS8_SUCCESS);
     CHECK(std::vector<int64_t>(std::begin(hip_c), std::end(hip_c)) ==
@@ -6097,6 +6106,8 @@ TEST_CASE("direct HIP bounded prefix-9 oneshot skips global RNS pack kernels") {
     }
     auto cpu_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_CPU_REFERENCE);
     auto hip_desc = signed_desc(m, n, k, 100000, RNS8_BACKEND_HIP_DIRECT);
+    cpu_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+    hip_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
             RNS8_SUCCESS);
     rns8::detail::hip_direct_timing_set_enabled(true);
@@ -6135,6 +6146,8 @@ TEST_CASE("direct HIP bounded prefix-9 oneshot skips global RNS pack kernels") {
     }
     auto cpu_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
     auto hip_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_DIRECT);
+    cpu_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+    hip_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
             RNS8_SUCCESS);
     rns8::detail::hip_direct_timing_set_enabled(true);

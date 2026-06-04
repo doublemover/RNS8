@@ -293,6 +293,7 @@ TEST_CASE("exact-wide signed CPU RNS output matches multiprecision residues") {
   auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED);
   auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED);
   auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+  c_desc.max_prefix = plan->prefix;
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
@@ -443,6 +444,7 @@ TEST_CASE("exact-wide unsigned CPU RNS output matches multiprecision residues") 
   auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED);
   auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED);
   auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+  c_desc.max_prefix = plan->prefix;
   REQUIRE(rns8_create_matrix(ctx, &a_desc, &a_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &b_desc, &b_matrix) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);

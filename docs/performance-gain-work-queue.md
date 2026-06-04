@@ -28,6 +28,136 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
   `workspace_mode`, `isa_evidence`, autotune key fields, docs, benchmark schema
   fixtures, and stale-cache rejection.
 
+## Imported Maximum-Performance Roadmap Triage (June 3, 2026)
+
+The external maximum-performance checklist was deduped against the current
+repo before being queued. Items already handled by prior cleanup and
+instrumentation work are not re-queued here: rocWMMA public naming, backend
+schema v4, deep CK/rocWMMA/vector-ALU event labels, GPU event and ISA report
+tools, release evidence summaries, install/package smoke, finite-u8 backends,
+vector-ALU runtime visibility, public setup docs, and the existing reusable-B
+and hipBLASLt workspace-local prepack evidence.
+
+Implemented in the current prefix-policy slice:
+
+- Default global RNS plans now execute the minimum proven prefix rather than
+  always executing the requested max prefix. The requested ceiling remains in
+  `rns8_gemm_desc.max_prefix`; the selected execution prefix is `plan.prefix`.
+  Fixed-prefix experiments opt in with `RNS8_PLAN_FORCE_FIXED_PREFIX`.
+  Code references: `include/rns8/rns8.h`, `src/core/api_plan.cpp`,
+  `src/core/api_matrix_workspace.cpp`, and `src/core/api_gemm.cpp`.
+- Per-tile plans can also force the requested prefix for controlled A/B
+  captures; otherwise each tile group selects its required prefix. This keeps
+  adaptive evidence separate from fixed-requested evidence.
+  Code references: `src/core/api_plan.cpp` and
+  `src/core/plan_lowering.cpp`.
+- Benchmarks now expose requested prefix, selected prefix, prefix policy, and
+  residue-plane skip fraction. Persistent benchmark matrix allocation uses the
+  schedule max selected prefix, so pack/GEMM/export work reflects the selected
+  plan instead of just reporting it.
+  Code references: `benchmarks/rns8_bench.cpp`,
+  `tools/benchmark_schema.py`, `tools/benchmark_sweep.py`, and
+  `tools/result_compare.py`.
+
+Remaining high-value imported work goes at the front of the queue:
+
+1. **Bound Discovery Pipeline**
+
+   Build public and benchmark-only bound discovery that can select prefixes
+   from real input structure before a plan is created. Start with exact row
+   absolute sums, column absolute sums, zero rows/columns, and tile max products
+   for bounded i64/u64. The planner should accept either global bounds,
+   per-tile bounds, or future row/column summaries without inferring semantics
+   from C++ types. Keep scans timed as their own benchmark phase because scan
+   cost can dominate small shapes.
+
+   Code references: current benchmark scans in
+   `benchmarks/rns8_bench.cpp` (`compute_i64_tile_bounds`,
+   `compute_u64_tile_bounds`), planner prefix selection in
+   `src/core/api_plan.cpp`, matrix compatibility in
+   `src/core/api_matrix_workspace.cpp`, and public descriptor definitions in
+   `include/rns8/rns8.h`.
+
+2. **Zero-Tile And Zero-Plane Execution Skips**
+
+   Prefix metadata alone is not enough. Add execution paths that skip GEMM and
+   export work for zero tiles, zero row/column products, and selected-prefix
+   ranges that are provably unused. The contract must still materialize correct
+   zero outputs and mark storage/currentness exactly. Start benchmark-only with
+   explicit skip counters, then graduate to backend execution after CPU and
+   direct-HIP differential coverage.
+
+   Code references: tile schedule entries in `include/rns8/rns8.h`, schedule
+   construction in `src/core/api_plan.cpp`, direct-HIP dispatch in
+   `src/core/api_gemm.cpp`, direct-HIP kernels under `src/backend_hip_direct/`,
+   CK kernels under `src/backend_ck/`, rocWMMA kernels under
+   `src/backend_rocwmma/`, and export paths in `src/core/api_export.cpp`.
+
+3. **Accumulator-Safety Metadata By Backend**
+
+   Every backend needs explicit K-block, signedness, modulus, and accumulator
+   safety metadata. This should reject unsafe `int8 x int8 -> int32` ranges
+   before benchmark evidence is accepted, and it should be part of selected
+   kernel identity. Do not assume CK, rocWMMA, hipBLASLt, direct HIP, and
+   vector-ALU paths share the same safe K policy.
+
+   Code references: range helpers in `src/core/moduli.cpp`, backend metadata
+   in `src/core/api_plan.cpp`, direct-HIP dispatch in `src/core/api_gemm.cpp`,
+   accelerator kernels under `src/backend_ck/` and `src/backend_rocwmma/`, and
+   benchmark schema gates in `tools/benchmark_schema.py`.
+
+4. **HIP Graph And Async Executable Path**
+
+   Repeated fixed-shape workloads should be capturable as executable graph
+   shapes: pack, per-prefix GEMM, reducer/export, status, and D2H. Keep this
+   internal first. Public async APIs should wait until graph replay has exact
+   CPU/direct-HIP proof and clear handle lifetime rules. Graph identity must
+   include backend, selected prefix, requested max prefix, K-block, tile shape,
+   reuse mode, output mode, and device target.
+
+   Code references: operation sequencing in `src/core/api_gemm.cpp`, workspace
+   and matrix lifetime in `src/core/api_matrix_workspace.cpp`, benchmark phase
+   timing in `benchmarks/rns8_bench.cpp`, and future public API surface in
+   `include/rns8/rns8.h`.
+
+5. **Generated Reducers And CRT Export Families**
+
+   Generate modulus-specific and prefix-specific reducers instead of leaning on
+   generic runtime division paths. The first production families should cover
+   bounded selected prefixes 1..9, exact-wide common selected prefixes, finite
+   moduli 251/255/256, and direct-HIP/accelerator epilogues that avoid INT32
+   global stores where possible. Each generated variant needs selected-kernel
+   naming, ISA gates, schema fixtures, and stale autotune rejection.
+
+   Code references: modulus ladder and products in `src/core/moduli.cpp`,
+   direct-HIP kernels under `src/backend_hip_direct/`, reconstruction in
+   `src/reconstruct/crt.cpp`, selected-kernel metadata in
+   `src/core/api_plan.cpp`, and ISA/report tooling in `tools/gpu_isa_report.py`.
+
+6. **Architecture-Specific Kernel Namespaces**
+
+   Split RDNA3 `gfx1100` tuning from future RDNA4 and CDNA work. Do not let a
+   Windows RX 7900 XTX win become a Linux ROCm or Instinct claim. Kernel
+   variants, launch bounds, wave size, LDS layout, and occupancy assumptions
+   should be target-id keyed in both benchmark output and autotune cache keys.
+
+   Code references: backend source roots `src/backend_hip_direct/`,
+   `src/backend_ck/`, `src/backend_rocwmma/`, configured target metadata in
+   `CMakeLists.txt`, capture validation in `tools/benchmark_schema.py`, and
+   release review grouping in `tools/benchmark_sweep.py`.
+
+7. **Hardware-Counter Promotion Gate**
+
+   Add a non-promoting profiler ingestion lane for occupancy, VALU/MFMA/WMMA
+   counts, LDS traffic, global load/store bytes, wave stalls, and achieved
+   bandwidth. Use it to explain wins and blockers, not to replace exact output
+   checks or host/GPU timing. Keep raw profiler dumps in `temp/`; durable docs
+   should summarize reviewed counters only.
+
+   Code references: event report tooling in `tools/gpu_event_report.py`, ISA
+   reporting in `tools/gpu_isa_report.py`, schema promotion policy in
+   `tools/benchmark_schema.py`, and release review in `tools/benchmark_sweep.py`.
+
 ## Current Evidence Snapshot
 
 - `hip-vector-alu-int64` is a real bounded i64/u64 runtime backend and remains

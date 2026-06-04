@@ -39,6 +39,20 @@ def summary(values: list[float]) -> dict:
     return {"avg": sum(values) / len(values), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
 
 
+def add_prefix_policy_fields(capture: dict, policy: str) -> dict:
+    requested = capture["prefix"]
+    selected = capture["schedule_metadata"]["max_selected_prefix"]
+    skipped = max(requested - selected, 0)
+    capture["selected_prefix"] = selected
+    capture["requested_max_prefix"] = requested
+    capture["contract_prefix_policy"] = policy
+    capture["residue_planes_requested"] = requested
+    capture["residue_planes_selected"] = selected
+    capture["residue_planes_skipped"] = skipped
+    capture["residue_plane_skip_fraction"] = float(skipped) / float(requested) if requested else 0.0
+    return capture
+
+
 def as_direct_hip_finite_capture(
     capture: dict, modulus: int, kernel: str, isa_evidence: str
 ) -> dict:
@@ -755,6 +769,25 @@ def main() -> int:
     v4_finite_ring_ck = expect_valid("v4_finite_ring_u8_ck.json")
     v4_finite_field_rocwmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
+
+    prefixed_adaptive = add_prefix_policy_fields(copy.deepcopy(v4_adaptive_i64), "per_tile_minimum")
+    validate_capture(prefixed_adaptive)
+
+    incomplete_prefix_policy = copy.deepcopy(prefixed_adaptive)
+    del incomplete_prefix_policy["residue_planes_skipped"]
+    expect_invalid(incomplete_prefix_policy, "prefix policy metadata fields must be complete")
+
+    stale_selected_prefix = copy.deepcopy(prefixed_adaptive)
+    stale_selected_prefix["selected_prefix"] = stale_selected_prefix["prefix"]
+    expect_invalid(stale_selected_prefix, "selected_prefix must match")
+
+    bad_prefix_skip_fraction = copy.deepcopy(prefixed_adaptive)
+    bad_prefix_skip_fraction["residue_plane_skip_fraction"] = 0.0
+    expect_invalid(bad_prefix_skip_fraction, "residue_plane_skip_fraction must match")
+
+    bad_prefix_policy_scope = copy.deepcopy(prefixed_adaptive)
+    bad_prefix_policy_scope["contract_prefix_policy"] = "minimum_proven"
+    expect_invalid(bad_prefix_policy_scope, "contract_prefix_policy=minimum_proven requires bound_mode=global")
     wrap64 = v4_wrap64_hip
     v4_wrap64_rocwmma_candidate = as_wrap64_rocwmma_candidate_capture(v4_wrap64_hip)
     validate_capture(v4_wrap64_rocwmma_candidate)

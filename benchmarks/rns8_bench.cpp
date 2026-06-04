@@ -83,6 +83,11 @@ enum class InputProfile {
   AdaptiveBands,
 };
 
+enum class PrefixPolicy {
+  MinimumProven,
+  FixedRequested,
+};
+
 struct Args {
   int64_t m = 64;
   int64_t n = 64;
@@ -100,6 +105,8 @@ struct Args {
   uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
   InputProfile input_profile = InputProfile::UniformSmall;
+  PrefixPolicy prefix_policy = PrefixPolicy::MinimumProven;
+  uint32_t max_prefix_override = 0;
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
   uint32_t residue_chain_length = 1;
   bool require_adaptive_execution = false;
@@ -180,6 +187,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
 
 void mix_checksum(uint64_t& checksum, uint64_t value);
 uint32_t benchmark_prefix(const Args& args);
+uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result);
 
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
@@ -191,6 +199,7 @@ uint32_t benchmark_prefix(const Args& args);
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--input-profile uniform-small|adaptive-bands]\n"
+      << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--residue-chain-length N]\n"
       << "                  [--require-adaptive-execution]\n"
@@ -357,6 +366,16 @@ InputProfile parse_input_profile(const std::string& value) {
   usage_error("unknown input profile: " + value);
 }
 
+PrefixPolicy parse_prefix_policy(const std::string& value) {
+  if (value == "minimum-proven" || value == "minimum_proven" || value == "min" || value == "auto") {
+    return PrefixPolicy::MinimumProven;
+  }
+  if (value == "fixed-requested" || value == "fixed_requested" || value == "fixed") {
+    return PrefixPolicy::FixedRequested;
+  }
+  usage_error("unknown prefix policy: " + value);
+}
+
 Args parse_args(int argc, char** argv) {
   Args args;
   bool tile_m_set = false;
@@ -397,6 +416,10 @@ Args parse_args(int argc, char** argv) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--input-profile" && i + 1 < argc) {
       args.input_profile = parse_input_profile(argv[++i]);
+    } else if (arg == "--prefix-policy" && i + 1 < argc) {
+      args.prefix_policy = parse_prefix_policy(argv[++i]);
+    } else if (arg == "--max-prefix" && i + 1 < argc) {
+      args.max_prefix_override = parse_u32(argv[++i], "--max-prefix");
     } else if (arg == "--exact-wide-limbs" && i + 1 < argc) {
       args.exact_wide_limb_count = parse_u32(argv[++i], "--exact-wide-limbs");
     } else if (arg == "--residue-chain-length" && i + 1 < argc) {
@@ -426,6 +449,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--input-profile uniform-small|adaptive-bands]\n"
+          << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--require-adaptive-execution]\n"
@@ -497,6 +521,15 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  const bool rns_prefix_semantics = bounded_benchmark_semantics(args.semantics) ||
+                                    exact_wide_benchmark_semantics(args.semantics);
+  if (!rns_prefix_semantics &&
+      (args.max_prefix_override != 0 || args.prefix_policy != PrefixPolicy::MinimumProven)) {
+    usage_error("--max-prefix and --prefix-policy are only valid for bounded or exact-wide RNS semantics");
+  }
+  if (rns_prefix_semantics && args.max_prefix_override > RNS8_MAX_SUPPORTED_PREFIX) {
+    usage_error("--max-prefix must be <= RNS8_MAX_SUPPORTED_PREFIX");
   }
   if (args.exact_wide_limb_count == 0 || args.exact_wide_limb_count > 32) {
     usage_error("--exact-wide-limbs must be in [1, 32]");
@@ -1333,13 +1366,49 @@ uint32_t benchmark_prefix(const Args& args) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
     return 0;
   }
+  if (args.max_prefix_override != 0) {
+    return args.max_prefix_override;
+  }
   if (exact_wide_benchmark_semantics(args.semantics)) {
     return RNS8_MAX_SUPPORTED_PREFIX;
   }
   return RNS8_DEFAULT_BOUNDED_PREFIX;
 }
 
-rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
+bool fixed_requested_prefix_policy(const Args& args) {
+  return args.prefix_policy == PrefixPolicy::FixedRequested || args.residue_chain_length > 1;
+}
+
+const char* prefix_policy_name(const Args& args, const BenchmarkResult& result) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+    return "semantic_specific_no_rns_prefix";
+  }
+  if (args.bound_mode == BoundMode::PerTile && !fixed_requested_prefix_policy(args)) {
+    return "per_tile_minimum";
+  }
+  if (args.residue_chain_length > 1 && args.prefix_policy != PrefixPolicy::FixedRequested) {
+    return "fixed_requested_residue_chain";
+  }
+  if (fixed_requested_prefix_policy(args)) {
+    return "fixed_requested";
+  }
+  if (result.schedule_info_available && result.schedule_info.max_selected_prefix < benchmark_prefix(args)) {
+    return "minimum_proven";
+  }
+  return "minimum_proven";
+}
+
+uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+    return 0;
+  }
+  if (result.schedule_info_available && result.schedule_info.max_selected_prefix > 0) {
+    return result.schedule_info.max_selected_prefix;
+  }
+  return benchmark_prefix(args);
+}
+
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args, uint32_t max_prefix) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -1351,8 +1420,12 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   desc.bound_kind = bound_kind(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
-  desc.max_prefix = benchmark_prefix(args);
+  desc.max_prefix = max_prefix;
   return desc;
+}
+
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
+  return matrix_desc(rows, cols, args, benchmark_prefix(args));
 }
 
 rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uint64_t>* tile_bounds = nullptr) {
@@ -1369,6 +1442,10 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uin
   desc.max_prefix = benchmark_prefix(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
+  if (fixed_requested_prefix_policy(args) &&
+      (bounded_benchmark_semantics(args.semantics) || exact_wide_benchmark_semantics(args.semantics))) {
+    desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
+  }
   if (finite_benchmark_semantics(args.semantics)) {
     desc.finite_modulus = args.finite_modulus;
   }
@@ -1645,12 +1722,15 @@ std::string bounded_oneshot_autotune_key(
     const char* kernel,
     const char* epilogue) {
   std::ostringstream out;
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
   out << "backend=" << backend_name(result.backend_info.backend)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
       << ";k=" << args.k
-      << ";prefix=" << benchmark_prefix(args)
+      << ";prefix=" << selected_prefix
+      << ";requested_max_prefix=" << benchmark_prefix(args)
+      << ";prefix_policy=" << prefix_policy_name(args, result)
       << ";tile_m=" << args.tile_m
       << ";tile_n=" << args.tile_n
       << ";groups=" << result.schedule_info.prefix_group_count
@@ -1804,7 +1884,7 @@ void apply_bounded_oneshot_backend_metadata(const Args& args, BenchmarkResult& r
   result.backend_info.performance_validated = 0;
   if (result.backend_info.backend != RNS8_BACKEND_HIP_DIRECT ||
       args.bound_mode != BoundMode::Global ||
-      benchmark_prefix(args) != 9) {
+      selected_execution_prefix(args, result) != 9) {
     return;
   }
   const char* kernel = bounded_oneshot_kernel(args);
@@ -1882,12 +1962,15 @@ void apply_finite_native_a_reuse_b_backend_metadata(const Args& args, BenchmarkR
 
 std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& result, const char* kernel) {
   std::ostringstream out;
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
   out << "backend=hip-vector-alu-int64"
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
       << ";k=" << args.k
-      << ";prefix=" << benchmark_prefix(args)
+      << ";prefix=" << selected_prefix
+      << ";requested_max_prefix=" << benchmark_prefix(args)
+      << ";prefix_policy=" << prefix_policy_name(args, result)
       << ";tile_m=" << args.tile_m
       << ";tile_n=" << args.tile_n
       << ";groups=" << result.schedule_info.prefix_group_count
@@ -2857,12 +2940,12 @@ void enforce_per_tile_capture_contract(const Args& args, const BenchmarkResult& 
   if (result.tile_bounds.empty()) {
     usage_error("per-tile benchmark capture has no generated tile bounds");
   }
-  if (!schedule_uses_adaptive_work(result)) {
-    usage_error(
-        "per-tile benchmark capture did not produce adaptive prefix grouping or prefix skipping; adjust shape, seed, or inputs");
-  }
   if (args.require_adaptive_execution && !schedule_uses_adaptive_work(result)) {
     usage_error("--require-adaptive-execution was requested but the plan is fixed-prefix");
+  }
+  if (!fixed_requested_prefix_policy(args) && !schedule_uses_adaptive_work(result)) {
+    usage_error(
+        "per-tile benchmark capture did not produce adaptive prefix grouping or prefix skipping; adjust shape, seed, or inputs");
   }
 }
 
@@ -3293,9 +3376,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   DeviceBuffer uniform_small_a_device;
   DeviceBuffer uniform_small_b_device;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   const std::size_t native_a_bytes =
       use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
           ? checked_bytes(A.size(), sizeof(int64_t), "native A")
@@ -3569,9 +3653,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   DeviceBuffer uniform_small_a_device;
   DeviceBuffer uniform_small_b_device;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   const std::size_t native_a_bytes =
       use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
           ? checked_bytes(A.size(), sizeof(uint64_t), "native A")
@@ -3825,9 +3910,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -3989,9 +4075,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -4211,9 +4298,10 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   rns8_matrix* c_matrix = nullptr;
   DeviceBuffer native_a;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   const std::size_t native_a_bytes = use_native_a_reuse_b ? checked_bytes(A.size(), sizeof(uint8_t), "native A") : 0;
   if (use_native_a_reuse_b) {
     native_a.allocate(args.device_id, native_a_bytes, "hip_direct_allocate(finite native A)");
@@ -4500,9 +4588,10 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   const auto alloc_start = std::chrono::steady_clock::now();
-  auto a_desc = matrix_desc(args.m, args.k, args);
-  auto b_desc = matrix_desc(args.k, args.n, args);
-  auto c_desc = matrix_desc(args.m, args.n, args);
+  const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
+  auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
+  auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
@@ -4731,6 +4820,9 @@ int64_t benchmark_k_block_size(const Args& args) {
 std::string schedule_hash_string(const Args& args, const BenchmarkResult& result) {
   std::ostringstream out;
   out << "tile_rows=" << result.schedule_info.tile_rows << ";tile_cols=" << result.schedule_info.tile_cols
+      << ";selected_prefix=" << selected_execution_prefix(args, result)
+      << ";requested_max_prefix=" << benchmark_prefix(args)
+      << ";prefix_policy=" << prefix_policy_name(args, result)
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
@@ -4749,11 +4841,16 @@ void print_json(
   const double avg_export_us = average(result.samples.export_us);
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  const uint32_t residue_planes_skipped = prefix > selected_prefix ? prefix - selected_prefix : 0;
+  const double residue_plane_skip_fraction =
+      prefix == 0 ? 0.0 : static_cast<double>(residue_planes_skipped) / static_cast<double>(prefix);
   const bool adaptive_applied = adaptive_execution_applied(args, info, result);
   const bool per_modulus_estimate_applicable =
-      prefix > 0 && !adaptive_applied && !args.oneshot && !args.vector_alu_baseline && !runtime_vector_alu_backend(args);
+      selected_prefix > 0 && args.bound_mode != BoundMode::PerTile && !adaptive_applied && !args.oneshot &&
+      !args.vector_alu_baseline && !runtime_vector_alu_backend(args);
   const double avg_per_modulus_gemm_estimate_us =
-      per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(prefix) : avg_gemm_us;
+      per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(selected_prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
@@ -4920,6 +5017,13 @@ void print_json(
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
   std::cout << "  \"prefix\": " << prefix << ",\n";
+  std::cout << "  \"selected_prefix\": " << selected_prefix << ",\n";
+  std::cout << "  \"requested_max_prefix\": " << prefix << ",\n";
+  std::cout << "  \"contract_prefix_policy\": \"" << prefix_policy_name(args, result) << "\",\n";
+  std::cout << "  \"residue_planes_requested\": " << prefix << ",\n";
+  std::cout << "  \"residue_planes_selected\": " << selected_prefix << ",\n";
+  std::cout << "  \"residue_planes_skipped\": " << residue_planes_skipped << ",\n";
+  std::cout << "  \"residue_plane_skip_fraction\": " << residue_plane_skip_fraction << ",\n";
   std::cout << "  \"finite_modulus\": ";
   if (finite_benchmark_semantics(args.semantics)) {
     std::cout << args.finite_modulus;

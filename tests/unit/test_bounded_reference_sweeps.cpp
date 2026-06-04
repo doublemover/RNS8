@@ -397,6 +397,7 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
         }
       }
       auto desc = i64_desc(m, n, k, checked_u64_bound(max_abs));
+      desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
       rns8_plan* plan = nullptr;
       REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
       rns8_plan_schedule_info info{};
@@ -445,6 +446,7 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
         }
       }
       auto desc = u64_desc(m, n, k, checked_u64_bound(max_value));
+      desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
       rns8_plan* plan = nullptr;
       REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
       rns8_plan_schedule_info info{};
