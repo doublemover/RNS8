@@ -216,6 +216,18 @@ rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& 
   return RNS8_SUCCESS;
 }
 
+bool schedule_all_zero_output_tiles(const rns8_plan& plan) {
+  if (plan.tile_schedule.empty()) {
+    return false;
+  }
+  for (const auto& entry : plan.tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
@@ -256,6 +268,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
             mutable_c->hip_export_tile_bounds,
             mutable_c->hip_export_tile_schedule_count,
             mutable_c->hip_export_tile_max_elements,
+            schedule_all_zero_output_tiles(*plan),
             dst,
             ld);
       }
@@ -342,6 +355,7 @@ rns8_status rns8_export_u64(
             mutable_c->hip_export_tile_bounds,
             mutable_c->hip_export_tile_schedule_count,
             mutable_c->hip_export_tile_max_elements,
+            schedule_all_zero_output_tiles(*plan),
             dst,
             ld);
       }

@@ -1911,6 +1911,29 @@ def main() -> int:
     )
     validate_capture(zero_skip_schedule)
 
+    all_zero_skip_schedule = copy.deepcopy(zero_skip_schedule)
+    all_zero_planes = (
+        all_zero_skip_schedule["schedule_metadata"]["tile_count"]
+        * all_zero_skip_schedule["schedule_metadata"]["min_selected_prefix"]
+    )
+    all_zero_skip_schedule["schedule_metadata"].update(
+        {
+            "zero_output_tile_count": zero_tile_count,
+            "zero_output_tile_fraction": 1.0,
+            "zero_output_selected_residue_planes": all_zero_planes,
+        }
+    )
+    all_zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 320
+    all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"] = [0.0] * repeats
+    all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = summary([0.0] * repeats)
+    all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [0.25] * repeats
+    all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm"] = summary([0.25] * repeats)
+    all_zero_skip_schedule["gpu_event_timings_us"]["crt_export_status_memset"] = [0.0] * repeats
+    all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_memset"] = summary([0.0] * repeats)
+    all_zero_skip_schedule["gpu_event_timings_us"]["crt_export_status_d2h"] = [0.0] * repeats
+    all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_d2h"] = summary([0.0] * repeats)
+    validate_capture(all_zero_skip_schedule)
+
     bad_zero_skip_stale_kernel = copy.deepcopy(zero_skip_schedule)
     bad_zero_skip_stale_kernel["selected_kernel"] = stale_zero_skip_kernel
     bad_zero_skip_stale_kernel["backend_metadata"]["selected_kernel"] = stale_zero_skip_kernel

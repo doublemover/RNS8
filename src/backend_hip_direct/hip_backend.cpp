@@ -3074,6 +3074,7 @@ rns8_status hip_direct_export_i64_tiled_device(
     const void* device_bounds,
     uint64_t entry_count,
     uint64_t max_tile_elements,
+    bool all_zero_output_tiles,
     int64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -3099,6 +3100,19 @@ rns8_status hip_direct_export_i64_tiled_device(
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
+  }
+  if (all_zero_output_tiles) {
+    const hipError_t zero_err = timed_hip_operation("crt_export_kernel", [&]() {
+      const hipError_t memset_status = hipMemsetAsync(*export_buffer, 0, output_bytes, nullptr);
+      return memset_status == hipSuccess ? hipDeviceSynchronize() : memset_status;
+    });
+    if (zero_err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
+    const hipError_t copy_err = timed_hip_operation("crt_export_d2h", [&]() {
+      return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
+    });
+    return copy_err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
   if (status != RNS8_SUCCESS) {
@@ -3156,6 +3170,7 @@ rns8_status hip_direct_export_i64_tiled_device(
   (void)device_bounds;
   (void)entry_count;
   (void)max_tile_elements;
+  (void)all_zero_output_tiles;
   (void)dst;
   (void)ld;
   return RNS8_UNSUPPORTED_BACKEND;
@@ -3260,6 +3275,7 @@ rns8_status hip_direct_export_u64_tiled_device(
     const void* device_bounds,
     uint64_t entry_count,
     uint64_t max_tile_elements,
+    bool all_zero_output_tiles,
     uint64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -3285,6 +3301,19 @@ rns8_status hip_direct_export_u64_tiled_device(
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
+  }
+  if (all_zero_output_tiles) {
+    const hipError_t zero_err = timed_hip_operation("crt_export_kernel", [&]() {
+      const hipError_t memset_status = hipMemsetAsync(*export_buffer, 0, output_bytes, nullptr);
+      return memset_status == hipSuccess ? hipDeviceSynchronize() : memset_status;
+    });
+    if (zero_err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
+    const hipError_t copy_err = timed_hip_operation("crt_export_d2h", [&]() {
+      return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
+    });
+    return copy_err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
   if (status != RNS8_SUCCESS) {
@@ -3342,6 +3371,7 @@ rns8_status hip_direct_export_u64_tiled_device(
   (void)device_bounds;
   (void)entry_count;
   (void)max_tile_elements;
+  (void)all_zero_output_tiles;
   (void)dst;
   (void)ld;
   return RNS8_UNSUPPORTED_BACKEND;

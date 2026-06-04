@@ -3285,7 +3285,11 @@ void collect_wrap64_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   }
 }
 
-void collect_export_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
+void collect_export_gpu_events(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    const BenchmarkResult& result,
+    GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     const auto d2h_samples = event_label_values(samples, "residue_d2h_sync");
@@ -3346,9 +3350,14 @@ void collect_export_gpu_events(const Args& args, rns8_backend_kind selected_back
     }
     return;
   }
+  const bool all_zero_direct_hip_scheduled_export =
+      selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0 &&
+      result.schedule_info_available && result.zero_output_tile_count == result.schedule_info.tile_count;
   const double status_memset = optional_event_label(samples, "crt_export_status_memset");
   const double kernel = sum_event_label(events, samples, "crt_export", "crt_export_kernel");
-  const double status_d2h = sum_event_label(events, samples, "crt_export", "crt_export_status_d2h");
+  const double status_d2h = all_zero_direct_hip_scheduled_export
+                                ? optional_event_label(samples, "crt_export_status_d2h")
+                                : sum_event_label(events, samples, "crt_export", "crt_export_status_d2h");
   const double d2h = sum_event_label(events, samples, "crt_export", "crt_export_d2h");
   if (events.complete) {
     push_gpu_event_value(events, "crt_export_status_memset", status_memset);
@@ -3593,7 +3602,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result.gpu_events);
+      collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
@@ -3713,7 +3722,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result.gpu_events);
+      collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();
@@ -4124,7 +4133,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
       status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
       if (collect_gpu_events) {
-        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       export_end = std::chrono::steady_clock::now();
@@ -4441,7 +4450,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
       if (collect_gpu_events) {
-        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       export_end = std::chrono::steady_clock::now();
@@ -4609,7 +4618,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
           rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
       if (collect_gpu_events) {
-        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       export_end = std::chrono::steady_clock::now();
@@ -4774,7 +4783,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
           rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
       if (collect_gpu_events) {
-        collect_export_gpu_events(args, selected_backend, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       export_end = std::chrono::steady_clock::now();
@@ -5007,7 +5016,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     status = rns8_export_finite_u8(ctx, plan, args.finite_modulus, c_matrix, C.data(), args.n);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8", status);
     if (collect_gpu_events) {
-      collect_export_gpu_events(args, selected_backend, result.gpu_events);
+      collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto export_end = std::chrono::steady_clock::now();

@@ -411,6 +411,7 @@ rns8_status hip_direct_export_i64_tiled_device(
     const void* device_bounds,
     uint64_t entry_count,
     uint64_t max_tile_elements,
+    bool all_zero_output_tiles,
     int64_t* dst,
     int64_t ld);
 rns8_status hip_direct_export_u64_device(
@@ -439,6 +440,7 @@ rns8_status hip_direct_export_u64_tiled_device(
     const void* device_bounds,
     uint64_t entry_count,
     uint64_t max_tile_elements,
+    bool all_zero_output_tiles,
     uint64_t* dst,
     int64_t ld);
 rns8_status hip_direct_export_finite_u8_device(

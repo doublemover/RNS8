@@ -100,6 +100,10 @@ Implemented in the current proven-zero tile skip slice:
   `direct_hip_zero_output_tile_memset`; adaptive zero-skip plans advertise
   `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`, while nonzero
   adaptive plans keep `direct_hip_tiled_active_prefix_rns_gemm_v2`.
+- Direct-HIP all-zero scheduled exports now skip CRT/status work entirely:
+  the compact native export buffer is zero-filled, copied back, and benchmark
+  event captures report zero-valued `crt_export_status_memset` and
+  `crt_export_status_d2h` phases for that all-zero schedule contract.
 - `rns8-bench` enables the skip only for exact seeded per-tile bound prepasses
   and reports zero tile counts, zero tile fraction, selected residue-plane skip
   counts, and schedule flags in `schedule_metadata`. Schema and sweep cache
