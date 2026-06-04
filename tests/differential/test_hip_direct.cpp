@@ -5963,7 +5963,7 @@ TEST_CASE("direct HIP exact-wide fixed limb export widths match CPU") {
   fill_exact_residue_matrix(hip_c, {boost::multiprecision::cpp_int(-1)});
   upload_exact_residues_to_hip(hip_c);
 
-  for (const uint32_t limb_count : {1u, 2u, 4u, 8u, 16u, 32u}) {
+  for (const uint32_t limb_count : {1u, 2u, 3u, 4u, 8u, 16u, 32u}) {
     std::vector<uint64_t> cpu_limbs(limb_count, 0);
     std::vector<uint64_t> hip_limbs(limb_count, 0);
     REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), 1, limb_count) ==
@@ -5996,7 +5996,7 @@ TEST_CASE("direct HIP exact-wide fixed limb export widths match CPU") {
   fill_exact_residue_matrix(hip_unsigned_c, {boost::multiprecision::cpp_int(1)});
   upload_exact_residues_to_hip(hip_unsigned_c);
 
-  for (const uint32_t limb_count : {1u, 2u, 4u, 8u, 16u, 32u}) {
+  for (const uint32_t limb_count : {1u, 2u, 3u, 4u, 8u, 16u, 32u}) {
     std::vector<uint64_t> cpu_limbs(limb_count, 0x4444444444444444ull);
     std::vector<uint64_t> hip_limbs(limb_count, 0x5555555555555555ull);
     REQUIRE(rns8_export_exact_wide_unsigned_limbs(

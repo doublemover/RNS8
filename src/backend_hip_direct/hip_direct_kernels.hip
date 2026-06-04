@@ -4135,6 +4135,19 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
             cols,
             d_status);
         break;
+      case 3:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 3>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
       case 4:
         hipLaunchKernelGGL(
             HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 4>),
@@ -4249,6 +4262,19 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
       case 2:
         hipLaunchKernelGGL(
             HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 2>),
+            dim3(blocks),
+            dim3(threads),
+            0,
+            nullptr,
+            d_residues,
+            d_dst,
+            rows,
+            cols,
+            d_status);
+        break;
+      case 3:
+        hipLaunchKernelGGL(
+            HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel<kRns8MaxSupportedPrefix, 3>),
             dim3(blocks),
             dim3(threads),
             0,

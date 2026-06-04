@@ -577,6 +577,7 @@ def main() -> int:
     assert [name for name, _command, _output in exact_variant_commands] == [
         "exact-wide-signed-small-16x16x16-limbs1-cpu.json",
         "exact-wide-signed-small-16x16x16-limbs2-cpu.json",
+        "exact-wide-signed-small-16x16x16-limbs3-cpu.json",
         "exact-wide-signed-small-16x16x16-cpu.json",
         "exact-wide-signed-small-16x16x16-limbs8-cpu.json",
         "exact-wide-signed-small-16x16x16-limbs16-cpu.json",

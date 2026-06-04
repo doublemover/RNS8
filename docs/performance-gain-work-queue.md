@@ -528,7 +528,7 @@ Likely first slices:
   selected prefixes 1 through 9 inside the adaptive export kernel, retaining the
   runtime-prefix reconstruction helper only as the fallback for unusual
   selected prefixes.
-- Exact-wide 1/2/4/8/16/32 limb export variants with compact D2H staging.
+- Exact-wide 1/2/3/4/8/16/32 limb export variants with compact D2H staging.
   Implemented benchmark coverage for the limb-count variants via
   `rns8-bench --exact-wide-limbs` and
   `tools/benchmark_sweep.py --include-exact-wide-limb-variants`; this measures
@@ -537,8 +537,18 @@ Likely first slices:
   now elide range-status memset/D2H traffic when overflow is structurally
   impossible: signed limb counts 4..32 and unsigned limb counts 3..32.
   Prefix-20 Direct-HIP signed and unsigned export kernels also dispatch
-  compile-time fixed limb-count variants for 1/2/4/8/16/32 limbs, with the
-  runtime limb-count kernel retained for other widths.
+  compile-time fixed limb-count variants for 1/2/3/4/8/16/32 limbs. The
+  3-limb variant is especially important for unsigned exact-wide captures
+  because it is the compact full-width 192-bit device reconstruction output and
+  can avoid both status traffic and a fourth all-zero output limb. The runtime
+  limb-count kernel is retained for other widths. Windows `gfx1100` release
+  captures under `temp/perf-work-queue/exact-wide-3limb-export-current/` and
+  `temp/perf-work-queue/exact-wide-3limb-export-rerun/` are schema-valid and
+  event-valid, and direct-HIP GPU differential tests now compare limb 3 against
+  CPU for signed and unsigned exports. Do not promote this as a stable speedup
+  yet: the first unsigned 512 pass favored 3 limbs on host export median
+  (1676 us versus 7220 us for 4 limbs), but the reverse-order rerun favored
+  4 limbs on host export median (3030 us versus 3513 us for 3 limbs).
 - A residue-current output mode for chained RNS GEMM benchmarks. Implemented as
   exact-wide benchmark/tooling coverage via `rns8-bench --residue-chain-length`
   and `tools/benchmark_sweep.py --residue-chain-length`: measured repeats keep

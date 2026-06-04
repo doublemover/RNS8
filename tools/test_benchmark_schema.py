@@ -1816,6 +1816,12 @@ def main() -> int:
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_memset"] = zero_summary()
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_d2h"] = zero_summary()
     validate_capture(exact_wide_no_status)
+    exact_wide_unsigned_3_limb = copy.deepcopy(exact_wide_no_status)
+    exact_wide_unsigned_3_limb["semantics"] = "exact_wide_unsigned"
+    exact_wide_unsigned_3_limb["epilogue_type"] = "exact_wide_unsigned_limb_export"
+    exact_wide_unsigned_3_limb["exact_wide_limb_count"] = 3
+    exact_wide_unsigned_3_limb["backend_metadata"]["semantic_contract"] = "exact_wide_unsigned"
+    validate_capture(exact_wide_unsigned_3_limb)
     exact_chain_ck = as_residue_current_chain_capture(v4_ck_i64)
     validate_capture(exact_chain_ck)
     bounded_chain_ck = as_bounded_residue_current_chain_capture(v4_ck_i64)
