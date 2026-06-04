@@ -3,10 +3,10 @@
   "benchmark": "rns8_bounded_gemm_persistent_rns",
   "backend_requested": "hipblaslt",
   "backend_selected": "hipblaslt",
-  "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_baseline_v1",
+  "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
   "backend_metadata": {
     "source": "rns8_get_plan_backend_info",
-    "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_baseline_v1",
+    "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
     "accelerator_backend": true,
     "correctness_backend": true,
     "matrix_engine_backend": true,
@@ -19,8 +19,8 @@
     "epilogue_mode": "separate_i32_scratch_reduce_then_crt_export",
     "workspace_mode": "resident_device_buffers_with_hipblaslt_scratch",
     "workspace_required_bytes": 33555968,
-    "isa_evidence": "hipblaslt_library_int8_matmul_baseline",
-    "autotune_key": "backend=hipblaslt;target_id=gfx1100;semantics=bounded_i64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=16;k_block_cap=65536;kernel=hipblaslt_int8_i32_scratch_reduce_baseline_v1;epilogue=separate_i32_scratch_reduce_then_crt_export",
+    "isa_evidence": "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256",
+    "autotune_key": "backend=hipblaslt;target_id=gfx1100;semantics=bounded_i64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=16;k_block_cap=65536;kernel=hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2;epilogue=separate_i32_scratch_reduce_then_crt_export",
     "accumulator_safety": {
       "input_domain": "centered_i8_rns_residue_planes",
       "signedness": "signed_i8x_signed_i8",

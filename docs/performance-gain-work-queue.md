@@ -273,6 +273,10 @@ Remaining high-value imported work goes at the front of the queue:
   [performance-wins.md](performance-wins.md) kept 512 on direct HIP and found a
   narrow CK 1024 win, so rerun target shapes before installing durable cache
   policy.
+- The active hipBLASLt source path now uses
+  `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`; previous
+  `hipblaslt_int8_i32_scratch_reduce_baseline_v1` timings are historical and
+  should not be mixed into new autotune cache evidence.
 - Adaptive bounded i64 at 1024 has a reviewed rocWMMA winner:
   `rocwmma_i8_i32_signed_tiled_hot_residue_v1`. Tiny adaptive cases and
   bounded-u64 adaptive cases remain blocked by vector/direct baselines.
@@ -1787,7 +1791,10 @@ Relation to new architecture work:
 Status: heuristic lookup is cached in process-local memory for matching
 device/shape/workspace. Fixed-prefix RNS repeated-A and repeated-B can reuse
 workspace-local transposed operands when identity matches. This is not a public
-prepack cache.
+prepack cache. The active hipBLASLt kernel identity is
+`hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`: the separate
+INT32 scratch reducer dispatches fixed-modulus kernels for 256, 255, and 251
+and keeps the generic reducer for other ladder moduli.
 
 Technical direction:
 
@@ -1797,7 +1804,15 @@ Technical direction:
 - Separate A pack, B pack, heuristic, matmul, scratch, reduce, export, and D2H
   phases wherever possible.
 - Specialize external reduce kernels for 256/255/251 and prefix-9 bounded
-  paths.
+  paths. Implemented for hipBLASLt scratch reduction in
+  `src/backend_hipblaslt/hipblaslt_kernels.hip`; the source metadata,
+  schema gates, stale-autotune checks, and fixtures now use
+  `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`.
+  Windows `gfx1100` smoke evidence under
+  `temp/hipblaslt-reducer-v2-smoke/` validates schema and GPU events for
+  bounded-i64 512/1024; the 1024 r9 capture reported
+  `hipblaslt_i32_to_residue_reduce` median 80.38 us. This is local smoke
+  evidence, not release-review promotion.
 - Use HIP Graphs or grouped host dispatch for repeated hipBLASLt workflows.
 
 Likely first slices:
@@ -1805,7 +1820,8 @@ Likely first slices:
 - Release repeated-A/B bounded-i64 1024 matrix with current workspace-local
   cache.
 - A/B prepack support for finite-u8 and exact-wide where layout matches.
-- External reducer specialization for 251/255/256 and prefix-9.
+- External reducer specialization for 251/255/256 and prefix-9. Implemented
+  for the current hipBLASLt scratch-reduce path as the v2 selected kernel above.
 
 Relation to new architecture work:
 

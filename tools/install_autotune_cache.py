@@ -139,7 +139,7 @@ def reviewed_kernel_supported_for_contract(
             return selected_kernel == "hip_vector_alu_u64_exact_192b_v1"
         return False
     if selected_backend == "hipblaslt":
-        return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1"
+        return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2"
     if selected_backend == "ck":
         if semantic_contract in FINITE_U8_SEMANTICS:
             return selected_kernel == CK_FINITE_SPECIALIZED_KERNELS.get(

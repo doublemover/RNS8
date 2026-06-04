@@ -246,7 +246,8 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.selected_kernel,
           sizeof(info.selected_kernel),
-          hipblaslt_backend_compiled() ? "hipblaslt_int8_i32_scratch_reduce_baseline_v1" : "not_implemented");
+          hipblaslt_backend_compiled() ? "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2"
+                                       : "not_implemented");
       set_text(info.library_name, sizeof(info.library_name), "hipBLASLt");
       set_text(
           info.library_version,
@@ -264,7 +265,8 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
-          hipblaslt_backend_compiled() ? "hipblaslt_library_int8_matmul_baseline" : "not_validated");
+          hipblaslt_backend_compiled() ? "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256"
+                                       : "not_validated");
       set_text(
           info.status,
           sizeof(info.status),
@@ -273,7 +275,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
           info.detail,
           sizeof(info.detail),
           hipblaslt_backend_compiled()
-              ? "hipBLASLt INT8->INT32 GEMM baseline with separate HIP centered-residue reduction; no adaptive per-tile support."
+              ? "hipBLASLt INT8->INT32 GEMM with separate HIP centered-residue reduction specialized for mod 256/255/251; no adaptive per-tile support."
               : "Reserved baseline accelerator; enable flag stays fail-fast until exact kernels and differentials exist.");
       break;
     case RNS8_BACKEND_CK:

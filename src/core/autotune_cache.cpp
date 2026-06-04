@@ -315,7 +315,7 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
     return !expected.empty() && entry.selected_kernel == expected;
   }
   if (entry.selected_backend == "hipblaslt") {
-    return entry.selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
+    return entry.selected_kernel == "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2";
   }
   if (entry.selected_backend == "ck") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {

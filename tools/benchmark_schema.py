@@ -1035,11 +1035,11 @@ class _Validator:
                 self._error("current correctness backends must use capability_status=implemented_correctness_backend")
         if selected_backend == "hipblaslt":
             expected = {
-                "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_baseline_v1",
+                "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
                 "accelerator_library": "hipBLASLt",
                 "capability_status": "implemented_baseline_backend",
                 "workspace_mode": "resident_device_buffers_with_hipblaslt_scratch",
-                "isa_evidence": "hipblaslt_library_int8_matmul_baseline",
+                "isa_evidence": "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256",
             }
             for key, value in expected.items():
                 if metadata.get(key) != value:

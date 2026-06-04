@@ -378,7 +378,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
                                                    : "hip_vector_alu_u64_exact_192b_v1";
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
-    return "hipblaslt_int8_i32_scratch_reduce_baseline_v1";
+    return "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2";
   }
   if (plan.backend == RNS8_BACKEND_CK) {
     if (!plan.tile_schedule.empty()) {
@@ -569,7 +569,7 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
     return "source_level_192bit_limb_accumulator_no_matrix_engine";
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
-    return "hipblaslt_library_int8_matmul_baseline";
+    return "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256";
   }
   if (plan.backend == RNS8_BACKEND_CK) {
     return "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide";

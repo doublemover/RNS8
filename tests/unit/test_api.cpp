@@ -907,9 +907,13 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.exact_differential_validated == 1);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_baseline_backend");
-      CHECK(std::string(capability.selected_kernel) == "hipblaslt_int8_i32_scratch_reduce_baseline_v1");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2");
       CHECK(std::string(capability.epilogue_mode) == "separate_i32_scratch_residue_reduce");
-      CHECK(std::string(capability.isa_evidence) == "hipblaslt_library_int8_matmul_baseline");
+      CHECK(
+          std::string(capability.isa_evidence) ==
+          "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256");
       continue;
     }
 #endif

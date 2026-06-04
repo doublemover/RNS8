@@ -50,7 +50,11 @@ def main() -> int:
     hipblaslt = run_command(inspect_exe, "--backend", "hipblaslt")
     if hipblaslt.returncode == 0:
         expect_text(hipblaslt.stdout, "capability_status: implemented_baseline_backend", "hipblaslt")
-        expect_text(hipblaslt.stdout, "selected_kernel:   hipblaslt_int8_i32_scratch_reduce_baseline_v1", "hipblaslt")
+        expect_text(
+            hipblaslt.stdout,
+            "selected_kernel:   hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
+            "hipblaslt",
+        )
         expect_text(hipblaslt.stdout, "exact_validated:   1", "hipblaslt")
         expect_text(hipblaslt.stdout, "perf_validated:    0", "hipblaslt")
     else:

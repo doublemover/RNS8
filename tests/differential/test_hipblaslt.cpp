@@ -472,7 +472,9 @@ TEST_CASE("hipBLASLt exact-wide RNS output matches CPU and direct HIP limbs") {
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_HIPBLASLT) {
-      CHECK(std::string(info.selected_kernel) == "hipblaslt_int8_i32_scratch_reduce_baseline_v1");
+      CHECK(
+          std::string(info.selected_kernel) ==
+          "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2");
       CHECK(info.workspace_required_bytes > rns8::detail::kHipblasLtBaselineWorkspaceBytes);
       CHECK(info.accumulator_uses_int32_inner_product == 1);
       CHECK(info.accumulator_k_block_size == static_cast<uint64_t>(k));
