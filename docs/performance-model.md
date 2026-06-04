@@ -323,11 +323,20 @@ lost to direct HIP at every release shape:
 The review produced zero promotable entries, so the candidate should not be
 integrated as a public wrap64 backend without a materially different kernel.
 
-Bounded i64/u64 captures use persistent RNS matrices, a nonzero CRT prefix, and
-`epilogue_type: "crt_export"`. Strict wrap captures use byte-limb storage with
-either the CPU byte-limb reference backend or the direct-HIP tiled byte-limb
-correctness path: `semantics: "wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound: 0`,
-`prefix: 0`, `packed_layout_version: "byte_limb_v1"`, and `epilogue_type:
+Bounded i64/u64 captures use persistent RNS matrices, a nonzero requested RNS
+prefix budget, and `epilogue_type: "crt_export"`. In schema v4, `prefix`
+remains the requested max prefix for compatibility, while optional additive
+fields `selected_prefix`, `requested_max_prefix`, `contract_prefix_policy`,
+`residue_planes_requested`, `residue_planes_selected`,
+`residue_planes_skipped`, and `residue_plane_skip_fraction` make plane deletion
+explicit. The default RNS policy is `minimum_proven`: global bounded and
+exact-wide plans execute the minimum prefix proven by the contract. Use
+`--prefix-policy fixed-requested` for controlled full-prefix comparison
+captures, and `--max-prefix N` to change the requested ceiling. Strict wrap
+captures use byte-limb storage with either the CPU byte-limb reference backend
+or the direct-HIP tiled byte-limb correctness path: `semantics:
+"wrap_u64_mod_2_64"`, `bound_kind: "none"`, `bound: 0`, `prefix: 0`,
+`packed_layout_version: "byte_limb_v1"`, and `epilogue_type:
 "low64_wrap_export"`. Wrap captures use the current host timing keys
 `rns_gemm` and `crt_export`; their phase notes identify these as
 `rns8_gemm_wrap_u64` and `rns8_export_wrap_u64`.
@@ -371,8 +380,8 @@ schedule-info query. The timing contract is:
 }
 ```
 
-Schema v4 includes `timing_metadata.phase_availability`, per-tile adaptive
-bounded capture metadata:
+Schema v4 includes `timing_metadata.phase_availability`, optional prefix-policy
+metadata, per-tile adaptive bounded capture metadata:
 `bound_mode`, `tile_bounds_u64`, non-null `selected_kernel`, strict adaptive
 schedule consistency, configured HIP toolchain metadata, and exact direct-HIP
 event timing source/scope validation. The
@@ -401,13 +410,16 @@ timings for the non-reused operand. The CTest suite runs the schema self-test, a
 tracked current schema fixtures, and a same-contract `result_compare.py` check
 so retired schemas and stale event labels are not only rejected manually.
 
-Current benchmark inputs are inspectable planning contracts. Global bounded
-captures remain fixed-prefix contracts. With `--bound-mode per-tile`, the
-benchmark computes exact per-output-tile bounds from the seeded A/B inputs
-before plan creation, passes those bounds through `rns8_gemm_desc.tile_bounds`,
-requires actual prefix grouping or prefix skipping, and emits
-`adaptive_execution_applied=true` only for the direct-HIP tiled bounded path.
-Strict wrap64 captures report prefix zero and no RNS prefix groups.
+Current benchmark inputs are inspectable planning contracts. Global RNS
+captures default to minimum-proven uniform selected prefixes; fixed-prefix
+comparison captures opt in with `--prefix-policy fixed-requested`. With
+`--bound-mode per-tile`, the benchmark computes exact per-output-tile bounds
+from the seeded A/B inputs before plan creation, passes those bounds through
+`rns8_gemm_desc.tile_bounds`, requires actual prefix grouping or prefix
+skipping unless fixed-requested policy is selected, and emits
+`adaptive_execution_applied=true` only for backends that execute a real tiled
+adaptive path. Strict wrap64 captures report prefix zero and no RNS prefix
+groups.
 
 Current direct-HIP benchmark timings use host `std::chrono::steady_clock`.
 They include the current correctness backend's synchronization, first-use
@@ -516,10 +528,12 @@ captures add aggregate accelerator labels and selected-prefix labels:
 - rocWMMA prefix labels without prepacked B: `rocwmma_prefix_XX_pack_a`,
   `rocwmma_prefix_XX_pack_b`, and `rocwmma_prefix_XX_matmul`.
 
-The `XX` prefix index is zero-based. Fixed-prefix captures emit labels through
-the benchmark prefix. Adaptive captures emit labels through
-`schedule_metadata.max_selected_prefix`. Values aggregate all tiles and K-blocks
-for that prefix within one repeat. Optional copy/add labels are zero-filled
+The `XX` prefix index is zero-based. Fixed-requested captures emit labels
+through the requested benchmark prefix. Minimum-proven global and adaptive
+captures emit labels through `schedule_metadata.max_selected_prefix`, also
+reported as `selected_prefix` when prefix-policy metadata is present. Values
+aggregate all tiles and K-blocks for that prefix within one repeat. Optional
+copy/add labels are zero-filled
 when the corresponding operation does not launch; missing required pack/matmul
 labels make event timing unavailable.
 
@@ -670,10 +684,10 @@ comparison baselines, and performance gates before any speedup claims are made.
 
 `tools/result_compare.py` validates both captures before comparing host timing
 phases for schema v4 captures. Its same-contract check covers semantic contract,
-bound mode, bounds, tile-bound source/order/min/max/hash, shape, prefix, seed,
-input distribution, epilogue, packed layout, repeated packed-input mode, and
-schedule metadata. Backend and selected-kernel differences are reported as
-evidence, not as contract failures.
+bound mode, bounds, tile-bound source/order/min/max/hash, shape, requested and
+selected prefix metadata, seed, input distribution, epilogue, packed layout,
+repeated packed-input mode, and schedule metadata. Backend and selected-kernel
+differences are reported as evidence, not as contract failures.
 GPU compatibility is a separate gate: GPU-vs-GPU comparisons require matching
 compiler, configured target, HIP toolchain, device target, runtime, and driver
 fields, while CPU/reference and wrap64 byte-limb baselines can compare against a

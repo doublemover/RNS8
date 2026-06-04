@@ -40,6 +40,16 @@ typedef struct rns8_device_info {
   char detail[256];
 } rns8_device_info;
 
+/*
+ * Plan creation flags for rns8_gemm_desc.flags.
+ *
+ * By default, max_prefix is an upper correctness budget: bounded and
+ * exact-wide RNS plans execute the minimum proven prefix for the contract.
+ * Set RNS8_PLAN_FORCE_FIXED_PREFIX only for controlled experiments or
+ * compatibility captures that intentionally execute exactly max_prefix planes.
+ */
+#define RNS8_PLAN_FORCE_FIXED_PREFIX 0x00000001u
+
 typedef struct rns8_gemm_desc {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -60,7 +70,7 @@ typedef struct rns8_gemm_desc {
    * that differs from this plan-level contract.
    */
   uint32_t finite_modulus;
-  /* Reserved for future hard-cut ABI versions. Must be zero. */
+  /* RNS8_PLAN_* flags. Unknown bits are rejected. */
   uint32_t flags;
   const uint64_t* tile_bounds;
   uint64_t tile_bounds_count;

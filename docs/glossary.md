@@ -7,7 +7,7 @@
 | CRT | Chinese remainder reconstruction from residue planes. |
 | exact-wide | RNS output exported as fixed-width little-endian limbs instead of narrowed i64/u64. |
 | finite u8 | Explicit modulus arithmetic over byte-sized rings or fields. |
-| prefix | Number of moduli selected from the default ladder for an RNS operation. |
+| prefix | Number of moduli selected from the default ladder for an RNS operation. Benchmark schema v4 keeps `prefix` as the requested max prefix and reports `selected_prefix` when execution uses fewer planes. |
 | prepack cache | Backend-owned reusable packed representation, currently limited and explicitly reported. |
 | RNS | Residue number system matrix storage. |
 | rocWMMA | AMD rocWMMA-based opt-in matrix-engine backend. Public backend spelling is `rocwmma`. |

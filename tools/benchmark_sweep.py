@@ -320,6 +320,10 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "prepack_reuse_strategy": capture_prepack_reuse_strategy(capture),
         "prepack_setup_us": capture.get("prepack_setup_us"),
         "prefix": capture.get("prefix"),
+        "selected_prefix": capture.get("selected_prefix"),
+        "requested_max_prefix": capture.get("requested_max_prefix"),
+        "contract_prefix_policy": capture.get("contract_prefix_policy"),
+        "residue_plane_skip_fraction": capture.get("residue_plane_skip_fraction"),
         "k_block_size": capture.get("k_block_size"),
         "tile_m": capture.get("tile_m"),
         "tile_n": capture.get("tile_n"),
@@ -916,8 +920,13 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     medians = capture.get("timing_summary_us") if isinstance(capture.get("timing_summary_us"), dict) else {}
     schedule = capture.get("schedule_metadata") if isinstance(capture.get("schedule_metadata"), dict) else {}
     tile_bounds = capture.get("tile_bounds_u64") if isinstance(capture.get("tile_bounds_u64"), dict) else {}
+    selected_prefix = capture.get("selected_prefix", schedule.get("max_selected_prefix"))
+    requested_max_prefix = capture.get("requested_max_prefix", capture.get("prefix"))
+    prefix_policy = capture.get("contract_prefix_policy", "legacy_v4_unspecified")
     prefix_schedule_hash = (
         f"tile_rows={schedule.get('tile_rows')};tile_cols={schedule.get('tile_cols')};"
+        f"selected_prefix={selected_prefix};requested_max_prefix={requested_max_prefix};"
+        f"prefix_policy={prefix_policy};"
         f"groups={schedule.get('prefix_group_count')};"
         f"adaptive_prefix={int(bool(schedule.get('adaptive_prefix_active')))};"
         f"adaptive_skip={int(bool(schedule.get('adaptive_skip_active')))};"
@@ -1191,7 +1200,7 @@ def command_for(
         "--seed",
         str(args.seed),
     ]
-    if case.require_adaptive:
+    if case.require_adaptive and getattr(args, "prefix_policy", None) != "fixed-requested":
         command.append("--require-adaptive-execution")
     if case.input_profile != "uniform-small":
         command.extend(["--input-profile", case.input_profile])
@@ -1199,6 +1208,12 @@ def command_for(
         command.extend(["--modulus", str(modulus)])
     if exact_wide_limb_count is not None:
         command.extend(["--exact-wide-limbs", str(exact_wide_limb_count)])
+    prefix_policy = getattr(args, "prefix_policy", None)
+    max_prefix = getattr(args, "max_prefix", None)
+    if prefix_policy:
+        command.extend(["--prefix-policy", prefix_policy])
+    if max_prefix is not None:
+        command.extend(["--max-prefix", str(max_prefix)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
     if oneshot:
@@ -1226,6 +1241,13 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         for exact_semantics in EXACT_WIDE_SEMANTICS:
             if exact_semantics not in semantics_values:
                 semantics_values.append(exact_semantics)
+    if (getattr(args, "prefix_policy", None) or getattr(args, "max_prefix", None) is not None) and any(
+        semantics not in {"bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"}
+        for semantics in semantics_values
+    ):
+        raise SystemExit("--prefix-policy and --max-prefix are only valid for bounded or exact-wide RNS sweeps")
+    if getattr(args, "max_prefix", None) is not None and args.max_prefix <= 0:
+        raise SystemExit("--max-prefix must be positive")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if args.residue_chain_length > 1:
@@ -1433,6 +1455,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
     parser.add_argument("--exact-wide-limbs", type=int, action="append", help="exact-wide output limb count; repeatable")
+    parser.add_argument(
+        "--prefix-policy",
+        choices=["minimum-proven", "fixed-requested"],
+        help="bounded/exact-wide RNS prefix policy to pass through to rns8-bench",
+    )
+    parser.add_argument(
+        "--max-prefix",
+        type=int,
+        help="bounded/exact-wide RNS requested maximum prefix to pass through to rns8-bench",
+    )
     parser.add_argument(
         "--residue-chain-length",
         type=int,

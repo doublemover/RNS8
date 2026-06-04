@@ -16,11 +16,13 @@ Implemented correctness coverage:
   evaluation, and full-width prefix-9 signed/unsigned edge cases.
 - Range errors when selected modulus prefixes cannot satisfy supplied bounds.
 - Plan schedule inspection for output tile grid, exact required prefix,
-  selected prefix, and prefix-group metadata. Global bounded plans use a fixed
-  selected prefix for every tile. CPU reference and direct HIP per-tile bounded
-  plans copy the caller's tile bounds at plan creation, select the minimum
-  exact prefix per tile, report adaptive prefix/skip metadata, execute only the
-  selected per-tile prefixes, and export with the tile-local bound.
+  selected prefix, and prefix-group metadata. Global bounded plans select the
+  minimum proven uniform prefix by default and can force the requested prefix
+  with `RNS8_PLAN_FORCE_FIXED_PREFIX`. CPU reference and direct HIP per-tile
+  bounded plans copy the caller's tile bounds at plan creation, select the
+  minimum exact prefix per tile unless fixed-prefix policy is requested, report
+  adaptive prefix/skip metadata, execute only the selected per-tile prefixes,
+  and export with the tile-local bound.
 - Bounded signed and unsigned one-shot GEMM boundary tests, including
   `INT64_MAX`, `INT64_MIN`, and `UINT64_MAX` outputs under scalar and padded
   leading-dimension layouts.

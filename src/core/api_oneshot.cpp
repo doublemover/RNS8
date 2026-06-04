@@ -154,9 +154,11 @@ bool direct_hip_native_prefix9_oneshot_eligible(
     const rns8_gemm_desc& desc,
     const rns8_plan& plan,
     rns8_semantics semantics) {
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
   if (ctx.backend != RNS8_BACKEND_HIP_DIRECT || plan.backend != RNS8_BACKEND_HIP_DIRECT ||
       plan.desc.semantics != semantics || plan.prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
-      !plan.tile_schedule.empty() || desc.flags != 0 || desc.tile_bounds || desc.tile_bounds_count != 0) {
+      !plan.tile_schedule.empty() || (desc.flags & ~allowed_flags) != 0 || desc.tile_bounds ||
+      desc.tile_bounds_count != 0) {
     return false;
   }
   if (semantics == RNS8_BOUNDED_I64) {

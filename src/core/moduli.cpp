@@ -255,9 +255,11 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.flags != 0) {
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
   if (!valid_tile_size(desc.tile_m)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -289,14 +291,14 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
   }
   if (desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0 || fixed_prefix_requested) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;
   }
   if (desc.semantics == RNS8_FINITE_RING_U8 || desc.semantics == RNS8_FINITE_FIELD_U8) {
     if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 || prefix != 0 ||
-        !valid_finite_modulus_for_semantics(desc.semantics, desc.finite_modulus)) {
+        fixed_prefix_requested || !valid_finite_modulus_for_semantics(desc.semantics, desc.finite_modulus)) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;

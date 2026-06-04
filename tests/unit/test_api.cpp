@@ -853,7 +853,7 @@ TEST_CASE("malformed accelerator plan descriptors fail before unsupported routin
 
     rns8_plan* plan = nullptr;
     auto malformed = desc;
-    malformed.flags = 1;
+    malformed.flags = 0x80000000u;
     CHECK(rns8_create_plan(ctx, &malformed, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
 
@@ -1524,7 +1524,7 @@ TEST_CASE("internal plan lowering description classifies domains and continuatio
     CHECK(lowering.input_domain == "rns_residue_current");
     CHECK(lowering.output_domain == "rns_residue_current");
     CHECK(lowering.desired_output == "final_export_or_rns_chain");
-    CHECK(lowering.schedule_strategy == "fixed_prefix_9");
+    CHECK(lowering.schedule_strategy == "minimum_proven_uniform_prefix_schedule");
     CHECK(lowering.packing_strategy == "resident_matrix_inputs");
     CHECK(lowering.reuse_strategy == "resident_inputs_no_prepack");
     CHECK(lowering.conversion_strategy == "no_conversion_needed_for_rns_chain");
