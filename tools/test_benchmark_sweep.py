@@ -603,6 +603,23 @@ def main() -> int:
     assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
     assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-")
 
+    skinny_args = copy.copy(scenario_args)
+    skinny_args.backends = ["hip-vector-alu-int64"]
+    skinny_args.scenario = ["skinny-gemv"]
+    skinny_entries = benchmark_sweep.sweep_command_entries(skinny_args)
+    assert len(skinny_entries) == 2
+    assert [entry.scenario["name"] for entry in skinny_entries] == [
+        "bounded-i64-n1-512",
+        "bounded-u64-n1-1024",
+    ]
+    assert all(entry.scenario["family"] == "skinny-gemv" for entry in skinny_entries)
+    assert all(entry.scenario["backend"] == "hip-vector-alu-int64" for entry in skinny_entries)
+    assert all(entry.scenario["shape"]["n"] == 1 for entry in skinny_entries)
+    assert all("--backend" in entry.command for entry in skinny_entries)
+    assert all(benchmark_sweep.cli_backend("hip-vector-alu-int64") in entry.command for entry in skinny_entries)
+    assert all("scenarios" in entry.output.parts and "skinny-gemv" in entry.output.parts for entry in skinny_entries)
+    assert skinny_entries[0].name.startswith("skinny-gemv-bounded-i64-n1-512-")
+
     with tempfile.TemporaryDirectory() as tmp:
         manifest_paths = benchmark_sweep.write_scenario_manifest(scenario_entries, scenario_args, Path(tmp))
         assert manifest_paths is not None

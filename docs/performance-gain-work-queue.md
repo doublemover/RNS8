@@ -1654,9 +1654,19 @@ Technical direction:
 
 Likely first slices:
 
-- Add device-to-device native i64/u64 to RNS conversion kernels.
+- Add device-to-device native i64/u64 to RNS conversion kernels. Implemented in
+  the current HIP direct/native currentness path as
+  `hip_direct_native_i64_to_rns_device` and
+  `hip_direct_native_u64_to_rns_device`, with
+  `ensure_bounded_native_residues_current_for_rns_plan` materializing RNS
+  device residues when a native-current bounded vector matrix feeds an RNS
+  plan.
 - Add selector explanations for vector vs RNS vs CPU choices.
-- Add shape-family vector baselines for skinny/GEMV scenarios.
+- Add shape-family vector baselines for skinny/GEMV scenarios. Implemented in
+  the scenario corpus as `skinny-gemv`, which emits N=1 bounded i64/u64
+  scenarios and includes the canonical runtime `hip-vector-alu-int64` backend.
+  `tools/test_benchmark_sweep.py` now pins that scenario to the runtime vector
+  backend and N=1 shapes.
 
 Relation to new architecture work:
 
