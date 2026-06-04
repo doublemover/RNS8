@@ -62,29 +62,38 @@ June 4, 2026 updates:
 - Finite-u8 2048 hot-modulus work has exploratory GPU evidence but no CPU
   baseline-backed promotion yet. Keep it as bottleneck classification until
   release review can include the required CPU/reference coverage.
+- Branch-local native-to-RNS and vector-to-RNS work closes the bridge exposure
+  lane: native bounded device output can now be materialized into RNS device
+  residues for Direct-HIP consumers, and benchmark/schema/sweep coverage exists
+  for native-to-RNS, vector-to-RNS chain, and reusable consumer-B chain
+  captures. This is not yet a selector promotion or public output-domain API.
+- Branch-local reusable-B scenario work advances the repeated/chain workload
+  corpus with reusable-B RNS-chain scenarios and larger bounded reusable-B
+  coverage. The next gate is release-reviewed, same-contract promotion evidence
+  for the workload shapes that these scenarios now expose.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 1 | Evidence database and roofline summary from current schema v4 captures | The repo has many reviewed captures but no compact analysis layer that ranks where time is going | Generate summary from schema-valid captures and review reports; keep raw data under `temp/` | Promote as planning infrastructure only; no speedup claim without matching reviewed captures |
-| 2 | Scenario benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Add scenario runs with semantic, reuse, output-domain, and evidence-scope metadata | Keep scenarios if they preserve exact CPU checks and do not imply unsupported FHE/CAS product scope |
+| 2 | Partially completed scenario benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Existing scenarios now cover many-small, skinny/GEMV, RNS-chain, repeated-B, FHE/CAS proxies, native-to-RNS, and vector-to-RNS surfaces; missing gaps still need targeted additions | Keep expanding only where scenarios preserve exact CPU checks and do not imply unsupported FHE/CAS product scope |
 | 3 | 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes will show whether RNS8 is launch/export-bound or real throughput-bound | Release/exploratory review for 2048 and tolerable 4096 shapes with CPU/reference checks and required events | Use results to classify bottlenecks before deeper backend-specific tuning |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Current-v2 adaptive bounded rerun to replace old tiled-v1 adaptive winner evidence | The adaptive bounded-i64 winner uses an older rocWMMA tiled-v1 identity | Release review with current selected-kernel identities and required events | Promote only event-valid current-v2 winners; mark old v1 evidence historical |
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
 | 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
-| 9 | RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Chain benchmarks with explicit output-domain, next-op metadata, and one final exact CPU comparison | Promote only when skipped export is semantically visible and CPU reference remains exact |
+| 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Bounded/exact-wide residue-current chain, vector-to-RNS consumer, and reusable-B chain capture surfaces exist; release proof still needs same-contract timing and one final exact CPU comparison | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU reference remains exact |
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Same-contract export-heavy captures by limb count with GPU events and checksum/limb equality | Promote only setup-inclusive export path wins, not isolated copy improvements |
 | 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
 | 13 | Exact-wide 64/128/2048/4096 and limb-count release matrix | Current exact-wide claims cover only 512/1024 for selected signedness cases | Release review across small, current, large, signed, unsigned, and limb-count variants | Install cache entries only for exact shape/semantic/limb keys with required events |
 | 14 | Finite-u8 2048/4096 hot-modulus release matrix | 2048 GPU-only evidence now exists, but CPU-backed release proof is still missing | Release review for ring 251/255/256 and field 251 at 2048 and tolerable 4096 | Promote hot-modulus cache keys only when they beat CPU and Direct HIP with required events |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, but broader sizes and the field-127 hipBLASLt event gap remain | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
-| 16 | Vector/native-to-RNS bridge | Strong vector bounded-u64 output should feed RNS backends cheaply instead of becoming a dead end | Device-to-device native-to-RNS chain captures with explicit conversion timing and RNS consumer correctness | Route only explicit conversion paths with stale-kernel schema rejection |
+| 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
 | 17 | Reframe Vector N=1 GEMV selector and cache policy | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds where vector beats CPU, Direct HIP, and accelerator alternatives end-to-end |
-| 18 | Reuse/prepack workload contract promotion | Repeated-A/B wins are real but need explicit repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, and stale-source rejection | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
+| 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real and reusable-B chain/large-shape scenarios now exist, but the contract still needs repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, stale-source rejection, and chain consumer identity | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
 | 19 | hipBLASLt A/B reuse conversion from benchmark win to explicit workload contract | hipBLASLt A/B reuse is the strongest event-valid reuse signal | Public or benchmark-contract design plus release evidence including setup amortization | Promote only when one-time setup and repeated-call semantics are visible and correct |
-| 20 | Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse has event-valid wins but narrow data profiles | Release evidence for adaptive, finite, exact-wide, and non-uniform inputs | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
+| 20 | Advanced Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse now has reusable-B chain and large bounded scenario coverage, but reuse-A and non-bounded profiles remain thin | Release evidence for adaptive, finite, exact-wide, non-uniform inputs, and RNS-chain consumers | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
 | 21 | Bound-discovery proof-mask setup-inclusive release matrix | Proof masks reduced scan cost but need broader end-to-end proof | Release captures comparing static profile, input-scan, tile-bound, and proof-mask modes | Promote only when scan cost plus execution savings beat setup-inclusive baselines |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips; other backends are incomplete | CPU, CK, rocWMMA, and hipBLASLt correctness/event evidence for skipped work | Extend only where event traces show skipped backend work, not just metadata |
 | 23 | Closed helper lane: generated prefix-specific reducers for bounded prefixes 1..9 | PR #10 adds fixed-prefix reducer identity, dispatch, and ISA-gate surfaces | Release A/B still needs prefix-specific end-to-end proof against generic reducers | Closed as infrastructure; reopen only for measured prefix-specific speedup work |
@@ -114,6 +123,7 @@ June 4, 2026 updates:
 |---|---|---|
 | Adaptive bounded current-v2 still needs a clean vector/direct baseline policy | The square and selected skinny bounded-u64 refresh is complete, but adaptive captures still mix old vector assumptions with schema constraints | Current-v2 adaptive release review with schema-valid CPU, Direct HIP, vector, and accelerator records |
 | Adaptive bounded-i64 1024 winner uses older rocWMMA tiled-v1 identity | Current selected-kernel identities and reducer paths changed | Current-v2 adaptive release review before promotion or cache install |
+| Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
 | Exact-wide 64/128 evidence is historical | Current v2 exact-wide evidence covers 512/1024 only | Current-v2 release review for 64/128 and selected limb counts |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
 | Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |
@@ -397,10 +407,11 @@ Remaining high-value imported work goes at the front of the queue:
 
 ## Current Evidence Snapshot
 
-- `hip-vector-alu-int64` is a real bounded i64/u64 runtime backend and remains
-  the reviewed Windows `gfx1100` bounded-u64 leader at 64, 128, 512, and 1024.
-  It is bounded-only and must not be generalized into exact-wide, finite, or
-  wrap64 semantics.
+- `hip-vector-alu-int64` is a real bounded i64/u64 runtime backend, but the
+  current-v2 bounded-u64 refresh no longer treats it as the universal leader:
+  the reviewed local winners split across CPU, Direct HIP, CK, and hipBLASLt by
+  shape. It remains bounded-only and must not be generalized into exact-wide,
+  finite, or wrap64 semantics.
 - Bounded i64 has current Windows `gfx1100` v2 release-review evidence for 512
   and 1024. The June 4, 2026 seed `20260604` sweep kept 512 on Direct HIP
   `direct_hip_tiled_active_prefix_rns_gemm_v2` at 1851 us and selected hipBLASLt
@@ -1480,8 +1491,9 @@ Technical direction:
 
 RNS8-specific notes:
 
-- Reviewed bounded-u64 shows vector-ALU dominates accelerators through 1024.
-  Tiny cases may reasonably stay CPU or vector.
+- Current-v2 bounded-u64 evidence splits small and medium choices across CPU,
+  Direct HIP, CK, and hipBLASLt. Vector should be routed only where current
+  same-contract evidence shows an end-to-end win.
 - Wrap64 CPU is faster than direct HIP at 64 in the release baseline, while
   direct HIP wins larger shapes. AUTO needs that kind of shape split.
 
@@ -1849,8 +1861,10 @@ Technical direction:
   source-version accounting.
 - Make native-to-RNS conversion an explicit plan choice when a vector-produced C
   needs to feed an RNS operation.
-- Keep bounded-u64 AUTO honest: reviewed Windows `gfx1100` evidence says the
-  vector backend is the leader at 64/128/512/1024.
+- Keep bounded-u64 AUTO honest: the June 4, 2026 current-v2 refresh replaced
+  the old vector-leadership assumption with shape-specific CPU, Direct-HIP, CK,
+  and hipBLASLt winners. Vector routing needs current same-contract evidence
+  for each promoted family.
 
 Likely first slices:
 
