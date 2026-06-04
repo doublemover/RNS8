@@ -1523,6 +1523,34 @@ def main() -> int:
     validate_capture(direct_hip_finite_oneshot)
     direct_hip_finite_native_a_reuse_b = as_direct_hip_finite_native_a_reuse_b_capture(v4_finite_ring_ck)
     validate_capture(direct_hip_finite_native_a_reuse_b)
+    stale_ck_finite_mod255 = copy.deepcopy(v4_finite_ring_ck)
+    stale_ck_finite_mod255["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+    stale_ck_finite_mod255["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+    stale_ck_finite_mod255["backend_metadata"]["autotune_key"] = stale_ck_finite_mod255["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "kernel=ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
+        "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+    )
+    expect_invalid(
+        stale_ck_finite_mod255,
+        "CK finite-u8 modulus 255 captures must use selected_kernel",
+    )
+    stale_rocwmma_finite_mod251 = copy.deepcopy(v4_finite_field_rocwmma)
+    stale_rocwmma_finite_mod251["selected_kernel"] = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+    stale_rocwmma_finite_mod251["backend_metadata"][
+        "selected_kernel"
+    ] = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+    stale_rocwmma_finite_mod251["backend_metadata"]["autotune_key"] = stale_rocwmma_finite_mod251[
+        "backend_metadata"
+    ]["autotune_key"].replace(
+        "kernel=rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+        "kernel=rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
+    )
+    expect_invalid(
+        stale_rocwmma_finite_mod251,
+        "rocWMMA finite-u8 modulus 251 captures must use selected_kernel",
+    )
     direct_hip_bounded_native_a_reuse_b = as_direct_hip_bounded_native_a_reuse_b_capture(v4_ck_i64)
     validate_capture(direct_hip_bounded_native_a_reuse_b)
     direct_hip_bounded_uniform_small_transient = as_direct_hip_bounded_uniform_small_transient_capture(v4_ck_i64)

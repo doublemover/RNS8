@@ -26,9 +26,13 @@ BOUNDED_SEMANTICS = {"bounded_i64", "bounded_u64"}
 EXACT_WIDE_SEMANTICS = {"exact_wide_signed", "exact_wide_unsigned"}
 FINITE_U8_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
 CK_FINITE_SPECIALIZED_KERNELS = {
+    251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
+    255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
 ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
+    251: "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+    255: "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
     256: "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
 

@@ -129,6 +129,12 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_accelerator_i32(
   if (modulus == 256u) {
     return reduce_to_centered_mod256_i32(value);
   }
+  if (modulus == 255u) {
+    return reduce_to_centered_mod255_i32(value);
+  }
+  if (modulus == 251u) {
+    return reduce_to_centered_mod251_i32(value);
+  }
   const uint32_t magnitude = abs_i32_to_u32(value);
   uint32_t residue = reduce_u32_small_modulus(magnitude, modulus, reciprocal);
   const uint32_t negative_nonzero =
@@ -144,6 +150,12 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(
     uint32_t reciprocal) {
   if (modulus == 256u) {
     return reduce_to_centered_mod256_i32(value);
+  }
+  if (modulus == 255u) {
+    return reduce_to_centered_mod255_i32(value);
+  }
+  if (modulus == 251u) {
+    return reduce_to_centered_mod251_i32(value);
   }
   const bool negative = value < 0;
   uint32_t magnitude = abs_i32_to_u32(value);

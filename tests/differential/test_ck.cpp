@@ -358,6 +358,37 @@ TEST_CASE("CK finite u8 backend matches CPU and direct HIP across padded strides
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
+  if (!ck_available()) {
+    SKIP("CK backend is not available on this device");
+  }
+
+  rns8_context* ck = create_backend_context(RNS8_BACKEND_CK);
+  struct Case {
+    rns8_semantics semantics;
+    uint16_t modulus;
+    const char* selected_kernel;
+  };
+  const Case cases[] = {
+      {RNS8_FINITE_FIELD_U8, 251, "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2"},
+      {RNS8_FINITE_RING_U8, 255, "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2"},
+      {RNS8_FINITE_RING_U8, 256, "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2"},
+  };
+  for (const auto& item : cases) {
+    auto desc = finite_desc(64, 64, 64, item.semantics, RNS8_BACKEND_CK, item.modulus);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(ck, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(std::string(info.selected_kernel) == item.selected_kernel);
+    CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_then_canonical_u8_export");
+    rns8_destroy_plan(plan);
+  }
+  rns8_destroy_context(ck);
+}
+
 TEST_CASE("CK finite u8 K-split preserves centered accumulation") {
   if (!ck_available()) {
     SKIP("CK backend is not available on this device");

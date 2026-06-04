@@ -1597,9 +1597,14 @@ captures beat the generic finite-u8 path for the same modulus and shape.
 
 Current implementation: direct HIP ships narrow modulus-251, modulus-255, and
 modulus-256 reducers with CPU/direct-HIP differential coverage and schema-valid
-raw benchmark metadata for the named reducer paths. This is not a broad
-finite-field optimization claim until reviewed release captures prove
-same-contract wins over the generic finite-u8 path.
+raw benchmark metadata for the named reducer paths. CK and rocWMMA also expose
+explicit common-modulus 251/255/256 selected-kernel identities that route their
+finite-u8 epilogues through the shared fixed-modulus reducer helpers. Schema
+and cache tooling reject stale generic accelerator identities for those named
+moduli. This is not a broad finite-field optimization claim, and the CK/rocWMMA
+v2 identities are not promoted performance entries until reviewed release
+captures prove same-contract wins over the appropriate generic, direct-HIP, and
+historical accelerator baselines.
 
 ## 18. Experiment Matrix
 

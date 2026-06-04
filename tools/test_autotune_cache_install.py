@@ -16,6 +16,8 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     semantics = "finite_ring_u8" if finite_modulus else "bounded_i64"
     selected_kernel = (
         {
+            251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
+            255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
             256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
         }.get(finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1")
         if finite_modulus

@@ -282,6 +282,10 @@ bool is_finite_u8_semantic(const std::string& semantic_contract) {
 
 std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
   switch (finite_modulus) {
+    case 251:
+      return "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
+    case 255:
+      return "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2";
     case 256:
       return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
     default:
@@ -291,6 +295,10 @@ std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
 
 std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
   switch (finite_modulus) {
+    case 251:
+      return "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2";
+    case 255:
+      return "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2";
     case 256:
       return "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2";
     default:

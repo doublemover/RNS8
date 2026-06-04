@@ -257,7 +257,7 @@ It produced 60 captures, 12 same-contract review groups, no missing required
 baselines, and 12 reviewed cache candidates keyed by explicit modulus.
 
 The promoted entries are scoped by explicit `finite_modulus` in the plan
-autotune key. rocWMMA
+autotune key. In the historical June 3 review, rocWMMA
 `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` won the 64, 128, and 512
 groups for field-251, ring-251, and ring-255. Median end-to-end timings were
 835/862/1087 us for field-251, 900/863/1049 us for ring-251, and
@@ -265,22 +265,31 @@ groups for field-251, ring-251, and ring-255. Median end-to-end timings were
 `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` won the 1024 ring groups at
 1428 us for modulus 251 and 1354 us for modulus 255. hipBLASLt
 `hipblaslt_int8_i32_scratch_reduce_baseline_v1` won the 1024 field-251 group
-at 2327 us. `rns8-inspect` reports exact validated hits for representative
-hipBLASLt, CK, and rocWMMA keys on runtime target `gfx1100`, with runtime
-versions `hipBLASLt 100100` and `repo-local release/rocm-rel-7.1`.
-Schema-valid AUTO smokes select `backend_selected=hipblaslt`,
-`backend_selected=ck`, and `backend_selected=rocwmma` for those representative
-keys, with `backend_metadata.performance_validated: true` and reviewed-release
-comparison metadata.
+at 2327 us. Those reviewed timings remain attached to their recorded kernel
+identities; they are not automatically transferred to later fixed-modulus v2
+accelerator identities. `rns8-inspect` reports exact validated hits for
+representative hipBLASLt, CK, and rocWMMA keys on runtime target `gfx1100`,
+with runtime versions `hipBLASLt 100100` and
+`repo-local release/rocm-rel-7.1`. Schema-valid AUTO smokes select
+`backend_selected=hipblaslt`, `backend_selected=ck`, and
+`backend_selected=rocwmma` for those representative keys, with
+`backend_metadata.performance_validated: true` and reviewed-release comparison
+metadata.
 
 A focused follow-up on June 4, 2026 tested CK/rocWMMA fixed-modulus accelerator
 reducer identities for finite ring modulus 256 at 512x512x512 with release
 builds, three warmups, nine repeats, seed `20260602`, and required GPU events.
 The v2 kernels were correct and event-visible, but they did not promote:
 direct-HIP was 1382 us end-to-end, CK v2 was 1533 us, and rocWMMA v2 was
-1486 us. The older 251/255 finite accelerator winners keep their v1 kernel
-identities; attempted 251/255 accelerator fold variants remain deprioritized
-until they beat the existing release-reviewed paths end-to-end.
+1486 us. Current CK/rocWMMA finite-u8 planning also reports explicit
+fixed-modulus v2 identities for 251 and 255:
+`ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2`,
+`ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2`,
+`rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2`, and
+`rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2`. These identifiers
+make schema/cache evidence precise, but their speedups remain unreviewed until
+new release captures compare them against direct HIP and the historical
+same-modulus accelerator baselines end-to-end.
 
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 

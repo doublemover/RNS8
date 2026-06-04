@@ -639,6 +639,11 @@ Technical direction:
   Modulus 256 now has explicit CK/rocWMMA v2 selected-kernel identities with a
   shared mask reducer, but the June 4, 2026 release/event sweep at 512x512x512
   still favored direct-HIP end-to-end, so no reviewed cache entry was written.
+  Current CK/rocWMMA plans now report fixed-modulus 251/255/256 v2 identities
+  and route those cases through shared common-modulus reducer helpers; the old
+  generic accelerator identities are rejected for those explicit moduli by
+  schema/cache tooling. Fresh release captures are still required before any
+  historical 251/255 winner timing can be transferred to the new v2 identities.
 
 RNS8-specific notes:
 
@@ -1887,9 +1892,11 @@ Relation to new architecture work:
 ### 30. Finite-u8
 
 Status: direct HIP has fixed-modulus pack, GEMM reduction, and export kernels
-for 251/255/256. Reviewed accelerator winners already exist for ring 251,
-ring 255, and field 251 at 64/128/512/1024, but broader finite specialization
-remains open.
+for 251/255/256. CK and rocWMMA now expose common-modulus 251/255/256 selected
+kernel identities backed by shared reducer helpers. Reviewed accelerator
+winners already exist for ring 251, ring 255, and field 251 at
+64/128/512/1024, but those captures used the older generic accelerator
+identities; the v2 identities need fresh release review before promotion.
 
 Technical direction:
 
@@ -1915,6 +1922,9 @@ Likely first slices:
   moduli, while generic runtime-modulus kernels remain the fallback for other
   ring/field moduli.
 - CK/rocWMMA 251/255/256 reducer variants.
+  Implemented: API planning, schema validation, cache installation, and
+  backend-info tests now require explicit v2 selected-kernel identities for
+  those moduli. Release-reviewed speedups remain open.
 - Finite histogram-guided workload suite.
 - 1024 finite winner retuning for CK ring and hipBLASLt field.
 
@@ -2465,9 +2475,10 @@ Relation to new architecture work:
 
 - Finish bounded-i64 winner tuning for rocWMMA 512 and hipBLASLt 1024.
 - Optimize exact-wide export before broadening exact-wide GEMM variants.
-- Close out finite-u8 CK/rocWMMA reducer specialization: 251/255 accelerator
-  variants are deprioritized after measurement, and 256 remains correct but
-  experimental until it beats direct-HIP end-to-end.
+- Close out finite-u8 CK/rocWMMA reducer specialization: common-modulus
+  251/255/256 v2 identities and reducer helpers are implemented, but the queue
+  still needs release review to decide whether any v2 accelerator entry beats
+  its direct-HIP or historical accelerator baseline end-to-end.
 - Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
   candidate.
 

@@ -155,12 +155,16 @@ CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+    "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
+    "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
 ROCWMMA_SELECTED_KERNELS = {
     "rocwmma_i8_i32_signed_hot_residue_v1",
     "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
+    "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+    "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
     "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
 DIRECT_HIP_FINITE_GENERIC_KERNEL = "direct_hip_tiled_finite_u8_gemm_v1"
@@ -177,10 +181,14 @@ DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS = {
 }
 CK_FINITE_GENERIC_KERNEL = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
 CK_FINITE_SPECIALIZED_KERNELS = {
+    251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
+    255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
 ROCWMMA_FINITE_GENERIC_KERNEL = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
 ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
+    251: "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+    255: "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
     256: "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL = "direct_hip_native_a_finite_u8_gemm_v1"

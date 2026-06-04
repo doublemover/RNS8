@@ -13,7 +13,8 @@ namespace {
 
 constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
-constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
+constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
 constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
 constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
@@ -358,6 +359,20 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.epilogue = kCkFiniteEpilogue;
     item.kernel_family = kCkFiniteKernel;
     cases.push_back({item.key, item, ""});
+  }
+  {
+    std::string key =
+        reviewed_key(
+            "ck", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512, 128, 128,
+            kCkFiniteGenericKernel, kCkFiniteEpilogue) +
+        ";finite_modulus=251";
+    auto item = entry(key);
+    item.selected_kernel = kCkFiniteGenericKernel;
+    item.semantic_contract = "finite_ring_u8";
+    item.finite_modulus = 251;
+    item.epilogue = kCkFiniteEpilogue;
+    item.kernel_family = kCkFiniteGenericKernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
     auto item = entry(
