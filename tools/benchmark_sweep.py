@@ -153,7 +153,11 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     timing_metadata = capture.get("timing_metadata")
     output_policy = capture.get("output_policy")
     requested_next_op = capture.get("requested_next_op")
-    target_variant = capture.get("target_variant")
+    residue_output_mode = capture.get("residue_output_mode", "host_export")
+    if residue_output_mode == "host_export":
+        next_op_contract = "host_export"
+    else:
+        next_op_contract = requested_next_op.get("resolved") if isinstance(requested_next_op, dict) else None
     parts = [
         f"semantics={capture.get('semantics')}",
         f"finite_modulus={capture.get('finite_modulus')}",
@@ -173,20 +177,17 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"k_block={capture.get('k_block_size')}",
         f"exact_wide_limb_count={capture.get('exact_wide_limb_count')}",
         f"residue_chain_length={capture.get('residue_chain_length', 1)}",
-        f"residue_output_mode={capture.get('residue_output_mode', 'host_export')}",
+        f"residue_output_mode={residue_output_mode}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
         f"prepack_reuse_strategy={capture_prepack_reuse_strategy(capture)}",
-        f"next_op={requested_next_op.get('resolved') if isinstance(requested_next_op, dict) else None}",
+        f"next_op_contract={next_op_contract}",
         f"output_policy={output_policy.get('destination_layout') if isinstance(output_policy, dict) else None}",
         f"status_handling={output_policy.get('status_handling') if isinstance(output_policy, dict) else None}",
-        f"pack_layout={timing_metadata.get('pack_layout') if isinstance(timing_metadata, dict) else None}",
         f"fusion_mode={timing_metadata.get('fusion_mode') if isinstance(timing_metadata, dict) else None}",
         f"residue_group_width={timing_metadata.get('residue_group_width') if isinstance(timing_metadata, dict) else None}",
-        f"generated_reducer={timing_metadata.get('generated_reducer_identity') if isinstance(timing_metadata, dict) else None}",
-        f"target_namespace={target_variant.get('target_namespace') if isinstance(target_variant, dict) else None}",
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)

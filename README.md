@@ -104,6 +104,8 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 |---|---:|---|---:|---:|---|
 | bounded i64 | 512 | Direct HIP <br/> `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
 | bounded i64 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
+| bounded i64 adaptive-bands | 1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4937 us | no accelerator win | none |
+| bounded u64 adaptive-bands | 512x1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4224 us | no accelerator win | none |
 | finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |

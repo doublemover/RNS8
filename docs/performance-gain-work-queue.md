@@ -102,9 +102,16 @@ June 4, 2026 updates:
   `adaptive-bands` CPU comparator generation. One-repeat smoke captures under
   `temp/perf-work-queue/adaptive-current-v2-smoke/` are schema-valid for CPU,
   Direct HIP, runtime vector ALU, CK, and rocWMMA at bounded-i64
-  256x256x512, with required GPU events for the GPU records. This is capture
-  validity evidence only; the 512/1024 release rerun is still required before
-  replacing the old adaptive winner.
+  256x256x512, with required GPU events for the GPU records.
+- The current-v2 adaptive-bands release rerun is complete. The corrected review
+  grouping report under
+  `temp/perf-work-queue/adaptive-current-v2-release-reviewed/` has three
+  release groups, no missing required baselines, no duplicate backends, complete
+  target/toolchain metadata, schema-valid captures, and required GPU events.
+  Direct HIP is fastest for bounded-i64 256x256x512 at 1848 us, bounded-i64
+  1024x1024x1024 at 4937 us, and bounded-u64 512x1024x512 at 4224 us. No
+  adaptive accelerator cache entry is promoted; the old rocWMMA tiled-v1
+  adaptive cache identity is historical.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
@@ -112,7 +119,7 @@ June 4, 2026 updates:
 | 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
 | 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Large-shape and large reusable-B scenario coverage exists; `large-release-validation` now emits the CPU/direct/vector/accelerator 2048 comparator matrix missing from exploratory captures; current evidence-database GPU priority points at large bounded compute, pack, and export time | Run the 2048 validation matrix before promotion; keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
-| 5 | Partially unblocked current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner uses an older rocWMMA tiled-v1 identity, but the branch now fixes the capture blockers for CPU compact storage, CK/rocWMMA schedule flags, runtime vector comparator schema, and CPU comparator generation | One-repeat bounded-i64 256x256x512 smoke captures are schema-valid for CPU, Direct HIP, runtime vector ALU, CK, and rocWMMA with required GPU events where applicable; release review with current selected-kernel identities is still required at 512/1024 | Promote only event-valid current-v2 release winners; mark old v1 evidence historical and keep the smoke results out of cache decisions |
+| 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
 | 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
@@ -155,8 +162,6 @@ June 4, 2026 updates:
 
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
-| Adaptive bounded current-v2 still needs release-review evidence after capture unblock | The branch now makes CPU, Direct HIP, runtime vector ALU, CK, and rocWMMA adaptive-bands smoke captures schema-valid, but the proof is one-repeat plumbing evidence rather than release performance evidence | Current-v2 adaptive release review at 512/1024 with schema-valid CPU, Direct HIP, vector, and accelerator records |
-| Adaptive bounded-i64 1024 winner uses older rocWMMA tiled-v1 identity | Current selected-kernel identities and reducer paths changed | Current-v2 adaptive release review before promotion or cache install |
 | Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
 | Large 2048/4096 captures are bottleneck-classification evidence, not promotion evidence | Existing large bounded, large reusable-B, exact-wide, finite-u8, and wrap64 captures are useful for ranking work, but several are exploratory or missing CPU/reference and complete baseline coverage | Run `large-release-validation` for the 2048 CPU-backed matrix, then keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
 | Exact-wide 64/128 evidence is historical | Current v2 exact-wide evidence covers 512/1024 only | Current-v2 release review for 64/128 and selected limb counts |
@@ -174,6 +179,7 @@ June 4, 2026 updates:
 | Wrap64 Direct-HIP colpair experiment as default route | Deprioritize | Narrow GEMM improvement did not beat v4 end-to-end |
 | Wrap64 pinned export staging as default route | Deprioritize | Forced staging lost badly at 512 versus default policy |
 | CK/rocWMMA v1 bounded/exact-wide cache promotion | Do not promote | Selected-kernel identities are stale under current v2 reducer paths |
+| CK/rocWMMA adaptive current-v2 cache promotion | Do not promote | Current adaptive-bands release review is valid, but CK and rocWMMA lose badly to Direct HIP at every reviewed group |
 | Raw smoke or discovery captures as durable claims | Do not promote | They lack the release-review and required-event gates for public claims |
 
 ## Detailed Backlog And Research Notes
@@ -465,13 +471,13 @@ Remaining high-value imported work goes at the front of the queue:
   `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`; previous
   `hipblaslt_int8_i32_scratch_reduce_baseline_v1` timings are historical and
   should not be mixed into new autotune cache evidence.
-- Adaptive bounded i64 at 1024 has a reviewed historical rocWMMA winner:
-  `rocwmma_i8_i32_signed_tiled_hot_residue_v1`. The current branch unblocks
-  the current-v2 adaptive capture path at smoke-test scope: compact per-tile CPU
-  storage, Direct HIP, runtime vector comparator records, CK, and rocWMMA all
-  validate on a bounded-i64 256x256x512 adaptive-bands smoke. The reviewed
-  adaptive winner still uses the older tiled v1 identity and must be rerun at
-  release settings before promotion under the current selected-kernel identity.
+- Adaptive bounded now has current-v2 `adaptive-bands` Windows `gfx1100`
+  release-review evidence. Direct HIP wins the reviewed bounded-i64
+  256x256x512, bounded-i64 1024x1024x1024, and bounded-u64 512x1024x512
+  groups at 1848 us, 4937 us, and 4224 us median end-to-end respectively; CK
+  and rocWMMA current-v2 tiled paths lose to Direct HIP and no adaptive cache
+  entry is promoted. The older 1024 bounded-i64 rocWMMA
+  `rocwmma_i8_i32_signed_tiled_hot_residue_v1` result remains historical only.
 - Finite-u8 has current Windows `gfx1100` v2 release-review winners for 64, 128,
   512, and 1024 across ring 251/255/256 and field 251. Seven event-valid entries
   are now installed in the local default cache: ring-251 128 and 1024 rocWMMA,

@@ -251,16 +251,20 @@ adaptive `rns8-bench --backend auto` smoke emitted
 selected kernel `rocwmma_i8_i32_signed_tiled_hot_residue_v1`, and
 schema-valid
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`.
-That reviewed cache identity is also historical after the current tiled v2
-selected-kernel rename; rerun adaptive release review before promoting the v2
-tiled path.
+That reviewed cache identity is historical after the current tiled v2
+selected-kernel rename and must not be installed.
 
-The remaining adaptive groups were complete but blocked. Bounded i64 65x65x64
-stayed on vector-ALU at 402 us versus rocWMMA at 1041 us. Bounded u64
-1024x1024x1024 stayed on vector-ALU at 6658 us, with direct HIP at 7225 us and
-rocWMMA at 7253 us. Bounded u64 65x65x64 stayed on vector-ALU at 626 us, with CPU
-reference at 1094 us and rocWMMA at 1238 us. No bounded-u64 adaptive accelerator
-entry is promotable from this release review.
+A current-v2 adaptive-bands release review on June 4, 2026 used seed
+`20260604`, three warmups, nine measured repeats, CPU reference, Direct HIP,
+runtime `hip-vector-alu-int64`, CK, and rocWMMA. The corrected review grouped
+the 15 captures into three same-contract groups with no missing required
+baselines, no duplicate backend records, compatible target/toolchain metadata,
+schema-valid captures, and required GPU events for GPU records. Direct HIP was
+fastest in every group: 1848 us for bounded i64 256x256x512, 4937 us for
+bounded i64 1024x1024x1024, and 4224 us for bounded u64 512x1024x512. CK and
+rocWMMA current-v2 tiled paths lost to Direct HIP at all reviewed adaptive-bands
+shapes, so no adaptive accelerator cache entry is promotable from the current
+review.
 
 ## Windows `gfx1100` release-reviewed finite-u8 matrix
 

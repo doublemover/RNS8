@@ -1275,6 +1275,52 @@ def main() -> int:
     assert group["hip_runtime_version_complete"] is True
     assert group["hip_runtime_version_compatible"] is True
 
+    bounded_ck = bounded_capture("ck", 700)
+    bounded_direct = bounded_capture("hip-direct", 300)
+    bounded_cpu = bounded_capture("cpu-reference", 5000)
+    bounded_vector = bounded_capture("hip-vector-alu-int64", 900)
+    bounded_ck["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
+    bounded_ck["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx1100",
+        "review_group_key": "gfx1100/target=gfx1100/backend=ck",
+    }
+    bounded_direct["timing_metadata"]["generated_reducer_identity"] = (
+        "direct_hip_fixed_prefix_2_generated_reducer_v1"
+    )
+    bounded_direct["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx1100",
+        "review_group_key": "gfx1100/target=gfx1100/backend=hip-direct",
+    }
+    bounded_cpu["target_variant"] = {
+        "target_id": "cpu",
+        "target_namespace": "cpu",
+        "review_group_key": "cpu/target=cpu/backend=cpu-reference",
+    }
+    bounded_vector["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"
+    bounded_vector["requested_next_op"] = {
+        "requested": "native-gemm",
+        "resolved": "native-gemm",
+        "source": "benchmark_default",
+    }
+    bounded_vector["timing_metadata"]["pack_layout"] = "native_i64_row_major"
+    bounded_vector["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx1100",
+        "review_group_key": "gfx1100/target=gfx1100/backend=hip-vector-alu-int64",
+    }
+    implementation_split_report = benchmark_sweep.review_captures(
+        [bounded_ck, bounded_direct, bounded_cpu, bounded_vector],
+        review_mode="release",
+    )
+    assert implementation_split_report["group_count"] == 1
+    implementation_split_group = implementation_split_report["groups"][0]
+    assert implementation_split_group["missing_required_baselines"] == []
+    assert {
+        candidate["backend"] for candidate in implementation_split_group["candidates"]
+    } == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
+
     eventless_ck = finite_capture("ck", 190)
     remove_gpu_events(eventless_ck)
     eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")
