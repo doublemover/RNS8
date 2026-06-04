@@ -431,6 +431,148 @@ def add_output_padding_fields(capture: dict, padding: int) -> dict:
     return capture
 
 
+def add_target_variant_fields(capture: dict, target_id: str = "gfx1100") -> dict:
+    namespace = "gfx1100" if target_id == "gfx1100" else "unknown"
+    capture["target_variant"] = {
+        "target_id": target_id,
+        "target_namespace": namespace,
+        "review_group_key": (
+            f"{namespace}/target={target_id}/backend={capture['backend_selected']}/"
+            f"semantics={capture['semantics']}/configured={capture.get('configured_amdgpu_targets', '')}/runtime="
+            f"{capture.get('device', {}).get('hip_runtime_version', 0)}"
+        ),
+        "configured_amdgpu_targets": capture.get("configured_amdgpu_targets", ""),
+        "hip_enabled": capture.get("hip_toolchain", {}).get("enabled", False),
+        "hip_runtime_version": capture.get("device", {}).get("hip_runtime_version", 0),
+        "hip_driver_version": capture.get("device", {}).get("hip_driver_version", 0),
+    }
+    return capture
+
+
+def add_requested_next_op_fields(
+    capture: dict,
+    resolved: str = "final-export",
+    requested: str = "auto",
+    source: str = "benchmark_default",
+) -> dict:
+    capture["requested_next_op"] = {
+        "requested": requested,
+        "resolved": resolved,
+        "source": source,
+        "final_export_available": resolved == "final-export",
+        "rns_continuation_available": resolved == "rns-gemm",
+        "native_continuation_available": resolved == "native-gemm",
+        "native_to_rns_available": resolved == "native-to-rns",
+        "reusable_b_prepack_available": resolved == "reuse-b",
+    }
+    return capture
+
+
+def add_output_policy_fields(
+    capture: dict,
+    status_handling: str = "required",
+    per_repeat_export: bool = True,
+    final_checksum_export: bool = False,
+) -> dict:
+    padding = int(capture.get("output_ld_padding", 0) or 0)
+    logical_ld = int(capture.get("output_logical_ld", capture["n"] + padding))
+    capture["output_logical_ld"] = logical_ld
+    capture["output_ld_padding"] = padding
+    capture["timing_metadata"]["benchmark_output_destination_layout"] = (
+        "contiguous_row_major" if padding == 0 else "padded_row_major"
+    )
+    capture["timing_metadata"]["benchmark_output_logical_ld"] = logical_ld
+    capture["timing_metadata"]["benchmark_output_ld_padding"] = padding
+    capture["timing_metadata"].setdefault("direct_hip_export_staging_policy", "not_applicable")
+    capture["output_policy"] = {
+        "destination_layout": "contiguous_row_major" if padding == 0 else "padded_row_major",
+        "logical_ld": logical_ld,
+        "ld_padding": padding,
+        "per_repeat_logical_export": per_repeat_export,
+        "final_checksum_export_after_repeats": final_checksum_export,
+        "status_handling": status_handling,
+        "status_event_policy": (
+            "status_memset_and_status_d2h_labels_required_when_gpu_events_available"
+            if status_handling == "required"
+            else "status_labels_zero_filled_or_absent_because_no_per_repeat_status_export_launches"
+            if status_handling == "structurally_elided"
+            else "no_range_status_for_semantic"
+        ),
+    }
+    return capture
+
+
+def add_device_allocation_fields(capture: dict) -> dict:
+    zero = {"allocate_calls": 0, "free_calls": 0, "allocated_bytes": 0}
+    capture["device_allocation"] = {
+        "tracking_available": True,
+        "source": "hip_direct_allocation_counters_snapshot",
+        "setup_scope": "persistent_plan_workspace_resident_matrices",
+        "source_version_inputs": "monotonic_source_version_per_repeat_when_packing_runs",
+        "before": dict(zero),
+        "after_warmups": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
+        "after_repeats": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
+        "setup_delta": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
+        "measured_repeat_delta": dict(zero),
+    }
+    return capture
+
+
+def add_auto_selector_fields(capture: dict) -> dict:
+    capture["auto_selector"] = {
+        "source": "rns8_bench_private_selector_report",
+        "requested_backend": capture["backend_requested"],
+        "selected_backend": capture["backend_selected"],
+        "selected_key": capture["backend_metadata"].get("autotune_key"),
+        "validated_hit": False,
+        "cache_load_state": "missing",
+        "runtime_target_id": capture.get("device", {}).get("gcn_arch", "gfx1100"),
+        "runtime_version": str(capture.get("device", {}).get("hip_runtime_version", 0)),
+        "fallback_reason": "no exact entry",
+        "rejection_reason_vocabulary": [
+            "unsupported semantics",
+            "per-tile unsupported",
+            "backend not compiled",
+            "probe failed",
+            "no exact entry",
+            "unvalidated entry",
+            "identity/runtime mismatch",
+            "workspace mismatch",
+            "slower than selected",
+        ],
+        "rejected_candidates": [{"backend": "ck", "reason": "backend not compiled"}],
+    }
+    return capture
+
+
+def add_timing_helper_fields(
+    capture: dict,
+    pack_layout: str = "resident_rns_residue_planes",
+    fusion_mode: str = "none",
+    reducer: str = "not_applicable",
+) -> dict:
+    capture["timing_metadata"]["pack_layout"] = pack_layout
+    capture["timing_metadata"]["fusion_mode"] = fusion_mode
+    capture["timing_metadata"]["residue_group_width"] = 1 if fusion_mode == "none" else 3
+    capture["timing_metadata"]["residue_group_layout"] = (
+        "one_modulus_per_residue_plane"
+        if fusion_mode == "none"
+        else "first_prefix9_moduli_contiguous_width3_groups"
+    )
+    capture["timing_metadata"]["generated_reducer_identity"] = reducer
+    return capture
+
+
+def add_helper_lane_fields(capture: dict, resolved_next_op: str = "final-export") -> dict:
+    add_target_variant_fields(capture)
+    add_requested_next_op_fields(capture, resolved=resolved_next_op)
+    add_output_policy_fields(capture)
+    add_device_allocation_fields(capture)
+    add_auto_selector_fields(capture)
+    add_timing_helper_fields(capture)
+    return capture
+
+
 def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
     k_block = min(capture["k"], cap)
     finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
@@ -978,6 +1120,40 @@ def as_direct_hip_bounded_uniform_small_transient_capture(capture: dict) -> dict
     return transient
 
 
+def as_direct_hip_bounded_residue_channel_fusion_capture(capture: dict) -> dict:
+    fusion = as_direct_hip_bounded_uniform_small_transient_capture(capture)
+    kernel = "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0"
+    epilogue = "width3_residue_fusion_transient_then_crt_export"
+    fusion["benchmark"] = "rns8_bounded_gemm_residue_channel_fusion_experiment"
+    fusion["benchmark_execution_mode"] = "residue_channel_fusion_native_inputs"
+    fusion["selected_kernel"] = kernel
+    fusion["backend_metadata"]["source"] = "rns8_bench_residue_channel_fusion_path"
+    fusion["backend_metadata"]["selected_kernel"] = kernel
+    fusion["backend_metadata"]["epilogue_mode"] = epilogue
+    fusion["backend_metadata"]["workspace_mode"] = "width3_residue_fusion_transient_i8_inputs"
+    fusion["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=uniform-small;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=residue_channel_fusion_native_inputs;"
+        f"kernel={kernel};epilogue={epilogue}"
+        ),
+        fusion,
+    )
+    fusion["timing_metadata"]["benchmark_execution_mode"] = "residue_channel_fusion_native_inputs"
+    add_target_variant_fields(fusion)
+    add_requested_next_op_fields(fusion, resolved="final-export")
+    add_output_policy_fields(fusion)
+    add_timing_helper_fields(
+        fusion,
+        pack_layout="native_i8_row_major_residue_channel_width3",
+        fusion_mode="residue_channel_width3_experimental_benchmark_only",
+        reducer="direct_hip_fixed_prefix_9_generated_reducer_v1",
+    )
+    return fusion
+
+
 def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -1339,6 +1515,14 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
     chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
     chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
     chain["avg_crt_export_us"] = 0.0
+    add_target_variant_fields(chain)
+    add_requested_next_op_fields(chain, resolved="rns-gemm")
+    add_output_policy_fields(
+        chain,
+        status_handling="structurally_elided",
+        per_repeat_export=False,
+        final_checksum_export=True,
+    )
     add_ck_chain_gpu_events(chain, 20)
     return chain
 
@@ -1395,6 +1579,14 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
     chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
     chain["avg_crt_export_us"] = 0.0
+    add_target_variant_fields(chain)
+    add_requested_next_op_fields(chain, resolved="rns-gemm")
+    add_output_policy_fields(
+        chain,
+        status_handling="structurally_elided",
+        per_repeat_export=False,
+        final_checksum_export=True,
+    )
     add_ck_chain_gpu_events(chain, 9)
     return chain
 
@@ -1683,6 +1875,40 @@ def main() -> int:
     padded_output = add_output_padding_fields(copy.deepcopy(v4_ck_i64), 7)
     validate_capture(padded_output)
 
+    helper_lane_ck = add_helper_lane_fields(copy.deepcopy(v4_ck_i64))
+    validate_capture(helper_lane_ck)
+
+    helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))
+    add_timing_helper_fields(
+        helper_lane_direct,
+        reducer="direct_hip_fixed_prefix_9_generated_reducer_v1",
+    )
+    validate_capture(helper_lane_direct)
+
+    missing_helper_target = copy.deepcopy(helper_lane_ck)
+    del missing_helper_target["target_variant"]
+    expect_invalid(missing_helper_target, "HIP helper-lane captures must include target_variant")
+
+    bad_helper_target_namespace = copy.deepcopy(helper_lane_ck)
+    bad_helper_target_namespace["target_variant"]["target_namespace"] = "unknown"
+    expect_invalid(bad_helper_target_namespace, "concrete target_namespace")
+
+    stale_generated_reducer = copy.deepcopy(helper_lane_direct)
+    stale_generated_reducer["timing_metadata"]["generated_reducer_identity"] = "generic"
+    expect_invalid(stale_generated_reducer, "declared reducer identity")
+
+    bad_selector_reason = copy.deepcopy(helper_lane_ck)
+    bad_selector_reason["auto_selector"]["rejected_candidates"][0]["reason"] = "unsupported"
+    expect_invalid(bad_selector_reason, "fixed rejection reason")
+
+    bad_allocation_bytes = copy.deepcopy(helper_lane_ck)
+    bad_allocation_bytes["device_allocation"]["measured_repeat_delta"]["allocated_bytes"] = -1
+    expect_invalid(bad_allocation_bytes, "device_allocation.measured_repeat_delta.allocated_bytes")
+
+    bad_output_policy = copy.deepcopy(helper_lane_ck)
+    bad_output_policy["output_policy"]["destination_layout"] = "padded_row_major"
+    expect_invalid(bad_output_policy, "output_policy.destination_layout must match output_ld_padding")
+
     stale_output_ld = copy.deepcopy(padded_output)
     stale_output_ld["output_logical_ld"] += 1
     expect_invalid(stale_output_ld, "output_logical_ld must equal n + output_ld_padding")
@@ -1957,6 +2183,22 @@ def main() -> int:
     validate_capture(direct_hip_bounded_native_a_reuse_b)
     direct_hip_bounded_uniform_small_transient = as_direct_hip_bounded_uniform_small_transient_capture(v4_ck_i64)
     validate_capture(direct_hip_bounded_uniform_small_transient)
+    direct_hip_residue_channel_fusion = as_direct_hip_bounded_residue_channel_fusion_capture(v4_ck_i64)
+    validate_capture(direct_hip_residue_channel_fusion)
+
+    stale_fusion_pack_layout = copy.deepcopy(direct_hip_residue_channel_fusion)
+    stale_fusion_pack_layout["timing_metadata"]["pack_layout"] = "native_i8_row_major_uniform_small"
+    expect_invalid(stale_fusion_pack_layout, "pack_layout=native_i8_row_major_residue_channel_width3")
+
+    stale_fusion_execution = copy.deepcopy(direct_hip_residue_channel_fusion)
+    stale_fusion_execution["backend_metadata"]["autotune_key"] = stale_fusion_execution["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "execution=residue_channel_fusion_native_inputs",
+        "execution=transient_uniform_small_i8_ab_inputs",
+    )
+    expect_invalid(stale_fusion_execution, "execution=residue_channel_fusion_native_inputs")
+
     stale_transient_kernel = copy.deepcopy(direct_hip_bounded_uniform_small_transient)
     stale_transient_kernel_name = "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
     stale_transient_kernel["selected_kernel"] = stale_transient_kernel_name
@@ -2305,6 +2547,18 @@ def main() -> int:
     validate_capture(exact_chain_ck)
     bounded_chain_ck = as_bounded_residue_current_chain_capture(v4_ck_i64)
     validate_capture(bounded_chain_ck)
+
+    bad_chain_missing_next_op = copy.deepcopy(exact_chain_ck)
+    del bad_chain_missing_next_op["requested_next_op"]
+    expect_invalid(bad_chain_missing_next_op, "residue-current chain captures must declare requested_next_op")
+
+    bad_chain_next_op = copy.deepcopy(exact_chain_ck)
+    bad_chain_next_op["requested_next_op"]["resolved"] = "final-export"
+    expect_invalid(bad_chain_next_op, "requested_next_op.resolved=rns-gemm")
+
+    bad_chain_output_policy = copy.deepcopy(exact_chain_ck)
+    bad_chain_output_policy["output_policy"]["per_repeat_logical_export"] = True
+    expect_invalid(bad_chain_output_policy, "output_policy.per_repeat_logical_export=false")
 
     bad_exact_bound = copy.deepcopy(exact_wide_ck)
     bad_exact_bound["bound_kind"] = "global_max_abs"

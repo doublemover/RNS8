@@ -478,6 +478,48 @@ def main() -> int:
     assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
     assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
 
+    catalog = benchmark_sweep.scenario_catalog()
+    for scenario_name in [
+        "generated-prefix-reducers",
+        "multi-modulus-pack",
+        "residue-channel-fusion",
+        "fused-pack-gemm-small",
+    ]:
+        assert scenario_name in catalog
+        assert catalog[scenario_name]
+    fusion_item = catalog["residue-channel-fusion"][0]
+    assert fusion_item.residue_channel_fusion is True
+    assert fusion_item.next_op_hint == "final-export"
+    scenario_base_args = argparse.Namespace(
+        warmups=1,
+        repeats=2,
+        seed=11,
+        reuse_packed_inputs=False,
+        reuse_packed_a=False,
+        reuse_packed_b=False,
+        residue_chain_length=1,
+        output_ld_padding=0,
+        prefix_policy=None,
+        max_prefix=None,
+        bound_source=None,
+        next_op_hint=None,
+        residue_channel_fusion=False,
+    )
+    fusion_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, fusion_item)
+    fusion_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        fusion_item.semantics,
+        fusion_item.case,
+        None,
+        None,
+        fusion_args,
+    )
+    assert "--residue-channel-fusion" in fusion_command
+    assert "--next-op-hint" in fusion_command and "final-export" in fusion_command
+    assert "--prefix-policy" in fusion_command and "fixed-requested" in fusion_command
+    assert "--max-prefix" in fusion_command and "9" in fusion_command
+
     wrap64_args = argparse.Namespace(
         bench=Path("rns8-bench"),
         bench_for=[],

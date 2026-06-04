@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from benchmark_schema import load_capture, validate_capture
 from isa_common import (
     IsaToolConfig,
     device_function_symbols,
@@ -41,6 +42,34 @@ GLOBAL_STORE_RE = re.compile(r"\b(?:global|buffer)_store\b|\b(?:global|buffer)_s
 VGPR_RE = re.compile(r"(?:VGPRs?|\.amdhsa_next_free_vgpr)\D+(\d+)", re.IGNORECASE)
 SGPR_RE = re.compile(r"(?:SGPRs?|\.amdhsa_next_free_sgpr)\D+(\d+)", re.IGNORECASE)
 OCCUPANCY_RE = re.compile(r"occupancy\D+(\d+)", re.IGNORECASE)
+
+
+def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
+    capture = load_capture(path)
+    validate_capture(capture, path)
+    target = capture.get("target_variant")
+    if not isinstance(target, dict):
+        target = {}
+    timing = capture.get("timing_metadata")
+    if not isinstance(timing, dict):
+        timing = {}
+    return {
+        "path": str(path),
+        "label": label,
+        "schema_version": capture.get("schema_version"),
+        "benchmark": capture.get("benchmark"),
+        "benchmark_execution_mode": capture.get("benchmark_execution_mode"),
+        "backend_selected": capture.get("backend_selected"),
+        "selected_kernel": capture.get("selected_kernel"),
+        "semantics": capture.get("semantics"),
+        "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
+        "target_id": target.get("target_id"),
+        "target_namespace": target.get("target_namespace"),
+        "review_group_key": target.get("review_group_key"),
+        "pack_layout": timing.get("pack_layout"),
+        "fusion_mode": timing.get("fusion_mode"),
+        "generated_reducer_identity": timing.get("generated_reducer_identity"),
+    }
 
 
 def discover_objects(build_tree: Path, backend: str) -> list[Path]:
@@ -182,6 +211,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--llvm-objdump", help="Override llvm-objdump path")
     parser.add_argument("--clang-offload-bundler", help="Override clang-offload-bundler path")
     parser.add_argument("--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default")
+    parser.add_argument("--capture", type=Path, help="optional schema-v4 benchmark capture to validate and cross-link")
+    parser.add_argument("--capture-label", help="human label for the cross-linked capture")
     parser.add_argument("--scratch-root", type=Path, default=Path("temp"), help="ignored scratch directory")
     parser.add_argument("--out-dir", type=Path, default=Path("temp") / "isa-reports", help="temp-only output directory")
     return parser.parse_args()
@@ -212,6 +243,7 @@ def main() -> int:
         "bundler": args.clang_offload_bundler or sibling_tool(hipcc, "clang-offload-bundler"),
         "scratch_root": args.scratch_root,
     }
+    linked_capture = capture_metadata(args.capture, args.capture_label) if args.capture is not None else None
 
     outputs = []
     for obj in unique_objects:
@@ -220,6 +252,8 @@ def main() -> int:
         backend = backend_for_object(obj, args.backend)
         config = IsaToolConfig(host_object=obj, **config_template)
         report = report_object(config, backend, args.rga)
+        if linked_capture is not None:
+            report["capture"] = linked_capture
         report["config"] = json_safe_config(config)
         outputs.append(write_report(report, args.out_dir))
 

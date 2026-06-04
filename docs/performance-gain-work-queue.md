@@ -40,12 +40,35 @@ Evidence sources for current promotion state are
 [roadmap-status.md](roadmap-status.md), and the README's
 [current local performance snapshot](../README.md#exactness-and-performance).
 
+## Recent Execution Status
+
+June 4, 2026 updates:
+
+- PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
+  32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
+  surfaces for generated reducer identities, residue-channel fusion metadata,
+  multi-modulus pack layout metadata, fused one-shot comparison surfaces,
+  next-op hints, output policy metadata, AUTO selector explanations,
+  plan/allocation fingerprints, counter report ingestion, and target-keyed
+  review grouping. They are not promoted speedup claims by themselves.
+- Current-v2 bounded-u64 square and selected skinny reruns replaced the stale
+  vector-leadership assumption. The promoted local AUTO keys are now the
+  measured CK 512 square winner and the measured hipBLASLt 256x1x4096 skinny
+  winner; smaller square cases still prefer CPU or Direct HIP.
+- Finite-u8 generic prime/composite 512 was promoted for three local AUTO keys:
+  ring 127 through rocWMMA, field 127 through CK, and ring 253 through
+  hipBLASLt. The field-127 hipBLASLt capture remains validation debt because
+  required hipBLASLt events were missing.
+- Finite-u8 2048 hot-modulus work has exploratory GPU evidence but no CPU
+  baseline-backed promotion yet. Keep it as bottleneck classification until
+  release review can include the required CPU/reference coverage.
+
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 1 | Evidence database and roofline summary from current schema v4 captures | The repo has many reviewed captures but no compact analysis layer that ranks where time is going | Generate summary from schema-valid captures and review reports; keep raw data under `temp/` | Promote as planning infrastructure only; no speedup claim without matching reviewed captures |
 | 2 | Scenario benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Add scenario runs with semantic, reuse, output-domain, and evidence-scope metadata | Keep scenarios if they preserve exact CPU checks and do not imply unsupported FHE/CAS product scope |
 | 3 | 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes will show whether RNS8 is launch/export-bound or real throughput-bound | Release/exploratory review for 2048 and tolerable 4096 shapes with CPU/reference checks and required events | Use results to classify bottlenecks before deeper backend-specific tuning |
-| 4 | Current-v2 bounded-u64 rerun to refresh vector/direct claims | Vector bounded-u64 leadership needs confirmation after Direct-HIP changes | Current-code release review across 64/128/512/1024 plus selected skinny cases | Update claims and fallback policy based on same-contract current evidence |
+| 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Current-v2 adaptive bounded rerun to replace old tiled-v1 adaptive winner evidence | The adaptive bounded-i64 winner uses an older rocWMMA tiled-v1 identity | Release review with current selected-kernel identities and required events | Promote only event-valid current-v2 winners; mark old v1 evidence historical |
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
@@ -55,44 +78,45 @@ Evidence sources for current promotion state are
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Same-contract export-heavy captures by limb count with GPU events and checksum/limb equality | Promote only setup-inclusive export path wins, not isolated copy improvements |
 | 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
 | 13 | Exact-wide 64/128/2048/4096 and limb-count release matrix | Current exact-wide claims cover only 512/1024 for selected signedness cases | Release review across small, current, large, signed, unsigned, and limb-count variants | Install cache entries only for exact shape/semantic/limb keys with required events |
-| 14 | Finite-u8 2048/4096 hot-modulus release matrix | Current finite-u8 accelerator wins stop at 1024 | Release review for ring 251/255/256 and field 251 at 2048 and tolerable 4096 | Promote hot-modulus cache keys only when they beat CPU and Direct HIP |
-| 15 | Finite-u8 generic prime/composite modulus coverage | Current finite wins may be hot-modulus paths rather than a real general feature | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep generic paths experimental until they prove feature value or fill unsupported contracts |
+| 14 | Finite-u8 2048/4096 hot-modulus release matrix | 2048 GPU-only evidence now exists, but CPU-backed release proof is still missing | Release review for ring 251/255/256 and field 251 at 2048 and tolerable 4096 | Promote hot-modulus cache keys only when they beat CPU and Direct HIP with required events |
+| 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, but broader sizes and the field-127 hipBLASLt event gap remain | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Vector/native-to-RNS bridge | Strong vector bounded-u64 output should feed RNS backends cheaply instead of becoming a dead end | Device-to-device native-to-RNS chain captures with explicit conversion timing and RNS consumer correctness | Route only explicit conversion paths with stale-kernel schema rejection |
-| 17 | Vector N=1 GEMV selector and cache policy | Long-K N=1 vector kernels have strong same-backend wins | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds with exact schema rejection for stale kernels |
+| 17 | Reframe Vector N=1 GEMV selector and cache policy | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds where vector beats CPU, Direct HIP, and accelerator alternatives end-to-end |
 | 18 | Reuse/prepack workload contract promotion | Repeated-A/B wins are real but need explicit repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, and stale-source rejection | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
 | 19 | hipBLASLt A/B reuse conversion from benchmark win to explicit workload contract | hipBLASLt A/B reuse is the strongest event-valid reuse signal | Public or benchmark-contract design plus release evidence including setup amortization | Promote only when one-time setup and repeated-call semantics are visible and correct |
 | 20 | Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse has event-valid wins but narrow data profiles | Release evidence for adaptive, finite, exact-wide, and non-uniform inputs | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
 | 21 | Bound-discovery proof-mask setup-inclusive release matrix | Proof masks reduced scan cost but need broader end-to-end proof | Release captures comparing static profile, input-scan, tile-bound, and proof-mask modes | Promote only when scan cost plus execution savings beat setup-inclusive baselines |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips; other backends are incomplete | CPU, CK, rocWMMA, and hipBLASLt correctness/event evidence for skipped work | Extend only where event traces show skipped backend work, not just metadata |
-| 23 | Generated prefix-specific reducers for bounded prefixes 1..9 | Generic reduction remains a likely cost center | Generated reducer variants with selected-kernel names and ISA gates | Keep variants only when prefix-specific end-to-end wins beat generic reducers |
+| 23 | Closed helper lane: generated prefix-specific reducers for bounded prefixes 1..9 | PR #10 adds fixed-prefix reducer identity, dispatch, and ISA-gate surfaces | Release A/B still needs prefix-specific end-to-end proof against generic reducers | Closed as infrastructure; reopen only for measured prefix-specific speedup work |
 | 24 | Shared epilogue DSL for Direct-HIP, hipBLASLt, CK, and rocWMMA reducers | Reducer specialization is duplicated across accelerators | One DSL-generated family with schema fixtures and stale-cache rejection | Adopt only if generated names, metadata, and ISA reports remain inspectable |
-| 25 | Residue-channel fusion experiments | Avoiding separate residue GEMMs may beat per-plane scheduling | Microbenchmarks and release captures showing fewer launches/materializations | Continue only if fusion wins end-to-end after pack/export effects |
-| 26 | Multi-modulus pack experiments | Packing dominates small/repeated paths and may be amortized across moduli | Same-contract pack event comparisons with required correctness checks | Keep only if pack savings survive GEMM/export timing and cache keys distinguish layout |
-| 27 | Fused pack+GEMM for small one-shot bounded and finite workloads | Matrix-engine paths lose when setup dominates small shapes | Release captures for 64/128 bounded and finite one-shot cases | Promote only if fused path beats CPU, Direct HIP, and current accelerator winner |
+| 25 | Closed helper lane: residue-channel fusion experiments | PR #10 adds benchmark-only residue-channel fusion metadata and stale-schema rejection | Microbenchmarks and release captures still need to show fewer launches/materializations | Closed as exposure; continue only if fusion wins end-to-end after pack/export effects |
+| 26 | Closed helper lane: multi-modulus pack experiments | PR #10 adds pack-layout and residue-group metadata for comparison keys | Same-contract pack event comparisons still need required correctness checks | Closed as metadata surface; keep variants only if pack savings survive GEMM/export timing |
+| 27 | Closed helper lane: fused pack+GEMM for small one-shot bounded and finite workloads | PR #10 adds comparison surfaces for one-shot/transient fused-path experiments | Release captures still need 64/128 bounded and finite one-shot proof | Closed as benchmark surface; promote only if fused path beats CPU, Direct HIP, and current accelerator winner |
 | 28 | End-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | Scenario matrix with layout metadata and target-id keyed autotune fields | Keep layout variants only with complete same-contract metadata and event attribution |
 | 29 | Persistent/grouped scheduler for adaptive prefix groups | Adaptive prefix groups need launch and scheduling amortization beyond simple tile skipping | Grouped scenario captures with CPU/direct-HIP baselines and per-task correctness | Promote only when grouping beats independent calls including queue/setup overhead |
 | 30 | HIP Graph replay for repeated fixed-shape pack/GEMM/export | Repeated workflows can remove launch overhead without changing math | Internal graph replay benchmark with fixed-shape identity and handle lifetime checks | Keep internal until exact status/error behavior matches ordinary calls |
 | 31 | Host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | Benchmark-only begin/enqueue/end flow with explicit status aggregation | Promote only if batching wins while preserving deterministic per-operation errors |
-| 32 | Next-op and lazy-export metadata | Reuse, graphs, and chain scheduling need declared future use | Plan/workspace metadata proposal plus benchmark schema fields | Keep metadata advisory until public API semantics are clear |
+| 32 | Closed helper lane: next-op and lazy-export metadata | PR #10 adds requested next-op and output-domain planning metadata to schema-v4 captures | Chain/lazy-export scenarios still need release proof with exact final CPU comparison | Closed as metadata; keep advisory until public API semantics are clear |
 | 33 | Reconstruction backend variants for GPU CRT/export | Current wins often move with export/status timing | Release A/B for GPU CRT, compact export, status handling, and host scatter variants | Promote only setup-inclusive export path wins, not isolated copy improvements |
-| 34 | Export/status overhead tuning with explicit padded/contiguous policy | Padded output staging has mixed semantic-specific behavior | Release captures for padded and contiguous outputs with event-visible D2H/status phases | Default-enable only per semantic/layout where repeated evidence wins |
-| 35 | CPU/GPU hybrid AUTO selector explanations | Small-shape accelerator wins must beat CPU, not just Direct HIP | Selector output explaining reviewed cache hits, CPU fallbacks, and rejected candidates | Promote selector changes only if they improve transparency without weakening evidence gates |
+| 34 | Closed helper lane: explicit padded/contiguous output policy | PR #10 records output policy and status/export handling in schema-v4 captures | Release captures still need padded versus contiguous A/B with event-visible D2H/status phases | Closed as metadata; default-enable only per semantic/layout where repeated evidence wins |
+| 35 | Closed helper lane: CPU/GPU hybrid AUTO selector explanations | PR #10 reports AUTO cache hits, fallbacks, and rejection reasons for benchmark/inspect tooling | Selector behavior still needs reviewed cache evidence before routing changes | Closed as explanation surface; promote selector behavior only without weakening evidence gates |
 | 36 | AUTO cache shape-family recommendation layer | Exact-shape cache hits are too narrow for real workloads | Reviewed shape-family policy layered above exact-shape entries | Keep disabled until family recommendations cannot cross semantic/layout/target boundaries |
-| 37 | Device plan cache and workspace arena | Repeated planning/allocation overhead affects scenario wins | Benchmarks separating planning, allocation, pack, GEMM, and export | Promote only when cache identity includes plan, target, backend, and source versions |
+| 37 | Closed helper lane: device plan cache and workspace arena evidence | PR #10 adds plan/workspace fingerprints and post-warmup allocation evidence | Benchmarks still need to separate planning, allocation, pack, GEMM, and export for real cache work | Closed as evidence surface; promote only when cache identity includes plan, target, backend, and source versions |
 | 38 | Verification-cost reduction for repeated exact workloads | Exact checks can dominate validation of repeated scenarios | Validation modes that reuse CPU/reference structure without reducing correctness | Keep tooling-only unless every promoted capture still has exact CPU differential coverage |
 | 39 | Error-detecting exact fast path with explicit metadata | Probabilistic or checked fast paths are research-only but may unlock workloads | Research captures with verification metadata and false-negative policy | Never make default exact API probabilistic; keep explicitly research-marked |
-| 40 | Hardware-counter/RGA ingestion into evidence reports | Event timing explains phases but not occupancy, stores, or stalls | Optional counter/ISA summaries linked to reviewed captures | Use as explanation evidence only; do not replace timing and correctness gates |
-| 41 | Architecture-specific kernel namespaces and target-keyed variants | Windows `gfx1100` tuning must not leak into RDNA4/CDNA claims | Target-id keyed kernels, cache entries, and review grouping | Promote non-`gfx1100` only after real host evidence on that target |
+| 40 | Closed helper lane: hardware-counter/RGA ingestion into evidence reports | PR #10 adds counter report tooling and ISA/capture cross-links | Optional counter/ISA summaries can now attach to reviewed captures | Closed as tooling; use as explanation evidence only, never as a replacement for timing and correctness gates |
+| 41 | Closed helper lane: architecture-specific kernel namespaces and target-keyed variants | PR #10 adds target-id, namespace, configured target, runtime version, and review grouping metadata | Target-specific cache entries still need real host evidence | Closed as schema/tooling; promote non-`gfx1100` only after evidence on that target |
 | 42 | Linux/Instinct/toolchain matrix gates for future non-Windows promotion | Production platform readiness is still unproven | Real Linux ROCm/Instinct builds, tests, profiling, and release captures | Keep Windows claims local until target-specific evidence exists |
 
 ## Validation Debt
 
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
-| Bounded-u64 vector leadership is based on earlier release evidence | Direct-HIP and reuse paths have changed since the last bounded-u64 matrix | Current-code release review for 64/128/512/1024 with CPU, Direct HIP, vector, and applicable accelerators |
+| Adaptive bounded current-v2 still needs a clean vector/direct baseline policy | The square and selected skinny bounded-u64 refresh is complete, but adaptive captures still mix old vector assumptions with schema constraints | Current-v2 adaptive release review with schema-valid CPU, Direct HIP, vector, and accelerator records |
 | Adaptive bounded-i64 1024 winner uses older rocWMMA tiled-v1 identity | Current selected-kernel identities and reducer paths changed | Current-v2 adaptive release review before promotion or cache install |
 | Exact-wide 64/128 evidence is historical | Current v2 exact-wide evidence covers 512/1024 only | Current-v2 release review for 64/128 and selected limb counts |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
+| Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
 
 ## Do Not Chase Next
@@ -311,6 +335,21 @@ Remaining high-value imported work goes at the front of the queue:
    `src/reconstruct/crt.cpp`, selected-kernel metadata in
    `src/core/api_plan.cpp`, and ISA/report tooling in `tools/gpu_isa_report.py`.
 
+   Helper-lane status: Direct-HIP fixed-prefix native pack dispatch now covers
+   bounded prefixes 1..9 plus exact-wide prefix 20, and default-RNS Direct-HIP
+   reduction sites route through fixed default-modulus reducers for the first
+   20 moduli before falling back to the generic runtime reducer. Benchmark
+   captures identify generated/fixed reducer evidence through
+   `timing_metadata.generated_reducer_identity`, and schema fixtures reject
+   stale generic identities for generated captures. Next optimization work
+   should run ISA gates for the prefix-specific symbols, prove integer divide
+   avoidance, and then compare end-to-end pack/GEMM/export captures for
+   prefixes 1, 3, 5, 9, and 20 before promoting any selected-kernel name.
+   Use `tools/check_generated_reducer_isa.py --object <hip_direct_object>
+   --target gfx1100` for the Direct-HIP generated symbol/no-divide gate, and
+   use `tools/gpu_isa_report.py --capture <capture.json>` for explanatory
+   resource summaries.
+
 5. **Architecture-Specific Kernel Namespaces**
 
    Split RDNA3 `gfx1100` tuning from future RDNA4 and CDNA work. Do not let a
@@ -323,6 +362,13 @@ Remaining high-value imported work goes at the front of the queue:
    `target_id=...` key material. Remaining work is to add real target-specific
    kernel namespaces and promotion evidence for non-`gfx1100` families rather
    than inheriting local Windows timings.
+
+   Helper-lane status: schema-v4 captures can now carry `target_variant` with a
+   concrete target id, target namespace, configured target string, runtime
+   versions, and review grouping key. New HIP helper-lane captures must include
+   a concrete target id/namespace. This is namespace readiness only; it does not
+   make `gfx11xx`, `gfx12xx`, or `gfx9xx/gfx94x` performance claims without
+   host evidence on those targets.
 
    Code references: backend source roots `src/backend_hip_direct/`,
    `src/backend_ck/`, `src/backend_rocwmma/`, configured target metadata in
@@ -340,6 +386,14 @@ Remaining high-value imported work goes at the front of the queue:
    Code references: event report tooling in `tools/gpu_event_report.py`, ISA
    reporting in `tools/gpu_isa_report.py`, schema promotion policy in
    `tools/benchmark_schema.py`, and release review in `tools/benchmark_sweep.py`.
+
+   Helper-lane status: `tools/gpu_counter_report.py` validates schema-v4
+   captures, optionally ingests JSON/CSV profiler counter exports and
+   `tools/gpu_isa_report.py` summaries, and writes temp-only JSON/Markdown
+   reports under `temp/gpu-counter-reports/`. `tools/gpu_isa_report.py` can
+   cross-link a validated capture with `--capture`. Counter and ISA conclusions
+   are explanation evidence only and cannot replace correctness, host timing,
+   HIP event timing, or release baseline gates.
 
 ## Current Evidence Snapshot
 
@@ -703,6 +757,13 @@ Likely first slices:
   pack kernels for signed and unsigned inputs, with the generic per-plane pack
   kernel retained for all other prefixes. This improves the existing pack phase
   without changing persistent RNS matrix semantics.
+- Benchmark-only residue-channel fusion experiments are now exposed through
+  `rns8-bench --residue-channel-fusion` for explicit Direct-HIP, global-bound,
+  fixed-requested prefix-9 bounded captures. Schema validation requires
+  `fusion_mode=residue_channel_width3_experimental_benchmark_only`,
+  `pack_layout=native_i8_row_major_residue_channel_width3`,
+  `residue_group_width=3`, and the generated reducer identity. AUTO and public
+  one-shot calls never route to this experiment.
 - A direct-HIP small-shape fused multi-plane baseline before CK/rocWMMA
   variants.
 - Autotune key extension for residue group identity and layout.
@@ -2355,6 +2416,12 @@ Relation to new architecture work:
 Status: the June 2026 GFX1100 evidence-tooling pass added the first dedicated
 event and ISA reporting lane.
 
+- Benchmark captures now carry helper-lane objects for `plan_packing`,
+  `plan_lowering`, `requested_next_op`, `output_policy`, `auto_selector`,
+  `target_variant`, and `device_allocation`. These fields make pack layout,
+  lowering path, next-operation intent, status/export policy, AUTO fallback
+  reasoning, target namespace, and post-warmup allocation behavior visible to
+  `tools/result_compare.py` and `tools/benchmark_sweep.py`.
 - CK and rocWMMA event captures now have a deep scope,
   `accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export`,
   with aggregate pack/matmul/copy/add labels plus zero-based per-prefix labels.
@@ -2369,7 +2436,11 @@ event and ISA reporting lane.
   `--build-tree <build-dir>` to write LLVM objdump ISA summaries under
   `temp/isa-reports/`. The report records symbols, WMMA/MFMA counts, global
   stores, LDS mentions, waits, and VGPR/SGPR/occupancy when available. RGA CLI
-  reporting remains optional.
+  reporting remains optional. Add `--capture <capture.json>` to link the ISA
+  summary to a validated benchmark contract.
+- Use `tools/gpu_counter_report.py <capture.json> --counter <csv-or-json>
+  --isa-summary <isa-summary.json>` to assemble temp-only counter/ISA
+  explanations under `temp/gpu-counter-reports/`.
 - Keep all captures, dumps, and reports in ignored `temp/`; do not promote
   instrumentation output into autotune cache entries or performance claims.
 

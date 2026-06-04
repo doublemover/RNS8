@@ -64,6 +64,13 @@ diagnostic explains the `MatMul` semantic contract, backend family, selected
 domain transition, schedule, packing, reuse, conversion strategy, and final
 lowering path without adding a new public algebra API.
 
+`rns8-bench` adds evidence-only metadata around that public inspection surface:
+`requested_next_op`, `output_policy`, `target_variant`, `auto_selector`, and
+`device_allocation`. These objects explain benchmark intent, padded versus
+contiguous export layout, status-event expectations, target namespace, AUTO
+cache fallback/rejection reasons, and HIP allocation counters before warmup and
+after repeats. They do not change backend selection or public API semantics.
+
 ## Benchmark Promotion
 
 Raw `rns8-bench` captures cannot write production autotune entries.
@@ -71,6 +78,12 @@ Raw `rns8-bench` captures cannot write production autotune entries.
 promotion boundary: it validates schema, groups same-contract captures, checks
 required baselines, requires release repeat counts, and writes only fastest
 reviewed accelerator winners.
+
+`tools/gpu_event_report.py`, `tools/gpu_isa_report.py`, and
+`tools/gpu_counter_report.py` are attribution tools for optimizer work. Their
+outputs stay under ignored `temp/`; ISA and counter conclusions explain likely
+bottlenecks but cannot replace exact correctness, host timing, HIP event timing,
+or release baseline requirements.
 
 See [performance-model.md](performance-model.md) for benchmark schema and
 release-evidence policy.

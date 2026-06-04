@@ -86,6 +86,31 @@ def main() -> int:
     assert repack_vs_reuse["contract"]["pack_mode"]["match"] is False
     assert repack_vs_reuse["contract"]["prepack_reuse_operands"]["match"] is False
 
+    layout_a = copy.deepcopy(gpu)
+    layout_b = copy.deepcopy(gpu)
+    layout_a["timing_metadata"]["pack_layout"] = "resident_rns_residue_planes"
+    layout_b["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
+    layout_compare = result_compare.compare(layout_a, layout_b, Path("layout-a.json"), Path("layout-b.json"))
+    assert layout_compare["matching_contract"] is False
+    assert layout_compare["contract"]["timing_metadata.pack_layout"]["match"] is False
+
+    target_a = copy.deepcopy(gpu)
+    target_b = copy.deepcopy(gpu)
+    target_a["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx1100",
+        "review_group_key": "gfx1100/target=gfx1100/backend=ck",
+    }
+    target_b["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx11xx",
+        "review_group_key": "gfx11xx/target=gfx1100/backend=ck",
+    }
+    target_compare = result_compare.compare(target_a, target_b, Path("target-a.json"), Path("target-b.json"))
+    assert target_compare["gpu_compatibility_required"] is True
+    assert target_compare["gpu_compatible"] is False
+    assert target_compare["gpu_compatibility"]["target_variant.target_namespace"]["match"] is False
+
     print("result compare self-test: PASS")
     return 0
 

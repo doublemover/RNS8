@@ -19,6 +19,7 @@ SKIP_JSON_NAMES = {
     "review_report.json",
     "scenario_manifest.json",
     "autotune.json",
+    "autotune-cache.json",
 }
 CSV_FIELDS = [
     "capture_path",

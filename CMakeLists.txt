@@ -454,6 +454,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(evidence_database_self_test PROPERTIES LABELS "benchmark;evidence;roofline")
 
   add_test(
+    NAME gpu_counter_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_gpu_counter_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(gpu_counter_report_self_test PROPERTIES LABELS "benchmark;evidence;gpu-counters")
+
+  add_test(
     NAME autotune_cache_install_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_autotune_cache_install.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -858,6 +865,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     set_tests_properties(hip_direct_kernel_isa_check PROPERTIES LABELS "hip;isa;hard-cut")
+    add_test(
+      NAME generated_reducer_isa_check
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_generated_reducer_isa.py"
+        --object "${RNS8_HIP_DIRECT_KERNEL_OBJECT}"
+        --target "${RNS8_HIP_ISA_CHECK_TARGET}"
+        --hipcc "${RNS8_HIP_HIPCC}"
+        --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(generated_reducer_isa_check PROPERTIES LABELS "hip;isa;generated-reducer")
     add_test(
       NAME wrap64_kernel_isa_check
       COMMAND
