@@ -330,6 +330,19 @@ cache entry. Installing the four finite temp caches with
 default local runtime cache for six entries total, preserving the bounded-i64
 1024 hipBLASLt entry.
 
+A small-shape current-v2 finite-u8 follow-up on June 4, 2026 reran 64 and 128
+for the same ring/field contracts with seed `20260604`, release builds, three
+warmups, nine repeats, CPU and Direct-HIP baselines, and required GPU events.
+Two 128x128x128 rocWMMA entries promoted and were installed in the local default
+cache: ring-251 measured 1136 us versus Direct HIP at 1261 us and CPU at
+1370 us, while ring-256 measured 1132 us versus Direct HIP at 1149 us and CPU at
+1730 us. Ring-255 64 is deliberately not promoted even though rocWMMA measured
+1257 us versus Direct HIP at 3388 us, because the CPU reference measured 167 us.
+`benchmark_sweep.py` now adds `not_faster_than_cpu_reference` to accelerator
+promotion blockers when a cache candidate loses to the required CPU baseline.
+Installing the two small-shape finite temp caches increased the default local
+runtime cache to 11 entries total.
+
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 
 A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,
@@ -672,9 +685,11 @@ Bounded i64/u64 promotion requires CPU reference, direct-HIP correctness, and
 target id, HIP SDK and accelerator library versions, seed, warmups, repeats,
 prefix schedule, K-block, tile size, epilogue, and selected input
 distribution. finite-u8 promotion requires CPU and direct-HIP finite baselines
-for the same explicit modulus. Exact-wide signed/unsigned promotion requires
-CPU and direct-HIP exact-wide baselines with the same fixed-width limb export
-contract. Strict wrap64 promotion requires CPU byte-limb and direct-HIP
+for the same explicit modulus, and an accelerator cache candidate must beat both
+required baselines. Exact-wide signed/unsigned promotion requires CPU and
+direct-HIP exact-wide baselines with the same fixed-width limb export contract,
+and an accelerator cache candidate must beat both required baselines. Strict
+wrap64 promotion requires CPU byte-limb and direct-HIP
 `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` baselines for local
 `K <= 4096` shapes, or the corresponding v4 u64-accumulator fallback for larger
 K shapes.
@@ -685,9 +700,10 @@ Current Windows release sweep status:
   reports with complete baselines;
 - adaptive bounded 65x65x64 and 1024x1024x1024 have local release-reviewed
   reports with complete baselines;
-- finite-u8 ring moduli 251 and 255 plus finite-u8 field modulus 251 have a
-  local release-reviewed matrix with 12 reviewed cache candidates keyed by
-  explicit modulus;
+- finite-u8 ring moduli 251, 255, and 256 plus finite-u8 field modulus 251 have
+  current local v2 release-reviewed matrices at 64/128/512/1024; seven
+  event-valid entries are installed in the local default cache, and accelerator
+  cache promotion now requires beating CPU as well as Direct HIP;
 - exact-wide signed/unsigned 512 and 1024 have a current local v2
   release-reviewed matrix with complete CPU/direct-HIP baselines and three
   event-valid cache candidates: signed 512 rocWMMA, signed 1024 hipBLASLt, and

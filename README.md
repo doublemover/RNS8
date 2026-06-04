@@ -133,8 +133,10 @@ Current local Windows `gfx1100` reviewed winners:
 |---|---:|---|---:|---|
 | bounded i64 | 512 | Direct HIP `direct_hip_tiled_active_prefix_rns_gemm_v2` | no accelerator win | no cache entry |
 | bounded i64 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1.09x vs Direct HIP | default cache installed |
+| finite ring u8 mod 251 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1.11x vs Direct HIP | default cache installed |
 | finite ring u8 mod 251 | 1024 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 2.74x vs Direct HIP | default cache installed |
 | finite ring u8 mod 255 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 3.00x vs Direct HIP | default cache installed |
+| finite ring u8 mod 256 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1.02x vs Direct HIP | default cache installed |
 | finite ring u8 mod 256 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 4.08x vs Direct HIP | default cache installed |
 | finite ring u8 mod 256 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7.05x vs Direct HIP | default cache installed |
 | finite field u8 mod 251 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 5.68x vs Direct HIP | default cache installed |

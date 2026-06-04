@@ -943,6 +943,14 @@ def main() -> int:
     assert eventless_group["fastest_promotable"] is None
     eventless_candidate = next(item for item in eventless_group["candidates"] if item["backend"] == "ck")
     assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
+
+    cpu_faster = finite_capture("cpu-reference", 100)
+    cpu_faster_report = benchmark_sweep.review_captures([ck, direct, cpu_faster], review_mode="release")
+    cpu_faster_group = cpu_faster_report["groups"][0]
+    assert cpu_faster_report["promotable_autotune_entries"] == []
+    assert cpu_faster_group["fastest_promotable"] is None
+    cpu_faster_candidate = next(item for item in cpu_faster_group["candidates"] if item["backend"] == "ck")
+    assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
     assert group["missing_hip_driver_versions"] == []
     assert group["hip_driver_version_complete"] is True
     assert group["hip_driver_version_compatible"] is True

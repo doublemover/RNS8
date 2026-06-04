@@ -19,6 +19,8 @@ Scope:
 |---|---|---:|---:|---|---|---|---|
 | 2026-06-04 | bounded-i64 v2 one-shot release review | 20260604 | 512 | direct HIP | 1851 us median end-to-end; no accelerator win; rocWMMA v2 2591 us, vector ALU 6147 us, CK v2 7172 us, hipBLASLt v2 10101 us | release reviewed local matrix; required GPU events available | no cache entry; Direct HIP retained for this shape |
 | 2026-06-04 | bounded-i64 v2 one-shot release review | 20260604 | 1024 | hipBLASLt | 4174 us median end-to-end; 1.09x vs Direct HIP; 8.13x vs vector ALU | release reviewed local matrix; required GPU events available; default local cache installed | current local cache contains this v2 entry only; Windows `gfx1100` only |
+| 2026-06-04 | finite-u8 small current-v2 release review | 20260604 | 128 ring-251 | rocWMMA | 1136 us median end-to-end; 1.11x vs Direct HIP; CPU reference 1370 us | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
+| 2026-06-04 | finite-u8 small current-v2 release review | 20260604 | 128 ring-256 | rocWMMA | 1132 us median end-to-end; 1.02x vs Direct HIP; CPU reference 1730 us | release reviewed local matrix; required GPU events available; default local cache installed | narrow win; explicit modulus/shape key only |
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 1024 ring-251 | rocWMMA | 1709 us median end-to-end; 2.74x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 1024 ring-255 | CK | 1938 us median end-to-end; 3.00x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 512 ring-256 | rocWMMA | 1365 us median end-to-end; 4.08x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
@@ -87,7 +89,11 @@ Current finite-u8 v2 claims use the same backend/build/review settings as the
 bounded-i64 command above, with `--backend cpu --backend hip-direct --backend
 hipblaslt --backend ck --backend rocwmma`, `--review-mode release`, three
 warmups, nine repeats, seed `20260604`, and one reviewed temp cache per
-semantic/modulus root:
+semantic/modulus root. The 64/128 follow-up used
+`temp\perf-work-queue\finite-u8-v2-small-release\<contract>` and the same
+command family with `--case ...-64:64,64,64` and
+`--case ...-128:128,128,128`; ring-255 64 was not promoted because CPU reference
+was faster than the rocWMMA accelerator result.
 
 ```powershell
 python tools\benchmark_sweep.py `

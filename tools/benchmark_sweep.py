@@ -604,6 +604,7 @@ def promotion_blockers(
     oneshot_capture: bool,
     gpu_events_available: bool,
     end_to_end: float | None,
+    cpu: float | None,
     direct: float | None,
     vector: float | None,
 ) -> list[str]:
@@ -662,6 +663,8 @@ def promotion_blockers(
         blockers.append("missing_required_gpu_events")
     if end_to_end is None:
         blockers.append("missing_end_to_end_timing")
+    if cpu is not None and end_to_end is not None and end_to_end >= cpu:
+        blockers.append("not_faster_than_cpu_reference")
     if direct is None:
         blockers.append("missing_direct_hip_timing")
     elif end_to_end is not None and end_to_end >= direct:
@@ -739,6 +742,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         semantics = items[0].get("semantics")
         required = required_baselines(semantics)
         missing = [backend for backend in required if backend not in by_backend]
+        cpu_capture = by_backend.get("cpu-reference")
         direct_capture = by_backend.get("hip-direct")
         vector_capture = by_backend.get("hip-vector-alu-int64")
         phase_medians = {
@@ -833,6 +837,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             internal_candidate = backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
             oneshot_capture = capture_execution_mode(item) == "public_oneshot_transient_native_inputs"
             end_to_end = median_phase(item, "end_to_end")
+            cpu = median_phase(cpu_capture, "end_to_end") if cpu_capture else None
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
             blockers = promotion_blockers(
@@ -864,6 +869,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 oneshot_capture=oneshot_capture,
                 gpu_events_available=capture_gpu_events_available(item),
                 end_to_end=end_to_end,
+                cpu=cpu,
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
             )

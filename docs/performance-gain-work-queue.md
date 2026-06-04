@@ -288,12 +288,13 @@ Remaining high-value imported work goes at the front of the queue:
   bounded-u64 adaptive cases remain blocked by vector/direct baselines. The
   reviewed adaptive winner uses the older tiled v1 identity and must be rerun
   before promotion under the current tiled v2 selected-kernel identity.
-- Finite-u8 has current Windows `gfx1100` v2 release-review winners for 512 and
-  1024 across ring 251/255/256 and field 251. Five event-valid entries are now
-  installed in the local default cache: ring-251 1024 rocWMMA, ring-255 1024 CK,
-  ring-256 512 rocWMMA, ring-256 1024 hipBLASLt, and field-251 1024 CK. The
-  field-251 512 hipBLASLt near-tie is deliberately not promoted because its GPU
-  event capture was incomplete.
+- Finite-u8 has current Windows `gfx1100` v2 release-review winners for 64, 128,
+  512, and 1024 across ring 251/255/256 and field 251. Seven event-valid entries
+  are now installed in the local default cache: ring-251 128 and 1024 rocWMMA,
+  ring-255 1024 CK, ring-256 128 and 512 rocWMMA, ring-256 1024 hipBLASLt, and
+  field-251 1024 CK. The field-251 512 hipBLASLt near-tie is deliberately not
+  promoted because its GPU event capture was incomplete; ring-255 64 is
+  deliberately not promoted because CPU reference is faster.
 - Exact-wide has current Windows `gfx1100` v2 release-review winners for 512 and
   1024. Three event-valid entries are installed in the local default cache:
   signed 512 rocWMMA, signed 1024 hipBLASLt, and unsigned 1024 CK. Unsigned 512
@@ -1918,18 +1919,20 @@ Relation to new architecture work:
 Status: direct HIP has fixed-modulus pack, GEMM reduction, and export kernels
 for 251/255/256. CK and rocWMMA expose common-modulus 251/255/256 selected
 kernel identities backed by shared reducer helpers. The June 4, 2026 current-v2
-release review closed the 512/1024 promotion question for ring 251, ring 255,
-ring 256, and field 251: five event-valid accelerator entries beat Direct HIP
-and were installed in the local default cache; field-251 512 was not promoted
-because hipBLASLt event timing was incomplete.
+release reviews closed the 64/128/512/1024 promotion question for ring 251,
+ring 255, ring 256, and field 251: seven event-valid accelerator entries beat
+both CPU and Direct HIP where required and were installed in the local default
+cache. Field-251 512 was not promoted because hipBLASLt event timing was
+incomplete, and ring-255 64 was not promoted because CPU reference was faster
+than the accelerator path.
 
 Technical direction:
 
 - Push finite reducer specialization into CK and rocWMMA epilogues.
 - Add `finite_u8_centered_plane_v2` with layout selected by backend and
   distribution.
-- Extend the reviewed matrix to 64/128, 2048, generic prime, and generic
-  composite cases before assuming the 512/1024 split generalizes.
+- Extend the reviewed matrix to 2048, generic prime, and generic composite
+  cases before assuming the current explicit-modulus split generalizes.
 - Include finite modulus and finite data profile in plan/autotune identity.
 - Keep finite semantics explicit: `RNS8_FINITE_RING_U8` is `Z/qZ`, while
   `RNS8_FINITE_FIELD_U8` is a prime-field `GF(p)` contract for `p <= 251`.
@@ -2508,7 +2511,7 @@ Relation to new architecture work:
   the current 512/1024 v2 matrix is reviewed and installed, but 64/128, 2048,
   limb-count variants, and chain/lazy-export workloads remain open.
 - Extend finite-u8 CK/rocWMMA reducer specialization beyond the now-reviewed
-  512/1024 ring-251/ring-255/ring-256/field-251 matrix into 64/128, 2048,
+  64/128/512/1024 ring-251/ring-255/ring-256/field-251 matrix into 2048,
   generic prime, and generic composite cases.
 - Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
   candidate.
