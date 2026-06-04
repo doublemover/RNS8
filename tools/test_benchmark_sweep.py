@@ -481,6 +481,7 @@ def main() -> int:
     catalog = benchmark_sweep.scenario_catalog()
     for scenario_name in [
         "generated-prefix-reducers",
+        "large-release-validation",
         "layout-search",
         "multi-modulus-pack",
         "residue-channel-fusion",
@@ -840,6 +841,50 @@ def main() -> int:
         "prepacked_reuse_b",
     }
     assert any("--reuse-packed-b" in entry.command for entry in large_bounded_entries)
+
+    large_validation_args = copy.copy(scenario_args)
+    large_validation_args.backends = None
+    large_validation_args.scenario = ["large-release-validation"]
+    large_validation_entries = benchmark_sweep.sweep_command_entries(large_validation_args)
+    assert len(large_validation_entries) == 56
+    assert {entry.scenario["family"] for entry in large_validation_entries} == {"large-release-validation"}
+    assert {entry.scenario["name"] for entry in large_validation_entries} == {
+        "bounded-i64-2048-required-baselines",
+        "bounded-u64-2048-required-baselines",
+        "bounded-i64-2048-reuse-b-required-baselines",
+        "bounded-u64-2048-reuse-b-required-baselines",
+        "exact-wide-signed-2048-required-baselines",
+        "exact-wide-unsigned-2048-required-baselines",
+        "finite-ring-2048-hot-required-baselines",
+        "finite-field-2048-hot-required-baselines",
+        "wrap64-2048-required-baselines",
+    }
+    assert {
+        entry.scenario["backend"]
+        for entry in large_validation_entries
+        if entry.scenario["name"] == "bounded-i64-2048-required-baselines"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+    assert {
+        entry.scenario["backend"]
+        for entry in large_validation_entries
+        if entry.scenario["name"] == "wrap64-2048-required-baselines"
+    } == {"wrap64-byte-limb", "hip-direct"}
+    assert sorted(
+        entry.scenario["modulus"]
+        for entry in large_validation_entries
+        if entry.scenario["name"] == "finite-ring-2048-hot-required-baselines"
+        and entry.scenario["backend"] == "cpu"
+    ) == [251, 255, 256]
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "large_shape_release_validation"
+        for entry in large_validation_entries
+    )
+    assert any("--reuse-packed-b" in entry.command for entry in large_validation_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("validation_contract")
+        == "same_contract_cpu_direct_vector_accelerator_release_review"
+        for entry in large_validation_entries
+    )
 
     finite_generic_args = copy.copy(scenario_args)
     finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
