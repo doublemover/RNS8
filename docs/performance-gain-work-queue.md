@@ -401,23 +401,30 @@ Likely first slices:
   route: A and B are represented as single row-major `int8_t` planes because
   all prefix-9 centered residues are identical for the generated `[-16,16]`
   signed and `[0,16]` unsigned values. B is copied once during reuse setup,
-  A is copied per repeat, and
-  `direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1`
-  fans the same A/B planes across the prefix-9 RNS output planes in one grouped
-  launch. That surface reports
+  A is copied per repeat, and v2
+  `direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2`
+  lets each thread compute two neighboring output columns so it can reuse the
+  same A tile value across both accumulators while fanning the same A/B planes
+  across the prefix-9 RNS output planes in one grouped launch. That surface
+  reports
   `transient_uniform_small_i8_a_resident_i8_b_reuse`,
   `rns8_bench_uniform_small_i8_ab_reuse_b_path`, the
   `uniform_small_i8_ab_resident_b_residue_then_crt_export` epilogue, the
-  `bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group` event phase, and zero
-  `pack_kernel`.
+  `bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group` event phase,
+  and zero `pack_kernel`.
   Windows `gfx1100` release captures under
-  `temp/uniform-small-i8-ab-reuse-b-release/` used release binaries, 3 warmups,
-  and 9 measured repeats. They are schema-valid and event-valid. Setup-inclusive
-  speedups versus the same Direct-HIP non-reuse backend were 1.51x for bounded
-  i64 512, 1.32x for bounded i64 1024, 1.26x for bounded u64 512, and 1.29x
-  for bounded u64 1024. Keep this as an explicit reuse-path implementation win,
-  not an AUTO/default-routing claim, until workload-level reuse policy decides
-  when setup and reuse metadata should drive backend selection.
+  `temp/uniform-small-i8-ab-colpair-release/` and the bounded-u64 1024 reruns
+  under `temp/uniform-small-i8-ab-colpair-u64-1024-rerun/` used release
+  binaries, 3 warmups, and 9 measured repeats. They are schema-valid and
+  event-valid. Against the prior v1 single-column implementation in
+  `temp/uniform-small-i8-ab-colpair-before/`, the v2 first-pass release matrix
+  improved per-repeat end-to-end time by 2.10x for bounded i64 512, 2.54x for
+  bounded i64 1024, and 1.43x for bounded u64 512; bounded u64 1024 stayed
+  export-noise sensitive but v2 reduced the GEMM phase in that first pass by
+  1.29x and beat the same-backend non-reuse baseline setup-inclusively in three
+  focused reruns. Keep this as an explicit reuse-path implementation win, not an
+  AUTO/default-routing claim, until workload-level reuse policy decides when
+  setup and reuse metadata should drive backend selection.
 
 Relation to existing queue:
 

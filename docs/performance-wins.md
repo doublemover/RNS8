@@ -69,14 +69,13 @@ computed as `1 / end_to_end_ratio` from `tools\result_compare.py`.
 | hipBLASLt | 1024 | A | 3.36x | 3.57x | 20712.4 us | 4345 us | 1 | Event-valid experimental reuse win |
 | hipBLASLt | 1024 | B | 1.74x | 1.80x | 12810.9 us | 4744 us | 1 | Event-valid experimental reuse win |
 | hipBLASLt | 1024 | A+B | 4.32x | 4.81x | 22794.2 us | 5992 us | 1 | Event-valid experimental reuse win |
-| Direct HIP | 512 | B, uniform-small i8 A/B, bounded i64 | 1.51x | 1.54x | 1673.3 us | 677 us | 1 | Event-valid explicit reuse-path win |
-| Direct HIP | 1024 | B, uniform-small i8 A/B, bounded i64 | 1.32x | 1.34x | 1833.8 us | 617 us | 1 | Event-valid explicit reuse-path win |
+| Direct HIP | 1024 | B, uniform-small i8 A/B colpair v2, bounded i64 | 1.19x | 1.20x | 1379.7 us | 768 us | 1 | Event-valid explicit reuse-path win |
 | Vector ALU | 512 | A | 1.54x | 1.56x | 3460.6 us | 883 us | 1 | Event-valid local reuse win |
 | Vector ALU | 512 | B | 1.53x | 1.55x | 3412.6 us | 943 us | 1 | Event-valid local reuse win |
 | Vector ALU | 512 | A+B | 1.01x | 1.10x | 838.8 us | 6357 us | 8 | Barely positive at 9 repeats |
 | Vector ALU | 1024 | B | 1.21x | 1.23x | 4683.0 us | 3187 us | 1 | Event-valid local reuse win |
-| Direct HIP | 512 | B, uniform-small i8 A/B, bounded u64 | 1.26x | 1.30x | 703.9 us | 658 us | 1 | Event-valid explicit reuse-path win |
-| Direct HIP | 1024 | B, uniform-small i8 A/B, bounded u64 | 1.29x | 1.30x | 2032.9 us | 710 us | 1 | Event-valid explicit reuse-path win |
+| Direct HIP | 512 | B, uniform-small i8 A/B colpair v2, bounded u64 | 1.34x | 1.39x | 981.0 us | 813 us | 1 | Event-valid explicit reuse-path win |
+| Direct HIP | 1024 | B, uniform-small i8 A/B colpair v2, bounded u64 | 1.17x | 1.18x | 1282.9 us | 695 us | 1 | Conservative rerun result; export timing volatile |
 | rocWMMA | 512 | B | 1.14x | 1.22x | 1210.3 us | 3428 us | 3 | Experimental; same-strategy review baselines still incomplete |
 
 Non-winners from the same validation pass:
@@ -85,12 +84,21 @@ Non-winners from the same validation pass:
 |---|---:|---|---:|---:|
 | Vector ALU | 1024 | A | 0.94x | 0.96x |
 | Vector ALU | 1024 | A+B | 0.69x | 0.71x |
+| Direct HIP | 512 | B, uniform-small i8 A/B colpair v2, bounded i64 | 1.00x | 1.02x |
 | rocWMMA | 1024 | B | 0.64x | 0.68x |
 
 The hipBLASLt full A+B reuse captures intentionally omit
 `hipblaslt_pack_transpose_centered` from per-repeat event timing because the
 operands are already packed. That absence is the corrected event contract, not
 missing telemetry.
+
+The Direct-HIP colpair v2 entries supersede the earlier single-column
+uniform-small i8 A/B reuse kernel. In the first before/after release matrix,
+v2 improved per-repeat end-to-end time against that v1 implementation by 2.10x
+for bounded i64 512, 2.54x for bounded i64 1024, and 1.43x for bounded u64 512.
+The same matrix showed bounded u64 1024 export volatility, so the table uses the
+most conservative setup-inclusive speedup from three focused reruns against the
+same-backend non-reuse baseline.
 
 ## Promotion Boundaries
 

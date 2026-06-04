@@ -1697,7 +1697,7 @@ const char* finite_native_a_reuse_b_kernel(uint16_t modulus) {
 
 const char* bounded_native_a_reuse_b_kernel(const Args& args) {
   if (bounded_native_a_reuse_b_uniform_small_a(args)) {
-    return "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1";
+    return "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
   }
   return args.semantics == BenchSemantics::BoundedI64
       ? "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
@@ -1712,7 +1712,7 @@ const char* bounded_native_a_reuse_b_epilogue(const Args& args) {
 
 const char* bounded_native_a_reuse_b_event_label(const Args& args) {
   return bounded_native_a_reuse_b_uniform_small_a(args)
-      ? "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+      ? "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
       : "bounded_native_a_reuse_b_gemm_kernel_group";
 }
 
@@ -3407,7 +3407,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_matrix* final_output_matrix = c_matrix;
     if (use_native_a_reuse_b) {
       if (use_uniform_small_i8_ab_reuse_b) {
-        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix(
             args.device_id,
             uniform_small_a_device.ptr,
             uniform_small_b_device.ptr,
@@ -3419,7 +3419,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
             args.n,
             source_version);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix", status);
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
         }
       } else {
         status = rns8::detail::hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
@@ -3683,7 +3683,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_matrix* final_output_matrix = c_matrix;
     if (use_native_a_reuse_b) {
       if (use_uniform_small_i8_ab_reuse_b) {
-        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix(
             args.device_id,
             uniform_small_a_device.ptr,
             uniform_small_b_device.ptr,
@@ -3695,7 +3695,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
             args.n,
             source_version);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix", status);
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
         }
       } else {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(

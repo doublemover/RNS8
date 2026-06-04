@@ -28,8 +28,9 @@ Scope:
 | 2026-06-03 | finite-u8 release matrix | 20260602 | 1024 field-251 | hipBLASLt | 2327 us median end-to-end | release reviewed local matrix | only same modulus/shape/contract keys are promotable |
 | 2026-06-03 | strict wrap64 release matrix | 20260602 | 64, 128, 512, 1024 | direct HIP | 1828, 2090, 7757, 39359 us median end-to-end | release reviewed local baseline | no public wrap64 accelerator backend exists |
 | 2026-06-03 | rocWMMA wrap64 candidate review | 20260603 | 64, 128, 512, 1024 | rocWMMA candidate | lost to direct HIP at every listed shape | release-shape candidate review | internal candidate only; not public or AUTO-eligible |
-| 2026-06-03 | direct-HIP uniform-small reuse-B release captures | 1 | 512, 1024 bounded i64 | direct HIP | setup-inclusive 1.51x and 1.32x vs same-backend non-reuse | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
-| 2026-06-03 | direct-HIP uniform-small reuse-B release captures | 1 | 512, 1024 bounded u64 | direct HIP | setup-inclusive 1.26x and 1.29x vs same-backend non-reuse | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
+| 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 1024 bounded i64 | direct HIP | setup-inclusive 1.19x vs same-backend non-reuse; 2.62x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
+| 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 512 bounded u64 | direct HIP | setup-inclusive 1.34x vs same-backend non-reuse; 1.41x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
+| 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 reruns | 1 | 1024 bounded u64 | direct HIP | setup-inclusive 1.17x to 1.75x vs same-backend non-reuse across three focused reruns | release local reuse reruns; schema/event valid | export timing remains volatile; explicit `--reuse-packed-b` path only |
 
 ## Reuse And Prepack Summary
 
@@ -82,7 +83,7 @@ python tools\benchmark_sweep.py `
   --out-root temp\benchmark-sweeps\windows-gfx1100-release-reuse-current
 ```
 
-Direct-HIP uniform-small bounded reuse-B captures:
+Direct-HIP uniform-small bounded reuse-B colpair v2 captures:
 
 ```powershell
 build\windows-msvc-hip-release\rns8-bench.exe `

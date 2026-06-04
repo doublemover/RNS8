@@ -329,9 +329,9 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
 def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
-    kernel = "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1"
+    kernel = "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
     epilogue = "uniform_small_i8_ab_resident_b_residue_then_crt_export"
-    gemm_event = "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+    gemm_event = "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
     reused["benchmark_execution_mode"] = "transient_uniform_small_i8_a_resident_i8_b_reuse"
     reused["backend_requested"] = "hip-direct"
     reused["backend_selected"] = "hip-direct"
@@ -853,34 +853,34 @@ def main() -> int:
     ] = "transient_native_a_resident_b_reuse"
     adaptive_direct_hip_bounded_native_a["timing_metadata"]["gpu_event_phase_order"] = [
         "bounded_native_a_reuse_b_gemm_kernel_group"
-        if phase == "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        if phase == "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
         else phase
         for phase in adaptive_direct_hip_bounded_native_a["timing_metadata"]["gpu_event_phase_order"]
     ]
     adaptive_direct_hip_bounded_native_a["gpu_event_timings_us"]["bounded_native_a_reuse_b_gemm_kernel_group"] = (
         adaptive_direct_hip_bounded_native_a["gpu_event_timings_us"].pop(
-            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+            "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
         )
     )
     adaptive_direct_hip_bounded_native_a["gpu_event_timing_summary_us"][
         "bounded_native_a_reuse_b_gemm_kernel_group"
     ] = adaptive_direct_hip_bounded_native_a["gpu_event_timing_summary_us"].pop(
-        "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
     )
     validate_capture(adaptive_direct_hip_bounded_native_a)
     bad_bounded_native_a_phase = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
     bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"] = [
-        "rns_gemm_kernel_group" if phase == "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group" else phase
+        "rns_gemm_kernel_group" if phase == "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group" else phase
         for phase in bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"]
     ]
     bad_bounded_native_a_phase["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
         bad_bounded_native_a_phase["gpu_event_timings_us"].pop(
-            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+            "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
         )
     )
     bad_bounded_native_a_phase["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
         bad_bounded_native_a_phase["gpu_event_timing_summary_us"].pop(
-            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+            "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
         )
     )
     expect_invalid(
@@ -901,6 +901,21 @@ def main() -> int:
     )
     expect_invalid(
         stale_generic_bounded_native_a,
+        "direct-HIP bounded native-A reuse-B captures must use selected_kernel",
+    )
+    stale_v1_uniform_small_bounded_native_a = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
+    stale_v1_kernel = "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1"
+    stale_v1_uniform_small_bounded_native_a["selected_kernel"] = stale_v1_kernel
+    stale_v1_uniform_small_bounded_native_a["backend_metadata"]["selected_kernel"] = stale_v1_kernel
+    stale_v1_uniform_small_bounded_native_a["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=uniform-small;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
+        f"kernel={stale_v1_kernel};epilogue=uniform_small_i8_ab_resident_b_residue_then_crt_export"
+    )
+    expect_invalid(
+        stale_v1_uniform_small_bounded_native_a,
         "direct-HIP bounded native-A reuse-B captures must use selected_kernel",
     )
 

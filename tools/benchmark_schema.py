@@ -105,8 +105,8 @@ DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
 }
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_KERNELS = {
-    "bounded_i64": "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1",
-    "bounded_u64": "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
+    "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
 }
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
@@ -2029,7 +2029,7 @@ class _Validator:
             return
         if self._is_direct_hip_bounded_native_a_reuse_b_capture():
             gemm_event = (
-                "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+                "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
                 if self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
                 else "bounded_native_a_reuse_b_gemm_kernel_group"
             )
