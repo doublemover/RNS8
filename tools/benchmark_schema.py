@@ -161,6 +161,9 @@ DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
 }
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_U64_LARGE_COLPAIR_KERNEL = (
+    "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
+)
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
     "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
@@ -419,6 +422,18 @@ class _Validator:
         return (
             (semantics == "bounded_i64" and distribution == "signed_uniform_-16_16")
             or (semantics == "bounded_u64" and distribution == "unsigned_uniform_0_16")
+        )
+
+    def _is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair(self) -> bool:
+        return (
+            self.data.get("semantics") == "bounded_u64"
+            and not self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
+            and _is_int(self.data.get("m"))
+            and _is_int(self.data.get("n"))
+            and _is_int(self.data.get("k"))
+            and self.data.get("m") >= 512
+            and self.data.get("n") >= 512
+            and self.data.get("k") >= 512
         )
 
     def _is_direct_hip_bounded_uniform_small_reuse_a_capture(self) -> bool:
@@ -1729,6 +1744,8 @@ class _Validator:
                     if uniform_small
                     else DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS[semantics]
                 )
+                if self._is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair():
+                    expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_U64_LARGE_COLPAIR_KERNEL
                 expected_epilogue = (
                     DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE
                     if uniform_small
@@ -2744,6 +2761,8 @@ class _Validator:
                 if self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
                 else "bounded_native_a_reuse_b_gemm_kernel_group"
             )
+            if self._is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair():
+                gemm_event = "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
             expected = [
                 "pack_h2d",
                 "pack_kernel",

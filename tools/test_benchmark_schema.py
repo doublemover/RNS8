@@ -1224,6 +1224,83 @@ def main() -> int:
         "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
     )
     validate_capture(adaptive_direct_hip_bounded_native_a)
+
+    large_u64_colpair_native_a = copy.deepcopy(adaptive_direct_hip_bounded_native_a)
+    large_u64_colpair_kernel = "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
+    large_u64_colpair_native_a["semantics"] = "bounded_u64"
+    large_u64_colpair_native_a["bound_kind"] = "global_max_unsigned"
+    large_u64_colpair_native_a["input_distribution"] = "unsigned_adaptive_bands_0_16"
+    large_u64_colpair_native_a["m"] = 512
+    large_u64_colpair_native_a["n"] = 512
+    large_u64_colpair_native_a["k"] = 512
+    large_u64_colpair_native_a["selected_kernel"] = large_u64_colpair_kernel
+    large_u64_colpair_native_a["backend_metadata"]["selected_kernel"] = large_u64_colpair_kernel
+    apply_int32_accumulator_contract(large_u64_colpair_native_a)
+    large_u64_colpair_native_a["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_u64;m=512;n=512;k=512;bound=16384;"
+        "input_profile=adaptive-bands;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_native_a_resident_b_reuse;"
+        f"kernel={large_u64_colpair_kernel};epilogue={centered_epilogue}"
+        ),
+        large_u64_colpair_native_a,
+    )
+    large_u64_colpair_native_a["timing_metadata"]["gpu_event_phase_order"] = [
+        "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+        if phase == "bounded_native_a_reuse_b_gemm_kernel_group"
+        else phase
+        for phase in large_u64_colpair_native_a["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    large_u64_colpair_native_a["gpu_event_timings_us"][
+        "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+    ] = large_u64_colpair_native_a["gpu_event_timings_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+    large_u64_colpair_native_a["gpu_event_timing_summary_us"][
+        "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+    ] = large_u64_colpair_native_a["gpu_event_timing_summary_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+    validate_capture(large_u64_colpair_native_a)
+
+    stale_large_u64_colpair_kernel = copy.deepcopy(large_u64_colpair_native_a)
+    stale_large_u64_kernel = "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1"
+    stale_large_u64_colpair_kernel["selected_kernel"] = stale_large_u64_kernel
+    stale_large_u64_colpair_kernel["backend_metadata"]["selected_kernel"] = stale_large_u64_kernel
+    stale_large_u64_colpair_kernel["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_u64;m=512;n=512;k=512;bound=16384;"
+        "input_profile=adaptive-bands;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_native_a_resident_b_reuse;"
+        f"kernel={stale_large_u64_kernel};epilogue={centered_epilogue}"
+        ),
+        stale_large_u64_colpair_kernel,
+    )
+    expect_invalid(
+        stale_large_u64_colpair_kernel,
+        "direct-HIP bounded native-A reuse-B captures must use selected_kernel",
+    )
+
+    stale_large_u64_colpair_phase = copy.deepcopy(large_u64_colpair_native_a)
+    stale_large_u64_colpair_phase["timing_metadata"]["gpu_event_phase_order"] = [
+        "bounded_native_a_reuse_b_gemm_kernel_group"
+        if phase == "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+        else phase
+        for phase in stale_large_u64_colpair_phase["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    stale_large_u64_colpair_phase["gpu_event_timings_us"]["bounded_native_a_reuse_b_gemm_kernel_group"] = (
+        stale_large_u64_colpair_phase["gpu_event_timings_us"].pop(
+            "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+        )
+    )
+    stale_large_u64_colpair_phase["gpu_event_timing_summary_us"]["bounded_native_a_reuse_b_gemm_kernel_group"] = (
+        stale_large_u64_colpair_phase["gpu_event_timing_summary_us"].pop(
+            "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
+        )
+    )
+    expect_invalid(
+        stale_large_u64_colpair_phase,
+        "direct-HIP bounded native-A reuse-B GPU event phase set is incomplete",
+    )
+
     bad_bounded_native_a_phase = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
     bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"] = [
         "rns_gemm_kernel_group" if phase == "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group" else phase

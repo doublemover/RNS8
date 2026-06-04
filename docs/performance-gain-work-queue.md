@@ -638,13 +638,24 @@ Likely first slices:
 - Direct-HIP transient-A plus reusable-B bounded prefix-9 path.
   Implemented for global-bound `bounded-i64` and `bounded-u64`
   `rns8-bench --backend hip-direct --reuse-packed-b` captures whose Direct-HIP
-  plan resolves to fixed prefix 9. Adaptive-band captures still use the generic
+  plan resolves to fixed prefix 9. Adaptive-band captures generally use the
   native-A/resident-RNS-B route: B is packed once into resident RNS storage,
   A is copied as native `int64_t`/`uint64_t` per repeat, and the grouped
   prefix-9 GEMM centers A inside the tile load while consuming resident centered
   B. The benchmark/schema surface reports `transient_native_a_resident_b_reuse`,
   `rns8_bench_native_a_reuse_b_path`, a distinct
   `bounded_native_a_reuse_b_gemm_kernel_group`, and zero `pack_kernel`.
+  Large bounded-u64 adaptive-band reuse-B captures with `m/n/k >= 512` now route
+  to `direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2` and
+  emit `bounded_native_a_colpair_reuse_b_gemm_kernel_group`, reusing each
+  centered native A tile value across two neighboring output columns while B
+  stays resident in RNS storage. A Windows `gfx1100` release smoke under
+  `temp/perf-work-queue/direct-hip-u64-reuse-b-colpair/` is schema-valid and
+  event-valid; at 512 with 33 repeats it measured 3218.94 us for same-build
+  non-reuse direct HIP versus 2842.46 us setup-inclusive per repeat for the
+  colpair reuse-B route, a 1.13x setup-amortized win. The 5-repeat smoke still
+  loses setup-inclusively, so this remains a many-repeat explicit reuse path,
+  not an AUTO/default-routing claim.
   The default uniform-small benchmark profile now takes the faster specialized
   route: A and B are represented as single row-major `int8_t` planes because
   all prefix-9 centered residues are identical for the generated `[-16,16]`

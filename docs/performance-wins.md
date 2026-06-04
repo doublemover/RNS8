@@ -134,6 +134,17 @@ The same matrix showed bounded u64 1024 export volatility, so the table uses the
 most conservative setup-inclusive speedup from three focused reruns against the
 same-backend non-reuse baseline.
 
+A separate Direct-HIP bounded-u64 adaptive-band repeated-B colpair route is
+positive only at higher repeat counts so far. The June 4, 2026 Windows
+`gfx1100` release smoke in
+`temp/perf-work-queue/direct-hip-u64-reuse-b-colpair/` selected
+`direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2`, was
+schema-valid and event-valid, and at 512 with 33 repeats measured 3218.94 us
+for same-build non-reuse direct HIP versus 2842.46 us setup-inclusive per repeat
+for the reuse-B colpair route, a 1.13x setup-amortized win. The corresponding
+5-repeat smoke still lost after setup cost, so this is a many-repeat explicit
+reuse-path result rather than an AUTO/default-routing claim.
+
 Direct-HIP reuse-A fixed-prefix reruns used release binaries, 3 warmups, and 33
 measured repeats. The pre-change baseline came from a clean `a75b0a2` worktree
 and the candidate used the `transient_uniform_small_i8_b_resident_i8_a_reuse`

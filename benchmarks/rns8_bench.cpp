@@ -752,6 +752,11 @@ bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
   return args.input_profile == InputProfile::UniformSmall;
 }
 
+bool bounded_native_a_reuse_b_u64_large_colpair(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedU64 && !bounded_native_a_reuse_b_uniform_small_a(args) &&
+         args.m >= 512 && args.n >= 512 && args.k >= 512;
+}
+
 bool bounded_uniform_small_i8_ab_reuse_a_requested(const Args& args) {
   return !args.oneshot && bounded_benchmark_semantics(args.semantics) && args.reuse_packed_a &&
          !args.reuse_packed_b && args.backend == RNS8_BACKEND_HIP_DIRECT &&
@@ -2161,6 +2166,9 @@ const char* bounded_native_a_reuse_b_kernel(const Args& args) {
   if (bounded_native_a_reuse_b_uniform_small_a(args)) {
     return "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
   }
+  if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
+    return "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
+  }
   return args.semantics == BenchSemantics::BoundedI64
       ? "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
       : "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1";
@@ -2173,9 +2181,13 @@ const char* bounded_native_a_reuse_b_epilogue(const Args& args) {
 }
 
 const char* bounded_native_a_reuse_b_event_label(const Args& args) {
-  return bounded_native_a_reuse_b_uniform_small_a(args)
-      ? "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
-      : "bounded_native_a_reuse_b_gemm_kernel_group";
+  if (bounded_native_a_reuse_b_uniform_small_a(args)) {
+    return "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group";
+  }
+  if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
+    return "bounded_native_a_colpair_reuse_b_gemm_kernel_group";
+  }
+  return "bounded_native_a_reuse_b_gemm_kernel_group";
 }
 
 const char* bounded_native_a_reuse_b_pack_h2d_label(const Args& args) {
@@ -4417,6 +4429,20 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
             source_version);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
+        }
+      } else if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
+        status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
+            args.device_id,
+            native_a.ptr,
+            b_matrix,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            source_version);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix", status);
         }
       } else {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
