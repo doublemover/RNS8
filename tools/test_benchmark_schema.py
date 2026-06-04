@@ -2114,6 +2114,55 @@ def main() -> int:
     ] = large_u64_colpair_native_a["gpu_event_timing_summary_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
     validate_capture(large_u64_colpair_native_a)
 
+    generic_persistent_reuse_b = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
+    generic_kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    generic_epilogue = "fused_centered_residue_then_crt_export"
+    generic_persistent_reuse_b["benchmark_execution_mode"] = "persistent_resident_matrices"
+    generic_persistent_reuse_b["selected_kernel"] = generic_kernel
+    generic_persistent_reuse_b["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
+    generic_persistent_reuse_b["backend_metadata"]["selected_kernel"] = generic_kernel
+    generic_persistent_reuse_b["backend_metadata"]["epilogue_mode"] = generic_epilogue
+    generic_persistent_reuse_b["backend_metadata"]["workspace_mode"] = "resident_device_buffers"
+    generic_persistent_reuse_b["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+            "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=persistent_resident_matrices;"
+            f"kernel={generic_kernel};epilogue={generic_epilogue}"
+        ),
+        generic_persistent_reuse_b,
+    )
+    generic_persistent_reuse_b["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
+    generic_persistent_reuse_b["timing_metadata"]["gpu_event_phase_order"] = [
+        "rns_gemm_kernel_group"
+        if phase == "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+        else phase
+        for phase in generic_persistent_reuse_b["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    generic_persistent_reuse_b["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
+        generic_persistent_reuse_b["gpu_event_timings_us"].pop(
+            "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+        )
+    )
+    generic_persistent_reuse_b["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
+        generic_persistent_reuse_b["gpu_event_timing_summary_us"].pop(
+            "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+        )
+    )
+    validate_capture(generic_persistent_reuse_b)
+
+    stale_generic_persistent_reuse_b_mode = copy.deepcopy(generic_persistent_reuse_b)
+    stale_generic_persistent_reuse_b_mode["benchmark_execution_mode"] = (
+        "transient_uniform_small_i8_a_resident_i8_b_reuse"
+    )
+    stale_generic_persistent_reuse_b_mode["timing_metadata"]["benchmark_execution_mode"] = (
+        "transient_uniform_small_i8_a_resident_i8_b_reuse"
+    )
+    expect_invalid(
+        stale_generic_persistent_reuse_b_mode,
+        "direct-HIP bounded native-A reuse-B captures must use selected_kernel",
+    )
+
     stale_large_u64_colpair_kernel = copy.deepcopy(large_u64_colpair_native_a)
     stale_large_u64_kernel = "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1"
     stale_large_u64_colpair_kernel["selected_kernel"] = stale_large_u64_kernel

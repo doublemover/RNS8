@@ -704,12 +704,16 @@ def main() -> int:
     large_args.backends = ["hip-direct"]
     large_args.scenario = ["large-exploratory"]
     large_entries = benchmark_sweep.sweep_command_entries(large_args)
-    assert len(large_entries) == 18
+    assert len(large_entries) == 22
     assert {entry.scenario["name"] for entry in large_entries} == {
         "bounded-i64-2048",
+        "bounded-i64-2048-reuse-b",
         "bounded-u64-2048",
+        "bounded-u64-2048-reuse-b",
         "bounded-i64-4096",
+        "bounded-i64-4096-reuse-b",
         "bounded-u64-4096",
+        "bounded-u64-4096-reuse-b",
         "exact-wide-signed-2048",
         "exact-wide-unsigned-2048",
         "exact-wide-signed-4096",
@@ -734,6 +738,32 @@ def main() -> int:
         entry.scenario.get("metadata", {}).get("large_shape_role") == "wrap64_direct_hip_throughput_probe"
         for entry in large_entries
     )
+    assert any(
+        entry.scenario.get("metadata", {}).get("reuse_contract") == "large_stable_rhs_prepacked_before_warmups"
+        for entry in large_entries
+    )
+
+    large_bounded_args = copy.copy(scenario_args)
+    large_bounded_args.backends = ["hip-direct"]
+    large_bounded_args.scenario = ["large-exploratory"]
+    large_bounded_args.semantics = ["bounded-i64", "bounded-u64"]
+    large_bounded_entries = benchmark_sweep.sweep_command_entries(large_bounded_args)
+    assert [entry.scenario["name"] for entry in large_bounded_entries] == [
+        "bounded-i64-2048",
+        "bounded-i64-2048-reuse-b",
+        "bounded-u64-2048",
+        "bounded-u64-2048-reuse-b",
+        "bounded-i64-4096",
+        "bounded-i64-4096-reuse-b",
+        "bounded-u64-4096",
+        "bounded-u64-4096-reuse-b",
+    ]
+    assert {entry.scenario["semantics"] for entry in large_bounded_entries} == {"bounded-i64", "bounded-u64"}
+    assert {entry.scenario["pack_mode"] for entry in large_bounded_entries} == {
+        "per_repeat_repack",
+        "prepacked_reuse_b",
+    }
+    assert any("--reuse-packed-b" in entry.command for entry in large_bounded_entries)
 
     finite_generic_args = copy.copy(scenario_args)
     finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]

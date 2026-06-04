@@ -2689,6 +2689,40 @@ bool finite_native_a_reuse_b_path(const Args& args, const BenchmarkResult& resul
          result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
+const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResult& result) {
+  if (bounded_native_a_reuse_b_requested(args) && !bounded_native_a_reuse_b_path(args, result)) {
+    return "persistent_resident_matrices";
+  }
+  if (bounded_uniform_small_i8_ab_reuse_a_requested(args) && !bounded_uniform_small_i8_ab_reuse_a_path(args, result)) {
+    return "persistent_resident_matrices";
+  }
+  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
+      !bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+    return "persistent_resident_matrices";
+  }
+  if (bounded_uniform_small_i8_ab_transient_requested(args) && !bounded_uniform_small_i8_ab_transient_path(args, result)) {
+    return "persistent_resident_matrices";
+  }
+  return benchmark_execution_mode_name(args);
+}
+
+const char* backend_metadata_source(const Args& args, const BenchmarkResult& result) {
+  if (bounded_native_a_reuse_b_requested(args) && !bounded_native_a_reuse_b_path(args, result)) {
+    return "rns8_get_plan_backend_info";
+  }
+  if (bounded_uniform_small_i8_ab_reuse_a_requested(args) && !bounded_uniform_small_i8_ab_reuse_a_path(args, result)) {
+    return "rns8_get_plan_backend_info";
+  }
+  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
+      !bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+    return "rns8_get_plan_backend_info";
+  }
+  if (bounded_uniform_small_i8_ab_transient_requested(args) && !bounded_uniform_small_i8_ab_transient_path(args, result)) {
+    return "rns8_get_plan_backend_info";
+  }
+  return backend_metadata_source(args);
+}
+
 std::string bounded_native_a_reuse_b_autotune_key(
     const Args& args,
     const BenchmarkResult& result,
@@ -6777,7 +6811,7 @@ void print_json(
   std::cout << "{\n";
   std::cout << "  \"schema_version\": " << kBenchmarkSchemaVersion << ",\n";
   std::cout << "  \"benchmark\": \"" << benchmark_name(args) << "\",\n";
-  std::cout << "  \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
+  std::cout << "  \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args, result) << "\",\n";
   std::cout << "  \"backend_requested\": \"" << requested_backend_name(args) << "\",\n";
   std::cout << "  \"backend_selected\": \"" << selected_backend << "\",\n";
   const char* selected_kernel = selected_kernel_name(args, info, result);
@@ -6789,7 +6823,7 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "  \"backend_metadata\": {\n";
-  std::cout << "    \"source\": \"" << backend_metadata_source(args) << "\",\n";
+  std::cout << "    \"source\": \"" << backend_metadata_source(args, result) << "\",\n";
   std::cout << "    \"selected_kernel\": ";
   print_json_string_or_null(result.backend_info.selected_kernel);
   std::cout << ",\n";
@@ -7218,7 +7252,7 @@ void print_json(
   std::cout << "    \"unit\": \"microseconds\",\n";
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
-  std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
+  std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args, result) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
   std::cout << "    \"native_to_rns_bridge_forced\": "
             << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";

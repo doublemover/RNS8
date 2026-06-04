@@ -2404,6 +2404,23 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "large-exploratory",
+                "bounded-i64-2048-reuse-b",
+                "bounded-i64",
+                large_2048,
+                "large bounded i64 exploratory workload with stable RHS packed once before warmups",
+                "host_export",
+                "checks whether pack-bound matrix-engine paths at 2048 benefit from reusable B residency",
+                backends=accelerator_backends,
+                pack_mode="prepacked_reuse_b",
+                metadata={
+                    "large_shape_role": "throughput_probe_reuse_b",
+                    "promotion_scope": "exploratory_only",
+                    "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "large-exploratory",
                 "bounded-u64-2048",
                 "bounded-u64",
                 large_2048,
@@ -2411,6 +2428,23 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "host_export",
                 "separates large-shape throughput evidence from promotable 64..1024 cache entries",
                 backends=bounded_gpu_backends,
+            ),
+            ScenarioItem(
+                "large-exploratory",
+                "bounded-u64-2048-reuse-b",
+                "bounded-u64",
+                large_2048,
+                "large bounded u64 exploratory workload with stable RHS packed once before warmups",
+                "host_export",
+                "checks whether large unsigned bounded paths amortize reusable B residency differently from signed paths",
+                backends=accelerator_backends,
+                pack_mode="prepacked_reuse_b",
+                metadata={
+                    "large_shape_role": "throughput_probe_reuse_b",
+                    "promotion_scope": "exploratory_only",
+                    "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
             ),
             ScenarioItem(
                 "large-exploratory",
@@ -2425,6 +2459,23 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "large-exploratory",
+                "bounded-i64-4096-reuse-b",
+                "bounded-i64",
+                large_4096,
+                "very large bounded i64 throughput workload with stable RHS packed once before warmups",
+                "host_export",
+                "measures whether reusable B is still valuable after launch overhead is fully amortized",
+                backends=accelerator_backends,
+                pack_mode="prepacked_reuse_b",
+                metadata={
+                    "large_shape_role": "throughput_probe_reuse_b",
+                    "promotion_scope": "exploratory_only",
+                    "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "large-exploratory",
                 "bounded-u64-4096",
                 "bounded-u64",
                 large_4096,
@@ -2433,6 +2484,23 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "checks whether native vector, Direct-HIP, and accelerator paths scale differently once launch overhead is amortized",
                 backends=bounded_gpu_backends,
                 metadata={"large_shape_role": "throughput_probe", "promotion_scope": "exploratory_only"},
+            ),
+            ScenarioItem(
+                "large-exploratory",
+                "bounded-u64-4096-reuse-b",
+                "bounded-u64",
+                large_4096,
+                "very large bounded u64 throughput workload with stable RHS packed once before warmups",
+                "host_export",
+                "tests whether large unsigned matrix-engine paths should prefer explicit stable-B contracts",
+                backends=accelerator_backends,
+                pack_mode="prepacked_reuse_b",
+                metadata={
+                    "large_shape_role": "throughput_probe_reuse_b",
+                    "promotion_scope": "exploratory_only",
+                    "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
             ),
             ScenarioItem(
                 "large-exploratory",
@@ -2896,7 +2964,6 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
 def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
     if any(
         [
-            getattr(args, "semantics", None),
             getattr(args, "case", None),
             getattr(args, "adaptive_case", None),
             getattr(args, "shapes", None),
@@ -2919,11 +2986,14 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
         ]
     ):
-        raise SystemExit("--scenario cannot be combined with manual sweep shape/semantics/reuse/include flags")
+        raise SystemExit("--scenario cannot be combined with manual sweep shape/reuse/include flags")
 
     backend_benches = parse_backend_bench(args.bench_for)
+    semantics_filter = {normalize_semantics(item) for item in (args.semantics or [])}
     commands: list[SweepCommand] = []
     for item in selected_scenario_items(args):
+        if semantics_filter and item.semantics not in semantics_filter:
+            continue
         scenario_args = scenario_args_for_item(args, item)
         backends = scenario_backends_for_item(args, item)
         if not backends:
