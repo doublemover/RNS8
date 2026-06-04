@@ -193,10 +193,14 @@ Implemented correctness coverage:
   zero range bits when their prefix metadata is otherwise valid. Adaptive
   per-tile K-split reuse coverage compares against CPU with padded output and
   mixed selected-prefix groups while checking same-shape resident buffer
-  allocation and workspace schedule-metadata stability after warmup. Direct HIP
-  also rejects same-shape stale per-tile workspace schedules and stale per-tile
-  matrix tile metadata without changing warmed resident allocation counters or
-  the last successful output source version.
+  allocation and workspace schedule-metadata stability after warmup. Direct-HIP
+  GEMM workspaces store the compact active schedule for nonzero adaptive work,
+  retain the public device schedule only when mixed or non-uniform zero-output
+  tile materialization needs device tile extents, and use no schedule buffers
+  for uniform all-zero schedules. Direct HIP also rejects same-shape stale
+  per-tile workspace schedules and stale per-tile matrix tile metadata without
+  changing warmed resident allocation counters or the last successful output
+  source version.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is

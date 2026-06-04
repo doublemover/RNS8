@@ -95,9 +95,12 @@ Implemented in the current proven-zero tile skip slice:
   running per-tile GEMM work for selected residue planes. Residue planes above
   the selected prefix remain untouched.
 - Direct-HIP active-prefix schedules now exclude zero-output tile entries from
-  the compact GEMM workspace schedule. Zero-output tiles are materialized by a
-  separate scheduled residue-zero kernel reported as
-  `direct_hip_zero_output_tile_memset`; adaptive zero-skip plans advertise
+  the compact GEMM workspace schedule. Nonzero adaptive schedules now upload
+  only that compact active schedule, not the unused public row-major device
+  schedule. Mixed zero/nonzero schedules keep the public device schedule for
+  tile-local zero materialization, while uniform all-zero schedules skip both
+  schedule buffers and use the `direct_hip_zero_output_tile_memset` event label
+  for a contiguous selected-plane zero fill. Adaptive zero-skip plans advertise
   `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`, while nonzero
   adaptive plans keep `direct_hip_tiled_active_prefix_rns_gemm_v2`.
 - Direct-HIP all-zero scheduled exports now skip CRT/status work entirely:
@@ -393,15 +396,20 @@ Likely first slices:
   net win.
 - Compact direct-HIP active-prefix scheduled launches. Implemented for
   per-tile direct-HIP RNS GEMM as
-  `direct_hip_tiled_active_prefix_rns_gemm_v2`: the workspace stores the
-  public row-major schedule plus a compact per-modulus active-entry schedule,
-  and the GEMM dispatch uses the compact schedule to avoid tile blocks for
-  residue planes that a tile did not select.
+  `direct_hip_tiled_active_prefix_rns_gemm_v2`: the workspace stores a compact
+  per-modulus active-entry schedule and the GEMM dispatch uses it to avoid tile
+  blocks for residue planes that a tile did not select. The public row-major
+  device schedule is no longer uploaded for nonzero adaptive schedules because
+  the backend validates against the host schedule and launches from the compact
+  active schedule.
 - Compact Direct-HIP zero-output schedules. Implemented as
   `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`: zero-output public
   schedule entries are omitted from the active GEMM schedule and handled by the
   event-visible `direct_hip_zero_output_tile_memset` operation before nonzero
-  scheduled GEMM work. Smoke evidence lives under
+  scheduled GEMM work. Mixed zero/nonzero schedules still upload the public
+  device schedule for tile extents; uniform all-zero schedules use a contiguous
+  selected-plane memset and report zero GEMM schedule workspace bytes. Smoke
+  evidence lives under
   `temp/perf-work-queue/direct-hip-zero-active-schedule/` and validates schema
   v4 plus required GPU events for a 256x256x512 bounded-u64 adaptive-bands
   capture.
@@ -1798,7 +1806,12 @@ Technical direction:
 
 Likely first slices:
 
-- Device schedule buffer reuse.
+- Direct-HIP device schedule upload minimization. Implemented for scheduled
+  GEMM workspaces: nonzero adaptive schedules upload only the compact active
+  schedule, mixed zero/nonzero schedules retain the public device schedule for
+  zero-tile extents, and uniform all-zero schedules report zero schedule
+  workspace bytes.
+- Broader device schedule buffer reuse across matching fingerprints.
 - Prefix-grouped accelerator dispatch for adaptive bounded.
 - Adaptive tile-size scenario matrix.
 

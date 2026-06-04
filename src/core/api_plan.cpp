@@ -696,7 +696,8 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     }
     active_entry_count += entry.selected_prefix;
   }
-  const uint64_t schedule_entries = static_cast<uint64_t>(plan.tile_schedule.size());
+  const uint64_t schedule_entries =
+      hip_direct_gemm_requires_device_tile_schedule(plan) ? static_cast<uint64_t>(plan.tile_schedule.size()) : 0;
   if (schedule_entries > std::numeric_limits<uint64_t>::max() - active_entry_count) {
     return std::numeric_limits<uint64_t>::max();
   }
@@ -705,6 +706,28 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     return std::numeric_limits<uint64_t>::max();
   }
   return total_entries * sizeof(rns8_plan_tile_schedule_entry);
+}
+
+bool hip_direct_gemm_requires_device_tile_schedule(const rns8_plan& plan) {
+  if (plan.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
+    return false;
+  }
+  bool saw_zero_output_tile = false;
+  bool every_tile_zero_output = true;
+  uint32_t uniform_zero_selected_prefix = 0;
+  for (const auto& entry : plan.tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+      every_tile_zero_output = false;
+      continue;
+    }
+    saw_zero_output_tile = true;
+    if (uniform_zero_selected_prefix == 0) {
+      uniform_zero_selected_prefix = entry.selected_prefix;
+    } else if (uniform_zero_selected_prefix != entry.selected_prefix) {
+      every_tile_zero_output = false;
+    }
+  }
+  return saw_zero_output_tile && !(every_tile_zero_output && uniform_zero_selected_prefix != 0);
 }
 
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n) {

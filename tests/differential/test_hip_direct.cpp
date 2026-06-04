@@ -1771,14 +1771,14 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   for (const auto& entry : adaptive_entries) {
     active_entry_count += entry.selected_prefix;
   }
-  const uint64_t expected_workspace_bytes =
-      (static_cast<uint64_t>(adaptive_entries.size()) + active_entry_count) *
-      sizeof(rns8_plan_tile_schedule_entry);
+  const uint64_t expected_workspace_bytes = active_entry_count * sizeof(rns8_plan_tile_schedule_entry);
   CHECK(adaptive_info.workspace_required_bytes == expected_workspace_bytes);
   rns8_workspace* adaptive_workspace = nullptr;
   REQUIRE(rns8_create_workspace(hip, adaptive_plan, &adaptive_workspace) == RNS8_SUCCESS);
   REQUIRE(adaptive_workspace != nullptr);
-  CHECK(adaptive_workspace->hip_tile_schedule_count == adaptive_entries.size());
+  CHECK(adaptive_workspace->hip_tile_schedule == nullptr);
+  CHECK(adaptive_workspace->hip_tile_schedule_bytes == 0);
+  CHECK(adaptive_workspace->hip_tile_schedule_count == 0);
   CHECK(adaptive_workspace->hip_tile_schedule_active_prefix_count == adaptive_plan->schedule_max_selected_prefix);
   CHECK(adaptive_workspace->hip_tile_schedule_active_entries_count == active_entry_count);
   CHECK(adaptive_workspace->hip_tile_schedule_active_entries_bytes ==
@@ -6724,6 +6724,11 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  CHECK(hip_workspace->hip_tile_schedule != nullptr);
+  CHECK(hip_workspace->hip_tile_schedule_count == hip_plan->tile_schedule.size());
+  CHECK(
+      hip_workspace->hip_tile_schedule_bytes ==
+      hip_plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry));
   CHECK(hip_workspace->hip_tile_schedule_active_entries_count == nonzero_active_entry_count);
   CHECK(
       hip_workspace->hip_tile_schedule_active_entries_bytes ==
@@ -6812,6 +6817,11 @@ TEST_CASE("direct HIP all-zero per-tile bounded export skips status traffic") {
   for (const auto& entry : hip_plan->tile_schedule) {
     CHECK(entry.flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
   }
+  rns8_plan_backend_info hip_info{};
+  hip_info.struct_size = sizeof(hip_info);
+  hip_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(hip_plan, &hip_info) == RNS8_SUCCESS);
+  CHECK(hip_info.workspace_required_bytes == 0);
 
   auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
   auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
@@ -6834,6 +6844,9 @@ TEST_CASE("direct HIP all-zero per-tile bounded export skips status traffic") {
   REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  CHECK(hip_workspace->hip_tile_schedule == nullptr);
+  CHECK(hip_workspace->hip_tile_schedule_bytes == 0);
+  CHECK(hip_workspace->hip_tile_schedule_count == 0);
   CHECK(hip_workspace->hip_tile_schedule_active_entries_count == 0);
   CHECK(hip_workspace->hip_tile_schedule_active_entries_bytes == 0);
   CHECK(hip_workspace->hip_tile_schedule_active_entries == nullptr);

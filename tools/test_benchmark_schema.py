@@ -1923,7 +1923,7 @@ def main() -> int:
             "zero_output_selected_residue_planes": all_zero_planes,
         }
     )
-    all_zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 320
+    all_zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 0
     all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"] = [0.0] * repeats
     all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = summary([0.0] * repeats)
     all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [0.25] * repeats

@@ -843,11 +843,16 @@ rns8_status validate_plan_context_workspace(
       return RNS8_INVALID_ARGUMENT;
     }
     const std::size_t expected_schedule_bytes =
-        scheduled ? plan.tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry) : 0;
+        scheduled && hip_direct_gemm_requires_device_tile_schedule(plan)
+            ? plan.tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry)
+            : 0;
     if (scheduled) {
-      if (!workspace.hip_tile_schedule ||
-          workspace.hip_tile_schedule_bytes != expected_schedule_bytes ||
-          workspace.hip_tile_schedule_count != static_cast<uint64_t>(plan.tile_schedule.size()) ||
+      const uint64_t expected_schedule_count =
+          expected_schedule_bytes == 0 ? 0 : static_cast<uint64_t>(plan.tile_schedule.size());
+      if (workspace.hip_tile_schedule_bytes != expected_schedule_bytes ||
+          workspace.hip_tile_schedule_count != expected_schedule_count ||
+          (expected_schedule_bytes == 0 ? workspace.hip_tile_schedule != nullptr
+                                        : workspace.hip_tile_schedule == nullptr) ||
           !active_prefix_tile_schedule_matches_workspace(plan, workspace)) {
         return RNS8_INVALID_ARGUMENT;
       }
@@ -1271,22 +1276,26 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
         delete workspace;
         return RNS8_RANGE_ERROR;
       }
-      const std::size_t schedule_bytes = plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry);
+      const bool upload_device_tile_schedule = hip_direct_gemm_requires_device_tile_schedule(*plan);
+      const std::size_t schedule_bytes =
+          upload_device_tile_schedule ? plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry) : 0;
       const std::size_t active_schedule_bytes = active_entries.size() * sizeof(rns8_plan_tile_schedule_entry);
-      rns8_status status =
-          rns8::detail::hip_direct_allocate(ctx->device_id, schedule_bytes, &workspace->hip_tile_schedule);
-      if (status != RNS8_SUCCESS) {
-        delete workspace;
-        return status;
-      }
-      workspace->hip_tile_schedule_bytes = schedule_bytes;
-      workspace->hip_tile_schedule_count = static_cast<uint64_t>(plan->tile_schedule.size());
-      status = rns8::detail::hip_direct_copy_host_to_device(
-          ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes);
-      if (status != RNS8_SUCCESS) {
-        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
-        delete workspace;
-        return status;
+      rns8_status status = RNS8_SUCCESS;
+      if (schedule_bytes != 0) {
+        status = rns8::detail::hip_direct_allocate(ctx->device_id, schedule_bytes, &workspace->hip_tile_schedule);
+        if (status != RNS8_SUCCESS) {
+          delete workspace;
+          return status;
+        }
+        workspace->hip_tile_schedule_bytes = schedule_bytes;
+        workspace->hip_tile_schedule_count = static_cast<uint64_t>(plan->tile_schedule.size());
+        status = rns8::detail::hip_direct_copy_host_to_device(
+            ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes);
+        if (status != RNS8_SUCCESS) {
+          (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+          delete workspace;
+          return status;
+        }
       }
       workspace->hip_tile_schedule_active_entries_bytes = active_schedule_bytes;
       workspace->hip_tile_schedule_active_entries_count = static_cast<uint64_t>(active_entries.size());

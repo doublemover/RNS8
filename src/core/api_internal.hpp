@@ -190,6 +190,8 @@ std::string accumulator_safety_status_for_plan(const rns8_plan& plan);
 
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan);
 
+bool hip_direct_gemm_requires_device_tile_schedule(const rns8_plan& plan);
+
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n);
 
 bool hipblaslt_pack_workspace_breakdown(

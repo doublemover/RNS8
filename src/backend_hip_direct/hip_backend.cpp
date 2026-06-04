@@ -824,6 +824,28 @@ bool schedule_has_zero_output_tiles(const rns8_plan_tile_schedule_entry* entries
   return false;
 }
 
+bool schedule_all_zero_output_tiles_uniform_prefix(
+    const rns8_plan_tile_schedule_entry* entries,
+    uint64_t entry_count,
+    uint32_t& selected_prefix) {
+  if (!entries || entry_count == 0) {
+    return false;
+  }
+  selected_prefix = 0;
+  for (uint64_t index = 0; index < entry_count; ++index) {
+    const auto& entry = entries[static_cast<std::size_t>(index)];
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+      return false;
+    }
+    if (selected_prefix == 0) {
+      selected_prefix = entry.selected_prefix;
+    } else if (selected_prefix != entry.selected_prefix) {
+      return false;
+    }
+  }
+  return selected_prefix != 0;
+}
+
 struct hip_rns_modulus_launch {
   const int8_t* a = nullptr;
   const int8_t* b = nullptr;
@@ -2838,7 +2860,7 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     uint32_t active_prefix_count,
     uint64_t entry_count) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries || !device_entries ||
+  if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries ||
       !active_offsets || !active_counts || active_prefix_count == 0 || entry_count == 0 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
     return RNS8_INVALID_ARGUMENT;
@@ -2895,9 +2917,30 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     return RNS8_INVALID_ARGUMENT;
   }
   const bool zero_output_tiles = schedule_has_zero_output_tiles(host_entries, entry_count);
+  uint32_t uniform_zero_selected_prefix = 0;
+  const bool uniform_all_zero_output_tiles =
+      schedule_all_zero_output_tiles_uniform_prefix(host_entries, entry_count, uniform_zero_selected_prefix);
+  if (zero_output_tiles && !uniform_all_zero_output_tiles && !device_entries) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (zero_output_tiles) {
     const bool synchronize_zero_fill = running_offset == 0;
     const hipError_t zero_err = timed_hip_operation("direct_hip_zero_output_tile_memset", [&]() {
+      if (uniform_all_zero_output_tiles) {
+        const auto rows_u = static_cast<uint64_t>(m);
+        const auto ldc_u = static_cast<uint64_t>(ldc);
+        const uint64_t max_bytes = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
+        if (ldc_u != 0 && rows_u > max_bytes / ldc_u) {
+          return hipErrorInvalidValue;
+        }
+        const uint64_t plane_stride = rows_u * ldc_u;
+        if (plane_stride != 0 && uniform_zero_selected_prefix > max_bytes / plane_stride) {
+          return hipErrorInvalidValue;
+        }
+        const auto zero_bytes = static_cast<std::size_t>(uniform_zero_selected_prefix * plane_stride);
+        const hipError_t memset_status = hipMemsetAsync(c_base, 0, zero_bytes, nullptr);
+        return memset_status == hipSuccess && synchronize_zero_fill ? hipDeviceSynchronize() : memset_status;
+      }
       const int code = rns8_hip_direct_zero_scheduled_residue_tiles_device(
           c_base,
           static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
