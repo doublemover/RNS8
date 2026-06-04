@@ -286,7 +286,7 @@ int launch_vector_gemm(
   if (error != hipSuccess) {
     return static_cast<int>(error);
   }
-  if (m == 1 && n == 1 && k >= 4096) {
+  if (n == 1 && k >= 4096) {
     const dim3 block(kGemvN1BlockSize);
     const dim3 grid(static_cast<unsigned int>(m));
     if constexpr (std::is_same<T, int64_t>::value) {

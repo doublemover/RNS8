@@ -58,13 +58,30 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     }
 
 
-def vector_entry(key_suffix: str = "") -> dict:
+def vector_entry(
+    key_suffix: str = "",
+    *,
+    semantics: str = "bounded_u64",
+    m: int = 512,
+    n: int = 512,
+    k: int = 512,
+) -> dict:
     target_id = f"gfx1100{key_suffix}"
-    selected_kernel = "hip_vector_alu_u64_exact_192b_v1"
+    signed = semantics == "bounded_i64"
+    gemv_n1 = n == 1 and k >= 4096
+    selected_kernel = (
+        "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
+        if signed and gemv_n1
+        else "hip_vector_alu_i64_exact_192b_v1"
+        if signed
+        else "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+        if gemv_n1
+        else "hip_vector_alu_u64_exact_192b_v1"
+    )
     epilogue = "direct_int64_export"
     key = (
         f"backend=hip-vector-alu-int64;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
-        "semantics=bounded_u64;m=512;n=512;k=512;layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
+        f"semantics={semantics};m={m};n={n};k={k};layout=row_major;k_block_size={k};tile_m=128;tile_n=128;"
         f"kernel={selected_kernel};epilogue={epilogue}"
     )
     return {
@@ -73,12 +90,12 @@ def vector_entry(key_suffix: str = "") -> dict:
         "selected_kernel": selected_kernel,
         "target_id": target_id,
         "hip_sdk_or_library_version": "repo-local release/rocm-rel-7.1",
-        "semantic_contract": "bounded_u64",
+        "semantic_contract": semantics,
         "finite_modulus": 0,
-        "shape": {"m": 512, "n": 512, "k": 512},
+        "shape": {"m": m, "n": n, "k": k},
         "layout": "row_major",
         "prefix_schedule_hash": "groups=1;adaptive_prefix=0;adaptive_skip=0",
-        "k_block_size": 512,
+        "k_block_size": k,
         "tile_m": 128,
         "tile_n": 128,
         "epilogue": epilogue,
@@ -148,28 +165,30 @@ def main() -> int:
         replacement["measured_medians_us"]["end_to_end"] = 1.5
         finite = entry("-finite", finite_modulus=251)
         vector = vector_entry("-vector")
+        vector_gemv = vector_entry("-vector-gemv", semantics="bounded_i64", m=256, n=1, k=4096)
         write_cache(destination, [old])
         write_cache(source_a, [replacement])
-        write_cache(source_b, [finite, vector])
+        write_cache(source_b, [finite, vector, vector_gemv])
 
         dry_run = install_autotune_cache.install_cache([source_a, source_b], destination, dry_run=True)
         assert dry_run["dry_run"] is True
         assert dry_run["replace_existing"] is False
-        assert dry_run["installed_entries"] == 3
+        assert dry_run["installed_entries"] == 4
         assert json.loads(destination.read_text(encoding="utf-8"))["entries"][0]["measured_medians_us"][
             "end_to_end"
         ] == 4.0
 
         summary = install_autotune_cache.install_cache([source_a, source_b], destination)
-        assert summary["source_entries"] == 3
+        assert summary["source_entries"] == 4
         assert summary["existing_entries"] == 1
-        assert summary["installed_entries"] == 3
-        assert summary["added_entries"] == 2
+        assert summary["installed_entries"] == 4
+        assert summary["added_entries"] == 3
         assert summary["replaced_entries"] == 1
         installed = json.loads(destination.read_text(encoding="utf-8"))["entries"]
         assert [item["key"] for item in installed] == sorted(item["key"] for item in installed)
         assert any(item["finite_modulus"] == 251 for item in installed)
         assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
+        assert any(item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1" for item in installed)
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
 
         bad = copy.deepcopy(finite)
@@ -281,6 +300,22 @@ def main() -> int:
             assert "unsupported_autotune_backend_semantic_contract" in str(exc)
         else:
             raise AssertionError("non-bounded vector cache entry was accepted")
+
+        stale_vector_gemv = vector_entry("-stale-vector-gemv", semantics="bounded_i64", m=256, n=1, k=4096)
+        stale_vector_gemv["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
+        stale_vector_gemv["kernel_family"] = "hip_vector_alu_i64_exact_192b_v1"
+        stale_vector_gemv["key"] = stale_vector_gemv["key"].replace(
+            "kernel=hip_vector_alu_i64_gemv_n1_exact_192b_v1",
+            "kernel=hip_vector_alu_i64_exact_192b_v1",
+        )
+        stale_vector_gemv_source = root / "stale-vector-gemv.json"
+        write_cache(stale_vector_gemv_source, [stale_vector_gemv])
+        try:
+            install_autotune_cache.install_cache([stale_vector_gemv_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_kernel_for_contract" in str(exc)
+        else:
+            raise AssertionError("stale vector GEMV cache kernel was accepted")
 
         stale_kernel = entry("-stale-kernel")
         stale_kernel.update(

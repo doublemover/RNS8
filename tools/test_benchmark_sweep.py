@@ -607,10 +607,11 @@ def main() -> int:
     skinny_args.backends = ["hip-vector-alu-int64"]
     skinny_args.scenario = ["skinny-gemv"]
     skinny_entries = benchmark_sweep.sweep_command_entries(skinny_args)
-    assert len(skinny_entries) == 2
+    assert len(skinny_entries) == 3
     assert [entry.scenario["name"] for entry in skinny_entries] == [
         "bounded-i64-n1-512",
         "bounded-u64-n1-1024",
+        "bounded-i64-n1-longk-256",
     ]
     assert all(entry.scenario["family"] == "skinny-gemv" for entry in skinny_entries)
     assert all(entry.scenario["backend"] == "hip-vector-alu-int64" for entry in skinny_entries)
@@ -619,6 +620,8 @@ def main() -> int:
     assert all(benchmark_sweep.cli_backend("hip-vector-alu-int64") in entry.command for entry in skinny_entries)
     assert all("scenarios" in entry.output.parts and "skinny-gemv" in entry.output.parts for entry in skinny_entries)
     assert skinny_entries[0].name.startswith("skinny-gemv-bounded-i64-n1-512-")
+    assert skinny_entries[2].scenario.get("metadata", {}).get("workflow_name") == "gemv_n1_long_k"
+    assert skinny_entries[2].command[skinny_entries[2].command.index("--k") + 1] == "4096"
 
     many_small_args = copy.copy(scenario_args)
     many_small_args.backends = ["hip-direct"]

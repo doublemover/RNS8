@@ -82,8 +82,8 @@ inside the same backend and semantic contract.
 
 | Backend | Shape | Semantics | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Median kernel speedup | Status |
 |---|---:|---|---|---:|---:|---:|---|
-| Vector ALU | 1x1x65536 | bounded u64 | `hip_vector_alu_u64_gemv_n1_exact_192b_v1` | 2.22x | 3.39x | 20.30x | Routed only for long-K dot products: `m == 1`, `n == 1`, `k >= 4096` |
-| Vector ALU | 1x1x65536 | bounded i64 | `hip_vector_alu_i64_gemv_n1_exact_192b_v1` | 4.44x | 7.41x | 35.87x | Routed only for long-K dot products: `m == 1`, `n == 1`, `k >= 4096` |
+| Vector ALU | 1x1x65536 | bounded u64 | `hip_vector_alu_u64_gemv_n1_exact_192b_v1` | 2.22x | 3.39x | 20.30x | Measured at 1x1x65536; active route now covers long-K N=1 captures: `n == 1`, `k >= 4096` |
+| Vector ALU | 1x1x65536 | bounded i64 | `hip_vector_alu_i64_gemv_n1_exact_192b_v1` | 4.44x | 7.41x | 35.87x | Measured at 1x1x65536; active route now covers long-K N=1 captures: `n == 1`, `k >= 4096` |
 
 The vector long-K dot captures used release binaries, three warmups, nine
 measured repeats, seed `20260604`, and required GPU events. The pre-change

@@ -15,6 +15,8 @@ constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_centered_epilo
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
+constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
+constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
 constexpr const char* kVectorU64Kernel = "hip_vector_alu_u64_exact_192b_v1";
 constexpr const char* kVectorEpilogue = "direct_int64_export";
 constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
@@ -288,6 +290,60 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.epilogue = kVectorEpilogue;
     item.kernel_family = kVectorU64Kernel;
     cases.push_back({item.key, item, ""});
+  }
+  {
+    std::string key = reviewed_key(
+        "hip-vector-alu-int64",
+        "gfx1100",
+        "7.1",
+        "bounded_i64",
+        256,
+        1,
+        4096,
+        "row_major",
+        4096,
+        128,
+        128,
+        kVectorI64GemvKernel,
+        kVectorEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "hip-vector-alu-int64";
+    item.selected_kernel = kVectorI64GemvKernel;
+    item.semantic_contract = "bounded_i64";
+    item.m = 256;
+    item.n = 1;
+    item.k = 4096;
+    item.k_block_size = 4096;
+    item.epilogue = kVectorEpilogue;
+    item.kernel_family = kVectorI64GemvKernel;
+    cases.push_back({item.key, item, ""});
+  }
+  {
+    std::string key = reviewed_key(
+        "hip-vector-alu-int64",
+        "gfx1100",
+        "7.1",
+        "bounded_i64",
+        256,
+        1,
+        4096,
+        "row_major",
+        4096,
+        128,
+        128,
+        kVectorI64Kernel,
+        kVectorEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "hip-vector-alu-int64";
+    item.selected_kernel = kVectorI64Kernel;
+    item.semantic_contract = "bounded_i64";
+    item.m = 256;
+    item.n = 1;
+    item.k = 4096;
+    item.k_block_size = 4096;
+    item.epilogue = kVectorEpilogue;
+    item.kernel_family = kVectorI64Kernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
     std::string key =

@@ -1081,7 +1081,7 @@ class _Validator:
                     self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
             if metadata.get("selected_kernel") not in VECTOR_ALU_SELECTED_KERNELS:
                 self._error("hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel")
-            gemv_n1 = self.data.get("m") == 1 and self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
+            gemv_n1 = self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
             expected_kernel = (
                 "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
                 if self.data.get("semantics") == "bounded_i64" and gemv_n1

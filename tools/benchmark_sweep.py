@@ -1192,6 +1192,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     many_small_64 = parse_case("many-small-64:64,64,64")
     skinny_512 = parse_case("gemv-n1-512:512,1,512")
     skinny_1024 = parse_case("gemv-n1-1024:1024,1,1024")
+    skinny_longk = parse_case("gemv-n1-longk-256:256,1,4096")
     wrap64_512 = parse_case("wrap64-512:512,512,512")
     wrap64_1024 = parse_case("wrap64-1024:1024,1024,1024")
     large_2048 = parse_case("large-2048:2048,2048,2048", promotable=False)
@@ -1486,6 +1487,22 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "host_export",
                 "checks the native vector-ALU GEMV path against RNS accelerators",
                 backends=BOUNDED_BACKENDS,
+            ),
+            ScenarioItem(
+                "skinny-gemv",
+                "bounded-i64-n1-longk-256",
+                "bounded-i64",
+                skinny_longk,
+                "long-K N=1 bounded i64 GEMV workload",
+                "host_export",
+                "exercises the vector-ALU N=1 reduction kernel on multiple output rows",
+                backends=BOUNDED_BACKENDS,
+                metadata={
+                    "shape_signature": "tall_skinny_long_k",
+                    "workflow_name": "gemv_n1_long_k",
+                    "phase_label": "native_vector_reduction",
+                    "reuse_profile": "single_rhs_column",
+                },
             ),
         ],
         "computational-algebra-proxies": [

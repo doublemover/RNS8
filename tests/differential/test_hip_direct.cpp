@@ -4532,13 +4532,17 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
   }
 
   {
-    const int64_t m = 1;
+    const int64_t m = 3;
     const int64_t n = 1;
     const int64_t k = 4096;
     std::vector<uint64_t> A(static_cast<std::size_t>(m * k));
     std::vector<uint64_t> B(static_cast<std::size_t>(k * n));
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(row * k + kk)] = static_cast<uint64_t>(((row + kk) % 11) + 1);
+      }
+    }
     for (int64_t kk = 0; kk < k; ++kk) {
-      A[static_cast<std::size_t>(kk)] = static_cast<uint64_t>((kk % 11) + 1);
       B[static_cast<std::size_t>(kk)] = static_cast<uint64_t>((kk % 13) + 1);
     }
     std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * n), 0);

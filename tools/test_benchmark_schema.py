@@ -1277,21 +1277,21 @@ def main() -> int:
     bounded = v4_adaptive_i64
 
     vector_gemv = copy.deepcopy(v4_vector_u64)
-    vector_gemv["m"] = 1
+    vector_gemv["m"] = 128
     vector_gemv["n"] = 1
-    vector_gemv["k"] = 65536
+    vector_gemv["k"] = 4096
     vector_gemv["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
     vector_gemv["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
     vector_gemv["backend_metadata"]["autotune_key"] = (
         vector_gemv["backend_metadata"]["autotune_key"]
-        .replace(";m=16;", ";m=1;")
+        .replace(";m=16;", ";m=128;")
         .replace(";n=16;", ";n=1;")
-        .replace(";k=16;", ";k=65536;")
-        .replace("k_block_size=16;", "k_block_size=65536;")
+        .replace(";k=16;", ";k=4096;")
+        .replace("k_block_size=16;", "k_block_size=4096;")
         .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
     )
-    vector_gemv["backend_metadata"]["accumulator_safety"]["k_block_size"] = 65536
-    vector_gemv["k_block_size"] = 65536
+    vector_gemv["backend_metadata"]["accumulator_safety"]["k_block_size"] = 4096
+    vector_gemv["k_block_size"] = 4096
     validate_capture(vector_gemv)
 
     stale_vector_gemv_kernel = copy.deepcopy(vector_gemv)

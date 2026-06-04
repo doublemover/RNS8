@@ -129,15 +129,26 @@ def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_
     )
 
 
+def expected_vector_alu_kernel(semantic_contract: str, m: int, n: int, k: int) -> str | None:
+    gemv_n1 = n == 1 and k >= 4096
+    if semantic_contract == "bounded_i64":
+        return "hip_vector_alu_i64_gemv_n1_exact_192b_v1" if gemv_n1 else "hip_vector_alu_i64_exact_192b_v1"
+    if semantic_contract == "bounded_u64":
+        return "hip_vector_alu_u64_gemv_n1_exact_192b_v1" if gemv_n1 else "hip_vector_alu_u64_exact_192b_v1"
+    return None
+
+
 def reviewed_kernel_supported_for_contract(
-    selected_backend: str, semantic_contract: str, selected_kernel: str, finite_modulus: int
+    selected_backend: str,
+    semantic_contract: str,
+    selected_kernel: str,
+    finite_modulus: int,
+    m: int,
+    n: int,
+    k: int,
 ) -> bool:
     if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
-        if semantic_contract == "bounded_i64":
-            return selected_kernel == "hip_vector_alu_i64_exact_192b_v1"
-        if semantic_contract == "bounded_u64":
-            return selected_kernel == "hip_vector_alu_u64_exact_192b_v1"
-        return False
+        return selected_kernel == expected_vector_alu_kernel(semantic_contract, m, n, k)
     if selected_backend == "hipblaslt":
         return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2"
     if selected_backend == "ck":
@@ -272,7 +283,7 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
         entry["finite_modulus"] = finite_modulus
 
         if not reviewed_kernel_supported_for_contract(
-            selected_backend, semantic_contract, selected_kernel, finite_modulus
+            selected_backend, semantic_contract, selected_kernel, finite_modulus, m, n, k
         ):
             raise AutotuneCacheInstallError("unsupported_autotune_kernel_for_contract")
         if not reviewed_epilogue_supported_for_contract(selected_backend, semantic_contract, epilogue):
