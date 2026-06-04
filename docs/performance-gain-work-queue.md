@@ -439,7 +439,11 @@ Likely first slices:
   fixed-prefix CRT reconstruction kernels for prefix 9 and prefix 20, with the
   generic runtime-prefix export kernel retained as fallback for all other
   prefixes. Exact-wide Direct-HIP limb export also dispatches the prefix-20
-  fixed-prefix reconstruction kernel.
+  fixed-prefix reconstruction kernel. Direct-HIP scheduled per-tile bounded
+  i64/u64 export now dispatches compile-time CRT reconstruction variants for
+  selected prefixes 1 through 9 inside the adaptive export kernel, retaining the
+  runtime-prefix reconstruction helper only as the fallback for unusual
+  selected prefixes.
 - Exact-wide 1/2/4/8/16/32 limb export variants with compact D2H staging.
   Implemented benchmark coverage for the limb-count variants via
   `rns8-bench --exact-wide-limbs` and
@@ -1722,7 +1726,9 @@ Technical direction:
 
 Likely first slices:
 
-- Prefix-9 bounded export specialization.
+- Prefix-9 bounded export specialization. Implemented for fixed-prefix
+  Direct-HIP bounded export, and now also used by scheduled per-tile adaptive
+  bounded export through selected-prefix 1..9 compile-time CRT dispatch.
 - Exact-wide compact D2H staging.
 - Status phase timing split across accelerator exports.
 

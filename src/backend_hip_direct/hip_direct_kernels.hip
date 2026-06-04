@@ -1856,6 +1856,92 @@ __device__ void rns8_export_u64_fixed_prefix_cell_device(
   rns8_export_u64_cell_device(dst, cell, x, bound, status);
 }
 
+__device__ void rns8_export_i64_bounded_prefix_cell_device(
+    const int8_t* residues,
+    int64_t* dst,
+    int cell,
+    int elements,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  switch (prefix) {
+    case 1:
+      rns8_export_i64_fixed_prefix_cell_device<1>(residues, dst, cell, elements, bound, status);
+      return;
+    case 2:
+      rns8_export_i64_fixed_prefix_cell_device<2>(residues, dst, cell, elements, bound, status);
+      return;
+    case 3:
+      rns8_export_i64_fixed_prefix_cell_device<3>(residues, dst, cell, elements, bound, status);
+      return;
+    case 4:
+      rns8_export_i64_fixed_prefix_cell_device<4>(residues, dst, cell, elements, bound, status);
+      return;
+    case 5:
+      rns8_export_i64_fixed_prefix_cell_device<5>(residues, dst, cell, elements, bound, status);
+      return;
+    case 6:
+      rns8_export_i64_fixed_prefix_cell_device<6>(residues, dst, cell, elements, bound, status);
+      return;
+    case 7:
+      rns8_export_i64_fixed_prefix_cell_device<7>(residues, dst, cell, elements, bound, status);
+      return;
+    case 8:
+      rns8_export_i64_fixed_prefix_cell_device<8>(residues, dst, cell, elements, bound, status);
+      return;
+    case kRns8DefaultBoundedPrefix:
+      rns8_export_i64_fixed_prefix_cell_device<kRns8DefaultBoundedPrefix>(
+          residues, dst, cell, elements, bound, status);
+      return;
+    default:
+      rns8_export_i64_cell_device(residues, dst, cell, elements, prefix, bound, status);
+      return;
+  }
+}
+
+__device__ void rns8_export_u64_bounded_prefix_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  switch (prefix) {
+    case 1:
+      rns8_export_u64_fixed_prefix_cell_device<1>(residues, dst, cell, elements, bound, status);
+      return;
+    case 2:
+      rns8_export_u64_fixed_prefix_cell_device<2>(residues, dst, cell, elements, bound, status);
+      return;
+    case 3:
+      rns8_export_u64_fixed_prefix_cell_device<3>(residues, dst, cell, elements, bound, status);
+      return;
+    case 4:
+      rns8_export_u64_fixed_prefix_cell_device<4>(residues, dst, cell, elements, bound, status);
+      return;
+    case 5:
+      rns8_export_u64_fixed_prefix_cell_device<5>(residues, dst, cell, elements, bound, status);
+      return;
+    case 6:
+      rns8_export_u64_fixed_prefix_cell_device<6>(residues, dst, cell, elements, bound, status);
+      return;
+    case 7:
+      rns8_export_u64_fixed_prefix_cell_device<7>(residues, dst, cell, elements, bound, status);
+      return;
+    case 8:
+      rns8_export_u64_fixed_prefix_cell_device<8>(residues, dst, cell, elements, bound, status);
+      return;
+    case kRns8DefaultBoundedPrefix:
+      rns8_export_u64_fixed_prefix_cell_device<kRns8DefaultBoundedPrefix>(
+          residues, dst, cell, elements, bound, status);
+      return;
+    default:
+      rns8_export_u64_cell_device(residues, dst, cell, elements, prefix, bound, status);
+      return;
+  }
+}
+
 __global__ void rns8_export_i64_kernel(
     const int8_t* residues,
     int64_t* dst,
@@ -1958,7 +2044,7 @@ __global__ void rns8_export_i64_scheduled_kernel(
     dst[global_cell] = 0;
     return;
   }
-  rns8_export_i64_cell_device(
+  rns8_export_i64_bounded_prefix_cell_device(
       residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
 
@@ -2000,7 +2086,7 @@ __global__ void rns8_export_u64_scheduled_kernel(
     dst[global_cell] = 0;
     return;
   }
-  rns8_export_u64_cell_device(
+  rns8_export_u64_bounded_prefix_cell_device(
       residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
 
