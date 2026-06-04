@@ -79,6 +79,7 @@ class ScenarioItem:
     output_ld_padding: int = 0
     oneshot: bool = False
     native_to_rns_bridge: bool = False
+    vector_to_rns_chain: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None
@@ -1542,6 +1543,88 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 },
             ),
         ],
+        "vector-to-rns-chain": [
+            ScenarioItem(
+                "vector-to-rns-chain",
+                "bounded-i64-64",
+                "bounded-i64",
+                small_64,
+                "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+                "host_export",
+                "turns the strong vector bounded path into an executable producer for an RNS-resident downstream GEMM",
+                backends=("auto",),
+                vector_to_rns_chain=True,
+                metadata={
+                    "workflow_name": "vector_to_rns_chain",
+                    "bridge_role": "vector_native_output_to_direct_rns_consumer",
+                    "producer_backend_requirement": "hip-vector-alu-int64",
+                    "consumer_backend_requirement": "hip-direct",
+                    "conversion_event_required": "native_i64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "vector-to-rns-chain",
+                "bounded-u64-64",
+                "bounded-u64",
+                small_64,
+                "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+                "host_export",
+                "checks that bounded-u64 vector output can feed a downstream Direct-HIP RNS workload without host export",
+                backends=("auto",),
+                vector_to_rns_chain=True,
+                metadata={
+                    "workflow_name": "vector_to_rns_chain",
+                    "bridge_role": "vector_native_output_to_direct_rns_consumer",
+                    "producer_backend_requirement": "hip-vector-alu-int64",
+                    "consumer_backend_requirement": "hip-direct",
+                    "conversion_event_required": "native_u64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "vector-to-rns-chain",
+                "bounded-i64-128",
+                "bounded-i64",
+                small_128,
+                "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+                "host_export",
+                "exposes whether the native-to-RNS handoff remains visible beyond the smallest smoke shape",
+                backends=("auto",),
+                vector_to_rns_chain=True,
+                metadata={
+                    "workflow_name": "vector_to_rns_chain",
+                    "bridge_role": "vector_native_output_to_direct_rns_consumer",
+                    "producer_backend_requirement": "hip-vector-alu-int64",
+                    "consumer_backend_requirement": "hip-direct",
+                    "conversion_event_required": "native_i64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "vector-to-rns-chain",
+                "bounded-u64-128",
+                "bounded-u64",
+                small_128,
+                "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+                "host_export",
+                "exposes bounded-u64 materialization overhead at a shape large enough to separate copy and GEMM costs",
+                backends=("auto",),
+                vector_to_rns_chain=True,
+                metadata={
+                    "workflow_name": "vector_to_rns_chain",
+                    "bridge_role": "vector_native_output_to_direct_rns_consumer",
+                    "producer_backend_requirement": "hip-vector-alu-int64",
+                    "consumer_backend_requirement": "hip-direct",
+                    "conversion_event_required": "native_u64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+        ],
         "rns-chain": [
             ScenarioItem(
                 "rns-chain",
@@ -2301,6 +2384,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.residue_chain_length = item.residue_chain_length
     scenario_args.output_ld_padding = item.output_ld_padding
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
+    scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -2342,6 +2426,7 @@ def scenario_metadata(
         "residue_chain_length": item.residue_chain_length,
         "output_ld_padding": item.output_ld_padding,
         "native_to_rns_bridge": item.native_to_rns_bridge,
+        "vector_to_rns_chain": item.vector_to_rns_chain,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -2483,6 +2568,8 @@ def command_for(
         command.append("--reuse-packed-b")
     if getattr(args, "native_to_rns_bridge", False):
         command.append("--native-to-rns-bridge")
+    if getattr(args, "vector_to_rns_chain", False):
+        command.append("--vector-to-rns-chain")
     return command
 
 
@@ -2650,7 +2737,11 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
         for modulus in finite_moduli:
             for exact_wide_limb_count in exact_wide_counts:
                 for backend in backends:
-                    if not item.native_to_rns_bridge and not backend_allowed_for(item.semantics, item.case, backend):
+                    if (
+                        not item.native_to_rns_bridge
+                        and not item.vector_to_rns_chain
+                        and not backend_allowed_for(item.semantics, item.case, backend)
+                    ):
                         continue
                     if (
                         item.residue_chain_length > 1
@@ -2659,7 +2750,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                     ):
                         continue
                     bench = backend_benches.get(backend)
-                    if bench is None and item.native_to_rns_bridge and backend == "auto":
+                    if bench is None and (item.native_to_rns_bridge or item.vector_to_rns_chain) and backend == "auto":
                         bench = backend_benches.get("hip-direct")
                     if bench is None:
                         bench = args.bench

@@ -11,6 +11,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -125,6 +126,7 @@ struct Args {
   bool reuse_packed_a = false;
   bool reuse_packed_b = false;
   bool native_to_rns_bridge = false;
+  bool vector_to_rns_chain = false;
 };
 
 struct TimingSamples {
@@ -220,6 +222,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
 void mix_checksum(uint64_t& checksum, uint64_t value);
 uint32_t benchmark_prefix(const Args& args);
 uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result);
+bool vector_to_rns_chain_requested(const Args& args);
 
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
@@ -240,6 +243,7 @@ uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& resu
       << "                  [--oneshot]\n"
       << "                  [--transient-uniform-small-inputs]\n"
       << "                  [--native-to-rns-bridge]\n"
+      << "                  [--vector-to-rns-chain]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -483,6 +487,8 @@ Args parse_args(int argc, char** argv) {
       args.transient_uniform_small_inputs = true;
     } else if (arg == "--native-to-rns-bridge" || arg == "--force-native-to-rns-bridge") {
       args.native_to_rns_bridge = true;
+    } else if (arg == "--vector-to-rns-chain" || arg == "--vector-native-to-rns-chain") {
+      args.vector_to_rns_chain = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -513,6 +519,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--oneshot]\n"
           << "                  [--transient-uniform-small-inputs]\n"
           << "                  [--native-to-rns-bridge]\n"
+          << "                  [--vector-to-rns-chain]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -580,6 +587,32 @@ Args parse_args(int argc, char** argv) {
     }
     if (args.residue_chain_length != 1) {
       usage_error("--native-to-rns-bridge cannot be combined with --residue-chain-length > 1");
+    }
+  }
+  if (args.vector_to_rns_chain) {
+    if (!bounded_benchmark_semantics(args.semantics)) {
+      usage_error("--vector-to-rns-chain is only valid for bounded-i64 or bounded-u64 semantics");
+    }
+    if (args.backend != RNS8_BACKEND_AUTO) {
+      usage_error("--vector-to-rns-chain requires --backend auto so the producer/consumer chain is explicit");
+    }
+    if (args.bound_mode != BoundMode::Global) {
+      usage_error("--vector-to-rns-chain currently requires --bound-mode global");
+    }
+    if (args.bound_source != BoundSource::StaticProfile) {
+      usage_error("--vector-to-rns-chain currently requires --bound-source static-profile");
+    }
+    if (args.input_profile != InputProfile::UniformSmall) {
+      usage_error("--vector-to-rns-chain currently requires --input-profile uniform-small");
+    }
+    if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
+        args.transient_uniform_small_inputs || args.native_to_rns_bridge || args.wrap64_rocwmma_candidate) {
+      usage_error(
+          "--vector-to-rns-chain cannot be combined with one-shot, reuse, vector-baseline, transient, "
+          "native-to-RNS bridge, or wrap64 modes");
+    }
+    if (args.residue_chain_length != 1) {
+      usage_error("--vector-to-rns-chain cannot be combined with --residue-chain-length > 1");
     }
   }
   if (args.transient_uniform_small_inputs) {
@@ -707,7 +740,7 @@ Args parse_args(int argc, char** argv) {
     args.device_id =
         (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
          args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_ROCWMMA || args.backend == RNS8_BACKEND_AUTO ||
-         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64)
+         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.vector_to_rns_chain)
             ? 0
             : -1;
   }
@@ -911,6 +944,10 @@ bool native_to_rns_bridge_requested(const Args& args) {
   return args.native_to_rns_bridge;
 }
 
+bool vector_to_rns_chain_requested(const Args& args) {
+  return args.vector_to_rns_chain;
+}
+
 bool oneshot_benchmark_mode(const Args& args) {
   return args.oneshot;
 }
@@ -927,6 +964,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (native_to_rns_bridge_requested(args)) {
     return "auto_native_to_rns_bridge";
+  }
+  if (vector_to_rns_chain_requested(args)) {
+    return "vector_native_to_direct_rns_chain";
   }
   if (args.wrap64_rocwmma_candidate) {
     return "internal_wrap64_rocwmma_candidate";
@@ -1591,6 +1631,17 @@ uint64_t benchmark_bound(const Args& args) {
     usage_error("k is too large for the benchmark bound");
   }
   uint64_t bound = u_k * max_term;
+  if (vector_to_rns_chain_requested(args)) {
+    const auto u_n = static_cast<uint64_t>(args.n);
+    if (u_n > std::numeric_limits<uint64_t>::max() / 16u) {
+      usage_error("n is too large for the vector-to-RNS chain benchmark bound");
+    }
+    const uint64_t chain_multiplier = u_n * 16u;
+    if (chain_multiplier != 0 && bound > std::numeric_limits<uint64_t>::max() / chain_multiplier) {
+      usage_error("vector-to-RNS chain benchmark bound exceeds uint64_t");
+    }
+    bound *= chain_multiplier;
+  }
   if (args.residue_chain_length > 1) {
     if (u_k > std::numeric_limits<uint64_t>::max() / 16u) {
       usage_error("k is too large for the bounded residue chain benchmark bound");
@@ -1606,6 +1657,20 @@ uint64_t benchmark_bound(const Args& args) {
   if (args.semantics == BenchSemantics::BoundedI64 &&
       bound > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     usage_error("bounded-i64 benchmark bound exceeds int64 output range");
+  }
+  return bound;
+}
+
+uint64_t vector_to_rns_chain_producer_bound(const Args& args) {
+  const uint64_t max_term = 16u * 16u;
+  const auto u_k = static_cast<uint64_t>(args.k);
+  if (u_k > std::numeric_limits<uint64_t>::max() / max_term) {
+    usage_error("k is too large for the vector-to-RNS producer benchmark bound");
+  }
+  const uint64_t bound = u_k * max_term;
+  if (args.semantics == BenchSemantics::BoundedI64 &&
+      bound > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    usage_error("bounded-i64 vector-to-RNS producer bound exceeds int64 output range");
   }
   return bound;
 }
@@ -3064,6 +3129,19 @@ bool native_to_rns_bridge_path(
          result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
+const char* vector_to_rns_chain_kernel_label(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_kernel" : "vector_alu_u64_kernel";
+}
+
+bool vector_to_rns_chain_path(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  return vector_to_rns_chain_requested(args) && bounded_benchmark_semantics(args.semantics) &&
+         selected_backend == RNS8_BACKEND_HIP_DIRECT && result.backend_info_available &&
+         result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -3103,6 +3181,25 @@ std::vector<std::string> gpu_event_phase_order(
         "rns_gemm",
         "vector_alu_status_d2h",
         "vector_alu_output_d2h",
+        "crt_export"};
+  }
+  if (vector_to_rns_chain_path(args, result, selected_backend)) {
+    return {
+        "vector_alu_pack_a_h2d",
+        "vector_alu_pack_b_h2d",
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "vector_alu_status_memset",
+        vector_to_rns_chain_kernel_label(args),
+        "vector_alu_status_d2h",
+        native_to_rns_bridge_event_label(args),
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
         "crt_export"};
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
@@ -3557,6 +3654,61 @@ void collect_native_to_rns_bridge_gemm_gpu_events(
     push_gpu_event_value(events, conversion_label, conversion);
     push_gpu_event_value(events, "rns_gemm_kernel_group", kernel_group);
     push_gpu_event_value(events, "rns_gemm", conversion + kernel_group);
+  }
+}
+
+void collect_vector_to_rns_chain_pack_gpu_events(const Args& args, GpuEventSamples& events) {
+  (void)args;
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const auto h2d_samples = event_label_values(samples, "residue_h2d_sync");
+  std::size_t h2d_index = 0;
+  const auto vector_operand_h2d = [&](const char* label) -> double {
+    const bool has_fallback = h2d_index < h2d_samples.size();
+    const double fallback = has_fallback ? h2d_samples[h2d_index] : 0.0;
+    ++h2d_index;
+    double explicit_total = 0.0;
+    if (sum_event_label_if_present(samples, label, explicit_total)) {
+      return explicit_total;
+    }
+    if (has_fallback) {
+      return fallback;
+    }
+    add_unavailable_reason(
+        events, std::string("pack missing backend HIP event label ") + label + " or residue_h2d_sync");
+    return 0.0;
+  };
+  const double vector_a_h2d = vector_operand_h2d("vector_alu_pack_a_h2d");
+  const double vector_b_h2d = vector_operand_h2d("vector_alu_pack_b_h2d");
+  const double direct_h2d = sum_event_label(events, samples, "pack", "pack_h2d");
+  const double direct_pack_kernel = sum_event_label(events, samples, "pack", "pack_kernel");
+  if (events.complete) {
+    push_gpu_event_value(events, "vector_alu_pack_a_h2d", vector_a_h2d);
+    push_gpu_event_value(events, "vector_alu_pack_b_h2d", vector_b_h2d);
+    push_gpu_event_value(events, "pack_h2d", direct_h2d);
+    push_gpu_event_value(events, "pack_kernel", direct_pack_kernel);
+    push_gpu_event_value(events, "pack", vector_a_h2d + vector_b_h2d + direct_h2d + direct_pack_kernel);
+  }
+}
+
+void collect_vector_to_rns_chain_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* vector_kernel_label = vector_to_rns_chain_kernel_label(args);
+  const char* conversion_label = native_to_rns_bridge_event_label(args);
+  const double status_memset = optional_event_label(samples, "vector_alu_status_memset");
+  const double vector_kernel = sum_event_label(events, samples, "rns_gemm", vector_kernel_label);
+  const double status_d2h = optional_event_label(samples, "vector_alu_status_d2h");
+  const double conversion = sum_event_label(events, samples, "rns_gemm", conversion_label);
+  const double direct_kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  if (events.complete) {
+    push_gpu_event_value(events, "vector_alu_status_memset", status_memset);
+    push_gpu_event_value(events, vector_kernel_label, vector_kernel);
+    push_gpu_event_value(events, "vector_alu_status_d2h", status_d2h);
+    push_gpu_event_value(events, conversion_label, conversion);
+    push_gpu_event_value(events, "rns_gemm_kernel_group", direct_kernel_group);
+    push_gpu_event_value(
+        events,
+        "rns_gemm",
+        status_memset + vector_kernel + status_d2h + conversion + direct_kernel_group);
   }
 }
 
@@ -4350,6 +4502,237 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
+}
+
+template <typename T>
+void fill_vector_to_rns_chain_inputs(
+    const Args& args,
+    std::vector<T>& A,
+    std::vector<T>& B,
+    std::vector<T>& D,
+    std::mt19937_64& rng) {
+  if constexpr (std::is_same_v<T, int64_t>) {
+    fill_bounded_i64_inputs(args, A, B, rng);
+    std::uniform_int_distribution<int64_t> dist(-16, 16);
+    for (auto& value : D) {
+      value = dist(rng);
+    }
+  } else {
+    fill_bounded_u64_inputs(args, A, B, rng);
+    std::uniform_int_distribution<uint64_t> dist(0, 16);
+    for (auto& value : D) {
+      value = dist(rng);
+    }
+  }
+}
+
+template <typename T>
+rns8_status pack_vector_to_rns_chain_operand(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    const T* data,
+    int64_t ld,
+    uint64_t source_version) {
+  if constexpr (std::is_same_v<T, int64_t>) {
+    return rns8_pack_i64(ctx, matrix, data, ld, source_version);
+  } else {
+    return rns8_pack_u64(ctx, matrix, data, ld, source_version);
+  }
+}
+
+template <typename T>
+rns8_status export_vector_to_rns_chain_output(
+    rns8_context* ctx,
+    rns8_plan* plan,
+    rns8_matrix* matrix,
+    T* data,
+    int64_t ld) {
+  if constexpr (std::is_same_v<T, int64_t>) {
+    return rns8_export_i64(ctx, plan, matrix, data, ld);
+  } else {
+    return rns8_export_u64(ctx, plan, matrix, data, ld);
+  }
+}
+
+template <typename T>
+BenchmarkResult run_vector_to_rns_chain(
+    rns8_context* vector_ctx,
+    rns8_context* direct_ctx,
+    const Args& args,
+    uint64_t final_bound,
+    const char* label) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+  (void)vector_ctx;
+  (void)direct_ctx;
+  (void)args;
+  (void)final_bound;
+  (void)label;
+  usage_error("--vector-to-rns-chain requires a HIP-enabled benchmark build");
+#else
+  std::mt19937_64 rng(args.seed);
+  std::vector<T> A(checked_elements(args.m, args.k, "vector chain A"));
+  std::vector<T> B(checked_elements(args.k, args.n, "vector chain B"));
+  std::vector<T> D(checked_elements(args.n, args.n, "vector chain direct B"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<T> C(output_elements(args, "vector chain C"), static_cast<T>(0x5a));
+  fill_vector_to_rns_chain_inputs(args, A, B, D, rng);
+
+  Args vector_args = args;
+  vector_args.backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+  vector_args.vector_to_rns_chain = false;
+  Args direct_args = args;
+  direct_args.backend = RNS8_BACKEND_HIP_DIRECT;
+  direct_args.k = args.n;
+  direct_args.vector_to_rns_chain = false;
+
+  const uint64_t producer_bound = vector_to_rns_chain_producer_bound(args);
+  auto vector_desc = gemm_desc(vector_args, producer_bound);
+  auto direct_desc = gemm_desc(direct_args, final_bound);
+
+  BenchmarkResult result{};
+  result.static_bound = final_bound;
+  result.effective_bound = final_bound;
+  result.effective_bound_available = true;
+
+  const auto plan_start = std::chrono::steady_clock::now();
+  rns8_plan* vector_plan = nullptr;
+  rns8_status status = rns8_create_plan(vector_ctx, &vector_desc, &vector_plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-to-RNS producer)", status);
+  rns8_plan* direct_plan = nullptr;
+  status = rns8_create_plan(direct_ctx, &direct_desc, &direct_plan);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-to-RNS consumer)", status);
+  capture_schedule_info(direct_plan, result);
+  capture_backend_info(direct_plan, result);
+  enforce_per_tile_capture_contract(direct_args, result);
+  const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
+  rns8_workspace* vector_workspace = nullptr;
+  status = rns8_create_workspace(vector_ctx, vector_plan, &vector_workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace(vector-to-RNS producer)", status);
+  rns8_workspace* direct_workspace = nullptr;
+  status = rns8_create_workspace(direct_ctx, direct_plan, &direct_workspace);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace(vector-to-RNS consumer)", status);
+  const auto plan_end = std::chrono::steady_clock::now();
+  result.plan_us = elapsed_us(plan_start, plan_end);
+
+  rns8_matrix* vector_a = nullptr;
+  rns8_matrix* vector_b = nullptr;
+  rns8_matrix* vector_c = nullptr;
+  rns8_matrix* direct_a = nullptr;
+  rns8_matrix* direct_b = nullptr;
+  rns8_matrix* direct_c = nullptr;
+  const auto alloc_start = std::chrono::steady_clock::now();
+  const uint32_t direct_matrix_prefix = selected_execution_prefix(args, result);
+  auto vector_a_desc = matrix_desc(args.m, args.k, vector_args);
+  auto vector_b_desc = matrix_desc(args.k, args.n, vector_args);
+  auto vector_c_desc = matrix_desc(args.m, args.n, vector_args);
+  auto direct_a_desc = matrix_desc(args.m, args.n, direct_args, direct_matrix_prefix);
+  auto direct_b_desc = matrix_desc(args.n, args.n, direct_args, direct_matrix_prefix);
+  auto direct_c_desc = matrix_desc(args.m, args.n, direct_args, direct_matrix_prefix);
+  status = rns8_create_matrix(vector_ctx, &vector_a_desc, &vector_a);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer A)", status);
+  status = rns8_create_matrix(vector_ctx, &vector_b_desc, &vector_b);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer B)", status);
+  status = rns8_create_matrix(vector_ctx, &vector_c_desc, &vector_c);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer C)", status);
+  status = rns8_create_matrix(direct_ctx, &direct_a_desc, &direct_a);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct A)", status);
+  status = rns8_create_matrix(direct_ctx, &direct_b_desc, &direct_b);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct B)", status);
+  status = rns8_create_matrix(direct_ctx, &direct_c_desc, &direct_c);
+  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct C)", status);
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+
+  const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
+    const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    const auto pack_start = repeat_start;
+    begin_gpu_event_phase(collect_gpu_events);
+    status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
+      return pack_vector_to_rns_chain_operand(vector_ctx, vector_a, A.data(), args.k, source_version);
+    });
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer A)", status);
+    status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
+      return pack_vector_to_rns_chain_operand(vector_ctx, vector_b, B.data(), args.n, source_version);
+    });
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer B)", status);
+    status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain direct B)", status);
+    if (collect_gpu_events) {
+      collect_vector_to_rns_chain_pack_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto pack_end = std::chrono::steady_clock::now();
+
+    const auto gemm_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = rns8_gemm_rns(vector_ctx, vector_plan, vector_a, vector_b, vector_c, vector_workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain producer)", status);
+    status = rns8::detail::materialize_native_matrix_as_direct_rns(direct_ctx, direct_plan, vector_c, direct_a);
+    if (status != RNS8_SUCCESS) fail_status("materialize_native_matrix_as_direct_rns(vector chain)", status);
+    status = rns8_gemm_rns(direct_ctx, direct_plan, direct_a, direct_b, direct_c, direct_workspace);
+    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain consumer)", status);
+    if (collect_gpu_events) {
+      collect_vector_to_rns_chain_gemm_gpu_events(args, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto gemm_end = std::chrono::steady_clock::now();
+
+    const auto export_start = std::chrono::steady_clock::now();
+    begin_gpu_event_phase(collect_gpu_events);
+    status = export_vector_to_rns_chain_output(direct_ctx, direct_plan, direct_c, C.data(), ldc);
+    if (status != RNS8_SUCCESS) fail_status("rns8_export(vector chain direct output)", status);
+    if (collect_gpu_events) {
+      collect_export_gpu_events(args, RNS8_BACKEND_HIP_DIRECT, result, result.gpu_events);
+    }
+    end_gpu_event_phase(collect_gpu_events);
+    const auto export_end = std::chrono::steady_clock::now();
+
+    if (samples) {
+      samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
+      samples->export_us.push_back(elapsed_us(export_start, export_end));
+      samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
+    }
+  };
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  }
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  }
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, label);
+
+  rns8_destroy_matrix(direct_c);
+  rns8_destroy_matrix(direct_b);
+  rns8_destroy_matrix(direct_a);
+  rns8_destroy_matrix(vector_c);
+  rns8_destroy_matrix(vector_b);
+  rns8_destroy_matrix(vector_a);
+  rns8_destroy_workspace(direct_workspace);
+  rns8_destroy_workspace(vector_workspace);
+  rns8_destroy_plan(direct_plan);
+  rns8_destroy_plan(vector_plan);
+  return result;
+#endif
+}
+
+BenchmarkResult run_vector_to_rns_chain_i64(
+    rns8_context* vector_ctx,
+    rns8_context* direct_ctx,
+    const Args& args,
+    uint64_t bound) {
+  return run_vector_to_rns_chain<int64_t>(vector_ctx, direct_ctx, args, bound, "vector chain C");
+}
+
+BenchmarkResult run_vector_to_rns_chain_u64(
+    rns8_context* vector_ctx,
+    rns8_context* direct_ctx,
+    const Args& args,
+    uint64_t bound) {
+  return run_vector_to_rns_chain<uint64_t>(vector_ctx, direct_ctx, args, bound, "vector chain C");
 }
 
 BenchmarkResult initialize_bounded_oneshot_result(
@@ -6060,6 +6443,9 @@ const char* benchmark_name(const Args& args) {
   if (native_to_rns_bridge_requested(args)) {
     return "rns8_bounded_gemm_native_to_rns_bridge";
   }
+  if (vector_to_rns_chain_requested(args)) {
+    return "rns8_bounded_gemm_vector_to_rns_chain";
+  }
   if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "rns8_bounded_gemm_transient_uniform_small_i8";
   }
@@ -6228,7 +6614,7 @@ void print_json(
   const bool adaptive_applied = adaptive_execution_applied(args, info, result);
   const bool per_modulus_estimate_applicable =
       selected_prefix > 0 && args.bound_mode != BoundMode::PerTile && !adaptive_applied && !args.oneshot &&
-      !args.vector_alu_baseline && !runtime_vector_alu_backend(args);
+      !args.vector_alu_baseline && !runtime_vector_alu_backend(args) && !vector_to_rns_chain_requested(args);
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(selected_prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
@@ -6255,6 +6641,8 @@ void print_json(
       gpu_events_available && args.oneshot && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT;
   const bool native_to_rns_bridge_events =
       gpu_events_available && native_to_rns_bridge_path(args, result, selected_backend_kind);
+  const bool vector_to_rns_chain_events =
+      gpu_events_available && vector_to_rns_chain_path(args, result, selected_backend_kind);
   const bool all_zero_direct_hip_pack_elided =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend_kind);
   const char* gpu_event_reason = "backend_has_no_gpu_event_hooks";
@@ -6296,6 +6684,14 @@ void print_json(
           "\"HIP event timings record direct-HIP pack/export operation groups plus the forced native-to-RNS "
           "device conversion kernels inside rns_gemm; host wall-clock timings remain required for API dispatch, "
           "CPU scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+    } else if (vector_to_rns_chain_events) {
+      gpu_event_reason = "captured_by_vector_native_to_direct_rns_chain_hooks";
+      gpu_event_scope = "\"direct_hip_vector_native_to_rns_chain_default_stream_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record vector-ALU producer packing and GEMM events, Direct-HIP second-input "
+          "pack/export operation groups, the native-to-RNS device materialization kernel, and the Direct-HIP "
+          "consumer RNS GEMM operation group; host wall-clock timings remain required for API dispatch, CPU "
+          "scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
     } else if (hipblaslt_events) {
       gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
       gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
@@ -6709,6 +7105,12 @@ void print_json(
                  "per-tile bounded capture; raw_timings_us.pack is zero because exact tile-bound scheduling "
                  "proved every output tile zero before measurement, so the backend materializes resident RNS "
                  "zero output without reading A or B\",\n";
+  } else if (vector_to_rns_chain_requested(args)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for a vector-native-to-Direct-RNS chain; "
+                 "each measured repeat packs producer A/B into the HIP vector-ALU backend, packs a second "
+                 "Direct-HIP RNS input, runs vector GEMM to native device output, materializes that native "
+                 "output into Direct-HIP RNS storage, runs the Direct-HIP consumer RNS GEMM, and exports the "
+                 "final logical output\",\n";
   } else if (native_to_rns_bridge_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for an explicit AUTO/direct-HIP native-to-RNS "
                  "bridge benchmark; each measured repeat packs bounded inputs into direct-HIP matrices, forces "
@@ -6793,6 +7195,19 @@ void print_json(
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
   std::cout << "    \"native_to_rns_bridge_forced\": "
             << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";
+  std::cout << "    \"vector_to_rns_chain\": "
+            << (vector_to_rns_chain_requested(args) ? "true" : "false") << ",\n";
+  std::cout << "    \"vector_to_rns_chain_producer_backend\": "
+            << (vector_to_rns_chain_requested(args) ? "\"hip-vector-alu-int64\"" : "null") << ",\n";
+  std::cout << "    \"vector_to_rns_chain_consumer_backend\": "
+            << (vector_to_rns_chain_requested(args) ? "\"hip-direct\"" : "null") << ",\n";
+  std::cout << "    \"vector_to_rns_chain_consumer_k\": ";
+  if (vector_to_rns_chain_requested(args)) {
+    std::cout << args.n;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "    \"direct_hip_export_staging_policy\": \""
             << direct_hip_export_staging_policy(args, selected_backend_kind) << "\",\n";
   std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
@@ -6863,6 +7278,8 @@ void print_json(
     std::cout << "      \"matrix_alloc\": \"zero-valued external phase; transient API allocations, if any, are inside the measured one-shot call\",\n";
   } else if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned native int8 A/B HIP buffers plus resident RNS output matrix allocation host timing\",\n";
+  } else if (vector_to_rns_chain_requested(args)) {
+    std::cout << "      \"matrix_alloc\": \"one-time vector-ALU producer matrix allocation plus Direct-HIP RNS consumer matrix allocation host timing\",\n";
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
@@ -6893,6 +7310,10 @@ void print_json(
     std::cout << "      \"pack\": \"zero-valued per-repeat phase; exact per-tile input scanning proved every output tile zero, so direct-HIP does not pack or read A/B for this capture\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for direct-HIP all-zero resident RNS output materialization\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for exporting the already-zero direct-HIP output\",\n";
+  } else if (vector_to_rns_chain_requested(args)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for copying vector producer A/B into native HIP buffers and packing the second Direct-HIP RNS input\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for vector-ALU native GEMM, native-to-RNS materialization into Direct-HIP storage, and Direct-HIP consumer RNS GEMM\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for CRT export/reconstruction of the final Direct-HIP consumer output\",\n";
   } else if (native_to_rns_bridge_requested(args)) {
     std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into direct-HIP matrices with both RNS residues and native device buffers populated\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for forced native-to-RNS device conversion of A and B followed by direct-HIP rns8_gemm_rns\",\n";
@@ -6964,6 +7385,8 @@ void print_json(
     std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public one-shot API call\"\n";
   } else if (all_zero_direct_hip_pack_elided) {
     std::cout << "      \"end_to_end\": \"per-repeat direct-HIP all-zero output materialization plus export host timing; pack is intentionally elided by the trusted all-zero schedule\"\n";
+  } else if (vector_to_rns_chain_requested(args)) {
+    std::cout << "      \"end_to_end\": \"per-repeat vector producer pack plus Direct-HIP input pack, vector GEMM, native-to-RNS materialization, Direct-HIP consumer GEMM, and final CRT export host timing\"\n";
   } else if (native_to_rns_bridge_requested(args)) {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus native-to-RNS input conversion plus direct-HIP rns_gemm plus crt_export host timing\"\n";
   } else if (args.reuse_packed_inputs) {
@@ -7028,6 +7451,14 @@ void print_json(
     std::cout << "        \"timing_key\": \"rns_gemm\",\n";
     std::cout << "        \"scope\": \"device_native_to_rns_conversion_inside_rns_gemm\",\n";
     std::cout << "        \"reason\": \"measured as explicit native_i64_to_rns_kernel or native_u64_to_rns_kernel GPU event phases inside rns_gemm\"\n";
+    std::cout << "      },\n";
+  }
+  if (vector_to_rns_chain_requested(args)) {
+    std::cout << "      \"vector_to_rns_chain\": {\n";
+    std::cout << "        \"timed\": true,\n";
+    std::cout << "        \"timing_key\": \"rns_gemm\",\n";
+    std::cout << "        \"scope\": \"vector_native_output_to_direct_rns_consumer\",\n";
+    std::cout << "        \"reason\": \"measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm\"\n";
     std::cout << "      },\n";
   }
   std::cout << "      \"reduction\": {\n";
@@ -7157,6 +7588,66 @@ int main(int argc, char** argv) {
     std::cerr << "write autotune cache: refused raw benchmark cache write; use "
                  "tools\\benchmark_sweep.py --review-mode release --write-autotune-cache\n";
     return 1;
+  }
+
+  if (vector_to_rns_chain_requested(args)) {
+    rns8_context_options vector_options{};
+    vector_options.struct_size = sizeof(vector_options);
+    vector_options.abi_version = RNS8_ABI_VERSION;
+    vector_options.requested_backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+    rns8_context* vector_ctx = nullptr;
+    rns8_status status = rns8_create_context(args.device_id, &vector_options, &vector_ctx);
+    if (status != RNS8_SUCCESS) {
+      std::cerr << "rns8_create_context(vector-to-RNS producer): " << rns8_status_string(status) << "\n";
+      return 1;
+    }
+
+    rns8_context_options direct_options{};
+    direct_options.struct_size = sizeof(direct_options);
+    direct_options.abi_version = RNS8_ABI_VERSION;
+    direct_options.requested_backend = RNS8_BACKEND_HIP_DIRECT;
+    rns8_context* direct_ctx = nullptr;
+    status = rns8_create_context(args.device_id, &direct_options, &direct_ctx);
+    if (status != RNS8_SUCCESS) {
+      rns8_destroy_context(vector_ctx);
+      std::cerr << "rns8_create_context(vector-to-RNS consumer): " << rns8_status_string(status) << "\n";
+      return 1;
+    }
+
+    rns8_device_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    status = rns8_get_device_info(direct_ctx, &info);
+    if (status != RNS8_SUCCESS) {
+      rns8_destroy_context(direct_ctx);
+      rns8_destroy_context(vector_ctx);
+      std::cerr << "rns8_get_device_info(vector-to-RNS consumer): " << rns8_status_string(status) << "\n";
+      return 1;
+    }
+
+    BenchmarkResult result{};
+    switch (args.semantics) {
+      case BenchSemantics::BoundedI64:
+        result = run_vector_to_rns_chain_i64(vector_ctx, direct_ctx, args, bound);
+        break;
+      case BenchSemantics::BoundedU64:
+        result = run_vector_to_rns_chain_u64(vector_ctx, direct_ctx, args, bound);
+        break;
+      case BenchSemantics::ExactWideSigned:
+      case BenchSemantics::ExactWideUnsigned:
+      case BenchSemantics::WrapU64Mod2_64:
+      case BenchSemantics::FiniteRingU8:
+      case BenchSemantics::FiniteFieldU8:
+        rns8_destroy_context(direct_ctx);
+        rns8_destroy_context(vector_ctx);
+        std::cerr << "--vector-to-rns-chain reached an unsupported semantic mode after argument validation\n";
+        return 1;
+    }
+    rns8_destroy_context(direct_ctx);
+    rns8_destroy_context(vector_ctx);
+    const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
+    print_json(args, info, result, effective_bound, cmdline);
+    return 0;
   }
 
   rns8_context_options options{};

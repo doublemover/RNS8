@@ -776,6 +776,34 @@ def main() -> int:
         for entry in bridge_entries
     )
 
+    vector_chain_args = copy.copy(scenario_args)
+    vector_chain_args.backends = None
+    vector_chain_args.bench_for = ["hip-direct=hip-direct-release-bench"]
+    vector_chain_args.scenario = ["vector-to-rns-chain"]
+    vector_chain_entries = benchmark_sweep.sweep_command_entries(vector_chain_args)
+    assert len(vector_chain_entries) == 4
+    assert {entry.scenario["name"] for entry in vector_chain_entries} == {
+        "bounded-i64-64",
+        "bounded-u64-64",
+        "bounded-i64-128",
+        "bounded-u64-128",
+    }
+    assert {entry.scenario["backend"] for entry in vector_chain_entries} == {"auto"}
+    assert all(entry.command[0] == "hip-direct-release-bench" for entry in vector_chain_entries)
+    assert all(entry.command[entry.command.index("--backend") + 1] == "auto" for entry in vector_chain_entries)
+    assert all("--vector-to-rns-chain" in entry.command for entry in vector_chain_entries)
+    assert all("--native-to-rns-bridge" not in entry.command for entry in vector_chain_entries)
+    assert all(entry.scenario["native_to_rns_bridge"] is False for entry in vector_chain_entries)
+    assert all(entry.scenario["vector_to_rns_chain"] is True for entry in vector_chain_entries)
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "vector_to_rns_chain"
+        for entry in vector_chain_entries
+    )
+    assert any(
+        entry.scenario.get("metadata", {}).get("conversion_event_required") == "native_u64_to_rns_kernel"
+        for entry in vector_chain_entries
+    )
+
     algebra_args = copy.copy(scenario_args)
     algebra_args.backends = ["ck"]
     algebra_args.scenario = ["computational-algebra-proxies"]

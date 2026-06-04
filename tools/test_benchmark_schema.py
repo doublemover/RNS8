@@ -267,6 +267,101 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     return bridge
 
 
+def as_vector_to_rns_chain_capture(capture: dict, conversion_event: str, vector_kernel: str) -> dict:
+    chain = as_native_to_rns_bridge_capture(capture, conversion_event)
+    chain["benchmark"] = "rns8_bounded_gemm_vector_to_rns_chain"
+    chain["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    chain["command_line"] = (
+        "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
+        "--vector-to-rns-chain --warmups 1 --repeats 3 --seed 7"
+    )
+    chain["timing_note"] = "host wall-clock timings for a vector-native-to-Direct-RNS chain"
+    chain["per_modulus_gemm_estimate_applicable"] = False
+    chain["avg_per_modulus_gemm_estimate_us"] = chain["avg_rns_gemm_us"]
+
+    metadata = chain["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    metadata["native_to_rns_bridge_forced"] = False
+    metadata["vector_to_rns_chain"] = True
+    metadata["vector_to_rns_chain_producer_backend"] = "hip-vector-alu-int64"
+    metadata["vector_to_rns_chain_consumer_backend"] = "hip-direct"
+    metadata["vector_to_rns_chain_consumer_k"] = chain["n"]
+    metadata["gpu_event_timing_reason"] = "captured_by_vector_native_to_direct_rns_chain_hooks"
+    metadata["gpu_event_timing_source_scope"] = (
+        "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"
+    )
+    metadata["gpu_event_timing_caveat"] = (
+        "HIP event timings record vector producer, native-to-RNS materialization, and Direct-HIP consumer events"
+    )
+    metadata["phase_notes"]["pack"] = (
+        "per-repeat host timing for copying vector producer A/B into native HIP buffers and packing the second Direct-HIP RNS input"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for vector-ALU native GEMM, native-to-RNS materialization, and Direct-HIP consumer RNS GEMM"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "per-repeat vector producer pack plus Direct-HIP input pack, vector GEMM, native-to-RNS materialization, Direct-HIP consumer GEMM, and final CRT export host timing"
+    )
+    metadata["phase_availability"].pop("native_to_rns_bridge", None)
+    metadata["phase_availability"]["vector_to_rns_chain"] = {
+        "timed": True,
+        "timing_key": "rns_gemm",
+        "scope": "vector_native_output_to_direct_rns_consumer",
+        "reason": "measured as vector, native-to-RNS, and Direct-HIP GPU event phases inside rns_gemm",
+    }
+
+    repeats = chain["repeats"]
+    timings = chain["gpu_event_timings_us"]
+    timings["vector_alu_pack_a_h2d"] = [1.0 for _ in range(repeats)]
+    timings["vector_alu_pack_b_h2d"] = [1.5 for _ in range(repeats)]
+    timings["pack"] = [
+        a + b + h2d + kernel
+        for a, b, h2d, kernel in zip(
+            timings["vector_alu_pack_a_h2d"],
+            timings["vector_alu_pack_b_h2d"],
+            timings["pack_h2d"],
+            timings["pack_kernel"],
+        )
+    ]
+    timings["vector_alu_status_memset"] = [0.25 for _ in range(repeats)]
+    timings[vector_kernel] = [4.0 for _ in range(repeats)]
+    timings["vector_alu_status_d2h"] = [0.5 for _ in range(repeats)]
+    timings["rns_gemm"] = [
+        memset + vector + status + conversion + direct
+        for memset, vector, status, conversion, direct in zip(
+            timings["vector_alu_status_memset"],
+            timings[vector_kernel],
+            timings["vector_alu_status_d2h"],
+            timings[conversion_event],
+            timings["rns_gemm_kernel_group"],
+        )
+    ]
+    phases = [
+        "vector_alu_pack_a_h2d",
+        "vector_alu_pack_b_h2d",
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "vector_alu_status_memset",
+        vector_kernel,
+        "vector_alu_status_d2h",
+        conversion_event,
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+    ]
+    metadata["gpu_event_phase_order"] = phases
+    chain["gpu_event_timings_us"] = {phase: timings[phase] for phase in phases}
+    chain["gpu_event_timing_summary_us"] = {
+        phase: summary(values) for phase, values in chain["gpu_event_timings_us"].items()
+    }
+    return chain
+
+
 def add_per_tile_input_scan_fields(capture: dict) -> dict:
     capture["bound_source"] = "input_scan"
     capture["bound_discovery"] = {
@@ -1493,6 +1588,38 @@ def main() -> int:
     expect_invalid(
         stale_native_to_rns_metadata,
         "native-to-RNS bridge captures must set timing_metadata.native_to_rns_bridge_forced=true",
+    )
+
+    vector_to_rns_chain = as_vector_to_rns_chain_capture(
+        v4_adaptive_i64,
+        "native_i64_to_rns_kernel",
+        "vector_alu_i64_kernel",
+    )
+    validate_capture(vector_to_rns_chain)
+
+    missing_chain_conversion = copy.deepcopy(vector_to_rns_chain)
+    missing_chain_conversion["timing_metadata"]["gpu_event_phase_order"].remove("native_i64_to_rns_kernel")
+    del missing_chain_conversion["gpu_event_timings_us"]["native_i64_to_rns_kernel"]
+    del missing_chain_conversion["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"]
+    expect_invalid(
+        missing_chain_conversion,
+        "direct-HIP vector-to-RNS chain GPU event phase set is incomplete",
+    )
+
+    missing_chain_vector_kernel = copy.deepcopy(vector_to_rns_chain)
+    missing_chain_vector_kernel["timing_metadata"]["gpu_event_phase_order"].remove("vector_alu_i64_kernel")
+    del missing_chain_vector_kernel["gpu_event_timings_us"]["vector_alu_i64_kernel"]
+    del missing_chain_vector_kernel["gpu_event_timing_summary_us"]["vector_alu_i64_kernel"]
+    expect_invalid(
+        missing_chain_vector_kernel,
+        "direct-HIP vector-to-RNS chain GPU event phase set is incomplete",
+    )
+
+    stale_chain_metadata = copy.deepcopy(vector_to_rns_chain)
+    stale_chain_metadata["timing_metadata"]["vector_to_rns_chain"] = False
+    expect_invalid(
+        stale_chain_metadata,
+        "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true",
     )
 
     padded_output = add_output_padding_fields(copy.deepcopy(v4_ck_i64), 7)
