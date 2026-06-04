@@ -676,15 +676,29 @@ def main() -> int:
     rns_chain_entries = benchmark_sweep.sweep_command_entries(rns_chain_args)
     assert [entry.scenario["name"] for entry in rns_chain_entries] == [
         "bounded-i64-chain3",
+        "bounded-i64-chain3-reuse-b",
         "bounded-i64-chain4-256",
+        "bounded-i64-chain4-256-reuse-b",
         "bounded-u64-chain3-256",
+        "bounded-u64-chain3-256-reuse-b",
         "exact-wide-signed-chain3",
+        "exact-wide-signed-chain3-reuse-b",
         "exact-wide-unsigned-chain3-256",
+        "exact-wide-unsigned-chain3-256-reuse-b",
     ]
     assert all(entry.scenario["output_domain"] == "residue_current_rns" for entry in rns_chain_entries)
     assert all(entry.scenario.get("metadata", {}).get("output_domain_requirement") == "lazy_export" for entry in rns_chain_entries)
     assert any("--residue-chain-length" in entry.command and "4" in entry.command for entry in rns_chain_entries)
     assert any(entry.scenario.get("metadata", {}).get("chain_depth") == 4 for entry in rns_chain_entries)
+    assert {entry.scenario["pack_mode"] for entry in rns_chain_entries} == {
+        "per_repeat_repack",
+        "prepacked_reuse_b",
+    }
+    assert any("--reuse-packed-b" in entry.command for entry in rns_chain_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("reuse_contract") == "stable_chain_rhs_prepacked_before_warmups"
+        for entry in rns_chain_entries
+    )
 
     large_args = copy.copy(scenario_args)
     large_args.backends = ["hip-direct"]
