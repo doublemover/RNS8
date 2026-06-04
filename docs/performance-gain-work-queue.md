@@ -1043,7 +1043,13 @@ Likely first slices:
   pack/reuse mode, output domain, timing medians, event bottleneck category,
   estimated GOP/s, pack/export bandwidth estimates, review promotion blockers,
   and scenario-family metadata when available.
-- Add optional RGA/ISA resource summaries to that database.
+- Add optional RGA/ISA resource summaries to that database. Implemented as
+  `tools/evidence_database.py --isa-report <file-or-dir>`: the database ingests
+  `tools/gpu_isa_report.py` `*-isa-summary.json` outputs, matches them to
+  captures by normalized backend and GPU target, records report paths, symbol
+  counts, WMMA/MFMA/global-store/LDS/wait/instruction totals, VGPR, SGPR,
+  occupancy when available, RGA status, and emits compact ISA resource tables in
+  `evidence_summary.md`. The reports remain temp-only evidence inputs.
 
 Relation to existing queue:
 

@@ -27,6 +27,8 @@ CSV_FIELDS = [
     "semantics",
     "backend",
     "selected_kernel",
+    "target_id",
+    "device_name",
     "m",
     "n",
     "k",
@@ -51,9 +53,54 @@ CSV_FIELDS = [
     "measured_gops",
     "pack_bandwidth_gbs",
     "export_bandwidth_gbs",
+    "isa_evidence",
+    "isa_report_count",
+    "isa_report_paths",
+    "isa_report_backends",
+    "isa_report_targets",
+    "isa_report_symbol_count",
+    "isa_device_symbol_count",
+    "isa_wmma_count",
+    "isa_mfma_count",
+    "isa_global_store_count",
+    "isa_lds_mentions",
+    "isa_wait_instructions",
+    "isa_instruction_lines",
+    "isa_vgpr_count",
+    "isa_sgpr_count",
+    "isa_occupancy",
+    "isa_rga_statuses",
     "promotable",
     "promotion_blockers",
 ]
+ISA_COUNT_FIELDS = {
+    "wmma": "isa_wmma_count",
+    "mfma": "isa_mfma_count",
+    "global_store": "isa_global_store_count",
+    "lds_mentions": "isa_lds_mentions",
+    "wait_instructions": "isa_wait_instructions",
+    "instruction_lines": "isa_instruction_lines",
+}
+ISA_MAX_FIELDS = {
+    "vgpr_count": "isa_vgpr_count",
+    "sgpr_count": "isa_sgpr_count",
+    "occupancy": "isa_occupancy",
+}
+BACKEND_ALIASES = {
+    "direct-hip": "direct-hip",
+    "hip-direct": "direct-hip",
+    "hip": "direct-hip",
+    "hipblaslt": "hipblaslt",
+    "ck": "ck",
+    "rocwmma": "rocwmma",
+    "wmma": "rocwmma",
+    "vector-alu": "vector-alu",
+    "vector-alu-int64": "vector-alu",
+    "hip-vector-alu-int64": "vector-alu",
+    "hip-vector-alu-int64-baseline": "vector-alu",
+    "wrap64": "wrap64",
+    "wrap64-byte-limb": "wrap64",
+}
 
 
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
@@ -93,6 +140,16 @@ def discover_capture_paths(paths: list[Path]) -> list[Path]:
                 if candidate.name in SKIP_JSON_NAMES or candidate.name.endswith(".failed.json"):
                     continue
                 discovered.append(candidate)
+        else:
+            discovered.append(path)
+    return list(dict.fromkeys(discovered))
+
+
+def discover_isa_report_paths(paths: list[Path]) -> list[Path]:
+    discovered: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            discovered.extend(sorted(path.rglob("*-isa-summary.json")))
         else:
             discovered.append(path)
     return list(dict.fromkeys(discovered))
@@ -150,9 +207,121 @@ def load_review_index(paths: list[Path]) -> dict[str, dict[str, Any]]:
     return index
 
 
+def normalized_backend(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    lowered = value.lower()
+    return BACKEND_ALIASES.get(lowered, lowered)
+
+
+def normalized_target(value: Any) -> str | None:
+    if not isinstance(value, str) or not value or value.lower() in {"none", "unknown"}:
+        return None
+    return value.lower()
+
+
+def isa_index_key(backend: str, target: str | None) -> str:
+    return f"{backend}|{target or '*'}"
+
+
+def numeric_value(value: Any) -> int | float | None:
+    return value if isinstance(value, (int, float)) else None
+
+
+def summarize_isa_report(path: Path, report: dict[str, Any]) -> dict[str, Any]:
+    totals = report.get("instruction_totals") if isinstance(report.get("instruction_totals"), dict) else {}
+    tools = report.get("tools") if isinstance(report.get("tools"), dict) else {}
+    summary = {
+        "isa_report_path": str(path),
+        "isa_report_object": report.get("object"),
+        "isa_report_backend": report.get("backend"),
+        "isa_report_target": report.get("target"),
+        "isa_report_symbol_count": report.get("reported_symbol_count"),
+        "isa_device_symbol_count": report.get("device_symbol_count"),
+        "isa_code_object_note": report.get("code_object_note"),
+        "isa_rga_status": tools.get("rga_status"),
+        "isa_rga_path": tools.get("rga"),
+    }
+    for source_key, row_key in ISA_COUNT_FIELDS.items():
+        summary[row_key] = numeric_value(totals.get(source_key))
+    for source_key, row_key in ISA_MAX_FIELDS.items():
+        summary[row_key] = numeric_value(totals.get(source_key))
+    return summary
+
+
+def load_isa_index(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for path in discover_isa_report_paths(paths):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(report, dict):
+            continue
+        backend = normalized_backend(report.get("backend"))
+        if backend is None:
+            continue
+        target = normalized_target(report.get("target"))
+        summary = summarize_isa_report(path, report)
+        index[isa_index_key(backend, target)].append(summary)
+        index[isa_index_key(backend, None)].append(summary)
+    return {key: sorted(value, key=lambda item: str(item.get("isa_report_path"))) for key, value in index.items()}
+
+
 def lookup_metadata(index: dict[str, dict[str, Any]], capture_path: str) -> dict[str, Any]:
     normalized = normalized_capture_path(capture_path)
     return index.get(normalized) or index.get(Path(capture_path).name.lower()) or {}
+
+
+def aggregate_isa_resources(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    if not reports:
+        return {
+            "isa_resource_reports": [],
+            "isa_report_count": 0,
+            "isa_report_paths": [],
+            "isa_report_backends": [],
+            "isa_report_targets": [],
+            "isa_rga_statuses": [],
+        }
+    aggregate: dict[str, Any] = {
+        "isa_resource_reports": reports,
+        "isa_report_count": len(reports),
+        "isa_report_paths": [report.get("isa_report_path") for report in reports],
+        "isa_report_backends": sorted(
+            {
+                str(report.get("isa_report_backend"))
+                for report in reports
+                if report.get("isa_report_backend") is not None
+            }
+        ),
+        "isa_report_targets": sorted(
+            {
+                str(report.get("isa_report_target"))
+                for report in reports
+                if report.get("isa_report_target") is not None
+            }
+        ),
+        "isa_rga_statuses": sorted(
+            {str(report.get("isa_rga_status")) for report in reports if report.get("isa_rga_status") is not None}
+        ),
+        "isa_code_object_notes": [
+            report.get("isa_code_object_note") for report in reports if report.get("isa_code_object_note") is not None
+        ],
+    }
+    for key in ("isa_report_symbol_count", "isa_device_symbol_count", *ISA_COUNT_FIELDS.values()):
+        values = [numeric_value(report.get(key)) for report in reports]
+        aggregate[key] = sum(value for value in values if value is not None)
+    for key in ISA_MAX_FIELDS.values():
+        values = [numeric_value(report.get(key)) for report in reports]
+        aggregate[key] = max((value for value in values if value is not None), default=None)
+    return aggregate
+
+
+def lookup_isa_resources(index: dict[str, list[dict[str, Any]]], backend: Any, target: Any) -> dict[str, Any]:
+    normalized = normalized_backend(backend)
+    if normalized is None:
+        return aggregate_isa_resources([])
+    exact = index.get(isa_index_key(normalized, normalized_target(target)))
+    if exact is not None:
+        return aggregate_isa_resources(exact)
+    return aggregate_isa_resources(index.get(isa_index_key(normalized, None), []))
 
 
 def selected_residue_planes(capture: dict[str, Any]) -> int:
@@ -292,6 +461,7 @@ def build_row(
     capture: dict[str, Any],
     scenario: dict[str, Any],
     review: dict[str, Any],
+    isa_resources: dict[str, Any],
 ) -> dict[str, Any]:
     metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     timing_metadata = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
@@ -336,6 +506,7 @@ def build_row(
         "review": review,
         **work,
         **bottleneck,
+        **isa_resources,
     }
     for phase in PHASES:
         row[f"median_{phase}_us"] = row["phase_medians_us"].get(phase)
@@ -349,16 +520,34 @@ def build_database(
     *,
     scenario_index: dict[str, dict[str, Any]] | None = None,
     review_index: dict[str, dict[str, Any]] | None = None,
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     scenario_index = scenario_index or {}
     review_index = review_index or {}
+    isa_index = isa_index or {}
     rows = []
     for capture in captures:
         path = str(capture.get("_path", ""))
-        rows.append(build_row(capture, lookup_metadata(scenario_index, path), lookup_metadata(review_index, path)))
+        device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
+        rows.append(
+            build_row(
+                capture,
+                lookup_metadata(scenario_index, path),
+                lookup_metadata(review_index, path),
+                lookup_isa_resources(isa_index, capture.get("backend_selected"), device.get("gcn_arch")),
+            )
+        )
     bottleneck_counts = Counter(str(row.get("bottleneck_class")) for row in rows)
     scenario_counts = Counter(str(row.get("scenario_family") or "unlabeled") for row in rows)
     backend_counts = Counter(str(row.get("backend")) for row in rows)
+    isa_report_paths = sorted(
+        {
+            str(path)
+            for row in rows
+            for path in (row.get("isa_report_paths") or [])
+            if path is not None
+        }
+    )
     return {
         "schema_version": 1,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -367,6 +556,8 @@ def build_database(
             "bottleneck_counts": dict(sorted(bottleneck_counts.items())),
             "scenario_counts": dict(sorted(scenario_counts.items())),
             "backend_counts": dict(sorted(backend_counts.items())),
+            "isa_report_count": len(isa_report_paths),
+            "captures_with_isa_resources": sum(1 for row in rows if row.get("isa_report_count", 0) > 0),
         },
         "rows": rows,
     }
@@ -411,6 +602,21 @@ def format_number(value: Any) -> str:
     return str(value)
 
 
+def format_isa_brief(row: dict[str, Any]) -> str:
+    if not row.get("isa_report_count"):
+        return ""
+    parts = [f"reports={row.get('isa_report_count')}"]
+    for key, label in (
+        ("isa_wmma_count", "wmma"),
+        ("isa_mfma_count", "mfma"),
+        ("isa_global_store_count", "stores"),
+    ):
+        value = row.get(key)
+        if value is not None:
+            parts.append(f"{label}={value}")
+    return ";".join(parts)
+
+
 def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines = [
         "# RNS8 Evidence Database Summary",
@@ -418,6 +624,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         f"- schema_version: `{database.get('schema_version')}`",
         f"- generated_utc: `{database.get('generated_utc')}`",
         f"- captures: `{database.get('capture_count')}`",
+        f"- isa_report_count: `{database.get('summary', {}).get('isa_report_count', 0)}`",
+        f"- captures_with_isa_resources: `{database.get('summary', {}).get('captures_with_isa_resources', 0)}`",
         "",
         "## Bottlenecks",
         "",
@@ -429,13 +637,46 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines.extend(["", "## Scenario Families", "", "| family | captures |", "|---|---:|"])
     for name, count in database["summary"]["scenario_counts"].items():
         lines.append(f"| {name} | {count} |")
+    isa_rows = [row for row in database["rows"] if row.get("isa_report_count")]
+    if isa_rows:
+        lines.extend(
+            [
+                "",
+                "## ISA Resources",
+                "",
+                "| backend | target | captures | reports | WMMA | MFMA | global stores | LDS | waits | instructions | VGPR | SGPR | occupancy |",
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+        for row in isa_rows:
+            groups[(str(row.get("backend")), ",".join(row.get("isa_report_targets") or []))].append(row)
+        for (backend, target), grouped_rows in sorted(groups.items()):
+            representative = grouped_rows[0]
+            lines.append(
+                "| {backend} | {target} | {captures} | {reports} | {wmma} | {mfma} | {stores} | {lds} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
+                    backend=backend,
+                    target=target,
+                    captures=len(grouped_rows),
+                    reports=representative.get("isa_report_count"),
+                    wmma=format_number(representative.get("isa_wmma_count")),
+                    mfma=format_number(representative.get("isa_mfma_count")),
+                    stores=format_number(representative.get("isa_global_store_count")),
+                    lds=format_number(representative.get("isa_lds_mentions")),
+                    waits=format_number(representative.get("isa_wait_instructions")),
+                    instructions=format_number(representative.get("isa_instruction_lines")),
+                    vgpr=format_number(representative.get("isa_vgpr_count")),
+                    sgpr=format_number(representative.get("isa_sgpr_count")),
+                    occupancy=format_number(representative.get("isa_occupancy")),
+                )
+            )
     lines.extend(
         [
             "",
             "## Rows",
             "",
-            "| scenario | semantics | backend | kernel | shape | bottleneck | e2e us | GOP/s | AI ops/B | blockers |",
-            "|---|---|---|---|---|---|---:|---:|---:|---|",
+            "| scenario | semantics | backend | kernel | shape | bottleneck | e2e us | GOP/s | AI ops/B | ISA | blockers |",
+            "|---|---|---|---|---|---|---:|---:|---:|---|---|",
         ]
     )
     rows = sorted(
@@ -450,7 +691,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         shape = f"{row.get('m')}x{row.get('n')}x{row.get('k')}"
         blockers = ",".join(str(item) for item in row.get("promotion_blockers") or [])
         lines.append(
-            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {e2e} | {gops} | {ai} | {blockers} |".format(
+            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {e2e} | {gops} | {ai} | {isa} | {blockers} |".format(
                 scenario=row.get("scenario_family"),
                 semantics=row.get("semantics"),
                 backend=row.get("backend"),
@@ -460,6 +701,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 e2e=format_number(row.get("median_end_to_end_us")),
                 gops=format_number(row.get("measured_gops")),
                 ai=format_number(row.get("arithmetic_intensity_ops_per_byte")),
+                isa=format_isa_brief(row),
                 blockers=blockers or "",
             )
         )
@@ -471,6 +713,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--capture", type=Path, action="append", required=True, help="capture file or directory")
     parser.add_argument("--review-report", type=Path, action="append", default=[], help="benchmark_sweep review_report.json")
     parser.add_argument("--scenario-manifest", type=Path, action="append", default=[], help="scenario_manifest.json")
+    parser.add_argument("--isa-report", type=Path, action="append", default=[], help="ISA summary file or directory")
     parser.add_argument(
         "--out-dir",
         type=Path,
@@ -485,7 +728,8 @@ def main() -> int:
     captures = load_validated_captures(args.capture)
     scenario_index = load_scenario_index(args.scenario_manifest)
     review_index = load_review_index(args.review_report)
-    database = build_database(captures, scenario_index=scenario_index, review_index=review_index)
+    isa_index = load_isa_index(args.isa_report)
+    database = build_database(captures, scenario_index=scenario_index, review_index=review_index, isa_index=isa_index)
     outputs = write_outputs(database, args.out_dir)
     print(json.dumps({"captures": len(captures), **outputs}, indent=2))
     return 0

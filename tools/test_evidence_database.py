@@ -65,18 +65,47 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
+        isa_report = tmp / "ck_backend_kernels-gfx1100-ck-isa-summary.json"
+        isa_report.write_text(
+            json.dumps(
+                {
+                    "object": "build/windows-msvc-ck-release/ck/ck_backend_kernels.obj",
+                    "target": "gfx1100",
+                    "backend": "ck",
+                    "tools": {"rga_status": "not_run_optional", "rga": None},
+                    "code_object_note": None,
+                    "device_symbol_count": 5,
+                    "reported_symbol_count": 2,
+                    "instruction_totals": {
+                        "wmma": 7,
+                        "mfma": 0,
+                        "global_store": 3,
+                        "lds_mentions": 11,
+                        "wait_instructions": 13,
+                        "instruction_lines": 2400,
+                        "vgpr_count": 64,
+                        "sgpr_count": 48,
+                        "occupancy": 8,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
 
         captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
         database = evidence_database.build_database(
             captures,
             scenario_index=evidence_database.load_scenario_index([scenario_manifest]),
             review_index=evidence_database.load_review_index([review_report]),
+            isa_index=evidence_database.load_isa_index([isa_report]),
         )
 
         assert database["schema_version"] == 1
         assert database["capture_count"] == 2
         assert database["summary"]["scenario_counts"]["repeated-b"] == 1
         assert database["summary"]["scenario_counts"]["unlabeled"] == 1
+        assert database["summary"]["isa_report_count"] == 1
+        assert database["summary"]["captures_with_isa_resources"] == 1
         hip_row = next(row for row in database["rows"] if row["capture_path"] == str(hip_capture))
         assert hip_row["scenario_family"] == "repeated-b"
         assert hip_row["output_domain"] == "host_export"
@@ -92,6 +121,14 @@ def main() -> int:
             "pack_bound",
             "unknown",
         }
+        ck_row = next(row for row in database["rows"] if row["capture_path"] == str(ck_capture))
+        assert ck_row["isa_report_count"] == 1
+        assert ck_row["isa_report_backends"] == ["ck"]
+        assert ck_row["isa_report_targets"] == ["gfx1100"]
+        assert ck_row["isa_wmma_count"] == 7
+        assert ck_row["isa_global_store_count"] == 3
+        assert ck_row["isa_vgpr_count"] == 64
+        assert ck_row["isa_occupancy"] == 8
 
         outputs = evidence_database.write_outputs(database, tmp / "evidence")
         for path in outputs.values():
@@ -100,8 +137,10 @@ def main() -> int:
         assert written["capture_count"] == 2
         csv_text = Path(outputs["evidence_rows_csv"]).read_text(encoding="utf-8")
         assert "scenario_family" in csv_text
+        assert "isa_wmma_count" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
         assert "RNS8 Evidence Database Summary" in markdown
+        assert "ISA Resources" in markdown
 
     print("evidence database self-test: PASS")
     return 0
