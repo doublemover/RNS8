@@ -1026,9 +1026,23 @@ RNS8-specific notes:
 Likely first slices:
 
 - Extend review Markdown with bottleneck classification derived from existing
-  timing phases.
+  timing phases. Implemented in `tools/benchmark_sweep.py`: review JSON now
+  stores a per-candidate bottleneck classification from pack, GEMM, export, and
+  unattributed end-to-end overhead medians, and `review_report.md` prints that
+  classification beside promotion blockers and primary loss phase.
 - Add an ignored evidence database builder that ingests schema v4 captures and
-  review reports.
+  review reports. Implemented as `tools/evidence_database.py`: it validates
+  capture JSON with the existing schema, optionally joins
+  `tools/benchmark_sweep.py` review reports and scenario manifests, estimates
+  coarse per-capture work/traffic/arithmetic-intensity metrics, classifies the
+  dominant bottleneck from host phases and GPU event categories, and writes
+  ignored `evidence_database.json`, `evidence_rows.csv`, and
+  `evidence_summary.md` outputs under `temp/` by default. The first database
+  schema records target/device/toolchain identity, backend/kernel, semantic,
+  shape, finite modulus, prefix/selected-prefix, exact-wide limb count,
+  pack/reuse mode, output domain, timing medians, event bottleneck category,
+  estimated GOP/s, pack/export bandwidth estimates, review promotion blockers,
+  and scenario-family metadata when available.
 - Add optional RGA/ISA resource summaries to that database.
 
 Relation to existing queue:

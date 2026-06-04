@@ -875,6 +875,14 @@ def main() -> int:
     assert group["finite_modulus"] == 255
     assert group["fastest_promotable"]["backend"] == "ck"
     assert group["candidates"][0]["promotion_blockers"] == []
+    assert group["candidates"][0]["bottleneck"]["class"] in {
+        "compute_bound",
+        "export_bound",
+        "launch_or_api_bound",
+        "mixed_bound",
+        "pack_bound",
+        "unknown",
+    }
 
     missing_target_ck = copy.deepcopy(ck)
     missing_target_ck["device"]["gcn_arch"] = "unknown"

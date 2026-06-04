@@ -684,6 +684,29 @@ def primary_loss_phase(item: dict[str, Any], direct: dict[str, Any] | None) -> s
     return worst_phase
 
 
+def bottleneck_classification(capture: dict[str, Any]) -> dict[str, Any]:
+    end_to_end = median_phase(capture, "end_to_end")
+    phase_values = {
+        phase: value
+        for phase in ("pack", "rns_gemm", "crt_export")
+        if (value := median_phase(capture, phase)) is not None and value > 0
+    }
+    if not end_to_end or end_to_end <= 0 or not phase_values:
+        return {"class": "unknown", "phase": None, "share": None}
+    shares = {phase: value / end_to_end for phase, value in phase_values.items()}
+    overhead_share = max(0.0, end_to_end - sum(phase_values.values())) / end_to_end
+    phase, share = max(shares.items(), key=lambda item: item[1])
+    if overhead_share >= 0.25 and overhead_share > share:
+        return {"class": "launch_or_api_bound", "phase": "unattributed_overhead", "share": overhead_share}
+    if share < 0.40:
+        return {"class": "mixed_bound", "phase": phase, "share": share}
+    return {
+        "class": {"pack": "pack_bound", "rns_gemm": "compute_bound", "crt_export": "export_bound"}[phase],
+        "phase": phase,
+        "share": share,
+    }
+
+
 def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
@@ -845,6 +868,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
                 "primary_loss_phase_vs_direct_hip": None if promotable else primary_loss_phase(item, direct_capture),
+                "bottleneck": bottleneck_classification(item),
                 "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
             }
             candidates.append(candidate)
@@ -2001,17 +2025,24 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         else:
             lines.append("- fastest_promotable: `none`")
         lines.append("")
-        lines.append("| backend | kernel | target | e2e median us | promotable | cache | blockers | primary loss phase |")
-        lines.append("|---|---|---|---:|---|---|---|---|")
+        lines.append(
+            "| backend | kernel | target | e2e median us | bottleneck | promotable | cache | blockers | primary loss phase |"
+        )
+        lines.append("|---|---|---|---:|---|---|---|---|---|")
         for candidate in group.get("candidates", []):
             blockers = ",".join(candidate.get("promotion_blockers") or [])
             source = candidate.get("source_metadata") if isinstance(candidate.get("source_metadata"), dict) else {}
+            bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+            bottleneck_text = bottleneck.get("class") or "unknown"
+            if bottleneck.get("phase"):
+                bottleneck_text += f"/{bottleneck.get('phase')}"
             lines.append(
-                "| {backend} | {kernel} | {target} | {median} | {promotable} | {cache} | {blockers} | {loss} |".format(
+                "| {backend} | {kernel} | {target} | {median} | {bottleneck} | {promotable} | {cache} | {blockers} | {loss} |".format(
                     backend=candidate.get("backend"),
                     kernel=candidate.get("selected_kernel"),
                     target=source.get("target_id"),
                     median=candidate.get("median_end_to_end_us"),
+                    bottleneck=bottleneck_text,
                     promotable=candidate.get("promotable"),
                     cache=candidate.get("cache_write_status"),
                     blockers=blockers or "none",
