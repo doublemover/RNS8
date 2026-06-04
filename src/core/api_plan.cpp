@@ -405,6 +405,125 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
   return "not_applicable_cpu";
 }
 
+bool accumulator_uses_int32_inner_product_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 ||
+      plan.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB ||
+      plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return false;
+  }
+  return uses_rns_storage(plan.desc.semantics) || uses_finite_storage(plan.desc.semantics);
+}
+
+uint64_t accumulator_k_block_cap_for_plan(const rns8_plan& plan) {
+  if (!accumulator_uses_int32_inner_product_for_plan(plan)) {
+    return 0;
+  }
+  if (plan.backend == RNS8_BACKEND_CK) {
+    return 32768u;
+  }
+  return static_cast<uint64_t>(RNS8_SAFE_INT32_K_BLOCK);
+}
+
+uint64_t accumulator_k_block_size_for_plan(const rns8_plan& plan) {
+  if (plan.desc.k <= 0) {
+    return 0;
+  }
+  const uint64_t k = static_cast<uint64_t>(plan.desc.k);
+  const uint64_t cap = accumulator_k_block_cap_for_plan(plan);
+  if (cap == 0) {
+    return k;
+  }
+  return k < cap ? k : cap;
+}
+
+uint64_t accumulator_modulus_for_plan(const rns8_plan& plan) {
+  return uses_finite_storage(plan.desc.semantics) ? plan.desc.finite_modulus : 0u;
+}
+
+uint64_t accumulator_max_abs_input_for_plan(const rns8_plan& plan) {
+  return accumulator_uses_int32_inner_product_for_plan(plan) ? 128u : 0u;
+}
+
+uint64_t accumulator_max_product_for_plan(const rns8_plan& plan) {
+  const uint64_t lhs = accumulator_max_abs_input_for_plan(plan);
+  const uint64_t rhs = accumulator_max_abs_input_for_plan(plan);
+  return lhs * rhs;
+}
+
+uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
+  if (!accumulator_uses_int32_inner_product_for_plan(plan)) {
+    return 1u;
+  }
+  const uint64_t k_block = accumulator_k_block_size_for_plan(plan);
+  const uint64_t product = accumulator_max_product_for_plan(plan);
+  if (k_block == 0 || product == 0) {
+    return 0u;
+  }
+  return product <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) / k_block ? 1u : 0u;
+}
+
+std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return plan.desc.semantics == RNS8_BOUNDED_I64 ? "native_i64_values" : "native_u64_values";
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "uint8_byte_limb_pairs";
+  }
+  if (uses_finite_storage(plan.desc.semantics)) {
+    return "centered_i8_finite_u8_residues";
+  }
+  return "centered_i8_rns_residue_planes";
+}
+
+std::string accumulator_signedness_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return plan.desc.semantics == RNS8_BOUNDED_I64 ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64";
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "unsigned_byte_limb";
+  }
+  if (accumulator_uses_int32_inner_product_for_plan(plan)) {
+    return "signed_i8x_signed_i8";
+  }
+  return "not_applicable";
+}
+
+std::string accumulator_type_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return "software_192bit_limb";
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "uint64_wraparound_byte_limb";
+  }
+  if (accumulator_uses_int32_inner_product_for_plan(plan)) {
+    return "int32";
+  }
+  return "not_applicable";
+}
+
+std::string accumulator_modulus_policy_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return "native_exact_integer_output";
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "mod_2_64_wraparound_byte_limb";
+  }
+  if (uses_finite_storage(plan.desc.semantics)) {
+    return "finite_u8_modulus";
+  }
+  return "selected_rns_modulus_ladder";
+}
+
+std::string accumulator_safety_status_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+    return "exact_192bit_limb_no_int32_k_cap";
+  }
+  if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
+    return "exact_mod_2_64_byte_limb_no_int32_k_cap";
+  }
+  return accumulator_safe_for_k_block_for_plan(plan) ? "safe_int32_k_block_split" : "unsafe_int32_k_block";
+}
+
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     std::size_t scratch_bytes = 0;
@@ -688,6 +807,11 @@ std::string build_autotune_key(const rns8_plan& plan) {
     }
   }
   key += ";zero_output_tiles=" + std::to_string(zero_output_tile_count);
+  key += ";accumulator_type=" + plan.backend_accumulator_type;
+  key += ";accumulator_signedness=" + plan.backend_accumulator_signedness;
+  key += ";accumulator_modulus_policy=" + plan.backend_accumulator_modulus_policy;
+  key += ";k_block_size=" + std::to_string(plan.backend_accumulator_k_block_size);
+  key += ";k_block_cap=" + std::to_string(plan.backend_accumulator_k_block_cap);
   key += ";kernel=" + plan.backend_selected_kernel;
   key += ";epilogue=" + plan.backend_epilogue_mode;
   return key;
@@ -739,6 +863,20 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   plan.backend_isa_evidence = isa_evidence_for_plan(plan);
   plan.backend_workspace_required_bytes = workspace_required_bytes_for_plan(plan);
   plan.backend_performance_validated = capability.performance_validated;
+  plan.backend_accumulator_k_block_size = accumulator_k_block_size_for_plan(plan);
+  plan.backend_accumulator_k_block_cap = accumulator_k_block_cap_for_plan(plan);
+  plan.backend_accumulator_modulus = accumulator_modulus_for_plan(plan);
+  plan.backend_accumulator_max_lhs_abs = accumulator_max_abs_input_for_plan(plan);
+  plan.backend_accumulator_max_rhs_abs = accumulator_max_abs_input_for_plan(plan);
+  plan.backend_accumulator_max_product = accumulator_max_product_for_plan(plan);
+  plan.backend_accumulator_uses_int32_inner_product =
+      accumulator_uses_int32_inner_product_for_plan(plan) ? 1u : 0u;
+  plan.backend_accumulator_safe_for_k_block = accumulator_safe_for_k_block_for_plan(plan);
+  plan.backend_accumulator_input_domain = accumulator_input_domain_for_plan(plan);
+  plan.backend_accumulator_signedness = accumulator_signedness_for_plan(plan);
+  plan.backend_accumulator_type = accumulator_type_for_plan(plan);
+  plan.backend_accumulator_modulus_policy = accumulator_modulus_policy_for_plan(plan);
+  plan.backend_accumulator_safety_status = accumulator_safety_status_for_plan(plan);
   plan.backend_autotune_key = build_autotune_key(plan);
 }
 
@@ -1141,6 +1279,14 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     out->performance_validated = plan->backend_performance_validated;
     out->flags = capability.flags;
     out->workspace_required_bytes = plan->backend_workspace_required_bytes;
+    out->accumulator_k_block_size = plan->backend_accumulator_k_block_size;
+    out->accumulator_k_block_cap = plan->backend_accumulator_k_block_cap;
+    out->accumulator_modulus = plan->backend_accumulator_modulus;
+    out->accumulator_max_lhs_abs = plan->backend_accumulator_max_lhs_abs;
+    out->accumulator_max_rhs_abs = plan->backend_accumulator_max_rhs_abs;
+    out->accumulator_max_product = plan->backend_accumulator_max_product;
+    out->accumulator_uses_int32_inner_product = plan->backend_accumulator_uses_int32_inner_product;
+    out->accumulator_safe_for_k_block = plan->backend_accumulator_safe_for_k_block;
     set_text(out->selected_kernel, sizeof(out->selected_kernel), plan->backend_selected_kernel);
     set_text(out->accelerator_library, sizeof(out->accelerator_library), plan->backend_library);
     set_text(out->accelerator_version, sizeof(out->accelerator_version), plan->backend_library_version);
@@ -1149,6 +1295,20 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     set_text(out->workspace_mode, sizeof(out->workspace_mode), plan->backend_workspace_mode);
     set_text(out->isa_evidence, sizeof(out->isa_evidence), plan->backend_isa_evidence);
     set_text(out->autotune_key, sizeof(out->autotune_key), plan->backend_autotune_key);
+    set_text(
+        out->accumulator_input_domain,
+        sizeof(out->accumulator_input_domain),
+        plan->backend_accumulator_input_domain);
+    set_text(out->accumulator_signedness, sizeof(out->accumulator_signedness), plan->backend_accumulator_signedness);
+    set_text(out->accumulator_type, sizeof(out->accumulator_type), plan->backend_accumulator_type);
+    set_text(
+        out->accumulator_modulus_policy,
+        sizeof(out->accumulator_modulus_policy),
+        plan->backend_accumulator_modulus_policy);
+    set_text(
+        out->accumulator_safety_status,
+        sizeof(out->accumulator_safety_status),
+        plan->backend_accumulator_safety_status);
     return RNS8_SUCCESS;
   });
 }

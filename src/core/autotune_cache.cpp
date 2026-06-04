@@ -2,6 +2,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "rns8/moduli.h"
+
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -221,6 +223,20 @@ std::string require_key_i64(
   return {};
 }
 
+std::string require_key_text(
+    const std::vector<std::pair<std::string, std::string>>& fields,
+    const char* name,
+    const char* expected) {
+  const std::string value = key_field(fields, name);
+  if (value.empty()) {
+    return std::string("missing_key_") + name;
+  }
+  if (value != expected) {
+    return std::string("key_") + name + "_mismatch";
+  }
+  return {};
+}
+
 std::string require_optional_key_i64(
     const std::vector<std::pair<std::string, std::string>>& fields,
     const char* name,
@@ -345,6 +361,40 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
   return false;
 }
 
+const char* expected_accumulator_type_for_entry(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return "software_192bit_limb";
+  }
+  return "int32";
+}
+
+const char* expected_accumulator_signedness_for_entry(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return entry.semantic_contract == "bounded_i64" ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64";
+  }
+  return "signed_i8x_signed_i8";
+}
+
+const char* expected_accumulator_modulus_policy_for_entry(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return "native_exact_integer_output";
+  }
+  if (is_finite_u8_semantic(entry.semantic_contract)) {
+    return "finite_u8_modulus";
+  }
+  return "selected_rns_modulus_ladder";
+}
+
+int64_t expected_accumulator_k_block_cap_for_entry(const AutotuneCacheEntry& entry) {
+  if (entry.selected_backend == "hip-vector-alu-int64") {
+    return 0;
+  }
+  if (entry.selected_backend == "ck") {
+    return 32768;
+  }
+  return static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK);
+}
+
 std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (entry.key.empty() || entry.selected_backend.empty() || entry.selected_kernel.empty() ||
       entry.target_id.empty() || entry.hip_sdk_or_library_version.empty() ||
@@ -387,8 +437,41 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (std::string failure = require_key_i64(fields, "tile_n", static_cast<int64_t>(entry.tile_n)); !failure.empty()) {
     return failure;
   }
-  if (std::string failure = require_optional_key_i64(fields, "k_block_size", entry.k_block_size); !failure.empty()) {
+  if (std::string failure = require_key_text(
+          fields,
+          "accumulator_type",
+          expected_accumulator_type_for_entry(entry));
+      !failure.empty()) {
     return failure;
+  }
+  if (std::string failure = require_key_text(
+          fields,
+          "accumulator_signedness",
+          expected_accumulator_signedness_for_entry(entry));
+      !failure.empty()) {
+    return failure;
+  }
+  if (std::string failure = require_key_text(
+          fields,
+          "accumulator_modulus_policy",
+          expected_accumulator_modulus_policy_for_entry(entry));
+      !failure.empty()) {
+    return failure;
+  }
+  if (std::string failure = require_key_i64(fields, "k_block_size", entry.k_block_size); !failure.empty()) {
+    return failure;
+  }
+  if (std::string failure =
+          require_key_i64(fields, "k_block_cap", expected_accumulator_k_block_cap_for_entry(entry));
+      !failure.empty()) {
+    return failure;
+  }
+  const int64_t expected_cap = expected_accumulator_k_block_cap_for_entry(entry);
+  if (expected_cap > 0 && entry.k_block_size > expected_cap) {
+    return "entry_k_block_size_exceeds_accumulator_cap";
+  }
+  if (entry.selected_backend == "hip-vector-alu-int64" && entry.k_block_size != entry.k) {
+    return "vector_alu_entry_k_block_size_must_equal_k";
   }
 
   const bool finite_contract =

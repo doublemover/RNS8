@@ -20,7 +20,22 @@
     "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
     "workspace_required_bytes": 8192,
     "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
-    "autotune_key": "backend=rocwmma;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=1;adaptive_prefix=0;adaptive_skip=1;kernel=rocwmma_i8_i32_signed_tiled_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_crt_export"
+    "autotune_key": "backend=rocwmma;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=1;adaptive_prefix=0;adaptive_skip=1;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;kernel=rocwmma_i8_i32_signed_tiled_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_crt_export",
+    "accumulator_safety": {
+      "input_domain": "centered_i8_rns_residue_planes",
+      "signedness": "signed_i8x_signed_i8",
+      "accumulator_type": "int32",
+      "modulus_policy": "selected_rns_modulus_ladder",
+      "modulus": 0,
+      "uses_int32_inner_product": true,
+      "k_block_size": 64,
+      "k_block_cap": 65536,
+      "max_lhs_abs": 128,
+      "max_rhs_abs": 128,
+      "max_product": 16384,
+      "safe_for_k_block": true,
+      "status": "safe_int32_k_block_split"
+    }
   },
   "semantics": "bounded_u64",
   "bound_kind": "per_tile_max_unsigned",
@@ -96,7 +111,11 @@
     "status": "required_not_recorded",
     "speedup_claimed": false,
     "selected_reference": null,
-    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64", "same_contract_direct_hip_correctness"],
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_vector_alu_int64",
+      "same_contract_direct_hip_correctness"
+    ],
     "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
   },
   "derived_tops_equivalent": null,
@@ -122,7 +141,27 @@
       "crt_export",
       "end_to_end"
     ],
-    "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "rocwmma_pack_a_kernel", "rocwmma_pack_b_kernel", "rocwmma_matmul_kernel", "rocwmma_prefix_00_pack_a", "rocwmma_prefix_00_pack_b", "rocwmma_prefix_00_matmul", "rocwmma_prefix_01_pack_a", "rocwmma_prefix_01_pack_b", "rocwmma_prefix_01_matmul", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
+    "gpu_event_phase_order": [
+      "pack_h2d",
+      "pack_kernel",
+      "pack",
+      "rns_gemm_kernel_group",
+      "rocwmma_pack_a_kernel",
+      "rocwmma_pack_b_kernel",
+      "rocwmma_matmul_kernel",
+      "rocwmma_prefix_00_pack_a",
+      "rocwmma_prefix_00_pack_b",
+      "rocwmma_prefix_00_matmul",
+      "rocwmma_prefix_01_pack_a",
+      "rocwmma_prefix_01_pack_b",
+      "rocwmma_prefix_01_matmul",
+      "rns_gemm",
+      "crt_export_status_memset",
+      "crt_export_kernel",
+      "crt_export_status_d2h",
+      "crt_export_d2h",
+      "crt_export"
+    ],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -155,46 +194,179 @@
     }
   },
   "gpu_event_timings_us": {
-    "pack_h2d": [150.0, 160.0],
-    "pack_kernel": [166.0, 190.0],
-    "pack": [316.0, 350.0],
-    "rns_gemm_kernel_group": [221.0, 214.0],
-    "rocwmma_pack_a_kernel": [20.0, 20.0],
-    "rocwmma_pack_b_kernel": [21.0, 20.0],
-    "rocwmma_matmul_kernel": [180.0, 174.0],
-    "rocwmma_prefix_00_pack_a": [10.0, 10.0],
-    "rocwmma_prefix_00_pack_b": [11.0, 10.0],
-    "rocwmma_prefix_00_matmul": [90.0, 87.0],
-    "rocwmma_prefix_01_pack_a": [10.0, 10.0],
-    "rocwmma_prefix_01_pack_b": [10.0, 10.0],
-    "rocwmma_prefix_01_matmul": [90.0, 87.0],
-    "rns_gemm": [221.0, 214.0],
-    "crt_export_status_memset": [0.0, 0.0],
-    "crt_export_kernel": [300.0, 450.0],
-    "crt_export_status_d2h": [20.0, 21.0],
-    "crt_export_d2h": [386.0, 450.0],
-    "crt_export": [706.0, 921.0]
+    "pack_h2d": [
+      150.0,
+      160.0
+    ],
+    "pack_kernel": [
+      166.0,
+      190.0
+    ],
+    "pack": [
+      316.0,
+      350.0
+    ],
+    "rns_gemm_kernel_group": [
+      221.0,
+      214.0
+    ],
+    "rocwmma_pack_a_kernel": [
+      20.0,
+      20.0
+    ],
+    "rocwmma_pack_b_kernel": [
+      21.0,
+      20.0
+    ],
+    "rocwmma_matmul_kernel": [
+      180.0,
+      174.0
+    ],
+    "rocwmma_prefix_00_pack_a": [
+      10.0,
+      10.0
+    ],
+    "rocwmma_prefix_00_pack_b": [
+      11.0,
+      10.0
+    ],
+    "rocwmma_prefix_00_matmul": [
+      90.0,
+      87.0
+    ],
+    "rocwmma_prefix_01_pack_a": [
+      10.0,
+      10.0
+    ],
+    "rocwmma_prefix_01_pack_b": [
+      10.0,
+      10.0
+    ],
+    "rocwmma_prefix_01_matmul": [
+      90.0,
+      87.0
+    ],
+    "rns_gemm": [
+      221.0,
+      214.0
+    ],
+    "crt_export_status_memset": [
+      0.0,
+      0.0
+    ],
+    "crt_export_kernel": [
+      300.0,
+      450.0
+    ],
+    "crt_export_status_d2h": [
+      20.0,
+      21.0
+    ],
+    "crt_export_d2h": [
+      386.0,
+      450.0
+    ],
+    "crt_export": [
+      706.0,
+      921.0
+    ]
   },
   "gpu_event_timing_summary_us": {
-    "pack_h2d": {"avg": 155.0, "median": 160.0, "p95": 160.0},
-    "pack_kernel": {"avg": 178.0, "median": 190.0, "p95": 190.0},
-    "pack": {"avg": 333.0, "median": 350.0, "p95": 350.0},
-    "rns_gemm_kernel_group": {"avg": 217.5, "median": 221.0, "p95": 221.0},
-    "rocwmma_pack_a_kernel": {"avg": 20.0, "median": 20.0, "p95": 20.0},
-    "rocwmma_pack_b_kernel": {"avg": 20.5, "median": 21.0, "p95": 21.0},
-    "rocwmma_matmul_kernel": {"avg": 177.0, "median": 180.0, "p95": 180.0},
-    "rocwmma_prefix_00_pack_a": {"avg": 10.0, "median": 10.0, "p95": 10.0},
-    "rocwmma_prefix_00_pack_b": {"avg": 10.5, "median": 11.0, "p95": 11.0},
-    "rocwmma_prefix_00_matmul": {"avg": 88.5, "median": 90.0, "p95": 90.0},
-    "rocwmma_prefix_01_pack_a": {"avg": 10.0, "median": 10.0, "p95": 10.0},
-    "rocwmma_prefix_01_pack_b": {"avg": 10.0, "median": 10.0, "p95": 10.0},
-    "rocwmma_prefix_01_matmul": {"avg": 88.5, "median": 90.0, "p95": 90.0},
-    "rns_gemm": {"avg": 217.5, "median": 221.0, "p95": 221.0},
-    "crt_export_status_memset": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "crt_export_kernel": {"avg": 375.0, "median": 450.0, "p95": 450.0},
-    "crt_export_status_d2h": {"avg": 20.5, "median": 21.0, "p95": 21.0},
-    "crt_export_d2h": {"avg": 418.0, "median": 450.0, "p95": 450.0},
-    "crt_export": {"avg": 813.5, "median": 921.0, "p95": 921.0}
+    "pack_h2d": {
+      "avg": 155.0,
+      "median": 160.0,
+      "p95": 160.0
+    },
+    "pack_kernel": {
+      "avg": 178.0,
+      "median": 190.0,
+      "p95": 190.0
+    },
+    "pack": {
+      "avg": 333.0,
+      "median": 350.0,
+      "p95": 350.0
+    },
+    "rns_gemm_kernel_group": {
+      "avg": 217.5,
+      "median": 221.0,
+      "p95": 221.0
+    },
+    "rocwmma_pack_a_kernel": {
+      "avg": 20.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "rocwmma_pack_b_kernel": {
+      "avg": 20.5,
+      "median": 21.0,
+      "p95": 21.0
+    },
+    "rocwmma_matmul_kernel": {
+      "avg": 177.0,
+      "median": 180.0,
+      "p95": 180.0
+    },
+    "rocwmma_prefix_00_pack_a": {
+      "avg": 10.0,
+      "median": 10.0,
+      "p95": 10.0
+    },
+    "rocwmma_prefix_00_pack_b": {
+      "avg": 10.5,
+      "median": 11.0,
+      "p95": 11.0
+    },
+    "rocwmma_prefix_00_matmul": {
+      "avg": 88.5,
+      "median": 90.0,
+      "p95": 90.0
+    },
+    "rocwmma_prefix_01_pack_a": {
+      "avg": 10.0,
+      "median": 10.0,
+      "p95": 10.0
+    },
+    "rocwmma_prefix_01_pack_b": {
+      "avg": 10.0,
+      "median": 10.0,
+      "p95": 10.0
+    },
+    "rocwmma_prefix_01_matmul": {
+      "avg": 88.5,
+      "median": 90.0,
+      "p95": 90.0
+    },
+    "rns_gemm": {
+      "avg": 217.5,
+      "median": 221.0,
+      "p95": 221.0
+    },
+    "crt_export_status_memset": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "crt_export_kernel": {
+      "avg": 375.0,
+      "median": 450.0,
+      "p95": 450.0
+    },
+    "crt_export_status_d2h": {
+      "avg": 20.5,
+      "median": 21.0,
+      "p95": 21.0
+    },
+    "crt_export_d2h": {
+      "avg": 418.0,
+      "median": 450.0,
+      "p95": 450.0
+    },
+    "crt_export": {
+      "avg": 813.5,
+      "median": 921.0,
+      "p95": 921.0
+    }
   },
   "plan_us": 142508,
   "avg_planning_us": 142508,

@@ -20,7 +20,22 @@
     "workspace_mode": "benchmark_owned_device_buffers",
     "workspace_required_bytes": 6148,
     "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
-    "autotune_key": "backend=hip-vector-alu-int64;semantics=bounded_u64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=hip_vector_alu_u64_exact_192b_v1;epilogue=direct_int64_export"
+    "autotune_key": "backend=hip-vector-alu-int64;semantics=bounded_u64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=software_192bit_limb;accumulator_signedness=unsigned_u64x_unsigned_u64;accumulator_modulus_policy=native_exact_integer_output;k_block_size=16;k_block_cap=0;kernel=hip_vector_alu_u64_exact_192b_v1;epilogue=direct_int64_export",
+    "accumulator_safety": {
+      "input_domain": "native_u64_values",
+      "signedness": "unsigned_u64x_unsigned_u64",
+      "accumulator_type": "software_192bit_limb",
+      "modulus_policy": "native_exact_integer_output",
+      "modulus": 0,
+      "uses_int32_inner_product": false,
+      "k_block_size": 16,
+      "k_block_cap": 0,
+      "max_lhs_abs": 0,
+      "max_rhs_abs": 0,
+      "max_product": 0,
+      "safe_for_k_block": true,
+      "status": "exact_192bit_limb_no_int32_k_cap"
+    }
   },
   "semantics": "bounded_u64",
   "bound_kind": "global_max_unsigned",
@@ -61,7 +76,10 @@
   "input_distribution": "unsigned_uniform_0_16",
   "command_line": "rns8-bench --backend hip-vector-alu-int64 --semantics bounded-u64 --m 16 --n 16 --k 16 --warmups 1 --repeats 2 --seed 17",
   "git_commit": "000000000000",
-  "compiler": {"id": "msvc", "version": "1944.35213"},
+  "compiler": {
+    "id": "msvc",
+    "version": "1944.35213"
+  },
   "configured_amdgpu_targets": "gfx1100",
   "hip_toolchain": {
     "enabled": true,
@@ -85,7 +103,10 @@
     "status": "required_not_recorded",
     "speedup_claimed": false,
     "selected_reference": null,
-    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_correctness"],
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_correctness"
+    ],
     "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
   },
   "derived_tops_equivalent": null,
@@ -101,8 +122,26 @@
     "gpu_event_timing_source": "hipEventElapsedTime",
     "gpu_event_timing_source_scope": "vector_alu_default_stream_native_int64_operation_groups",
     "gpu_event_timing_caveat": "HIP event timings record benchmark/API vector-ALU native-buffer operation groups; host wall-clock timings remain required for CPU staging, range checks, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream",
-    "phase_order": ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"],
-    "gpu_event_phase_order": ["vector_alu_pack_a_h2d", "vector_alu_pack_b_h2d", "pack", "vector_alu_status_memset", "vector_alu_u64_kernel", "rns_gemm", "vector_alu_status_d2h", "vector_alu_output_d2h", "crt_export"],
+    "phase_order": [
+      "planning",
+      "scheduling",
+      "matrix_alloc",
+      "pack",
+      "rns_gemm",
+      "crt_export",
+      "end_to_end"
+    ],
+    "gpu_event_phase_order": [
+      "vector_alu_pack_a_h2d",
+      "vector_alu_pack_b_h2d",
+      "pack",
+      "vector_alu_status_memset",
+      "vector_alu_u64_kernel",
+      "rns_gemm",
+      "vector_alu_status_d2h",
+      "vector_alu_output_d2h",
+      "crt_export"
+    ],
     "phase_notes": {
       "planning": "one-time rns8_create_plan schedule validation for the same bounded semantic contract",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -113,31 +152,104 @@
       "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
     },
     "phase_availability": {
-      "scheduling": {"timed": true, "timing_key": "scheduling", "scope": "one_time_schedule_info_query", "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"},
-      "reduction": {"timed": false, "timing_key": null, "scope": "not_applicable_direct_int64_export", "reason": "benchmark-only vector-ALU baseline computes exact logical outputs directly and does not use centered RNS residue reduction"}
+      "scheduling": {
+        "timed": true,
+        "timing_key": "scheduling",
+        "scope": "one_time_schedule_info_query",
+        "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "reduction": {
+        "timed": false,
+        "timing_key": null,
+        "scope": "not_applicable_direct_int64_export",
+        "reason": "benchmark-only vector-ALU baseline computes exact logical outputs directly and does not use centered RNS residue reduction"
+      }
     }
   },
   "gpu_event_timings_us": {
-    "vector_alu_pack_a_h2d": [10.0, 15.0],
-    "vector_alu_pack_b_h2d": [15.0, 20.0],
-    "pack": [25.0, 35.0],
-    "vector_alu_status_memset": [0.0, 0.0],
-    "vector_alu_u64_kernel": [50.0, 70.0],
-    "rns_gemm": [50.0, 70.0],
-    "vector_alu_status_d2h": [4.0, 5.0],
-    "vector_alu_output_d2h": [36.0, 45.0],
-    "crt_export": [40.0, 50.0]
+    "vector_alu_pack_a_h2d": [
+      10.0,
+      15.0
+    ],
+    "vector_alu_pack_b_h2d": [
+      15.0,
+      20.0
+    ],
+    "pack": [
+      25.0,
+      35.0
+    ],
+    "vector_alu_status_memset": [
+      0.0,
+      0.0
+    ],
+    "vector_alu_u64_kernel": [
+      50.0,
+      70.0
+    ],
+    "rns_gemm": [
+      50.0,
+      70.0
+    ],
+    "vector_alu_status_d2h": [
+      4.0,
+      5.0
+    ],
+    "vector_alu_output_d2h": [
+      36.0,
+      45.0
+    ],
+    "crt_export": [
+      40.0,
+      50.0
+    ]
   },
   "gpu_event_timing_summary_us": {
-    "vector_alu_pack_a_h2d": {"avg": 12.5, "median": 15.0, "p95": 15.0},
-    "vector_alu_pack_b_h2d": {"avg": 17.5, "median": 20.0, "p95": 20.0},
-    "pack": {"avg": 30.0, "median": 35.0, "p95": 35.0},
-    "vector_alu_status_memset": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "vector_alu_u64_kernel": {"avg": 60.0, "median": 70.0, "p95": 70.0},
-    "rns_gemm": {"avg": 60.0, "median": 70.0, "p95": 70.0},
-    "vector_alu_status_d2h": {"avg": 4.5, "median": 5.0, "p95": 5.0},
-    "vector_alu_output_d2h": {"avg": 40.5, "median": 45.0, "p95": 45.0},
-    "crt_export": {"avg": 45.0, "median": 50.0, "p95": 50.0}
+    "vector_alu_pack_a_h2d": {
+      "avg": 12.5,
+      "median": 15.0,
+      "p95": 15.0
+    },
+    "vector_alu_pack_b_h2d": {
+      "avg": 17.5,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "pack": {
+      "avg": 30.0,
+      "median": 35.0,
+      "p95": 35.0
+    },
+    "vector_alu_status_memset": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "vector_alu_u64_kernel": {
+      "avg": 60.0,
+      "median": 70.0,
+      "p95": 70.0
+    },
+    "rns_gemm": {
+      "avg": 60.0,
+      "median": 70.0,
+      "p95": 70.0
+    },
+    "vector_alu_status_d2h": {
+      "avg": 4.5,
+      "median": 5.0,
+      "p95": 5.0
+    },
+    "vector_alu_output_d2h": {
+      "avg": 40.5,
+      "median": 45.0,
+      "p95": 45.0
+    },
+    "crt_export": {
+      "avg": 45.0,
+      "median": 50.0,
+      "p95": 50.0
+    }
   },
   "plan_us": 100,
   "avg_planning_us": 100.0,
@@ -152,22 +264,68 @@
   "avg_crt_export_us": 45.0,
   "avg_end_to_end_us": 135.0,
   "raw_timings_us": {
-    "planning": [100],
-    "scheduling": [5],
-    "matrix_alloc": [20],
-    "pack": [25, 35],
-    "rns_gemm": [50, 70],
-    "crt_export": [40, 50],
-    "end_to_end": [115, 155]
+    "planning": [
+      100
+    ],
+    "scheduling": [
+      5
+    ],
+    "matrix_alloc": [
+      20
+    ],
+    "pack": [
+      25,
+      35
+    ],
+    "rns_gemm": [
+      50,
+      70
+    ],
+    "crt_export": [
+      40,
+      50
+    ],
+    "end_to_end": [
+      115,
+      155
+    ]
   },
   "timing_summary_us": {
-    "planning": {"avg": 100.0, "median": 100.0, "p95": 100.0},
-    "scheduling": {"avg": 5.0, "median": 5.0, "p95": 5.0},
-    "matrix_alloc": {"avg": 20.0, "median": 20.0, "p95": 20.0},
-    "pack": {"avg": 30.0, "median": 35.0, "p95": 35.0},
-    "rns_gemm": {"avg": 60.0, "median": 70.0, "p95": 70.0},
-    "crt_export": {"avg": 45.0, "median": 50.0, "p95": 50.0},
-    "end_to_end": {"avg": 135.0, "median": 155.0, "p95": 155.0}
+    "planning": {
+      "avg": 100.0,
+      "median": 100.0,
+      "p95": 100.0
+    },
+    "scheduling": {
+      "avg": 5.0,
+      "median": 5.0,
+      "p95": 5.0
+    },
+    "matrix_alloc": {
+      "avg": 20.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "pack": {
+      "avg": 30.0,
+      "median": 35.0,
+      "p95": 35.0
+    },
+    "rns_gemm": {
+      "avg": 60.0,
+      "median": 70.0,
+      "p95": 70.0
+    },
+    "crt_export": {
+      "avg": 45.0,
+      "median": 50.0,
+      "p95": 50.0
+    },
+    "end_to_end": {
+      "avg": 135.0,
+      "median": 155.0,
+      "p95": 155.0
+    }
   },
   "checksum_u64": 123456789
 }

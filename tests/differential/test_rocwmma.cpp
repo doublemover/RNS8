@@ -533,6 +533,13 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(packing.production_prepack_cache_available == 0);
   CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
 
+  rns8_plan_schedule_info schedule{};
+  schedule.struct_size = sizeof(schedule);
+  schedule.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(rocwmma_plan, &schedule) == RNS8_SUCCESS);
+  CHECK(schedule.max_selected_prefix < RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(schedule.adaptive_skip_active == 1);
+
   rns8_prepack_cache_key_info key{};
   key.struct_size = sizeof(key);
   key.abi_version = RNS8_ABI_VERSION;
@@ -540,6 +547,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(key.reusable_prepack_cache_available == 1);
   CHECK(key.production_prepack_cache_available == 0);
   CHECK(key.hip_device_id == 0);
+  CHECK(key.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   CHECK(std::string(key.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
   CHECK(std::string(key.cache_key).find("prepack-v2") == 0);
   CHECK(std::string(key.cache_key).find("target_id=") != std::string::npos);
@@ -581,7 +589,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(cache_info.matrix_rows == k);
   CHECK(cache_info.matrix_cols == n);
   CHECK(cache_info.k == k);
-  CHECK(cache_info.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(cache_info.max_prefix == schedule.max_selected_prefix);
   CHECK(cache_info.finite_modulus == 0);
   CHECK(cache_info.source_version == key.source_version);
   CHECK(cache_info.plan_fingerprint == key.plan_fingerprint);
@@ -1023,6 +1031,11 @@ TEST_CASE("rocWMMA exact-wide RNS output matches CPU and direct HIP limbs") {
       CHECK(std::string(info.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1");
       CHECK(std::string(info.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
+      CHECK(info.accumulator_uses_int32_inner_product == 1);
+      CHECK(info.accumulator_k_block_size == static_cast<uint64_t>(k));
+      CHECK(info.accumulator_k_block_cap == 65536);
+      CHECK(std::string(info.accumulator_type) == "int32");
+      CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
     }
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
     auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);

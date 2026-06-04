@@ -20,7 +20,22 @@
     "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
     "workspace_required_bytes": 12288,
     "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
-    "autotune_key": "backend=rocwmma;semantics=finite_field_u8;m=64;n=128;k=64;finite_modulus=251;prefix=0;tile_m=128;tile_n=128;groups=0;adaptive_prefix=0;adaptive_skip=0;kernel=rocwmma_i8_i32_signed_finite_u8_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export"
+    "autotune_key": "backend=rocwmma;semantics=finite_field_u8;m=64;n=128;k=64;finite_modulus=251;prefix=0;tile_m=128;tile_n=128;groups=0;adaptive_prefix=0;adaptive_skip=0;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=finite_u8_modulus;k_block_size=64;k_block_cap=65536;kernel=rocwmma_i8_i32_signed_finite_u8_hot_residue_v1;epilogue=rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "accumulator_safety": {
+      "input_domain": "centered_i8_finite_u8_residues",
+      "signedness": "signed_i8x_signed_i8",
+      "accumulator_type": "int32",
+      "modulus_policy": "finite_u8_modulus",
+      "modulus": 251,
+      "uses_int32_inner_product": true,
+      "k_block_size": 64,
+      "k_block_cap": 65536,
+      "max_lhs_abs": 128,
+      "max_rhs_abs": 128,
+      "max_product": 16384,
+      "safe_for_k_block": true,
+      "status": "safe_int32_k_block_split"
+    }
   },
   "semantics": "finite_field_u8",
   "bound_kind": "none",
@@ -89,7 +104,10 @@
     "status": "required_not_recorded",
     "speedup_claimed": false,
     "selected_reference": null,
-    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_correctness"],
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_correctness"
+    ],
     "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
   },
   "derived_tops_equivalent": null,
@@ -105,8 +123,25 @@
     "gpu_event_timing_source": "hipEventElapsedTime",
     "gpu_event_timing_source_scope": "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
     "gpu_event_timing_caveat": "HIP event timings record direct-HIP pack/export operation groups plus one accelerator GEMM operation group; per-kernel accelerator internals and host-side API overhead remain represented only by host wall-clock timings",
-    "phase_order": ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"],
-    "gpu_event_phase_order": ["finite_pack_h2d", "finite_pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"],
+    "phase_order": [
+      "planning",
+      "scheduling",
+      "matrix_alloc",
+      "pack",
+      "rns_gemm",
+      "crt_export",
+      "end_to_end"
+    ],
+    "gpu_event_phase_order": [
+      "finite_pack_h2d",
+      "finite_pack_kernel",
+      "pack",
+      "rns_gemm_kernel_group",
+      "rns_gemm",
+      "finite_export_kernel",
+      "finite_export_d2h",
+      "crt_export"
+    ],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -117,29 +152,95 @@
       "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
     },
     "phase_availability": {
-      "scheduling": {"timed": true, "timing_key": "scheduling", "scope": "one_time_schedule_info_query", "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"},
-      "reduction": {"timed": false, "timing_key": null, "scope": "fused_into_rns_gemm", "reason": "finite-u8 captures reduce to centered residues inside rns_gemm before canonical uint8 export"}
+      "scheduling": {
+        "timed": true,
+        "timing_key": "scheduling",
+        "scope": "one_time_schedule_info_query",
+        "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "reduction": {
+        "timed": false,
+        "timing_key": null,
+        "scope": "fused_into_rns_gemm",
+        "reason": "finite-u8 captures reduce to centered residues inside rns_gemm before canonical uint8 export"
+      }
     }
   },
   "gpu_event_timings_us": {
-    "finite_pack_h2d": [15.0, 15.0],
-    "finite_pack_kernel": [25.0, 35.0],
-    "pack": [40.0, 50.0],
-    "rns_gemm_kernel_group": [80.0, 100.0],
-    "rns_gemm": [80.0, 100.0],
-    "finite_export_kernel": [40.0, 45.0],
-    "finite_export_d2h": [20.0, 25.0],
-    "crt_export": [60.0, 70.0]
+    "finite_pack_h2d": [
+      15.0,
+      15.0
+    ],
+    "finite_pack_kernel": [
+      25.0,
+      35.0
+    ],
+    "pack": [
+      40.0,
+      50.0
+    ],
+    "rns_gemm_kernel_group": [
+      80.0,
+      100.0
+    ],
+    "rns_gemm": [
+      80.0,
+      100.0
+    ],
+    "finite_export_kernel": [
+      40.0,
+      45.0
+    ],
+    "finite_export_d2h": [
+      20.0,
+      25.0
+    ],
+    "crt_export": [
+      60.0,
+      70.0
+    ]
   },
   "gpu_event_timing_summary_us": {
-    "finite_pack_h2d": {"avg": 15.0, "median": 15.0, "p95": 15.0},
-    "finite_pack_kernel": {"avg": 30.0, "median": 35.0, "p95": 35.0},
-    "pack": {"avg": 45.0, "median": 50.0, "p95": 50.0},
-    "rns_gemm_kernel_group": {"avg": 90.0, "median": 100.0, "p95": 100.0},
-    "rns_gemm": {"avg": 90.0, "median": 100.0, "p95": 100.0},
-    "finite_export_kernel": {"avg": 42.5, "median": 45.0, "p95": 45.0},
-    "finite_export_d2h": {"avg": 22.5, "median": 25.0, "p95": 25.0},
-    "crt_export": {"avg": 65.0, "median": 70.0, "p95": 70.0}
+    "finite_pack_h2d": {
+      "avg": 15.0,
+      "median": 15.0,
+      "p95": 15.0
+    },
+    "finite_pack_kernel": {
+      "avg": 30.0,
+      "median": 35.0,
+      "p95": 35.0
+    },
+    "pack": {
+      "avg": 45.0,
+      "median": 50.0,
+      "p95": 50.0
+    },
+    "rns_gemm_kernel_group": {
+      "avg": 90.0,
+      "median": 100.0,
+      "p95": 100.0
+    },
+    "rns_gemm": {
+      "avg": 90.0,
+      "median": 100.0,
+      "p95": 100.0
+    },
+    "finite_export_kernel": {
+      "avg": 42.5,
+      "median": 45.0,
+      "p95": 45.0
+    },
+    "finite_export_d2h": {
+      "avg": 22.5,
+      "median": 25.0,
+      "p95": 25.0
+    },
+    "crt_export": {
+      "avg": 65.0,
+      "median": 70.0,
+      "p95": 70.0
+    }
   },
   "plan_us": 2000,
   "avg_planning_us": 2000,
@@ -154,22 +255,68 @@
   "avg_crt_export_us": 65.0,
   "avg_end_to_end_us": 200.0,
   "raw_timings_us": {
-    "planning": [2000],
-    "scheduling": [20],
-    "matrix_alloc": [200],
-    "pack": [40, 50],
-    "rns_gemm": [80, 100],
-    "crt_export": [60, 70],
-    "end_to_end": [180, 220]
+    "planning": [
+      2000
+    ],
+    "scheduling": [
+      20
+    ],
+    "matrix_alloc": [
+      200
+    ],
+    "pack": [
+      40,
+      50
+    ],
+    "rns_gemm": [
+      80,
+      100
+    ],
+    "crt_export": [
+      60,
+      70
+    ],
+    "end_to_end": [
+      180,
+      220
+    ]
   },
   "timing_summary_us": {
-    "planning": {"avg": 2000.0, "median": 2000.0, "p95": 2000.0},
-    "scheduling": {"avg": 20.0, "median": 20.0, "p95": 20.0},
-    "matrix_alloc": {"avg": 200.0, "median": 200.0, "p95": 200.0},
-    "pack": {"avg": 45.0, "median": 50.0, "p95": 50.0},
-    "rns_gemm": {"avg": 90.0, "median": 100.0, "p95": 100.0},
-    "crt_export": {"avg": 65.0, "median": 70.0, "p95": 70.0},
-    "end_to_end": {"avg": 200.0, "median": 220.0, "p95": 220.0}
+    "planning": {
+      "avg": 2000.0,
+      "median": 2000.0,
+      "p95": 2000.0
+    },
+    "scheduling": {
+      "avg": 20.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "matrix_alloc": {
+      "avg": 200.0,
+      "median": 200.0,
+      "p95": 200.0
+    },
+    "pack": {
+      "avg": 45.0,
+      "median": 50.0,
+      "p95": 50.0
+    },
+    "rns_gemm": {
+      "avg": 90.0,
+      "median": 100.0,
+      "p95": 100.0
+    },
+    "crt_export": {
+      "avg": 65.0,
+      "median": 70.0,
+      "p95": 70.0
+    },
+    "end_to_end": {
+      "avg": 200.0,
+      "median": 220.0,
+      "p95": 220.0
+    }
   },
   "checksum_u64": 123456789
 }

@@ -95,6 +95,58 @@ def add_global_bound_scan_fields(capture: dict) -> dict:
     return capture
 
 
+def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
+    k_block = min(capture["k"], cap)
+    finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+    return {
+        "input_domain": "centered_i8_finite_u8_residues" if finite else "centered_i8_rns_residue_planes",
+        "signedness": "signed_i8x_signed_i8",
+        "accumulator_type": "int32",
+        "modulus_policy": "finite_u8_modulus" if finite else "selected_rns_modulus_ladder",
+        "modulus": capture.get("finite_modulus") if finite else 0,
+        "uses_int32_inner_product": True,
+        "k_block_size": k_block,
+        "k_block_cap": cap,
+        "max_lhs_abs": 128,
+        "max_rhs_abs": 128,
+        "max_product": 128 * 128,
+        "safe_for_k_block": True,
+        "status": "safe_int32_k_block_split",
+    }
+
+
+def apply_int32_accumulator_contract(capture: dict, cap: int = 65536) -> dict:
+    safety = int32_accumulator_safety(capture, cap)
+    capture["backend_metadata"]["accumulator_safety"] = safety
+    capture["k_block_size"] = safety["k_block_size"]
+    return capture
+
+
+def with_accumulator_key_fields(key: str, capture: dict) -> str:
+    safety = capture["backend_metadata"]["accumulator_safety"]
+    parts = [
+        part
+        for part in key.split(";")
+        if part.split("=", 1)[0]
+        not in {
+            "accumulator_type",
+            "accumulator_signedness",
+            "accumulator_modulus_policy",
+            "k_block_size",
+            "k_block_cap",
+        }
+    ]
+    insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
+    additions = [
+        f"accumulator_type={safety['accumulator_type']}",
+        f"accumulator_signedness={safety['signedness']}",
+        f"accumulator_modulus_policy={safety['modulus_policy']}",
+        f"k_block_size={safety['k_block_size']}",
+        f"k_block_cap={safety['k_block_cap']}",
+    ]
+    return ";".join(parts[:insert_at] + additions + parts[insert_at:])
+
+
 def as_direct_hip_finite_capture(
     capture: dict, modulus: int, kernel: str, isa_evidence: str
 ) -> dict:
@@ -114,11 +166,15 @@ def as_direct_hip_finite_capture(
     metadata["workspace_mode"] = "resident_device_buffers"
     metadata["workspace_required_bytes"] = 0
     metadata["isa_evidence"] = isa_evidence
-    metadata["autotune_key"] = (
+    apply_int32_accumulator_contract(direct)
+    metadata["autotune_key"] = with_accumulator_key_fields(
+        (
         f"backend=hip-direct;semantics={direct['semantics']};m={direct['m']};n={direct['n']};k={direct['k']};"
         f"finite_modulus={modulus};prefix=0;tile_m={direct['tile_m']};tile_n={direct['tile_n']};"
         f"groups=0;adaptive_prefix=0;adaptive_skip=0;kernel={kernel};"
         "epilogue=fused_centered_residue_then_canonical_u8_export"
+        ),
+        direct,
     )
     direct["timing_metadata"]["gpu_event_timing_source_scope"] = (
         "direct_hip_default_stream_backend_operation_groups"
@@ -147,10 +203,14 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
     oneshot["backend_metadata"]["workspace_mode"] = "transient_native_inputs_to_resident_rns_output"
     oneshot["backend_metadata"]["workspace_required_bytes"] = 0
     oneshot["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
-    oneshot["backend_metadata"]["autotune_key"] = (
+    apply_int32_accumulator_contract(oneshot)
+    oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;"
         "groups=1;adaptive_prefix=0;adaptive_skip=0;execution=public_oneshot_transient_native_inputs;"
         f"kernel={kernel};epilogue={epilogue}"
+        ),
+        oneshot,
     )
     oneshot["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -238,11 +298,14 @@ def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
     oneshot["backend_metadata"]["source"] = "rns8_bench_public_oneshot_api"
     oneshot["backend_metadata"]["epilogue_mode"] = epilogue
     oneshot["backend_metadata"]["workspace_mode"] = "transient_native_u8_inputs_to_resident_finite_output"
-    oneshot["backend_metadata"]["autotune_key"] = (
+    oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
         "tile_m=128;tile_n=128;execution=public_oneshot_transient_native_inputs;"
         "kernel=direct_hip_native_finite_u8_gemm_mod255_v1;"
         f"epilogue={epilogue}"
+        ),
+        oneshot,
     )
     oneshot["comparison_baseline"]["required_before_speedup_claim"] = [
         "same_contract_cpu_reference",
@@ -324,11 +387,14 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
     reused["backend_metadata"]["epilogue_mode"] = epilogue
     reused["backend_metadata"]["workspace_mode"] = "transient_native_u8_a_resident_finite_b_output"
-    reused["backend_metadata"]["autotune_key"] = (
+    reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=finite_ring_u8;m=64;n=128;k=64;finite_modulus=255;"
         "tile_m=128;tile_n=128;execution=transient_native_a_resident_b_reuse;"
         "kernel=direct_hip_native_a_finite_u8_gemm_mod255_v1;"
         f"epilogue={epilogue}"
+        ),
+        reused,
     )
     reused["pack_mode"] = "prepacked_reuse_b"
     reused["reuse_packed_inputs"] = True
@@ -403,12 +469,16 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["backend_metadata"]["workspace_mode"] = "transient_native_a_resident_rns_b_output"
     reused["backend_metadata"]["workspace_required_bytes"] = 0
     reused["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
-    reused["backend_metadata"]["autotune_key"] = (
+    apply_int32_accumulator_contract(reused)
+    reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
         "input_profile=uniform-small;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
         f"kernel={kernel};epilogue={epilogue}"
+        ),
+        reused,
     )
     reused["pack_mode"] = "prepacked_reuse_b"
     reused["reuse_packed_inputs"] = True
@@ -567,10 +637,13 @@ def as_exact_wide_capture(capture: dict) -> dict:
         "same_contract_direct_hip_correctness",
     ]
     exact["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_rns_output"
-    exact["backend_metadata"]["autotune_key"] = (
+    exact["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
         "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
         "epilogue=ck_fused_i32_to_centered_residue_rns_output"
+        ),
+        exact,
     )
     exact["schedule_metadata"]["min_selected_prefix"] = 20
     exact["schedule_metadata"]["max_selected_prefix"] = 20
@@ -667,10 +740,13 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["epilogue_type"] = "residue_current_rns_output"
     chain["residue_chain_length"] = 3
     chain["residue_output_mode"] = "residue_current_rns"
-    chain["backend_metadata"]["autotune_key"] = (
+    chain["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
         "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
         "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
+        ),
+        chain,
     )
     chain["timing_note"] = (
         "host wall-clock timings for a residue-current RNS GEMM chain; each measured repeat runs 3 resident "
@@ -735,10 +811,28 @@ def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
             "autotune_key": (
                 "backend=rocwmma-wrap64-candidate;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
                 "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"
+                "accumulator_type=int32_then_int64_diagonal;accumulator_signedness=unsigned_u8x_unsigned_u8;"
+                "accumulator_modulus_policy=mod_2_64_wraparound_byte_limb;k_block_size=8;k_block_cap=32768;"
                 "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
             ),
+            "accumulator_safety": {
+                "input_domain": "compact_u8_byte_limb_pairs",
+                "signedness": "unsigned_u8x_unsigned_u8",
+                "accumulator_type": "int32_then_int64_diagonal",
+                "modulus_policy": "mod_2_64_wraparound_byte_limb",
+                "modulus": 0,
+                "uses_int32_inner_product": True,
+                "k_block_size": 8,
+                "k_block_cap": 32768,
+                "max_lhs_abs": 255,
+                "max_rhs_abs": 255,
+                "max_product": 255 * 255,
+                "safe_for_k_block": True,
+                "status": "safe_int32_byte_limb_gemm36_k_block",
+            },
         }
     )
+    candidate["k_block_size"] = 8
     candidate["schedule_metadata"].update(
         {
             "source": "rns8_bench_wrap64_rocwmma_candidate_static_schedule",
@@ -812,6 +906,27 @@ def main() -> int:
     v4_finite_field_rocwmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
 
+    missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
+    del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]
+    expect_invalid(missing_accumulator_safety, "backend_metadata.accumulator_safety must be an object")
+
+    stale_ck_accumulator_cap = copy.deepcopy(v4_ck_i64)
+    stale_ck_accumulator_cap["backend_metadata"]["accumulator_safety"]["k_block_cap"] = 65536
+    stale_ck_accumulator_cap["backend_metadata"]["autotune_key"] = stale_ck_accumulator_cap["backend_metadata"][
+        "autotune_key"
+    ].replace("k_block_cap=32768", "k_block_cap=65536")
+    expect_invalid(stale_ck_accumulator_cap, "backend_metadata.accumulator_safety.k_block_cap must be 32768")
+
+    missing_accumulator_key_field = copy.deepcopy(v4_ck_i64)
+    missing_accumulator_key_field["backend_metadata"]["autotune_key"] = missing_accumulator_key_field[
+        "backend_metadata"
+    ]["autotune_key"].replace("accumulator_type=int32;", "")
+    expect_invalid(missing_accumulator_key_field, "backend_metadata.autotune_key must include accumulator_type=int32")
+
+    unsafe_accumulator_flag = copy.deepcopy(v4_ck_i64)
+    unsafe_accumulator_flag["backend_metadata"]["accumulator_safety"]["safe_for_k_block"] = False
+    expect_invalid(unsafe_accumulator_flag, "int32 accumulator captures must set safe_for_k_block=true")
+
     prefixed_adaptive = add_prefix_policy_fields(copy.deepcopy(v4_adaptive_i64), "per_tile_minimum")
     validate_capture(prefixed_adaptive)
 
@@ -872,7 +987,10 @@ def main() -> int:
     v4_cpu_adaptive_i64["backend_metadata"]["isa_evidence"] = "not_applicable_cpu"
     v4_cpu_adaptive_i64["backend_metadata"]["autotune_key"] = (
         "backend=cpu-reference;semantics=bounded_i64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;"
-        "groups=4;adaptive_prefix=1;adaptive_skip=1;kernel=cpu_reference_scalar_rns_gemm_v1;"
+        "groups=4;adaptive_prefix=1;adaptive_skip=1;accumulator_type=int32;"
+        "accumulator_signedness=signed_i8x_signed_i8;"
+        "accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;"
+        "kernel=cpu_reference_scalar_rns_gemm_v1;"
         "epilogue=fused_centered_residue_then_crt_export"
     )
     v4_cpu_adaptive_i64["comparison_baseline"]["required_before_speedup_claim"] = [
@@ -927,12 +1045,15 @@ def main() -> int:
     adaptive_direct_hip_bounded_native_a["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
     adaptive_direct_hip_bounded_native_a["backend_metadata"]["selected_kernel"] = centered_kernel
     adaptive_direct_hip_bounded_native_a["backend_metadata"]["epilogue_mode"] = centered_epilogue
-    adaptive_direct_hip_bounded_native_a["backend_metadata"]["autotune_key"] = (
+    adaptive_direct_hip_bounded_native_a["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
         "input_profile=adaptive-bands;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         "execution=transient_native_a_resident_b_reuse;"
         f"kernel={centered_kernel};epilogue={centered_epilogue}"
+        ),
+        adaptive_direct_hip_bounded_native_a,
     )
     adaptive_direct_hip_bounded_native_a["timing_metadata"][
         "benchmark_execution_mode"
@@ -979,11 +1100,14 @@ def main() -> int:
     stale_generic_bounded_native_a["selected_kernel"] = stale_kernel
     stale_generic_bounded_native_a["backend_metadata"]["selected_kernel"] = stale_kernel
     stale_generic_bounded_native_a["backend_metadata"]["epilogue_mode"] = stale_epilogue
-    stale_generic_bounded_native_a["backend_metadata"]["autotune_key"] = (
+    stale_generic_bounded_native_a["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         "execution=transient_native_a_resident_b_reuse;"
         f"kernel={stale_kernel};epilogue={stale_epilogue}"
+        ),
+        stale_generic_bounded_native_a,
     )
     expect_invalid(
         stale_generic_bounded_native_a,
@@ -993,12 +1117,15 @@ def main() -> int:
     stale_v1_kernel = "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1"
     stale_v1_uniform_small_bounded_native_a["selected_kernel"] = stale_v1_kernel
     stale_v1_uniform_small_bounded_native_a["backend_metadata"]["selected_kernel"] = stale_v1_kernel
-    stale_v1_uniform_small_bounded_native_a["backend_metadata"]["autotune_key"] = (
+    stale_v1_uniform_small_bounded_native_a["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
         "input_profile=uniform-small;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
         f"kernel={stale_v1_kernel};epilogue=uniform_small_i8_ab_resident_b_residue_then_crt_export"
+        ),
+        stale_v1_uniform_small_bounded_native_a,
     )
     expect_invalid(
         stale_v1_uniform_small_bounded_native_a,
@@ -1174,11 +1301,15 @@ def main() -> int:
     u64_oneshot_kernel = "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
     large_u64_oneshot["selected_kernel"] = u64_oneshot_kernel
     large_u64_oneshot["backend_metadata"]["selected_kernel"] = u64_oneshot_kernel
-    large_u64_oneshot["backend_metadata"]["autotune_key"] = large_u64_oneshot[
+    apply_int32_accumulator_contract(large_u64_oneshot)
+    large_u64_oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        large_u64_oneshot[
         "backend_metadata"
     ]["autotune_key"].replace("m=64;n=128;k=64", "m=512;n=512;k=512").replace(
         "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
         u64_oneshot_kernel,
+        ),
+        large_u64_oneshot,
     )
     validate_capture(large_u64_oneshot)
 

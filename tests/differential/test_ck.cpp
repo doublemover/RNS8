@@ -274,6 +274,11 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
       CHECK(std::string(info.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
+      CHECK(info.accumulator_uses_int32_inner_product == 1);
+      CHECK(info.accumulator_k_block_size == static_cast<uint64_t>(k));
+      CHECK(info.accumulator_k_block_cap == 32768);
+      CHECK(std::string(info.accumulator_type) == "int32");
+      CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
     }
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
     auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);

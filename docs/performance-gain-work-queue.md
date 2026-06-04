@@ -94,6 +94,22 @@ Implemented in the current proven-zero tile skip slice:
   counts, and schedule flags in `schedule_metadata`. Schema and sweep cache
   keys validate and preserve those fields.
 
+Implemented in the current accumulator-safety metadata slice:
+
+- `rns8_get_plan_backend_info` now reports the selected backend's accumulator
+  input domain, signedness, accumulator type, modulus policy, K-block size,
+  K-block cap, max product, and safety status. CK declares its canonical
+  32,768-term `int32` cap; CPU/direct HIP/hipBLASLt/rocWMMA RNS and finite
+  paths declare the existing 65,536-term signed `int32` cap; vector-ALU and
+  wrap64 byte-limb paths explicitly declare non-`int32` accumulator contracts.
+- Autotune keys now include accumulator type, signedness, modulus policy,
+  K-block size, and K-block cap before the selected kernel/epilogue identity,
+  so reviewed cache entries cannot silently cross backend accumulator policies.
+- Benchmark schema v4 now requires `backend_metadata.accumulator_safety`,
+  rejects stale key fields, rejects unsafe `int8 x int8 -> int32` declarations
+  before evidence can pass review, and keeps top-level `k_block_size` tied to
+  the backend-specific contract.
+
 Remaining high-value imported work goes at the front of the queue:
 
 1. **Bound Discovery Pipeline**
@@ -126,20 +142,7 @@ Remaining high-value imported work goes at the front of the queue:
    CK kernels under `src/backend_ck/`, rocWMMA kernels under
    `src/backend_rocwmma/`, and export paths in `src/core/api_export.cpp`.
 
-3. **Accumulator-Safety Metadata By Backend**
-
-   Every backend needs explicit K-block, signedness, modulus, and accumulator
-   safety metadata. This should reject unsafe `int8 x int8 -> int32` ranges
-   before benchmark evidence is accepted, and it should be part of selected
-   kernel identity. Do not assume CK, rocWMMA, hipBLASLt, direct HIP, and
-   vector-ALU paths share the same safe K policy.
-
-   Code references: range helpers in `src/core/moduli.cpp`, backend metadata
-   in `src/core/api_plan.cpp`, direct-HIP dispatch in `src/core/api_gemm.cpp`,
-   accelerator kernels under `src/backend_ck/` and `src/backend_rocwmma/`, and
-   benchmark schema gates in `tools/benchmark_schema.py`.
-
-4. **HIP Graph And Async Executable Path**
+3. **HIP Graph And Async Executable Path**
 
    Repeated fixed-shape workloads should be capturable as executable graph
    shapes: pack, per-prefix GEMM, reducer/export, status, and D2H. Keep this
@@ -153,7 +156,7 @@ Remaining high-value imported work goes at the front of the queue:
    timing in `benchmarks/rns8_bench.cpp`, and future public API surface in
    `include/rns8/rns8.h`.
 
-5. **Generated Reducers And CRT Export Families**
+4. **Generated Reducers And CRT Export Families**
 
    Generate modulus-specific and prefix-specific reducers instead of leaning on
    generic runtime division paths. The first production families should cover
@@ -167,7 +170,7 @@ Remaining high-value imported work goes at the front of the queue:
    `src/reconstruct/crt.cpp`, selected-kernel metadata in
    `src/core/api_plan.cpp`, and ISA/report tooling in `tools/gpu_isa_report.py`.
 
-6. **Architecture-Specific Kernel Namespaces**
+5. **Architecture-Specific Kernel Namespaces**
 
    Split RDNA3 `gfx1100` tuning from future RDNA4 and CDNA work. Do not let a
    Windows RX 7900 XTX win become a Linux ROCm or Instinct claim. Kernel
@@ -179,7 +182,7 @@ Remaining high-value imported work goes at the front of the queue:
    `CMakeLists.txt`, capture validation in `tools/benchmark_schema.py`, and
    release review grouping in `tools/benchmark_sweep.py`.
 
-7. **Hardware-Counter Promotion Gate**
+6. **Hardware-Counter Promotion Gate**
 
    Add a non-promoting profiler ingestion lane for occupancy, VALU/MFMA/WMMA
    counts, LDS traffic, global load/store bytes, wave stalls, and achieved

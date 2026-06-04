@@ -1034,7 +1034,23 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.epilogue_mode) == "fused_centered_residue_then_crt_export");
     CHECK(std::string(info.workspace_mode) == "host_reference_workspace");
     CHECK(std::string(info.isa_evidence) == "not_applicable_cpu");
+    CHECK(info.accumulator_uses_int32_inner_product == 1);
+    CHECK(info.accumulator_safe_for_k_block == 1);
+    CHECK(info.accumulator_k_block_size == 4);
+    CHECK(info.accumulator_k_block_cap == 65536);
+    CHECK(info.accumulator_modulus == 0);
+    CHECK(info.accumulator_max_lhs_abs == 128);
+    CHECK(info.accumulator_max_rhs_abs == 128);
+    CHECK(info.accumulator_max_product == 16384);
+    CHECK(std::string(info.accumulator_input_domain) == "centered_i8_rns_residue_planes");
+    CHECK(std::string(info.accumulator_signedness) == "signed_i8x_signed_i8");
+    CHECK(std::string(info.accumulator_type) == "int32");
+    CHECK(std::string(info.accumulator_modulus_policy) == "selected_rns_modulus_ladder");
+    CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
     CHECK(std::string(info.autotune_key).find("backend=cpu-reference;semantics=bounded_u64") == 0);
+    CHECK(std::string(info.autotune_key).find(";accumulator_type=int32;") != std::string::npos);
+    CHECK(std::string(info.autotune_key).find(";k_block_size=4;") != std::string::npos);
+    CHECK(std::string(info.autotune_key).find(";k_block_cap=65536;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";kernel=cpu_reference_scalar_rns_gemm_v1;") != std::string::npos);
 
     rns8_plan_backend_info bad_abi{};
@@ -1069,7 +1085,17 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
     CHECK(std::string(info.epilogue_mode) == "low64_wrap_export");
     CHECK(std::string(info.workspace_mode) == "host_byte_limb_reference_workspace");
+    CHECK(info.accumulator_uses_int32_inner_product == 0);
+    CHECK(info.accumulator_safe_for_k_block == 1);
+    CHECK(info.accumulator_k_block_size == 2);
+    CHECK(info.accumulator_k_block_cap == 0);
+    CHECK(std::string(info.accumulator_input_domain) == "uint8_byte_limb_pairs");
+    CHECK(std::string(info.accumulator_signedness) == "unsigned_byte_limb");
+    CHECK(std::string(info.accumulator_type) == "uint64_wraparound_byte_limb");
+    CHECK(std::string(info.accumulator_modulus_policy) == "mod_2_64_wraparound_byte_limb");
+    CHECK(std::string(info.accumulator_safety_status) == "exact_mod_2_64_byte_limb_no_int32_k_cap");
     CHECK(std::string(info.autotune_key).find("semantics=wrap_u64_mod_2_64") != std::string::npos);
+    CHECK(std::string(info.autotune_key).find(";accumulator_type=uint64_wraparound_byte_limb;") != std::string::npos);
 
     rns8_destroy_plan(plan);
   }

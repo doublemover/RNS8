@@ -177,6 +177,12 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       plan.backend_workspace_mode != workspace_mode_for_plan(plan) ||
       plan.backend_isa_evidence != isa_evidence_for_plan(plan) ||
       plan.backend_workspace_required_bytes != workspace_required_bytes_for_plan(plan) ||
+      plan.backend_accumulator_k_block_size != accumulator_k_block_size_for_plan(plan) ||
+      plan.backend_accumulator_k_block_cap != accumulator_k_block_cap_for_plan(plan) ||
+      plan.backend_accumulator_type != accumulator_type_for_plan(plan) ||
+      plan.backend_accumulator_signedness != accumulator_signedness_for_plan(plan) ||
+      plan.backend_accumulator_modulus_policy != accumulator_modulus_policy_for_plan(plan) ||
+      plan.backend_accumulator_safety_status != accumulator_safety_status_for_plan(plan) ||
       plan.backend_autotune_key != build_autotune_key(plan)) {
     return false;
   }

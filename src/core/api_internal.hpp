@@ -172,6 +172,18 @@ std::string workspace_mode_for_plan(const rns8_plan& plan);
 
 std::string isa_evidence_for_plan(const rns8_plan& plan);
 
+uint64_t accumulator_k_block_size_for_plan(const rns8_plan& plan);
+
+uint64_t accumulator_k_block_cap_for_plan(const rns8_plan& plan);
+
+std::string accumulator_type_for_plan(const rns8_plan& plan);
+
+std::string accumulator_signedness_for_plan(const rns8_plan& plan);
+
+std::string accumulator_modulus_policy_for_plan(const rns8_plan& plan);
+
+std::string accumulator_safety_status_for_plan(const rns8_plan& plan);
+
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan);
 
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n);

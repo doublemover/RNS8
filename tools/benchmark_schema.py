@@ -184,6 +184,7 @@ BENCHMARK_EXECUTION_MODES = {
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "internal_wrap64_rocwmma_candidate",
 }
+INT32_MAX = 2_147_483_647
 DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
     "oneshot_native_input_h2d",
     "rns_gemm_kernel_group",
@@ -468,6 +469,141 @@ class _Validator:
         self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
+
+    def _expected_accumulator_contract(self) -> dict[str, Any]:
+        selected_backend = self.data.get("backend_selected")
+        semantics = self.data.get("semantics")
+        k = self.data.get("k")
+        k_value = int(k) if _is_int(k) and k > 0 else 0
+        if selected_backend == "hip-vector-alu-int64":
+            return {
+                "uses_int32_inner_product": False,
+                "k_block_size": k_value,
+                "k_block_cap": 0,
+                "max_lhs_abs": 0,
+                "max_rhs_abs": 0,
+                "max_product": 0,
+                "accumulator_type": "software_192bit_limb",
+                "signedness": "signed_i64x_signed_i64"
+                if semantics == "bounded_i64"
+                else "unsigned_u64x_unsigned_u64",
+                "input_domain": "native_i64_values" if semantics == "bounded_i64" else "native_u64_values",
+                "modulus_policy": "native_exact_integer_output",
+                "modulus": 0,
+                "status": "exact_192bit_limb_no_int32_k_cap",
+            }
+        if self._is_wrap64_rocwmma_candidate():
+            return {
+                "uses_int32_inner_product": True,
+                "k_block_size": k_value,
+                "k_block_cap": 32768,
+                "max_lhs_abs": 255,
+                "max_rhs_abs": 255,
+                "max_product": 255 * 255,
+                "accumulator_type": "int32_then_int64_diagonal",
+                "signedness": "unsigned_u8x_unsigned_u8",
+                "input_domain": "compact_u8_byte_limb_pairs",
+                "modulus_policy": "mod_2_64_wraparound_byte_limb",
+                "modulus": 0,
+                "status": "safe_int32_byte_limb_gemm36_k_block",
+            }
+        if semantics == "wrap_u64_mod_2_64":
+            return {
+                "uses_int32_inner_product": False,
+                "k_block_size": k_value,
+                "k_block_cap": 0,
+                "max_lhs_abs": 0,
+                "max_rhs_abs": 0,
+                "max_product": 0,
+                "accumulator_type": "uint64_wraparound_byte_limb",
+                "signedness": "unsigned_byte_limb",
+                "input_domain": "uint8_byte_limb_pairs",
+                "modulus_policy": "mod_2_64_wraparound_byte_limb",
+                "modulus": 0,
+                "status": "exact_mod_2_64_byte_limb_no_int32_k_cap",
+            }
+        cap = 32768 if selected_backend == "ck" else 65536
+        modulus = self.data.get("finite_modulus") if semantics in {"finite_ring_u8", "finite_field_u8"} else 0
+        if not _is_int(modulus):
+            modulus = 0
+        return {
+            "uses_int32_inner_product": True,
+            "k_block_size": min(k_value, cap) if k_value > 0 else 0,
+            "k_block_cap": cap,
+            "max_lhs_abs": 128,
+            "max_rhs_abs": 128,
+            "max_product": 128 * 128,
+            "accumulator_type": "int32",
+            "signedness": "signed_i8x_signed_i8",
+            "input_domain": "centered_i8_finite_u8_residues"
+            if semantics in {"finite_ring_u8", "finite_field_u8"}
+            else "centered_i8_rns_residue_planes",
+            "modulus_policy": "finite_u8_modulus"
+            if semantics in {"finite_ring_u8", "finite_field_u8"}
+            else "selected_rns_modulus_ladder",
+            "modulus": int(modulus),
+            "status": "safe_int32_k_block_split",
+        }
+
+    def _validate_accumulator_safety(self, metadata: dict[str, Any]) -> None:
+        safety = metadata.get("accumulator_safety")
+        if not isinstance(safety, dict):
+            self._error("backend_metadata.accumulator_safety must be an object")
+            return
+        for key in ["input_domain", "signedness", "accumulator_type", "modulus_policy", "status"]:
+            if not isinstance(safety.get(key), str) or not safety.get(key):
+                self._error(f"backend_metadata.accumulator_safety.{key} must be a nonempty string")
+        for key in [
+            "k_block_size",
+            "k_block_cap",
+            "modulus",
+            "max_lhs_abs",
+            "max_rhs_abs",
+            "max_product",
+        ]:
+            value = safety.get(key)
+            if not _is_int(value) or value < 0:
+                self._error(f"backend_metadata.accumulator_safety.{key} must be a nonnegative integer")
+        for key in ["uses_int32_inner_product", "safe_for_k_block"]:
+            if not isinstance(safety.get(key), bool):
+                self._error(f"backend_metadata.accumulator_safety.{key} must be a boolean")
+        expected = self._expected_accumulator_contract()
+        for key, value in expected.items():
+            if safety.get(key) != value:
+                self._error(f"backend_metadata.accumulator_safety.{key} must be {value}")
+        if self.data.get("k_block_size") != safety.get("k_block_size"):
+            self._error("k_block_size must match backend_metadata.accumulator_safety.k_block_size")
+        if safety.get("max_product") != safety.get("max_lhs_abs") * safety.get("max_rhs_abs"):
+            self._error("backend_metadata.accumulator_safety.max_product must equal max_lhs_abs*max_rhs_abs")
+        if safety.get("uses_int32_inner_product") is True:
+            k_block_size = safety.get("k_block_size")
+            k_block_cap = safety.get("k_block_cap")
+            max_product = safety.get("max_product")
+            if _is_int(k_block_size) and _is_int(k_block_cap) and k_block_size > k_block_cap:
+                self._error("int32 accumulator k_block_size must not exceed k_block_cap")
+            if _is_int(k_block_size) and _is_int(max_product) and k_block_size > 0:
+                if max_product * k_block_size > INT32_MAX:
+                    self._error("int32 accumulator contract exceeds int32 range")
+            if safety.get("safe_for_k_block") is not True:
+                self._error("int32 accumulator captures must set safe_for_k_block=true")
+        else:
+            if safety.get("k_block_cap") != 0:
+                self._error("non-int32 accumulator captures must use k_block_cap=0")
+            if safety.get("safe_for_k_block") is not True:
+                self._error("non-int32 accumulator captures must set safe_for_k_block=true")
+        autotune_key = metadata.get("autotune_key")
+        if isinstance(autotune_key, str):
+            normalized_key = f";{autotune_key};"
+            required_key_fields = {
+                "accumulator_type": safety.get("accumulator_type"),
+                "accumulator_signedness": safety.get("signedness"),
+                "accumulator_modulus_policy": safety.get("modulus_policy"),
+                "k_block_size": safety.get("k_block_size"),
+                "k_block_cap": safety.get("k_block_cap"),
+            }
+            for key, value in required_key_fields.items():
+                if f";{key}={value};" not in normalized_key:
+                    self._error(f"backend_metadata.autotune_key must include {key}={value}")
 
     def _validate_nonnegative_ints(self) -> None:
         for key in ["bound", "prefix", "tile_m", "tile_n", "k_block_size", "seed", "warmups", "repeats", "checksum_u64"]:
@@ -854,6 +990,7 @@ class _Validator:
             self._error("hip-direct captures must use backend_metadata.accelerator_library=HIP runtime")
         if selected_backend not in HIP_RESIDENT_BACKENDS and metadata.get("accelerator_library") not in {None, ""}:
             self._error("non-HIP correctness captures must not report an accelerator library")
+        self._validate_accumulator_safety(metadata)
 
     def _validate_phase_availability(self, metadata: dict[str, Any]) -> None:
         availability = metadata.get("phase_availability")

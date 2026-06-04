@@ -20,7 +20,22 @@
     "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
     "workspace_required_bytes": 12288,
     "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
-    "autotune_key": "backend=ck;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=1;adaptive_prefix=0;adaptive_skip=1;kernel=ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1;epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
+    "autotune_key": "backend=ck;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=1;adaptive_prefix=0;adaptive_skip=1;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=32768;kernel=ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1;epilogue=ck_fused_i32_to_centered_residue_then_crt_export",
+    "accumulator_safety": {
+      "input_domain": "centered_i8_rns_residue_planes",
+      "signedness": "signed_i8x_signed_i8",
+      "accumulator_type": "int32",
+      "modulus_policy": "selected_rns_modulus_ladder",
+      "modulus": 0,
+      "uses_int32_inner_product": true,
+      "k_block_size": 64,
+      "k_block_cap": 32768,
+      "max_lhs_abs": 128,
+      "max_rhs_abs": 128,
+      "max_product": 16384,
+      "safe_for_k_block": true,
+      "status": "safe_int32_k_block_split"
+    }
   },
   "semantics": "bounded_u64",
   "bound_kind": "per_tile_max_unsigned",
@@ -96,7 +111,11 @@
     "status": "required_not_recorded",
     "speedup_claimed": false,
     "selected_reference": null,
-    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64", "same_contract_direct_hip_correctness"],
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_vector_alu_int64",
+      "same_contract_direct_hip_correctness"
+    ],
     "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
   },
   "derived_tops_equivalent": null,
@@ -122,7 +141,33 @@
       "crt_export",
       "end_to_end"
     ],
-    "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "ck_pack_a_kernel", "ck_pack_b_kernel", "ck_wmma_cshuffle_matmul", "ck_copy_centered_kernel", "ck_add_centered_kernel", "ck_prefix_00_pack_a", "ck_prefix_00_pack_b", "ck_prefix_00_matmul", "ck_prefix_00_copy_centered", "ck_prefix_00_add_centered", "ck_prefix_01_pack_a", "ck_prefix_01_pack_b", "ck_prefix_01_matmul", "ck_prefix_01_copy_centered", "ck_prefix_01_add_centered", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
+    "gpu_event_phase_order": [
+      "pack_h2d",
+      "pack_kernel",
+      "pack",
+      "rns_gemm_kernel_group",
+      "ck_pack_a_kernel",
+      "ck_pack_b_kernel",
+      "ck_wmma_cshuffle_matmul",
+      "ck_copy_centered_kernel",
+      "ck_add_centered_kernel",
+      "ck_prefix_00_pack_a",
+      "ck_prefix_00_pack_b",
+      "ck_prefix_00_matmul",
+      "ck_prefix_00_copy_centered",
+      "ck_prefix_00_add_centered",
+      "ck_prefix_01_pack_a",
+      "ck_prefix_01_pack_b",
+      "ck_prefix_01_matmul",
+      "ck_prefix_01_copy_centered",
+      "ck_prefix_01_add_centered",
+      "rns_gemm",
+      "crt_export_status_memset",
+      "crt_export_kernel",
+      "crt_export_status_d2h",
+      "crt_export_d2h",
+      "crt_export"
+    ],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -155,58 +200,233 @@
     }
   },
   "gpu_event_timings_us": {
-    "pack_h2d": [120.0, 110.0],
-    "pack_kernel": [255.0, 253.0],
-    "pack": [375.0, 363.0],
-    "rns_gemm_kernel_group": [381.0, 368.0],
-    "ck_pack_a_kernel": [20.0, 22.0],
-    "ck_pack_b_kernel": [21.0, 20.0],
-    "ck_wmma_cshuffle_matmul": [300.0, 290.0],
-    "ck_copy_centered_kernel": [0.0, 0.0],
-    "ck_add_centered_kernel": [40.0, 36.0],
-    "ck_prefix_00_pack_a": [10.0, 11.0],
-    "ck_prefix_00_pack_b": [11.0, 10.0],
-    "ck_prefix_00_matmul": [150.0, 145.0],
-    "ck_prefix_00_copy_centered": [0.0, 0.0],
-    "ck_prefix_00_add_centered": [20.0, 18.0],
-    "ck_prefix_01_pack_a": [10.0, 11.0],
-    "ck_prefix_01_pack_b": [10.0, 10.0],
-    "ck_prefix_01_matmul": [150.0, 145.0],
-    "ck_prefix_01_copy_centered": [0.0, 0.0],
-    "ck_prefix_01_add_centered": [20.0, 18.0],
-    "rns_gemm": [381.0, 368.0],
-    "crt_export_status_memset": [0.0, 0.0],
-    "crt_export_kernel": [300.0, 310.0],
-    "crt_export_status_d2h": [20.0, 21.0],
-    "crt_export_d2h": [436.0, 440.0],
-    "crt_export": [756.0, 771.0]
+    "pack_h2d": [
+      120.0,
+      110.0
+    ],
+    "pack_kernel": [
+      255.0,
+      253.0
+    ],
+    "pack": [
+      375.0,
+      363.0
+    ],
+    "rns_gemm_kernel_group": [
+      381.0,
+      368.0
+    ],
+    "ck_pack_a_kernel": [
+      20.0,
+      22.0
+    ],
+    "ck_pack_b_kernel": [
+      21.0,
+      20.0
+    ],
+    "ck_wmma_cshuffle_matmul": [
+      300.0,
+      290.0
+    ],
+    "ck_copy_centered_kernel": [
+      0.0,
+      0.0
+    ],
+    "ck_add_centered_kernel": [
+      40.0,
+      36.0
+    ],
+    "ck_prefix_00_pack_a": [
+      10.0,
+      11.0
+    ],
+    "ck_prefix_00_pack_b": [
+      11.0,
+      10.0
+    ],
+    "ck_prefix_00_matmul": [
+      150.0,
+      145.0
+    ],
+    "ck_prefix_00_copy_centered": [
+      0.0,
+      0.0
+    ],
+    "ck_prefix_00_add_centered": [
+      20.0,
+      18.0
+    ],
+    "ck_prefix_01_pack_a": [
+      10.0,
+      11.0
+    ],
+    "ck_prefix_01_pack_b": [
+      10.0,
+      10.0
+    ],
+    "ck_prefix_01_matmul": [
+      150.0,
+      145.0
+    ],
+    "ck_prefix_01_copy_centered": [
+      0.0,
+      0.0
+    ],
+    "ck_prefix_01_add_centered": [
+      20.0,
+      18.0
+    ],
+    "rns_gemm": [
+      381.0,
+      368.0
+    ],
+    "crt_export_status_memset": [
+      0.0,
+      0.0
+    ],
+    "crt_export_kernel": [
+      300.0,
+      310.0
+    ],
+    "crt_export_status_d2h": [
+      20.0,
+      21.0
+    ],
+    "crt_export_d2h": [
+      436.0,
+      440.0
+    ],
+    "crt_export": [
+      756.0,
+      771.0
+    ]
   },
   "gpu_event_timing_summary_us": {
-    "pack_h2d": {"avg": 115.0, "median": 120.0, "p95": 120.0},
-    "pack_kernel": {"avg": 254.0, "median": 255.0, "p95": 255.0},
-    "pack": {"avg": 369.0, "median": 375.0, "p95": 375.0},
-    "rns_gemm_kernel_group": {"avg": 374.5, "median": 381.0, "p95": 381.0},
-    "ck_pack_a_kernel": {"avg": 21.0, "median": 22.0, "p95": 22.0},
-    "ck_pack_b_kernel": {"avg": 20.5, "median": 21.0, "p95": 21.0},
-    "ck_wmma_cshuffle_matmul": {"avg": 295.0, "median": 300.0, "p95": 300.0},
-    "ck_copy_centered_kernel": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "ck_add_centered_kernel": {"avg": 38.0, "median": 40.0, "p95": 40.0},
-    "ck_prefix_00_pack_a": {"avg": 10.5, "median": 11.0, "p95": 11.0},
-    "ck_prefix_00_pack_b": {"avg": 10.5, "median": 11.0, "p95": 11.0},
-    "ck_prefix_00_matmul": {"avg": 147.5, "median": 150.0, "p95": 150.0},
-    "ck_prefix_00_copy_centered": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "ck_prefix_00_add_centered": {"avg": 19.0, "median": 20.0, "p95": 20.0},
-    "ck_prefix_01_pack_a": {"avg": 10.5, "median": 11.0, "p95": 11.0},
-    "ck_prefix_01_pack_b": {"avg": 10.0, "median": 10.0, "p95": 10.0},
-    "ck_prefix_01_matmul": {"avg": 147.5, "median": 150.0, "p95": 150.0},
-    "ck_prefix_01_copy_centered": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "ck_prefix_01_add_centered": {"avg": 19.0, "median": 20.0, "p95": 20.0},
-    "rns_gemm": {"avg": 374.5, "median": 381.0, "p95": 381.0},
-    "crt_export_status_memset": {"avg": 0.0, "median": 0.0, "p95": 0.0},
-    "crt_export_kernel": {"avg": 305.0, "median": 310.0, "p95": 310.0},
-    "crt_export_status_d2h": {"avg": 20.5, "median": 21.0, "p95": 21.0},
-    "crt_export_d2h": {"avg": 438.0, "median": 440.0, "p95": 440.0},
-    "crt_export": {"avg": 763.5, "median": 771.0, "p95": 771.0}
+    "pack_h2d": {
+      "avg": 115.0,
+      "median": 120.0,
+      "p95": 120.0
+    },
+    "pack_kernel": {
+      "avg": 254.0,
+      "median": 255.0,
+      "p95": 255.0
+    },
+    "pack": {
+      "avg": 369.0,
+      "median": 375.0,
+      "p95": 375.0
+    },
+    "rns_gemm_kernel_group": {
+      "avg": 374.5,
+      "median": 381.0,
+      "p95": 381.0
+    },
+    "ck_pack_a_kernel": {
+      "avg": 21.0,
+      "median": 22.0,
+      "p95": 22.0
+    },
+    "ck_pack_b_kernel": {
+      "avg": 20.5,
+      "median": 21.0,
+      "p95": 21.0
+    },
+    "ck_wmma_cshuffle_matmul": {
+      "avg": 295.0,
+      "median": 300.0,
+      "p95": 300.0
+    },
+    "ck_copy_centered_kernel": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "ck_add_centered_kernel": {
+      "avg": 38.0,
+      "median": 40.0,
+      "p95": 40.0
+    },
+    "ck_prefix_00_pack_a": {
+      "avg": 10.5,
+      "median": 11.0,
+      "p95": 11.0
+    },
+    "ck_prefix_00_pack_b": {
+      "avg": 10.5,
+      "median": 11.0,
+      "p95": 11.0
+    },
+    "ck_prefix_00_matmul": {
+      "avg": 147.5,
+      "median": 150.0,
+      "p95": 150.0
+    },
+    "ck_prefix_00_copy_centered": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "ck_prefix_00_add_centered": {
+      "avg": 19.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "ck_prefix_01_pack_a": {
+      "avg": 10.5,
+      "median": 11.0,
+      "p95": 11.0
+    },
+    "ck_prefix_01_pack_b": {
+      "avg": 10.0,
+      "median": 10.0,
+      "p95": 10.0
+    },
+    "ck_prefix_01_matmul": {
+      "avg": 147.5,
+      "median": 150.0,
+      "p95": 150.0
+    },
+    "ck_prefix_01_copy_centered": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "ck_prefix_01_add_centered": {
+      "avg": 19.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "rns_gemm": {
+      "avg": 374.5,
+      "median": 381.0,
+      "p95": 381.0
+    },
+    "crt_export_status_memset": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "crt_export_kernel": {
+      "avg": 305.0,
+      "median": 310.0,
+      "p95": 310.0
+    },
+    "crt_export_status_d2h": {
+      "avg": 20.5,
+      "median": 21.0,
+      "p95": 21.0
+    },
+    "crt_export_d2h": {
+      "avg": 438.0,
+      "median": 440.0,
+      "p95": 440.0
+    },
+    "crt_export": {
+      "avg": 763.5,
+      "median": 771.0,
+      "p95": 771.0
+    }
   },
   "plan_us": 161287,
   "avg_planning_us": 161287,

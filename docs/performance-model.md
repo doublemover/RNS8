@@ -92,8 +92,9 @@ repeats for every capture in the same-contract group, and writes only fastest
 reviewed accelerator winners. Cache entries are keyed by
 `backend_metadata.autotune_key` and store backend, target, HIP SDK or
 accelerator library version, shape, semantic contract, finite modulus when
-present, layout, prefix schedule hash, K-block, tile size, epilogue, selected
-kernel, workspace bytes, reviewed median timings, and validation status.
+present, layout, prefix schedule hash, accumulator contract, K-block, tile
+size, epilogue, selected kernel, workspace bytes, reviewed median timings, and
+validation status.
 finite-u8 plan keys include the explicit finite modulus, so reviewed finite
 cache entries are shape-and-modulus scoped. Unreviewed raw captures are not
 performance validation claims, and the default smoke review mode is never a
@@ -360,6 +361,9 @@ must carry an explicit integer `"schema_version": 4`; missing version fields are
 rejected instead of inferred. Schema v4 requires `backend_metadata` to mirror
 the top-level `selected_kernel`, so accelerator readiness and selected-kernel
 claims are tied to the public plan API instead of free-form benchmark text.
+Schema v4 also requires `backend_metadata.accumulator_safety`, and autotune
+keys must include the accumulator type, signedness, modulus policy, K-block
+size, and K-block cap before evidence can be accepted.
 Schema v4 also includes a measured `scheduling` phase for the public
 schedule-info query. The timing contract is:
 

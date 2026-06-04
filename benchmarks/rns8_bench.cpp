@@ -1909,6 +1909,70 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
   result.backend_info_available = true;
 }
 
+void append_accumulator_key_fields(std::ostringstream& out, const rns8_plan_backend_info& info) {
+  out << ";accumulator_type=" << info.accumulator_type
+      << ";accumulator_signedness=" << info.accumulator_signedness
+      << ";accumulator_modulus_policy=" << info.accumulator_modulus_policy
+      << ";k_block_size=" << info.accumulator_k_block_size
+      << ";k_block_cap=" << info.accumulator_k_block_cap;
+}
+
+void fill_vector_alu_accumulator_info(const Args& args, rns8_plan_backend_info& info) {
+  info.accumulator_k_block_size = args.k > 0 ? static_cast<uint64_t>(args.k) : 0u;
+  info.accumulator_k_block_cap = 0;
+  info.accumulator_modulus = 0;
+  info.accumulator_max_lhs_abs = 0;
+  info.accumulator_max_rhs_abs = 0;
+  info.accumulator_max_product = 0;
+  info.accumulator_uses_int32_inner_product = 0;
+  info.accumulator_safe_for_k_block = 1;
+  set_backend_text(
+      info.accumulator_input_domain,
+      sizeof(info.accumulator_input_domain),
+      args.semantics == BenchSemantics::BoundedI64 ? "native_i64_values" : "native_u64_values");
+  set_backend_text(
+      info.accumulator_signedness,
+      sizeof(info.accumulator_signedness),
+      args.semantics == BenchSemantics::BoundedI64 ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64");
+  set_backend_text(info.accumulator_type, sizeof(info.accumulator_type), "software_192bit_limb");
+  set_backend_text(
+      info.accumulator_modulus_policy,
+      sizeof(info.accumulator_modulus_policy),
+      "native_exact_integer_output");
+  set_backend_text(
+      info.accumulator_safety_status,
+      sizeof(info.accumulator_safety_status),
+      "exact_192bit_limb_no_int32_k_cap");
+}
+
+void fill_wrap64_rocwmma_candidate_accumulator_info(const Args& args, rns8_plan_backend_info& info) {
+  info.accumulator_k_block_size = args.k > 0 ? static_cast<uint64_t>(args.k) : 0u;
+  info.accumulator_k_block_cap = 32768u;
+  info.accumulator_modulus = 0;
+  info.accumulator_max_lhs_abs = 255u;
+  info.accumulator_max_rhs_abs = 255u;
+  info.accumulator_max_product = 255u * 255u;
+  info.accumulator_uses_int32_inner_product = 1;
+  info.accumulator_safe_for_k_block =
+      info.accumulator_k_block_size > 0 && info.accumulator_k_block_size <= info.accumulator_k_block_cap &&
+              info.accumulator_max_product <=
+                  static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) / info.accumulator_k_block_size
+          ? 1u
+          : 0u;
+  set_backend_text(info.accumulator_input_domain, sizeof(info.accumulator_input_domain), "compact_u8_byte_limb_pairs");
+  set_backend_text(info.accumulator_signedness, sizeof(info.accumulator_signedness), "unsigned_u8x_unsigned_u8");
+  set_backend_text(info.accumulator_type, sizeof(info.accumulator_type), "int32_then_int64_diagonal");
+  set_backend_text(
+      info.accumulator_modulus_policy,
+      sizeof(info.accumulator_modulus_policy),
+      "mod_2_64_wraparound_byte_limb");
+  set_backend_text(
+      info.accumulator_safety_status,
+      sizeof(info.accumulator_safety_status),
+      info.accumulator_safe_for_k_block ? "safe_int32_byte_limb_gemm36_k_block"
+                                        : "unsafe_int32_byte_limb_gemm36_k_block");
+}
+
 std::string bounded_oneshot_autotune_key(
     const Args& args,
     const BenchmarkResult& result,
@@ -1931,8 +1995,9 @@ std::string bounded_oneshot_autotune_key(
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
       << ";schedule_flags=" << result.schedule_info.flags
       << ";zero_output_tiles=" << result.zero_output_tile_count
-      << ";execution=public_oneshot_transient_native_inputs"
-      << ";kernel=" << kernel
+      << ";execution=public_oneshot_transient_native_inputs";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
   return out.str();
 }
@@ -1958,8 +2023,9 @@ std::string finite_oneshot_autotune_key(
       << ";finite_modulus=" << args.finite_modulus
       << ";tile_m=" << args.tile_m
       << ";tile_n=" << args.tile_n
-      << ";execution=public_oneshot_transient_native_inputs"
-      << ";kernel=" << kernel
+      << ";execution=public_oneshot_transient_native_inputs";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
   return out.str();
 }
@@ -2048,8 +2114,9 @@ std::string bounded_native_a_reuse_b_autotune_key(
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
       << ";schedule_flags=" << result.schedule_info.flags
       << ";zero_output_tiles=" << result.zero_output_tile_count
-      << ";execution=" << benchmark_execution_mode_name(args)
-      << ";kernel=" << kernel
+      << ";execution=" << benchmark_execution_mode_name(args);
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
   return out.str();
 }
@@ -2068,8 +2135,9 @@ std::string finite_native_a_reuse_b_autotune_key(
       << ";finite_modulus=" << args.finite_modulus
       << ";tile_m=" << args.tile_m
       << ";tile_n=" << args.tile_n
-      << ";execution=transient_native_a_resident_b_reuse"
-      << ";kernel=" << kernel
+      << ";execution=transient_native_a_resident_b_reuse";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
   return out.str();
 }
@@ -2174,8 +2242,9 @@ std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& res
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
       << ";schedule_flags=" << result.schedule_info.flags
-      << ";zero_output_tiles=" << result.zero_output_tile_count
-      << ";kernel=" << kernel
+      << ";zero_output_tiles=" << result.zero_output_tile_count;
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
       << ";epilogue=direct_int64_export";
   return out.str();
 }
@@ -2186,7 +2255,7 @@ void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uin
   result.backend_info = {};
   result.backend_info.struct_size = sizeof(result.backend_info);
   result.backend_info.abi_version = RNS8_ABI_VERSION;
-  result.backend_info.backend = RNS8_BACKEND_HIP_DIRECT;
+  result.backend_info.backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
   result.backend_info.is_accelerator = 0;
   result.backend_info.is_correctness_backend = 1;
   result.backend_info.is_matrix_engine_backend = 0;
@@ -2204,6 +2273,7 @@ void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uin
       result.backend_info.isa_evidence,
       sizeof(result.backend_info.isa_evidence),
       "source_level_192bit_limb_accumulator_no_matrix_engine");
+  fill_vector_alu_accumulator_info(args, result.backend_info);
   const std::string key = vector_alu_autotune_key(args, result, kernel);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
   result.backend_info_available = true;
@@ -2253,8 +2323,9 @@ std::string wrap64_rocwmma_candidate_autotune_key(const Args& args, const Benchm
       << ";prefix=0"
       << ";tile_m=" << result.schedule_info.tile_m
       << ";tile_n=" << result.schedule_info.tile_n
-      << ";groups=0;adaptive_prefix=0;adaptive_skip=0"
-      << ";kernel=" << kWrap64RocwmmaCandidateSelectedKernel
+      << ";groups=0;adaptive_prefix=0;adaptive_skip=0";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kWrap64RocwmmaCandidateSelectedKernel
       << ";epilogue=low64_wrap_export";
   return out.str();
 }
@@ -2290,6 +2361,7 @@ void fill_wrap64_rocwmma_candidate_backend_info(const Args& args, BenchmarkResul
       result.backend_info.isa_evidence,
       sizeof(result.backend_info.isa_evidence),
       "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide");
+  fill_wrap64_rocwmma_candidate_accumulator_info(args, result.backend_info);
   const std::string key = wrap64_rocwmma_candidate_autotune_key(args, result);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
   result.backend_info_available = true;
@@ -5073,8 +5145,12 @@ const char* selected_kernel_name(
   return nullptr;
 }
 
-int64_t benchmark_k_block_size(const Args& args) {
-  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+int64_t benchmark_k_block_size(const Args& args, const BenchmarkResult& result) {
+  if (result.backend_info_available && result.backend_info.accumulator_k_block_size > 0 &&
+      result.backend_info.accumulator_k_block_size <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    return static_cast<int64_t>(result.backend_info.accumulator_k_block_size);
+  }
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return args.k;
   }
   return std::min<int64_t>(args.k, RNS8_SAFE_INT32_K_BLOCK);
@@ -5271,7 +5347,34 @@ void print_json(
   std::cout << ",\n";
   std::cout << "    \"autotune_key\": ";
   print_json_string_or_null(result.backend_info.autotune_key);
+  std::cout << ",\n";
+  std::cout << "    \"accumulator_safety\": {\n";
+  std::cout << "      \"input_domain\": ";
+  print_json_string_or_null(result.backend_info.accumulator_input_domain);
+  std::cout << ",\n";
+  std::cout << "      \"signedness\": ";
+  print_json_string_or_null(result.backend_info.accumulator_signedness);
+  std::cout << ",\n";
+  std::cout << "      \"accumulator_type\": ";
+  print_json_string_or_null(result.backend_info.accumulator_type);
+  std::cout << ",\n";
+  std::cout << "      \"modulus_policy\": ";
+  print_json_string_or_null(result.backend_info.accumulator_modulus_policy);
+  std::cout << ",\n";
+  std::cout << "      \"modulus\": " << result.backend_info.accumulator_modulus << ",\n";
+  std::cout << "      \"uses_int32_inner_product\": "
+            << (result.backend_info.accumulator_uses_int32_inner_product ? "true" : "false") << ",\n";
+  std::cout << "      \"k_block_size\": " << result.backend_info.accumulator_k_block_size << ",\n";
+  std::cout << "      \"k_block_cap\": " << result.backend_info.accumulator_k_block_cap << ",\n";
+  std::cout << "      \"max_lhs_abs\": " << result.backend_info.accumulator_max_lhs_abs << ",\n";
+  std::cout << "      \"max_rhs_abs\": " << result.backend_info.accumulator_max_rhs_abs << ",\n";
+  std::cout << "      \"max_product\": " << result.backend_info.accumulator_max_product << ",\n";
+  std::cout << "      \"safe_for_k_block\": "
+            << (result.backend_info.accumulator_safe_for_k_block ? "true" : "false") << ",\n";
+  std::cout << "      \"status\": ";
+  print_json_string_or_null(result.backend_info.accumulator_safety_status);
   std::cout << "\n";
+  std::cout << "    }\n";
   std::cout << "  },\n";
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
@@ -5376,7 +5479,7 @@ void print_json(
   std::cout << "  \"tile_n\": " << args.tile_n << ",\n";
   std::cout << "  \"layout\": \"row_major\",\n";
   std::cout << "  \"k_block_size\": "
-            << benchmark_k_block_size(args)
+            << benchmark_k_block_size(args, result)
             << ",\n";
   std::cout << "  \"adaptive_tile_size\": null,\n";
   std::cout << "  \"tile_bounds_u64\": ";

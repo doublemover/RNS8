@@ -47,6 +47,92 @@ def set_phase(capture: dict, end_to_end: int) -> None:
             }
 
 
+def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
+    finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+    return {
+        "input_domain": "centered_i8_finite_u8_residues" if finite else "centered_i8_rns_residue_planes",
+        "signedness": "signed_i8x_signed_i8",
+        "accumulator_type": "int32",
+        "modulus_policy": "finite_u8_modulus" if finite else "selected_rns_modulus_ladder",
+        "modulus": capture.get("finite_modulus") if finite else 0,
+        "uses_int32_inner_product": True,
+        "k_block_size": min(capture["k"], cap),
+        "k_block_cap": cap,
+        "max_lhs_abs": 128,
+        "max_rhs_abs": 128,
+        "max_product": 128 * 128,
+        "safe_for_k_block": True,
+        "status": "safe_int32_k_block_split",
+    }
+
+
+def vector_accumulator_safety(capture: dict) -> dict:
+    semantics = capture.get("semantics")
+    return {
+        "input_domain": "native_i64_values" if semantics == "bounded_i64" else "native_u64_values",
+        "signedness": "signed_i64x_signed_i64" if semantics == "bounded_i64" else "unsigned_u64x_unsigned_u64",
+        "accumulator_type": "software_192bit_limb",
+        "modulus_policy": "native_exact_integer_output",
+        "modulus": 0,
+        "uses_int32_inner_product": False,
+        "k_block_size": capture["k"],
+        "k_block_cap": 0,
+        "max_lhs_abs": 0,
+        "max_rhs_abs": 0,
+        "max_product": 0,
+        "safe_for_k_block": True,
+        "status": "exact_192bit_limb_no_int32_k_cap",
+    }
+
+
+def wrap64_candidate_accumulator_safety(capture: dict) -> dict:
+    return {
+        "input_domain": "compact_u8_byte_limb_pairs",
+        "signedness": "unsigned_u8x_unsigned_u8",
+        "accumulator_type": "int32_then_int64_diagonal",
+        "modulus_policy": "mod_2_64_wraparound_byte_limb",
+        "modulus": 0,
+        "uses_int32_inner_product": True,
+        "k_block_size": capture["k"],
+        "k_block_cap": 32768,
+        "max_lhs_abs": 255,
+        "max_rhs_abs": 255,
+        "max_product": 255 * 255,
+        "safe_for_k_block": True,
+        "status": "safe_int32_byte_limb_gemm36_k_block",
+    }
+
+
+def apply_accumulator_safety(capture: dict, safety: dict) -> None:
+    capture["backend_metadata"]["accumulator_safety"] = safety
+    capture["k_block_size"] = safety["k_block_size"]
+
+
+def with_accumulator_key_fields(key: str, capture: dict) -> str:
+    safety = capture["backend_metadata"]["accumulator_safety"]
+    parts = [
+        part
+        for part in key.split(";")
+        if part.split("=", 1)[0]
+        not in {
+            "accumulator_type",
+            "accumulator_signedness",
+            "accumulator_modulus_policy",
+            "k_block_size",
+            "k_block_cap",
+        }
+    ]
+    insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
+    additions = [
+        f"accumulator_type={safety['accumulator_type']}",
+        f"accumulator_signedness={safety['signedness']}",
+        f"accumulator_modulus_policy={safety['modulus_policy']}",
+        f"k_block_size={safety['k_block_size']}",
+        f"k_block_cap={safety['k_block_cap']}",
+    ]
+    return ";".join(parts[:insert_at] + additions + parts[insert_at:])
+
+
 def finite_capture(backend: str, end_to_end: int) -> dict:
     capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_finite_ring_u8_ck.json"))
     capture["_path"] = f"{backend}.json"
@@ -67,6 +153,7 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "host_reference_workspace"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
+        apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference")
         capture["device"] = {
             "device_id": -1,
@@ -88,7 +175,9 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "resident_device_buffers"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+        apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct")
+    metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)
     return capture
 
@@ -113,6 +202,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "host_reference_workspace"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
+        apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference").replace(
             "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
             "kernel=cpu_reference_scalar_rns_gemm_v1",
@@ -137,6 +227,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_mode"] = "resident_device_buffers"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+        apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct").replace(
             "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
             "kernel=direct_hip_tiled_rns_gemm_v1",
@@ -157,12 +248,18 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         vector["configured_amdgpu_targets"] = capture["configured_amdgpu_targets"]
         vector["hip_toolchain"] = copy.deepcopy(capture["hip_toolchain"])
         vector["device"] = copy.deepcopy(capture["device"])
+        apply_accumulator_safety(vector, vector_accumulator_safety(vector))
         vector["backend_metadata"]["autotune_key"] = (
             "backend=hip-vector-alu-int64;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
             "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
             "kernel=hip_vector_alu_i64_exact_192b_v1;epilogue=direct_int64_export"
         )
+        vector["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+            vector["backend_metadata"]["autotune_key"], vector
+        )
         capture = vector
+    if backend != "hip-vector-alu-int64":
+        metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)
     return capture
 
@@ -198,10 +295,13 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         metadata["epilogue_mode"] = "rocwmma_fused_i32_to_centered_residue_rns_output"
     else:
         metadata["epilogue_mode"] = "fused_centered_residue_rns_output"
-    metadata["autotune_key"] = (
+    metadata["autotune_key"] = with_accumulator_key_fields(
+        (
         f"backend={backend};semantics=exact_wide_signed;m={capture['m']};n={capture['n']};k={capture['k']};"
         "prefix=20;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         f"kernel={capture['selected_kernel']};epilogue={metadata['epilogue_mode']}"
+        ),
+        capture,
     )
     return capture
 
@@ -277,6 +377,8 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
                 ),
             }
         )
+        apply_accumulator_safety(capture, wrap64_candidate_accumulator_safety(capture))
+        metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
         renamed = {
             "wrap64_byte_gemm36_tiled_2d_kernel": "wrap64_rocwmma_candidate_gemm36_kernel_group",
         }

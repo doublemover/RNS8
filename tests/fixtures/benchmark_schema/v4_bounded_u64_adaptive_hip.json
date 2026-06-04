@@ -20,7 +20,22 @@
     "workspace_mode": "resident_device_buffers_with_tiled_schedule",
     "workspace_required_bytes": 320,
     "isa_evidence": "rns8_hip_direct_reciprocal_isa_gate",
-    "autotune_key": "backend=hip-direct;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=4;adaptive_prefix=1;adaptive_skip=1;kernel=direct_hip_tiled_rns_gemm_v1;epilogue=fused_centered_residue_then_crt_export"
+    "autotune_key": "backend=hip-direct;semantics=bounded_u64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;groups=4;adaptive_prefix=1;adaptive_skip=1;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;kernel=direct_hip_tiled_rns_gemm_v1;epilogue=fused_centered_residue_then_crt_export",
+    "accumulator_safety": {
+      "input_domain": "centered_i8_rns_residue_planes",
+      "signedness": "signed_i8x_signed_i8",
+      "accumulator_type": "int32",
+      "modulus_policy": "selected_rns_modulus_ladder",
+      "modulus": 0,
+      "uses_int32_inner_product": true,
+      "k_block_size": 64,
+      "k_block_cap": 65536,
+      "max_lhs_abs": 128,
+      "max_rhs_abs": 128,
+      "max_product": 16384,
+      "safe_for_k_block": true,
+      "status": "safe_int32_k_block_split"
+    }
   },
   "semantics": "bounded_u64",
   "bound_kind": "per_tile_max_unsigned",
@@ -69,7 +84,10 @@
   "input_distribution": "unsigned_uniform_0_16",
   "command_line": "rns8-bench --backend hip-direct --semantics bounded-u64 --bound-mode per-tile --m 65 --n 65 --k 64 --tile-m 64 --tile-n 64 --warmups 1 --repeats 3 --seed 7",
   "git_commit": "000000000000",
-  "compiler": {"id": "msvc", "version": "1944.35213"},
+  "compiler": {
+    "id": "msvc",
+    "version": "1944.35213"
+  },
   "configured_amdgpu_targets": "gfx1100",
   "hip_toolchain": {
     "enabled": true,
@@ -93,7 +111,10 @@
     "status": "required_not_recorded",
     "speedup_claimed": false,
     "selected_reference": null,
-    "required_before_speedup_claim": ["same_contract_cpu_reference", "same_contract_direct_hip_vector_alu_int64"],
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_vector_alu_int64"
+    ],
     "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
   },
   "derived_tops_equivalent": null,
@@ -109,8 +130,28 @@
     "gpu_event_timing_source": "hipEventElapsedTime",
     "gpu_event_timing_source_scope": "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
     "gpu_event_timing_caveat": "HIP event timings record backend default-stream operation groups only; adaptive bounded captures aggregate all selected-prefix tile launches and tiled export kernels",
-    "phase_order": ["planning", "scheduling", "tile_bound_scan", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"],
-    "gpu_event_phase_order": ["pack_h2d", "pack_kernel", "pack", "rns_gemm_kernel_group", "rns_gemm", "crt_export_status_memset", "crt_export_kernel", "crt_export_status_d2h", "crt_export_d2h", "crt_export"],
+    "phase_order": [
+      "planning",
+      "scheduling",
+      "tile_bound_scan",
+      "matrix_alloc",
+      "pack",
+      "rns_gemm",
+      "crt_export",
+      "end_to_end"
+    ],
+    "gpu_event_phase_order": [
+      "pack_h2d",
+      "pack_kernel",
+      "pack",
+      "rns_gemm_kernel_group",
+      "rns_gemm",
+      "crt_export_status_memset",
+      "crt_export_kernel",
+      "crt_export_status_d2h",
+      "crt_export_d2h",
+      "crt_export"
+    ],
     "phase_notes": {
       "planning": "one-time rns8_create_plan plus rns8_create_workspace host timing",
       "scheduling": "one-time rns8_get_plan_schedule_info host timing",
@@ -122,34 +163,129 @@
       "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
     },
     "phase_availability": {
-      "scheduling": {"timed": true, "timing_key": "scheduling", "scope": "one_time_schedule_info_query", "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"},
-      "tile_bound_scan": {"timed": true, "timing_key": "tile_bound_scan", "scope": "exact_seeded_input_prepass", "reason": "measured with host steady_clock around exact per-output-tile bound computation before plan creation"},
-      "reduction": {"timed": false, "timing_key": null, "scope": "fused_into_rns_gemm", "reason": "current CPU and direct-HIP RNS GEMM paths reduce to centered residues inside rns_gemm, so no separate reduction kernel timing exists"}
+      "scheduling": {
+        "timed": true,
+        "timing_key": "scheduling",
+        "scope": "one_time_schedule_info_query",
+        "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "tile_bound_scan": {
+        "timed": true,
+        "timing_key": "tile_bound_scan",
+        "scope": "exact_seeded_input_prepass",
+        "reason": "measured with host steady_clock around exact per-output-tile bound computation before plan creation"
+      },
+      "reduction": {
+        "timed": false,
+        "timing_key": null,
+        "scope": "fused_into_rns_gemm",
+        "reason": "current CPU and direct-HIP RNS GEMM paths reduce to centered residues inside rns_gemm, so no separate reduction kernel timing exists"
+      }
     }
   },
   "gpu_event_timings_us": {
-    "pack_h2d": [1.0, 2.0, 3.0],
-    "pack_kernel": [4.0, 5.0, 6.0],
-    "pack": [5.0, 7.0, 9.0],
-    "rns_gemm_kernel_group": [10.0, 11.0, 12.0],
-    "rns_gemm": [10.0, 11.0, 12.0],
-    "crt_export_status_memset": [0.5, 0.5, 0.5],
-    "crt_export_kernel": [2.0, 3.0, 4.0],
-    "crt_export_status_d2h": [1.0, 2.0, 3.0],
-    "crt_export_d2h": [4.0, 5.0, 6.0],
-    "crt_export": [7.5, 10.5, 13.5]
+    "pack_h2d": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "pack_kernel": [
+      4.0,
+      5.0,
+      6.0
+    ],
+    "pack": [
+      5.0,
+      7.0,
+      9.0
+    ],
+    "rns_gemm_kernel_group": [
+      10.0,
+      11.0,
+      12.0
+    ],
+    "rns_gemm": [
+      10.0,
+      11.0,
+      12.0
+    ],
+    "crt_export_status_memset": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "crt_export_kernel": [
+      2.0,
+      3.0,
+      4.0
+    ],
+    "crt_export_status_d2h": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "crt_export_d2h": [
+      4.0,
+      5.0,
+      6.0
+    ],
+    "crt_export": [
+      7.5,
+      10.5,
+      13.5
+    ]
   },
   "gpu_event_timing_summary_us": {
-    "pack_h2d": {"avg": 2.0, "median": 2.0, "p95": 3.0},
-    "pack_kernel": {"avg": 5.0, "median": 5.0, "p95": 6.0},
-    "pack": {"avg": 7.0, "median": 7.0, "p95": 9.0},
-    "rns_gemm_kernel_group": {"avg": 11.0, "median": 11.0, "p95": 12.0},
-    "rns_gemm": {"avg": 11.0, "median": 11.0, "p95": 12.0},
-    "crt_export_status_memset": {"avg": 0.5, "median": 0.5, "p95": 0.5},
-    "crt_export_kernel": {"avg": 3.0, "median": 3.0, "p95": 4.0},
-    "crt_export_status_d2h": {"avg": 2.0, "median": 2.0, "p95": 3.0},
-    "crt_export_d2h": {"avg": 5.0, "median": 5.0, "p95": 6.0},
-    "crt_export": {"avg": 10.5, "median": 10.5, "p95": 13.5}
+    "pack_h2d": {
+      "avg": 2.0,
+      "median": 2.0,
+      "p95": 3.0
+    },
+    "pack_kernel": {
+      "avg": 5.0,
+      "median": 5.0,
+      "p95": 6.0
+    },
+    "pack": {
+      "avg": 7.0,
+      "median": 7.0,
+      "p95": 9.0
+    },
+    "rns_gemm_kernel_group": {
+      "avg": 11.0,
+      "median": 11.0,
+      "p95": 12.0
+    },
+    "rns_gemm": {
+      "avg": 11.0,
+      "median": 11.0,
+      "p95": 12.0
+    },
+    "crt_export_status_memset": {
+      "avg": 0.5,
+      "median": 0.5,
+      "p95": 0.5
+    },
+    "crt_export_kernel": {
+      "avg": 3.0,
+      "median": 3.0,
+      "p95": 4.0
+    },
+    "crt_export_status_d2h": {
+      "avg": 2.0,
+      "median": 2.0,
+      "p95": 3.0
+    },
+    "crt_export_d2h": {
+      "avg": 5.0,
+      "median": 5.0,
+      "p95": 6.0
+    },
+    "crt_export": {
+      "avg": 10.5,
+      "median": 10.5,
+      "p95": 13.5
+    }
   },
   "plan_us": 100,
   "avg_planning_us": 100.0,
@@ -166,24 +302,80 @@
   "avg_crt_export_us": 50.0,
   "avg_end_to_end_us": 160.0,
   "raw_timings_us": {
-    "planning": [100],
-    "scheduling": [5],
-    "tile_bound_scan": [7],
-    "matrix_alloc": [20],
-    "pack": [10, 20, 30],
-    "rns_gemm": [81, 90, 99],
-    "crt_export": [40, 50, 60],
-    "end_to_end": [131, 160, 189]
+    "planning": [
+      100
+    ],
+    "scheduling": [
+      5
+    ],
+    "tile_bound_scan": [
+      7
+    ],
+    "matrix_alloc": [
+      20
+    ],
+    "pack": [
+      10,
+      20,
+      30
+    ],
+    "rns_gemm": [
+      81,
+      90,
+      99
+    ],
+    "crt_export": [
+      40,
+      50,
+      60
+    ],
+    "end_to_end": [
+      131,
+      160,
+      189
+    ]
   },
   "timing_summary_us": {
-    "planning": {"avg": 100.0, "median": 100.0, "p95": 100.0},
-    "scheduling": {"avg": 5.0, "median": 5.0, "p95": 5.0},
-    "tile_bound_scan": {"avg": 7.0, "median": 7.0, "p95": 7.0},
-    "matrix_alloc": {"avg": 20.0, "median": 20.0, "p95": 20.0},
-    "pack": {"avg": 20.0, "median": 20.0, "p95": 30.0},
-    "rns_gemm": {"avg": 90.0, "median": 90.0, "p95": 99.0},
-    "crt_export": {"avg": 50.0, "median": 50.0, "p95": 60.0},
-    "end_to_end": {"avg": 160.0, "median": 160.0, "p95": 189.0}
+    "planning": {
+      "avg": 100.0,
+      "median": 100.0,
+      "p95": 100.0
+    },
+    "scheduling": {
+      "avg": 5.0,
+      "median": 5.0,
+      "p95": 5.0
+    },
+    "tile_bound_scan": {
+      "avg": 7.0,
+      "median": 7.0,
+      "p95": 7.0
+    },
+    "matrix_alloc": {
+      "avg": 20.0,
+      "median": 20.0,
+      "p95": 20.0
+    },
+    "pack": {
+      "avg": 20.0,
+      "median": 20.0,
+      "p95": 30.0
+    },
+    "rns_gemm": {
+      "avg": 90.0,
+      "median": 90.0,
+      "p95": 99.0
+    },
+    "crt_export": {
+      "avg": 50.0,
+      "median": 50.0,
+      "p95": 60.0
+    },
+    "end_to_end": {
+      "avg": 160.0,
+      "median": 160.0,
+      "p95": 189.0
+    }
   },
   "checksum_u64": 123456789
 }

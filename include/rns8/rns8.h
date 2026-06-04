@@ -190,6 +190,19 @@ typedef struct rns8_plan_backend_info {
   char workspace_mode[64];
   char isa_evidence[128];
   char autotune_key[512];
+  uint64_t accumulator_k_block_size;
+  uint64_t accumulator_k_block_cap;
+  uint64_t accumulator_modulus;
+  uint64_t accumulator_max_lhs_abs;
+  uint64_t accumulator_max_rhs_abs;
+  uint64_t accumulator_max_product;
+  uint32_t accumulator_uses_int32_inner_product;
+  uint32_t accumulator_safe_for_k_block;
+  char accumulator_input_domain[64];
+  char accumulator_signedness[64];
+  char accumulator_type[64];
+  char accumulator_modulus_policy[128];
+  char accumulator_safety_status[128];
 } rns8_plan_backend_info;
 
 typedef enum rns8_output_domain {

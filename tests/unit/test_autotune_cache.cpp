@@ -63,6 +63,19 @@ std::string reviewed_key(
     uint32_t tile_n = 128,
     const char* kernel = kCkBoundedKernel,
     const char* epilogue = kCkBoundedEpilogue) {
+  const std::string backend_text = backend;
+  const std::string semantics_text = semantics;
+  const bool vector_backend = backend_text == "hip-vector-alu-int64";
+  const bool finite_semantics = semantics_text == "finite_ring_u8" || semantics_text == "finite_field_u8";
+  const char* accumulator_type = vector_backend ? "software_192bit_limb" : "int32";
+  const char* accumulator_signedness =
+      vector_backend && semantics_text == "bounded_u64" ? "unsigned_u64x_unsigned_u64"
+      : vector_backend                                  ? "signed_i64x_signed_i64"
+                                                        : "signed_i8x_signed_i8";
+  const char* accumulator_modulus_policy =
+      vector_backend ? "native_exact_integer_output" : finite_semantics ? "finite_u8_modulus"
+                                                                        : "selected_rns_modulus_ladder";
+  const int64_t k_block_cap = vector_backend ? 0 : backend_text == "ck" ? 32768 : 65536;
   return std::string("backend=") + backend +
          ";target=" + target +
          ";version=" + version +
@@ -71,7 +84,11 @@ std::string reviewed_key(
          ";n=" + std::to_string(n) +
          ";k=" + std::to_string(k) +
          ";layout=" + layout +
+         ";accumulator_type=" + accumulator_type +
+         ";accumulator_signedness=" + accumulator_signedness +
+         ";accumulator_modulus_policy=" + accumulator_modulus_policy +
          ";k_block_size=" + std::to_string(k_block_size) +
+         ";k_block_cap=" + std::to_string(k_block_cap) +
          ";tile_m=" + std::to_string(tile_m) +
          ";tile_n=" + std::to_string(tile_n) +
          ";kernel=" + kernel +
