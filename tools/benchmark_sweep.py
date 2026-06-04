@@ -82,6 +82,7 @@ class ScenarioItem:
     max_prefix: int | None = None
     bound_source: str | None = None
     include_wrap64_candidate: bool = False
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -1187,11 +1188,21 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     chain_128 = parse_case("chain-128:128,128,128")
     small_64 = parse_case("small-64:64,64,64")
     small_128 = parse_case("small-128:128,128,128")
+    many_small_32 = parse_case("many-small-32:32,32,32")
+    many_small_64 = parse_case("many-small-64:64,64,64")
     skinny_512 = parse_case("gemv-n1-512:512,1,512")
     skinny_1024 = parse_case("gemv-n1-1024:1024,1,1024")
     wrap64_512 = parse_case("wrap64-512:512,512,512")
     wrap64_1024 = parse_case("wrap64-1024:1024,1024,1024")
     large_2048 = parse_case("large-2048:2048,2048,2048", promotable=False)
+    algebra_rank_update = parse_case("rank-update-512x512x128:512,512,128")
+    algebra_f4_dense = parse_case("f4-dense-512:512,512,512")
+    algebra_fglm_mulmat = parse_case("fglm-mulmat-256:256,256,256")
+    algebra_crt_export = parse_case("crt-export-512:512,512,512")
+    fhe_ntt_pressure = parse_case("ntt-log12-proxy:4096,1,4096", promotable=False)
+    fhe_key_switch = parse_case("key-switch-1024x256x1024:1024,256,1024")
+    fhe_linear_layer = parse_case("linear-layer-1024x128x1024:1024,128,1024")
+    fhe_chain = parse_case("ckks-chain-256:256,256,256")
     adaptive_256 = parse_case("adaptive-bands-256:256,256,512,64,64,adaptive-bands", adaptive=True)
     adaptive_rect = parse_case("adaptive-bands-rect:512,1024,512,128,128,adaptive-bands", adaptive=True)
     adaptive_1024 = parse_case("adaptive-bands-1024:1024,1024,1024,128,128,adaptive-bands", adaptive=True)
@@ -1393,6 +1404,68 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 oneshot=True,
             ),
         ],
+        "many-small": [
+            ScenarioItem(
+                "many-small",
+                "bounded-i64-32-proxy",
+                "bounded-i64",
+                many_small_32,
+                "many-small proxy using repeated fixed-shape bounded i64 captures",
+                "host_export",
+                "ranks low-overhead CPU, vector, direct-HIP, and accelerator paths before a grouped independent-GEMM API exists",
+                backends=BOUNDED_BACKENDS,
+                metadata={
+                    "evidence_role": "proxy_single_shape_repeat",
+                    "workflow_name": "many_small_independent_gemms",
+                    "phase_label": "batch_proxy",
+                    "shape_signature": "tiny_square",
+                    "batch_count_model": 64,
+                    "reuse_profile": "independent_inputs",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
+                "bounded-i64-32-oneshot-proxy",
+                "bounded-i64",
+                many_small_32,
+                "many-small public one-shot bounded i64 proxy",
+                "native_i64_host_output",
+                "keeps one-shot setup cost visible for tiny independent tasks instead of folding it into persistent RNS evidence",
+                backends=direct_oneshot_backends,
+                oneshot=True,
+                metadata={
+                    "evidence_role": "proxy_single_shape_repeat",
+                    "workflow_name": "many_small_independent_gemms",
+                    "phase_label": "oneshot_batch_proxy",
+                    "shape_signature": "tiny_square",
+                    "batch_count_model": 64,
+                    "reuse_profile": "independent_inputs",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
+                "finite-ring-64-proxy",
+                "finite-u8-ring",
+                many_small_64,
+                "many-small finite-ring u8 proxy with canonical host output",
+                "finite_u8_canonical_host_export",
+                "separates small finite setup overhead from medium-shape finite accelerator evidence",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251, 255),
+                metadata={
+                    "evidence_role": "proxy_single_shape_repeat",
+                    "workflow_name": "many_small_finite_ring_gemms",
+                    "domain_family": "finite_ring_u8",
+                    "phase_label": "batch_proxy",
+                    "shape_signature": "small_square",
+                    "batch_count_model": 32,
+                    "reuse_profile": "independent_inputs",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+        ],
         "skinny-gemv": [
             ScenarioItem(
                 "skinny-gemv",
@@ -1413,6 +1486,224 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "host_export",
                 "checks the native vector-ALU GEMV path against RNS accelerators",
                 backends=BOUNDED_BACKENDS,
+            ),
+        ],
+        "computational-algebra-proxies": [
+            ScenarioItem(
+                "computational-algebra-proxies",
+                "dense-finite-field-blas-512",
+                "finite-u8-field",
+                finite_512,
+                "dense finite-field BLAS phase over GF(p <= 251)",
+                "finite_u8_canonical_host_export",
+                "isolates a dense modular GEMM phase without claiming rank, determinant, solve, or full CAS workflow coverage",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+                metadata={
+                    "source_role": "computational_algebra_proxy",
+                    "algebra_family": "finite_field_linear_algebra",
+                    "domain_family": "prime_field_u8",
+                    "workflow_name": "dense_finite_field_blas",
+                    "phase_label": "gemm",
+                    "phase_id": "dense_gemm",
+                    "prime_or_composite": "prime",
+                    "extension_degree": 1,
+                    "dense_kernel_extracted": True,
+                    "oracle_role": "optional_cpu_cas_comparison",
+                    "artifact_lineage": "rns8_synthetic_shape",
+                },
+            ),
+            ScenarioItem(
+                "computational-algebra-proxies",
+                "rank-k-update-field-251",
+                "finite-u8-field",
+                algebra_rank_update,
+                "rectangular finite-field rank-k update phase",
+                "finite_u8_canonical_host_export",
+                "models dense trailing-update work that can appear inside modular rank, PLUQ, CUP, PLE, and echelon pipelines",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+                metadata={
+                    "source_role": "computational_algebra_proxy",
+                    "algebra_family": "finite_field_linear_algebra",
+                    "domain_family": "prime_field_u8",
+                    "workflow_name": "modular_rank_or_elimination",
+                    "phase_label": "rank_k_trailing_update",
+                    "phase_id": "dense_update",
+                    "shape_signature": "rectangular_rank_k",
+                    "symbolic_precompute": "outside_timed_region",
+                    "dense_kernel_extracted": True,
+                    "verification_mode": "cpu_reference_capture",
+                },
+            ),
+            ScenarioItem(
+                "computational-algebra-proxies",
+                "f4-dense-field-251",
+                "finite-u8-field",
+                algebra_f4_dense,
+                "F4 dense finite-field matrix phase proxy",
+                "finite_u8_canonical_host_export",
+                "labels dense F4 matrix arithmetic separately from sparse symbolic preprocessing and reduction-control work",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+                metadata={
+                    "source_role": "computational_algebra_proxy",
+                    "algebra_family": "groebner_basis",
+                    "domain_family": "prime_field_u8",
+                    "workflow_name": "F4",
+                    "phase_label": "dense_finite_field_matrix_phase",
+                    "phase_id": "f4_dense_block",
+                    "symbolic_precompute": "outside_timed_region",
+                    "density": "dense_phase_only",
+                    "dense_kernel_extracted": True,
+                    "certificate_mode": "not_applicable_to_raw_gemm",
+                },
+            ),
+            ScenarioItem(
+                "computational-algebra-proxies",
+                "fglm-multiplication-matrix-field-251",
+                "finite-u8-field",
+                algebra_fglm_mulmat,
+                "FGLM multiplication-matrix conversion dense phase proxy",
+                "finite_u8_canonical_host_export",
+                "keeps multiplication-matrix dense arithmetic distinct from ordering conversion and basis-controller work",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+                metadata={
+                    "source_role": "computational_algebra_proxy",
+                    "algebra_family": "groebner_basis",
+                    "domain_family": "prime_field_u8",
+                    "workflow_name": "FGLM",
+                    "phase_label": "multiplication_matrix_dense_phase",
+                    "phase_id": "fglm_mulmat",
+                    "symbolic_precompute": "outside_timed_region",
+                    "dense_kernel_extracted": True,
+                    "controller_mode": "not_timed",
+                },
+            ),
+            ScenarioItem(
+                "computational-algebra-proxies",
+                "crt-rational-reconstruction-export",
+                "exact-wide-signed",
+                algebra_crt_export,
+                "CRT/Garner export-heavy exact-LA proxy",
+                "exact_wide_signed_limbs",
+                "profiles reconstruction/export pressure before mapping dense GEMM timings onto rational reconstruction or Dixon-style workflows",
+                backends=EXACT_WIDE_BACKENDS,
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "source_role": "computational_algebra_proxy",
+                    "algebra_family": "exact_linear_algebra",
+                    "domain_family": "integer_rns",
+                    "workflow_name": "rational_reconstruction_or_dixon",
+                    "phase_label": "crt_garner_export",
+                    "phase_id": "reconstruction_export",
+                    "reconstruction_mode": "fixed_width_limb_export",
+                    "dense_kernel_extracted": True,
+                    "controller_mode": "outside_timed_region",
+                },
+            ),
+        ],
+        "fhe-lattice-proxies": [
+            ScenarioItem(
+                "fhe-lattice-proxies",
+                "ntt-log12-pressure-proxy",
+                "finite-u8-ring",
+                fhe_ntt_pressure,
+                "NTT/INTT pressure proxy with power-of-two polynomial dimension",
+                "finite_u8_canonical_host_export",
+                "labels transform-pressure ranking work without claiming RNS8 currently implements an NTT backend",
+                backends=("hip-direct",),
+                finite_moduli=(251,),
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "evidence_role": "proxy_not_ntt_proof",
+                    "workflow_name": "ntt_intt_pressure",
+                    "phase_label": "transform_pressure_proxy",
+                    "ring_dimension": 4096,
+                    "log_n": 12,
+                    "coefficient_modulus_count": 1,
+                    "current_domain": "coefficient_or_ntt_domain_proxy",
+                    "reuse_profile": "independent_polynomial_channels",
+                    "lowering_role": "not_a_dense_gemm_claim",
+                },
+            ),
+            ScenarioItem(
+                "fhe-lattice-proxies",
+                "key-switch-digit-reuse-b",
+                "bounded-i64",
+                fhe_key_switch,
+                "key-switch digit aggregation proxy with reused key material",
+                "host_export",
+                "measures repeated read-only B-like operand reuse separately from ordinary one-shot dense GEMM evidence",
+                backends=bounded_gpu_backends,
+                pack_mode="prepacked_reuse_b",
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "workflow_name": "key_switch_digit_aggregation",
+                    "phase_label": "external_product_like_dense_proxy",
+                    "ring_dimension": 4096,
+                    "log_n": 12,
+                    "coefficient_modulus_count": 4,
+                    "decomposition_digit_count": 4,
+                    "ciphertext_component_count": 2,
+                    "evaluation_key_count": 8,
+                    "key_material_reuse": "B_operand_reused",
+                    "reuse_profile": "large_read_only_key_material",
+                    "lowering_role": "dense_gemm_adjacent_proxy",
+                },
+            ),
+            ScenarioItem(
+                "fhe-lattice-proxies",
+                "ckks-rescale-chain4",
+                "bounded-i64",
+                fhe_chain,
+                "CKKS rescale/mod-drop chain proxy with resident RNS output",
+                "residue_current_rns",
+                "keeps chained residue-domain work separate from final native host export timings",
+                backends=accelerator_backends,
+                residue_chain_length=4,
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "workflow_name": "ckks_rescale_mod_drop",
+                    "phase_label": "residue_chain_proxy",
+                    "ring_dimension": 8192,
+                    "log_n": 13,
+                    "slot_count": 4096,
+                    "coefficient_modulus_count": 4,
+                    "modulus_chain_bits": [60, 40, 40, 60],
+                    "current_domain": "rns_residue_current",
+                    "reuse_profile": "chain_current_residue_output",
+                    "output_domain_requirement": "lazy_export",
+                    "lowering_role": "not_a_public_fhe_backend",
+                },
+            ),
+            ScenarioItem(
+                "fhe-lattice-proxies",
+                "encrypted-linear-layer-reuse-b",
+                "bounded-i64",
+                fhe_linear_layer,
+                "encrypted-inference linear-layer proxy with repeated plaintext matrix",
+                "host_export",
+                "separates repeated plaintext-matrix reuse from diagonal/rotation and convolution lowerings",
+                backends=bounded_gpu_backends,
+                pack_mode="prepacked_reuse_b",
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "workflow_name": "encrypted_inference_linear_layer",
+                    "phase_label": "dense_linear_layer_proxy",
+                    "ring_dimension": 8192,
+                    "log_n": 13,
+                    "slot_count": 4096,
+                    "coefficient_modulus_count": 4,
+                    "plaintext_matrix_reuse": "B_operand_reused",
+                    "reuse_profile": "many_encrypted_vectors_same_plaintext_matrix",
+                    "lowering_role": "dense_gemm_proxy_not_rotation_method",
+                },
             ),
         ],
         "wrap64-carry": [
@@ -1515,7 +1806,7 @@ def scenario_metadata(
     *,
     oneshot: bool,
 ) -> dict[str, Any]:
-    return {
+    metadata = {
         "family": item.family,
         "name": item.name,
         "semantics": item.semantics,
@@ -1535,6 +1826,9 @@ def scenario_metadata(
         "output_domain": item.output_domain,
         "rationale": item.rationale,
     }
+    if item.metadata:
+        metadata["metadata"] = item.metadata
+    return metadata
 
 
 def default_backends_for(semantics: str, case: SweepCase) -> list[str]:

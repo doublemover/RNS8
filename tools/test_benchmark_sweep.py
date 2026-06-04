@@ -620,6 +620,48 @@ def main() -> int:
     assert all("scenarios" in entry.output.parts and "skinny-gemv" in entry.output.parts for entry in skinny_entries)
     assert skinny_entries[0].name.startswith("skinny-gemv-bounded-i64-n1-512-")
 
+    many_small_args = copy.copy(scenario_args)
+    many_small_args.backends = ["hip-direct"]
+    many_small_args.scenario = ["many-small"]
+    many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
+    assert len(many_small_entries) == 4
+    assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
+    assert {entry.scenario["name"] for entry in many_small_entries} == {
+        "bounded-i64-32-proxy",
+        "bounded-i64-32-oneshot-proxy",
+        "finite-ring-64-proxy",
+    }
+    assert any("--oneshot" in entry.command for entry in many_small_entries)
+    assert sorted(
+        entry.scenario["modulus"] for entry in many_small_entries if entry.scenario["semantics"] == "finite-u8-ring"
+    ) == [251, 255]
+    assert all(entry.scenario.get("metadata", {}).get("evidence_role") == "proxy_single_shape_repeat" for entry in many_small_entries)
+
+    algebra_args = copy.copy(scenario_args)
+    algebra_args.backends = ["ck"]
+    algebra_args.scenario = ["computational-algebra-proxies"]
+    algebra_entries = benchmark_sweep.sweep_command_entries(algebra_args)
+    assert len(algebra_entries) == 5
+    assert all(entry.scenario["family"] == "computational-algebra-proxies" for entry in algebra_entries)
+    assert {entry.scenario.get("metadata", {}).get("source_role") for entry in algebra_entries} == {
+        "computational_algebra_proxy"
+    }
+    assert any(entry.scenario.get("metadata", {}).get("workflow_name") == "F4" for entry in algebra_entries)
+    assert any(entry.scenario["semantics"] == "exact-wide-signed" for entry in algebra_entries)
+
+    fhe_args = copy.copy(scenario_args)
+    fhe_args.backends = ["hip-direct"]
+    fhe_args.scenario = ["fhe-lattice-proxies"]
+    fhe_entries = benchmark_sweep.sweep_command_entries(fhe_args)
+    assert len(fhe_entries) == 4
+    assert all(entry.scenario["family"] == "fhe-lattice-proxies" for entry in fhe_entries)
+    assert {entry.scenario.get("metadata", {}).get("source_role") for entry in fhe_entries} == {
+        "fhe_lattice_proxy"
+    }
+    assert any(entry.scenario.get("metadata", {}).get("workflow_name") == "ntt_intt_pressure" for entry in fhe_entries)
+    assert any("--reuse-packed-b" in entry.command for entry in fhe_entries)
+    assert any("--residue-chain-length" in entry.command and "4" in entry.command for entry in fhe_entries)
+
     with tempfile.TemporaryDirectory() as tmp:
         manifest_paths = benchmark_sweep.write_scenario_manifest(scenario_entries, scenario_args, Path(tmp))
         assert manifest_paths is not None

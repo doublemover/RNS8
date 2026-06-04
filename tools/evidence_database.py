@@ -24,6 +24,14 @@ CSV_FIELDS = [
     "capture_path",
     "scenario_family",
     "scenario_name",
+    "scenario_source_role",
+    "scenario_evidence_role",
+    "scenario_domain_family",
+    "scenario_algebra_family",
+    "scenario_workflow_name",
+    "scenario_phase_label",
+    "scenario_reuse_profile",
+    "scenario_metadata_json",
     "semantics",
     "backend",
     "selected_kernel",
@@ -468,12 +476,22 @@ def build_row(
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
     work = estimate_work(capture)
     bottleneck = classify_bottleneck(capture)
+    scenario_extra = scenario.get("metadata") if isinstance(scenario.get("metadata"), dict) else {}
     row = {
         "capture_path": capture.get("_path"),
         "scenario_family": scenario.get("family", "unlabeled"),
         "scenario_name": scenario.get("name"),
         "scenario_evidence_scope": scenario.get("evidence_scope"),
         "scenario_rationale": scenario.get("rationale"),
+        "scenario_source_role": scenario_extra.get("source_role"),
+        "scenario_evidence_role": scenario_extra.get("evidence_role"),
+        "scenario_domain_family": scenario_extra.get("domain_family"),
+        "scenario_algebra_family": scenario_extra.get("algebra_family"),
+        "scenario_workflow_name": scenario_extra.get("workflow_name"),
+        "scenario_phase_label": scenario_extra.get("phase_label"),
+        "scenario_reuse_profile": scenario_extra.get("reuse_profile"),
+        "scenario_metadata": scenario_extra,
+        "scenario_metadata_json": json.dumps(scenario_extra, sort_keys=True) if scenario_extra else None,
         "semantics": capture.get("semantics"),
         "backend": capture.get("backend_selected"),
         "backend_requested": capture.get("backend_requested"),
@@ -637,6 +655,24 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines.extend(["", "## Scenario Families", "", "| family | captures |", "|---|---:|"])
     for name, count in database["summary"]["scenario_counts"].items():
         lines.append(f"| {name} | {count} |")
+    source_counts = Counter(
+        str(row.get("scenario_source_role"))
+        for row in database["rows"]
+        if row.get("scenario_source_role")
+    )
+    workflow_counts = Counter(
+        str(row.get("scenario_workflow_name"))
+        for row in database["rows"]
+        if row.get("scenario_workflow_name")
+    )
+    if source_counts:
+        lines.extend(["", "## Scenario Metadata", "", "| source_role | captures |", "|---|---:|"])
+        for name, count in sorted(source_counts.items()):
+            lines.append(f"| {name} | {count} |")
+    if workflow_counts:
+        lines.extend(["", "| workflow_name | captures |", "|---|---:|"])
+        for name, count in sorted(workflow_counts.items()):
+            lines.append(f"| {name} | {count} |")
     isa_rows = [row for row in database["rows"] if row.get("isa_report_count")]
     if isa_rows:
         lines.extend(

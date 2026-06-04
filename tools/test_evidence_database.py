@@ -34,6 +34,16 @@ def main() -> int:
                             "evidence_scope": "same B operand reused across measured repeats",
                             "rationale": "test scenario join",
                             "pack_mode": "prepacked_reuse_b",
+                            "metadata": {
+                                "source_role": "fhe_lattice_proxy",
+                                "evidence_role": "dense_gemm_adjacent_proxy",
+                                "domain_family": "integer_rns",
+                                "algebra_family": "fhe_lattice",
+                                "workflow_name": "key_switch_digit_aggregation",
+                                "phase_label": "external_product_like_dense_proxy",
+                                "reuse_profile": "large_read_only_key_material",
+                                "ring_dimension": 4096,
+                            },
                         }
                     ],
                 }
@@ -109,6 +119,15 @@ def main() -> int:
         hip_row = next(row for row in database["rows"] if row["capture_path"] == str(hip_capture))
         assert hip_row["scenario_family"] == "repeated-b"
         assert hip_row["output_domain"] == "host_export"
+        assert hip_row["scenario_source_role"] == "fhe_lattice_proxy"
+        assert hip_row["scenario_evidence_role"] == "dense_gemm_adjacent_proxy"
+        assert hip_row["scenario_domain_family"] == "integer_rns"
+        assert hip_row["scenario_algebra_family"] == "fhe_lattice"
+        assert hip_row["scenario_workflow_name"] == "key_switch_digit_aggregation"
+        assert hip_row["scenario_phase_label"] == "external_product_like_dense_proxy"
+        assert hip_row["scenario_reuse_profile"] == "large_read_only_key_material"
+        assert hip_row["scenario_metadata"]["ring_dimension"] == 4096
+        assert "key_switch_digit_aggregation" in hip_row["scenario_metadata_json"]
         assert hip_row["promotion_blockers"] == ["missing_required_baseline:cpu-reference"]
         assert hip_row["estimated_ops"] > 0
         assert hip_row["estimated_bytes"] > 0
@@ -138,8 +157,11 @@ def main() -> int:
         csv_text = Path(outputs["evidence_rows_csv"]).read_text(encoding="utf-8")
         assert "scenario_family" in csv_text
         assert "isa_wmma_count" in csv_text
+        assert "scenario_source_role" in csv_text
+        assert "key_switch_digit_aggregation" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
         assert "RNS8 Evidence Database Summary" in markdown
+        assert "Scenario Metadata" in markdown
         assert "ISA Resources" in markdown
 
     print("evidence database self-test: PASS")

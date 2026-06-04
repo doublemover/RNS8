@@ -1609,13 +1609,14 @@ Likely first slices:
   capture schema first. Implemented as `tools/benchmark_sweep.py --scenario`
   with named scenario families for `adaptive-bands`, `repeated-b`,
   `exact-wide-export`, `finite-distributions`, `rns-chain`, `small-oneshot`,
-  `skinny-gemv`, `wrap64-carry`, `large-exploratory`, and `all`. Scenario mode
-  reuses the normal schema v4 captures and release-review logic, but writes a
-  separate `scenario_manifest.json` plus `scenario_manifest.md` under the sweep
-  output root. The manifest records scenario family, item name, shape,
-  backend, pack/reuse mode, output domain, evidence scope, rationale, command,
-  and capture path so workload labels do not mutate dense-GEMM capture schema or
-  autotune contract keys.
+  `many-small`, `skinny-gemv`, `computational-algebra-proxies`,
+  `fhe-lattice-proxies`, `wrap64-carry`, `large-exploratory`, and `all`.
+  Scenario mode reuses the normal schema v4 captures and release-review logic,
+  but writes a separate `scenario_manifest.json` plus `scenario_manifest.md`
+  under the sweep output root. The manifest records scenario family, item name,
+  shape, backend, pack/reuse mode, output domain, evidence scope, rationale,
+  command, capture path, and optional proxy metadata so workload labels do not
+  mutate dense-GEMM capture schema or autotune contract keys.
 - Add scenario tables to review Markdown. Implemented as the separate scenario
   manifest Markdown table beside `review_report.md`; raw review groups stay
   contract-keyed so scenario labels cannot accidentally make incompatible
@@ -1629,9 +1630,14 @@ Likely first slices:
 - Include FHE/lattice proxy metadata: ring dimension or polynomial degree,
   coefficient-modulus count, decomposition digit count, transform/current
   domain, key-material reuse profile, evidence scope, and output-domain
-  requirement.
+  requirement. Implemented in `tools/benchmark_sweep.py` as
+  `fhe-lattice-proxies`; the metadata is carried into
+  `tools/evidence_database.py` rows and summaries.
 - Add a computational-algebra scenario table before promoting any dense-GEMM
-  claim into rank/determinant/solve/polynomial wording.
+  claim into rank/determinant/solve/polynomial wording. Implemented in
+  `tools/benchmark_sweep.py` as `computational-algebra-proxies` with dense
+  finite-field BLAS, rank-k update, F4 dense phase, FGLM multiplication-matrix,
+  and CRT/rational-reconstruction export labels.
 
 Relation to existing queue:
 
