@@ -27,7 +27,7 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     target_id = f"gfx1100{key_suffix}"
     finite = f";finite_modulus={finite_modulus}" if finite_modulus else ""
     key = (
-        f"backend=ck;target={target_id};version=repo-local release/rocm-rel-7.1;semantics={semantics};"
+        f"backend=ck;target_id={target_id};version=repo-local release/rocm-rel-7.1;semantics={semantics};"
         f"m=512;n=512;k=512{finite};layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
         f"kernel={selected_kernel};epilogue={epilogue}"
     )
@@ -61,7 +61,7 @@ def vector_entry(key_suffix: str = "") -> dict:
     selected_kernel = "hip_vector_alu_u64_exact_192b_v1"
     epilogue = "direct_int64_export"
     key = (
-        f"backend=hip-vector-alu-int64;target={target_id};version=repo-local release/rocm-rel-7.1;"
+        f"backend=hip-vector-alu-int64;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
         "semantics=bounded_u64;m=512;n=512;k=512;layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
         f"kernel={selected_kernel};epilogue={epilogue}"
     )
@@ -181,11 +181,22 @@ def main() -> int:
         else:
             raise AssertionError("invalid finite cache entry was accepted")
 
+        legacy_target_key = entry()
+        legacy_target_key["key"] = legacy_target_key["key"].replace(";target_id=gfx1100;", ";target=gfx1100;")
+        legacy_target_source = root / "legacy-target-key.json"
+        write_cache(legacy_target_source, [legacy_target_key])
+        try:
+            install_autotune_cache.install_cache([legacy_target_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "key_target_id_mismatch" in str(exc)
+        else:
+            raise AssertionError("legacy target-only cache key was accepted")
+
         wrap64_candidate = entry("-wrap64-candidate")
         wrap64_candidate.update(
             {
                 "key": (
-                    "backend=rocwmma;target=gfx1100;version=repo-local release/rocm-rel-7.1;"
+                    "backend=rocwmma;target_id=gfx1100;version=repo-local release/rocm-rel-7.1;"
                     "semantics=wrap_u64_mod_2_64;m=64;n=64;k=64;layout=row_major;"
                     "k_block_size=64;tile_m=16;tile_n=16;"
                     "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0;epilogue=low64_wrap_export"
@@ -214,7 +225,7 @@ def main() -> int:
         direct_baseline.update(
             {
                 "key": (
-                    "backend=hip-direct;target=gfx1100;version=HIP runtime;semantics=bounded_i64;"
+                    "backend=hip-direct;target_id=gfx1100;version=HIP runtime;semantics=bounded_i64;"
                     "m=512;n=512;k=512;layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
                     "kernel=direct_hip_tiled_rns_gemm_v1;epilogue=fused_centered_residue_then_crt_export"
                 ),

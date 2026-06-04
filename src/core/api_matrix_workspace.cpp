@@ -176,6 +176,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       plan.backend_epilogue_mode != epilogue_mode_for_plan(plan) ||
       plan.backend_workspace_mode != workspace_mode_for_plan(plan) ||
       plan.backend_isa_evidence != isa_evidence_for_plan(plan) ||
+      plan.backend_target_id.empty() ||
+      (!hip_device_backend(plan.backend) && plan.backend_target_id != "cpu") ||
       plan.backend_workspace_required_bytes != workspace_required_bytes_for_plan(plan) ||
       plan.backend_accumulator_k_block_size != accumulator_k_block_size_for_plan(plan) ||
       plan.backend_accumulator_k_block_cap != accumulator_k_block_cap_for_plan(plan) ||
@@ -725,6 +727,7 @@ rns8_status validate_plan_context_workspace(
       workspace.backend_epilogue_mode != plan.backend_epilogue_mode ||
       workspace.backend_workspace_mode != plan.backend_workspace_mode ||
       workspace.backend_isa_evidence != plan.backend_isa_evidence ||
+      workspace.backend_target_id != plan.backend_target_id ||
       workspace.backend_autotune_key != plan.backend_autotune_key ||
       workspace.backend_performance_validated != plan.backend_performance_validated) {
     return RNS8_INVALID_ARGUMENT;
@@ -1138,6 +1141,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->backend_epilogue_mode = plan->backend_epilogue_mode;
     workspace->backend_workspace_mode = plan->backend_workspace_mode;
     workspace->backend_isa_evidence = plan->backend_isa_evidence;
+    workspace->backend_target_id = plan->backend_target_id;
     workspace->backend_autotune_key = plan->backend_autotune_key;
     workspace->backend_performance_validated = plan->backend_performance_validated;
     workspace->backend = plan->backend;

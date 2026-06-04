@@ -496,9 +496,15 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
     return "unsupported_autotune_epilogue_for_contract";
   }
 
-  if (const std::string target = first_key_field(fields, "target_id", "target"); !target.empty() &&
-      target != entry.target_id) {
+  if (std::string failure = required_key_field(fields, "target_id"); !failure.empty()) {
+    return failure;
+  }
+  if (const std::string target = key_field(fields, "target_id"); target != entry.target_id) {
     return "key_target_id_mismatch";
+  }
+  if (const std::string legacy_target = key_field(fields, "target"); !legacy_target.empty() &&
+      legacy_target != entry.target_id) {
+    return "key_target_mismatch";
   }
   if (const std::string version = first_key_field(fields, "hip_sdk_or_library_version", "version");
       !version.empty() && version != entry.hip_sdk_or_library_version) {

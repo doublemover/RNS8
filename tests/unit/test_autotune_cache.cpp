@@ -77,7 +77,7 @@ std::string reviewed_key(
                                                                         : "selected_rns_modulus_ladder";
   const int64_t k_block_cap = vector_backend ? 0 : backend_text == "ck" ? 32768 : 65536;
   return std::string("backend=") + backend +
-         ";target=" + target +
+         ";target_id=" + target +
          ";version=" + version +
          ";semantics=" + semantics +
          ";m=" + std::to_string(m) +
@@ -463,6 +463,18 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
     item.target_id = "gfx1101";
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_target_id_mismatch"});
+  }
+  {
+    auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));
+    item.key.replace(
+        item.key.find(";target_id=gfx1100;"),
+        std::string(";target_id=gfx1100;").size(),
+        ";target=gfx1100;");
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:missing_key_target_id"});
+  }
+  {
+    auto item = entry(reviewed_key("ck", "gfx1100", "7.1") + ";target=gfx1101");
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:key_target_mismatch"});
   }
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1"));

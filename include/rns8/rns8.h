@@ -203,7 +203,7 @@ typedef struct rns8_plan_backend_info {
   char epilogue_mode[64];
   char workspace_mode[64];
   char isa_evidence[128];
-  char autotune_key[512];
+  char autotune_key[1024];
   uint64_t accumulator_k_block_size;
   uint64_t accumulator_k_block_cap;
   uint64_t accumulator_modulus;

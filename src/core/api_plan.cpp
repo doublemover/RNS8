@@ -387,6 +387,27 @@ bool plan_output_device_current(const rns8_plan& plan) {
   return hip_device_backend(plan.backend) ? true : false;
 }
 
+bool concrete_device_target_id(const std::string& target) {
+  return !target.empty() && target != "none" && target != "cpu" && target != "unknown";
+}
+
+std::string target_id_for_plan_context(const rns8_plan& plan, const rns8_context* ctx) {
+  if (!hip_device_backend(plan.backend)) {
+    return "cpu";
+  }
+  if (ctx && concrete_device_target_id(ctx->device_info.gcn_arch)) {
+    return ctx->device_info.gcn_arch;
+  }
+  return "unknown";
+}
+
+std::string target_id_for_plan_key(const rns8_plan& plan) {
+  if (!plan.backend_target_id.empty()) {
+    return plan.backend_target_id;
+  }
+  return hip_device_backend(plan.backend) ? "unknown" : "cpu";
+}
+
 uint32_t next_op_flags_for_plan(const rns8_plan& plan) {
   uint32_t flags = RNS8_NEXT_OP_FINAL_EXPORT;
   const rns8_output_domain domain = output_domain_for_plan(plan);
@@ -817,6 +838,8 @@ bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& byte
 std::string build_autotune_key(const rns8_plan& plan) {
   std::string key = "backend=";
   key += backend_name(plan.backend);
+  key += ";target_id=";
+  key += target_id_for_plan_key(plan);
   key += ";semantics=";
   key += semantics_name_for_key(plan.desc.semantics);
   key += ";m=" + std::to_string(plan.desc.m);
@@ -883,11 +906,14 @@ rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity_for_plan(
     const rns8_context& ctx,
     const rns8_plan& plan) {
   rns8::detail::AutotuneRuntimeIdentity runtime{};
-  const std::string target = ctx.device_info.gcn_arch;
-  if (!target.empty() && target != "none") {
-    runtime.target_id = target;
-  } else if (!ctx.device_info.hip_available) {
+  if (!plan.backend_target_id.empty()) {
+    runtime.target_id = plan.backend_target_id;
+  } else if (hip_device_backend(plan.backend) && concrete_device_target_id(ctx.device_info.gcn_arch)) {
+    runtime.target_id = ctx.device_info.gcn_arch;
+  } else if (!hip_device_backend(plan.backend) || !ctx.device_info.hip_available) {
     runtime.target_id = "cpu";
+  } else {
+    runtime.target_id = "unknown";
   }
   runtime.hip_sdk_or_library_version = plan.backend_library_version;
   return runtime;
@@ -911,6 +937,7 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   plan.backend_epilogue_mode = epilogue_mode_for_plan(plan);
   plan.backend_workspace_mode = workspace_mode_for_plan(plan);
   plan.backend_isa_evidence = isa_evidence_for_plan(plan);
+  plan.backend_target_id = target_id_for_plan_context(plan, ctx);
   plan.backend_workspace_required_bytes = workspace_required_bytes_for_plan(plan);
   plan.backend_performance_validated = capability.performance_validated;
   plan.backend_accumulator_k_block_size = accumulator_k_block_size_for_plan(plan);
@@ -1127,6 +1154,7 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   hash = workspace_fingerprint_mix_string(hash, plan.backend_epilogue_mode);
   hash = workspace_fingerprint_mix_string(hash, plan.backend_workspace_mode);
   hash = workspace_fingerprint_mix_string(hash, plan.backend_isa_evidence);
+  hash = workspace_fingerprint_mix_string(hash, plan.backend_target_id);
   hash = workspace_fingerprint_mix_string(hash, plan.backend_autotune_key);
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.tile_bounds.size()));
   for (const uint64_t bound : plan.tile_bounds) {

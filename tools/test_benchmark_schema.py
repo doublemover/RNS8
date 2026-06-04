@@ -129,6 +129,7 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
         for part in key.split(";")
         if part.split("=", 1)[0]
         not in {
+            "target_id",
             "accumulator_type",
             "accumulator_signedness",
             "accumulator_modulus_policy",
@@ -136,6 +137,13 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
             "k_block_cap",
         }
     ]
+    target = capture.get("device", {}).get("gcn_arch", "cpu")
+    if capture.get("backend_selected") not in {"hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"}:
+        target = "cpu"
+    if target in {"", "none", "unknown"}:
+        target = "cpu"
+    insert_target_at = 1 if parts and parts[0].startswith("backend=") else 0
+    parts = parts[:insert_target_at] + [f"target_id={target}"] + parts[insert_target_at:]
     insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
     additions = [
         f"accumulator_type={safety['accumulator_type']}",
@@ -809,7 +817,7 @@ def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
             "workspace_required_bytes": 640,
             "isa_evidence": "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide",
             "autotune_key": (
-                "backend=rocwmma-wrap64-candidate;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
+                "backend=rocwmma-wrap64-candidate;target_id=gfx1100;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
                 "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"
                 "accumulator_type=int32_then_int64_diagonal;accumulator_signedness=unsigned_u8x_unsigned_u8;"
                 "accumulator_modulus_policy=mod_2_64_wraparound_byte_limb;k_block_size=8;k_block_cap=32768;"
@@ -986,7 +994,7 @@ def main() -> int:
     v4_cpu_adaptive_i64["backend_metadata"]["workspace_required_bytes"] = 0
     v4_cpu_adaptive_i64["backend_metadata"]["isa_evidence"] = "not_applicable_cpu"
     v4_cpu_adaptive_i64["backend_metadata"]["autotune_key"] = (
-        "backend=cpu-reference;semantics=bounded_i64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;"
+        "backend=cpu-reference;target_id=cpu;semantics=bounded_i64;m=65;n=65;k=64;prefix=9;tile_m=64;tile_n=64;"
         "groups=4;adaptive_prefix=1;adaptive_skip=1;accumulator_type=int32;"
         "accumulator_signedness=signed_i8x_signed_i8;"
         "accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;"
@@ -1401,6 +1409,18 @@ def main() -> int:
     bad_hip_target = copy.deepcopy(v4_ck_i64)
     bad_hip_target["device"]["gcn_arch"] = "unknown"
     expect_invalid(bad_hip_target, "HIP backend captures must include non-placeholder device.gcn_arch")
+
+    missing_target_key = copy.deepcopy(v4_ck_i64)
+    missing_target_key["backend_metadata"]["autotune_key"] = missing_target_key["backend_metadata"][
+        "autotune_key"
+    ].replace(";target_id=gfx1100", "")
+    expect_invalid(missing_target_key, "backend_metadata.autotune_key must include target_id=gfx1100")
+
+    wrong_target_key = copy.deepcopy(v4_ck_i64)
+    wrong_target_key["backend_metadata"]["autotune_key"] = wrong_target_key["backend_metadata"][
+        "autotune_key"
+    ].replace(";target_id=gfx1100;", ";target_id=gfx1101;")
+    expect_invalid(wrong_target_key, "backend_metadata.autotune_key must include target_id=gfx1100")
 
     bad_hip_available = copy.deepcopy(v4_rocwmma_i64)
     bad_hip_available["device"]["hip_available"] = 0

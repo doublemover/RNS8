@@ -115,6 +115,7 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
         for part in key.split(";")
         if part.split("=", 1)[0]
         not in {
+            "target_id",
             "accumulator_type",
             "accumulator_signedness",
             "accumulator_modulus_policy",
@@ -122,6 +123,13 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
             "k_block_cap",
         }
     ]
+    target = capture.get("device", {}).get("gcn_arch", "cpu")
+    if capture.get("backend_selected") not in {"hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"}:
+        target = "cpu"
+    if target in {"", "none", "unknown"}:
+        target = "cpu"
+    insert_target_at = 1 if parts and parts[0].startswith("backend=") else 0
+    parts = parts[:insert_target_at] + [f"target_id={target}"] + parts[insert_target_at:]
     insert_at = next((index for index, part in enumerate(parts) if part.startswith("kernel=")), len(parts))
     additions = [
         f"accumulator_type={safety['accumulator_type']}",

@@ -172,6 +172,7 @@ struct BenchmarkResult {
   uint64_t zero_output_tile_count = 0;
   uint64_t zero_output_selected_residue_plane_count = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
+  std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};
   bool backend_info_available = false;
   TimingSamples samples{};
@@ -682,6 +683,66 @@ const char* selected_backend_name(const Args& args, const rns8_device_info& info
     return backend_name(result->backend_info.backend);
   }
   return backend_name(info.backend);
+}
+
+bool benchmark_gpu_target_backend(rns8_backend_kind backend) {
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 ||
+         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
+}
+
+bool concrete_benchmark_target_id(const char* target) {
+  if (!target || target[0] == '\0') {
+    return false;
+  }
+  const std::string value(target);
+  return value != "none" && value != "cpu" && value != "unknown";
+}
+
+std::string benchmark_target_id_for_context(rns8_context* ctx, rns8_backend_kind backend) {
+  if (!benchmark_gpu_target_backend(backend)) {
+    return "cpu";
+  }
+  rns8_device_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  if (rns8_get_device_info(ctx, &info) == RNS8_SUCCESS && concrete_benchmark_target_id(info.gcn_arch)) {
+    return info.gcn_arch;
+  }
+  return "unknown";
+}
+
+std::string autotune_key_field(const char* key, const char* field) {
+  if (!key || !field || field[0] == '\0') {
+    return {};
+  }
+  const std::string text(key);
+  const std::string prefix = std::string(field) + "=";
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const std::size_t end = text.find(';', start);
+    const std::string part = text.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if (part.rfind(prefix, 0) == 0) {
+      return part.substr(prefix.size());
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return {};
+}
+
+void update_result_target_id_from_key(BenchmarkResult& result) {
+  const std::string target = autotune_key_field(result.backend_info.autotune_key, "target_id");
+  if (!target.empty()) {
+    result.target_id = target;
+  } else if (result.backend_info_available && !benchmark_gpu_target_backend(result.backend_info.backend)) {
+    result.target_id = "cpu";
+  }
+}
+
+std::string benchmark_key_target_id(const BenchmarkResult& result) {
+  return result.target_id.empty() ? "unknown" : result.target_id;
 }
 
 bool bounded_native_a_reuse_b_requested(const Args& args) {
@@ -1925,6 +1986,7 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
     fail_status("rns8_get_plan_backend_info", status);
   }
   result.backend_info_available = true;
+  update_result_target_id_from_key(result);
 }
 
 void append_accumulator_key_fields(std::ostringstream& out, const rns8_plan_backend_info& info) {
@@ -1999,6 +2061,7 @@ std::string bounded_oneshot_autotune_key(
   std::ostringstream out;
   const uint32_t selected_prefix = selected_execution_prefix(args, result);
   out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -2034,6 +2097,7 @@ std::string finite_oneshot_autotune_key(
     const char* epilogue) {
   std::ostringstream out;
   out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -2118,6 +2182,7 @@ std::string bounded_native_a_reuse_b_autotune_key(
     uint64_t bound) {
   std::ostringstream out;
   out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -2146,6 +2211,7 @@ std::string finite_native_a_reuse_b_autotune_key(
     const char* epilogue) {
   std::ostringstream out;
   out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -2247,6 +2313,7 @@ std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& res
   std::ostringstream out;
   const uint32_t selected_prefix = selected_execution_prefix(args, result);
   out << "backend=hip-vector-alu-int64"
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -2334,6 +2401,7 @@ void fill_wrap64_rocwmma_candidate_schedule(const Args& args, BenchmarkResult& r
 std::string wrap64_rocwmma_candidate_autotune_key(const Args& args, const BenchmarkResult& result) {
   std::ostringstream out;
   out << "backend=" << kWrap64RocwmmaCandidateRequestedBackend
+      << ";target_id=" << benchmark_key_target_id(result)
       << ";semantics=" << semantics_name(args.semantics)
       << ";m=" << args.m
       << ";n=" << args.n
@@ -3308,6 +3376,7 @@ rns8_status run_timed_status_operation(const char* label, Fn&& fn) {
 }
 
 void capture_vector_alu_schedule(rns8_context* ctx, const Args& args, uint64_t bound, BenchmarkResult& result) {
+  result.target_id = benchmark_target_id_for_context(ctx, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
   auto desc = gemm_desc(args, bound, &result.tile_bounds);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
@@ -4804,6 +4873,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   for (auto& value : B) value = rng();
 
   BenchmarkResult result{};
+  result.target_id = benchmark_target_id_for_context(ctx, RNS8_BACKEND_ROCWMMA);
   const auto plan_start = std::chrono::steady_clock::now();
   fill_wrap64_rocwmma_candidate_schedule(args, result);
   fill_wrap64_rocwmma_candidate_backend_info(args, result, wrap64_rocwmma_candidate_workspace_bytes(args));

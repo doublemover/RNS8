@@ -602,6 +602,17 @@ class _Validator:
         autotune_key = metadata.get("autotune_key")
         if isinstance(autotune_key, str):
             normalized_key = f";{autotune_key};"
+            selected_backend = self.data.get("backend_selected")
+            expected_target_id: str | None = None
+            if selected_backend in HIP_RESIDENT_BACKENDS:
+                device = self.data.get("device")
+                target_id = device.get("gcn_arch") if isinstance(device, dict) else None
+                if _has_concrete_gpu_target_id(target_id):
+                    expected_target_id = str(target_id)
+            elif selected_backend in BACKEND_SELECTED_VALUES:
+                expected_target_id = "cpu"
+            if expected_target_id is not None and f";target_id={expected_target_id};" not in normalized_key:
+                self._error(f"backend_metadata.autotune_key must include target_id={expected_target_id}")
             required_key_fields = {
                 "accumulator_type": safety.get("accumulator_type"),
                 "accumulator_signedness": safety.get("signedness"),

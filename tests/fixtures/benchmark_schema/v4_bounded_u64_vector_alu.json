@@ -20,7 +20,7 @@
     "workspace_mode": "benchmark_owned_device_buffers",
     "workspace_required_bytes": 6148,
     "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
-    "autotune_key": "backend=hip-vector-alu-int64;semantics=bounded_u64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=software_192bit_limb;accumulator_signedness=unsigned_u64x_unsigned_u64;accumulator_modulus_policy=native_exact_integer_output;k_block_size=16;k_block_cap=0;kernel=hip_vector_alu_u64_exact_192b_v1;epilogue=direct_int64_export",
+    "autotune_key": "backend=hip-vector-alu-int64;target_id=gfx1100;semantics=bounded_u64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=software_192bit_limb;accumulator_signedness=unsigned_u64x_unsigned_u64;accumulator_modulus_policy=native_exact_integer_output;k_block_size=16;k_block_cap=0;kernel=hip_vector_alu_u64_exact_192b_v1;epilogue=direct_int64_export",
     "accumulator_safety": {
       "input_domain": "native_u64_values",
       "signedness": "unsigned_u64x_unsigned_u64",

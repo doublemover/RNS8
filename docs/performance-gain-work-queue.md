@@ -184,6 +184,12 @@ Remaining high-value imported work goes at the front of the queue:
    variants, launch bounds, wave size, LDS layout, and occupancy assumptions
    should be target-id keyed in both benchmark output and autotune cache keys.
 
+   Current status: plan autotune keys, benchmark-owned synthetic keys, schema
+   fixtures, and reviewed-cache installation now require explicit
+   `target_id=...` key material. Remaining work is to add real target-specific
+   kernel namespaces and promotion evidence for non-`gfx1100` families rather
+   than inheriting local Windows timings.
+
    Code references: backend source roots `src/backend_hip_direct/`,
    `src/backend_ck/`, `src/backend_rocwmma/`, configured target metadata in
    `CMakeLists.txt`, capture validation in `tools/benchmark_schema.py`, and

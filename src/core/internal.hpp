@@ -44,6 +44,7 @@ struct rns8_plan {
   std::string backend_epilogue_mode;
   std::string backend_workspace_mode;
   std::string backend_isa_evidence;
+  std::string backend_target_id;
   std::string backend_autotune_key;
   uint32_t backend_performance_validated = 0;
   uint64_t backend_accumulator_k_block_size = 0;
@@ -137,6 +138,7 @@ struct rns8_workspace {
   std::string backend_epilogue_mode;
   std::string backend_workspace_mode;
   std::string backend_isa_evidence;
+  std::string backend_target_id;
   std::string backend_autotune_key;
   uint32_t backend_performance_validated = 0;
   int hip_device_id = -1;
