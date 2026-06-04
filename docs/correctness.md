@@ -200,7 +200,11 @@ Implemented correctness coverage:
   for uniform all-zero schedules. Direct HIP also rejects same-shape stale
   per-tile workspace schedules and stale per-tile matrix tile metadata without
   changing warmed resident allocation counters or the last successful output
-  source version.
+  source version. Explicit zero A-row/B-column proof masks are covered by CPU
+  plan-contract tests and a real Direct-HIP scheduled GEMM/export smoke against
+  CPU; the plan copies masks, reports proof counts, uploads workspace/export
+  mask buffers, marks intersecting tiles with
+  `RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT`, and rejects malformed descriptors.
 - Benchmark schema v4 captures direct-HIP adaptive per-tile bounded runs with
   exact seeded-input tile-bound prepass metadata, selected tiled kernel name,
   adaptive execution flags, and aggregate HIP event timing scope. This is
@@ -210,7 +214,12 @@ Implemented correctness coverage:
   `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3` kernel identity and
   require the `direct_hip_zero_output_tile_memset` GPU event when zero-output
   tiles are present; stale v2 adaptive captures are rejected for that schedule
-  contract.
+  contract. Captures with zero row/column product proofs use
+  `direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1` or the
+  combined
+  `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1`, and
+  schema v4 requires matching proof counts, planner counts, schedule flags, and
+  autotune-key fields.
 - Direct-HIP uniform all-zero scheduled bounded GEMM accepts allocated A/B
   matrices whose resident residues are not current, because the trusted exact
   tile-bound schedule proves the backend will not read either input. Benchmark

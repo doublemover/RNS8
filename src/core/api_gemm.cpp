@@ -321,6 +321,8 @@ rns8_status rns8_gemm_rns(
             plan->tile_schedule.data(),
             workspace->hip_tile_schedule,
             workspace->hip_tile_schedule_active_entries,
+            workspace->hip_zero_a_rows,
+            workspace->hip_zero_b_cols,
             workspace->hip_tile_schedule_active_offsets,
             workspace->hip_tile_schedule_active_counts,
             workspace->hip_tile_schedule_active_prefix_count,

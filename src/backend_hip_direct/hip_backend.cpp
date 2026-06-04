@@ -256,6 +256,8 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     const int8_t* d_b,
     int8_t* d_c,
     const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_row_blocks,
     int max_tile_col_blocks,
@@ -299,6 +301,8 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     int64_t* d_dst,
     const rns8_plan_tile_schedule_entry* d_schedule,
     const uint64_t* d_bounds,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -319,6 +323,8 @@ extern "C" int rns8_hip_direct_export_u64_scheduled_device(
     uint64_t* d_dst,
     const rns8_plan_tile_schedule_entry* d_schedule,
     const uint64_t* d_bounds,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -366,7 +372,8 @@ std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
 std::atomic<uint64_t> g_hip_direct_free_calls{0};
 std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 
-constexpr uint32_t kKnownTileScheduleFlags = RNS8_TILE_SCHEDULE_ZERO_OUTPUT;
+constexpr uint32_t kKnownTileScheduleFlags =
+    RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 void destroy_pending_event_pair(hipEvent_t start, hipEvent_t stop) {
@@ -848,6 +855,18 @@ bool schedule_has_zero_output_tiles(const rns8_plan_tile_schedule_entry* entries
   return false;
 }
 
+bool schedule_has_zero_row_col_products(const rns8_plan_tile_schedule_entry* entries, uint64_t entry_count) {
+  if (!entries) {
+    return false;
+  }
+  for (uint64_t index = 0; index < entry_count; ++index) {
+    if ((entries[static_cast<std::size_t>(index)].flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool schedule_all_zero_output_tiles_uniform_prefix(
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count,
@@ -890,6 +909,8 @@ struct hip_rns_scheduled_modulus_launch {
   const int8_t* b = nullptr;
   int8_t* c = nullptr;
   const rns8_plan_tile_schedule_entry* device_entries = nullptr;
+  const uint8_t* zero_a_rows = nullptr;
+  const uint8_t* zero_b_cols = nullptr;
   uint64_t entry_count = 0;
   int max_tile_row_blocks = 0;
   int max_tile_col_blocks = 0;
@@ -968,6 +989,8 @@ hipError_t launch_rns_scheduled_modulus_gemm(const hip_rns_scheduled_modulus_lau
       launch.b,
       launch.c,
       launch.device_entries,
+      launch.zero_a_rows,
+      launch.zero_b_cols,
       static_cast<int>(launch.entry_count),
       launch.max_tile_row_blocks,
       launch.max_tile_col_blocks,
@@ -3081,6 +3104,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     const rns8_plan_tile_schedule_entry* host_entries,
     const void* device_entries,
     const void* active_device_entries,
+    const void* zero_a_rows,
+    const void* zero_b_cols,
     const uint64_t* active_offsets,
     const uint64_t* active_counts,
     uint32_t active_prefix_count,
@@ -3118,6 +3143,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
   const auto* active_schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(active_device_entries);
+  const auto* zero_a_rows_base = static_cast<const uint8_t*>(zero_a_rows);
+  const auto* zero_b_cols_base = static_cast<const uint8_t*>(zero_b_cols);
   const uint32_t max_selected_prefix = schedule.selected_prefix_groups.back();
   if (active_prefix_count != max_selected_prefix) {
     return RNS8_INVALID_ARGUMENT;
@@ -3143,6 +3170,10 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     return RNS8_INVALID_ARGUMENT;
   }
   const bool zero_output_tiles = schedule_has_zero_output_tiles(host_entries, entry_count);
+  const bool zero_row_col_products = schedule_has_zero_row_col_products(host_entries, entry_count);
+  if (zero_row_col_products && (!zero_a_rows || !zero_b_cols)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   uint32_t uniform_zero_selected_prefix = 0;
   const bool uniform_all_zero_output_tiles =
       schedule_all_zero_output_tiles_uniform_prefix(host_entries, entry_count, uniform_zero_selected_prefix);
@@ -3206,6 +3237,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
           b_base + b_offset,
           c_base + c_offset,
           active_schedule_base + static_cast<std::size_t>(active_offsets[p]),
+          zero_a_rows_base,
+          zero_b_cols_base,
           active_count,
           max_tile_row_blocks,
           max_tile_col_blocks,
@@ -3237,6 +3270,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   (void)host_entries;
   (void)device_entries;
   (void)active_device_entries;
+  (void)zero_a_rows;
+  (void)zero_b_cols;
   (void)active_offsets;
   (void)active_counts;
   (void)active_prefix_count;
@@ -3341,6 +3376,8 @@ rns8_status hip_direct_export_i64_tiled_device(
     int64_t cols,
     const void* device_entries,
     const void* device_bounds,
+    const void* zero_a_rows,
+    const void* zero_b_cols,
     uint64_t entry_count,
     uint64_t max_tile_elements,
     bool all_zero_output_tiles,
@@ -3402,6 +3439,8 @@ rns8_status hip_direct_export_i64_tiled_device(
         static_cast<int64_t*>(*export_buffer),
         static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
         static_cast<const uint64_t*>(device_bounds),
+        static_cast<const uint8_t*>(zero_a_rows),
+        static_cast<const uint8_t*>(zero_b_cols),
         static_cast<int>(entry_count),
         static_cast<int>(max_tile_elements),
         static_cast<int>(rows),
@@ -3440,6 +3479,8 @@ rns8_status hip_direct_export_i64_tiled_device(
   (void)cols;
   (void)device_entries;
   (void)device_bounds;
+  (void)zero_a_rows;
+  (void)zero_b_cols;
   (void)entry_count;
   (void)max_tile_elements;
   (void)all_zero_output_tiles;
@@ -3545,6 +3586,8 @@ rns8_status hip_direct_export_u64_tiled_device(
     int64_t cols,
     const void* device_entries,
     const void* device_bounds,
+    const void* zero_a_rows,
+    const void* zero_b_cols,
     uint64_t entry_count,
     uint64_t max_tile_elements,
     bool all_zero_output_tiles,
@@ -3606,6 +3649,8 @@ rns8_status hip_direct_export_u64_tiled_device(
         static_cast<uint64_t*>(*export_buffer),
         static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
         static_cast<const uint64_t*>(device_bounds),
+        static_cast<const uint8_t*>(zero_a_rows),
+        static_cast<const uint8_t*>(zero_b_cols),
         static_cast<int>(entry_count),
         static_cast<int>(max_tile_elements),
         static_cast<int>(rows),
@@ -3644,6 +3689,8 @@ rns8_status hip_direct_export_u64_tiled_device(
   (void)cols;
   (void)device_entries;
   (void)device_bounds;
+  (void)zero_a_rows;
+  (void)zero_b_cols;
   (void)entry_count;
   (void)max_tile_elements;
   (void)all_zero_output_tiles;

@@ -66,7 +66,13 @@
     "adaptive_prefix_active": false,
     "adaptive_skip_active": false,
     "adaptive_execution_applied": false,
-    "range_bit_length": 14
+    "range_bit_length": 14,
+    "zero_a_row_proof_count": 0,
+    "zero_b_col_proof_count": 0,
+    "zero_row_col_product_count": 0,
+    "planner_zero_a_row_count": 0,
+    "planner_zero_b_col_count": 0,
+    "planner_zero_row_col_product_count": 0
   },
   "epilogue_type": "crt_export",
   "packed_layout_version": null,

@@ -258,12 +258,78 @@ bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backe
   return matrix.host_residues_current && !matrix.device_residues_current;
 }
 
+static uint64_t count_set_mask_values(const std::vector<uint8_t>& values) {
+  uint64_t count = 0;
+  for (const uint8_t value : values) {
+    count += value != 0 ? 1u : 0u;
+  }
+  return count;
+}
+
+static bool mask_range_has_set_value(const std::vector<uint8_t>& values, int64_t begin, int64_t end) {
+  if (begin < 0 || end < begin || static_cast<uint64_t>(end) > static_cast<uint64_t>(values.size())) {
+    return false;
+  }
+  for (int64_t index = begin; index < end; ++index) {
+    if (values[static_cast<std::size_t>(index)] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool zero_row_col_contract_matches(const rns8_plan& plan) {
+  const bool requested = (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
+  if (!requested) {
+    return plan.desc.zero_a_rows == nullptr && plan.desc.zero_a_rows_count == 0 &&
+           plan.desc.zero_b_cols == nullptr && plan.desc.zero_b_cols_count == 0 &&
+           plan.zero_a_rows.empty() && plan.zero_b_cols.empty() &&
+           plan.zero_a_row_count == 0 && plan.zero_b_col_count == 0 &&
+           plan.zero_row_col_product_count == 0;
+  }
+  if (!is_per_tile_bound_kind(plan.desc.bound_kind) || plan.desc.zero_a_rows != nullptr ||
+      plan.desc.zero_b_cols != nullptr ||
+      plan.desc.zero_a_rows_count != static_cast<uint64_t>(plan.zero_a_rows.size()) ||
+      plan.desc.zero_b_cols_count != static_cast<uint64_t>(plan.zero_b_cols.size()) ||
+      plan.zero_a_rows.size() != static_cast<std::size_t>(plan.desc.m) ||
+      plan.zero_b_cols.size() != static_cast<std::size_t>(plan.desc.n)) {
+    return false;
+  }
+  for (const uint8_t value : plan.zero_a_rows) {
+    if (value > 1u) {
+      return false;
+    }
+  }
+  for (const uint8_t value : plan.zero_b_cols) {
+    if (value > 1u) {
+      return false;
+    }
+  }
+  const uint64_t zero_a_rows = count_set_mask_values(plan.zero_a_rows);
+  const uint64_t zero_b_cols = count_set_mask_values(plan.zero_b_cols);
+  const uint64_t nonzero_a_rows = static_cast<uint64_t>(plan.desc.m) - zero_a_rows;
+  if (zero_a_rows != 0 &&
+      static_cast<uint64_t>(plan.desc.n) > std::numeric_limits<uint64_t>::max() / zero_a_rows) {
+    return false;
+  }
+  const uint64_t row_products = zero_a_rows * static_cast<uint64_t>(plan.desc.n);
+  if (zero_b_cols != 0 &&
+      nonzero_a_rows > std::numeric_limits<uint64_t>::max() / zero_b_cols) {
+    return false;
+  }
+  return plan.zero_a_row_count == zero_a_rows && plan.zero_b_col_count == zero_b_cols &&
+         plan.zero_row_col_product_count == row_products + nonzero_a_rows * zero_b_cols;
+}
+
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
-  constexpr uint32_t known_tile_schedule_flags = RNS8_TILE_SCHEDULE_ZERO_OUTPUT;
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
+                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+  constexpr uint32_t known_tile_schedule_flags =
+      RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
   if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
       !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
-      (plan.desc.flags & ~allowed_flags) != 0) {
+      (plan.desc.flags & ~allowed_flags) != 0 ||
+      !zero_row_col_contract_matches(plan)) {
     return false;
   }
   rns8_backend_capability_info capability{};
@@ -309,7 +375,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
            plan.desc.flags == 0 && plan.schedule_flags == 0 &&
-           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0;
+           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0 &&
+           zero_row_col_contract_matches(plan);
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return plan.desc.bound_kind == RNS8_BOUND_NONE && plan.desc.bound == 0 && plan.prefix == 0 &&
@@ -320,7 +387,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
            plan.desc.flags == 0 && plan.schedule_flags == 0 &&
-           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0;
+           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0 &&
+           zero_row_col_contract_matches(plan);
   }
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0 || plan.prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return false;
@@ -333,7 +401,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   }
   if ((plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) &&
       (plan.desc.bound_kind != RNS8_BOUND_NONE || plan.desc.bound != 0 || plan.desc.tile_bounds != nullptr ||
-       plan.desc.tile_bounds_count != 0 || plan.desc.lhs_bound != 0 || plan.desc.rhs_bound != 0)) {
+       plan.desc.tile_bounds_count != 0 || plan.desc.lhs_bound != 0 || plan.desc.rhs_bound != 0 ||
+       (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0)) {
     return false;
   }
   if (plan.desc.semantics == RNS8_BOUNDED_I64 &&
@@ -370,7 +439,9 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_max_required_prefix <= plan.prefix &&
            plan.schedule_adaptive_skip_active == (plan.prefix < plan.desc.max_prefix ? 1u : 0u) &&
            (!fixed_prefix_requested || plan.prefix == plan.desc.max_prefix) &&
-           (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) == 0 && plan.schedule_flags == 0;
+           (plan.desc.flags & (RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
+                               RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS)) == 0 &&
+           plan.schedule_flags == 0;
   }
   if (plan.desc.bound != 0 || plan.desc.tile_bounds_count != static_cast<uint64_t>(plan.tile_bounds.size()) ||
       plan.desc.tile_bounds_count != plan.schedule_tile_count || plan.desc.tile_bounds != nullptr ||
@@ -393,6 +464,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   }
   const bool allow_proven_zero_tile_skips =
       (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
+  const bool allow_proven_zero_row_col_skips =
+      (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
   uint32_t aggregate_flags = 0;
   for (uint64_t index = 0; index < plan.schedule_tile_count; ++index) {
     const auto& entry = plan.tile_schedule[static_cast<std::size_t>(index)];
@@ -407,8 +480,18 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       return false;
     }
     const uint64_t tile_bound = plan.tile_bounds[static_cast<std::size_t>(index)];
-    const uint32_t expected_flags =
+    uint32_t expected_flags =
         allow_proven_zero_tile_skips && tile_bound == 0 ? RNS8_TILE_SCHEDULE_ZERO_OUTPUT : 0u;
+    if (allow_proven_zero_row_col_skips) {
+      const int64_t row_begin = entry.row_offset;
+      const int64_t col_begin = entry.col_offset;
+      const int64_t row_end = entry.row_offset + entry.row_extent;
+      const int64_t col_end = entry.col_offset + entry.col_extent;
+      if (mask_range_has_set_value(plan.zero_a_rows, row_begin, row_end) ||
+          mask_range_has_set_value(plan.zero_b_cols, col_begin, col_end)) {
+        expected_flags |= RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
+      }
+    }
     if (entry.flags != expected_flags) {
       return false;
     }
@@ -819,6 +902,9 @@ rns8_status validate_plan_context_workspace(
       workspace.schedule_adaptive_prefix_active != plan.schedule_adaptive_prefix_active ||
       workspace.schedule_adaptive_skip_active != plan.schedule_adaptive_skip_active ||
       workspace.schedule_flags != plan.schedule_flags ||
+      workspace.zero_a_row_count != plan.zero_a_row_count ||
+      workspace.zero_b_col_count != plan.zero_b_col_count ||
+      workspace.zero_row_col_product_count != plan.zero_row_col_product_count ||
       workspace.schedule_fingerprint != plan_workspace_fingerprint(plan) ||
       workspace.backend_workspace_required_bytes != plan.backend_workspace_required_bytes ||
       workspace.backend_selected_kernel != plan.backend_selected_kernel ||
@@ -837,6 +923,20 @@ rns8_status validate_plan_context_workspace(
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
+    const bool zero_row_col_masks =
+        (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
+    const std::size_t expected_zero_a_bytes =
+        zero_row_col_masks ? static_cast<std::size_t>(plan.desc.m) * sizeof(uint8_t) : 0;
+    const std::size_t expected_zero_b_bytes =
+        zero_row_col_masks ? static_cast<std::size_t>(plan.desc.n) * sizeof(uint8_t) : 0;
+    if (workspace.hip_zero_a_rows_bytes != expected_zero_a_bytes ||
+        workspace.hip_zero_b_cols_bytes != expected_zero_b_bytes ||
+        (expected_zero_a_bytes == 0 ? workspace.hip_zero_a_rows != nullptr
+                                    : workspace.hip_zero_a_rows == nullptr) ||
+        (expected_zero_b_bytes == 0 ? workspace.hip_zero_b_cols != nullptr
+                                    : workspace.hip_zero_b_cols == nullptr)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
     const bool scheduled = !plan.tile_schedule.empty();
     if (scheduled && plan.tile_schedule.size() >
                          std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
@@ -863,7 +963,9 @@ rns8_status validate_plan_context_workspace(
     }
   } else if (workspace.hip_tile_schedule || workspace.hip_tile_schedule_bytes != 0 ||
              workspace.hip_tile_schedule_count != 0 ||
-             !active_prefix_tile_schedule_workspace_empty(workspace)) {
+             !active_prefix_tile_schedule_workspace_empty(workspace) ||
+             workspace.hip_zero_a_rows || workspace.hip_zero_a_rows_bytes != 0 ||
+             workspace.hip_zero_b_cols || workspace.hip_zero_b_cols_bytes != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
@@ -951,6 +1053,24 @@ rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
     matrix.hip_export_tile_schedule = nullptr;
     matrix.hip_export_tile_schedule_bytes = 0;
     matrix.hip_export_tile_schedule_count = 0;
+  }
+  if (matrix.hip_export_zero_a_rows) {
+    const rns8_status free_status =
+        rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_export_zero_a_rows);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_export_zero_a_rows = nullptr;
+    matrix.hip_export_zero_a_rows_bytes = 0;
+  }
+  if (matrix.hip_export_zero_b_cols) {
+    const rns8_status free_status =
+        rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_export_zero_b_cols);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_export_zero_b_cols = nullptr;
+    matrix.hip_export_zero_b_cols_bytes = 0;
   }
   if (matrix.hip_residues) {
     const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_residues);
@@ -1241,6 +1361,9 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->schedule_adaptive_prefix_active = plan->schedule_adaptive_prefix_active;
     workspace->schedule_adaptive_skip_active = plan->schedule_adaptive_skip_active;
     workspace->schedule_flags = plan->schedule_flags;
+    workspace->zero_a_row_count = plan->zero_a_row_count;
+    workspace->zero_b_col_count = plan->zero_b_col_count;
+    workspace->zero_row_col_product_count = plan->zero_row_col_product_count;
     workspace->schedule_fingerprint = plan_workspace_fingerprint(*plan);
     workspace->backend_workspace_required_bytes = plan->backend_workspace_required_bytes;
     workspace->backend_selected_kernel = plan->backend_selected_kernel;
@@ -1255,9 +1378,55 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     workspace->backend_performance_validated = plan->backend_performance_validated;
     workspace->backend = plan->backend;
     workspace->hip_device_id = hip_device_backend(plan->backend) ? ctx->device_id : -1;
+    const auto free_workspace_zero_masks = [&]() {
+      if (workspace->hip_zero_b_cols) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_b_cols);
+        workspace->hip_zero_b_cols = nullptr;
+        workspace->hip_zero_b_cols_bytes = 0;
+      }
+      if (workspace->hip_zero_a_rows) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_a_rows);
+        workspace->hip_zero_a_rows = nullptr;
+        workspace->hip_zero_a_rows_bytes = 0;
+      }
+    };
+    if (plan->backend == RNS8_BACKEND_HIP_DIRECT &&
+        (plan->desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0) {
+      const std::size_t zero_a_bytes = plan->zero_a_rows.size() * sizeof(uint8_t);
+      const std::size_t zero_b_bytes = plan->zero_b_cols.size() * sizeof(uint8_t);
+      rns8_status status = rns8::detail::hip_direct_allocate(ctx->device_id, zero_a_bytes, &workspace->hip_zero_a_rows);
+      if (status != RNS8_SUCCESS) {
+        delete workspace;
+        return status;
+      }
+      workspace->hip_zero_a_rows_bytes = zero_a_bytes;
+      status = rns8::detail::hip_direct_copy_host_to_device(
+          ctx->device_id, workspace->hip_zero_a_rows, plan->zero_a_rows.data(), zero_a_bytes);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_a_rows);
+        delete workspace;
+        return status;
+      }
+      status = rns8::detail::hip_direct_allocate(ctx->device_id, zero_b_bytes, &workspace->hip_zero_b_cols);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_a_rows);
+        delete workspace;
+        return status;
+      }
+      workspace->hip_zero_b_cols_bytes = zero_b_bytes;
+      status = rns8::detail::hip_direct_copy_host_to_device(
+          ctx->device_id, workspace->hip_zero_b_cols, plan->zero_b_cols.data(), zero_b_bytes);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_b_cols);
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_a_rows);
+        delete workspace;
+        return status;
+      }
+    }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT && !plan->tile_schedule.empty()) {
       if (plan->tile_schedule.size() >
           std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+        free_workspace_zero_masks();
         delete workspace;
         return RNS8_RANGE_ERROR;
       }
@@ -1268,11 +1437,13 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
               workspace->hip_tile_schedule_active_offsets,
               workspace->hip_tile_schedule_active_counts,
               workspace->hip_tile_schedule_active_prefix_count)) {
+        free_workspace_zero_masks();
         delete workspace;
         return RNS8_INVALID_ARGUMENT;
       }
       if (active_entries.size() >
           std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+        free_workspace_zero_masks();
         delete workspace;
         return RNS8_RANGE_ERROR;
       }
@@ -1284,6 +1455,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       if (schedule_bytes != 0) {
         status = rns8::detail::hip_direct_allocate(ctx->device_id, schedule_bytes, &workspace->hip_tile_schedule);
         if (status != RNS8_SUCCESS) {
+          free_workspace_zero_masks();
           delete workspace;
           return status;
         }
@@ -1293,6 +1465,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
             ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes);
         if (status != RNS8_SUCCESS) {
           (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+          free_workspace_zero_masks();
           delete workspace;
           return status;
         }
@@ -1304,6 +1477,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
             ctx->device_id, active_schedule_bytes, &workspace->hip_tile_schedule_active_entries);
         if (status != RNS8_SUCCESS) {
           (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+          free_workspace_zero_masks();
           delete workspace;
           return status;
         }
@@ -1315,6 +1489,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
         if (status != RNS8_SUCCESS) {
           (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule_active_entries);
           (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+          free_workspace_zero_masks();
           delete workspace;
           return status;
         }
@@ -1399,6 +1574,24 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
         workspace->hip_tile_schedule_active_offsets[p] = 0;
         workspace->hip_tile_schedule_active_counts[p] = 0;
       }
+    }
+    if (workspace->hip_zero_a_rows) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_zero_a_rows);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hip_zero_a_rows = nullptr;
+      workspace->hip_zero_a_rows_bytes = 0;
+    }
+    if (workspace->hip_zero_b_cols) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_zero_b_cols);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hip_zero_b_cols = nullptr;
+      workspace->hip_zero_b_cols_bytes = 0;
     }
     if (workspace->hipblaslt_int32_scratch) {
       const rns8_status free_status =

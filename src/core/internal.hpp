@@ -36,6 +36,9 @@ struct rns8_plan {
   uint32_t schedule_adaptive_prefix_active = 0;
   uint32_t schedule_adaptive_skip_active = 0;
   uint32_t schedule_flags = 0;
+  uint64_t zero_a_row_count = 0;
+  uint64_t zero_b_col_count = 0;
+  uint64_t zero_row_col_product_count = 0;
   uint64_t backend_workspace_required_bytes = 0;
   std::string backend_selected_kernel;
   std::string backend_library;
@@ -62,6 +65,8 @@ struct rns8_plan {
   std::string backend_accumulator_safety_status;
   std::vector<uint64_t> tile_bounds;
   std::vector<rns8_plan_tile_schedule_entry> tile_schedule;
+  std::vector<uint8_t> zero_a_rows;
+  std::vector<uint8_t> zero_b_cols;
 };
 
 struct rns8_matrix {
@@ -101,6 +106,10 @@ struct rns8_matrix {
   void* hip_export_tile_bounds = nullptr;
   std::size_t hip_export_tile_bounds_bytes = 0;
   uint64_t hip_export_tile_bounds_count = 0;
+  void* hip_export_zero_a_rows = nullptr;
+  std::size_t hip_export_zero_a_rows_bytes = 0;
+  void* hip_export_zero_b_cols = nullptr;
+  std::size_t hip_export_zero_b_cols_bytes = 0;
   uint64_t hip_export_schedule_fingerprint = 0;
   uint64_t hip_export_tile_max_elements = 0;
 };
@@ -129,6 +138,9 @@ struct rns8_workspace {
   uint32_t schedule_adaptive_prefix_active = 0;
   uint32_t schedule_adaptive_skip_active = 0;
   uint32_t schedule_flags = 0;
+  uint64_t zero_a_row_count = 0;
+  uint64_t zero_b_col_count = 0;
+  uint64_t zero_row_col_product_count = 0;
   uint64_t schedule_fingerprint = 0;
   uint64_t backend_workspace_required_bytes = 0;
   std::string backend_selected_kernel;
@@ -151,6 +163,10 @@ struct rns8_workspace {
   uint64_t hip_tile_schedule_active_offsets[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint64_t hip_tile_schedule_active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint32_t hip_tile_schedule_active_prefix_count = 0;
+  void* hip_zero_a_rows = nullptr;
+  std::size_t hip_zero_a_rows_bytes = 0;
+  void* hip_zero_b_cols = nullptr;
+  std::size_t hip_zero_b_cols_bytes = 0;
   void* hipblaslt_int32_scratch = nullptr;
   std::size_t hipblaslt_int32_scratch_bytes = 0;
   void* hipblaslt_workspace = nullptr;

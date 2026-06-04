@@ -6936,6 +6936,126 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP per-tile bounded zero row and column proof masks match CPU") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP zero row/column proof-mask smoke");
+  }
+
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 3;
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  std::vector<uint64_t> A(static_cast<std::size_t>(m * k), 0);
+  std::vector<uint64_t> B(static_cast<std::size_t>(k * n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t kk = 0; kk < k; ++kk) {
+      A[static_cast<std::size_t>(row * k + kk)] =
+          row == 0 ? 0 : static_cast<uint64_t>((row % 11) + kk + 1);
+    }
+  }
+  for (int64_t kk = 0; kk < k; ++kk) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(kk * n + col)] =
+          col == 64 ? 0 : static_cast<uint64_t>((col % 13) + kk + 2);
+    }
+  }
+
+  const std::vector<uint64_t> bounds(4, 1000000);
+  std::vector<uint8_t> zero_a_rows(65, 0);
+  std::vector<uint8_t> zero_b_cols(65, 0);
+  zero_a_rows[0] = 1;
+  zero_b_cols[64] = 1;
+  auto cpu_desc = per_tile_unsigned_desc(m, n, k, bounds, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = per_tile_unsigned_desc(m, n, k, bounds, RNS8_BACKEND_HIP_DIRECT);
+  for (auto* desc : {&cpu_desc, &hip_desc}) {
+    desc->flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+    desc->zero_a_rows = zero_a_rows.data();
+    desc->zero_a_rows_count = zero_a_rows.size();
+    desc->zero_b_cols = zero_b_cols.data();
+    desc->zero_b_cols_count = zero_b_cols.size();
+  }
+
+  rns8_plan* cpu_plan = nullptr;
+  rns8_plan* hip_plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  REQUIRE(hip_plan->tile_schedule.size() == bounds.size());
+  CHECK(hip_plan->schedule_flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+  CHECK(hip_plan->zero_a_row_count == 1);
+  CHECK(hip_plan->zero_b_col_count == 1);
+  CHECK(hip_plan->zero_row_col_product_count == 129);
+
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
+  a_desc.tile_m = b_desc.tile_m = c_desc.tile_m = 64;
+  a_desc.tile_n = b_desc.tile_n = c_desc.tile_n = 64;
+  rns8_matrix* cpu_a = nullptr;
+  rns8_matrix* cpu_b = nullptr;
+  rns8_matrix* cpu_c = nullptr;
+  rns8_matrix* hip_a = nullptr;
+  rns8_matrix* hip_b = nullptr;
+  rns8_matrix* hip_c = nullptr;
+  rns8_workspace* cpu_workspace = nullptr;
+  rns8_workspace* hip_workspace = nullptr;
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  CHECK(hip_workspace->hip_zero_a_rows != nullptr);
+  CHECK(hip_workspace->hip_zero_a_rows_bytes == zero_a_rows.size());
+  CHECK(hip_workspace->hip_zero_b_cols != nullptr);
+  CHECK(hip_workspace->hip_zero_b_cols_bytes == zero_b_cols.size());
+
+  REQUIRE(rns8_pack_u64(cpu, cpu_a, A.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(cpu, cpu_b, B.data(), n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, hip_a, A.data(), k, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, hip_b, B.data(), n, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+  REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+  const auto gemm_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(gemm_events, "rns_gemm_kernel_group"));
+  CHECK_FALSE(has_timing_label(gemm_events, "direct_hip_zero_output_tile_memset"));
+
+  std::vector<uint64_t> cpu_out(static_cast<std::size_t>(m * n), 0xababababababababull);
+  std::vector<uint64_t> hip_out(static_cast<std::size_t>(m * n), 0xcdcdcdcdcdcdcdcdull);
+  REQUIRE(rns8_export_u64(cpu, cpu_plan, cpu_c, cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), n) == RNS8_SUCCESS);
+  CHECK(hip_c->hip_export_zero_a_rows != nullptr);
+  CHECK(hip_c->hip_export_zero_a_rows_bytes == zero_a_rows.size());
+  CHECK(hip_c->hip_export_zero_b_cols != nullptr);
+  CHECK(hip_c->hip_export_zero_b_cols_bytes == zero_b_cols.size());
+  CHECK(hip_out == cpu_out);
+  for (int64_t row = 0; row < m; ++row) {
+    CHECK(hip_out[static_cast<std::size_t>(row * n + 64)] == 0);
+  }
+  for (int64_t col = 0; col < n; ++col) {
+    CHECK(hip_out[static_cast<std::size_t>(col)] == 0);
+  }
+
+  rns8_destroy_workspace(hip_workspace);
+  rns8_destroy_workspace(cpu_workspace);
+  rns8_destroy_matrix(hip_c);
+  rns8_destroy_matrix(hip_b);
+  rns8_destroy_matrix(hip_a);
+  rns8_destroy_matrix(cpu_c);
+  rns8_destroy_matrix(cpu_b);
+  rns8_destroy_matrix(cpu_a);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP all-zero per-tile bounded export skips status traffic") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP all-zero per-tile export smoke");

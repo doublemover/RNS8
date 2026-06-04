@@ -35,6 +35,8 @@ GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
+TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT = 0x00000002
+TILE_SCHEDULE_KNOWN_FLAGS = TILE_SCHEDULE_ZERO_OUTPUT | TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT
 BOUND_SOURCES = {"static_profile", "input_scan"}
 BOUND_DISCOVERY_SOURCES = {
     "static_profile_contract",
@@ -195,6 +197,10 @@ DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
 )
 DIRECT_HIP_ADAPTIVE_KERNEL_V2 = "direct_hip_tiled_active_prefix_rns_gemm_v2"
 DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3 = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
+DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1 = "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
+DIRECT_HIP_ADAPTIVE_ZERO_TILE_ROW_COL_SKIP_KERNEL_V1 = (
+    "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1"
+)
 WRAP64_ROCWMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
 CK_PREFIX_EVENT_RE = re.compile(r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$")
 ROCWMMA_PREFIX_EVENT_RE = re.compile(
@@ -732,6 +738,17 @@ class _Validator:
             for key, value in required_key_fields.items():
                 if f";{key}={value};" not in normalized_key:
                     self._error(f"backend_metadata.autotune_key must include {key}={value}")
+            schedule = self.data.get("schedule_metadata")
+            if isinstance(schedule, dict) and _is_int(schedule.get("zero_row_col_product_count")):
+                if schedule.get("zero_row_col_product_count") > 0:
+                    for key, value in {
+                        "schedule_flags": schedule.get("flags"),
+                        "zero_a_rows": schedule.get("zero_a_row_proof_count"),
+                        "zero_b_cols": schedule.get("zero_b_col_proof_count"),
+                        "zero_row_col_products": schedule.get("zero_row_col_product_count"),
+                    }.items():
+                        if f";{key}={value};" not in normalized_key:
+                            self._error(f"backend_metadata.autotune_key must include {key}={value}")
 
     def _validate_nonnegative_ints(self) -> None:
         for key in ["bound", "prefix", "tile_m", "tile_n", "k_block_size", "seed", "warmups", "repeats", "checksum_u64"]:
@@ -1391,11 +1408,27 @@ class _Validator:
         zero_fraction = schedule.get("zero_output_tile_fraction")
         zero_planes = schedule.get("zero_output_selected_residue_planes")
         zero_active = schedule.get("zero_output_skip_active")
+        zero_a_rows = schedule.get("zero_a_row_proof_count")
+        zero_b_cols = schedule.get("zero_b_col_proof_count")
+        zero_row_col_products = schedule.get("zero_row_col_product_count")
+        planner_zero_a_rows = schedule.get("planner_zero_a_row_count")
+        planner_zero_b_cols = schedule.get("planner_zero_b_col_count")
+        planner_zero_row_col_products = schedule.get("planner_zero_row_col_product_count")
         if flags is not None:
             if not _is_int(flags) or flags < 0:
                 self._error("schedule_metadata.flags must be a nonnegative integer")
-            elif flags & ~TILE_SCHEDULE_ZERO_OUTPUT:
+            elif flags & ~TILE_SCHEDULE_KNOWN_FLAGS:
                 self._error("schedule_metadata.flags contains unknown tile schedule flags")
+        for key, value in [
+            ("zero_a_row_proof_count", zero_a_rows),
+            ("zero_b_col_proof_count", zero_b_cols),
+            ("zero_row_col_product_count", zero_row_col_products),
+            ("planner_zero_a_row_count", planner_zero_a_rows),
+            ("planner_zero_b_col_count", planner_zero_b_cols),
+            ("planner_zero_row_col_product_count", planner_zero_row_col_products),
+        ]:
+            if not _is_int(value) or value < 0:
+                self._error(f"schedule_metadata.{key} must be a nonnegative integer")
         if zero_count is not None:
             if not _is_int(zero_count) or zero_count < 0:
                 self._error("schedule_metadata.zero_output_tile_count must be a nonnegative integer")
@@ -1425,6 +1458,56 @@ class _Validator:
             self._error("schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count")
         if _is_int(zero_planes) and _is_int(zero_count) and zero_count == 0 and zero_planes != 0:
             self._error("schedule_metadata.zero_output_selected_residue_planes must be zero when no zero tiles are skipped")
+        if _is_int(zero_a_rows) and _is_int(planner_zero_a_rows) and zero_a_rows != planner_zero_a_rows:
+            self._error("schedule_metadata planner_zero_a_row_count must match zero_a_row_proof_count")
+        if _is_int(zero_b_cols) and _is_int(planner_zero_b_cols) and zero_b_cols != planner_zero_b_cols:
+            self._error("schedule_metadata planner_zero_b_col_count must match zero_b_col_proof_count")
+        if (
+            _is_int(zero_row_col_products)
+            and _is_int(planner_zero_row_col_products)
+            and zero_row_col_products != planner_zero_row_col_products
+        ):
+            self._error("schedule_metadata planner_zero_row_col_product_count must match zero_row_col_product_count")
+        row_col_counts_valid = (
+            _is_int(zero_a_rows)
+            and _is_int(zero_b_cols)
+            and _is_int(zero_row_col_products)
+            and _is_int(planner_zero_a_rows)
+            and _is_int(planner_zero_b_cols)
+            and _is_int(planner_zero_row_col_products)
+        )
+        if row_col_counts_valid:
+            m_value = self.data.get("m")
+            n_value = self.data.get("n")
+            if _is_int(m_value) and zero_a_rows > m_value:
+                self._error("schedule_metadata.zero_a_row_proof_count must be <= m")
+            if _is_int(n_value) and zero_b_cols > n_value:
+                self._error("schedule_metadata.zero_b_col_proof_count must be <= n")
+            if _is_int(m_value) and _is_int(n_value):
+                expected_products = zero_a_rows * n_value + (m_value - zero_a_rows) * zero_b_cols
+                if zero_row_col_products != expected_products:
+                    self._error("schedule_metadata.zero_row_col_product_count must match zero row/column product coverage")
+                if zero_row_col_products > m_value * n_value:
+                    self._error("schedule_metadata.zero_row_col_product_count must be <= m*n")
+            row_col_flag = _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0
+            if zero_row_col_products > 0 and not row_col_flag:
+                self._error("schedule_metadata zero_row_col_product_count requires ZERO_ROW_COL_PRODUCT schedule flag")
+            if zero_row_col_products == 0 and row_col_flag:
+                self._error("schedule_metadata ZERO_ROW_COL_PRODUCT flag requires zero_row_col_product_count > 0")
+            per_tile_bounded = (
+                self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+                and self.data.get("bound_mode") == "per_tile"
+            )
+            if not per_tile_bounded and (
+                zero_a_rows != 0
+                or zero_b_cols != 0
+                or zero_row_col_products != 0
+                or planner_zero_a_rows != 0
+                or planner_zero_b_cols != 0
+                or planner_zero_row_col_products != 0
+                or row_col_flag
+            ):
+                self._error("non-per-tile bounded captures must use zero row/column proof counts of 0")
 
     def _validate_bound_discovery_metadata(self) -> None:
         bound_source = self.data.get("bound_source")
@@ -2305,12 +2388,20 @@ class _Validator:
             zero_output_tiles = (
                 _is_int(schedule.get("zero_output_tile_count")) and schedule.get("zero_output_tile_count") > 0
             )
+            zero_row_col_products = (
+                _is_int(schedule.get("zero_row_col_product_count"))
+                and schedule.get("zero_row_col_product_count") > 0
+            )
+            if zero_output_tiles and zero_row_col_products:
+                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_TILE_ROW_COL_SKIP_KERNEL_V1
+            elif zero_output_tiles:
+                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3
+            elif zero_row_col_products:
+                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1
+            else:
+                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_KERNEL_V2
             expected_kernels = {
-                "hip-direct": (
-                    DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3
-                    if zero_output_tiles
-                    else DIRECT_HIP_ADAPTIVE_KERNEL_V2
-                ),
+                "hip-direct": direct_hip_expected_kernel,
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
             }

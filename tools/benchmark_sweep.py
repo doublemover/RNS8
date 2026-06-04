@@ -942,6 +942,9 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         f"adaptive_skip={int(bool(schedule.get('adaptive_skip_active')))};"
         f"schedule_flags={schedule.get('flags', 0)};"
         f"zero_output_tiles={schedule.get('zero_output_tile_count', 0)};"
+        f"zero_a_rows={schedule.get('zero_a_row_proof_count', 0)};"
+        f"zero_b_cols={schedule.get('zero_b_col_proof_count', 0)};"
+        f"zero_row_col_products={schedule.get('zero_row_col_product_count', 0)};"
         f"tile_bound_hash={tile_bounds.get('hash_u64', 0)}"
     )
     hip_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}

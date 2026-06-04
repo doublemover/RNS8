@@ -76,6 +76,32 @@ rns8_plan_tile_schedule_entry make_tile_schedule_entry(
   return entry;
 }
 
+static uint64_t count_set_mask_values(const std::vector<uint8_t>& values) {
+  uint64_t count = 0;
+  for (const uint8_t value : values) {
+    count += value != 0 ? 1u : 0u;
+  }
+  return count;
+}
+
+static bool mask_range_has_set_value(const std::vector<uint8_t>& values, int64_t begin, int64_t end) {
+  if (begin < 0 || end < begin || static_cast<uint64_t>(end) > static_cast<uint64_t>(values.size())) {
+    return false;
+  }
+  for (int64_t index = begin; index < end; ++index) {
+    if (values[static_cast<std::size_t>(index)] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool plan_has_zero_row_col_proofs(const rns8_plan& plan) {
+  return (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0 &&
+         plan.zero_a_rows.size() == static_cast<std::size_t>(plan.desc.m) &&
+         plan.zero_b_cols.size() == static_cast<std::size_t>(plan.desc.n);
+}
+
 rns8_status configure_plan_schedule(rns8_plan& plan) {
   const uint32_t tile_m = plan.desc.tile_m == 0 ? 128u : plan.desc.tile_m;
   const uint32_t tile_n = plan.desc.tile_n == 0 ? 128u : plan.desc.tile_n;
@@ -89,7 +115,48 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
   plan.schedule_tile_count = plan.schedule_tile_rows * plan.schedule_tile_cols;
   plan.tile_bounds.clear();
   plan.tile_schedule.clear();
+  plan.zero_a_rows.clear();
+  plan.zero_b_cols.clear();
+  plan.zero_a_row_count = 0;
+  plan.zero_b_col_count = 0;
+  plan.zero_row_col_product_count = 0;
   plan.schedule_flags = 0;
+  if ((plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0) {
+    if (!plan.desc.zero_a_rows || !plan.desc.zero_b_cols || plan.desc.m <= 0 || plan.desc.n <= 0 ||
+        plan.desc.zero_a_rows_count != static_cast<uint64_t>(plan.desc.m) ||
+        plan.desc.zero_b_cols_count != static_cast<uint64_t>(plan.desc.n)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (static_cast<uint64_t>(plan.desc.m) > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) ||
+        static_cast<uint64_t>(plan.desc.n) > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      return RNS8_RANGE_ERROR;
+    }
+    plan.zero_a_rows.assign(plan.desc.zero_a_rows, plan.desc.zero_a_rows + plan.desc.zero_a_rows_count);
+    plan.zero_b_cols.assign(plan.desc.zero_b_cols, plan.desc.zero_b_cols + plan.desc.zero_b_cols_count);
+    plan.desc.zero_a_rows = nullptr;
+    plan.desc.zero_b_cols = nullptr;
+    plan.desc.zero_a_rows_count = static_cast<uint64_t>(plan.zero_a_rows.size());
+    plan.desc.zero_b_cols_count = static_cast<uint64_t>(plan.zero_b_cols.size());
+    plan.zero_a_row_count = count_set_mask_values(plan.zero_a_rows);
+    plan.zero_b_col_count = count_set_mask_values(plan.zero_b_cols);
+    const uint64_t nonzero_a_rows = static_cast<uint64_t>(plan.desc.m) - plan.zero_a_row_count;
+    if (plan.zero_a_row_count != 0 &&
+        static_cast<uint64_t>(plan.desc.n) >
+            std::numeric_limits<uint64_t>::max() / plan.zero_a_row_count) {
+      return RNS8_RANGE_ERROR;
+    }
+    const uint64_t row_products = plan.zero_a_row_count * static_cast<uint64_t>(plan.desc.n);
+    if (plan.zero_b_col_count != 0 &&
+        nonzero_a_rows > std::numeric_limits<uint64_t>::max() / plan.zero_b_col_count) {
+      return RNS8_RANGE_ERROR;
+    }
+    plan.zero_row_col_product_count = row_products + nonzero_a_rows * plan.zero_b_col_count;
+  } else {
+    plan.desc.zero_a_rows = nullptr;
+    plan.desc.zero_b_cols = nullptr;
+    plan.desc.zero_a_rows_count = 0;
+    plan.desc.zero_b_cols_count = 0;
+  }
 
   const boost::multiprecision::cpp_int required_range = schedule_required_range(plan.desc);
   plan.schedule_range_bit_length = rns8::detail::bit_length(required_range);
@@ -149,9 +216,22 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
       }
       const uint32_t flags =
           allow_proven_zero_tile_skips && bound == 0 ? RNS8_TILE_SCHEDULE_ZERO_OUTPUT : 0u;
-      plan.schedule_flags |= flags;
+      uint32_t entry_flags = flags;
+      if (plan_has_zero_row_col_proofs(plan)) {
+        const uint64_t tile_row = index / plan.schedule_tile_cols;
+        const uint64_t tile_col = index % plan.schedule_tile_cols;
+        const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(plan.desc.tile_m));
+        const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(plan.desc.tile_n));
+        const int64_t row_end = std::min<int64_t>(plan.desc.m, row_begin + static_cast<int64_t>(plan.desc.tile_m));
+        const int64_t col_end = std::min<int64_t>(plan.desc.n, col_begin + static_cast<int64_t>(plan.desc.tile_n));
+        if (mask_range_has_set_value(plan.zero_a_rows, row_begin, row_end) ||
+            mask_range_has_set_value(plan.zero_b_cols, col_begin, col_end)) {
+          entry_flags |= RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
+        }
+      }
+      plan.schedule_flags |= entry_flags;
       plan.tile_schedule.push_back(
-          make_tile_schedule_entry(plan, index, required_prefix, selected_prefix, 0, range_bits, flags));
+          make_tile_schedule_entry(plan, index, required_prefix, selected_prefix, 0, range_bits, entry_flags));
     }
 
     std::sort(groups.begin(), groups.end());
@@ -170,7 +250,7 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     if (plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
         plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
         plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
-        plan.schedule_adaptive_skip_active == 0) {
+        plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0) {
       plan.tile_schedule.clear();
     }
     return RNS8_SUCCESS;
@@ -279,7 +359,13 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       return "direct_hip_prefix20_grouped_rns_gemm_v1";
     }
     if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+      if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
+        return "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1";
+      }
       return "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
+    }
+    if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
+      return "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1";
     }
     return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
@@ -971,6 +1057,9 @@ std::string build_autotune_key(const rns8_plan& plan) {
   key += ";adaptive_prefix=" + std::to_string(plan.schedule_adaptive_prefix_active);
   key += ";adaptive_skip=" + std::to_string(plan.schedule_adaptive_skip_active);
   key += ";schedule_flags=" + std::to_string(plan.schedule_flags);
+  key += ";zero_a_rows=" + std::to_string(plan.zero_a_row_count);
+  key += ";zero_b_cols=" + std::to_string(plan.zero_b_col_count);
+  key += ";zero_row_col_products=" + std::to_string(plan.zero_row_col_product_count);
   uint64_t zero_output_tile_count = 0;
   for (const auto& entry : plan.tile_schedule) {
     if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
@@ -1244,6 +1333,9 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   hash = workspace_fingerprint_mix(hash, plan.schedule_adaptive_prefix_active);
   hash = workspace_fingerprint_mix(hash, plan.schedule_adaptive_skip_active);
   hash = workspace_fingerprint_mix(hash, plan.schedule_flags);
+  hash = workspace_fingerprint_mix(hash, plan.zero_a_row_count);
+  hash = workspace_fingerprint_mix(hash, plan.zero_b_col_count);
+  hash = workspace_fingerprint_mix(hash, plan.zero_row_col_product_count);
   hash = workspace_fingerprint_mix(hash, plan.backend_workspace_required_bytes);
   hash = workspace_fingerprint_mix_string(hash, plan.backend_selected_kernel);
   hash = workspace_fingerprint_mix_string(hash, plan.backend_library);
@@ -1257,6 +1349,14 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.tile_bounds.size()));
   for (const uint64_t bound : plan.tile_bounds) {
     hash = workspace_fingerprint_mix(hash, bound);
+  }
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.zero_a_rows.size()));
+  for (const uint8_t value : plan.zero_a_rows) {
+    hash = workspace_fingerprint_mix(hash, value);
+  }
+  hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.zero_b_cols.size()));
+  for (const uint8_t value : plan.zero_b_cols) {
+    hash = workspace_fingerprint_mix(hash, value);
   }
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.tile_schedule.size()));
   for (const auto& entry : plan.tile_schedule) {
@@ -1383,6 +1483,9 @@ rns8_status rns8_get_plan_schedule_info(const rns8_plan* plan, rns8_plan_schedul
     out->effective_bound = plan->desc.bound;
     out->lhs_bound = plan->desc.lhs_bound;
     out->rhs_bound = plan->desc.rhs_bound;
+    out->zero_a_row_count = plan->zero_a_row_count;
+    out->zero_b_col_count = plan->zero_b_col_count;
+    out->zero_row_col_product_count = plan->zero_row_col_product_count;
     set_text(out->bound_contract, sizeof(out->bound_contract), bound_contract_name_for_plan(*plan));
     return RNS8_SUCCESS;
   });

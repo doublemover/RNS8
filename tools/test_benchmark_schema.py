@@ -2157,6 +2157,58 @@ def main() -> int:
     )
     validate_capture(zero_skip_schedule)
 
+    def add_row_col_autotune_fields(capture: dict) -> None:
+        schedule = capture["schedule_metadata"]
+        capture["backend_metadata"]["autotune_key"] = (
+            capture["backend_metadata"]["autotune_key"]
+            + f";schedule_flags={schedule['flags']}"
+            + f";zero_a_rows={schedule['zero_a_row_proof_count']}"
+            + f";zero_b_cols={schedule['zero_b_col_proof_count']}"
+            + f";zero_row_col_products={schedule['zero_row_col_product_count']}"
+        )
+
+    zero_row_col_schedule = copy.deepcopy(v4_adaptive_u64)
+    zero_row_col_kernel = "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
+    zero_row_col_schedule["schedule_metadata"].update(
+        {
+            "flags": 2,
+            "zero_a_row_proof_count": 1,
+            "zero_b_col_proof_count": 1,
+            "zero_row_col_product_count": 129,
+            "planner_zero_a_row_count": 1,
+            "planner_zero_b_col_count": 1,
+            "planner_zero_row_col_product_count": 129,
+        }
+    )
+    zero_row_col_schedule["selected_kernel"] = zero_row_col_kernel
+    zero_row_col_schedule["backend_metadata"]["selected_kernel"] = zero_row_col_kernel
+    zero_row_col_schedule["backend_metadata"]["autotune_key"] = zero_row_col_schedule["backend_metadata"][
+        "autotune_key"
+    ].replace(stale_zero_skip_kernel, zero_row_col_kernel)
+    add_row_col_autotune_fields(zero_row_col_schedule)
+    validate_capture(zero_row_col_schedule)
+
+    zero_tile_row_col_schedule = copy.deepcopy(zero_skip_schedule)
+    zero_tile_row_col_kernel = "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1"
+    zero_tile_row_col_schedule["schedule_metadata"].update(
+        {
+            "flags": 3,
+            "zero_a_row_proof_count": 1,
+            "zero_b_col_proof_count": 1,
+            "zero_row_col_product_count": 129,
+            "planner_zero_a_row_count": 1,
+            "planner_zero_b_col_count": 1,
+            "planner_zero_row_col_product_count": 129,
+        }
+    )
+    zero_tile_row_col_schedule["selected_kernel"] = zero_tile_row_col_kernel
+    zero_tile_row_col_schedule["backend_metadata"]["selected_kernel"] = zero_tile_row_col_kernel
+    zero_tile_row_col_schedule["backend_metadata"]["autotune_key"] = zero_tile_row_col_schedule[
+        "backend_metadata"
+    ]["autotune_key"].replace(zero_skip_kernel, zero_tile_row_col_kernel)
+    add_row_col_autotune_fields(zero_tile_row_col_schedule)
+    validate_capture(zero_tile_row_col_schedule)
+
     all_zero_skip_schedule = copy.deepcopy(zero_skip_schedule)
     all_zero_planes = (
         all_zero_skip_schedule["schedule_metadata"]["tile_count"]
@@ -2212,6 +2264,35 @@ def main() -> int:
         "autotune_key"
     ].replace(zero_skip_kernel, stale_zero_skip_kernel)
     expect_invalid(bad_zero_skip_stale_kernel, "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3")
+
+    bad_zero_row_col_stale_kernel = copy.deepcopy(zero_row_col_schedule)
+    bad_zero_row_col_stale_kernel["selected_kernel"] = stale_zero_skip_kernel
+    bad_zero_row_col_stale_kernel["backend_metadata"]["selected_kernel"] = stale_zero_skip_kernel
+    bad_zero_row_col_stale_kernel["backend_metadata"]["autotune_key"] = bad_zero_row_col_stale_kernel[
+        "backend_metadata"
+    ]["autotune_key"].replace(zero_row_col_kernel, stale_zero_skip_kernel)
+    expect_invalid(
+        bad_zero_row_col_stale_kernel,
+        "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
+    )
+
+    bad_zero_row_col_product_count = copy.deepcopy(zero_row_col_schedule)
+    bad_zero_row_col_product_count["schedule_metadata"]["zero_row_col_product_count"] = 128
+    bad_zero_row_col_product_count["schedule_metadata"]["planner_zero_row_col_product_count"] = 128
+    bad_zero_row_col_product_count["backend_metadata"]["autotune_key"] = bad_zero_row_col_product_count[
+        "backend_metadata"
+    ]["autotune_key"].replace("zero_row_col_products=129", "zero_row_col_products=128")
+    expect_invalid(bad_zero_row_col_product_count, "zero_row_col_product_count must match")
+
+    bad_zero_row_col_planner_mismatch = copy.deepcopy(zero_row_col_schedule)
+    bad_zero_row_col_planner_mismatch["schedule_metadata"]["planner_zero_a_row_count"] = 2
+    expect_invalid(bad_zero_row_col_planner_mismatch, "planner_zero_a_row_count must match")
+
+    bad_zero_row_col_missing_key = copy.deepcopy(zero_row_col_schedule)
+    bad_zero_row_col_missing_key["backend_metadata"]["autotune_key"] = bad_zero_row_col_missing_key[
+        "backend_metadata"
+    ]["autotune_key"].replace(";zero_row_col_products=129", "")
+    expect_invalid(bad_zero_row_col_missing_key, "autotune_key must include zero_row_col_products=129")
 
     bad_zero_skip_unknown_flag = copy.deepcopy(zero_skip_schedule)
     bad_zero_skip_unknown_flag["schedule_metadata"]["flags"] = 4

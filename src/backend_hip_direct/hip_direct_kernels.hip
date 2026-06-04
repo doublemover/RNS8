@@ -42,6 +42,7 @@ constexpr int64_t kRns8MaxInt64 = 0x7fffffffffffffffLL;
 constexpr int kRns8DefaultBoundedPrefix = 9;
 constexpr int kRns8MaxSupportedPrefix = 20;
 constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
+constexpr uint32_t kRns8TileScheduleZeroRowColProduct = 0x00000002u;
 
 static_assert(
     kRns8HipTileM * kRns8HipTileN == 256,
@@ -1746,6 +1747,8 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     const int8_t* B,
     int8_t* C,
     const rns8_plan_tile_schedule_entry* schedule,
+    const uint8_t* zero_a_rows,
+    const uint8_t* zero_b_cols,
     int entry_count,
     int k_offset,
     int k_block,
@@ -1785,6 +1788,42 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     }
     return;
   }
+  const bool zero_row_col_product =
+      (entry.flags & kRns8TileScheduleZeroRowColProduct) != 0 && zero_a_rows != nullptr && zero_b_cols != nullptr;
+  if (zero_row_col_product) {
+    bool block_zero_rows = true;
+    for (int local_row = 0; local_row < kRns8HipTileM; ++local_row) {
+      const int output_row = tile_local_row + local_row;
+      if (output_row >= static_cast<int>(entry.row_extent)) {
+        continue;
+      }
+      const int global_row = static_cast<int>(entry.row_offset) + output_row;
+      if (zero_a_rows[global_row] == 0) {
+        block_zero_rows = false;
+        break;
+      }
+    }
+    bool block_zero_cols = true;
+    for (int local_col = 0; local_col < kRns8HipTileN; ++local_col) {
+      const int output_col = tile_local_col + local_col;
+      if (output_col >= static_cast<int>(entry.col_extent)) {
+        continue;
+      }
+      const int global_col = static_cast<int>(entry.col_offset) + output_col;
+      if (zero_b_cols[global_col] == 0) {
+        block_zero_cols = false;
+        break;
+      }
+    }
+    if (block_zero_rows || block_zero_cols) {
+      if (output_active) {
+        C[row * ldc + col] = 0;
+      }
+      return;
+    }
+  }
+  const bool output_zero_by_row_col =
+      output_active && zero_row_col_product && (zero_a_rows[row] != 0 || zero_b_cols[col] != 0);
   int32_t acc = 0;
 
   for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
@@ -1817,7 +1856,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
 
     __syncthreads();
 
-    if (output_active) {
+    if (output_active && !output_zero_by_row_col) {
       for (int kk = 0; kk < tile_extent; ++kk) {
         acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
       }
@@ -1826,10 +1865,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     __syncthreads();
   }
 
-  if (output_active && accumulate) {
+  if (output_active && !output_zero_by_row_col && accumulate) {
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
-  if (output_active) {
+  if (output_zero_by_row_col) {
+    C[row * ldc + col] = 0;
+  } else if (output_active) {
     C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
   }
 }
@@ -2123,6 +2164,8 @@ __global__ void rns8_export_i64_scheduled_kernel(
     int64_t* dst,
     const rns8_plan_tile_schedule_entry* schedule,
     const uint64_t* bounds,
+    const uint8_t* zero_a_rows,
+    const uint8_t* zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -2150,9 +2193,16 @@ __global__ void rns8_export_i64_scheduled_kernel(
   }
   const int local_row = tile_cell / col_extent;
   const int local_col = tile_cell - local_row * col_extent;
-  const int global_cell =
-      (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  const int global_row = static_cast<int>(entry.row_offset) + local_row;
+  const int global_col = static_cast<int>(entry.col_offset) + local_col;
+  const int global_cell = global_row * cols + global_col;
   if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+    dst[global_cell] = 0;
+    return;
+  }
+  if ((entry.flags & kRns8TileScheduleZeroRowColProduct) != 0 &&
+      zero_a_rows != nullptr && zero_b_cols != nullptr &&
+      (zero_a_rows[global_row] != 0 || zero_b_cols[global_col] != 0)) {
     dst[global_cell] = 0;
     return;
   }
@@ -2165,6 +2215,8 @@ __global__ void rns8_export_u64_scheduled_kernel(
     uint64_t* dst,
     const rns8_plan_tile_schedule_entry* schedule,
     const uint64_t* bounds,
+    const uint8_t* zero_a_rows,
+    const uint8_t* zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -2192,9 +2244,16 @@ __global__ void rns8_export_u64_scheduled_kernel(
   }
   const int local_row = tile_cell / col_extent;
   const int local_col = tile_cell - local_row * col_extent;
-  const int global_cell =
-      (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  const int global_row = static_cast<int>(entry.row_offset) + local_row;
+  const int global_col = static_cast<int>(entry.col_offset) + local_col;
+  const int global_cell = global_row * cols + global_col;
   if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+    dst[global_cell] = 0;
+    return;
+  }
+  if ((entry.flags & kRns8TileScheduleZeroRowColProduct) != 0 &&
+      zero_a_rows != nullptr && zero_b_cols != nullptr &&
+      (zero_a_rows[global_row] != 0 || zero_b_cols[global_col] != 0)) {
     dst[global_cell] = 0;
     return;
   }
@@ -3639,6 +3698,8 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     const int8_t* d_b,
     int8_t* d_c,
     const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_row_blocks,
     int max_tile_col_blocks,
@@ -3678,6 +3739,8 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
         d_b,
         d_c,
         d_schedule,
+        d_zero_a_rows,
+        d_zero_b_cols,
         entry_count,
         k_offset,
         k_block,
@@ -3899,6 +3962,8 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     int64_t* d_dst,
     const rns8_plan_tile_schedule_entry* d_schedule,
     const uint64_t* d_bounds,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -3924,6 +3989,8 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
       d_dst,
       d_schedule,
       d_bounds,
+      d_zero_a_rows,
+      d_zero_b_cols,
       entry_count,
       max_tile_elements,
       rows,
@@ -3992,6 +4059,8 @@ extern "C" int rns8_hip_direct_export_u64_scheduled_device(
     uint64_t* d_dst,
     const rns8_plan_tile_schedule_entry* d_schedule,
     const uint64_t* d_bounds,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
     int entry_count,
     int max_tile_elements,
     int rows,
@@ -4017,6 +4086,8 @@ extern "C" int rns8_hip_direct_export_u64_scheduled_device(
       d_dst,
       d_schedule,
       d_bounds,
+      d_zero_a_rows,
+      d_zero_b_cols,
       entry_count,
       max_tile_elements,
       rows,

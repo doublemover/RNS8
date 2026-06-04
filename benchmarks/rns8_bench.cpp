@@ -164,6 +164,11 @@ struct BenchmarkResult {
   uint64_t zero_row_count = 0;
   uint64_t zero_col_count = 0;
   std::vector<uint64_t> tile_bounds{};
+  std::vector<uint8_t> zero_a_rows{};
+  std::vector<uint8_t> zero_b_cols{};
+  uint64_t zero_a_row_proof_count = 0;
+  uint64_t zero_b_col_proof_count = 0;
+  uint64_t zero_row_col_product_count = 0;
   uint64_t tile_bound_min = 0;
   uint64_t tile_bound_max = 0;
   uint64_t tile_bound_hash = 0;
@@ -1571,6 +1576,12 @@ uint64_t checked_tile_count(const Args& args) {
   return tile_count;
 }
 
+struct TileBoundScanResult {
+  std::vector<uint64_t> bounds{};
+  std::vector<uint8_t> zero_a_rows{};
+  std::vector<uint8_t> zero_b_cols{};
+};
+
 template <typename T>
 std::vector<uint8_t> compute_nonzero_a_rows(const Args& args, const std::vector<T>& A) {
   std::vector<uint8_t> rows(static_cast<std::size_t>(args.m), 0);
@@ -1607,7 +1618,30 @@ bool range_has_nonzero_flag(const std::vector<uint8_t>& flags, int64_t begin, in
   return false;
 }
 
-std::vector<uint64_t> compute_i64_tile_bounds(
+std::vector<uint8_t> invert_nonzero_flags(const std::vector<uint8_t>& nonzero_flags) {
+  std::vector<uint8_t> zero_flags(nonzero_flags.size(), 0);
+  for (std::size_t index = 0; index < nonzero_flags.size(); ++index) {
+    zero_flags[index] = nonzero_flags[index] == 0 ? 1u : 0u;
+  }
+  return zero_flags;
+}
+
+uint64_t count_set_flags(const std::vector<uint8_t>& flags) {
+  uint64_t count = 0;
+  for (const uint8_t value : flags) {
+    count += value != 0 ? 1u : 0u;
+  }
+  return count;
+}
+
+uint64_t zero_row_col_product_count(int64_t m, int64_t n, uint64_t zero_a_rows, uint64_t zero_b_cols) {
+  const uint64_t rows = static_cast<uint64_t>(m);
+  const uint64_t cols = static_cast<uint64_t>(n);
+  const uint64_t nonzero_a_rows = rows - zero_a_rows;
+  return zero_a_rows * cols + nonzero_a_rows * zero_b_cols;
+}
+
+TileBoundScanResult compute_i64_tile_bounds(
     const Args& args,
     const std::vector<int64_t>& A,
     const std::vector<int64_t>& B) {
@@ -1617,9 +1651,12 @@ std::vector<uint64_t> compute_i64_tile_bounds(
   }
   const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
   const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
-  std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  TileBoundScanResult scan{};
+  scan.bounds.assign(static_cast<std::size_t>(checked_tile_count(args)), 0);
   const std::vector<uint8_t> nonzero_a_rows = compute_nonzero_a_rows(args, A);
   const std::vector<uint8_t> nonzero_b_cols = compute_nonzero_b_cols(args, B);
+  scan.zero_a_rows = invert_nonzero_flags(nonzero_a_rows);
+  scan.zero_b_cols = invert_nonzero_flags(nonzero_b_cols);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
     const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
@@ -1630,7 +1667,7 @@ std::vector<uint64_t> compute_i64_tile_bounds(
           !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
         continue;
       }
-      uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
+      uint64_t& tile_max = scan.bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
       for (int64_t row = row_begin; row < row_end; ++row) {
         if (nonzero_a_rows[static_cast<std::size_t>(row)] == 0) {
           continue;
@@ -1649,10 +1686,10 @@ std::vector<uint64_t> compute_i64_tile_bounds(
       }
     }
   }
-  return bounds;
+  return scan;
 }
 
-std::vector<uint64_t> compute_u64_tile_bounds(
+TileBoundScanResult compute_u64_tile_bounds(
     const Args& args,
     const std::vector<uint64_t>& A,
     const std::vector<uint64_t>& B) {
@@ -1662,9 +1699,12 @@ std::vector<uint64_t> compute_u64_tile_bounds(
   }
   const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
   const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
-  std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  TileBoundScanResult scan{};
+  scan.bounds.assign(static_cast<std::size_t>(checked_tile_count(args)), 0);
   const std::vector<uint8_t> nonzero_a_rows = compute_nonzero_a_rows(args, A);
   const std::vector<uint8_t> nonzero_b_cols = compute_nonzero_b_cols(args, B);
+  scan.zero_a_rows = invert_nonzero_flags(nonzero_a_rows);
+  scan.zero_b_cols = invert_nonzero_flags(nonzero_b_cols);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
     const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
@@ -1675,7 +1715,7 @@ std::vector<uint64_t> compute_u64_tile_bounds(
           !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
         continue;
       }
-      uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
+      uint64_t& tile_max = scan.bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
       for (int64_t row = row_begin; row < row_end; ++row) {
         if (nonzero_a_rows[static_cast<std::size_t>(row)] == 0) {
           continue;
@@ -1693,7 +1733,7 @@ std::vector<uint64_t> compute_u64_tile_bounds(
       }
     }
   }
-  return bounds;
+  return scan;
 }
 
 void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
@@ -1717,11 +1757,21 @@ void record_tile_bounds(BenchmarkResult& result, std::vector<uint64_t> bounds) {
 template <typename Fn>
 void record_timed_tile_bounds(BenchmarkResult& result, Fn&& compute_bounds) {
   const auto scan_start = std::chrono::steady_clock::now();
-  auto bounds = compute_bounds();
+  auto scan = compute_bounds();
   const auto scan_end = std::chrono::steady_clock::now();
   result.tile_bound_scan_us = elapsed_us(scan_start, scan_end);
   result.tile_bound_scan_available = true;
-  record_tile_bounds(result, std::move(bounds));
+  result.zero_a_rows = std::move(scan.zero_a_rows);
+  result.zero_b_cols = std::move(scan.zero_b_cols);
+  result.zero_a_row_proof_count = count_set_flags(result.zero_a_rows);
+  result.zero_b_col_proof_count = count_set_flags(result.zero_b_cols);
+  result.zero_row_col_product_count =
+      zero_row_col_product_count(
+          result.zero_a_rows.empty() ? 0 : static_cast<int64_t>(result.zero_a_rows.size()),
+          result.zero_b_cols.empty() ? 0 : static_cast<int64_t>(result.zero_b_cols.size()),
+          result.zero_a_row_proof_count,
+          result.zero_b_col_proof_count);
+  record_tile_bounds(result, std::move(scan.bounds));
 }
 
 uint32_t benchmark_prefix(const Args& args) {
@@ -1790,7 +1840,12 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   return matrix_desc(rows, cols, args, benchmark_prefix(args));
 }
 
-rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uint64_t>* tile_bounds = nullptr) {
+rns8_gemm_desc gemm_desc(
+    const Args& args,
+    uint64_t bound,
+    const std::vector<uint64_t>* tile_bounds = nullptr,
+    const std::vector<uint8_t>* zero_a_rows = nullptr,
+    const std::vector<uint8_t>* zero_b_cols = nullptr) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -1820,6 +1875,20 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uin
     desc.tile_bounds_count = static_cast<uint64_t>(tile_bounds->size());
     if (bounded_benchmark_semantics(args.semantics) && !tile_bounds->empty()) {
       desc.flags |= RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+    }
+    if (bounded_benchmark_semantics(args.semantics) && zero_a_rows && zero_b_cols &&
+        zero_a_rows->size() == static_cast<std::size_t>(args.m) &&
+        zero_b_cols->size() == static_cast<std::size_t>(args.n) &&
+        zero_row_col_product_count(
+            args.m,
+            args.n,
+            count_set_flags(*zero_a_rows),
+            count_set_flags(*zero_b_cols)) != 0) {
+      desc.flags |= RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+      desc.zero_a_rows = zero_a_rows->data();
+      desc.zero_a_rows_count = static_cast<uint64_t>(zero_a_rows->size());
+      desc.zero_b_cols = zero_b_cols->data();
+      desc.zero_b_cols_count = static_cast<uint64_t>(zero_b_cols->size());
     }
   }
   return desc;
@@ -3669,7 +3738,7 @@ rns8_status run_timed_status_operation(const char* label, Fn&& fn) {
 
 void capture_vector_alu_schedule(rns8_context* ctx, const Args& args, uint64_t bound, BenchmarkResult& result) {
   result.target_id = benchmark_target_id_for_context(ctx, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
-  auto desc = gemm_desc(args, bound, &result.tile_bounds);
+  auto desc = gemm_desc(args, bound, &result.tile_bounds, &result.zero_a_rows, &result.zero_b_cols);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
@@ -4054,7 +4123,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_i64_tile_bounds(args, A, B); });
   }
-  auto desc = gemm_desc(args, bound, &result.tile_bounds);
+  auto desc = gemm_desc(args, bound, &result.tile_bounds, &result.zero_a_rows, &result.zero_b_cols);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
@@ -4376,7 +4445,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_u64_tile_bounds(args, A, B); });
   }
-  auto desc = gemm_desc(args, bound, &result.tile_bounds);
+  auto desc = gemm_desc(args, bound, &result.tile_bounds, &result.zero_a_rows, &result.zero_b_cols);
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
@@ -6053,6 +6122,13 @@ void print_json(
             << result.zero_output_selected_residue_plane_count << ",\n";
   std::cout << "    \"zero_output_skip_active\": "
             << (result.zero_output_tile_count != 0 ? "true" : "false") << ",\n";
+  std::cout << "    \"zero_a_row_proof_count\": " << result.zero_a_row_proof_count << ",\n";
+  std::cout << "    \"zero_b_col_proof_count\": " << result.zero_b_col_proof_count << ",\n";
+  std::cout << "    \"zero_row_col_product_count\": " << result.zero_row_col_product_count << ",\n";
+  std::cout << "    \"planner_zero_a_row_count\": " << result.schedule_info.zero_a_row_count << ",\n";
+  std::cout << "    \"planner_zero_b_col_count\": " << result.schedule_info.zero_b_col_count << ",\n";
+  std::cout << "    \"planner_zero_row_col_product_count\": "
+            << result.schedule_info.zero_row_col_product_count << ",\n";
   std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
   std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";

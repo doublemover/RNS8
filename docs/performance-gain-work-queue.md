@@ -119,6 +119,21 @@ Implemented in the current proven-zero tile skip slice:
   and reports zero tile counts, zero tile fraction, selected residue-plane skip
   counts, and schedule flags in `schedule_metadata`. Schema and sweep cache
   keys validate and preserve those fields.
+- Per-tile bounded plans now also have an explicit
+  `RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS` opt-in for trusted zero A-row and
+  B-column proof masks. Schedule entries mark
+  `RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT` for tiles intersecting those masks,
+  plan/workspace fingerprints include the copied masks, Direct-HIP workspaces
+  upload them, and scheduled GEMM/export can write proven zero row/column
+  products without doing per-cell dot products or CRT reconstruction.
+- Direct-HIP adaptive plans advertise distinct row/column skip kernel families:
+  `direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1` for row/column
+  proofs only and
+  `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` when
+  zero-output tile skips and row/column proof skips are both active. Benchmark
+  schema v4, release-review grouping, result comparison, and autotune-key
+  validation now preserve the proof counts so masked and unmasked evidence
+  cannot be mixed.
 
 Implemented in the current accumulator-safety metadata slice:
 
@@ -153,10 +168,12 @@ Remaining high-value imported work goes at the front of the queue:
    bounded-u64 adaptive-band capture reduced `tile_bound_scan` from 557635 us
    to 414379 us, a 1.35x prepass speedup, with the tile-bound hash, selected
    prefix, prefix groups, zero-output tile count, selected kernel, schema v4,
-   and required GPU events unchanged. The remaining work is to add public
-   row/column-summary planner contracts, extend execution beyond whole output
-   tiles, and promote broader release `gfx1100` evidence without inferring
-   semantics from C++ types.
+   and required GPU events unchanged. Row/column proof masks have since been
+   promoted from benchmark scan metadata into an explicit trusted per-tile plan
+   contract for Direct-HIP scheduled GEMM/export. The remaining work is to
+   gather broader release `gfx1100` evidence, decide when these proof masks are
+   setup-inclusive wins, extend the execution skip beyond Direct-HIP, and avoid
+   inferring semantics from C++ types.
 
    Code references: current benchmark scans in
    `benchmarks/rns8_bench.cpp` (`compute_i64_tile_bounds`,
@@ -172,10 +189,12 @@ Remaining high-value imported work goes at the front of the queue:
    active-prefix tile schedule in the workspace, so each modulus-plane launch
    visits only tiles whose selected prefix actually includes that plane instead
    of launching row-major blocks that immediately return for skipped planes.
-   The remaining work is to extend this from whole output tiles to zero
-   row/column products and other provably unused selected-prefix ranges, plus
-   benchmark evidence showing the skip counters translate into end-to-end wins
-   on release `gfx1100` captures.
+   Direct-HIP now extends this from whole output tiles to explicit zero
+   row/column products using copied proof masks, and schema/event smokes cover
+   combined zero-tile plus row/column captures. The remaining work is to gather
+   release evidence showing the skip counters translate into setup-inclusive
+   end-to-end wins, extend the proof-mask execution path to other backends, and
+   explore other provably unused selected-prefix ranges.
 
    Code references: tile schedule entries in `include/rns8/rns8.h`, schedule
    construction in `src/core/api_plan.cpp`, direct-HIP dispatch in
@@ -436,6 +455,19 @@ Likely first slices:
   `temp/perf-work-queue/direct-hip-zero-active-schedule/` and validates schema
   v4 plus required GPU events for a 256x256x512 bounded-u64 adaptive-bands
   capture.
+- Direct-HIP zero row/column product schedules. Implemented for explicit
+  trusted per-tile proof masks as
+  `direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1` and the
+  combined
+  `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1`. The
+  public descriptor carries copied zero A-row and B-column masks, schedule info
+  reports proof counts and covered output products, Direct-HIP workspaces and
+  scheduled exports upload the masks, and stale/mismatched captures are rejected
+  by schema, release-review keying, result comparison, and autotune-key checks.
+  Release-build C++ tests cover the plan contract and a real `gfx1100`
+  scheduled GEMM/export CPU comparison; smoke captures under
+  `temp/perf-zero-rowcol-smoke/` validate schema v4 plus required GPU events for
+  bounded i64/u64 65x65x64 adaptive-band combined zero-tile/row-column cases.
 
 Relation to existing queue:
 

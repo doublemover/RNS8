@@ -630,6 +630,18 @@ valid when their required and selected prefixes are otherwise well formed.
 Direct HIP all-zero scheduled exports zero-fill the compact native export
 buffer directly and do not upload tile schedule/bounds metadata for the export
 because no tile-local CRT work can run on that contract.
+Per-tile bounded descriptors may also opt into
+`RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS` with `zero_a_rows` and
+`zero_b_cols` proof masks whose lengths are exactly `m` and `n`. A set A-row
+mask byte proves that every output cell in that row is zero for the specific
+input pair; a set B-column mask byte proves the same for that output column.
+These masks are trusted caller or benchmark proof metadata, not inferred or
+verified by RNS8 during plan creation. Plan creation copies the masks, reports
+aggregate proof counts through `rns8_plan_schedule_info`, marks intersecting
+tiles with `RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT`, and includes the copied
+masks in workspace fingerprints. Direct HIP scheduled GEMM and scheduled
+bounded export can use those uploaded masks to write proven-zero row/column
+products without doing the corresponding dot product or CRT reconstruction.
 Optimized matrix engine grouped kernels remain a separate validation target.
 
 For each tile:
@@ -691,12 +703,13 @@ allocations inside hot calls are forbidden after plan creation.
 
 Workspaces are bound to the plan contract that created them. Backend, shape,
 prefix, semantics, bound kind, bound value, input-range bounds, tile geometry,
-selected-prefix schedule metadata, and copied per-tile schedule identity must
-match before a workspace can be used for GEMM. Same-shape workspaces from
-bounded, exact-wide, input-range bounded, per-tile bounded, wrap64, or
-different per-tile schedule contracts are rejected instead of being reused
-across semantic boundaries. Per-tile bounded matrices must also carry the
-plan's tile geometry before GEMM/export dispatch.
+selected-prefix schedule metadata, copied per-tile schedule identity, and
+copied zero row/column proof-mask identity must match before a workspace can be
+used for GEMM. Same-shape workspaces from bounded, exact-wide, input-range
+bounded, per-tile bounded, wrap64, or different per-tile schedule/proof-mask
+contracts are rejected instead of being reused across semantic boundaries.
+Per-tile bounded matrices must also carry the plan's tile geometry before
+GEMM/export dispatch.
 
 ## 11. Public API Specification
 

@@ -52,15 +52,23 @@ typedef struct rns8_device_info {
  * contracts whose zero tile bounds came from a trusted exact scan or proof.
  * Without that opt-in, zero bounds remain ordinary range contracts and do not
  * authorize execution shortcuts.
+ *
+ * RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS is valid only with per-tile
+ * bounded contracts and explicit zero_a_rows/zero_b_cols proof masks. A set A
+ * row or B column mask bit proves every output cell in that row or column is
+ * zero for this specific input pair. The proof is trusted input metadata; RNS8
+ * does not infer or verify it during plan creation.
  */
 #define RNS8_PLAN_FORCE_FIXED_PREFIX 0x00000001u
 #define RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS 0x00000002u
+#define RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS 0x00000004u
 
 /*
  * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and
  * rns8_plan_tile_schedule_entry.flags.
  */
 #define RNS8_TILE_SCHEDULE_ZERO_OUTPUT 0x00000001u
+#define RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT 0x00000002u
 
 typedef struct rns8_gemm_desc {
   uint64_t struct_size;
@@ -94,6 +102,10 @@ typedef struct rns8_gemm_desc {
    */
   uint64_t lhs_bound;
   uint64_t rhs_bound;
+  const uint8_t* zero_a_rows;
+  uint64_t zero_a_rows_count;
+  const uint8_t* zero_b_cols;
+  uint64_t zero_b_cols_count;
 } rns8_gemm_desc;
 
 typedef struct rns8_matrix_desc {
@@ -134,6 +146,9 @@ typedef struct rns8_plan_schedule_info {
   uint64_t effective_bound;
   uint64_t lhs_bound;
   uint64_t rhs_bound;
+  uint64_t zero_a_row_count;
+  uint64_t zero_b_col_count;
+  uint64_t zero_row_col_product_count;
   char bound_contract[96];
 } rns8_plan_schedule_info;
 

@@ -76,6 +76,18 @@ bool valid_tile_size(uint32_t value) {
   return value == 0 || ((value >= 64 && value <= 512) && (value & (value - 1u)) == 0);
 }
 
+bool valid_zero_mask(const uint8_t* mask, uint64_t count, int64_t expected_count) {
+  if (!mask || expected_count < 0 || count != static_cast<uint64_t>(expected_count)) {
+    return false;
+  }
+  for (uint64_t index = 0; index < count; ++index) {
+    if (mask[index] > 1u) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool known_semantics(rns8_semantics semantics) {
   switch (semantics) {
     case RNS8_BOUNDED_I64:
@@ -287,12 +299,15 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
+                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
   if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
   const bool proven_zero_tile_skips_requested = (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
+  const bool proven_zero_row_col_skips_requested =
+      (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
   if (!valid_tile_size(desc.tile_m)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -304,8 +319,19 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (!per_tile_bounds && (desc.tile_bounds || desc.tile_bounds_count != 0)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (!proven_zero_row_col_skips_requested &&
+      (desc.zero_a_rows || desc.zero_a_rows_count != 0 || desc.zero_b_cols || desc.zero_b_cols_count != 0)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (proven_zero_tile_skips_requested && !per_tile_bounds) {
     return RNS8_INVALID_ARGUMENT;
+  }
+  if (proven_zero_row_col_skips_requested) {
+    if (!per_tile_bounds ||
+        !valid_zero_mask(desc.zero_a_rows, desc.zero_a_rows_count, desc.m) ||
+        !valid_zero_mask(desc.zero_b_cols, desc.zero_b_cols_count, desc.n)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
   }
   if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
     return RNS8_INVALID_ARGUMENT;

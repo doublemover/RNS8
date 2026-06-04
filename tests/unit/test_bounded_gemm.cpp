@@ -734,6 +734,76 @@ TEST_CASE("bounded per-tile zero output skips require proven-zero opt-in") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("bounded per-tile zero row and column product skips require explicit proof masks") {
+  rns8_context* ctx = create_cpu();
+  const std::vector<uint64_t> bounds = {1000, 1000, 1000, 1000};
+  std::vector<uint8_t> zero_a_rows(65, 0);
+  std::vector<uint8_t> zero_b_cols(65, 0);
+  zero_a_rows[0] = 1;
+  zero_b_cols[64] = 1;
+
+  auto desc = u64_desc(65, 65, 1, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+  desc.zero_a_rows = zero_a_rows.data();
+  desc.zero_a_rows_count = zero_a_rows.size();
+  desc.zero_b_cols = zero_b_cols.data();
+  desc.zero_b_cols_count = zero_b_cols.size();
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  CHECK(plan->desc.zero_a_rows == nullptr);
+  CHECK(plan->desc.zero_a_rows_count == zero_a_rows.size());
+  CHECK(plan->desc.zero_b_cols == nullptr);
+  CHECK(plan->desc.zero_b_cols_count == zero_b_cols.size());
+  CHECK(plan->zero_a_row_count == 1);
+  CHECK(plan->zero_b_col_count == 1);
+  CHECK(plan->zero_row_col_product_count == 129);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+  CHECK(info.zero_a_row_count == 1);
+  CHECK(info.zero_b_col_count == 1);
+  CHECK(info.zero_row_col_product_count == 129);
+
+  std::vector<rns8_plan_tile_schedule_entry> entries(4);
+  uint64_t written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  CHECK(entries[0].flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+  CHECK(entries[1].flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+  CHECK(entries[2].flags == 0);
+  CHECK(entries[3].flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+  rns8_destroy_plan(plan);
+
+  auto missing_flag = desc;
+  missing_flag.flags = 0;
+  rns8_plan* invalid_plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &missing_flag, &invalid_plan) == RNS8_INVALID_ARGUMENT);
+
+  auto global_desc = u64_desc(65, 65, 1, 1000);
+  global_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+  global_desc.zero_a_rows = zero_a_rows.data();
+  global_desc.zero_a_rows_count = zero_a_rows.size();
+  global_desc.zero_b_cols = zero_b_cols.data();
+  global_desc.zero_b_cols_count = zero_b_cols.size();
+  CHECK(rns8_create_plan(ctx, &global_desc, &invalid_plan) == RNS8_INVALID_ARGUMENT);
+
+  auto bad_mask = desc;
+  zero_a_rows[1] = 2;
+  bad_mask.zero_a_rows = zero_a_rows.data();
+  CHECK(rns8_create_plan(ctx, &bad_mask, &invalid_plan) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix") {
   rns8_context* ctx = create_cpu();
   const auto prefix8_product = rns8::detail::modulus_product(RNS8_DEFAULT_BOUNDED_PREFIX - 1u);
