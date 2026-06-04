@@ -1,29 +1,41 @@
 # RNS8
 
-RNS8 is an exact integer GEMM library for AMD GPUs. It stores matrices in a
-residue number system, evaluates small-modulus `int8 x int8 -> int32` GEMMs,
-and reconstructs integer outputs only under an explicit semantic contract.
+RNS8 explores exact integer matrix multiplication on AMD GPU matrix engines.
 
-The project is pre-1.0 and intentionally direct: signedness, wraparound,
-finite-ring behavior, and exact-width export are never inferred from a C++ type
-alone. The public C ABI is the primary supported API; the C++ wrapper is a
-small RAII handle layer, not a full C++ API surface.
+Unlike traditional BLAS libraries that operate on floating-point values,
+RNS8 computes exact integer results using residue number systems (RNS),
+Chinese Remainder Theorem reconstruction (CRT), and GPU matrix engines.
+
+RNS8 treats GPU matrix engines as exact integer compute devices rather than
+floating-point accelerators.
+
+Status: Pre-1.0 research project. Active development.
+Windows HIP SDK / gfx1100 is the primary validated platform.
+
+## Use of AI
+
+RNS8 is an open-source HPC codebase built entirely through AI-directed
+development workflows. The architecture, constraints, performance goals,
+and correctness requirements are human defined. Codex does the typing.
 
 ## What Works Now
 
 - CPU reference backend with Boost.Multiprecision CRT/Garner reconstruction.
-- Public C ABI, limited C++ RAII wrapper, install/export targets, and examples.
-- Windows HIP direct backend on Radeon RX 7900 XTX / `gfx1100`.
-- Persistent RNS matrices with device-resident direct-HIP pack, GEMM, and
-  export paths.
-- Bounded signed/unsigned 64-bit GEMM with fixed and per-tile modulus counts.
-- Native vector-ALU backend for explicit bounded i64/u64 contracts.
-- Exact-wide signed/unsigned RNS output with fixed-width limb export.
-- Strict `mod 2^64` CPU and direct-HIP byte-limb paths.
-- Explicit finite-ring and finite-field `uint8_t` GEMM for moduli up to 256.
-- Opt-in Windows `gfx1100` hipBLASLt, CK, and rocWMMA correctness backends.
-- Benchmark schema v4, result comparison, GPU event reporting, ISA reporting,
-  and reviewed autotune-cache validation.
+- Public C ABI, limited C++ RAII wrapper, CMake install/export targets, and
+  downstream examples.
+- Explicit semantic modes for bounded i64/u64, exact-wide signed/unsigned,
+  strict `mod 2^64`, finite rings, and prime fields.
+- Persistent plan, matrix, workspace, and prepack-cache handles with explicit
+  ownership and compatibility checks.
+- Windows HIP direct backend on Radeon RX 7900 XTX / `gfx1100`, including
+  device-resident pack, GEMM, and export paths.
+- Native vector-ALU runtime backend for explicit bounded i64/u64 contracts.
+- Opt-in hipBLASLt, CK, and rocWMMA accelerator backends with reviewed local
+  `gfx1100` winners for selected bounded, finite-u8, and exact-wide shapes.
+- AUTO backend selection from reviewed autotune-cache entries only; unsupported
+  or unreviewed backends fall back to correctness paths.
+- Benchmark schema v4, release-sweep review tooling, result comparison, GPU
+  event reports, ISA reports, and cache-install validation.
 
 ## Quick Start
 
@@ -70,33 +82,6 @@ Exported package targets are `rns8::rns8` and `rns8::rns8_static`.
 Public backend strings are `cpu-reference`, `hip-direct`,
 `hip-vector-alu-int64`, `wrap64-byte-limb`, `hipblaslt`, `ck`, and `rocwmma`.
 
-## Status Codes
-
-| Code | Meaning |
-|---|---|
-| `RNS8_SUCCESS` | Operation completed. |
-| `RNS8_INVALID_ARGUMENT` | Public ABI contract, descriptor, handle, layout, or semantic input is invalid. |
-| `RNS8_UNSUPPORTED_OS` | Requested path is not supported on this OS. |
-| `RNS8_UNSUPPORTED_ARCH` | Requested path is not supported on this architecture or target. |
-| `RNS8_UNSUPPORTED_BACKEND` | Backend is known but unavailable, disabled, or unsupported for the contract. |
-| `RNS8_RANGE_ERROR` | Exact export cannot fit the requested bounded output. |
-| `RNS8_ACCUMULATION_OVERFLOW_RISK` | Contract risks overflowing the backend accumulator. |
-| `RNS8_WORKSPACE_TOO_SMALL` | Supplied workspace is smaller than the plan requires. |
-| `RNS8_BACKEND_FAILURE` | Backend runtime or device operation failed. |
-| `RNS8_VERIFICATION_FAILED` | Explicit verification failed. |
-| `RNS8_INTERNAL_ERROR` | Internal invariant failure. |
-
-## Environment Variables
-
-| Variable | Used by | Purpose |
-|---|---|---|
-| `RNS8_AUTOTUNE_CACHE_PATH` | Runtime and benchmark tools | Overrides the reviewed autotune-cache location. Missing or rejected hits fall back to correctness paths. |
-| `RNS8_HIP_PINNED_EXPORT_STAGING` | Direct-HIP runtime and benchmarks | Set to `0`, `false`, `off`, or `no` to disable large padded-output pinned host export staging; set to `1`, `true`, `on`, or `yes` to force staging for contiguous-output A/B transfer measurements. |
-| `RNS8_WRAP64_HIP_COLPAIR_EXPERIMENT` | Direct-HIP wrap64 runtime and benchmarks | Set to `1` to opt into the experimental two-output-cell wrap64 byte-GEMM36 kernel for large `K <= 4096` shapes. It is not default because current local evidence does not show an end-to-end win. |
-| `VCPKG_ROOT` | CMake presets and CI | Locates the vcpkg toolchain file for CPU presets. |
-| `HIP_PATH` / `ROCM_PATH` | Dependency checks and HIP discovery | Helps locate HIP SDK or ROCm when preset roots are not enough. |
-| `LOCALAPPDATA`, `USERPROFILE`, `XDG_CACHE_HOME`, `HOME` | Autotune tooling | Default cache-root discovery when `RNS8_AUTOTUNE_CACHE_PATH` is unset. |
-
 ## Hardware Scope
 
 Minimum useful evaluation is CPU-only with the `cpu-debug` preset. The local GPU
@@ -123,32 +108,40 @@ downgrading exactness.
 
 Performance claims require reviewed same-contract captures with fixed seeds,
 recorded toolchain and GPU metadata, CPU/reference and GPU baselines, and
-release-mode repeat counts. Raw benchmark captures are evidence, not promotion.
-See [docs/performance-model.md](docs/performance-model.md) and
-[docs/performance-wins.md](docs/performance-wins.md).
+release-mode repeat counts. Raw benchmark captures are evidence, not promotion;
+see [docs/performance-model.md](docs/performance-model.md),
+[docs/performance-wins.md](docs/performance-wins.md), and
+[docs/reviewed-local-evidence.md](docs/reviewed-local-evidence.md).
 
-Current local Windows `gfx1100` reviewed winners:
+Current local Windows `gfx1100` release-reviewed snapshot:
 
-| Contract | Shape | Current winner | Speedup basis | Status |
-|---|---:|---|---:|---|
-| bounded i64 | 512 | Direct HIP `direct_hip_tiled_active_prefix_rns_gemm_v2` | no accelerator win | no cache entry |
-| bounded i64 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1.09x vs Direct HIP | default cache installed |
-| finite ring u8 mod 251 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1.11x vs Direct HIP | default cache installed |
-| finite ring u8 mod 251 | 1024 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 2.74x vs Direct HIP | default cache installed |
-| finite ring u8 mod 255 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 3.00x vs Direct HIP | default cache installed |
-| finite ring u8 mod 256 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1.02x vs Direct HIP | default cache installed |
-| finite ring u8 mod 256 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 4.08x vs Direct HIP | default cache installed |
-| finite ring u8 mod 256 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7.05x vs Direct HIP | default cache installed |
-| finite field u8 mod 251 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 5.68x vs Direct HIP | default cache installed |
-| exact-wide signed | 512 | rocWMMA `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 1.02x vs Direct HIP | default cache installed |
-| exact-wide signed | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1.32x vs Direct HIP | default cache installed |
-| exact-wide unsigned | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 1.22x vs Direct HIP | default cache installed |
+| Contract | Shape | Current reviewed path | Median end-to-end | Comparison | Cache |
+|---|---:|---|---:|---:|---|
+| bounded i64 | 512 | Direct HIP `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
+| bounded i64 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
+| finite ring u8 mod 251 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
+| finite ring u8 mod 251 | 1024 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
+| finite ring u8 mod 255 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
+| finite ring u8 mod 256 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
+| finite ring u8 mod 256 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
+| finite ring u8 mod 256 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
+| finite field u8 mod 251 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
+| exact-wide signed | 512 | rocWMMA `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
+| exact-wide signed | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
+| exact-wide unsigned | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
+
+The installed reviewed cache currently covers 11 exact plan keys: one
+bounded-i64 key, seven finite-u8 keys, and three exact-wide keys. Some rows are
+deliberately narrow local wins; Linux ROCm, Instinct, RDNA4, and profiler-backed
+production claims remain separate validation work.
 
 ## Known Limitations
 
 - Pre-1.0 public names and structs may change through deliberate hard cuts.
 - The C++ wrapper is limited RAII support.
 - AUTO selection only promotes reviewed cache entries for supported contracts.
+- Small-shape finite-u8 accelerator wins must beat CPU as well as Direct HIP;
+  backend-relative wins that lose to CPU are not promoted.
 - hipBLASLt, CK, and rocWMMA are opt-in accelerators, not required for
   correctness.
 - Strict wrap64 matrix-engine acceleration is an internal candidate, not a
@@ -157,23 +150,17 @@ Current local Windows `gfx1100` reviewed winners:
 
 ## What This Is Not
 
-RNS8 is not a general BLAS replacement, a symbolic algebra system, an FHE
-library, a CPU arbitrary-precision package, or a claim that every AMD GPU target
+RNS8 is not a general BLAS replacement or a claim that every AMD GPU target
 is production-ready. It is a hardware-realistic exact integer GEMM project with
 explicit semantics and evidence gates.
 
 ## Documentation
 
 - [docs/README.md](docs/README.md): documentation map.
-- [docs/RNS8_RESEARCH_SPEC.md](docs/RNS8_RESEARCH_SPEC.md): architecture,
-  roadmap, and semantic contracts.
+- [docs/RNS8_RESEARCH_SPEC.md](docs/RNS8_RESEARCH_SPEC.md): architecture, roadmap, and semantic contracts.
 - [docs/public-roadmap.md](docs/public-roadmap.md): compact public roadmap.
 - [docs/release-checklist.md](docs/release-checklist.md): release gate.
 - [docs/glossary.md](docs/glossary.md): terminology.
 - [docs/prior-art.md](docs/prior-art.md): related systems and scope boundary.
 - [docs/platform-windows.md](docs/platform-windows.md): Windows HIP setup.
-- [third_party/README.md](third_party/README.md): third-party and submodule
-  policy.
-
-Temporary captures, probes, installers, and scratch binaries belong under
-ignored `temp/`, `build/`, or `out/` paths.
+- [third_party/README.md](third_party/README.md): third-party and submodule policy.
