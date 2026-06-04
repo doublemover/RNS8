@@ -139,10 +139,14 @@ Remaining high-value imported work goes at the front of the queue:
 2. **Zero-Tile And Zero-Plane Execution Skips**
 
    Proven zero tile bounds now skip tiled GEMM/export work in CPU, direct HIP,
-   CK, and rocWMMA paths. The remaining work is to extend this from whole
-   output tiles to zero row/column products and other provably unused
-   selected-prefix ranges, plus benchmark evidence showing the skip counters
-   translate into end-to-end wins on release `gfx1100` captures.
+   CK, and rocWMMA paths. Direct-HIP scheduled GEMM now also keeps a compact
+   active-prefix tile schedule in the workspace, so each modulus-plane launch
+   visits only tiles whose selected prefix actually includes that plane instead
+   of launching row-major blocks that immediately return for skipped planes.
+   The remaining work is to extend this from whole output tiles to zero
+   row/column products and other provably unused selected-prefix ranges, plus
+   benchmark evidence showing the skip counters translate into end-to-end wins
+   on release `gfx1100` captures.
 
    Code references: tile schedule entries in `include/rns8/rns8.h`, schedule
    construction in `src/core/api_plan.cpp`, direct-HIP dispatch in
@@ -374,6 +378,12 @@ Likely first slices:
   existing full bounded prefix; uniform reduced-prefix schedules remain
   materialized until their tiled dispatch path is independently validated as a
   net win.
+- Compact direct-HIP active-prefix scheduled launches. Implemented for
+  per-tile direct-HIP RNS GEMM as
+  `direct_hip_tiled_active_prefix_rns_gemm_v2`: the workspace stores the
+  public row-major schedule plus a compact per-modulus active-entry schedule,
+  and the GEMM dispatch uses the compact schedule to avoid tile blocks for
+  residue planes that a tile did not select.
 
 Relation to existing queue:
 

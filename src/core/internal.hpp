@@ -145,6 +145,12 @@ struct rns8_workspace {
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
   uint64_t hip_tile_schedule_count = 0;
+  void* hip_tile_schedule_active_entries = nullptr;
+  std::size_t hip_tile_schedule_active_entries_bytes = 0;
+  uint64_t hip_tile_schedule_active_entries_count = 0;
+  uint64_t hip_tile_schedule_active_offsets[RNS8_MAX_SUPPORTED_PREFIX]{};
+  uint64_t hip_tile_schedule_active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+  uint32_t hip_tile_schedule_active_prefix_count = 0;
   void* hipblaslt_int32_scratch = nullptr;
   std::size_t hipblaslt_int32_scratch_bytes = 0;
   void* hipblaslt_workspace = nullptr;

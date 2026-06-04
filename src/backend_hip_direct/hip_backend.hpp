@@ -311,6 +311,10 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* host_entries,
     const void* device_entries,
+    const void* active_device_entries,
+    const uint64_t* active_offsets,
+    const uint64_t* active_counts,
+    uint32_t active_prefix_count,
     uint64_t entry_count);
 rns8_status hip_direct_gemm_finite_u8_resident_device(
     int device_id,

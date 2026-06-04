@@ -260,7 +260,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
         (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED)) {
       return "direct_hip_prefix20_grouped_rns_gemm_v1";
     }
-    return "direct_hip_tiled_rns_gemm_v1";
+    return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_exact_192b_v1"
@@ -336,7 +336,7 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
 std::string workspace_mode_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     return plan.tile_schedule.empty() ? "resident_device_buffers"
-                                      : "resident_device_buffers_with_tiled_schedule";
+                                      : "resident_device_buffers_with_active_prefix_tiled_schedule";
   }
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return "native_device_i64_u64_buffers";
@@ -645,7 +645,22 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
   if (plan.backend != RNS8_BACKEND_HIP_DIRECT || plan.tile_schedule.empty()) {
     return 0;
   }
-  return static_cast<uint64_t>(plan.tile_schedule.size()) * sizeof(rns8_plan_tile_schedule_entry);
+  uint64_t active_entry_count = 0;
+  for (const auto& entry : plan.tile_schedule) {
+    if (entry.selected_prefix > std::numeric_limits<uint64_t>::max() - active_entry_count) {
+      return std::numeric_limits<uint64_t>::max();
+    }
+    active_entry_count += entry.selected_prefix;
+  }
+  const uint64_t schedule_entries = static_cast<uint64_t>(plan.tile_schedule.size());
+  if (schedule_entries > std::numeric_limits<uint64_t>::max() - active_entry_count) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  const uint64_t total_entries = schedule_entries + active_entry_count;
+  if (total_entries > std::numeric_limits<uint64_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  return total_entries * sizeof(rns8_plan_tile_schedule_entry);
 }
 
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n) {

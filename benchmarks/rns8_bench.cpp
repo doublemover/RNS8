@@ -5232,7 +5232,7 @@ const char* selected_kernel_name(
     return result.backend_info.selected_kernel;
   }
   if (adaptive_execution_applied(args, info, result)) {
-    return "direct_hip_tiled_rns_gemm_v1";
+    return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return "direct_hip_wrap64_byte_gemm36_tiled_2d_v3";

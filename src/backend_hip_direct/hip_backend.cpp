@@ -2689,9 +2689,14 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* host_entries,
     const void* device_entries,
+    const void* active_device_entries,
+    const uint64_t* active_offsets,
+    const uint64_t* active_counts,
+    uint32_t active_prefix_count,
     uint64_t entry_count) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries || !device_entries ||
+      !active_device_entries || !active_offsets || !active_counts || active_prefix_count == 0 ||
       entry_count == 0 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -2717,10 +2722,37 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const auto* schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(device_entries);
+  const auto* active_schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(active_device_entries);
   const uint32_t max_selected_prefix = schedule.selected_prefix_groups.back();
+  if (active_prefix_count != max_selected_prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  uint64_t running_offset = 0;
+  for (uint32_t p = 0; p < max_selected_prefix; ++p) {
+    uint64_t expected_count = 0;
+    for (uint64_t entry_index = 0; entry_index < entry_count; ++entry_index) {
+      const auto& entry = host_entries[static_cast<std::size_t>(entry_index)];
+      if (entry.selected_prefix > p) {
+        ++expected_count;
+      }
+    }
+    if (active_offsets[p] != running_offset || active_counts[p] != expected_count) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (expected_count > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    running_offset += expected_count;
+  }
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
     for (uint32_t p = 0; p < max_selected_prefix; ++p) {
+      const uint64_t active_count = active_counts[p];
+      if (active_count == 0) {
+        continue;
+      }
+      if (active_offsets[p] > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+        return hipErrorInvalidValue;
+      }
       const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
                                    static_cast<std::size_t>(lda);
       const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
@@ -2731,8 +2763,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
           a_base + a_offset,
           b_base + b_offset,
           c_base + c_offset,
-          schedule_base,
-          entry_count,
+          active_schedule_base + static_cast<std::size_t>(active_offsets[p]),
+          active_count,
           max_tile_row_blocks,
           max_tile_col_blocks,
           k,
@@ -2762,6 +2794,10 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   (void)ldc;
   (void)host_entries;
   (void)device_entries;
+  (void)active_device_entries;
+  (void)active_offsets;
+  (void)active_counts;
+  (void)active_prefix_count;
   (void)entry_count;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif

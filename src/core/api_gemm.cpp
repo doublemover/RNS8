@@ -313,6 +313,10 @@ rns8_status rns8_gemm_rns(
             C->desc.cols,
             plan->tile_schedule.data(),
             workspace->hip_tile_schedule,
+            workspace->hip_tile_schedule_active_entries,
+            workspace->hip_tile_schedule_active_offsets,
+            workspace->hip_tile_schedule_active_counts,
+            workspace->hip_tile_schedule_active_prefix_count,
             static_cast<uint64_t>(plan->tile_schedule.size()));
       } else {
         status = rns8::detail::hip_direct_gemm_rns_device(

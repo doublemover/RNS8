@@ -1705,7 +1705,33 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   adaptive_info.struct_size = sizeof(adaptive_info);
   adaptive_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(adaptive_plan, &adaptive_info) == RNS8_SUCCESS);
-  CHECK(std::string(adaptive_info.selected_kernel) == "direct_hip_tiled_rns_gemm_v1");
+  CHECK(std::string(adaptive_info.selected_kernel) == "direct_hip_tiled_active_prefix_rns_gemm_v2");
+  CHECK(std::string(adaptive_info.autotune_key).find("kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;") !=
+        std::string::npos);
+  CHECK(std::string(adaptive_info.workspace_mode) ==
+        "resident_device_buffers_with_active_prefix_tiled_schedule");
+  std::vector<rns8_plan_tile_schedule_entry> adaptive_entries(adaptive_plan->tile_schedule.size());
+  uint64_t written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(
+              adaptive_plan, adaptive_entries.data(), adaptive_entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == adaptive_entries.size());
+  uint64_t active_entry_count = 0;
+  for (const auto& entry : adaptive_entries) {
+    active_entry_count += entry.selected_prefix;
+  }
+  const uint64_t expected_workspace_bytes =
+      (static_cast<uint64_t>(adaptive_entries.size()) + active_entry_count) *
+      sizeof(rns8_plan_tile_schedule_entry);
+  CHECK(adaptive_info.workspace_required_bytes == expected_workspace_bytes);
+  rns8_workspace* adaptive_workspace = nullptr;
+  REQUIRE(rns8_create_workspace(hip, adaptive_plan, &adaptive_workspace) == RNS8_SUCCESS);
+  REQUIRE(adaptive_workspace != nullptr);
+  CHECK(adaptive_workspace->hip_tile_schedule_count == adaptive_entries.size());
+  CHECK(adaptive_workspace->hip_tile_schedule_active_prefix_count == adaptive_plan->schedule_max_selected_prefix);
+  CHECK(adaptive_workspace->hip_tile_schedule_active_entries_count == active_entry_count);
+  CHECK(adaptive_workspace->hip_tile_schedule_active_entries_bytes ==
+        active_entry_count * sizeof(rns8_plan_tile_schedule_entry));
+  REQUIRE(rns8_destroy_workspace(adaptive_workspace) == RNS8_SUCCESS);
   rns8_destroy_plan(adaptive_plan);
   rns8_destroy_context(hip);
 }

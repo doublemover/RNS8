@@ -59,6 +59,102 @@ bool matrix_cell_count(int64_t rows, int64_t cols, std::size_t& cells) {
   return true;
 }
 
+bool build_active_prefix_tile_schedule(
+    const rns8_plan& plan,
+    std::vector<rns8_plan_tile_schedule_entry>& active_entries,
+    uint64_t* active_offsets,
+    uint64_t* active_counts,
+    uint32_t& active_prefix_count) {
+  if (plan.tile_schedule.empty() || plan.schedule_max_selected_prefix == 0 ||
+      plan.schedule_max_selected_prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    return false;
+  }
+  active_entries.clear();
+  for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+    active_offsets[p] = 0;
+    active_counts[p] = 0;
+  }
+  active_prefix_count = plan.schedule_max_selected_prefix;
+  for (uint32_t p = 0; p < active_prefix_count; ++p) {
+    active_offsets[p] = static_cast<uint64_t>(active_entries.size());
+    for (const auto& entry : plan.tile_schedule) {
+      if (entry.selected_prefix > p) {
+        active_entries.push_back(entry);
+      }
+    }
+    active_counts[p] = static_cast<uint64_t>(active_entries.size()) - active_offsets[p];
+  }
+  return !active_entries.empty();
+}
+
+bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const rns8_workspace& workspace) {
+  if (plan.tile_schedule.empty()) {
+    if (workspace.hip_tile_schedule_active_entries != nullptr ||
+        workspace.hip_tile_schedule_active_entries_bytes != 0 ||
+        workspace.hip_tile_schedule_active_entries_count != 0 ||
+        workspace.hip_tile_schedule_active_prefix_count != 0) {
+      return false;
+    }
+    for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+      if (workspace.hip_tile_schedule_active_offsets[p] != 0 ||
+          workspace.hip_tile_schedule_active_counts[p] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (plan.schedule_max_selected_prefix == 0 ||
+      plan.schedule_max_selected_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      workspace.hip_tile_schedule_active_prefix_count != plan.schedule_max_selected_prefix) {
+    return false;
+  }
+  uint64_t running_offset = 0;
+  for (uint32_t p = 0; p < workspace.hip_tile_schedule_active_prefix_count; ++p) {
+    uint64_t expected_count = 0;
+    for (const auto& entry : plan.tile_schedule) {
+      if (entry.selected_prefix > p) {
+        ++expected_count;
+      }
+    }
+    if (workspace.hip_tile_schedule_active_offsets[p] != running_offset ||
+        workspace.hip_tile_schedule_active_counts[p] != expected_count) {
+      return false;
+    }
+    running_offset += expected_count;
+  }
+  for (uint32_t p = workspace.hip_tile_schedule_active_prefix_count; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+    if (workspace.hip_tile_schedule_active_offsets[p] != 0 ||
+        workspace.hip_tile_schedule_active_counts[p] != 0) {
+      return false;
+    }
+  }
+  if (running_offset > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) /
+                           sizeof(rns8_plan_tile_schedule_entry)) {
+    return false;
+  }
+  const std::size_t expected_bytes =
+      static_cast<std::size_t>(running_offset) * sizeof(rns8_plan_tile_schedule_entry);
+  return workspace.hip_tile_schedule_active_entries != nullptr &&
+         workspace.hip_tile_schedule_active_entries_count == running_offset &&
+         workspace.hip_tile_schedule_active_entries_bytes == expected_bytes;
+}
+
+bool active_prefix_tile_schedule_workspace_empty(const rns8_workspace& workspace) {
+  if (workspace.hip_tile_schedule_active_entries != nullptr ||
+      workspace.hip_tile_schedule_active_entries_bytes != 0 ||
+      workspace.hip_tile_schedule_active_entries_count != 0 ||
+      workspace.hip_tile_schedule_active_prefix_count != 0) {
+    return false;
+  }
+  for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+    if (workspace.hip_tile_schedule_active_offsets[p] != 0 ||
+        workspace.hip_tile_schedule_active_counts[p] != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool native_matrix_bytes(int64_t rows, int64_t cols, std::size_t element_size, std::size_t& bytes) {
   std::size_t cells = 0;
   if (element_size == 0 || !matrix_cell_count(rows, cols, cells)) {
@@ -746,15 +842,18 @@ rns8_status validate_plan_context_workspace(
     if (scheduled) {
       if (!workspace.hip_tile_schedule ||
           workspace.hip_tile_schedule_bytes != expected_schedule_bytes ||
-          workspace.hip_tile_schedule_count != static_cast<uint64_t>(plan.tile_schedule.size())) {
+          workspace.hip_tile_schedule_count != static_cast<uint64_t>(plan.tile_schedule.size()) ||
+          !active_prefix_tile_schedule_matches_workspace(plan, workspace)) {
         return RNS8_INVALID_ARGUMENT;
       }
     } else if (workspace.hip_tile_schedule || workspace.hip_tile_schedule_bytes != 0 ||
-               workspace.hip_tile_schedule_count != 0) {
+               workspace.hip_tile_schedule_count != 0 ||
+               !active_prefix_tile_schedule_workspace_empty(workspace)) {
       return RNS8_INVALID_ARGUMENT;
     }
   } else if (workspace.hip_tile_schedule || workspace.hip_tile_schedule_bytes != 0 ||
-             workspace.hip_tile_schedule_count != 0) {
+             workspace.hip_tile_schedule_count != 0 ||
+             !active_prefix_tile_schedule_workspace_empty(workspace)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
@@ -1152,7 +1251,23 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
         delete workspace;
         return RNS8_RANGE_ERROR;
       }
+      std::vector<rns8_plan_tile_schedule_entry> active_entries;
+      if (!build_active_prefix_tile_schedule(
+              *plan,
+              active_entries,
+              workspace->hip_tile_schedule_active_offsets,
+              workspace->hip_tile_schedule_active_counts,
+              workspace->hip_tile_schedule_active_prefix_count)) {
+        delete workspace;
+        return RNS8_INVALID_ARGUMENT;
+      }
+      if (active_entries.size() >
+          std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+        delete workspace;
+        return RNS8_RANGE_ERROR;
+      }
       const std::size_t schedule_bytes = plan->tile_schedule.size() * sizeof(rns8_plan_tile_schedule_entry);
+      const std::size_t active_schedule_bytes = active_entries.size() * sizeof(rns8_plan_tile_schedule_entry);
       rns8_status status =
           rns8::detail::hip_direct_allocate(ctx->device_id, schedule_bytes, &workspace->hip_tile_schedule);
       if (status != RNS8_SUCCESS) {
@@ -1164,6 +1279,26 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       status = rns8::detail::hip_direct_copy_host_to_device(
           ctx->device_id, workspace->hip_tile_schedule, plan->tile_schedule.data(), schedule_bytes);
       if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+        delete workspace;
+        return status;
+      }
+      status = rns8::detail::hip_direct_allocate(
+          ctx->device_id, active_schedule_bytes, &workspace->hip_tile_schedule_active_entries);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
+        delete workspace;
+        return status;
+      }
+      workspace->hip_tile_schedule_active_entries_bytes = active_schedule_bytes;
+      workspace->hip_tile_schedule_active_entries_count = static_cast<uint64_t>(active_entries.size());
+      status = rns8::detail::hip_direct_copy_host_to_device(
+          ctx->device_id,
+          workspace->hip_tile_schedule_active_entries,
+          active_entries.data(),
+          active_schedule_bytes);
+      if (status != RNS8_SUCCESS) {
+        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule_active_entries);
         (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_tile_schedule);
         delete workspace;
         return status;
@@ -1233,6 +1368,21 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
       workspace->hip_tile_schedule = nullptr;
       workspace->hip_tile_schedule_bytes = 0;
       workspace->hip_tile_schedule_count = 0;
+    }
+    if (workspace->hip_tile_schedule_active_entries) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_tile_schedule_active_entries);
+      if (status == RNS8_SUCCESS) {
+        status = free_status;
+      }
+      workspace->hip_tile_schedule_active_entries = nullptr;
+      workspace->hip_tile_schedule_active_entries_bytes = 0;
+      workspace->hip_tile_schedule_active_entries_count = 0;
+      workspace->hip_tile_schedule_active_prefix_count = 0;
+      for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+        workspace->hip_tile_schedule_active_offsets[p] = 0;
+        workspace->hip_tile_schedule_active_counts[p] = 0;
+      }
     }
     if (workspace->hipblaslt_int32_scratch) {
       const rns8_status free_status =

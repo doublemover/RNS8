@@ -2080,7 +2080,7 @@ class _Validator:
         else:
             selected_backend = self.data.get("backend_selected")
             expected_kernels = {
-                "hip-direct": "direct_hip_tiled_rns_gemm_v1",
+                "hip-direct": "direct_hip_tiled_active_prefix_rns_gemm_v2",
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
             }
@@ -2153,7 +2153,7 @@ class _Validator:
                 "hip-vector-alu-int64": "benchmark_owned_device_buffers",
             }
             expected_workspace = expected_workspaces.get(
-                self.data.get("backend_selected"), "resident_device_buffers_with_tiled_schedule"
+                self.data.get("backend_selected"), "resident_device_buffers_with_active_prefix_tiled_schedule"
             )
             if backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(
