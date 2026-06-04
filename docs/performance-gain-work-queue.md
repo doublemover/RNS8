@@ -311,6 +311,21 @@ Remaining high-value imported work goes at the front of the queue:
    `src/reconstruct/crt.cpp`, selected-kernel metadata in
    `src/core/api_plan.cpp`, and ISA/report tooling in `tools/gpu_isa_report.py`.
 
+   Helper-lane status: Direct-HIP fixed-prefix native pack dispatch now covers
+   bounded prefixes 1..9 plus exact-wide prefix 20, and default-RNS Direct-HIP
+   reduction sites route through fixed default-modulus reducers for the first
+   20 moduli before falling back to the generic runtime reducer. Benchmark
+   captures identify generated/fixed reducer evidence through
+   `timing_metadata.generated_reducer_identity`, and schema fixtures reject
+   stale generic identities for generated captures. Next optimization work
+   should run ISA gates for the prefix-specific symbols, prove integer divide
+   avoidance, and then compare end-to-end pack/GEMM/export captures for
+   prefixes 1, 3, 5, 9, and 20 before promoting any selected-kernel name.
+   Use `tools/check_generated_reducer_isa.py --object <hip_direct_object>
+   --target gfx1100` for the Direct-HIP generated symbol/no-divide gate, and
+   use `tools/gpu_isa_report.py --capture <capture.json>` for explanatory
+   resource summaries.
+
 5. **Architecture-Specific Kernel Namespaces**
 
    Split RDNA3 `gfx1100` tuning from future RDNA4 and CDNA work. Do not let a
@@ -323,6 +338,13 @@ Remaining high-value imported work goes at the front of the queue:
    `target_id=...` key material. Remaining work is to add real target-specific
    kernel namespaces and promotion evidence for non-`gfx1100` families rather
    than inheriting local Windows timings.
+
+   Helper-lane status: schema-v4 captures can now carry `target_variant` with a
+   concrete target id, target namespace, configured target string, runtime
+   versions, and review grouping key. New HIP helper-lane captures must include
+   a concrete target id/namespace. This is namespace readiness only; it does not
+   make `gfx11xx`, `gfx12xx`, or `gfx9xx/gfx94x` performance claims without
+   host evidence on those targets.
 
    Code references: backend source roots `src/backend_hip_direct/`,
    `src/backend_ck/`, `src/backend_rocwmma/`, configured target metadata in
@@ -340,6 +362,14 @@ Remaining high-value imported work goes at the front of the queue:
    Code references: event report tooling in `tools/gpu_event_report.py`, ISA
    reporting in `tools/gpu_isa_report.py`, schema promotion policy in
    `tools/benchmark_schema.py`, and release review in `tools/benchmark_sweep.py`.
+
+   Helper-lane status: `tools/gpu_counter_report.py` validates schema-v4
+   captures, optionally ingests JSON/CSV profiler counter exports and
+   `tools/gpu_isa_report.py` summaries, and writes temp-only JSON/Markdown
+   reports under `temp/gpu-counter-reports/`. `tools/gpu_isa_report.py` can
+   cross-link a validated capture with `--capture`. Counter and ISA conclusions
+   are explanation evidence only and cannot replace correctness, host timing,
+   HIP event timing, or release baseline gates.
 
 ## Current Evidence Snapshot
 
@@ -703,6 +733,13 @@ Likely first slices:
   pack kernels for signed and unsigned inputs, with the generic per-plane pack
   kernel retained for all other prefixes. This improves the existing pack phase
   without changing persistent RNS matrix semantics.
+- Benchmark-only residue-channel fusion experiments are now exposed through
+  `rns8-bench --residue-channel-fusion` for explicit Direct-HIP, global-bound,
+  fixed-requested prefix-9 bounded captures. Schema validation requires
+  `fusion_mode=residue_channel_width3_experimental_benchmark_only`,
+  `pack_layout=native_i8_row_major_residue_channel_width3`,
+  `residue_group_width=3`, and the generated reducer identity. AUTO and public
+  one-shot calls never route to this experiment.
 - A direct-HIP small-shape fused multi-plane baseline before CK/rocWMMA
   variants.
 - Autotune key extension for residue group identity and layout.
@@ -2355,6 +2392,12 @@ Relation to new architecture work:
 Status: the June 2026 GFX1100 evidence-tooling pass added the first dedicated
 event and ISA reporting lane.
 
+- Benchmark captures now carry helper-lane objects for `plan_packing`,
+  `plan_lowering`, `requested_next_op`, `output_policy`, `auto_selector`,
+  `target_variant`, and `device_allocation`. These fields make pack layout,
+  lowering path, next-operation intent, status/export policy, AUTO fallback
+  reasoning, target namespace, and post-warmup allocation behavior visible to
+  `tools/result_compare.py` and `tools/benchmark_sweep.py`.
 - CK and rocWMMA event captures now have a deep scope,
   `accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export`,
   with aggregate pack/matmul/copy/add labels plus zero-based per-prefix labels.
@@ -2369,7 +2412,11 @@ event and ISA reporting lane.
   `--build-tree <build-dir>` to write LLVM objdump ISA summaries under
   `temp/isa-reports/`. The report records symbols, WMMA/MFMA counts, global
   stores, LDS mentions, waits, and VGPR/SGPR/occupancy when available. RGA CLI
-  reporting remains optional.
+  reporting remains optional. Add `--capture <capture.json>` to link the ISA
+  summary to a validated benchmark contract.
+- Use `tools/gpu_counter_report.py <capture.json> --counter <csv-or-json>
+  --isa-summary <isa-summary.json>` to assemble temp-only counter/ISA
+  explanations under `temp/gpu-counter-reports/`.
 - Keep all captures, dumps, and reports in ignored `temp/`; do not promote
   instrumentation output into autotune cache entries or performance claims.
 

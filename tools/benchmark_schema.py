@@ -75,6 +75,10 @@ def wrap64_hip_expected_gemm_event_label(selected_kernel: Any) -> str:
     )
 
 
+def output_destination_layout(padding: Any) -> str:
+    return "contiguous_row_major" if padding == 0 else "padded_row_major"
+
+
 BOUND_KINDS = {
     "none",
     "global_max_abs",
@@ -85,6 +89,40 @@ BOUND_KINDS = {
 }
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 OUTPUT_DESTINATION_LAYOUTS = {"contiguous_row_major", "padded_row_major"}
+NEXT_OP_HINTS = {"auto", "final-export", "rns-gemm", "native-gemm", "native-to-rns", "reuse-b"}
+STATUS_HANDLING = {"required", "structurally_elided", "not_applicable"}
+PACK_LAYOUTS = {
+    "resident_rns_residue_planes",
+    "wrap64_byte_limb_planes",
+    "finite_u8_centered_residue",
+    "native_i64_row_major",
+    "native_u64_row_major",
+    "native_i8_row_major_uniform_small",
+    "native_i8_row_major_residue_channel_width3",
+    "matrix_engine_transient_pack_layout",
+    "transient_backend_pack_layout",
+}
+FUSION_MODES = {"none", "residue_channel_width3_experimental_benchmark_only"}
+RESIDUE_GROUP_LAYOUTS = {
+    "one_modulus_per_residue_plane",
+    "first_prefix9_moduli_contiguous_width3_groups",
+}
+TARGET_NAMESPACES = {"cpu", "gfx1100", "gfx11xx", "gfx12xx", "gfx9xx_gfx94x", "unknown"}
+SELECTOR_REJECTION_REASONS = {
+    "unsupported semantics",
+    "per-tile unsupported",
+    "backend not compiled",
+    "probe failed",
+    "no exact entry",
+    "unvalidated entry",
+    "identity/runtime mismatch",
+    "workspace mismatch",
+    "slower than selected",
+}
+GENERATED_REDUCER_RE = re.compile(
+    r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
+    r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
+)
 DIRECT_HIP_EXPORT_STAGING_POLICIES = {
     "not_applicable",
     "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING",
@@ -223,6 +261,10 @@ DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_KERNELS = {
     "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1",
 }
+DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_KERNELS = {
+    "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0",
+    "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0",
+}
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_U64_LARGE_COLPAIR_KERNEL = (
     "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
 )
@@ -232,10 +274,16 @@ DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
 )
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_EPILOGUE = "uniform_small_i8_ab_resident_a_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_EPILOGUE = "uniform_small_i8_ab_transient_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_EPILOGUE = (
+    "width3_residue_fusion_transient_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE = "resident_a_native_b_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_WORKSPACE = "transient_i8_b_resident_i8_a_rns_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE = "transient_i8_a_transient_i8_b_rns_output"
+DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE = (
+    "width3_residue_fusion_transient_i8_inputs"
+)
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_WORKSPACE = "transient_native_b_resident_rns_a_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
@@ -288,6 +336,7 @@ BENCHMARK_EXECUTION_MODES = {
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
+    "residue_channel_fusion_native_inputs",
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
     "internal_wrap64_rocwmma_candidate",
@@ -520,6 +569,16 @@ class _Validator:
             and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
         )
 
+    def _is_direct_hip_bounded_residue_channel_fusion_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self.data.get("benchmark") == "rns8_bounded_gemm_residue_channel_fusion_experiment"
+            and self._benchmark_execution_mode() == "residue_channel_fusion_native_inputs"
+            and self.data.get("pack_mode") == "per_repeat_repack"
+            and self.data.get("prepack_reuse_strategy") == "none"
+        )
+
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
@@ -614,6 +673,7 @@ class _Validator:
         self._validate_nonnegative_ints()
         self._validate_nested_metadata()
         self._validate_backend_metadata()
+        self._validate_helper_lane_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
         self._validate_bound_discovery_metadata()
@@ -960,6 +1020,247 @@ class _Validator:
                 elif len(set(gpu_phase_order)) != len(gpu_phase_order):
                     self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")
 
+    def _validate_counter_snapshot(self, label: str, value: Any) -> None:
+        if not isinstance(value, dict):
+            self._error(f"{label} must be an object")
+            return
+        for key in ["allocate_calls", "free_calls", "allocated_bytes"]:
+            item = value.get(key)
+            if not _is_int(item) or item < 0:
+                self._error(f"{label}.{key} must be a nonnegative integer")
+
+    def _validate_helper_lane_metadata(self) -> None:
+        metadata = self.data.get("timing_metadata")
+        if isinstance(metadata, dict):
+            pack_layout = metadata.get("pack_layout")
+            if pack_layout is not None and pack_layout not in PACK_LAYOUTS:
+                self._error(f"timing_metadata.pack_layout must be one of {sorted(PACK_LAYOUTS)}")
+            fusion_mode = metadata.get("fusion_mode")
+            if fusion_mode is not None and fusion_mode not in FUSION_MODES:
+                self._error(f"timing_metadata.fusion_mode must be one of {sorted(FUSION_MODES)}")
+            residue_width = metadata.get("residue_group_width")
+            if residue_width is not None and (not _is_int(residue_width) or residue_width <= 0):
+                self._error("timing_metadata.residue_group_width must be a positive integer")
+            residue_layout = metadata.get("residue_group_layout")
+            if residue_layout is not None and residue_layout not in RESIDUE_GROUP_LAYOUTS:
+                self._error(f"timing_metadata.residue_group_layout must be one of {sorted(RESIDUE_GROUP_LAYOUTS)}")
+            reducer = metadata.get("generated_reducer_identity")
+            if reducer is not None:
+                if not isinstance(reducer, str) or GENERATED_REDUCER_RE.match(reducer) is None:
+                    self._error("timing_metadata.generated_reducer_identity must be a declared reducer identity")
+                if reducer == "generic" or reducer == "direct_hip_generic_reducer":
+                    self._error("timing_metadata.generated_reducer_identity must not use stale generic identities")
+            if fusion_mode == "residue_channel_width3_experimental_benchmark_only":
+                if self._benchmark_execution_mode() != "residue_channel_fusion_native_inputs":
+                    self._error("residue-channel fusion metadata requires benchmark_execution_mode=residue_channel_fusion_native_inputs")
+                if pack_layout != "native_i8_row_major_residue_channel_width3":
+                    self._error("residue-channel fusion captures must use pack_layout=native_i8_row_major_residue_channel_width3")
+                if residue_width != 3:
+                    self._error("residue-channel fusion captures must use residue_group_width=3")
+
+        plan_packing = self.data.get("plan_packing")
+        if plan_packing is not None:
+            if not isinstance(plan_packing, dict):
+                self._error("plan_packing must be an object or null")
+            else:
+                for key in ["source", "backend", "semantics", "input_domain_name", "output_domain_name", "next_op_hint"]:
+                    if not isinstance(plan_packing.get(key), str):
+                        self._error(f"plan_packing.{key} must be a string")
+                for key in [
+                    "uses_resident_matrix_inputs",
+                    "uses_transient_pack_workspace",
+                    "uses_matrix_engine_pack_layout",
+                    "reusable_prepack_cache_available",
+                    "production_prepack_cache_available",
+                    "output_host_current",
+                    "output_device_current",
+                ]:
+                    if not isinstance(plan_packing.get(key), bool):
+                        self._error(f"plan_packing.{key} must be a boolean")
+                for key in [
+                    "next_op_flags",
+                    "a_pack_workspace_bytes",
+                    "b_pack_workspace_bytes",
+                    "accumulator_workspace_bytes",
+                    "library_workspace_bytes",
+                    "total_transient_workspace_bytes",
+                ]:
+                    value = plan_packing.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"plan_packing.{key} must be a nonnegative integer")
+
+        plan_lowering = self.data.get("plan_lowering")
+        if plan_lowering is not None:
+            if not isinstance(plan_lowering, dict):
+                self._error("plan_lowering must be an object or null")
+            else:
+                for key in [
+                    "source",
+                    "operation",
+                    "semantic_contract",
+                    "backend_family",
+                    "input_domain",
+                    "output_domain",
+                    "desired_output",
+                    "schedule_strategy",
+                    "packing_strategy",
+                    "reuse_strategy",
+                    "conversion_strategy",
+                    "lowering_path",
+                ]:
+                    if not isinstance(plan_lowering.get(key), str):
+                        self._error(f"plan_lowering.{key} must be a string")
+                for key in [
+                    "final_export_available",
+                    "rns_continuation_available",
+                    "native_continuation_available",
+                    "native_to_rns_available",
+                    "reusable_b_prepack_available",
+                ]:
+                    if not isinstance(plan_lowering.get(key), bool):
+                        self._error(f"plan_lowering.{key} must be a boolean")
+
+        requested_next_op = self.data.get("requested_next_op")
+        if requested_next_op is not None:
+            if not isinstance(requested_next_op, dict):
+                self._error("requested_next_op must be an object")
+            else:
+                if requested_next_op.get("requested") not in NEXT_OP_HINTS:
+                    self._error(f"requested_next_op.requested must be one of {sorted(NEXT_OP_HINTS)}")
+                if requested_next_op.get("resolved") not in NEXT_OP_HINTS - {"auto"}:
+                    self._error(f"requested_next_op.resolved must be one of {sorted(NEXT_OP_HINTS - {'auto'})}")
+                if requested_next_op.get("source") not in {"cli", "benchmark_default"}:
+                    self._error("requested_next_op.source must be cli or benchmark_default")
+
+        output_policy = self.data.get("output_policy")
+        if output_policy is not None:
+            if not isinstance(output_policy, dict):
+                self._error("output_policy must be an object")
+            else:
+                if output_policy.get("destination_layout") not in OUTPUT_DESTINATION_LAYOUTS:
+                    self._error(f"output_policy.destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}")
+                if output_policy.get("destination_layout") != output_destination_layout(self.data.get("output_ld_padding", 0)):
+                    self._error("output_policy.destination_layout must match output_ld_padding")
+                for key in ["logical_ld", "ld_padding"]:
+                    value = output_policy.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"output_policy.{key} must be a nonnegative integer")
+                if _is_int(self.data.get("output_logical_ld")) and output_policy.get("logical_ld") != self.data.get("output_logical_ld"):
+                    self._error("output_policy.logical_ld must match output_logical_ld")
+                if output_policy.get("ld_padding") != self.data.get("output_ld_padding"):
+                    self._error("output_policy.ld_padding must match output_ld_padding")
+                if output_policy.get("status_handling") not in STATUS_HANDLING:
+                    self._error(f"output_policy.status_handling must be one of {sorted(STATUS_HANDLING)}")
+                if not isinstance(output_policy.get("status_event_policy"), str):
+                    self._error("output_policy.status_event_policy must be a string")
+
+        if self._is_residue_current_chain_capture():
+            if not isinstance(requested_next_op, dict):
+                self._error("residue-current chain captures must declare requested_next_op")
+            elif requested_next_op.get("resolved") != "rns-gemm":
+                self._error("residue-current chain captures must declare requested_next_op.resolved=rns-gemm")
+            if not isinstance(output_policy, dict):
+                self._error("residue-current chain captures must declare output_policy")
+            else:
+                if output_policy.get("per_repeat_logical_export") is not False:
+                    self._error("residue-current chain captures must declare output_policy.per_repeat_logical_export=false")
+                if output_policy.get("final_checksum_export_after_repeats") is not True:
+                    self._error(
+                        "residue-current chain captures must declare "
+                        "output_policy.final_checksum_export_after_repeats=true"
+                    )
+                if output_policy.get("status_handling") != "structurally_elided":
+                    self._error(
+                        "residue-current chain captures must declare "
+                        "output_policy.status_handling=structurally_elided"
+                    )
+
+        target_variant = self.data.get("target_variant")
+        helper_lane_surface_present = any(
+            key in self.data
+            for key in [
+                "plan_packing",
+                "plan_lowering",
+                "requested_next_op",
+                "output_policy",
+                "auto_selector",
+                "device_allocation",
+            ]
+        )
+        if (
+            target_variant is None
+            and helper_lane_surface_present
+            and self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS
+        ):
+            self._error("HIP helper-lane captures must include target_variant")
+        if target_variant is not None:
+            if not isinstance(target_variant, dict):
+                self._error("target_variant must be an object")
+            else:
+                target_id = target_variant.get("target_id")
+                namespace = target_variant.get("target_namespace")
+                if not isinstance(target_id, str):
+                    self._error("target_variant.target_id must be a string")
+                if namespace not in TARGET_NAMESPACES:
+                    self._error(f"target_variant.target_namespace must be one of {sorted(TARGET_NAMESPACES)}")
+                if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+                    if not _has_concrete_gpu_target_id(target_id):
+                        self._error("HIP captures with target_variant must include concrete target_variant.target_id")
+                    if namespace == "unknown":
+                        self._error("HIP captures with target_variant must use a concrete target_namespace")
+                for key in ["review_group_key", "configured_amdgpu_targets"]:
+                    if not isinstance(target_variant.get(key), str):
+                        self._error(f"target_variant.{key} must be a string")
+
+        auto_selector = self.data.get("auto_selector")
+        if auto_selector is not None:
+            if not isinstance(auto_selector, dict):
+                self._error("auto_selector must be an object")
+            else:
+                for key in ["source", "requested_backend", "selected_backend", "fallback_reason"]:
+                    if not isinstance(auto_selector.get(key), str):
+                        self._error(f"auto_selector.{key} must be a string")
+                selected_key = auto_selector.get("selected_key")
+                if selected_key is not None and not isinstance(selected_key, str):
+                    self._error("auto_selector.selected_key must be a string or null")
+                vocabulary = auto_selector.get("rejection_reason_vocabulary")
+                if not isinstance(vocabulary, list) or set(vocabulary) != SELECTOR_REJECTION_REASONS:
+                    self._error("auto_selector.rejection_reason_vocabulary must match fixed rejection reasons")
+                rejected = auto_selector.get("rejected_candidates")
+                if rejected is not None:
+                    if not isinstance(rejected, list):
+                        self._error("auto_selector.rejected_candidates must be an array")
+                    else:
+                        for index, item in enumerate(rejected):
+                            if not isinstance(item, dict):
+                                self._error(f"auto_selector.rejected_candidates[{index}] must be an object")
+                                continue
+                            if item.get("reason") not in SELECTOR_REJECTION_REASONS:
+                                self._error(
+                                    f"auto_selector.rejected_candidates[{index}].reason must be a fixed rejection reason"
+                                )
+
+        device_allocation = self.data.get("device_allocation")
+        if device_allocation is not None:
+            if not isinstance(device_allocation, dict):
+                self._error("device_allocation must be an object")
+            else:
+                if not isinstance(device_allocation.get("tracking_available"), bool):
+                    self._error("device_allocation.tracking_available must be a boolean")
+                for key in ["source", "setup_scope", "source_version_inputs"]:
+                    if not isinstance(device_allocation.get(key), str):
+                        self._error(f"device_allocation.{key} must be a string")
+                self._validate_counter_snapshot("device_allocation.before", device_allocation.get("before"))
+                if device_allocation.get("after_warmups") is not None:
+                    self._validate_counter_snapshot("device_allocation.after_warmups", device_allocation.get("after_warmups"))
+                self._validate_counter_snapshot("device_allocation.after_repeats", device_allocation.get("after_repeats"))
+                self._validate_counter_snapshot("device_allocation.setup_delta", device_allocation.get("setup_delta"))
+                if device_allocation.get("measured_repeat_delta") is not None:
+                    self._validate_counter_snapshot(
+                        "device_allocation.measured_repeat_delta",
+                        device_allocation.get("measured_repeat_delta"),
+                    )
+
     def _validate_backend_metadata(self) -> None:
         metadata = self._require("backend_metadata", "dict")
         if not isinstance(metadata, dict):
@@ -970,6 +1271,8 @@ class _Validator:
             if self._is_wrap64_rocwmma_candidate()
             else "rns8_bench_public_oneshot_api"
             if self._is_public_oneshot_capture()
+            else "rns8_bench_residue_channel_fusion_path"
+            if self._is_direct_hip_bounded_residue_channel_fusion_capture()
             else "rns8_bench_uniform_small_i8_ab_transient_path"
             if self._is_direct_hip_bounded_uniform_small_transient_capture()
             else "rns8_bench_uniform_small_i8_ab_reuse_b_path"
@@ -2073,6 +2376,53 @@ class _Validator:
                                     "direct-HIP bounded uniform-small reuse-A backend_metadata.autotune_key "
                                     f"must include {key}={value}"
                                 )
+            if self._is_direct_hip_bounded_residue_channel_fusion_capture():
+                if bound_mode != "global":
+                    self._error("direct-HIP residue-channel fusion captures must use bound_mode=global")
+                if residue_chain_length != 1 or residue_output_mode != "host_export":
+                    self._error(
+                        "direct-HIP residue-channel fusion captures must use host_export residue_chain_length=1"
+                    )
+                if self.data.get("reuse_packed_inputs") is True:
+                    self._error("direct-HIP residue-channel fusion captures must not use packed-input reuse")
+                expected_kernel = DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_KERNELS[semantics]
+                expected_epilogue = DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_EPILOGUE
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(
+                        "direct-HIP residue-channel fusion captures must use "
+                        f"selected_kernel={expected_kernel}"
+                    )
+                if isinstance(backend_metadata, dict):
+                    if backend_metadata.get("epilogue_mode") != expected_epilogue:
+                        self._error(
+                            "direct-HIP residue-channel fusion captures must use "
+                            f"backend_metadata.epilogue_mode={expected_epilogue}"
+                        )
+                    if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE:
+                        self._error(
+                            "direct-HIP residue-channel fusion captures must use "
+                            f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE}"
+                        )
+                    if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                        self._error(
+                            "direct-HIP residue-channel fusion captures must use "
+                            f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                        )
+                    autotune_key = backend_metadata.get("autotune_key")
+                    if isinstance(autotune_key, str):
+                        normalized_key = f";{autotune_key};"
+                        required_parts = {
+                            "kernel": expected_kernel,
+                            "epilogue": expected_epilogue,
+                            "input_profile": "uniform-small",
+                            "execution": "residue_channel_fusion_native_inputs",
+                        }
+                        for key, value in required_parts.items():
+                            if f";{key}={value};" not in normalized_key:
+                                self._error(
+                                    "direct-HIP residue-channel fusion backend_metadata.autotune_key "
+                                    f"must include {key}={value}"
+                                )
             if self._is_direct_hip_bounded_uniform_small_transient_capture():
                 if bound_mode != "global":
                     self._error("direct-HIP bounded uniform-small transient captures must use bound_mode=global")
@@ -3096,6 +3446,35 @@ class _Validator:
                 if not missing and not extra:
                     self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
             return
+        if self._is_direct_hip_bounded_residue_channel_fusion_capture():
+            expected = [
+                "bounded_uniform_small_i8_a_h2d",
+                "bounded_uniform_small_i8_b_h2d",
+                "pack",
+                "bounded_uniform_small_i8_ab_transient_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(
+                        "direct-HIP residue-channel fusion GPU event phase set is incomplete; "
+                        f"missing {', '.join(missing)}"
+                    )
+                if extra:
+                    self._error(
+                        "direct-HIP residue-channel fusion GPU event phase set contains undeclared phases: "
+                        f"{', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error("direct-HIP residue-channel fusion GPU event phase order must match the operation order")
+            return
         if self._is_direct_hip_bounded_uniform_small_transient_capture():
             expected = [
                 "bounded_uniform_small_i8_a_h2d",
@@ -3286,6 +3665,53 @@ class _Validator:
         if not missing and not extra:
             self._error("deep accelerator GPU event phase order must match the selected backend operation order")
 
+    def _expected_status_event_labels(self) -> list[str]:
+        backend = self.data.get("backend_selected")
+        semantics = self.data.get("semantics")
+        if backend == "hip-vector-alu-int64":
+            return ["vector_alu_status_memset", "vector_alu_status_d2h"]
+        if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            return ["exact_wide_export_status_memset", "exact_wide_export_status_d2h"]
+        if semantics in {"bounded_i64", "bounded_u64"}:
+            return ["crt_export_status_memset", "crt_export_status_d2h"]
+        return []
+
+    def _known_status_event_labels(self) -> set[str]:
+        return {
+            "crt_export_status_memset",
+            "crt_export_status_d2h",
+            "exact_wide_export_status_memset",
+            "exact_wide_export_status_d2h",
+            "vector_alu_status_memset",
+            "vector_alu_status_d2h",
+        }
+
+    def _validate_status_event_consistency(self, phases: list[str], parsed: dict[str, list[float]]) -> None:
+        output_policy = self.data.get("output_policy")
+        if not isinstance(output_policy, dict):
+            return
+        handling = output_policy.get("status_handling")
+        phase_set = set(phases)
+        expected = self._expected_status_event_labels()
+        known_present = sorted(self._known_status_event_labels() & phase_set)
+        if handling == "required":
+            for label in expected:
+                if label not in phase_set:
+                    self._error(f"output_policy.status_handling=required requires GPU event phase {label}")
+            return
+        if handling == "not_applicable":
+            for label in known_present:
+                self._error(f"output_policy.status_handling=not_applicable forbids GPU event phase {label}")
+            return
+        if handling == "structurally_elided":
+            for label in known_present:
+                values = parsed.get(label, [])
+                if any(value != 0.0 for value in values):
+                    self._error(
+                        "output_policy.status_handling=structurally_elided requires "
+                        f"gpu_event_timings_us.{label} to be zero-filled when present"
+                    )
+
     def _validate_gpu_events(self) -> None:
         metadata = self.data.get("timing_metadata")
         if not isinstance(metadata, dict):
@@ -3368,6 +3794,7 @@ class _Validator:
                 else:
                     parsed_values.append(float(value))
             parsed[phase] = parsed_values
+        self._validate_status_event_consistency(phases, parsed)
         self._validate_timing_summaries(parsed, "gpu_event_timing_summary_us", phases)
         if self._is_all_zero_direct_hip_adaptive_capture():
             for phase in ["pack_h2d", "pack_kernel", "pack"]:

@@ -518,7 +518,29 @@ void print_autotune_json(
   std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
   std::cout << "    \"selection_rationale\": \""
             << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
-            << "\"";
+            << "\",\n";
+  std::cout << "    \"selector_report\": {\n";
+  std::cout << "      \"source\": \"private_inspect_selector_report\",\n";
+  std::cout << "      \"selected_backend\": \"" << json_escape(selected_backend) << "\",\n";
+  std::cout << "      \"selected_key\": \"" << json_escape(autotune_key) << "\",\n";
+  std::cout << "      \"cache_load_state\": \"" << (snapshot.loaded ? "loaded" : snapshot.exists ? "failed" : "missing")
+            << "\",\n";
+  std::cout << "      \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
+  std::cout << "      \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
+  std::cout << "      \"fallback_reason\": \""
+            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
+            << "\",\n";
+  std::cout << "      \"rejection_reason_vocabulary\": ["
+            << "\"unsupported semantics\", "
+            << "\"per-tile unsupported\", "
+            << "\"backend not compiled\", "
+            << "\"probe failed\", "
+            << "\"no exact entry\", "
+            << "\"unvalidated entry\", "
+            << "\"identity/runtime mismatch\", "
+            << "\"workspace mismatch\", "
+            << "\"slower than selected\"]\n";
+  std::cout << "    }";
   if (plan_packing) {
     std::cout << ",\n";
     print_plan_packing_json(*plan_packing, plan_lowering != nullptr || hit != nullptr || show_entries);

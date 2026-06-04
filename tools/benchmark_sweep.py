@@ -81,6 +81,8 @@ class ScenarioItem:
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None
+    next_op_hint: str | None = None
+    residue_channel_fusion: bool = False
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
 
@@ -146,6 +148,10 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     tile_m = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_m")
     tile_n = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_n")
     bound_source = capture_bound_source(capture)
+    timing_metadata = capture.get("timing_metadata")
+    output_policy = capture.get("output_policy")
+    requested_next_op = capture.get("requested_next_op")
+    target_variant = capture.get("target_variant")
     parts = [
         f"semantics={capture.get('semantics')}",
         f"finite_modulus={capture.get('finite_modulus')}",
@@ -171,6 +177,14 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
         f"prepack_reuse_strategy={capture_prepack_reuse_strategy(capture)}",
+        f"next_op={requested_next_op.get('resolved') if isinstance(requested_next_op, dict) else None}",
+        f"output_policy={output_policy.get('destination_layout') if isinstance(output_policy, dict) else None}",
+        f"status_handling={output_policy.get('status_handling') if isinstance(output_policy, dict) else None}",
+        f"pack_layout={timing_metadata.get('pack_layout') if isinstance(timing_metadata, dict) else None}",
+        f"fusion_mode={timing_metadata.get('fusion_mode') if isinstance(timing_metadata, dict) else None}",
+        f"residue_group_width={timing_metadata.get('residue_group_width') if isinstance(timing_metadata, dict) else None}",
+        f"generated_reducer={timing_metadata.get('generated_reducer_identity') if isinstance(timing_metadata, dict) else None}",
+        f"target_namespace={target_variant.get('target_namespace') if isinstance(target_variant, dict) else None}",
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)
@@ -1211,6 +1225,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     chain_256 = parse_case("chain-256:256,256,256")
     small_64 = parse_case("small-64:64,64,64")
     small_128 = parse_case("small-128:128,128,128")
+    pack_heavy_128 = parse_case("pack-heavy-128x128x4096:128,128,4096")
     many_small_32 = parse_case("many-small-32:32,32,32")
     many_small_64 = parse_case("many-small-64:64,64,64")
     many_small_128 = parse_case("many-small-128:128,128,128")
@@ -1246,6 +1261,185 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     accelerator_backends = ("hip-direct", "hipblaslt", "ck", "rocwmma")
 
     return {
+        "generated-prefix-reducers": [
+            *[
+                ScenarioItem(
+                    "generated-prefix-reducers",
+                    f"bounded-i64-prefix{prefix}",
+                    "bounded-i64",
+                    small_128,
+                    f"direct-HIP bounded i64 fixed-prefix {prefix} generated reducer evidence",
+                    "host_export",
+                    "proves fixed-prefix generated reducer identity and no-divide ISA gates across bounded prefixes",
+                    backends=("hip-direct",),
+                    prefix_policy="fixed-requested",
+                    max_prefix=prefix,
+                    next_op_hint="final-export",
+                    metadata={
+                        "workflow_name": "generated_prefix_reducer",
+                        "prefix": prefix,
+                        "isa_gate": "no_integer_divide_expected",
+                    },
+                )
+                for prefix in (1, 3, 5, 9)
+            ],
+            *[
+                ScenarioItem(
+                    "generated-prefix-reducers",
+                    f"bounded-u64-prefix{prefix}",
+                    "bounded-u64",
+                    small_128,
+                    f"direct-HIP bounded u64 fixed-prefix {prefix} generated reducer evidence",
+                    "host_export",
+                    "mirrors signed-prefix reducer coverage for unsigned bounded semantics",
+                    backends=("hip-direct",),
+                    prefix_policy="fixed-requested",
+                    max_prefix=prefix,
+                    next_op_hint="final-export",
+                    metadata={
+                        "workflow_name": "generated_prefix_reducer",
+                        "prefix": prefix,
+                        "isa_gate": "no_integer_divide_expected",
+                    },
+                )
+                for prefix in (1, 3, 5, 9)
+            ],
+            ScenarioItem(
+                "generated-prefix-reducers",
+                "exact-wide-signed-prefix20",
+                "exact-wide-signed",
+                small_128,
+                "direct-HIP exact-wide fixed-prefix 20 generated reducer evidence",
+                "exact_wide_signed_limbs",
+                "keeps exact-wide prefix-20 generated reducer identity tied to a compact smoke shape",
+                backends=("hip-direct",),
+                prefix_policy="fixed-requested",
+                max_prefix=20,
+                exact_wide_limb_counts=(4,),
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "generated_prefix_reducer",
+                    "prefix": 20,
+                    "isa_gate": "no_integer_divide_expected",
+                },
+            ),
+        ],
+        "multi-modulus-pack": [
+            *[
+                ScenarioItem(
+                    "multi-modulus-pack",
+                    f"bounded-i64-prefix{prefix}",
+                    "bounded-i64",
+                    pack_heavy_128,
+                    f"pack-heavy direct-HIP bounded i64 fixed-prefix {prefix}",
+                    "host_export",
+                    "separates multi-modulus fixed-prefix pack cost from large output GEMM effects",
+                    backends=("hip-direct",),
+                    prefix_policy="fixed-requested",
+                    max_prefix=prefix,
+                    next_op_hint="final-export",
+                    metadata={"workflow_name": "multi_modulus_pack", "prefix": prefix},
+                )
+                for prefix in (1, 3, 5, 9)
+            ],
+            ScenarioItem(
+                "multi-modulus-pack",
+                "exact-wide-prefix20",
+                "exact-wide-unsigned",
+                pack_heavy_128,
+                "pack-heavy direct-HIP exact-wide fixed-prefix 20",
+                "exact_wide_unsigned_limbs",
+                "measures the prefix-20 pack/export shape without changing exact-wide semantics",
+                backends=("hip-direct",),
+                prefix_policy="fixed-requested",
+                max_prefix=20,
+                exact_wide_limb_counts=(4,),
+                next_op_hint="final-export",
+                metadata={"workflow_name": "multi_modulus_pack", "prefix": 20},
+            ),
+        ],
+        "residue-channel-fusion": [
+            ScenarioItem(
+                "residue-channel-fusion",
+                "bounded-i64-small64",
+                "bounded-i64",
+                small_64,
+                "benchmark-only direct-HIP width-3 residue-channel fusion experiment",
+                "host_export",
+                "compares width-3 residue grouping against the ordinary transient uniform-small path at setup-dominated size",
+                backends=("hip-direct",),
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+                next_op_hint="final-export",
+                residue_channel_fusion=True,
+                metadata={"workflow_name": "residue_channel_fusion", "residue_group_width": 3},
+            ),
+            ScenarioItem(
+                "residue-channel-fusion",
+                "bounded-u64-small128",
+                "bounded-u64",
+                small_128,
+                "benchmark-only direct-HIP width-3 residue-channel fusion experiment",
+                "host_export",
+                "keeps unsigned bounded semantics represented in the fusion comparison surface",
+                backends=("hip-direct",),
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+                next_op_hint="final-export",
+                residue_channel_fusion=True,
+                metadata={"workflow_name": "residue_channel_fusion", "residue_group_width": 3},
+            ),
+        ],
+        "fused-pack-gemm-small": [
+            ScenarioItem(
+                "fused-pack-gemm-small",
+                "bounded-i64-oneshot64",
+                "bounded-i64",
+                small_64,
+                "public one-shot bounded i64 native-input pack+GEMM comparison",
+                "host_export",
+                "compares CPU, direct-HIP, and vector-ALU native-input surfaces where setup dominates",
+                backends=("cpu", "hip-direct"),
+                oneshot=True,
+                next_op_hint="final-export",
+            ),
+            ScenarioItem(
+                "fused-pack-gemm-small",
+                "bounded-u64-persistent128",
+                "bounded-u64",
+                small_128,
+                "persistent bounded u64 small-shape comparison including vector-ALU",
+                "host_export",
+                "contrasts persistent direct-HIP RNS, vector-ALU, and accelerator candidates at small shapes",
+                backends=("cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"),
+                next_op_hint="final-export",
+            ),
+            ScenarioItem(
+                "fused-pack-gemm-small",
+                "finite-ring-u8-oneshot64",
+                "finite-u8-ring",
+                small_64,
+                "public one-shot finite-ring u8 native-input comparison",
+                "finite_u8_canonical_host_export",
+                "captures finite-u8 small one-shot behavior separately from persistent residue storage",
+                backends=("cpu", "hip-direct"),
+                finite_moduli=(251, 255),
+                oneshot=True,
+                next_op_hint="final-export",
+            ),
+            ScenarioItem(
+                "fused-pack-gemm-small",
+                "finite-field-u8-persistent128",
+                "finite-u8-field",
+                small_128,
+                "persistent finite-field u8 small-shape accelerator comparison",
+                "finite_u8_canonical_host_export",
+                "keeps field-u8 small persistent evidence available for accelerator triage",
+                backends=("cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"),
+                finite_moduli=(251,),
+                next_op_hint="final-export",
+            ),
+        ],
         "adaptive-bands": [
             ScenarioItem(
                 "adaptive-bands",
@@ -2228,6 +2422,8 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
+    scenario_args.next_op_hint = item.next_op_hint or getattr(args, "next_op_hint", None)
+    scenario_args.residue_channel_fusion = item.residue_channel_fusion
     return scenario_args
 
 
@@ -2265,6 +2461,8 @@ def scenario_metadata(
         "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
         "residue_chain_length": item.residue_chain_length,
         "output_ld_padding": item.output_ld_padding,
+        "next_op_hint": item.next_op_hint,
+        "residue_channel_fusion": item.residue_channel_fusion,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -2384,6 +2582,9 @@ def command_for(
     bound_source = getattr(args, "bound_source", None)
     if bound_source:
         command.extend(["--bound-source", bound_source])
+    next_op_hint = getattr(args, "next_op_hint", None)
+    if next_op_hint:
+        command.extend(["--next-op-hint", next_op_hint])
     prefix_policy = getattr(args, "prefix_policy", None)
     max_prefix = getattr(args, "max_prefix", None)
     if prefix_policy:
@@ -2395,6 +2596,8 @@ def command_for(
     output_ld_padding = int(getattr(args, "output_ld_padding", 0) or 0)
     if output_ld_padding > 0:
         command.extend(["--output-ld-padding", str(output_ld_padding)])
+    if getattr(args, "residue_channel_fusion", False):
+        command.append("--residue-channel-fusion")
     if oneshot:
         command.append("--oneshot")
     pack_mode = requested_pack_mode(args)
@@ -2433,6 +2636,13 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
         raise SystemExit("--max-prefix must be positive")
     if int(getattr(args, "output_ld_padding", 0) or 0) < 0:
         raise SystemExit("--output-ld-padding must be nonnegative")
+    if getattr(args, "residue_channel_fusion", False):
+        if requested_pack_mode(args) != "per_repeat_repack":
+            raise SystemExit("--residue-channel-fusion cannot be combined with packed-input reuse")
+        if getattr(args, "prefix_policy", None) != "fixed-requested" or getattr(args, "max_prefix", None) not in {9, None}:
+            raise SystemExit("--residue-channel-fusion requires --prefix-policy fixed-requested and --max-prefix 9")
+        if any(semantics not in BOUNDED_SEMANTICS for semantics in semantics_values):
+            raise SystemExit("--residue-channel-fusion is only valid for bounded semantics")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if args.residue_chain_length > 1:
@@ -2463,6 +2673,8 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             backends = args.backends or (
                 wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
             )
+            if getattr(args, "residue_channel_fusion", False):
+                backends = [backend for backend in backends if backend == "hip-direct"]
             for modulus in finite_moduli_for(semantics, args):
                 for exact_wide_limb_count in exact_wide_limb_counts_for(semantics, args):
                     if not oneshot_only:
@@ -2550,6 +2762,8 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "prefix_policy", None),
             getattr(args, "max_prefix", None) is not None,
             getattr(args, "bound_source", None),
+            getattr(args, "next_op_hint", None),
+            getattr(args, "residue_channel_fusion", False),
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
         ]
@@ -2832,6 +3046,11 @@ def parse_args() -> argparse.Namespace:
         help="bounded RNS bound source to pass through to rns8-bench",
     )
     parser.add_argument(
+        "--next-op-hint",
+        choices=["final-export", "rns-gemm", "native-gemm", "native-to-rns", "reuse-b"],
+        help="benchmark-only next-operation hint to pass through to rns8-bench",
+    )
+    parser.add_argument(
         "--prefix-policy",
         choices=["minimum-proven", "fixed-requested"],
         help="bounded/exact-wide RNS prefix policy to pass through to rns8-bench",
@@ -2852,6 +3071,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="add padding columns to the benchmark host output leading dimension",
+    )
+    parser.add_argument(
+        "--residue-channel-fusion",
+        action="store_true",
+        help="benchmark-only direct-HIP residue-channel fusion experiment passthrough",
     )
     parser.add_argument(
         "--include-exact-wide-limb-variants",

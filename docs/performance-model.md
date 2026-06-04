@@ -803,3 +803,55 @@ source scope, and GPU event phase order. Per-modulus timing rows are flagged as
 not applicable when a capture says `per_modulus_gemm_estimate_applicable:
 false`; one-time `prepack_setup` timing is compared only when both captures
 provide `avg_prepack_setup_us`.
+
+## Helper-Lane Evidence Metadata
+
+Current schema-v4 benchmark captures emit additional optimizer-facing metadata
+without changing the public C/C++ ABI or AUTO promotion policy:
+
+- `plan_packing` mirrors `rns8_get_plan_packing_info` and names the selected
+  input/output domains, resident/transient layout use, prepack-cache
+  availability, next-operation flags, and transient workspace byte counts.
+- `plan_lowering` is a private benchmark/inspect explanation derived from
+  backend, packing, and schedule metadata. It distinguishes final export,
+  RNS-continuation, native-continuation, native-to-RNS, transient-pack, and
+  prepack-reuse lowering paths.
+- `requested_next_op` records the benchmark-only hint
+  `final-export|rns-gemm|native-gemm|native-to-rns|reuse-b`; residue-current
+  chain captures must resolve to `rns-gemm`.
+- `output_policy` records contiguous versus padded destination layout, logical
+  leading dimension, zero per-repeat export for residue-current chains, final
+  checksum export after measured repeats, and status handling as `required`,
+  `structurally_elided`, or `not_applicable`. When HIP events are available,
+  schema validation checks the status memset/D2H phase labels against this
+  policy.
+- `target_variant` normalizes concrete GPU identity into review namespaces:
+  `gfx1100`, future `gfx11xx`, future `gfx12xx`, `gfx9xx_gfx94x`, `cpu`, or
+  `unknown`. New HIP helper captures must include a concrete target id,
+  namespace, and review grouping key.
+- `auto_selector` explains AUTO cache load state, runtime identity, selected
+  key, validated-hit status, fallback reason, and fixed-vocabulary rejected
+  candidates. It is diagnostic only; exact-cache-only promotion is unchanged.
+- `device_allocation` snapshots HIP allocation counters before warmup, after
+  warmup, and after measured repeats so persistent-plan captures can prove
+  whether repeats allocate after warmup.
+- `timing_metadata.pack_layout`, `fusion_mode`, `residue_group_width`,
+  `residue_group_layout`, and `generated_reducer_identity` become
+  same-contract comparison inputs when they change the measured work.
+
+Direct-HIP generated/fixed reducer captures use declared identities such as
+`direct_hip_fixed_prefix_1_generated_reducer_v1` through
+`direct_hip_fixed_prefix_9_generated_reducer_v1` and
+`direct_hip_fixed_prefix_20_generated_reducer_v1`; stale generic reducer names
+are rejected for generated captures. The corresponding ISA gate is explanatory:
+generated reducers should avoid integer divide instructions and expose the
+expected prefix-specific symbols before any kernel is considered for a reviewed
+speedup claim.
+
+`tools/gpu_isa_report.py --capture <capture.json>` validates and cross-links a
+capture before writing temp-only ISA summaries under `temp/isa-reports/`.
+`tools/gpu_counter_report.py` validates captures, optionally ingests JSON/CSV
+profiler counter exports and ISA summaries, and writes JSON/Markdown reports
+under `temp/gpu-counter-reports/`. Counter and ISA reports explain bottlenecks
+and next experiments only; they do not replace exact correctness checks, host
+timings, HIP event timings, or release baseline gates.

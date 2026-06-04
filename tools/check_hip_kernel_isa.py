@@ -33,9 +33,15 @@ def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str, symbol
             raise RuntimeError(
                 f"{symbol} contains forbidden divide/remainder/rcp instructions:\n" + "\n".join(forbidden)
             )
-        if REQUIRED_RECIPROCAL_MNEMONIC not in disassembly:
+        uses_fixed_default_modulus_reducer = "rns8_ring_gemm_i8_i32_scheduled_kernel" in symbol
+        if REQUIRED_RECIPROCAL_MNEMONIC not in disassembly and not uses_fixed_default_modulus_reducer:
             raise RuntimeError(f"{symbol} does not contain required {REQUIRED_RECIPROCAL_MNEMONIC} instruction")
-        reports.append(f"{symbol}: no div/rem/rcp mnemonics; contains {REQUIRED_RECIPROCAL_MNEMONIC}")
+        reducer_detail = (
+            f"contains {REQUIRED_RECIPROCAL_MNEMONIC}"
+            if REQUIRED_RECIPROCAL_MNEMONIC in disassembly
+            else "uses fixed default-modulus reducer path without reciprocal multiply"
+        )
+        reports.append(f"{symbol}: no div/rem/rcp mnemonics; {reducer_detail}")
     return reports
 
 

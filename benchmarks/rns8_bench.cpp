@@ -17,7 +17,9 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
+#include "core/autotune_cache.hpp"
 #include "core/backend_common.hpp"
+#include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
@@ -94,6 +96,15 @@ enum class PrefixPolicy {
   FixedRequested,
 };
 
+enum class NextOpHint {
+  Auto,
+  FinalExport,
+  RnsGemm,
+  NativeGemm,
+  NativeToRns,
+  ReuseB,
+};
+
 struct Args {
   int64_t m = 64;
   int64_t n = 64;
@@ -124,6 +135,8 @@ struct Args {
   bool reuse_packed_inputs = false;
   bool reuse_packed_a = false;
   bool reuse_packed_b = false;
+  NextOpHint next_op_hint = NextOpHint::Auto;
+  bool residue_channel_fusion = false;
 };
 
 struct TimingSamples {
@@ -183,8 +196,17 @@ struct BenchmarkResult {
   std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};
   bool backend_info_available = false;
+  rns8_plan_packing_info packing_info{};
+  bool packing_info_available = false;
+  rns8::detail::PlanLoweringDescription lowering_info{};
+  bool lowering_info_available = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
+  rns8::detail::hip_direct_allocation_counters allocation_before{};
+  rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
+  rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
+  bool allocation_tracking_available = false;
+  bool allocation_after_warmups_available = false;
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
@@ -235,7 +257,9 @@ uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& resu
       << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--residue-chain-length N]\n"
+      << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
       << "                  [--require-adaptive-execution]\n"
+      << "                  [--residue-channel-fusion]\n"
       << "                  [--oneshot]\n"
       << "                  [--transient-uniform-small-inputs]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
@@ -420,6 +444,34 @@ PrefixPolicy parse_prefix_policy(const std::string& value) {
   usage_error("unknown prefix policy: " + value);
 }
 
+NextOpHint parse_next_op_hint(const std::string& value) {
+  if (value == "auto") return NextOpHint::Auto;
+  if (value == "final-export" || value == "final_export") return NextOpHint::FinalExport;
+  if (value == "rns-gemm" || value == "rns_gemm") return NextOpHint::RnsGemm;
+  if (value == "native-gemm" || value == "native_gemm") return NextOpHint::NativeGemm;
+  if (value == "native-to-rns" || value == "native_to_rns") return NextOpHint::NativeToRns;
+  if (value == "reuse-b" || value == "reuse_b") return NextOpHint::ReuseB;
+  usage_error("unknown next-op hint: " + value);
+}
+
+const char* next_op_hint_name(NextOpHint hint) {
+  switch (hint) {
+    case NextOpHint::Auto:
+      return "auto";
+    case NextOpHint::FinalExport:
+      return "final-export";
+    case NextOpHint::RnsGemm:
+      return "rns-gemm";
+    case NextOpHint::NativeGemm:
+      return "native-gemm";
+    case NextOpHint::NativeToRns:
+      return "native-to-rns";
+    case NextOpHint::ReuseB:
+      return "reuse-b";
+  }
+  return "unknown";
+}
+
 Args parse_args(int argc, char** argv) {
   Args args;
   bool tile_m_set = false;
@@ -472,8 +524,12 @@ Args parse_args(int argc, char** argv) {
       args.exact_wide_limb_count = parse_u32(argv[++i], "--exact-wide-limbs");
     } else if (arg == "--residue-chain-length" && i + 1 < argc) {
       args.residue_chain_length = parse_u32(argv[++i], "--residue-chain-length");
+    } else if (arg == "--next-op-hint" && i + 1 < argc) {
+      args.next_op_hint = parse_next_op_hint(argv[++i]);
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
+    } else if (arg == "--residue-channel-fusion") {
+      args.residue_channel_fusion = true;
     } else if (arg == "--oneshot" || arg == "--one-shot") {
       args.oneshot = true;
     } else if (arg == "--transient-uniform-small-inputs" ||
@@ -505,7 +561,9 @@ Args parse_args(int argc, char** argv) {
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--residue-chain-length N]\n"
+          << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
           << "                  [--require-adaptive-execution]\n"
+          << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
           << "                  [--transient-uniform-small-inputs]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
@@ -582,6 +640,28 @@ Args parse_args(int argc, char** argv) {
         (args.max_prefix_override != 0 && args.max_prefix_override != RNS8_DEFAULT_BOUNDED_PREFIX)) {
       usage_error(
           "--transient-uniform-small-inputs requires --prefix-policy fixed-requested and default bounded prefix 9");
+    }
+  }
+  if (args.residue_channel_fusion) {
+    if (!bounded_benchmark_semantics(args.semantics)) {
+      usage_error("--residue-channel-fusion is only valid for bounded-i64 or bounded-u64 semantics");
+    }
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
+      usage_error("--residue-channel-fusion requires --backend hip-direct");
+    }
+    if (args.bound_mode != BoundMode::Global || args.input_profile != InputProfile::UniformSmall) {
+      usage_error("--residue-channel-fusion requires global uniform-small bounded inputs");
+    }
+    if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline || args.wrap64_rocwmma_candidate ||
+        args.transient_uniform_small_inputs || args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+      usage_error("--residue-channel-fusion cannot be combined with oneshot, reuse, transient, vector, or wrap64 modes");
+    }
+    if (args.residue_chain_length != 1) {
+      usage_error("--residue-channel-fusion cannot be combined with --residue-chain-length > 1");
+    }
+    if (args.prefix_policy != PrefixPolicy::FixedRequested ||
+        (args.max_prefix_override != 0 && args.max_prefix_override != RNS8_DEFAULT_BOUNDED_PREFIX)) {
+      usage_error("--residue-channel-fusion requires --prefix-policy fixed-requested and default bounded prefix 9");
     }
   }
   if (args.oneshot) {
@@ -833,6 +913,15 @@ bool bounded_uniform_small_i8_ab_transient_requested(const Args& args) {
          (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
 }
 
+bool bounded_residue_channel_fusion_requested(const Args& args) {
+  return !args.oneshot && args.residue_channel_fusion && bounded_benchmark_semantics(args.semantics) &&
+         !args.reuse_packed_inputs && args.backend == RNS8_BACKEND_HIP_DIRECT &&
+         args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
+         args.input_profile == InputProfile::UniformSmall &&
+         args.prefix_policy == PrefixPolicy::FixedRequested &&
+         (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
+}
+
 const char* input_profile_name(const Args& args) {
   return args.input_profile == InputProfile::UniformSmall ? "uniform-small" : "adaptive-bands";
 }
@@ -857,6 +946,9 @@ const char* backend_metadata_source(const Args& args) {
   }
   if (args.oneshot) {
     return "rns8_bench_public_oneshot_api";
+  }
+  if (bounded_residue_channel_fusion_requested(args)) {
+    return "rns8_bench_residue_channel_fusion_path";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "rns8_bench_uniform_small_i8_ab_transient_path";
@@ -900,6 +992,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (args.wrap64_rocwmma_candidate) {
     return "internal_wrap64_rocwmma_candidate";
+  }
+  if (bounded_residue_channel_fusion_requested(args)) {
+    return "residue_channel_fusion_native_inputs";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "transient_uniform_small_i8_ab_inputs";
@@ -1160,6 +1255,26 @@ rns8_semantics c_semantics(BenchSemantics semantics) {
       return RNS8_FINITE_FIELD_U8;
   }
   return RNS8_BOUNDED_I64;
+}
+
+const char* c_semantics_name(rns8_semantics semantics) {
+  switch (semantics) {
+    case RNS8_BOUNDED_I64:
+      return "bounded_i64";
+    case RNS8_BOUNDED_U64:
+      return "bounded_u64";
+    case RNS8_EXACT_WIDE_SIGNED:
+      return "exact_wide_signed";
+    case RNS8_EXACT_WIDE_UNSIGNED:
+      return "exact_wide_unsigned";
+    case RNS8_WRAP_U64_MOD_2_64:
+      return "wrap_u64_mod_2_64";
+    case RNS8_FINITE_RING_U8:
+      return "finite_ring_u8";
+    case RNS8_FINITE_FIELD_U8:
+      return "finite_field_u8";
+  }
+  return "unknown";
 }
 
 rns8_bound_kind global_bound_kind(BenchSemantics semantics) {
@@ -2300,6 +2415,21 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
   update_result_target_id_from_key(result);
 }
 
+void capture_packing_and_lowering_info(rns8_plan* plan, BenchmarkResult& result) {
+  result.packing_info.struct_size = sizeof(result.packing_info);
+  result.packing_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status packing_status = rns8_get_plan_packing_info(plan, &result.packing_info);
+  if (packing_status != RNS8_SUCCESS) {
+    fail_status("rns8_get_plan_packing_info", packing_status);
+  }
+  result.packing_info_available = true;
+  if (result.backend_info_available && result.schedule_info_available) {
+    result.lowering_info =
+        rns8::detail::describe_plan_lowering(result.backend_info, result.packing_info, result.schedule_info);
+    result.lowering_info_available = true;
+  }
+}
+
 void append_accumulator_key_fields(std::ostringstream& out, const rns8_plan_backend_info& info) {
   out << ";accumulator_type=" << info.accumulator_type
       << ";accumulator_signedness=" << info.accumulator_signedness
@@ -2496,8 +2626,16 @@ const char* bounded_uniform_small_i8_ab_transient_kernel() {
   return "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1";
 }
 
+const char* bounded_residue_channel_fusion_kernel() {
+  return "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0";
+}
+
 const char* bounded_uniform_small_i8_ab_transient_epilogue() {
   return "uniform_small_i8_ab_transient_residue_then_crt_export";
+}
+
+const char* bounded_residue_channel_fusion_epilogue() {
+  return "width3_residue_fusion_transient_then_crt_export";
 }
 
 const char* bounded_uniform_small_i8_ab_transient_event_label() {
@@ -2562,7 +2700,8 @@ bool bounded_native_b_reuse_a_u64_large_colpair_path(const Args& args, const Ben
 }
 
 bool bounded_uniform_small_i8_ab_transient_path(const Args& args, const BenchmarkResult& result) {
-  return bounded_uniform_small_i8_ab_transient_requested(args) &&
+  return (bounded_uniform_small_i8_ab_transient_requested(args) ||
+          bounded_residue_channel_fusion_requested(args)) &&
          result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
          result.schedule_info_available &&
          result.schedule_info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
@@ -2740,14 +2879,20 @@ void apply_bounded_uniform_small_i8_ab_transient_backend_metadata(
     return;
   }
   result.backend_info.performance_validated = 0;
-  const char* kernel = bounded_uniform_small_i8_ab_transient_kernel();
-  const char* epilogue = bounded_uniform_small_i8_ab_transient_epilogue();
+  const char* kernel = bounded_residue_channel_fusion_requested(args)
+      ? bounded_residue_channel_fusion_kernel()
+      : bounded_uniform_small_i8_ab_transient_kernel();
+  const char* epilogue = bounded_residue_channel_fusion_requested(args)
+      ? bounded_residue_channel_fusion_epilogue()
+      : bounded_uniform_small_i8_ab_transient_epilogue();
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
   set_backend_text(
       result.backend_info.workspace_mode,
       sizeof(result.backend_info.workspace_mode),
-      "transient_i8_a_transient_i8_b_rns_output");
+      bounded_residue_channel_fusion_requested(args)
+          ? "width3_residue_fusion_transient_i8_inputs"
+          : "transient_i8_a_transient_i8_b_rns_output");
   const std::string key = bounded_native_a_reuse_b_autotune_key(args, result, kernel, epilogue, bound);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
@@ -3951,6 +4096,11 @@ void end_gpu_event_phase(bool collect) {
   rns8::detail::hip_direct_timing_set_enabled(false);
 }
 
+void record_allocation_after_warmups(BenchmarkResult& result) {
+  result.allocation_after_warmups = rns8::detail::hip_direct_allocation_counters_snapshot();
+  result.allocation_after_warmups_available = true;
+}
+
 bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result) {
   if (!result.gpu_events.requested || !result.gpu_events.complete) {
     return false;
@@ -4017,6 +4167,8 @@ void capture_vector_alu_schedule(rns8_context* ctx, const Args& args, uint64_t b
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-alu schedule)", status);
   capture_schedule_info(plan, result);
+  capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
@@ -4141,6 +4293,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -4267,6 +4420,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -4287,6 +4441,7 @@ BenchmarkResult initialize_bounded_oneshot_result(
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(oneshot metadata)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   apply_bounded_oneshot_backend_metadata(args, result);
   apply_finite_oneshot_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
@@ -4339,6 +4494,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -4385,6 +4541,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -4418,6 +4575,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
@@ -4720,6 +4878,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -4774,6 +4933,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
@@ -5127,6 +5287,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -5175,6 +5336,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
@@ -5297,6 +5459,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -5342,6 +5505,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
@@ -5464,6 +5628,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -5536,6 +5701,7 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -5566,6 +5732,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   apply_finite_native_a_reuse_b_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = finite_native_a_reuse_b_path(args, result);
@@ -5698,6 +5865,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -5833,6 +6001,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
@@ -5862,6 +6031,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  capture_packing_and_lowering_info(plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
@@ -5954,6 +6124,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
+  record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
@@ -5977,6 +6148,9 @@ const char* benchmark_name(const Args& args) {
   }
   if (runtime_vector_alu_backend(args)) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_runtime";
+  }
+  if (bounded_residue_channel_fusion_requested(args)) {
+    return "rns8_bounded_gemm_residue_channel_fusion_experiment";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "rns8_bounded_gemm_transient_uniform_small_i8";
@@ -6124,6 +6298,418 @@ std::string schedule_hash_string(const Args& args, const BenchmarkResult& result
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
       << ";tile_bound_hash=" << (args.bound_mode == BoundMode::PerTile ? result.tile_bound_hash : 0);
   return out.str();
+}
+
+void print_nullable_std_string(const std::string& value) {
+  if (value.empty()) {
+    std::cout << "null";
+  } else {
+    std::cout << "\"" << json_escape(value) << "\"";
+  }
+}
+
+std::string resolved_next_op_hint(const Args& args, const BenchmarkResult& result) {
+  if (args.next_op_hint != NextOpHint::Auto) {
+    return next_op_hint_name(args.next_op_hint);
+  }
+  if (residue_current_output_mode(args)) {
+    return "rns-gemm";
+  }
+  if (args.reuse_packed_b && !args.reuse_packed_a) {
+    return "reuse-b";
+  }
+  if (runtime_vector_alu_backend(args) || args.vector_alu_baseline) {
+    return "native-gemm";
+  }
+  if (result.lowering_info_available && result.lowering_info.native_to_rns_available) {
+    return "native-to-rns";
+  }
+  return "final-export";
+}
+
+const char* next_op_hint_source(const Args& args) {
+  return args.next_op_hint == NextOpHint::Auto ? "benchmark_default" : "cli";
+}
+
+const char* output_status_handling(const Args& args) {
+  if (residue_current_output_mode(args) || (exact_wide_benchmark_semantics(args.semantics) &&
+                                            !exact_wide_export_status_check_required(args))) {
+    return "structurally_elided";
+  }
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64 || finite_benchmark_semantics(args.semantics)) {
+    return "not_applicable";
+  }
+  return "required";
+}
+
+const char* output_status_event_policy(const Args& args) {
+  const char* handling = output_status_handling(args);
+  if (std::string(handling) == "required") {
+    return "status_memset_and_status_d2h_labels_required_when_gpu_events_available";
+  }
+  if (std::string(handling) == "structurally_elided") {
+    return "status_labels_zero_filled_or_absent_because_no_per_repeat_status_export_launches";
+  }
+  return "no_range_status_for_semantic";
+}
+
+std::string target_namespace_for_id(const std::string& target_id) {
+  if (target_id == "cpu") {
+    return "cpu";
+  }
+  if (target_id == "gfx1100") {
+    return "gfx1100";
+  }
+  if (target_id.rfind("gfx11", 0) == 0) {
+    return "gfx11xx";
+  }
+  if (target_id.rfind("gfx12", 0) == 0) {
+    return "gfx12xx";
+  }
+  if (target_id.rfind("gfx94", 0) == 0 || target_id.rfind("gfx9", 0) == 0) {
+    return "gfx9xx_gfx94x";
+  }
+  return "unknown";
+}
+
+std::string target_review_group_key(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result,
+    const char* selected_backend) {
+  const std::string target_id = benchmark_key_target_id(result);
+  std::ostringstream out;
+  out << target_namespace_for_id(target_id)
+      << "/target=" << target_id
+      << "/backend=" << selected_backend
+      << "/semantics=" << semantics_name(args.semantics)
+      << "/configured=" << RNS8_CONFIGURED_AMDGPU_TARGETS
+      << "/runtime=" << info.hip_runtime_version;
+  return out.str();
+}
+
+std::string benchmark_pack_layout(const Args& args, const BenchmarkResult& result) {
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    return "wrap64_byte_limb_planes";
+  }
+  if (finite_benchmark_semantics(args.semantics)) {
+    return "finite_u8_centered_residue";
+  }
+  if (runtime_vector_alu_backend(args) || args.vector_alu_baseline) {
+    return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_row_major" : "native_u64_row_major";
+  }
+  if (bounded_residue_channel_fusion_requested(args)) {
+    return "native_i8_row_major_residue_channel_width3";
+  }
+  if (bounded_uniform_small_i8_ab_transient_requested(args) ||
+      (bounded_native_a_reuse_b_requested(args) && bounded_native_a_reuse_b_uniform_small_a(args)) ||
+      bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
+    return "native_i8_row_major_uniform_small";
+  }
+  if (result.packing_info_available && result.packing_info.uses_matrix_engine_pack_layout) {
+    return "matrix_engine_transient_pack_layout";
+  }
+  if (result.packing_info_available && result.packing_info.uses_transient_pack_workspace) {
+    return "transient_backend_pack_layout";
+  }
+  return "resident_rns_residue_planes";
+}
+
+const char* benchmark_fusion_mode(const Args& args) {
+  return bounded_residue_channel_fusion_requested(args)
+      ? "residue_channel_width3_experimental_benchmark_only"
+      : "none";
+}
+
+uint32_t benchmark_residue_group_width(const Args& args) {
+  return bounded_residue_channel_fusion_requested(args) ? 3u : 1u;
+}
+
+const char* benchmark_residue_group_layout(const Args& args) {
+  return bounded_residue_channel_fusion_requested(args)
+      ? "first_prefix9_moduli_contiguous_width3_groups"
+      : "one_modulus_per_residue_plane";
+}
+
+std::string generated_reducer_identity(const Args& args, const BenchmarkResult& result) {
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  if (bounded_benchmark_semantics(args.semantics) &&
+      selected_prefix > 0 && selected_prefix <= RNS8_DEFAULT_BOUNDED_PREFIX &&
+      result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
+    return "direct_hip_fixed_prefix_" + std::to_string(selected_prefix) + "_generated_reducer_v1";
+  }
+  if (exact_wide_benchmark_semantics(args.semantics) &&
+      selected_prefix == RNS8_MAX_SUPPORTED_PREFIX &&
+      result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
+    return "direct_hip_fixed_prefix_20_generated_reducer_v1";
+  }
+  if (finite_benchmark_semantics(args.semantics) &&
+      result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
+    return "direct_hip_finite_modulus_" + std::to_string(args.finite_modulus) + "_fixed_reducer_v1";
+  }
+  return "not_applicable";
+}
+
+void print_plan_packing_json(const BenchmarkResult& result) {
+  if (!result.packing_info_available) {
+    std::cout << "  \"plan_packing\": null,\n";
+    return;
+  }
+  const auto& packing = result.packing_info;
+  std::cout << "  \"plan_packing\": {\n";
+  std::cout << "    \"source\": \"rns8_get_plan_packing_info\",\n";
+  std::cout << "    \"backend\": \"" << backend_name(packing.backend) << "\",\n";
+  std::cout << "    \"semantics\": \"" << c_semantics_name(packing.semantics) << "\",\n";
+  std::cout << "    \"uses_resident_matrix_inputs\": "
+            << (packing.uses_resident_matrix_inputs ? "true" : "false") << ",\n";
+  std::cout << "    \"uses_transient_pack_workspace\": "
+            << (packing.uses_transient_pack_workspace ? "true" : "false") << ",\n";
+  std::cout << "    \"uses_matrix_engine_pack_layout\": "
+            << (packing.uses_matrix_engine_pack_layout ? "true" : "false") << ",\n";
+  std::cout << "    \"reusable_prepack_cache_available\": "
+            << (packing.reusable_prepack_cache_available ? "true" : "false") << ",\n";
+  std::cout << "    \"production_prepack_cache_available\": "
+            << (packing.production_prepack_cache_available ? "true" : "false") << ",\n";
+  std::cout << "    \"input_domain_name\": \"" << json_escape(packing.input_domain_name) << "\",\n";
+  std::cout << "    \"output_domain_name\": \"" << json_escape(packing.output_domain_name) << "\",\n";
+  std::cout << "    \"output_host_current\": " << (packing.output_host_current ? "true" : "false") << ",\n";
+  std::cout << "    \"output_device_current\": " << (packing.output_device_current ? "true" : "false") << ",\n";
+  std::cout << "    \"next_op_flags\": " << packing.next_op_flags << ",\n";
+  std::cout << "    \"next_op_hint\": \"" << json_escape(packing.next_op_hint) << "\",\n";
+  std::cout << "    \"a_pack_workspace_bytes\": " << packing.a_pack_workspace_bytes << ",\n";
+  std::cout << "    \"b_pack_workspace_bytes\": " << packing.b_pack_workspace_bytes << ",\n";
+  std::cout << "    \"accumulator_workspace_bytes\": " << packing.accumulator_workspace_bytes << ",\n";
+  std::cout << "    \"library_workspace_bytes\": " << packing.library_workspace_bytes << ",\n";
+  std::cout << "    \"total_transient_workspace_bytes\": " << packing.total_transient_workspace_bytes << ",\n";
+  std::cout << "    \"a_layout_version\": \"" << json_escape(packing.a_layout_version) << "\",\n";
+  std::cout << "    \"b_layout_version\": \"" << json_escape(packing.b_layout_version) << "\",\n";
+  std::cout << "    \"output_layout_version\": \"" << json_escape(packing.output_layout_version) << "\",\n";
+  std::cout << "    \"prepack_cache_scope\": \"" << json_escape(packing.prepack_cache_scope) << "\",\n";
+  std::cout << "    \"detail\": \"" << json_escape(packing.detail) << "\"\n";
+  std::cout << "  },\n";
+}
+
+void print_plan_lowering_json(const BenchmarkResult& result) {
+  if (!result.lowering_info_available) {
+    std::cout << "  \"plan_lowering\": null,\n";
+    return;
+  }
+  const auto& lowering = result.lowering_info;
+  std::cout << "  \"plan_lowering\": {\n";
+  std::cout << "    \"source\": \"rns8_get_plan_backend_info+rns8_get_plan_packing_info+rns8_get_plan_schedule_info\",\n";
+  std::cout << "    \"operation\": \"" << json_escape(lowering.operation) << "\",\n";
+  std::cout << "    \"semantic_contract\": \"" << json_escape(lowering.semantic_contract) << "\",\n";
+  std::cout << "    \"backend_family\": \"" << json_escape(lowering.backend_family) << "\",\n";
+  std::cout << "    \"input_domain\": \"" << json_escape(lowering.input_domain) << "\",\n";
+  std::cout << "    \"output_domain\": \"" << json_escape(lowering.output_domain) << "\",\n";
+  std::cout << "    \"desired_output\": \"" << json_escape(lowering.desired_output) << "\",\n";
+  std::cout << "    \"schedule_strategy\": \"" << json_escape(lowering.schedule_strategy) << "\",\n";
+  std::cout << "    \"packing_strategy\": \"" << json_escape(lowering.packing_strategy) << "\",\n";
+  std::cout << "    \"reuse_strategy\": \"" << json_escape(lowering.reuse_strategy) << "\",\n";
+  std::cout << "    \"conversion_strategy\": \"" << json_escape(lowering.conversion_strategy) << "\",\n";
+  std::cout << "    \"lowering_path\": \"" << json_escape(lowering.lowering_path) << "\",\n";
+  std::cout << "    \"final_export_available\": " << (lowering.final_export_available ? "true" : "false") << ",\n";
+  std::cout << "    \"rns_continuation_available\": "
+            << (lowering.rns_continuation_available ? "true" : "false") << ",\n";
+  std::cout << "    \"native_continuation_available\": "
+            << (lowering.native_continuation_available ? "true" : "false") << ",\n";
+  std::cout << "    \"native_to_rns_available\": "
+            << (lowering.native_to_rns_available ? "true" : "false") << ",\n";
+  std::cout << "    \"reusable_b_prepack_available\": "
+            << (lowering.reusable_b_prepack_available ? "true" : "false") << "\n";
+  std::cout << "  },\n";
+}
+
+void print_requested_next_op_json(const Args& args, const BenchmarkResult& result) {
+  const std::string resolved = resolved_next_op_hint(args, result);
+  std::cout << "  \"requested_next_op\": {\n";
+  std::cout << "    \"requested\": \"" << next_op_hint_name(args.next_op_hint) << "\",\n";
+  std::cout << "    \"resolved\": \"" << json_escape(resolved) << "\",\n";
+  std::cout << "    \"source\": \"" << next_op_hint_source(args) << "\",\n";
+  std::cout << "    \"final_export_available\": "
+            << (result.lowering_info_available && result.lowering_info.final_export_available ? "true" : "false")
+            << ",\n";
+  std::cout << "    \"rns_continuation_available\": "
+            << (result.lowering_info_available && result.lowering_info.rns_continuation_available ? "true" : "false")
+            << ",\n";
+  std::cout << "    \"native_continuation_available\": "
+            << (result.lowering_info_available && result.lowering_info.native_continuation_available ? "true" : "false")
+            << ",\n";
+  std::cout << "    \"native_to_rns_available\": "
+            << (result.lowering_info_available && result.lowering_info.native_to_rns_available ? "true" : "false")
+            << ",\n";
+  std::cout << "    \"reusable_b_prepack_available\": "
+            << (result.lowering_info_available && result.lowering_info.reusable_b_prepack_available ? "true" : "false")
+            << "\n";
+  std::cout << "  },\n";
+}
+
+void print_output_policy_json(const Args& args, int64_t output_ld) {
+  std::cout << "  \"output_policy\": {\n";
+  std::cout << "    \"destination_layout\": \"" << output_destination_layout(args) << "\",\n";
+  std::cout << "    \"logical_ld\": " << output_ld << ",\n";
+  std::cout << "    \"ld_padding\": " << args.output_ld_padding << ",\n";
+  std::cout << "    \"per_repeat_logical_export\": " << (residue_current_output_mode(args) ? "false" : "true") << ",\n";
+  std::cout << "    \"final_checksum_export_after_repeats\": "
+            << (residue_current_output_mode(args) ? "true" : "false") << ",\n";
+  std::cout << "    \"status_handling\": \"" << output_status_handling(args) << "\",\n";
+  std::cout << "    \"status_event_policy\": \"" << output_status_event_policy(args) << "\"\n";
+  std::cout << "  },\n";
+}
+
+void print_target_variant_json(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result,
+    const char* selected_backend) {
+  const std::string target_id = benchmark_key_target_id(result);
+  const std::string target_namespace = target_namespace_for_id(target_id);
+  std::cout << "  \"target_variant\": {\n";
+  std::cout << "    \"target_id\": \"" << json_escape(target_id) << "\",\n";
+  std::cout << "    \"target_namespace\": \"" << json_escape(target_namespace) << "\",\n";
+  std::cout << "    \"review_group_key\": \""
+            << json_escape(target_review_group_key(args, info, result, selected_backend)) << "\",\n";
+  std::cout << "    \"configured_amdgpu_targets\": \"" << json_escape(RNS8_CONFIGURED_AMDGPU_TARGETS) << "\",\n";
+  std::cout << "    \"hip_enabled\": " << (RNS8_CONFIGURED_HIP_ENABLED ? "true" : "false") << ",\n";
+  std::cout << "    \"hip_runtime_version\": " << info.hip_runtime_version << ",\n";
+  std::cout << "    \"hip_driver_version\": " << info.hip_driver_version << "\n";
+  std::cout << "  },\n";
+}
+
+void print_counter_object(const rns8::detail::hip_direct_allocation_counters& counters) {
+  std::cout << "{"
+            << "\"allocate_calls\": " << counters.allocate_calls << ", "
+            << "\"free_calls\": " << counters.free_calls << ", "
+            << "\"allocated_bytes\": " << counters.allocated_bytes
+            << "}";
+}
+
+rns8::detail::hip_direct_allocation_counters allocation_delta(
+    const rns8::detail::hip_direct_allocation_counters& before,
+    const rns8::detail::hip_direct_allocation_counters& after) {
+  rns8::detail::hip_direct_allocation_counters delta{};
+  delta.allocate_calls = after.allocate_calls >= before.allocate_calls ? after.allocate_calls - before.allocate_calls : 0;
+  delta.free_calls = after.free_calls >= before.free_calls ? after.free_calls - before.free_calls : 0;
+  delta.allocated_bytes = after.allocated_bytes >= before.allocated_bytes ? after.allocated_bytes - before.allocated_bytes : 0;
+  return delta;
+}
+
+const char* benchmark_setup_scope(const Args& args) {
+  if (args.oneshot) {
+    return "transient_api_setup_inside_measured_repeat";
+  }
+  if (bounded_residue_channel_fusion_requested(args)) {
+    return "benchmark_experimental_residue_channel_fusion_persistent_output";
+  }
+  if (args.vector_alu_baseline || runtime_vector_alu_backend(args) || bounded_uniform_small_i8_ab_transient_requested(args)) {
+    return "benchmark_owned_transient_native_input_buffers";
+  }
+  if (args.reuse_packed_inputs) {
+    return "persistent_plan_workspace_prepacked_reuse";
+  }
+  return "persistent_plan_workspace_resident_matrices";
+}
+
+void print_device_allocation_json(const Args& args, const BenchmarkResult& result) {
+  std::cout << "  \"device_allocation\": {\n";
+  std::cout << "    \"tracking_available\": " << (result.allocation_tracking_available ? "true" : "false") << ",\n";
+  std::cout << "    \"source\": \"hip_direct_allocation_counters_snapshot\",\n";
+  std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
+  std::cout << "    \"source_version_inputs\": \"monotonic_source_version_per_repeat_when_packing_runs\",\n";
+  std::cout << "    \"before\": ";
+  print_counter_object(result.allocation_before);
+  std::cout << ",\n";
+  std::cout << "    \"after_warmups\": ";
+  if (result.allocation_after_warmups_available) {
+    print_counter_object(result.allocation_after_warmups);
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
+  std::cout << "    \"after_repeats\": ";
+  print_counter_object(result.allocation_after_repeats);
+  std::cout << ",\n";
+  std::cout << "    \"setup_delta\": ";
+  print_counter_object(allocation_delta(result.allocation_before, result.allocation_after_warmups));
+  std::cout << ",\n";
+  std::cout << "    \"measured_repeat_delta\": ";
+  if (result.allocation_after_warmups_available) {
+    print_counter_object(allocation_delta(result.allocation_after_warmups, result.allocation_after_repeats));
+  } else {
+    std::cout << "null";
+  }
+  std::cout << "\n";
+  std::cout << "  },\n";
+}
+
+void print_auto_selector_json(
+    const Args& args,
+    const rns8_device_info& info,
+    const BenchmarkResult& result,
+    const char* selected_backend) {
+  const auto snapshot = rns8::detail::read_autotune_cache();
+  const std::string selected_key =
+      result.backend_info.autotune_key[0] != '\0' ? std::string(result.backend_info.autotune_key) : std::string();
+  rns8::detail::AutotuneRuntimeIdentity runtime{};
+  runtime.target_id = benchmark_key_target_id(result);
+  runtime.hip_sdk_or_library_version =
+      result.backend_info.accelerator_version[0] != '\0'
+          ? std::string(result.backend_info.accelerator_version)
+          : std::string(RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION);
+  const auto* exact_hit = selected_key.empty() ? nullptr : rns8::detail::find_exact_autotune_entry(snapshot, selected_key);
+  const auto* validated_hit =
+      selected_key.empty() ? nullptr : rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, selected_key, runtime);
+  std::cout << "  \"auto_selector\": {\n";
+  std::cout << "    \"source\": \"private_benchmark_selector_report\",\n";
+  std::cout << "    \"requested_backend\": \"" << requested_backend_name(args) << "\",\n";
+  std::cout << "    \"selected_backend\": \"" << selected_backend << "\",\n";
+  std::cout << "    \"selected_key\": ";
+  print_nullable_std_string(selected_key);
+  std::cout << ",\n";
+  std::cout << "    \"cache_path\": \"" << json_escape(snapshot.path.string()) << "\",\n";
+  std::cout << "    \"cache_exists\": " << (snapshot.exists ? "true" : "false") << ",\n";
+  std::cout << "    \"cache_loaded\": " << (snapshot.loaded ? "true" : "false") << ",\n";
+  std::cout << "    \"cache_entry_count\": " << snapshot.entries.size() << ",\n";
+  std::cout << "    \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
+  std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
+  std::cout << "    \"exact_hit\": " << (exact_hit ? "true" : "false") << ",\n";
+  std::cout << "    \"validated_hit\": " << (validated_hit ? "true" : "false") << ",\n";
+  std::cout << "    \"fallback_reason\": \""
+            << json_escape(
+                   selected_key.empty()
+                       ? "no exact entry"
+                       : rns8::detail::autotune_selection_rationale(snapshot, selected_key, selected_backend, runtime))
+            << "\",\n";
+  std::cout << "    \"rejection_reason_vocabulary\": ["
+            << "\"unsupported semantics\", "
+            << "\"per-tile unsupported\", "
+            << "\"backend not compiled\", "
+            << "\"probe failed\", "
+            << "\"no exact entry\", "
+            << "\"unvalidated entry\", "
+            << "\"identity/runtime mismatch\", "
+            << "\"workspace mismatch\", "
+            << "\"slower than selected\"],\n";
+  std::cout << "    \"rejected_candidates\": [";
+  if (args.backend == RNS8_BACKEND_AUTO) {
+    const std::array<const char*, 6> candidates = {
+        "cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"};
+    bool first = true;
+    for (const char* candidate : candidates) {
+      if (std::string(candidate) == selected_backend) {
+        continue;
+      }
+      std::cout << (first ? "\n" : ",\n");
+      std::cout << "      {\"backend\": \"" << candidate << "\", \"reason\": \"no exact entry\"}";
+      first = false;
+    }
+    if (!first) {
+      std::cout << "\n    ";
+    }
+  }
+  std::cout << "]\n";
+  std::cout << "  },\n";
+  (void)info;
 }
 
 void print_json(
@@ -6349,6 +6935,13 @@ void print_json(
   std::cout << "\n";
   std::cout << "    }\n";
   std::cout << "  },\n";
+  print_plan_packing_json(result);
+  print_plan_lowering_json(result);
+  print_requested_next_op_json(args, result);
+  print_output_policy_json(args, output_ld);
+  print_target_variant_json(args, info, result, selected_backend);
+  print_auto_selector_json(args, info, result, selected_backend);
+  print_device_allocation_json(args, result);
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
   std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";
@@ -6608,6 +7201,10 @@ void print_json(
                    "raw_timings_us.crt_export are zero because transient input copies, any fused native-input "
                    "direct-HIP GEMM work, logical export, and teardown happen inside the measured API call\",\n";
     }
+  } else if (bounded_residue_channel_fusion_requested(args)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for a benchmark-only direct-HIP residue-channel "
+                 "fusion experiment over width-3 groups from the first fixed prefix-9 moduli; this capture is "
+                 "not AUTO-selected and is evidence-only for pack/layout comparison\",\n";
   } else if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for an explicit benchmark-owned direct-HIP "
                  "uniform-small native-input path; each measured repeat copies A and B as row-major int8 inputs, "
@@ -6694,6 +7291,11 @@ void print_json(
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "    \"pack_layout\": \"" << json_escape(benchmark_pack_layout(args, result)) << "\",\n";
+  std::cout << "    \"fusion_mode\": \"" << benchmark_fusion_mode(args) << "\",\n";
+  std::cout << "    \"residue_group_width\": " << benchmark_residue_group_width(args) << ",\n";
+  std::cout << "    \"residue_group_layout\": \"" << benchmark_residue_group_layout(args) << "\",\n";
+  std::cout << "    \"generated_reducer_identity\": \"" << json_escape(generated_reducer_identity(args, result)) << "\",\n";
   std::cout << "    \"direct_hip_export_staging_policy\": \""
             << direct_hip_export_staging_policy(args, selected_backend_kind) << "\",\n";
   std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
@@ -6762,6 +7364,8 @@ void print_json(
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned HIP device buffer allocation host timing\",\n";
   } else if (args.oneshot) {
     std::cout << "      \"matrix_alloc\": \"zero-valued external phase; transient API allocations, if any, are inside the measured one-shot call\",\n";
+  } else if (bounded_residue_channel_fusion_requested(args)) {
+    std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned native int8 A/B HIP buffers plus resident RNS output matrix allocation for the experimental width-3 residue-channel fusion comparison\",\n";
   } else if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned native int8 A/B HIP buffers plus resident RNS output matrix allocation host timing\",\n";
   } else {
@@ -6786,6 +7390,10 @@ void print_json(
     std::cout << "      \"pack\": \"zero-valued external phase; native input copies and any backend-local transformation are inside the measured one-shot API call\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public one-shot API call\",\n";
     std::cout << "      \"crt_export\": \"zero-valued external phase; logical output export is inside the measured one-shot API call\",\n";
+  } else if (bounded_residue_channel_fusion_requested(args)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for copying uniform-small A and B into benchmark-owned native int8 HIP buffers for the experimental width-3 residue-channel fusion path\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for the benchmark-only direct-HIP residue-channel fusion comparison kernel group over first-prefix9 width-3 groups\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for CRT export/reconstruction into logical output\",\n";
   } else if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     std::cout << "      \"pack\": \"per-repeat host timing for copying uniform-small A and B into benchmark-owned native int8 HIP buffers\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for the direct-HIP prefix-9 uniform-small int8 A/B colpair GEMM kernel group writing resident RNS residues\",\n";
@@ -7067,6 +7675,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  rns8::detail::hip_direct_allocation_counters_reset();
+  const auto allocation_before = rns8::detail::hip_direct_allocation_counters_snapshot();
   BenchmarkResult result{};
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
@@ -7088,6 +7698,13 @@ int main(int argc, char** argv) {
     case BenchSemantics::FiniteFieldU8:
       result = run_finite_u8(ctx, args, bound);
       break;
+  }
+  result.allocation_before = allocation_before;
+  result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+  result.allocation_tracking_available = true;
+  if (!result.allocation_after_warmups_available) {
+    result.allocation_after_warmups = result.allocation_after_repeats;
+    result.allocation_after_warmups_available = true;
   }
   rns8_destroy_context(ctx);
   const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;

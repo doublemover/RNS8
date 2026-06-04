@@ -87,6 +87,57 @@ __device__ int8_t rns8_reduce_to_centered_fixed_modulus_device(int value) {
   return rns8::detail::finite_u8::reduce_to_centered_fixed_i32<static_cast<uint32_t>(Modulus)>(value);
 }
 
+__device__ int8_t rns8_reduce_to_centered_default_modulus_fixed_device(
+    int value,
+    int modulus_index,
+    int fallback_modulus,
+    uint32_t fallback_reciprocal) {
+  switch (modulus_index) {
+    case 0:
+      return rns8_reduce_to_centered_fixed_modulus_device<256>(value);
+    case 1:
+      return rns8_reduce_to_centered_fixed_modulus_device<255>(value);
+    case 2:
+      return rns8_reduce_to_centered_fixed_modulus_device<253>(value);
+    case 3:
+      return rns8_reduce_to_centered_fixed_modulus_device<251>(value);
+    case 4:
+      return rns8_reduce_to_centered_fixed_modulus_device<247>(value);
+    case 5:
+      return rns8_reduce_to_centered_fixed_modulus_device<239>(value);
+    case 6:
+      return rns8_reduce_to_centered_fixed_modulus_device<233>(value);
+    case 7:
+      return rns8_reduce_to_centered_fixed_modulus_device<229>(value);
+    case 8:
+      return rns8_reduce_to_centered_fixed_modulus_device<227>(value);
+    case 9:
+      return rns8_reduce_to_centered_fixed_modulus_device<223>(value);
+    case 10:
+      return rns8_reduce_to_centered_fixed_modulus_device<217>(value);
+    case 11:
+      return rns8_reduce_to_centered_fixed_modulus_device<211>(value);
+    case 12:
+      return rns8_reduce_to_centered_fixed_modulus_device<199>(value);
+    case 13:
+      return rns8_reduce_to_centered_fixed_modulus_device<197>(value);
+    case 14:
+      return rns8_reduce_to_centered_fixed_modulus_device<193>(value);
+    case 15:
+      return rns8_reduce_to_centered_fixed_modulus_device<191>(value);
+    case 16:
+      return rns8_reduce_to_centered_fixed_modulus_device<181>(value);
+    case 17:
+      return rns8_reduce_to_centered_fixed_modulus_device<179>(value);
+    case 18:
+      return rns8_reduce_to_centered_fixed_modulus_device<173>(value);
+    case 19:
+      return rns8_reduce_to_centered_fixed_modulus_device<167>(value);
+    default:
+      return rns8_reduce_to_centered_device(value, fallback_modulus, fallback_reciprocal);
+  }
+}
+
 __device__ uint32_t rns8_canonical_from_centered_device(int8_t residue, int modulus) {
   return rns8::detail::finite_u8::canonical_from_centered(residue, static_cast<uint32_t>(modulus));
 }
@@ -430,6 +481,123 @@ __device__ int8_t rns8_center_u64_device(uint64_t value, int modulus) {
   return static_cast<int8_t>(static_cast<int64_t>(residue));
 }
 
+template <int Modulus>
+__device__ int8_t rns8_center_i64_fixed_modulus_device(int64_t value) {
+  int64_t residue = value % static_cast<int64_t>(Modulus);
+  residue += static_cast<int64_t>(Modulus) & -static_cast<int64_t>(residue < 0);
+  const int64_t threshold = (static_cast<int64_t>(Modulus) + 1) / 2;
+  residue -= static_cast<int64_t>(Modulus) & -static_cast<int64_t>(residue >= threshold);
+  return static_cast<int8_t>(residue);
+}
+
+template <int Modulus>
+__device__ int8_t rns8_center_u64_fixed_modulus_device(uint64_t value) {
+  uint64_t residue = value % static_cast<uint64_t>(Modulus);
+  const uint64_t threshold = (static_cast<uint64_t>(Modulus) + 1) / 2;
+  residue -= static_cast<uint64_t>(Modulus) & (0u - static_cast<uint64_t>(residue >= threshold));
+  return static_cast<int8_t>(static_cast<int64_t>(residue));
+}
+
+__device__ int8_t rns8_center_i64_default_modulus_fixed_device(
+    int64_t value,
+    int modulus_index,
+    int fallback_modulus) {
+  switch (modulus_index) {
+    case 0:
+      return rns8_center_i64_fixed_modulus_device<256>(value);
+    case 1:
+      return rns8_center_i64_fixed_modulus_device<255>(value);
+    case 2:
+      return rns8_center_i64_fixed_modulus_device<253>(value);
+    case 3:
+      return rns8_center_i64_fixed_modulus_device<251>(value);
+    case 4:
+      return rns8_center_i64_fixed_modulus_device<247>(value);
+    case 5:
+      return rns8_center_i64_fixed_modulus_device<239>(value);
+    case 6:
+      return rns8_center_i64_fixed_modulus_device<233>(value);
+    case 7:
+      return rns8_center_i64_fixed_modulus_device<229>(value);
+    case 8:
+      return rns8_center_i64_fixed_modulus_device<227>(value);
+    case 9:
+      return rns8_center_i64_fixed_modulus_device<223>(value);
+    case 10:
+      return rns8_center_i64_fixed_modulus_device<217>(value);
+    case 11:
+      return rns8_center_i64_fixed_modulus_device<211>(value);
+    case 12:
+      return rns8_center_i64_fixed_modulus_device<199>(value);
+    case 13:
+      return rns8_center_i64_fixed_modulus_device<197>(value);
+    case 14:
+      return rns8_center_i64_fixed_modulus_device<193>(value);
+    case 15:
+      return rns8_center_i64_fixed_modulus_device<191>(value);
+    case 16:
+      return rns8_center_i64_fixed_modulus_device<181>(value);
+    case 17:
+      return rns8_center_i64_fixed_modulus_device<179>(value);
+    case 18:
+      return rns8_center_i64_fixed_modulus_device<173>(value);
+    case 19:
+      return rns8_center_i64_fixed_modulus_device<167>(value);
+    default:
+      return rns8_center_i64_device(value, fallback_modulus);
+  }
+}
+
+__device__ int8_t rns8_center_u64_default_modulus_fixed_device(
+    uint64_t value,
+    int modulus_index,
+    int fallback_modulus) {
+  switch (modulus_index) {
+    case 0:
+      return rns8_center_u64_fixed_modulus_device<256>(value);
+    case 1:
+      return rns8_center_u64_fixed_modulus_device<255>(value);
+    case 2:
+      return rns8_center_u64_fixed_modulus_device<253>(value);
+    case 3:
+      return rns8_center_u64_fixed_modulus_device<251>(value);
+    case 4:
+      return rns8_center_u64_fixed_modulus_device<247>(value);
+    case 5:
+      return rns8_center_u64_fixed_modulus_device<239>(value);
+    case 6:
+      return rns8_center_u64_fixed_modulus_device<233>(value);
+    case 7:
+      return rns8_center_u64_fixed_modulus_device<229>(value);
+    case 8:
+      return rns8_center_u64_fixed_modulus_device<227>(value);
+    case 9:
+      return rns8_center_u64_fixed_modulus_device<223>(value);
+    case 10:
+      return rns8_center_u64_fixed_modulus_device<217>(value);
+    case 11:
+      return rns8_center_u64_fixed_modulus_device<211>(value);
+    case 12:
+      return rns8_center_u64_fixed_modulus_device<199>(value);
+    case 13:
+      return rns8_center_u64_fixed_modulus_device<197>(value);
+    case 14:
+      return rns8_center_u64_fixed_modulus_device<193>(value);
+    case 15:
+      return rns8_center_u64_fixed_modulus_device<191>(value);
+    case 16:
+      return rns8_center_u64_fixed_modulus_device<181>(value);
+    case 17:
+      return rns8_center_u64_fixed_modulus_device<179>(value);
+    case 18:
+      return rns8_center_u64_fixed_modulus_device<173>(value);
+    case 19:
+      return rns8_center_u64_fixed_modulus_device<167>(value);
+    default:
+      return rns8_center_u64_device(value, fallback_modulus);
+  }
+}
+
 __device__ int8_t rns8_center_u8_device(uint8_t value, int modulus) {
   return rns8::detail::finite_u8::center_u8(value, static_cast<uint32_t>(modulus));
 }
@@ -504,7 +672,8 @@ __global__ void rns8_pack_i64_fixed_prefix_kernel(
 #pragma unroll
   for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
     const int modulus = rns8_default_moduli_device[modulus_index];
-    residues[static_cast<int64_t>(modulus_index) * elements + cell] = rns8_center_i64_device(value, modulus);
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] =
+        rns8_center_i64_default_modulus_fixed_device(value, modulus_index, modulus);
   }
 }
 
@@ -526,7 +695,8 @@ __global__ void rns8_pack_u64_fixed_prefix_kernel(
 #pragma unroll
   for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
     const int modulus = rns8_default_moduli_device[modulus_index];
-    residues[static_cast<int64_t>(modulus_index) * elements + cell] = rns8_center_u64_device(value, modulus);
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] =
+        rns8_center_u64_default_modulus_fixed_device(value, modulus_index, modulus);
   }
 }
 
@@ -1075,16 +1245,17 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+    C[row * ldc + col] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
-__device__ int8_t rns8_center_native_operand_device(int64_t value, int modulus) {
-  return rns8_center_i64_device(value, modulus);
+__device__ int8_t rns8_center_native_operand_device(int64_t value, int modulus_index, int modulus) {
+  return rns8_center_i64_default_modulus_fixed_device(value, modulus_index, modulus);
 }
 
-__device__ int8_t rns8_center_native_operand_device(uint64_t value, int modulus) {
-  return rns8_center_u64_device(value, modulus);
+__device__ int8_t rns8_center_native_operand_device(uint64_t value, int modulus_index, int modulus) {
+  return rns8_center_u64_default_modulus_fixed_device(value, modulus_index, modulus);
 }
 
 template <typename NativeT>
@@ -1137,7 +1308,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
       const int source_k = k_offset + tile_k + local_k;
       a_tile[local_row][local_k] =
           global_row < m && local_k < tile_extent
-              ? rns8_center_native_operand_device(A[global_row * lda + source_k], modulus)
+              ? rns8_center_native_operand_device(A[global_row * lda + source_k], modulus_index, modulus)
               : 0;
     }
 
@@ -1148,7 +1319,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
       const int source_k = k_offset + tile_k + local_k;
       b_tile[local_k][local_col] =
           local_k < tile_extent && global_col < n
-              ? rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus)
+              ? rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus_index, modulus)
               : 0;
     }
 
@@ -1167,7 +1338,8 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+    C[row * ldc + col] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1224,7 +1396,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
       const int source_k = k_offset + tile_k + local_k;
       a_tile[local_row][local_k] =
           global_row < m && local_k < tile_extent
-              ? rns8_center_native_operand_device(A[global_row * lda + source_k], modulus)
+              ? rns8_center_native_operand_device(A[global_row * lda + source_k], modulus_index, modulus)
               : 0;
     }
 
@@ -1235,7 +1407,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
       const int source_k = k_offset + tile_k + local_k;
       b_tile[local_k][local_col] =
           local_k < tile_extent && global_col < n
-              ? rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus)
+              ? rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus_index, modulus)
               : 0;
     }
 
@@ -1263,10 +1435,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
     acc1 += static_cast<int32_t>(C[row * ldc + col1]);
   }
   if (output0_active) {
-    C[row * ldc + col0] = rns8_reduce_to_centered_device(acc0, modulus, modulus_reciprocal);
+    C[row * ldc + col0] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc0, modulus_index, modulus, modulus_reciprocal);
   }
   if (output1_active) {
-    C[row * ldc + col1] = rns8_reduce_to_centered_device(acc1, modulus, modulus_reciprocal);
+    C[row * ldc + col1] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc1, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1331,7 +1505,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
           global_row < m && local_k < tile_extent
               ? (UniformSmallA
                      ? rns8_uniform_small_native_operand_device(A[global_row * lda + source_k])
-                     : rns8_center_native_operand_device(A[global_row * lda + source_k], modulus))
+                     : rns8_center_native_operand_device(A[global_row * lda + source_k], modulus_index, modulus))
               : 0;
     }
 
@@ -1359,7 +1533,8 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+    C[row * ldc + col] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1422,7 +1597,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
           global_row < m && local_k < tile_extent
               ? (UniformSmallA
                      ? rns8_uniform_small_native_operand_device(A[global_row * lda + source_k])
-                     : rns8_center_native_operand_device(A[global_row * lda + source_k], modulus))
+                     : rns8_center_native_operand_device(A[global_row * lda + source_k], modulus_index, modulus))
               : 0;
     }
 
@@ -1459,10 +1634,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
     acc1 += static_cast<int32_t>(C[row * ldc + col1]);
   }
   if (output0_active) {
-    C[row * ldc + col0] = rns8_reduce_to_centered_device(acc0, modulus, modulus_reciprocal);
+    C[row * ldc + col0] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc0, modulus_index, modulus, modulus_reciprocal);
   }
   if (output1_active) {
-    C[row * ldc + col1] = rns8_reduce_to_centered_device(acc1, modulus, modulus_reciprocal);
+    C[row * ldc + col1] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc1, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1534,7 +1711,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
           local_k < tile_extent && global_col < n
               ? (UniformSmallB
                      ? rns8_uniform_small_native_operand_device(B[source_k * ldb + global_col])
-                     : rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus))
+                     : rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus_index, modulus))
               : 0;
     }
 
@@ -1562,10 +1739,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
     acc1 += static_cast<int32_t>(C[row * ldc + col1]);
   }
   if (output0_active) {
-    C[row * ldc + col0] = rns8_reduce_to_centered_device(acc0, modulus, modulus_reciprocal);
+    C[row * ldc + col0] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc0, modulus_index, modulus, modulus_reciprocal);
   }
   if (output1_active) {
-    C[row * ldc + col1] = rns8_reduce_to_centered_device(acc1, modulus, modulus_reciprocal);
+    C[row * ldc + col1] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc1, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1645,7 +1824,8 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     acc += static_cast<int32_t>(C[row * ldc + col]);
   }
   if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+    C[row * ldc + col] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1735,10 +1915,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
     acc1 += static_cast<int32_t>(C[row * ldc + col1]);
   }
   if (output0_active) {
-    C[row * ldc + col0] = rns8_reduce_to_centered_device(acc0, modulus, modulus_reciprocal);
+    C[row * ldc + col0] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc0, modulus_index, modulus, modulus_reciprocal);
   }
   if (output1_active) {
-    C[row * ldc + col1] = rns8_reduce_to_centered_device(acc1, modulus, modulus_reciprocal);
+    C[row * ldc + col1] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc1, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -1871,7 +2053,8 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
   if (output_zero_by_row_col) {
     C[row * ldc + col] = 0;
   } else if (output_active) {
-    C[row * ldc + col] = rns8_reduce_to_centered_device(acc, modulus, modulus_reciprocal);
+    C[row * ldc + col] =
+        rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
   }
 }
 
@@ -2477,45 +2660,47 @@ extern "C" int rns8_hip_direct_pack_i64_device(
   const int64_t total =
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
-  if (prefix == kRns8DefaultBoundedPrefix) {
-    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(fixed_blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
-  } else if (prefix == kRns8MaxSupportedPrefix) {
-    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(fixed_blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
-  } else {
-    hipLaunchKernelGGL(
-        rns8_pack_i64_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld,
-        prefix);
+  const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  switch (prefix) {
+#define RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(PrefixValue) \
+    case PrefixValue:                                  \
+      hipLaunchKernelGGL(                              \
+          HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<PrefixValue>), \
+          dim3(fixed_blocks),                          \
+          dim3(threads),                               \
+          0,                                           \
+          nullptr,                                     \
+          d_src,                                       \
+          d_residues,                                  \
+          rows,                                        \
+          cols,                                        \
+          ld);                                         \
+      break
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(1);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(2);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(3);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(4);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(5);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(6);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(7);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(8);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(kRns8DefaultBoundedPrefix);
+    RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
+#undef RNS8_LAUNCH_PACK_I64_FIXED_PREFIX
+    default:
+      hipLaunchKernelGGL(
+          rns8_pack_i64_kernel,
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_src,
+          d_residues,
+          rows,
+          cols,
+          ld,
+          prefix);
+      break;
   }
   return static_cast<int>(hipGetLastError());
 }
@@ -2532,45 +2717,47 @@ extern "C" int rns8_hip_direct_pack_u64_device(
   const int64_t total =
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
-  if (prefix == kRns8DefaultBoundedPrefix) {
-    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(fixed_blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
-  } else if (prefix == kRns8MaxSupportedPrefix) {
-    const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(fixed_blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
-  } else {
-    hipLaunchKernelGGL(
-        rns8_pack_u64_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld,
-        prefix);
+  const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  switch (prefix) {
+#define RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(PrefixValue) \
+    case PrefixValue:                                  \
+      hipLaunchKernelGGL(                              \
+          HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<PrefixValue>), \
+          dim3(fixed_blocks),                          \
+          dim3(threads),                               \
+          0,                                           \
+          nullptr,                                     \
+          d_src,                                       \
+          d_residues,                                  \
+          rows,                                        \
+          cols,                                        \
+          ld);                                         \
+      break
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(1);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(2);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(3);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(4);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(5);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(6);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(7);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(8);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(kRns8DefaultBoundedPrefix);
+    RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
+#undef RNS8_LAUNCH_PACK_U64_FIXED_PREFIX
+    default:
+      hipLaunchKernelGGL(
+          rns8_pack_u64_kernel,
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_src,
+          d_residues,
+          rows,
+          cols,
+          ld,
+          prefix);
+      break;
   }
   return static_cast<int>(hipGetLastError());
 }
