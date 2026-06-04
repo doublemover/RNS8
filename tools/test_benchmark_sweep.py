@@ -781,12 +781,16 @@ def main() -> int:
     vector_chain_args.bench_for = ["hip-direct=hip-direct-release-bench"]
     vector_chain_args.scenario = ["vector-to-rns-chain"]
     vector_chain_entries = benchmark_sweep.sweep_command_entries(vector_chain_args)
-    assert len(vector_chain_entries) == 4
+    assert len(vector_chain_entries) == 8
     assert {entry.scenario["name"] for entry in vector_chain_entries} == {
         "bounded-i64-64",
         "bounded-u64-64",
         "bounded-i64-128",
         "bounded-u64-128",
+        "bounded-i64-64-reuse-consumer-b",
+        "bounded-u64-64-reuse-consumer-b",
+        "bounded-i64-128-reuse-consumer-b",
+        "bounded-u64-128-reuse-consumer-b",
     }
     assert {entry.scenario["backend"] for entry in vector_chain_entries} == {"auto"}
     assert all(entry.command[0] == "hip-direct-release-bench" for entry in vector_chain_entries)
@@ -795,6 +799,15 @@ def main() -> int:
     assert all("--native-to-rns-bridge" not in entry.command for entry in vector_chain_entries)
     assert all(entry.scenario["native_to_rns_bridge"] is False for entry in vector_chain_entries)
     assert all(entry.scenario["vector_to_rns_chain"] is True for entry in vector_chain_entries)
+    assert {
+        entry.scenario["pack_mode"]
+        for entry in vector_chain_entries
+    } == {"per_repeat_repack", "prepacked_reuse_b"}
+    assert any("--reuse-packed-b" in entry.command for entry in vector_chain_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("reuse_contract") == "consumer_b_prepacked_before_warmups"
+        for entry in vector_chain_entries
+    )
     assert all(
         entry.scenario.get("metadata", {}).get("workflow_name") == "vector_to_rns_chain"
         for entry in vector_chain_entries

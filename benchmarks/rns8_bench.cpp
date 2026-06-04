@@ -605,11 +605,14 @@ Args parse_args(int argc, char** argv) {
     if (args.input_profile != InputProfile::UniformSmall) {
       usage_error("--vector-to-rns-chain currently requires --input-profile uniform-small");
     }
-    if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
-        args.transient_uniform_small_inputs || args.native_to_rns_bridge || args.wrap64_rocwmma_candidate) {
+    if (args.oneshot || args.vector_alu_baseline || args.transient_uniform_small_inputs ||
+        args.native_to_rns_bridge || args.wrap64_rocwmma_candidate) {
       usage_error(
-          "--vector-to-rns-chain cannot be combined with one-shot, reuse, vector-baseline, transient, "
+          "--vector-to-rns-chain cannot be combined with one-shot, vector-baseline, transient, "
           "native-to-RNS bridge, or wrap64 modes");
+    }
+    if (args.reuse_packed_inputs && (!args.reuse_packed_b || args.reuse_packed_a)) {
+      usage_error("--vector-to-rns-chain only supports --reuse-packed-b for the Direct-HIP consumer input");
     }
     if (args.residue_chain_length != 1) {
       usage_error("--vector-to-rns-chain cannot be combined with --residue-chain-length > 1");
@@ -3657,7 +3660,10 @@ void collect_native_to_rns_bridge_gemm_gpu_events(
   }
 }
 
-void collect_vector_to_rns_chain_pack_gpu_events(const Args& args, GpuEventSamples& events) {
+void collect_vector_to_rns_chain_pack_gpu_events(
+    const Args& args,
+    GpuEventSamples& events,
+    bool consumer_b_reused) {
   (void)args;
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const auto h2d_samples = event_label_values(samples, "residue_h2d_sync");
@@ -3679,8 +3685,9 @@ void collect_vector_to_rns_chain_pack_gpu_events(const Args& args, GpuEventSampl
   };
   const double vector_a_h2d = vector_operand_h2d("vector_alu_pack_a_h2d");
   const double vector_b_h2d = vector_operand_h2d("vector_alu_pack_b_h2d");
-  const double direct_h2d = sum_event_label(events, samples, "pack", "pack_h2d");
-  const double direct_pack_kernel = sum_event_label(events, samples, "pack", "pack_kernel");
+  const double direct_h2d = consumer_b_reused ? 0.0 : sum_event_label(events, samples, "pack", "pack_h2d");
+  const double direct_pack_kernel =
+      consumer_b_reused ? 0.0 : sum_event_label(events, samples, "pack", "pack_kernel");
   if (events.complete) {
     push_gpu_event_value(events, "vector_alu_pack_a_h2d", vector_a_h2d);
     push_gpu_event_value(events, "vector_alu_pack_b_h2d", vector_b_h2d);
@@ -4644,6 +4651,16 @@ BenchmarkResult run_vector_to_rns_chain(
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
+  if (args.reuse_packed_b) {
+    const auto prepack_start = std::chrono::steady_clock::now();
+    result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
+    status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, 1);
+    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain reused direct B)", status);
+    const auto prepack_end = std::chrono::steady_clock::now();
+    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
+    result.prepack_setup_available = true;
+  }
+
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
@@ -4657,10 +4674,12 @@ BenchmarkResult run_vector_to_rns_chain(
       return pack_vector_to_rns_chain_operand(vector_ctx, vector_b, B.data(), args.n, source_version);
     });
     if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer B)", status);
-    status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain direct B)", status);
+    if (!args.reuse_packed_b) {
+      status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain direct B)", status);
+    }
     if (collect_gpu_events) {
-      collect_vector_to_rns_chain_pack_gpu_events(args, result.gpu_events);
+      collect_vector_to_rns_chain_pack_gpu_events(args, result.gpu_events, args.reuse_packed_b);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto pack_end = std::chrono::steady_clock::now();
@@ -7107,10 +7126,18 @@ void print_json(
                  "zero output without reading A or B\",\n";
   } else if (vector_to_rns_chain_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for a vector-native-to-Direct-RNS chain; "
-                 "each measured repeat packs producer A/B into the HIP vector-ALU backend, packs a second "
-                 "Direct-HIP RNS input, runs vector GEMM to native device output, materializes that native "
-                 "output into Direct-HIP RNS storage, runs the Direct-HIP consumer RNS GEMM, and exports the "
-                 "final logical output\",\n";
+                 "each measured repeat packs producer A/B into the HIP vector-ALU backend, ";
+    if (args.reuse_packed_b) {
+      std::cout << "reuses a Direct-HIP consumer B input that was packed once before warmups, ";
+    } else {
+      std::cout << "packs a second Direct-HIP RNS input, ";
+    }
+    std::cout << "runs vector GEMM to native device output, materializes that native output into Direct-HIP RNS "
+                 "storage, runs the Direct-HIP consumer RNS GEMM, and exports the final logical output";
+    if (args.reuse_packed_b) {
+      std::cout << "; per-repeat end_to_end excludes one-time prepack_setup_us";
+    }
+    std::cout << "\",\n";
   } else if (native_to_rns_bridge_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for an explicit AUTO/direct-HIP native-to-RNS "
                  "bridge benchmark; each measured repeat packs bounded inputs into direct-HIP matrices, forces "
@@ -7311,7 +7338,11 @@ void print_json(
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for direct-HIP all-zero resident RNS output materialization\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for exporting the already-zero direct-HIP output\",\n";
   } else if (vector_to_rns_chain_requested(args)) {
-    std::cout << "      \"pack\": \"per-repeat host timing for copying vector producer A/B into native HIP buffers and packing the second Direct-HIP RNS input\",\n";
+    if (args.reuse_packed_b) {
+      std::cout << "      \"pack\": \"per-repeat host timing for copying vector producer A/B into native HIP buffers; the Direct-HIP consumer B input was packed once before warmups\",\n";
+    } else {
+      std::cout << "      \"pack\": \"per-repeat host timing for copying vector producer A/B into native HIP buffers and packing the second Direct-HIP RNS input\",\n";
+    }
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for vector-ALU native GEMM, native-to-RNS materialization into Direct-HIP storage, and Direct-HIP consumer RNS GEMM\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for CRT export/reconstruction of the final Direct-HIP consumer output\",\n";
   } else if (native_to_rns_bridge_requested(args)) {
@@ -7386,7 +7417,15 @@ void print_json(
   } else if (all_zero_direct_hip_pack_elided) {
     std::cout << "      \"end_to_end\": \"per-repeat direct-HIP all-zero output materialization plus export host timing; pack is intentionally elided by the trusted all-zero schedule\"\n";
   } else if (vector_to_rns_chain_requested(args)) {
-    std::cout << "      \"end_to_end\": \"per-repeat vector producer pack plus Direct-HIP input pack, vector GEMM, native-to-RNS materialization, Direct-HIP consumer GEMM, and final CRT export host timing\"\n";
+    std::cout << "      \"end_to_end\": \"per-repeat vector producer pack";
+    if (!args.reuse_packed_b) {
+      std::cout << " plus Direct-HIP input pack";
+    }
+    std::cout << ", vector GEMM, native-to-RNS materialization, Direct-HIP consumer GEMM, and final CRT export host timing";
+    if (args.reuse_packed_b) {
+      std::cout << "; excludes one-time prepack_setup_us for the Direct-HIP consumer B input";
+    }
+    std::cout << "\"\n";
   } else if (native_to_rns_bridge_requested(args)) {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus native-to-RNS input conversion plus direct-HIP rns_gemm plus crt_export host timing\"\n";
   } else if (args.reuse_packed_inputs) {

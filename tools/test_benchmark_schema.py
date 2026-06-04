@@ -267,13 +267,28 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     return bridge
 
 
-def as_vector_to_rns_chain_capture(capture: dict, conversion_event: str, vector_kernel: str) -> dict:
+def as_vector_to_rns_chain_capture(
+    capture: dict,
+    conversion_event: str,
+    vector_kernel: str,
+    *,
+    reuse_consumer_b: bool = False,
+) -> dict:
     chain = as_native_to_rns_bridge_capture(capture, conversion_event)
     chain["benchmark"] = "rns8_bounded_gemm_vector_to_rns_chain"
     chain["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    if reuse_consumer_b:
+        chain["reuse_packed_inputs"] = True
+        chain["pack_mode"] = "prepacked_reuse_b"
+        chain["prepack_reuse_operands"] = ["B"]
+        chain["prepack_reuse_strategy"] = "persistent_matrix_residency"
+        chain["prepack_setup_us"] = 321
+        chain["avg_prepack_setup_us"] = 321.0
     chain["command_line"] = (
         "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
-        "--vector-to-rns-chain --warmups 1 --repeats 3 --seed 7"
+        "--vector-to-rns-chain"
+        + (" --reuse-packed-b" if reuse_consumer_b else "")
+        + " --warmups 1 --repeats 3 --seed 7"
     )
     chain["timing_note"] = "host wall-clock timings for a vector-native-to-Direct-RNS chain"
     chain["per_modulus_gemm_estimate_applicable"] = False
@@ -281,6 +296,7 @@ def as_vector_to_rns_chain_capture(capture: dict, conversion_event: str, vector_
 
     metadata = chain["timing_metadata"]
     metadata["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    metadata["pack_mode"] = chain["pack_mode"]
     metadata["native_to_rns_bridge_forced"] = False
     metadata["vector_to_rns_chain"] = True
     metadata["vector_to_rns_chain_producer_backend"] = "hip-vector-alu-int64"
@@ -293,8 +309,15 @@ def as_vector_to_rns_chain_capture(capture: dict, conversion_event: str, vector_
     metadata["gpu_event_timing_caveat"] = (
         "HIP event timings record vector producer, native-to-RNS materialization, and Direct-HIP consumer events"
     )
+    metadata["prepack_reuse_operands"] = chain["prepack_reuse_operands"]
+    metadata["prepack_reuse_strategy"] = chain["prepack_reuse_strategy"]
     metadata["phase_notes"]["pack"] = (
-        "per-repeat host timing for copying vector producer A/B into native HIP buffers and packing the second Direct-HIP RNS input"
+        "per-repeat host timing for copying vector producer A/B into native HIP buffers"
+        + (
+            "; the Direct-HIP consumer B input was packed once before warmups"
+            if reuse_consumer_b
+            else " and packing the second Direct-HIP RNS input"
+        )
     )
     metadata["phase_notes"]["rns_gemm"] = (
         "per-repeat host timing for vector-ALU native GEMM, native-to-RNS materialization, and Direct-HIP consumer RNS GEMM"
@@ -309,11 +332,24 @@ def as_vector_to_rns_chain_capture(capture: dict, conversion_event: str, vector_
         "scope": "vector_native_output_to_direct_rns_consumer",
         "reason": "measured as vector, native-to-RNS, and Direct-HIP GPU event phases inside rns_gemm",
     }
+    metadata["phase_availability"]["prepack_setup"] = {
+        "timed": reuse_consumer_b,
+        "timing_key": "prepack_setup_us" if reuse_consumer_b else None,
+        "scope": "one_time_before_warmups" if reuse_consumer_b else "not_requested_per_repeat_repack",
+        "reason": (
+            "prepacked B once before warmups and reused for every measured repeat"
+            if reuse_consumer_b
+            else "benchmark mode packs A and B inside every measured repeat"
+        ),
+    }
 
     repeats = chain["repeats"]
     timings = chain["gpu_event_timings_us"]
     timings["vector_alu_pack_a_h2d"] = [1.0 for _ in range(repeats)]
     timings["vector_alu_pack_b_h2d"] = [1.5 for _ in range(repeats)]
+    if reuse_consumer_b:
+        timings["pack_h2d"] = [0.0 for _ in range(repeats)]
+        timings["pack_kernel"] = [0.0 for _ in range(repeats)]
     timings["pack"] = [
         a + b + h2d + kernel
         for a, b, h2d, kernel in zip(
@@ -1620,6 +1656,28 @@ def main() -> int:
     expect_invalid(
         stale_chain_metadata,
         "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true",
+    )
+
+    vector_to_rns_chain_reuse_b = as_vector_to_rns_chain_capture(
+        v4_adaptive_i64,
+        "native_i64_to_rns_kernel",
+        "vector_alu_i64_kernel",
+        reuse_consumer_b=True,
+    )
+    validate_capture(vector_to_rns_chain_reuse_b)
+
+    stale_chain_reuse_strategy = copy.deepcopy(vector_to_rns_chain_reuse_b)
+    stale_chain_reuse_strategy["prepack_reuse_strategy"] = "none"
+    expect_invalid(
+        stale_chain_reuse_strategy,
+        "vector-to-RNS chain captures must use prepack_reuse_strategy=persistent_matrix_residency",
+    )
+
+    stale_chain_reuse_metadata = copy.deepcopy(vector_to_rns_chain_reuse_b)
+    stale_chain_reuse_metadata["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    expect_invalid(
+        stale_chain_reuse_metadata,
+        "vector-to-RNS chain captures must keep timing_metadata.pack_mode in sync",
     )
 
     padded_output = add_output_padding_fields(copy.deepcopy(v4_ck_i64), 7)

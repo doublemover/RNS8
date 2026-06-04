@@ -2210,16 +2210,29 @@ class _Validator:
                     )
                 if self.data.get("backend_requested") != "auto":
                     self._error("vector-to-RNS chain captures must use backend_requested=auto")
-                if self.data.get("pack_mode") != "per_repeat_repack":
-                    self._error("vector-to-RNS chain captures must use pack_mode=per_repeat_repack")
-                if self.data.get("reuse_packed_inputs") is not False:
-                    self._error("vector-to-RNS chain captures must not use packed-input reuse")
+                pack_mode = self.data.get("pack_mode")
+                if pack_mode not in {"per_repeat_repack", "prepacked_reuse_b"}:
+                    self._error("vector-to-RNS chain captures must use pack_mode=per_repeat_repack or prepacked_reuse_b")
+                expected_reuse = pack_mode == "prepacked_reuse_b"
+                if self.data.get("reuse_packed_inputs") is not expected_reuse:
+                    self._error("vector-to-RNS chain captures must set reuse_packed_inputs to match consumer-B reuse")
+                expected_strategy = "persistent_matrix_residency" if expected_reuse else "none"
+                if self.data.get("prepack_reuse_strategy") != expected_strategy:
+                    self._error(
+                        f"vector-to-RNS chain captures must use prepack_reuse_strategy={expected_strategy}"
+                    )
                 if isinstance(metadata, dict):
                     if metadata.get("vector_to_rns_chain") is not True:
                         self._error("vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true")
                     if metadata.get("native_to_rns_bridge_forced") is not False:
                         self._error(
                             "vector-to-RNS chain captures must set timing_metadata.native_to_rns_bridge_forced=false"
+                        )
+                    if metadata.get("pack_mode") != pack_mode:
+                        self._error("vector-to-RNS chain captures must keep timing_metadata.pack_mode in sync")
+                    if metadata.get("prepack_reuse_strategy") != expected_strategy:
+                        self._error(
+                            "vector-to-RNS chain captures must keep timing_metadata.prepack_reuse_strategy in sync"
                         )
             if residue_chain_length > 1:
                 expected_epilogue_type = "residue_current_rns_output"
