@@ -703,6 +703,25 @@ Likely first slices:
   setup-inclusive speedups were 3.04x and 1.32x for bounded i64 512/1024, and
   1.33x and 1.30x for bounded u64 512/1024. Keep this as an explicit
   fixed-prefix reuse-path implementation win, not an AUTO/default-routing claim.
+  Large bounded-u64 adaptive-band repeated-A captures with `m/n/k >= 512` now
+  have a matching native-B/resident-RNS-A colpair route:
+  `direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1`.
+  A is packed once into resident RNS storage, B is copied as native `uint64_t`
+  per repeat, and the grouped prefix-9 GEMM centers B inside the tile load while
+  consuming resident centered A. The benchmark/schema surface reports
+  `transient_native_b_resident_a_reuse`, `rns8_bench_native_b_reuse_a_path`, the
+  `resident_a_native_b_centered_residue_then_crt_export` epilogue, the
+  `bounded_native_b_colpair_reuse_a_gemm_kernel_group` event phase, and zero
+  `pack_kernel`. Windows `gfx1100` release captures under
+  `temp/perf-work-queue/direct-hip-u64-reuse-a-colpair/` used release binaries,
+  3 warmups, and 33 measured repeats. They are schema-valid and event-valid. At
+  512 the same-build non-reuse Direct-HIP baseline averaged 6475.15 us per
+  repeat while the native-B reuse-A route averaged 4633.30 us setup-inclusive
+  per repeat, a 1.40x setup-amortized win. At 1024 the corresponding numbers
+  were 10613.20 us versus 9892.63 us, a 1.07x setup-amortized win. Event traces
+  show the native-B colpair GEMM phase itself is slower than the normal grouped
+  Direct-HIP GEMM, so keep this as an explicit repeated-A path whose current win
+  comes from reduced pack/export cost, not as an AUTO/default-routing claim.
 
 Relation to existing queue:
 

@@ -1465,6 +1465,109 @@ __global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
   }
 }
 
+template <typename NativeT, bool UniformSmallB>
+__global__ void __launch_bounds__(kRns8HipTileM * (kRns8HipTileN / 2))
+    rns8_ring_gemm_i8_a_native_b_i32_colpair_grouped_prefix9_kernel(
+        const int8_t* A_base,
+        const NativeT* B,
+        int8_t* C_base,
+        int m,
+        int n,
+        int k,
+        int k_offset,
+        int k_block,
+        int lda,
+        int ldb,
+        int ldc,
+        int accumulate) {
+  const int modulus_index = static_cast<int>(blockIdx.z);
+  if (modulus_index >= kRns8DefaultBoundedPrefix) {
+    return;
+  }
+  const int64_t a_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * static_cast<int64_t>(lda);
+  const int64_t c_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * static_cast<int64_t>(ldc);
+  const int8_t* A = A_base + a_plane_offset;
+  int8_t* C = C_base + c_plane_offset;
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  const uint32_t modulus_reciprocal =
+      static_cast<uint32_t>(kRns8ReciprocalScale / static_cast<uint32_t>(modulus));
+
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col_pair = static_cast<int>(threadIdx.x);
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = tile_row + thread_row;
+  const int col0 = tile_col + thread_col_pair * 2;
+  const int col1 = col0 + 1;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col_pair;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output0_active = row < m && col0 < n;
+  const bool output1_active = row < m && col1 < n;
+  int32_t acc0 = 0;
+  int32_t acc1 = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int global_row = tile_row + local_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int global_col = tile_col + local_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && global_col < n
+              ? (UniformSmallB
+                     ? rns8_uniform_small_native_operand_device(B[source_k * ldb + global_col])
+                     : rns8_center_native_operand_device(B[source_k * ldb + global_col], modulus))
+              : 0;
+    }
+
+    __syncthreads();
+
+    if (output0_active || output1_active) {
+      for (int kk = 0; kk < tile_extent; ++kk) {
+        const int32_t a = static_cast<int32_t>(a_tile[thread_row][kk]);
+        if (output0_active) {
+          acc0 += a * static_cast<int32_t>(b_tile[kk][thread_col_pair * 2]);
+        }
+        if (output1_active) {
+          acc1 += a * static_cast<int32_t>(b_tile[kk][thread_col_pair * 2 + 1]);
+        }
+      }
+    }
+
+    __syncthreads();
+  }
+
+  if (output0_active && accumulate) {
+    acc0 += static_cast<int32_t>(C[row * ldc + col0]);
+  }
+  if (output1_active && accumulate) {
+    acc1 += static_cast<int32_t>(C[row * ldc + col1]);
+  }
+  if (output0_active) {
+    C[row * ldc + col0] = rns8_reduce_to_centered_device(acc0, modulus, modulus_reciprocal);
+  }
+  if (output1_active) {
+    C[row * ldc + col1] = rns8_reduce_to_centered_device(acc1, modulus, modulus_reciprocal);
+  }
+}
+
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     rns8_ring_gemm_uniform_small_i8_ab_i32_grouped_prefix9_kernel(
         const int8_t* A,
@@ -3105,6 +3208,54 @@ hipError_t launch_native_a_resident_b_prefix9_colpair_grouped_gemm(
   return err;
 }
 
+template <typename NativeT, bool UniformSmallB>
+hipError_t launch_resident_a_native_b_prefix9_colpair_grouped_gemm(
+    const int8_t* d_a,
+    const NativeT* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block) {
+  const dim3 block(kRns8HipTileN / 2, kRns8HipTileM);
+  const dim3 grid(
+      (n + kRns8HipTileN - 1) / kRns8HipTileN,
+      (m + kRns8HipTileM - 1) / kRns8HipTileM,
+      kRns8DefaultBoundedPrefix);
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_ring_gemm_i8_a_native_b_i32_colpair_grouped_prefix9_kernel<NativeT, UniformSmallB>),
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return err;
+}
+
 hipError_t launch_uniform_small_i8_ab_resident_b_prefix9_grouped_gemm(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -3382,6 +3533,31 @@ extern "C" int rns8_hip_direct_ring_gemm_u64_native_a_resident_b_prefix9_colpair
   }
   return static_cast<int>(
       launch_native_a_resident_b_prefix9_colpair_grouped_gemm<uint64_t, false>(
+          d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block));
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_u64_resident_a_native_b_prefix9_colpair_device(
+    const int8_t* d_a,
+    const uint64_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int64_t max_grouped_plane_elements = kRns8MaxInt64 / kRns8DefaultBoundedPrefix;
+  if (static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(lda) ||
+      static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(ldc)) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  return static_cast<int>(
+      launch_resident_a_native_b_prefix9_colpair_grouped_gemm<uint64_t, false>(
           d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block));
 }
 

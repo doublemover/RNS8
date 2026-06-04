@@ -766,6 +766,16 @@ bool bounded_uniform_small_i8_ab_reuse_a_requested(const Args& args) {
          (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
 }
 
+bool bounded_native_b_reuse_a_u64_large_colpair_requested(const Args& args) {
+  return !args.oneshot && args.semantics == BenchSemantics::BoundedU64 && args.reuse_packed_a &&
+         !args.reuse_packed_b && args.backend == RNS8_BACKEND_HIP_DIRECT &&
+         args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
+         args.input_profile != InputProfile::UniformSmall &&
+         args.prefix_policy == PrefixPolicy::FixedRequested &&
+         (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX) &&
+         args.m >= 512 && args.n >= 512 && args.k >= 512;
+}
+
 const char* input_profile_name(const Args& args) {
   return args.input_profile == InputProfile::UniformSmall ? "uniform-small" : "adaptive-bands";
 }
@@ -799,6 +809,9 @@ const char* backend_metadata_source(const Args& args) {
   }
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
     return "rns8_bench_uniform_small_i8_ab_reuse_a_path";
+  }
+  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args)) {
+    return "rns8_bench_native_b_reuse_a_path";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&
       args.backend == RNS8_BACKEND_HIP_DIRECT) {
@@ -836,6 +849,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
     return "transient_uniform_small_i8_b_resident_i8_a_reuse";
+  }
+  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args)) {
+    return "transient_native_b_resident_a_reuse";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&
       args.backend == RNS8_BACKEND_HIP_DIRECT) {
@@ -2218,6 +2234,22 @@ const char* bounded_uniform_small_i8_ab_reuse_a_pack_h2d_label() {
   return "bounded_uniform_small_i8_b_h2d";
 }
 
+const char* bounded_native_b_reuse_a_u64_large_colpair_kernel() {
+  return "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1";
+}
+
+const char* bounded_native_b_reuse_a_u64_large_colpair_epilogue() {
+  return "resident_a_native_b_centered_residue_then_crt_export";
+}
+
+const char* bounded_native_b_reuse_a_u64_large_colpair_event_label() {
+  return "bounded_native_b_colpair_reuse_a_gemm_kernel_group";
+}
+
+const char* bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label() {
+  return "bounded_native_b_h2d";
+}
+
 bool bounded_native_a_reuse_b_path(const Args& args, const BenchmarkResult& result) {
   return bounded_native_a_reuse_b_requested(args) &&
          result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
@@ -2231,6 +2263,17 @@ bool bounded_native_a_reuse_b_path(const Args& args, const BenchmarkResult& resu
 
 bool bounded_uniform_small_i8_ab_reuse_a_path(const Args& args, const BenchmarkResult& result) {
   return bounded_uniform_small_i8_ab_reuse_a_requested(args) &&
+         result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
+         result.schedule_info_available &&
+         result.schedule_info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
+         result.schedule_info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
+         result.schedule_info.prefix_group_count == 1 &&
+         !result.schedule_info.adaptive_prefix_active &&
+         !result.schedule_info.adaptive_skip_active;
+}
+
+bool bounded_native_b_reuse_a_u64_large_colpair_path(const Args& args, const BenchmarkResult& result) {
+  return bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
          result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
          result.schedule_info_available &&
          result.schedule_info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
@@ -2379,6 +2422,23 @@ void apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(
       result.backend_info.workspace_mode,
       sizeof(result.backend_info.workspace_mode),
       "transient_i8_b_resident_i8_a_rns_output");
+  const std::string key = bounded_native_a_reuse_b_autotune_key(args, result, kernel, epilogue, bound);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+}
+
+void apply_bounded_native_b_reuse_a_backend_metadata(const Args& args, BenchmarkResult& result, uint64_t bound) {
+  if (!bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+    return;
+  }
+  result.backend_info.performance_validated = 0;
+  const char* kernel = bounded_native_b_reuse_a_u64_large_colpair_kernel();
+  const char* epilogue = bounded_native_b_reuse_a_u64_large_colpair_epilogue();
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
+  set_backend_text(
+      result.backend_info.workspace_mode,
+      sizeof(result.backend_info.workspace_mode),
+      "transient_native_b_resident_rns_a_output");
   const std::string key = bounded_native_a_reuse_b_autotune_key(args, result, kernel, epilogue, bound);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
@@ -2779,6 +2839,9 @@ std::vector<std::string> gpu_event_phase_order(
   if (bounded_uniform_small_i8_ab_reuse_a_path(args, result)) {
     gemm_phase = bounded_uniform_small_i8_ab_reuse_a_event_label();
   }
+  if (bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+    gemm_phase = bounded_native_b_reuse_a_u64_large_colpair_event_label();
+  }
   std::vector<std::string> phases = {"pack_h2d", "pack_kernel", "pack", gemm_phase};
   if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {
     phases.push_back("direct_hip_zero_output_tile_memset");
@@ -3102,6 +3165,33 @@ void collect_bounded_uniform_small_i8_ab_reuse_a_pack_gpu_events(GpuEventSamples
 void collect_bounded_uniform_small_i8_ab_reuse_a_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const char* label = bounded_uniform_small_i8_ab_reuse_a_event_label();
+  const double kernel = sum_event_label(events, samples, "rns_gemm", label);
+  if (events.complete) {
+    push_gpu_event_value(events, label, kernel);
+    push_gpu_event_value(events, "rns_gemm", kernel);
+  }
+}
+
+void collect_bounded_native_b_reuse_a_pack_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  double h2d = 0.0;
+  if (!sum_event_label_if_present(samples, bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label(), h2d) &&
+      !sum_event_label_if_present(samples, "residue_h2d_sync", h2d)) {
+    add_unavailable_reason(
+        events,
+        std::string("pack missing backend HIP event label ") +
+            bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label() + " or residue_h2d_sync");
+  }
+  if (events.complete) {
+    push_gpu_event_value(events, "pack_h2d", h2d);
+    push_gpu_event_value(events, "pack_kernel", 0.0);
+    push_gpu_event_value(events, "pack", h2d);
+  }
+}
+
+void collect_bounded_native_b_reuse_a_gemm_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* label = bounded_native_b_reuse_a_u64_large_colpair_event_label();
   const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
     push_gpu_event_value(events, label, kernel);
@@ -3911,6 +4001,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
+  apply_bounded_native_b_reuse_a_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
@@ -4232,8 +4323,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
+  apply_bounded_native_b_reuse_a_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
+  const bool use_native_b_reuse_a = bounded_native_b_reuse_a_u64_large_colpair_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_b =
       use_native_a_reuse_b && bounded_native_a_reuse_b_uniform_small_a(args);
@@ -4257,6 +4350,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   DeviceBuffer native_a;
+  DeviceBuffer native_b;
   DeviceBuffer uniform_small_a_device;
   DeviceBuffer uniform_small_b_device;
   const auto alloc_start = std::chrono::steady_clock::now();
@@ -4268,6 +4362,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
           ? checked_bytes(A.size(), sizeof(uint64_t), "native A")
           : 0;
+  const std::size_t native_b_bytes =
+      use_native_b_reuse_a ? checked_bytes(B.size(), sizeof(uint64_t), "native B") : 0;
   const std::size_t uniform_small_a_bytes =
       use_uniform_small_i8_ab_reuse ? checked_bytes(uniform_small_a.size(), sizeof(int8_t), "uniform-small A") : 0;
   const std::size_t uniform_small_b_bytes =
@@ -4281,7 +4377,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   }
-  if (!use_uniform_small_i8_ab_reuse) {
+  if (use_native_b_reuse_a) {
+    native_b.allocate(args.device_id, native_b_bytes, "hip_direct_allocate(bounded u64 native B)");
+  } else if (!use_uniform_small_i8_ab_reuse) {
     status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   }
@@ -4328,6 +4426,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small B)", status);
       return;
     }
+    if (use_native_b_reuse_a) {
+      fail_status("rns8_pack_u64(B native-B reuse-A path)", RNS8_INVALID_ARGUMENT);
+    }
     if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
         return rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
@@ -4370,6 +4471,17 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       }
       end_gpu_event_phase(collect_gpu_events);
       pack_end = std::chrono::steady_clock::now();
+    } else if (use_native_b_reuse_a) {
+      begin_gpu_event_phase(collect_gpu_events);
+      status = run_timed_status_operation(bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label(), [&]() {
+        return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_b.ptr, B.data(), native_b_bytes);
+      });
+      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native B)", status);
+      if (collect_gpu_events) {
+        collect_bounded_native_b_reuse_a_pack_gpu_events(result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      pack_end = std::chrono::steady_clock::now();
     } else if (use_native_a_reuse_b) {
       begin_gpu_event_phase(collect_gpu_events);
       status = run_timed_status_operation(bounded_native_a_reuse_b_pack_h2d_label(args), [&]() {
@@ -4399,7 +4511,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_matrix* lhs_matrix = a_matrix;
     rns8_matrix* out_matrix = c_matrix;
     rns8_matrix* final_output_matrix = c_matrix;
-    if (use_uniform_small_i8_ab_reuse_a || use_native_a_reuse_b) {
+    if (use_uniform_small_i8_ab_reuse_a || use_native_a_reuse_b || use_native_b_reuse_a) {
       if (use_uniform_small_i8_ab_reuse_a) {
         status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
             args.device_id,
@@ -4430,7 +4542,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
         }
-      } else if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
+      } else if (use_native_a_reuse_b && bounded_native_a_reuse_b_u64_large_colpair(args)) {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
             args.device_id,
             native_a.ptr,
@@ -4443,6 +4555,20 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
             source_version);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix", status);
+        }
+      } else if (use_native_b_reuse_a) {
+        status = rns8::detail::hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix(
+            args.device_id,
+            a_matrix,
+            native_b.ptr,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.n,
+            source_version);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix", status);
         }
       } else {
         status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
@@ -4461,6 +4587,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       if (collect_gpu_events) {
         if (use_uniform_small_i8_ab_reuse_a) {
           collect_bounded_uniform_small_i8_ab_reuse_a_gemm_gpu_events(result.gpu_events);
+        } else if (use_native_b_reuse_a) {
+          collect_bounded_native_b_reuse_a_gemm_gpu_events(result.gpu_events);
         } else {
           collect_bounded_native_a_gemm_gpu_events(args, result.gpu_events);
         }

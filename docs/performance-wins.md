@@ -156,6 +156,17 @@ benchmark path. All rows were schema-valid, event-valid, and checksum-matched.
 | Direct HIP | 1024 | bounded i64 | A, uniform-small i8 A/B colpair v1 | 1.32x | 1.26x | 1211 us | 580 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
 | Direct HIP | 512 | bounded u64 | A, uniform-small i8 A/B colpair v1 | 1.33x | 1.18x | 271 us | 536 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
 | Direct HIP | 1024 | bounded u64 | A, uniform-small i8 A/B colpair v1 | 1.30x | 1.24x | 1102 us | 544 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
+| Direct HIP | 512 | bounded u64 | A, adaptive native-B colpair v1 | 1.40x | 1.48x | 2100 us | 8514 us | 5 | Event-valid explicit reuse-path win; GEMM phase is slower |
+| Direct HIP | 1024 | bounded u64 | A, adaptive native-B colpair v1 | 1.07x | 1.11x | 1014 us | 9679 us | 10 | Event-valid explicit reuse-path win; GEMM phase is slower |
+
+The adaptive native-B rows are same-build Windows `gfx1100` release captures
+from June 4, 2026 under
+`temp/perf-work-queue/direct-hip-u64-reuse-a-colpair/`. They selected
+`direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1` and used
+3 warmups with 33 measured repeats. The event traces show the kernel itself is
+slower than the normal Direct-HIP grouped GEMM, but the path still wins
+setup-inclusively because A packing is removed from the measured repeats and
+CRT export timing was lower in these captures.
 
 ## Promotion Boundaries
 
