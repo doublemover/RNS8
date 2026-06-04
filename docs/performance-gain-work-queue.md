@@ -655,7 +655,11 @@ Likely first slices:
   and `tools/benchmark_sweep.py --residue-chain-length`: measured repeats keep
   intermediate outputs resident in RNS form, report zero per-repeat
   `crt_export`, and run one final untimed host limb export only for checksum
-  evidence. This is not yet a public API output-domain mode.
+  evidence. The June 4, 2026 chain-event pass made supported chain captures
+  GPU-event-visible for per-repeat pack and chained `rns_gemm` work while
+  keeping export phases absent from `gpu_event_phase_order`; the validation
+  helper also accepts `tools/gpu_event_report.py --require-events` as the strict
+  event gate. This is not yet a public API output-domain mode.
 - A batched CRT/reconstruction report that separates kernel time, status
   handling, compact copy time, constants placement, prefix grouping, limb count,
   and tree setup cost.

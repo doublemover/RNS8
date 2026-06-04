@@ -123,6 +123,8 @@ def main() -> int:
     parser.add_argument("--top", type=int, default=20, help="number of ranked phases to print in text mode")
     parser.add_argument(
         "--fail-on-unavailable",
+        "--require-events",
+        dest="fail_on_unavailable",
         action="store_true",
         help="return nonzero when a valid capture has no GPU event timing",
     )

@@ -3035,6 +3035,8 @@ class _Validator:
         else:
             phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b, zero_output_tiles))
         phases.append("rns_gemm")
+        if self._is_residue_current_chain_capture():
+            return phases
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
             phases.extend(["finite_export_kernel", "finite_export_d2h", "crt_export"])
         elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
@@ -3294,8 +3296,6 @@ class _Validator:
             return
         selected_backend = self.data.get("backend_selected")
         residue_current_chain = self._is_residue_current_chain_capture()
-        if residue_current_chain and enabled is True:
-            self._error("residue-current chain captures must not claim GPU event timings")
         if selected_backend in {"ck", "rocwmma", "hip-vector-alu-int64"} and enabled is not True and not residue_current_chain:
             self._error(f"{selected_backend} captures must include HIP event operation-group timings")
         timings = self.data.get("gpu_event_timings_us")

@@ -39,6 +39,53 @@ def summary(values: list[float]) -> dict:
     return {"avg": sum(values) / len(values), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
 
 
+def ck_deep_chain_event_phases(prefix_count: int) -> list[str]:
+    phases = [
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "rns_gemm_kernel_group",
+        "ck_pack_a_kernel",
+        "ck_pack_b_kernel",
+        "ck_wmma_cshuffle_matmul",
+        "ck_copy_centered_kernel",
+        "ck_add_centered_kernel",
+    ]
+    for index in range(prefix_count):
+        phases.extend(
+            [
+                f"ck_prefix_{index:02d}_pack_a",
+                f"ck_prefix_{index:02d}_pack_b",
+                f"ck_prefix_{index:02d}_matmul",
+                f"ck_prefix_{index:02d}_copy_centered",
+                f"ck_prefix_{index:02d}_add_centered",
+            ]
+        )
+    phases.append("rns_gemm")
+    return phases
+
+
+def add_ck_chain_gpu_events(capture: dict, prefix_count: int) -> None:
+    phases = ck_deep_chain_event_phases(prefix_count)
+    repeats = capture["repeats"]
+    capture["timing_metadata"]["gpu_event_timing"] = True
+    capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_residue_current_chain_backend_hooks"
+    capture["timing_metadata"]["gpu_event_timing_status"] = "available"
+    capture["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+    )
+    capture["timing_metadata"]["gpu_event_timing_caveat"] = (
+        "HIP event timings record per-repeat pack operation groups and chained rns_gemm backend operation groups; "
+        "the final checksum-only export is outside measured repeats and absent from gpu_event_phase_order"
+    )
+    capture["timing_metadata"]["gpu_event_phase_order"] = phases
+    capture["gpu_event_timings_us"] = {phase: [1.0 for _ in range(repeats)] for phase in phases}
+    capture["gpu_event_timing_summary_us"] = {
+        phase: summary(values) for phase, values in capture["gpu_event_timings_us"].items()
+    }
+
+
 def add_prefix_policy_fields(capture: dict, policy: str) -> dict:
     requested = capture["prefix"]
     selected = capture["schedule_metadata"]["max_selected_prefix"]
@@ -1022,13 +1069,6 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
         "3 resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and one "
         "final fixed-width limb export runs after measured repeats only to produce checksum_u64"
     )
-    chain["timing_metadata"]["gpu_event_timing"] = False
-    chain["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_residue_current_chain_mode"
-    chain["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_residue_current_chain_mode"
-    chain["timing_metadata"]["gpu_event_timing_source"] = None
-    chain["timing_metadata"]["gpu_event_timing_source_scope"] = None
-    chain["timing_metadata"]["gpu_event_timing_caveat"] = None
-    chain["timing_metadata"]["gpu_event_phase_order"] = None
     chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
         "per-repeat host timing for 3 chained rns8_gemm_rns calls that keep the intermediate output resident "
         "in RNS form"
@@ -1043,8 +1083,7 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
     chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
     chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
     chain["avg_crt_export_us"] = 0.0
-    chain["gpu_event_timings_us"] = None
-    chain["gpu_event_timing_summary_us"] = None
+    add_ck_chain_gpu_events(chain, 20)
     return chain
 
 
@@ -1086,13 +1125,6 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
         "RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and one final "
         "logical export runs after measured repeats only to produce checksum_u64"
     )
-    chain["timing_metadata"]["gpu_event_timing"] = False
-    chain["timing_metadata"]["gpu_event_timing_reason"] = "not_supported_for_residue_current_chain_mode"
-    chain["timing_metadata"]["gpu_event_timing_status"] = "not_requested_for_residue_current_chain_mode"
-    chain["timing_metadata"]["gpu_event_timing_source"] = None
-    chain["timing_metadata"]["gpu_event_timing_source_scope"] = None
-    chain["timing_metadata"]["gpu_event_timing_caveat"] = None
-    chain["timing_metadata"]["gpu_event_phase_order"] = None
     chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
         "per-repeat host timing for 3 chained rns8_gemm_rns calls that keep the intermediate output resident "
         "in RNS form"
@@ -1107,8 +1139,7 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
     chain["timing_summary_us"]["crt_export"] = {"avg": 0.0, "median": 0.0, "p95": 0.0}
     chain["avg_crt_export_us"] = 0.0
-    chain["gpu_event_timings_us"] = None
-    chain["gpu_event_timing_summary_us"] = None
+    add_ck_chain_gpu_events(chain, 9)
     return chain
 
 
@@ -1913,23 +1944,16 @@ def main() -> int:
     bad_chain_export["avg_crt_export_us"] = 1
     expect_invalid(bad_chain_export, "residue-current chain captures must report raw_timings_us.crt_export")
 
-    bad_chain_gpu_events = copy.deepcopy(exact_chain_ck)
-    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing"] = True
-    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
-    bad_chain_gpu_events["timing_metadata"]["gpu_event_timing_source_scope"] = (
-        "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
-    )
-    bad_chain_gpu_events["timing_metadata"]["gpu_event_phase_order"] = ["pack", "rns_gemm"]
-    bad_chain_repeats = bad_chain_gpu_events["repeats"]
-    bad_chain_gpu_events["gpu_event_timings_us"] = {
-        "pack": [1.0 for _ in range(bad_chain_repeats)],
-        "rns_gemm": [2.0 for _ in range(bad_chain_repeats)],
+    bad_chain_export_event = copy.deepcopy(exact_chain_ck)
+    bad_chain_export_event["timing_metadata"]["gpu_event_phase_order"].append("crt_export")
+    bad_chain_repeats = bad_chain_export_event["repeats"]
+    bad_chain_export_event["gpu_event_timings_us"]["crt_export"] = [1.0 for _ in range(bad_chain_repeats)]
+    bad_chain_export_event["gpu_event_timing_summary_us"]["crt_export"] = {
+        "avg": 1.0,
+        "median": 1.0,
+        "p95": 1.0,
     }
-    bad_chain_gpu_events["gpu_event_timing_summary_us"] = {
-        "pack": {"avg": 1.0, "median": 1.0, "p95": 1.0},
-        "rns_gemm": {"avg": 2.0, "median": 2.0, "p95": 2.0},
-    }
-    expect_invalid(bad_chain_gpu_events, "residue-current chain captures must not claim GPU event timings")
+    expect_invalid(bad_chain_export_event, "deep accelerator GPU event phase set contains undeclared phases")
 
     bad_chain_mode = copy.deepcopy(exact_chain_ck)
     bad_chain_mode["residue_output_mode"] = "host_export"

@@ -3141,6 +3141,9 @@ std::vector<std::string> gpu_event_phase_order(
         "pack",
     };
     append_hipblaslt_gemm_event_phases(phases, args);
+    if (residue_current_output_mode(args)) {
+      return phases;
+    }
     phases.push_back("crt_export_status_memset");
     phases.push_back("crt_export_kernel");
     phases.push_back("crt_export_status_d2h");
@@ -3174,6 +3177,9 @@ std::vector<std::string> gpu_event_phase_order(
   }
   append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
   phases.push_back("rns_gemm");
+  if (residue_current_output_mode(args)) {
+    return phases;
+  }
   phases.push_back("crt_export_status_memset");
   phases.push_back("crt_export_kernel");
   phases.push_back("crt_export_status_d2h");
@@ -3323,9 +3329,6 @@ rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkR
 }
 
 bool gpu_event_capture_requested(const Args& args, rns8_backend_kind selected_backend) {
-  if (residue_current_output_mode(args)) {
-    return false;
-  }
   return backend_supports_gpu_event_capture(selected_backend);
 }
 
@@ -6181,7 +6184,20 @@ void print_json(
         "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain "
         "required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead "
         "not represented on the HIP stream\"";
-    if (oneshot_hip_events) {
+    if (chain_residue_output) {
+      gpu_event_reason = "captured_by_residue_current_chain_backend_hooks";
+      if (hipblaslt_events) {
+        gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
+      } else if (accelerator_events) {
+        gpu_event_scope = "\"accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export\"";
+      } else {
+        gpu_event_scope = "\"direct_hip_default_stream_backend_operation_groups\"";
+      }
+      gpu_event_caveat =
+          "\"HIP event timings record per-repeat pack operation groups and the chained rns_gemm backend operation "
+          "groups that keep intermediate outputs resident in RNS form; the final checksum-only logical export runs "
+          "after measured repeats and is intentionally absent from gpu_event_phase_order\"";
+    } else if (oneshot_hip_events) {
       gpu_event_reason = "captured_by_direct_hip_oneshot_api_hooks";
       gpu_event_scope = "\"direct_hip_oneshot_default_stream_operation_groups\"";
       gpu_event_caveat =
@@ -6244,12 +6260,12 @@ void print_json(
     } else {
       gpu_event_reason = "captured_by_direct_hip_backend_hooks";
     }
-  } else if (chain_residue_output) {
-    gpu_event_reason = "not_supported_for_residue_current_chain_mode";
-    gpu_event_status = "not_requested_for_residue_current_chain_mode";
   } else if (result.gpu_events.requested) {
     gpu_event_reason = "backend_event_capture_incomplete";
     gpu_event_status = "unavailable_missing_expected_events";
+  } else if (chain_residue_output) {
+    gpu_event_reason = "selected_chain_backend_has_no_gpu_event_hooks";
+    gpu_event_status = "not_requested_for_selected_chain_backend";
   }
 
   std::cout << "{\n";
