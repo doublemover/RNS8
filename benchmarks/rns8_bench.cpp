@@ -563,9 +563,6 @@ Args parse_args(int argc, char** argv) {
     if (!bounded_benchmark_semantics(args.semantics)) {
       usage_error("--bound-source input-scan is only valid for bounded-i64 or bounded-u64 semantics");
     }
-    if (args.bound_mode != BoundMode::Global) {
-      usage_error("--bound-source input-scan currently requires --bound-mode global");
-    }
   }
   const bool rns_prefix_semantics = bounded_benchmark_semantics(args.semantics) ||
                                     exact_wide_benchmark_semantics(args.semantics);
@@ -761,6 +758,16 @@ const char* input_profile_name(const Args& args) {
 
 const char* bound_source_name(const Args& args) {
   return args.bound_source == BoundSource::InputScan ? "input_scan" : "static_profile";
+}
+
+const char* bound_discovery_source_name(const Args& args, bool global_bound_scan_available) {
+  if (global_bound_scan_available) {
+    return "input_row_column_abs_summary";
+  }
+  if (args.bound_source == BoundSource::InputScan && args.bound_mode == BoundMode::PerTile) {
+    return "input_exact_tile_bounds";
+  }
+  return "static_profile_contract";
 }
 
 const char* backend_metadata_source(const Args& args) {
@@ -1493,7 +1500,7 @@ uint64_t resolve_bounded_global_bound(
   result.static_bound = static_bound;
   result.effective_bound = static_bound;
   result.effective_bound_available = true;
-  if (args.bound_source != BoundSource::InputScan) {
+  if (args.bound_source != BoundSource::InputScan || args.bound_mode != BoundMode::Global) {
     return static_bound;
   }
   const auto scan_start = std::chrono::steady_clock::now();
@@ -5472,9 +5479,7 @@ void print_json(
   std::cout << "  \"bound_discovery\": ";
   if (bounded_benchmark_semantics(args.semantics)) {
     std::cout << "{\n";
-    std::cout << "    \"source\": \""
-              << (global_bound_scan_available ? "input_row_column_abs_summary" : "static_profile_contract")
-              << "\",\n";
+    std::cout << "    \"source\": \"" << bound_discovery_source_name(args, global_bound_scan_available) << "\",\n";
     std::cout << "    \"static_bound\": "
               << (result.effective_bound_available ? result.static_bound : bound) << ",\n";
     std::cout << "    \"selected_bound\": " << bound << ",\n";

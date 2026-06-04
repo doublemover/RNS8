@@ -1265,8 +1265,6 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         semantics not in {"bounded-i64", "bounded-u64"} for semantics in semantics_values
     ):
         raise SystemExit("--bound-source input-scan is only valid for bounded RNS sweeps")
-    if getattr(args, "bound_source", None) == "input-scan" and any(case.bound_mode != "global" for case in cases):
-        raise SystemExit("--bound-source input-scan currently requires global bound-mode cases")
     if getattr(args, "max_prefix", None) is not None and args.max_prefix <= 0:
         raise SystemExit("--max-prefix must be positive")
     if args.residue_chain_length < 1:

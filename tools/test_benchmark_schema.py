@@ -95,6 +95,26 @@ def add_global_bound_scan_fields(capture: dict) -> dict:
     return capture
 
 
+def add_per_tile_input_scan_fields(capture: dict) -> dict:
+    capture["bound_source"] = "input_scan"
+    capture["bound_discovery"] = {
+        "source": "input_exact_tile_bounds",
+        "static_bound": 0,
+        "selected_bound": 0,
+        "discovered_global_bound": None,
+        "candidate_row_sum_col_max": None,
+        "candidate_row_max_col_sum": None,
+        "row_abs_sum_max": None,
+        "row_abs_max": None,
+        "col_abs_sum_max": None,
+        "col_abs_max": None,
+        "zero_row_count": None,
+        "zero_col_count": None,
+    }
+    capture["command_line"] = f"{capture['command_line']} --bound-source input-scan"
+    return capture
+
+
 def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
     k_block = min(capture["k"], cap)
     finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
@@ -964,6 +984,29 @@ def main() -> int:
     incomplete_scanned_timing = copy.deepcopy(scanned_bound)
     del incomplete_scanned_timing["timing_metadata"]["phase_availability"]["global_bound_scan"]
     expect_invalid(incomplete_scanned_timing, "phase_availability.global_bound_scan must be an object")
+
+    per_tile_input_scan = add_per_tile_input_scan_fields(copy.deepcopy(v4_adaptive_i64))
+    validate_capture(per_tile_input_scan)
+
+    per_tile_scan_without_tile_bounds = copy.deepcopy(per_tile_input_scan)
+    per_tile_scan_without_tile_bounds["tile_bounds_u64"] = None
+    expect_invalid(per_tile_scan_without_tile_bounds, "input_exact_tile_bounds captures must include tile_bounds_u64")
+
+    stale_per_tile_scan_global_field = copy.deepcopy(per_tile_input_scan)
+    stale_per_tile_scan_global_field["bound_discovery"]["discovered_global_bound"] = 1
+    expect_invalid(
+        stale_per_tile_scan_global_field,
+        "input_exact_tile_bounds captures must use bound_discovery.discovered_global_bound=null",
+    )
+
+    stale_per_tile_scan_global_availability = copy.deepcopy(per_tile_input_scan)
+    stale_per_tile_scan_global_availability["timing_metadata"]["phase_availability"]["global_bound_scan"] = {
+        "timed": True,
+        "timing_key": "global_bound_scan",
+        "scope": "input_row_column_abs_summary",
+        "reason": "stale global scan metadata from a non-per-tile input-scan capture",
+    }
+    expect_invalid(stale_per_tile_scan_global_availability, "phase_availability.global_bound_scan.timed must be false")
     wrap64 = v4_wrap64_hip
     v4_wrap64_rocwmma_candidate = as_wrap64_rocwmma_candidate_capture(v4_wrap64_hip)
     validate_capture(v4_wrap64_rocwmma_candidate)

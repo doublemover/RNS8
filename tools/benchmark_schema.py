@@ -32,7 +32,11 @@ PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
 BOUND_SOURCES = {"static_profile", "input_scan"}
-BOUND_DISCOVERY_SOURCES = {"static_profile_contract", "input_row_column_abs_summary"}
+BOUND_DISCOVERY_SOURCES = {
+    "static_profile_contract",
+    "input_row_column_abs_summary",
+    "input_exact_tile_bounds",
+}
 BOUND_KINDS = {
     "none",
     "global_max_abs",
@@ -1036,15 +1040,18 @@ class _Validator:
 
         global_bound_scan = availability.get(GLOBAL_BOUND_TIMING_PHASE)
         input_scan = self.data.get("bound_source") == "input_scan"
-        if input_scan and not isinstance(global_bound_scan, dict):
+        global_input_scan = input_scan and self.data.get("bound_mode", "global") == "global"
+        if global_input_scan and not isinstance(global_bound_scan, dict):
             self._error("timing_metadata.phase_availability.global_bound_scan must be an object for input_scan captures")
         elif global_bound_scan is not None:
             if not isinstance(global_bound_scan, dict):
                 self._error("timing_metadata.phase_availability.global_bound_scan must be an object")
             else:
-                expected_timed = input_scan
-                expected_key = GLOBAL_BOUND_TIMING_PHASE if input_scan else None
-                expected_scope = "input_row_column_abs_summary" if input_scan else "not_applicable_static_profile"
+                expected_timed = global_input_scan
+                expected_key = GLOBAL_BOUND_TIMING_PHASE if global_input_scan else None
+                expected_scope = (
+                    "input_row_column_abs_summary" if global_input_scan else "not_applicable_static_profile"
+                )
                 if global_bound_scan.get("timed") is not expected_timed:
                     self._error(
                         "timing_metadata.phase_availability.global_bound_scan.timed must be "
@@ -1145,7 +1152,7 @@ class _Validator:
 
     def _timing_phases(self) -> list[str]:
         phases = list(TIMING_PHASES)
-        if self.data.get("bound_source") == "input_scan":
+        if self.data.get("bound_source") == "input_scan" and self.data.get("bound_mode", "global") == "global":
             phases.insert(0, GLOBAL_BOUND_TIMING_PHASE)
         if self.data.get("bound_mode") == "per_tile":
             phases.insert(phases.index("matrix_alloc"), PER_TILE_TIMING_PHASE)
@@ -1350,10 +1357,37 @@ class _Validator:
                     self._error(f"static_profile_contract captures must use bound_discovery.{key}=null")
             return
 
+        if source == "input_exact_tile_bounds":
+            if bound_source != "input_scan":
+                self._error("input_exact_tile_bounds captures must use bound_source=input_scan")
+            if bound_mode != "per_tile":
+                self._error("input_exact_tile_bounds captures must use bound_mode=per_tile")
+            for key in [
+                "discovered_global_bound",
+                "candidate_row_sum_col_max",
+                "candidate_row_max_col_sum",
+                "row_abs_sum_max",
+                "row_abs_max",
+                "col_abs_sum_max",
+                "col_abs_max",
+                "zero_row_count",
+                "zero_col_count",
+            ]:
+                if discovery.get(key) is not None:
+                    self._error(f"input_exact_tile_bounds captures must use bound_discovery.{key}=null")
+            tile_bounds = self.data.get("tile_bounds_u64")
+            if not isinstance(tile_bounds, dict):
+                self._error("input_exact_tile_bounds captures must include tile_bounds_u64")
+            elif tile_bounds.get("source") != "exact_seeded_input_prepass":
+                self._error("input_exact_tile_bounds captures must use tile_bounds_u64.source=exact_seeded_input_prepass")
+            if _is_int(selected_bound) and selected_bound != 0:
+                self._error("input_exact_tile_bounds captures must use selected_bound=0")
+            return
+
         if bound_source != "input_scan":
             self._error("input_row_column_abs_summary captures must use bound_source=input_scan")
         if bound_mode != "global":
-            self._error("input_scan bound discovery currently requires bound_mode=global")
+            self._error("input_row_column_abs_summary captures must use bound_mode=global")
         for key in [
             "discovered_global_bound",
             "candidate_row_sum_col_max",

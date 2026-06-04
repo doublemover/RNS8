@@ -747,12 +747,14 @@ def main() -> int:
     ]
     adaptive_input_scan_args = copy.copy(adaptive_only_args)
     adaptive_input_scan_args.bound_source = "input-scan"
-    try:
-        benchmark_sweep.sweep_commands(adaptive_input_scan_args)
-    except SystemExit as exc:
-        assert "--bound-source input-scan currently requires global bound-mode cases" in str(exc)
-    else:
-        raise AssertionError("input-scan bound discovery should reject per-tile adaptive sweeps")
+    adaptive_input_scan_commands = benchmark_sweep.sweep_commands(adaptive_input_scan_args)
+    assert len(adaptive_input_scan_commands) == 2
+    assert all("--bound-source" in command for _name, command, _output in adaptive_input_scan_commands)
+    assert all(
+        command[command.index("--bound-source") + 1] == "input-scan"
+        for _name, command, _output in adaptive_input_scan_commands
+    )
+    assert all("--bound-mode" in command and "per-tile" in command for _name, command, _output in adaptive_input_scan_commands)
 
     adaptive_only_args.include_default_adaptive = False
     try:

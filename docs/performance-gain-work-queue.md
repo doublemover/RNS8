@@ -121,11 +121,12 @@ Remaining high-value imported work goes at the front of the queue:
 
    Benchmark-only global input scans now select tighter bounded i64/u64 global
    bounds from exact row/column absolute summaries before plan creation, and
-   public plans now accept trusted whole-input `lhs_bound`/`rhs_bound`
-   contracts through `RNS8_BOUND_INPUT_RANGE_AND_K`. The remaining work is to
-   add per-tile and future row/column-summary planner contracts, wire benchmark
-   input scans into those public descriptors where useful, and connect tile
-   max-product discovery to execution skip opportunities without inferring
+   benchmark per-tile input scans now feed exact tile max-product discovery into
+   the existing adaptive prefix and zero-tile skip schedule. Public plans accept
+   trusted whole-input `lhs_bound`/`rhs_bound` contracts through
+   `RNS8_BOUND_INPUT_RANGE_AND_K`. The remaining work is to add public per-tile
+   and future row/column-summary planner contracts, extend tile discovery beyond
+   whole output tiles, and promote release `gfx1100` evidence without inferring
    semantics from C++ types.
 
    Code references: current benchmark scans in
