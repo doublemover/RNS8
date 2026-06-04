@@ -115,6 +115,18 @@ The same matrix showed bounded u64 1024 export volatility, so the table uses the
 most conservative setup-inclusive speedup from three focused reruns against the
 same-backend non-reuse baseline.
 
+Direct-HIP reuse-A fixed-prefix reruns used release binaries, 3 warmups, and 33
+measured repeats. The pre-change baseline came from a clean `a75b0a2` worktree
+and the candidate used the `transient_uniform_small_i8_b_resident_i8_a_reuse`
+benchmark path. All rows were schema-valid, event-valid, and checksum-matched.
+
+| Backend | Shape | Semantics | Reuse mode | Setup-inclusive speedup over 33 repeats | Steady-state per-repeat speedup | Saved per repeat | Setup | Break-even repeats | Status |
+|---|---:|---|---|---:|---:|---:|---:|---:|---|
+| Direct HIP | 512 | bounded i64 | A, uniform-small i8 A/B colpair v1 | 3.04x | 2.93x | 6296 us | 618 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
+| Direct HIP | 1024 | bounded i64 | A, uniform-small i8 A/B colpair v1 | 1.32x | 1.26x | 1211 us | 580 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
+| Direct HIP | 512 | bounded u64 | A, uniform-small i8 A/B colpair v1 | 1.33x | 1.18x | 271 us | 536 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
+| Direct HIP | 1024 | bounded u64 | A, uniform-small i8 A/B colpair v1 | 1.30x | 1.24x | 1102 us | 544 us | 1 | Event-valid explicit fixed-prefix reuse-path win |
+
 ## Promotion Boundaries
 
 - Promote now: no durable installed cache changes are made here. The latest

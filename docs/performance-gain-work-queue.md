@@ -631,6 +631,25 @@ Likely first slices:
   focused reruns. Keep this as an explicit reuse-path implementation win, not an
   AUTO/default-routing claim, until workload-level reuse policy decides when
   setup and reuse metadata should drive backend selection.
+- Direct-HIP reusable-A bounded prefix-9 uniform-small path. Implemented for
+  global-bound `bounded-i64` and `bounded-u64`
+  `rns8-bench --backend hip-direct --reuse-packed-a --prefix-policy
+  fixed-requested --max-prefix 9` captures whose Direct-HIP plan resolves to
+  fixed prefix 9. The path copies uniform-small A once during prepack setup,
+  copies uniform-small B per repeat, and reuses the same colpair grouped kernel
+  launch under the explicit
+  `direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_a_grouped_rns_gemm_v1`
+  selected-kernel id. The benchmark/schema surface reports
+  `transient_uniform_small_i8_b_resident_i8_a_reuse`,
+  `rns8_bench_uniform_small_i8_ab_reuse_a_path`, the
+  `uniform_small_i8_ab_resident_a_residue_then_crt_export` epilogue, the
+  `bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group` event phase,
+  and zero `pack_kernel`. Windows `gfx1100` release captures under
+  `temp/perf-work-queue/` used release binaries, 3 warmups, and 33 measured
+  repeats. Against a clean `a75b0a2` same-contract repeated-A baseline,
+  setup-inclusive speedups were 3.04x and 1.32x for bounded i64 512/1024, and
+  1.33x and 1.30x for bounded u64 512/1024. Keep this as an explicit
+  fixed-prefix reuse-path implementation win, not an AUTO/default-routing claim.
 
 Relation to existing queue:
 

@@ -1320,6 +1320,32 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
       }
     }
 
+    std::fill(hip_out.begin(), hip_out.end(), -999);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
+                0, d_a_i8, d_b_i8, hip_c, m, n, k, lda, ldb, 13) == RNS8_SUCCESS);
+    const auto uniform_small_i8_colpair_reuse_a_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(
+        uniform_small_i8_colpair_reuse_a_events,
+        "bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(
+        uniform_small_i8_colpair_reuse_a_events,
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 13);
+
+    REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+      }
+    }
+
     CHECK(rns8::detail::hip_direct_free(0, d_b_i8) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a_i8) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
@@ -1473,6 +1499,32 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
         uniform_small_i8_colpair_events,
         "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"));
     CHECK(hip_c->source_version == 12);
+
+    REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xffffffffffffffffull);
+      }
+    }
+
+    std::fill(hip_out.begin(), hip_out.end(), 0xffffffffffffffffull);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
+                0, d_a_i8, d_b_i8, hip_c, m, n, k, lda, ldb, 14) == RNS8_SUCCESS);
+    const auto uniform_small_i8_colpair_reuse_a_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(
+        uniform_small_i8_colpair_reuse_a_events,
+        "bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(
+        uniform_small_i8_colpair_reuse_a_events,
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 14);
 
     REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
