@@ -76,11 +76,16 @@ June 4, 2026 updates:
   evidence summaries include a corpus-level Roofline Priority table ranked by
   measured bottleneck time. This is planning infrastructure only, not a speedup
   claim.
+- Scenario corpus work now includes an explicit `layout-search` family covering
+  RNS final-export, RNS-next-op, exact-wide prefix-20 limb export, exact-wide
+  lazy RNS continuation, finite-u8 ring/field layouts, and strict wrap64 byte
+  layout comparisons. This closes the scenario surface for rank 28 but still
+  requires release A/B evidence before any layout promotion.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
-| 2 | Partially completed scenario benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Existing scenarios now cover many-small, skinny/GEMV, RNS-chain, repeated-B, FHE/CAS proxies, native-to-RNS, and vector-to-RNS surfaces; missing gaps still need targeted additions | Keep expanding only where scenarios preserve exact CPU checks and do not imply unsupported FHE/CAS product scope |
+| 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
 | 3 | 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes will show whether RNS8 is launch/export-bound or real throughput-bound | Release/exploratory review for 2048 and tolerable 4096 shapes with CPU/reference checks and required events | Use results to classify bottlenecks before deeper backend-specific tuning |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Current-v2 adaptive bounded rerun to replace old tiled-v1 adaptive winner evidence | The adaptive bounded-i64 winner uses an older rocWMMA tiled-v1 identity | Release review with current selected-kernel identities and required events | Promote only event-valid current-v2 winners; mark old v1 evidence historical |
@@ -106,7 +111,7 @@ June 4, 2026 updates:
 | 25 | Closed helper lane: residue-channel fusion experiments | PR #10 adds benchmark-only residue-channel fusion metadata and stale-schema rejection | Microbenchmarks and release captures still need to show fewer launches/materializations | Closed as exposure; continue only if fusion wins end-to-end after pack/export effects |
 | 26 | Closed helper lane: multi-modulus pack experiments | PR #10 adds pack-layout and residue-group metadata for comparison keys | Same-contract pack event comparisons still need required correctness checks | Closed as metadata surface; keep variants only if pack savings survive GEMM/export timing |
 | 27 | Closed helper lane: fused pack+GEMM for small one-shot bounded and finite workloads | PR #10 adds comparison surfaces for one-shot/transient fused-path experiments | Release captures still need 64/128 bounded and finite one-shot proof | Closed as benchmark surface; promote only if fused path beats CPU, Direct HIP, and current accelerator winner |
-| 28 | End-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | Scenario matrix with layout metadata and target-id keyed autotune fields | Keep layout variants only with complete same-contract metadata and event attribution |
+| 28 | Closed scenario surface: end-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | `layout-search` emits layout-metadata captures for bounded RNS final export, RNS-next-op, exact-wide prefix-20, finite-u8 ring/field, and strict wrap64 byte-limb paths | Closed as benchmark surface; keep layout variants only after complete same-contract release evidence and event attribution |
 | 29 | Persistent/grouped scheduler for adaptive prefix groups | Adaptive prefix groups need launch and scheduling amortization beyond simple tile skipping | Grouped scenario captures with CPU/direct-HIP baselines and per-task correctness | Promote only when grouping beats independent calls including queue/setup overhead |
 | 30 | HIP Graph replay for repeated fixed-shape pack/GEMM/export | Repeated workflows can remove launch overhead without changing math | Internal graph replay benchmark with fixed-shape identity and handle lifetime checks | Keep internal until exact status/error behavior matches ordinary calls |
 | 31 | Host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | Benchmark-only begin/enqueue/end flow with explicit status aggregation | Promote only if batching wins while preserving deterministic per-operation errors |
@@ -1808,7 +1813,7 @@ Likely first slices:
   `exact-wide-export`, `finite-distributions`, `rns-chain`, `small-oneshot`,
   `finite-generic-moduli`, `many-small`, `skinny-gemv`,
   `computational-algebra-proxies`, `fhe-lattice-proxies`, `wrap64-carry`,
-  `large-exploratory`, and `all`.
+  `large-exploratory`, `layout-search`, and `all`.
   Scenario mode reuses the normal schema v4 captures and release-review logic,
   but writes a separate `scenario_manifest.json` plus `scenario_manifest.md`
   under the sweep output root. The manifest records scenario family, item name,
@@ -1843,6 +1848,12 @@ Likely first slices:
   chains at 128/256 with three- and four-GEMM depths. Final checksum export is
   kept outside the measured repeat loop so lazy-export timing is not mixed with
   host-output timing.
+- Add explicit end-to-end layout-search coverage. Implemented in
+  `layout-search`: bounded fixed-prefix RNS final-export and RNS-next-op
+  captures, exact-wide prefix-20 limb-export and RNS-next-op captures,
+  finite-u8 hot ring/field layout captures, and strict wrap64 byte-limb layout
+  captures share `workflow_name=end_to_end_layout_search` metadata so layout
+  comparisons do not get inferred from unrelated backend timings.
 - Include FHE/lattice proxy metadata: ring dimension or polynomial degree,
   coefficient-modulus count, decomposition digit count, transform/current
   domain, key-material reuse profile, evidence scope, and output-domain

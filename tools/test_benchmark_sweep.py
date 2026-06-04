@@ -481,6 +481,7 @@ def main() -> int:
     catalog = benchmark_sweep.scenario_catalog()
     for scenario_name in [
         "generated-prefix-reducers",
+        "layout-search",
         "multi-modulus-pack",
         "residue-channel-fusion",
         "fused-pack-gemm-small",
@@ -783,6 +784,39 @@ def main() -> int:
     assert any(
         entry.scenario.get("metadata", {}).get("reuse_contract") == "large_stable_rhs_prepacked_before_warmups"
         for entry in large_entries
+    )
+
+    layout_args = copy.copy(scenario_args)
+    layout_args.backends = ["hip-direct"]
+    layout_args.scenario = ["layout-search"]
+    layout_entries = benchmark_sweep.sweep_command_entries(layout_args)
+    assert len(layout_entries) == 9
+    assert {entry.scenario["family"] for entry in layout_entries} == {"layout-search"}
+    assert {entry.scenario["name"] for entry in layout_entries} == {
+        "bounded-i64-prefix9-final-export",
+        "bounded-i64-prefix9-rns-next",
+        "exact-wide-signed-prefix20-final-export",
+        "exact-wide-signed-prefix20-rns-next",
+        "finite-ring-hot-modulus-layout",
+        "finite-field-hot-prime-layout",
+        "wrap64-direct-byte-layout",
+    }
+    assert sorted(
+        entry.scenario["modulus"]
+        for entry in layout_entries
+        if entry.scenario["name"] == "finite-ring-hot-modulus-layout"
+    ) == [251, 255, 256]
+    assert any("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in layout_entries)
+    assert any("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in layout_entries)
+    assert any("--max-prefix" in entry.command and "20" in entry.command for entry in layout_entries)
+    assert any(entry.scenario["semantics"] == "wrap-u64" for entry in layout_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("layout_role") == "exact_wide_prefix20_next_rns_gemm"
+        for entry in layout_entries
+    )
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "end_to_end_layout_search"
+        for entry in layout_entries
     )
 
     large_bounded_args = copy.copy(scenario_args)
