@@ -73,9 +73,10 @@ June 4, 2026 updates:
   for the workload shapes that these scenarios now expose.
 - Evidence database work now closes the rank 1 analysis surface: validated
   captures get row-level roofline targets and optimization hints, and generated
-  evidence summaries include a corpus-level Roofline Priority table ranked by
-  measured bottleneck time. This is planning infrastructure only, not a speedup
-  claim.
+  evidence summaries include corpus-level and GPU-only Roofline Priority tables
+  ranked by measured bottleneck time. Broad temp-corpus ingestion can now use
+  `--skip-invalid` to record stale captures without blocking valid current
+  evidence. This is planning infrastructure only, not a speedup claim.
 - Scenario corpus work now includes an explicit `layout-search` family covering
   RNS final-export, RNS-next-op, exact-wide prefix-20 limb export, exact-wide
   lazy RNS continuation, finite-u8 ring/field layouts, and strict wrap64 byte
@@ -84,7 +85,7 @@ June 4, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
+| 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
 | 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
 | 3 | 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes will show whether RNS8 is launch/export-bound or real throughput-bound | Release/exploratory review for 2048 and tolerable 4096 shapes with CPU/reference checks and required events | Use results to classify bottlenecks before deeper backend-specific tuning |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
@@ -1247,10 +1248,13 @@ Likely first slices:
 - Add a corpus-level roofline priority surface. Implemented in
   `tools/evidence_database.py`: each row now carries a conservative
   `roofline_target` and `optimization_hint`, and `evidence_summary.md` includes
-  a `Roofline Priority` table grouped by target/scenario/semantic/target-id and
-  ranked by total measured bottleneck time. This makes the database an execution
-  control surface for deciding the next A/B run without turning analysis output
-  into an autotune or promotion claim.
+  both `GPU Roofline Priority` and global `Roofline Priority` tables grouped by
+  target/scenario/semantic/target-id and ranked by total measured bottleneck
+  time. The loader also has an opt-in `--skip-invalid` mode for broad ignored
+  temp corpora, recording stale rejected captures in the output instead of
+  blocking all valid captures. This makes the database an execution control
+  surface for deciding the next A/B run without turning analysis output into an
+  autotune or promotion claim.
 
 Relation to existing queue:
 

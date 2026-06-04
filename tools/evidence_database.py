@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,7 @@ SKIP_JSON_NAMES = {
     "scenario_manifest.json",
     "autotune.json",
     "autotune-cache.json",
+    "evidence_database.json",
 }
 CSV_FIELDS = [
     "capture_path",
@@ -162,12 +164,22 @@ def normalized_capture_path(path: Path | str) -> str:
     return str(Path(path)).replace("\\", "/").lower()
 
 
+def is_skipped_json_candidate(path: Path) -> bool:
+    name = path.name
+    return (
+        name in SKIP_JSON_NAMES
+        or name.endswith(".failed.json")
+        or name.endswith("autotune-cache.json")
+        or name.endswith("-isa-summary.json")
+    )
+
+
 def discover_capture_paths(paths: list[Path]) -> list[Path]:
     discovered: list[Path] = []
     for path in paths:
         if path.is_dir():
             for candidate in sorted(path.rglob("*.json")):
-                if candidate.name in SKIP_JSON_NAMES or candidate.name.endswith(".failed.json"):
+                if is_skipped_json_candidate(candidate):
                     continue
                 discovered.append(candidate)
         else:
@@ -185,11 +197,25 @@ def discover_isa_report_paths(paths: list[Path]) -> list[Path]:
     return list(dict.fromkeys(discovered))
 
 
-def load_validated_captures(paths: list[Path]) -> list[dict[str, Any]]:
+def load_validated_captures(
+    paths: list[Path],
+    *,
+    skip_invalid: bool = False,
+    invalid_captures: list[dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     captures: list[dict[str, Any]] = []
     for path in discover_capture_paths(paths):
-        capture = load_capture(path)
-        validate_capture(capture)
+        try:
+            capture = load_capture(path)
+            validate_capture(capture)
+        except Exception as exc:
+            if not skip_invalid:
+                raise
+            message = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+            if invalid_captures is not None:
+                invalid_captures.append({"capture_path": str(path), "error": message})
+            print(f"warning: skipped invalid capture {path}: {message}", file=sys.stderr)
+            continue
         capture["_path"] = str(path)
         captures.append(capture)
     return captures
@@ -601,6 +627,14 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
     return priorities[:limit]
 
 
+def gpu_evidence_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if normalized_target(row.get("target_id")) is not None and normalized_backend(row.get("backend")) != "cpu-reference"
+    ]
+
+
 def build_row(
     capture: dict[str, Any],
     scenario: dict[str, Any],
@@ -685,10 +719,12 @@ def build_database(
     scenario_index: dict[str, dict[str, Any]] | None = None,
     review_index: dict[str, dict[str, Any]] | None = None,
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
+    invalid_captures: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     scenario_index = scenario_index or {}
     review_index = review_index or {}
     isa_index = isa_index or {}
+    invalid_captures = invalid_captures or []
     rows = []
     for capture in captures:
         path = str(capture.get("_path", ""))
@@ -713,6 +749,7 @@ def build_database(
         }
     )
     roofline_priority = build_roofline_priority(rows)
+    gpu_roofline_priority = build_roofline_priority(gpu_evidence_rows(rows))
     return {
         "schema_version": 1,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -724,7 +761,10 @@ def build_database(
             "isa_report_count": len(isa_report_paths),
             "captures_with_isa_resources": sum(1 for row in rows if row.get("isa_report_count", 0) > 0),
             "roofline_priority": roofline_priority,
+            "gpu_roofline_priority": gpu_roofline_priority,
+            "skipped_invalid_capture_count": len(invalid_captures),
         },
+        "skipped_invalid_captures": invalid_captures,
         "rows": rows,
     }
 
@@ -801,6 +841,38 @@ def scenario_metadata_counts(database: dict[str, Any], row_key: str) -> Counter[
     return Counter(str(row.get(row_key)) for row in database["rows"] if row.get(row_key))
 
 
+def append_roofline_priority_table(lines: list[str], heading: str, priority: list[dict[str, Any]]) -> None:
+    if not priority:
+        return
+    lines.extend(
+        [
+            "",
+            heading,
+            "",
+            "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | median GOP/s | median AI ops/B | backends | hint |",
+            "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
+        ]
+    )
+    for item in priority:
+        lines.append(
+            "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {ai} | {backends} | {hint} |".format(
+                rank=item.get("rank"),
+                target=item.get("roofline_target"),
+                scenario=item.get("scenario_family"),
+                semantics=item.get("semantics"),
+                target_id=item.get("target_id"),
+                captures=item.get("captures"),
+                bottleneck_us=format_number(item.get("total_bottleneck_us")),
+                e2e_us=format_number(item.get("total_end_to_end_us")),
+                share=format_number(item.get("median_bottleneck_share")),
+                gops=format_number(item.get("median_measured_gops")),
+                ai=format_number(item.get("median_arithmetic_intensity_ops_per_byte")),
+                backends=",".join(item.get("backends") or []),
+                hint=item.get("optimization_hint"),
+            )
+        )
+
+
 def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines = [
         "# RNS8 Evidence Database Summary",
@@ -808,6 +880,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         f"- schema_version: `{database.get('schema_version')}`",
         f"- generated_utc: `{database.get('generated_utc')}`",
         f"- captures: `{database.get('capture_count')}`",
+        f"- skipped_invalid_capture_count: `{database.get('summary', {}).get('skipped_invalid_capture_count', 0)}`",
         f"- isa_report_count: `{database.get('summary', {}).get('isa_report_count', 0)}`",
         f"- captures_with_isa_resources: `{database.get('summary', {}).get('captures_with_isa_resources', 0)}`",
         "",
@@ -818,35 +891,23 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     ]
     for name, count in database["summary"]["bottleneck_counts"].items():
         lines.append(f"| {name} | {count} |")
-    priority = database.get("summary", {}).get("roofline_priority") or []
-    if priority:
-        lines.extend(
-            [
-                "",
-                "## Roofline Priority",
-                "",
-                "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | median GOP/s | median AI ops/B | backends | hint |",
-                "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
-            ]
-        )
-        for item in priority:
-            lines.append(
-                "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {ai} | {backends} | {hint} |".format(
-                    rank=item.get("rank"),
-                    target=item.get("roofline_target"),
-                    scenario=item.get("scenario_family"),
-                    semantics=item.get("semantics"),
-                    target_id=item.get("target_id"),
-                    captures=item.get("captures"),
-                    bottleneck_us=format_number(item.get("total_bottleneck_us")),
-                    e2e_us=format_number(item.get("total_end_to_end_us")),
-                    share=format_number(item.get("median_bottleneck_share")),
-                    gops=format_number(item.get("median_measured_gops")),
-                    ai=format_number(item.get("median_arithmetic_intensity_ops_per_byte")),
-                    backends=",".join(item.get("backends") or []),
-                    hint=item.get("optimization_hint"),
-                )
-            )
+    skipped = database.get("skipped_invalid_captures") or []
+    if skipped:
+        lines.extend(["", "## Skipped Invalid Captures", "", "| capture | error |", "|---|---|"])
+        for item in skipped[:40]:
+            lines.append(f"| {item.get('capture_path')} | {item.get('error')} |")
+        if len(skipped) > 40:
+            lines.append(f"| ... | {len(skipped) - 40} additional skipped captures |")
+    append_roofline_priority_table(
+        lines,
+        "## GPU Roofline Priority",
+        database.get("summary", {}).get("gpu_roofline_priority") or [],
+    )
+    append_roofline_priority_table(
+        lines,
+        "## Roofline Priority",
+        database.get("summary", {}).get("roofline_priority") or [],
+    )
     lines.extend(["", "## Scenario Families", "", "| family | captures |", "|---|---:|"])
     for name, count in database["summary"]["scenario_counts"].items():
         lines.append(f"| {name} | {count} |")
@@ -950,6 +1011,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scenario-manifest", type=Path, action="append", default=[], help="scenario_manifest.json")
     parser.add_argument("--isa-report", type=Path, action="append", default=[], help="ISA summary file or directory")
     parser.add_argument(
+        "--skip-invalid",
+        action="store_true",
+        help="skip invalid JSON captures while recording skipped paths in the output summary",
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path("temp") / "evidence-database",
@@ -960,11 +1026,22 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    captures = load_validated_captures(args.capture)
+    invalid_captures: list[dict[str, str]] = []
+    captures = load_validated_captures(
+        args.capture,
+        skip_invalid=args.skip_invalid,
+        invalid_captures=invalid_captures,
+    )
     scenario_index = load_scenario_index(args.scenario_manifest)
     review_index = load_review_index(args.review_report)
     isa_index = load_isa_index(args.isa_report)
-    database = build_database(captures, scenario_index=scenario_index, review_index=review_index, isa_index=isa_index)
+    database = build_database(
+        captures,
+        scenario_index=scenario_index,
+        review_index=review_index,
+        isa_index=isa_index,
+        invalid_captures=invalid_captures,
+    )
     outputs = write_outputs(database, args.out_dir)
     print(json.dumps({"captures": len(captures), **outputs}, indent=2))
     return 0

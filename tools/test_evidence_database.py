@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 from pathlib import Path
@@ -123,6 +125,32 @@ def main() -> int:
             ),
             encoding="utf-8",
         )
+        invalid_capture = tmp / "invalid_capture.json"
+        invalid_capture.write_text(json.dumps({"schema_version": 4}), encoding="utf-8")
+        candidate_cache = tmp / "candidate-autotune-cache.json"
+        candidate_cache.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+        discovered_names = {path.name for path in evidence_database.discover_capture_paths([tmp])}
+        assert "invalid_capture.json" in discovered_names
+        assert "review_report.json" not in discovered_names
+        assert "scenario_manifest.json" not in discovered_names
+        assert "candidate-autotune-cache.json" not in discovered_names
+        assert "ck_backend_kernels-gfx1100-ck-isa-summary.json" not in discovered_names
+        try:
+            evidence_database.load_validated_captures([invalid_capture])
+        except Exception:
+            pass
+        else:
+            raise AssertionError("strict evidence database loading should reject invalid captures")
+        skipped_invalid: list[dict[str, str]] = []
+        with contextlib.redirect_stderr(io.StringIO()):
+            skip_loaded = evidence_database.load_validated_captures(
+                [hip_capture, invalid_capture],
+                skip_invalid=True,
+                invalid_captures=skipped_invalid,
+            )
+        assert len(skip_loaded) == 1
+        assert len(skipped_invalid) == 1
+        assert skipped_invalid[0]["capture_path"] == str(invalid_capture)
 
         captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
         database = evidence_database.build_database(
@@ -130,6 +158,7 @@ def main() -> int:
             scenario_index=evidence_database.load_scenario_index([scenario_manifest]),
             review_index=evidence_database.load_review_index([review_report]),
             isa_index=evidence_database.load_isa_index([isa_report]),
+            invalid_captures=skipped_invalid,
         )
 
         assert database["schema_version"] == 1
@@ -138,7 +167,14 @@ def main() -> int:
         assert database["summary"]["scenario_counts"]["large-exploratory"] == 1
         assert database["summary"]["isa_report_count"] == 1
         assert database["summary"]["captures_with_isa_resources"] == 1
+        assert database["summary"]["skipped_invalid_capture_count"] == 1
+        assert database["skipped_invalid_captures"] == skipped_invalid
         assert database["summary"]["roofline_priority"]
+        assert database["summary"]["gpu_roofline_priority"]
+        assert all(
+            priority["target_id"] != "none"
+            for priority in database["summary"]["gpu_roofline_priority"]
+        )
         first_priority = database["summary"]["roofline_priority"][0]
         assert first_priority["rank"] == 1
         assert first_priority["roofline_target"] in {
@@ -216,6 +252,9 @@ def main() -> int:
         assert "key_switch_digit_aggregation" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
         assert "RNS8 Evidence Database Summary" in markdown
+        assert "skipped_invalid_capture_count" in markdown
+        assert "Skipped Invalid Captures" in markdown
+        assert "GPU Roofline Priority" in markdown
         assert "Roofline Priority" in markdown
         assert "bottleneck us" in markdown
         assert "median GOP/s" in markdown
