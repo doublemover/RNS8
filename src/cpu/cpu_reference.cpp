@@ -127,12 +127,20 @@ void fill_tile_modulus(int8_t* C, int64_t row_extent, int64_t col_extent, int64_
   }
 }
 
+uint32_t cpu_rns_storage_prefix_for_plan(const rns8_plan& plan) {
+  if (!plan.tile_schedule.empty() && plan.schedule_max_selected_prefix > 0) {
+    return plan.schedule_max_selected_prefix;
+  }
+  return plan.prefix;
+}
+
 rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C) {
   if (A.desc.rows != plan.desc.m || A.desc.cols != plan.desc.k || B.desc.rows != plan.desc.k ||
       B.desc.cols != plan.desc.n || C.desc.rows != plan.desc.m || C.desc.cols != plan.desc.n) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (A.prefix < plan.prefix || B.prefix < plan.prefix || C.prefix < plan.prefix) {
+  const uint32_t storage_prefix = cpu_rns_storage_prefix_for_plan(plan);
+  if (A.prefix < storage_prefix || B.prefix < storage_prefix || C.prefix < storage_prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
 

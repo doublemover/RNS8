@@ -2964,7 +2964,18 @@ class _Validator:
     def _validate_v4_adaptive_schedule(self, prefix: Any, schedule: Any) -> None:
         if not isinstance(schedule, dict):
             return
-        if schedule.get("adaptive_execution_applied") is not True:
+        selected_backend_for_schedule = self.data.get("backend_selected")
+        vector_runtime_comparator = (
+            selected_backend_for_schedule == "hip-vector-alu-int64"
+            and self._is_vector_alu_runtime_capture()
+        )
+        if vector_runtime_comparator:
+            if schedule.get("adaptive_execution_applied") is not False:
+                self._error(
+                    "per-tile adaptive vector runtime captures must set "
+                    "schedule_metadata.adaptive_execution_applied=false"
+                )
+        elif schedule.get("adaptive_execution_applied") is not True:
             self._error("per-tile adaptive captures must set schedule_metadata.adaptive_execution_applied=true")
         selected_kernel = self.data.get("selected_kernel")
         if not isinstance(selected_kernel, str) or not selected_kernel:
@@ -3057,7 +3068,11 @@ class _Validator:
                 "cpu-reference": "host_reference_workspace",
                 "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "rocwmma": "resident_device_buffers_with_rocwmma_pack_workspace",
-                "hip-vector-alu-int64": "benchmark_owned_device_buffers",
+                "hip-vector-alu-int64": (
+                    "native_device_i64_u64_buffers"
+                    if self._is_vector_alu_runtime_capture()
+                    else "benchmark_owned_device_buffers"
+                ),
             }
             expected_workspace = expected_workspaces.get(
                 self.data.get("backend_selected"), "resident_device_buffers_with_active_prefix_tiled_schedule"

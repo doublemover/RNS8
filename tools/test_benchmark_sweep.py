@@ -744,6 +744,20 @@ def main() -> int:
         for entry in rns_chain_entries
     )
 
+    adaptive_bands_args = copy.copy(scenario_args)
+    adaptive_bands_args.backends = None
+    adaptive_bands_args.scenario = ["adaptive-bands"]
+    adaptive_bands_entries = benchmark_sweep.sweep_command_entries(adaptive_bands_args)
+    assert len(adaptive_bands_entries) == 15
+    assert {entry.scenario["family"] for entry in adaptive_bands_entries} == {"adaptive-bands"}
+    assert {
+        entry.scenario["backend"]
+        for entry in adaptive_bands_entries
+        if entry.scenario["name"] == "bounded-i64-256"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"}
+    assert all("--bound-mode" in entry.command and "per-tile" in entry.command for entry in adaptive_bands_entries)
+    assert all("--require-adaptive-execution" in entry.command for entry in adaptive_bands_entries)
+
     large_args = copy.copy(scenario_args)
     large_args.backends = ["hip-direct"]
     large_args.scenario = ["large-exploratory"]

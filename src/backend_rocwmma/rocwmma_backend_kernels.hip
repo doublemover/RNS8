@@ -46,6 +46,9 @@ constexpr int kRns8WmmaWaveThreads = 32;
 constexpr int kRns8SignedSafeInt32KBlock = 65536;
 constexpr int kRns8MaxInt = 2147483647;
 constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
+constexpr uint32_t kRns8TileScheduleZeroRowColProduct = 0x00000002u;
+constexpr uint32_t kRns8SupportedTileScheduleFlags =
+    kRns8TileScheduleZeroOutput | kRns8TileScheduleZeroRowColProduct;
 constexpr uint64_t kReciprocalScale = 1ull << 32u;
 
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
@@ -1045,7 +1048,7 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
   int max_cols = 0;
   for (unsigned long long entry_index = 0; entry_index < entry_count; ++entry_index) {
     const auto& entry = entries[entry_index];
-    if ((entry.flags & ~kRns8TileScheduleZeroOutput) != 0 || entry.row_extent <= 0 || entry.col_extent <= 0 ||
+    if ((entry.flags & ~kRns8SupportedTileScheduleFlags) != 0 || entry.row_extent <= 0 || entry.col_extent <= 0 ||
         entry.row_offset < 0 || entry.col_offset < 0 || entry.row_offset + entry.row_extent > m ||
         entry.col_offset + entry.col_extent > n || entry.selected_prefix == 0 ||
         entry.selected_prefix > kRns8MaxSupportedPrefix) {

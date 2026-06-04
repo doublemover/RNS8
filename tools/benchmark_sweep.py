@@ -1260,7 +1260,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
 
     bounded_gpu_backends = ("hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma")
     bounded_release_backends = ("cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma")
-    bounded_per_tile_backends = ("hip-direct", "hip-vector-alu-int64", "ck", "rocwmma")
+    bounded_per_tile_backends = ("cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma")
     direct_oneshot_backends = ("cpu", "hip-direct")
     accelerator_backends = ("hip-direct", "hipblaslt", "ck", "rocwmma")
 

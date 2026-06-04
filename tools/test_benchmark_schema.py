@@ -1773,6 +1773,71 @@ def main() -> int:
     vector_gemv["k_block_size"] = 4096
     validate_capture(vector_gemv)
 
+    adaptive_vector_runtime = copy.deepcopy(v4_adaptive_i64)
+    adaptive_vector_runtime["benchmark"] = "rns8_bounded_gemm_hip_vector_alu_int64_runtime"
+    adaptive_vector_runtime["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"
+    adaptive_vector_runtime["backend_requested"] = "hip-vector-alu-int64"
+    adaptive_vector_runtime["backend_selected"] = "hip-vector-alu-int64"
+    adaptive_vector_runtime["selected_kernel"] = "hip_vector_alu_i64_exact_192b_v1"
+    adaptive_vector_runtime["epilogue_type"] = "direct_int64_export"
+    adaptive_vector_runtime["packed_layout_version"] = "native_i64_rowmajor_v1"
+    adaptive_vector_runtime["k_block_size"] = adaptive_vector_runtime["k"]
+    adaptive_vector_runtime["schedule_metadata"]["adaptive_execution_applied"] = False
+    adaptive_vector_runtime["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_correctness",
+    ]
+    adaptive_vector_runtime["backend_metadata"] = copy.deepcopy(v4_vector_i64["backend_metadata"])
+    adaptive_vector_runtime["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
+    adaptive_vector_runtime["backend_metadata"]["capability_status"] = "implemented_native_bounded_vector_backend"
+    adaptive_vector_runtime["backend_metadata"]["workspace_mode"] = "native_device_i64_u64_buffers"
+    adaptive_vector_runtime["backend_metadata"]["workspace_required_bytes"] = 0
+    adaptive_vector_runtime["backend_metadata"]["accumulator_safety"]["k_block_size"] = adaptive_vector_runtime["k"]
+    adaptive_vector_runtime["backend_metadata"]["autotune_key"] = (
+        "backend=hip-vector-alu-int64;target_id=gfx1100;semantics=bounded_i64;"
+        f"m={adaptive_vector_runtime['m']};n={adaptive_vector_runtime['n']};k={adaptive_vector_runtime['k']};"
+        "bound_kind=per_tile_max_abs;prefix=9;requested_max_prefix=9;prefix_policy=per_tile_minimum;"
+        "tile_m=64;tile_n=64;groups=4;adaptive_prefix=1;adaptive_skip=1;"
+        "accumulator_type=software_192bit_limb;accumulator_signedness=signed_i64x_signed_i64;"
+        "accumulator_modulus_policy=native_exact_integer_output;"
+        f"k_block_size={adaptive_vector_runtime['k']};k_block_cap=0;"
+        "kernel=hip_vector_alu_i64_exact_192b_v1;epilogue=direct_int64_export"
+    )
+    adaptive_vector_runtime["timing_metadata"]["benchmark_execution_mode"] = (
+        "public_runtime_vector_alu_native_buffers"
+    )
+    adaptive_vector_runtime["timing_metadata"]["pack_layout"] = "native_i64_row_major"
+    adaptive_vector_runtime["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_vector_alu_native_backend_hooks"
+    )
+    adaptive_vector_runtime["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "vector_alu_default_stream_native_int64_operation_groups"
+    )
+    adaptive_vector_runtime["timing_metadata"]["gpu_event_timing_caveat"] = (
+        "HIP event timings record benchmark/API vector-ALU native-buffer operation groups; host wall-clock timings "
+        "remain required for CPU staging, range checks, API dispatch, allocations, and synchronous host-side "
+        "overhead not represented on the HIP stream"
+    )
+    vector_event_order = copy.deepcopy(v4_vector_i64["timing_metadata"]["gpu_event_phase_order"])
+    adaptive_vector_runtime["timing_metadata"]["gpu_event_phase_order"] = vector_event_order
+    adaptive_vector_runtime["timing_metadata"]["phase_availability"]["reduction"]["scope"] = (
+        "not_applicable_native_vector_output"
+    )
+    adaptive_vector_runtime["timing_metadata"]["phase_availability"]["reduction"]["reason"] = (
+        "runtime vector-ALU computes exact logical outputs directly and does not use centered RNS residue reduction"
+    )
+    adaptive_vector_runtime["gpu_event_timings_us"] = {
+        phase: [1.0 for _ in range(adaptive_vector_runtime["repeats"])] for phase in vector_event_order
+    }
+    adaptive_vector_runtime["gpu_event_timing_summary_us"] = {
+        phase: summary(values) for phase, values in adaptive_vector_runtime["gpu_event_timings_us"].items()
+    }
+    validate_capture(adaptive_vector_runtime)
+
+    stale_adaptive_vector_flag = copy.deepcopy(adaptive_vector_runtime)
+    stale_adaptive_vector_flag["schedule_metadata"]["adaptive_execution_applied"] = True
+    expect_invalid(stale_adaptive_vector_flag, "per-tile adaptive vector runtime captures")
+
     stale_vector_gemv_kernel = copy.deepcopy(vector_gemv)
     stale_vector_gemv_kernel["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
     stale_vector_gemv_kernel["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"

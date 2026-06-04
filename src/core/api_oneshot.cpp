@@ -119,14 +119,15 @@ rns8_status create_resident_oneshot_state(
   }
 
   const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(*state.plan);
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(*state.plan);
   const rns8_matrix_desc a_desc =
-      make_matrix_desc(desc.m, desc.k, desc.semantics, storage_bound_kind, state.plan->prefix,
+      make_matrix_desc(desc.m, desc.k, desc.semantics, storage_bound_kind, storage_prefix,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
   const rns8_matrix_desc b_desc =
-      make_matrix_desc(desc.k, desc.n, desc.semantics, storage_bound_kind, state.plan->prefix,
+      make_matrix_desc(desc.k, desc.n, desc.semantics, storage_bound_kind, storage_prefix,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
   const rns8_matrix_desc c_desc =
-      make_matrix_desc(desc.m, desc.n, desc.semantics, storage_bound_kind, state.plan->prefix,
+      make_matrix_desc(desc.m, desc.n, desc.semantics, storage_bound_kind, storage_prefix,
                        state.plan->desc.tile_m, state.plan->desc.tile_n);
 
   status = rns8_create_matrix(ctx, &a_desc, &state.A);

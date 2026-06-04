@@ -47,6 +47,9 @@ constexpr uint32_t kRns8AbiVersion = 1;
 constexpr uint32_t kRns8DefaultModulusCount = 28;
 constexpr uint32_t kRns8MaxSupportedPrefix = 28;
 constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
+constexpr uint32_t kRns8TileScheduleZeroRowColProduct = 0x00000002u;
+constexpr uint32_t kRns8SupportedTileScheduleFlags =
+    kRns8TileScheduleZeroOutput | kRns8TileScheduleZeroRowColProduct;
 constexpr int64_t kRns8CanonicalSafeInt32KBlock = 32768;
 constexpr int64_t kRns8CkShapeAlignment = 64;
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
@@ -658,7 +661,7 @@ int run_ck_tile_modulus(
 
 bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows, int64_t cols) {
   if (entry.struct_size != sizeof(rns8_plan_tile_schedule_entry) || entry.abi_version != kRns8AbiVersion ||
-      (entry.flags & ~kRns8TileScheduleZeroOutput) != 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
+      (entry.flags & ~kRns8SupportedTileScheduleFlags) != 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
       entry.row_extent <= 0 || entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
       entry.required_prefix > entry.selected_prefix || entry.selected_prefix > kRns8MaxSupportedPrefix ||
       entry.row_offset > rows || entry.col_offset > cols || entry.row_extent > rows - entry.row_offset ||
