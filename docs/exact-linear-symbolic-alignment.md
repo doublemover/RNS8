@@ -14,25 +14,14 @@ output, finite-u8 GEMM, and explicit reconstruction/export semantics.
 
 ## Research Procedure
 
-This pass used six read-only exploration commander lanes:
+This pass used a read-only source review across exact dense linear algebra,
+multimodular and rational linear algebra, finite-field BLAS, symbolic
+computation kernels, structured and polynomial matrices, libraries, artifacts,
+and GPU translation. Raw working notes stayed under ignored `temp/` paths.
 
-- exact dense linear algebra;
-- multimodular and rational linear algebra;
-- finite-field BLAS;
-- symbolic computation kernels;
-- structured and polynomial matrices;
-- libraries, artifacts, and GPU translation.
-
-Each commander managed its own `gpt-5.3-codex-spark` citation-chain subagents
-through `codex exec`, saved raw details under
-`temp/exact-symbolic-alignment/`, deduped locally, and returned a compact
-synthesis. Some Spark attempts hit context limits or failed to emit durable
-output; their incomplete traces were excluded unless the commander could
-reconcile the claim against a primary paper or official artifact.
-
-The lead reconciled commander reports against the current RNS8 research spec,
-PGWQ, prior computational-algebra alignment, FHE/lattice alignment, and
-primary or official sources.
+The conclusions were reconciled against the current RNS8 research spec, PGWQ,
+prior computational-algebra alignment, FHE/lattice alignment, and primary or
+official sources.
 
 ## Executive Findings
 
@@ -285,8 +274,7 @@ No `docs/RNS8_RESEARCH_SPEC.md` change is needed for this alignment pass.
 
 - No HIP-native exact-linear-algebra or symbolic-computation artifact was found
   that directly validates RNS8's byte-sized RNS/INT8 GEMM design on AMD GPUs.
-- No commander built or ran optional CPU libraries as live differential
-  oracles.
+- No optional CPU libraries were built or run as live differential oracles.
 - No CUDA artifact was cloned, hipified, compiled, or benchmarked.
 - Word-size prime fields, extension fields, modular factorization/TRSM,
   rank-profile/echelon APIs, determinant/solve/nullspace APIs, polynomial

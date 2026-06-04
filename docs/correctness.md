@@ -155,12 +155,12 @@ Implemented correctness coverage:
 - Direct HIP one-modulus ring-GEMM smoke tests compared against CPU reference
   on `gfx1100` when HIP is enabled and a device is visible, including a
   centered-correction boundary case for negative, positive-threshold, and
-  near-zero residues. Private direct-HIP launch metadata tests reject a modulus
-  value that does not match the default ladder entry for the supplied modulus
-  index before queueing work. The direct HIP reciprocal-reduction differential
-  covers every currently supported default-prefix modulus with padded layouts,
-  and private metadata tests reject a wrong reciprocal for an otherwise valid
-  modulus before queueing work.
+  near-zero residues. Unit-level direct-HIP launch metadata tests reject a
+  modulus value that does not match the default ladder entry for the supplied
+  modulus index before queueing work. The direct HIP reciprocal-reduction
+  differential covers every currently supported default-prefix modulus with
+  padded layouts, and unit-level metadata tests reject a wrong reciprocal for
+  an otherwise valid modulus before queueing work.
 - The HIP-only ISA checker extracts the compiled direct-HIP `.hip_fatbin`,
   unbundles the active `gfx*` code object, disassembles the direct RNS GEMM
   kernels, rejects divide/remainder/rcp mnemonics, and requires `v_mul_hi_u32`.
@@ -178,14 +178,14 @@ Implemented correctness coverage:
 - Direct HIP bounded persistent tests cover fixed prefix-9 unsigned GEMM at the
   exact 65536 K-block boundary with padded host input/output layouts, CPU
   reference comparison, repeated same-shape allocation reuse, and output
-  source-version changes when packed input source versions change. The private
+  source-version changes when packed input source versions change. The unit-level
   ring GEMM differential also covers non-multiple 16x16 output tile tails,
   partial K tiles, and padded leading dimensions against the CPU ring reference.
 - Direct HIP per-tile bounded signed/unsigned GEMM tests compare output against
   the CPU reference, cover tile-local range errors, padded host export layouts,
   schedule parity, signed K-split cancellation under selected-prefix execution,
   and verify skipped residue planes above each tile's selected prefix remain
-  untouched on device. Private tiled wrapper tests reject corrupted tile
+  untouched on device. Unit-level tiled wrapper tests reject corrupted tile
   metadata where `required_prefix > selected_prefix`, selected-prefix
   `group_index` is stale, tile coordinates are duplicated or missing, tile
   extents do not cover the output grid, or prefix metadata is invalid before
@@ -229,10 +229,10 @@ Implemented correctness coverage:
   compact export buffer without uploading export tile schedule/bounds metadata
   or allocating and round-tripping the export status buffer. Mixed zero/nonzero
   schedules keep the checked CRT export status path.
-- Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
-  low-level coverage. Private wrap64 HIP tests also cover padded-host pack and
+- Unit-level direct HIP strict `mod 2^64` byte-limb smoke also remains as
+  low-level coverage. Unit-level wrap64 HIP tests also cover padded-host pack and
   export into compact device byte-limb storage with reusable helper buffers. The
-  public and private HIP wrap64 tests are correctness coverage for the tiled
+  public and unit-level HIP wrap64 tests are correctness coverage for the tiled
   byte-limb kernel, not optimized matrix-engine byte-GEMM performance evidence.
 - CTest configure-negative coverage asserts that AMDGPU builtins and
   non-enabled accelerator configurations fail fast with the evidence-only

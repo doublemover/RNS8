@@ -9,8 +9,10 @@ PR.
   code as MIT.
 - `CHANGELOG.md` has an unreleased entry with public API and behavior changes.
 - `SECURITY.md`, `CONTRIBUTING.md`, and GitHub templates are current.
-- Third-party submodule pins are documented with `git submodule status
-  --recursive` format when used.
+- GitHub vulnerability alerts are enabled, and private vulnerability reporting
+  is enabled and verified after the repository visibility changes to public.
+- Third-party submodule pins document path, branch, URL, and commit SHA when
+  used, and `git submodule status --recursive` matches those SHAs.
 
 ## CPU And Package Gate
 
@@ -53,8 +55,10 @@ accelerator-specific claim is promoted.
 
 ## Documentation Gate
 
-- README limitations, hardware scope, semantic table, status codes, and
-  environment variables are current.
+- README limitations, hardware scope, and semantic table are current.
+- Public status-code documentation matches `include/rns8/status.h` and
+  `docs/RNS8_RESEARCH_SPEC.md`.
+- Environment-variable behavior is current in the spec and platform docs.
 - `docs/RNS8_RESEARCH_SPEC.md` remains the source of truth.
 - `docs/performance-model.md` and `docs/performance-wins.md` distinguish
   reviewed evidence from promotion.

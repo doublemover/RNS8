@@ -9,14 +9,11 @@ security.
 
 ## Research Procedure
 
-The alignment pass combined a lead source sweep with six read-only exploration
-commander lanes: RNS arithmetic and schemes, GPU FHE kernels, exact-GEMM
-bridging, library and parameter corpus, AMD microarchitecture, and
-correctness/security/evidence. Each commander spawned three
-`gpt-5.3-codex-spark` citation-chain subagents for backward citations,
-forward citations, and artifact discovery. Final conclusions below are based
-on commander-synthesized findings reconciled against the current README,
-research spec, roadmap status, PGWQ, and primary or official sources.
+The alignment pass combined a source sweep across RNS arithmetic and schemes,
+GPU FHE kernels, exact-GEMM bridging, library and parameter corpora, AMD
+microarchitecture, and correctness/security/evidence practice. Final
+conclusions below are reconciled against the current README, research spec,
+roadmap status, PGWQ, and primary or official sources.
 
 ## Executive Findings
 

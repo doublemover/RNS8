@@ -8,15 +8,11 @@ GEMM on AMD GPUs.
 
 ## Research Procedure
 
-The pass used six exploration commander lanes: exact linear algebra, finite
-field and modular BLAS, CRT/RNS and reconstruction, polynomial and
-number-theoretic algebra, algebraic matrix algorithms, and libraries/artifacts
-with GPU translation. Each commander managed its own Spark citation-chaining
-subagents, reconciled those results locally, and returned a compact synthesized
-report. Several Spark lanes hit model-capacity or context limits, so commander
-reports were reconciled by the lead against current RNS8 docs and primary or
-official sources. Raw notes stayed under
-`temp/computational-algebra-alignment/`.
+This note was produced from a multi-pass source review covering exact linear
+algebra, finite-field and modular BLAS, CRT/RNS reconstruction, polynomial and
+number-theoretic algebra, algebraic matrix algorithms, and GPU translation
+artifacts. Claims below are reconciled against current RNS8 docs and primary or
+official sources. Raw notes stayed under ignored `temp/` paths.
 
 ## Executive Findings
 

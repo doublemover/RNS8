@@ -1,6 +1,6 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-03
+Status date: 2026-06-04
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
@@ -43,15 +43,17 @@ architecture and roadmap source of truth when details disagree.
 |---|---|---|
 | CPU reference | Required reference backend | Baseline only |
 | Direct HIP | Required Windows GPU correctness path | Production correctness baseline; not a matrix-engine speed claim |
-| Native vector ALU | Bounded i64/u64 correctness backend | Reviewed Windows `gfx1100` bounded-u64 leader for current reviewed shapes |
-| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` wins exist for selected bounded/finite shapes |
-| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` wins exist for selected finite/exact-wide shapes |
-| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` wins exist for selected bounded/adaptive/finite shapes |
+| Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and current long-K `n == 1` shape-specialized win; not a current AUTO cache winner |
+| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes |
+| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
+| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
 | AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
-Detailed benchmark policy and reviewed release summaries live in
-[performance-model.md](performance-model.md).
+Detailed benchmark policy, current wins, and reviewed release summaries live in
+[performance-model.md](performance-model.md),
+[performance-wins.md](performance-wins.md), and
+[reviewed-local-evidence.md](reviewed-local-evidence.md).
 
 ## Not Yet Implemented
 

@@ -149,7 +149,7 @@ Release-smoke wrap64 baseline captures originally kept
 locally with `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4`. The
 production-threshold release baseline is recorded below. The
 internal rocWMMA wrap64 byte-GEMM36 candidate has expanded Windows `gfx1100`
-private correctness differentials and ISA smoke evidence, but no wrap64
+unit-level correctness differentials and ISA smoke evidence, but no wrap64
 accelerator promotion was made because it has not been integrated as a public
 backend or beaten direct HIP in reviewed release captures. AMDGPU builtins
 remain fail-fast because the release-smoke reviews did not identify a shape
@@ -379,7 +379,7 @@ fixed 16x16 WMMA schedule, report `backend_selected: "rocwmma"` and
 `wrap64_rocwmma_candidate_gemm36_kernel_group` HIP event phase, and remain
 `performance_validated: false`. Sweep promotion keeps an explicit
 `internal_candidate_not_public_backend` blocker until this path becomes a real
-public backend with reviewed release evidence. Current private correctness
+public backend with reviewed release evidence. Current unit-level correctness
 coverage checks single-cell K tails, exact 16x16x16 tiles, padded carry-heavy
 tails, ragged two-tile output, and the `k=32768` accepted / `k=32769` rejected
 candidate boundary against direct HIP and the CPU byte-pair oracle. It also

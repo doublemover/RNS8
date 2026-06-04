@@ -16,30 +16,13 @@ symbolic algebra runtime, or a full exact-linear-algebra package.
 
 ## Research Method
 
-The pass used six exploration commanders. Each commander worked read-only from
-`~\Development\RNS8-cas-alignment`, managed its own
-`gpt-5.3-codex-spark` citation-chaining subprocesses through `codex exec`, and
-stored raw details under `temp\cas-alignment\`. The lead consolidated only the
-commander syntheses into durable docs.
+This note was produced from a multi-pass read-only source review covering CAS
+domain models, exact-algebra kernels, library stacks, workload corpora,
+GPU/HPC translation artifacts, and correctness/evidence conventions. Raw
+working notes stayed under ignored `temp/` paths; this durable document keeps
+only the reconciled findings.
 
-Commander lanes:
-
-- CAS domain model: parent/category/domain/coercion models and exact versus
-  approximate boundaries.
-- CAS kernel decomposition: dense modular GEMM, exact LA, symbolic phases,
-  CRT/CRA, factorization, interpolation, and polynomial/tree phases.
-- CAS library stack: FLINT, NTL, LinBox, FFLAS-FFPACK, Givaro, Singular,
-  PARI/GP, Normaliz, GAP packages, Nemo/Hecke, and related roles.
-- CAS workload corpus: benchmark families, examples, matrix/polynomial/domain
-  shapes, and scenario metadata.
-- CAS GPU/HPC translation: CUMODP, Linac, GBLA, Magma dense-F4/CUDA notes,
-  CUDA-to-HIP risks, and AMD evidence gaps.
-- CAS correctness and evidence: deterministic/probabilistic modes,
-  certificates, bad-prime handling, licensing, reproducibility, and wording
-  boundaries.
-
-No second commander wave was needed. The lanes agreed on the main boundary, and
-none found a real `docs/RNS8_RESEARCH_SPEC.md` mismatch.
+The review found no real `docs/RNS8_RESEARCH_SPEC.md` mismatch.
 
 ## Executive Findings
 
