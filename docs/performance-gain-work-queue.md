@@ -357,8 +357,20 @@ Likely first slices:
   the CTA tile load path, and C is materialized directly as resident RNS
   residues for the existing CRT export path. Per-tile/adaptive plans,
   wider-prefix stress cases, persistent matrix APIs, and non-direct-HIP
-  backends keep the established resident pack/GEMM/export route. This is not
-  yet a reviewed speedup claim.
+  backends keep the established resident pack/GEMM/export route. A follow-up
+  large-shape bounded-u64 specialization now routes public one-shot
+  `m/n/k >= 512` Direct-HIP calls to
+  `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2`, where each
+  worker computes two neighboring output columns and reuses the centered A tile
+  value across both accumulators. Bounded i64 and smaller bounded-u64 one-shot
+  shapes remain on `direct_hip_prefix9_native_input_grouped_rns_gemm_v1`
+  because release evidence showed i64 regressions and noisy small-shape u64
+  averages. Windows `gfx1100` release captures under
+  `temp/oneshot-colpair-before/` and
+  `temp/oneshot-colpair-release-gated/` show the routed bounded-u64 512 case
+  improving average end-to-end time by 1.09x and median end-to-end time by
+  1.21x against the prior v1 one-shot kernel, with schema-valid and
+  event-valid final captures.
 - rocWMMA transient-A fused pack against reusable B for non-tiled RNS.
 - Benchmark split between one-shot and persistent reuse so wins are not hidden.
   Implemented as `rns8-bench --oneshot` for bounded i64/u64 CPU and

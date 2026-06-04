@@ -306,17 +306,31 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_gemm_u64_native_prefix9_device(
-        ctx->device_id,
-        state.device_a,
-        state.device_b,
-        state.C->hip_residues,
-        desc.m,
-        desc.n,
-        desc.k,
-        lda,
-        ldb,
-        state.C->desc.logical_ld);
+    if (desc.m >= 512 && desc.n >= 512 && desc.k >= 512) {
+      status = rns8::detail::hip_direct_gemm_u64_native_prefix9_colpair_device(
+          ctx->device_id,
+          state.device_a,
+          state.device_b,
+          state.C->hip_residues,
+          desc.m,
+          desc.n,
+          desc.k,
+          lda,
+          ldb,
+          state.C->desc.logical_ld);
+    } else {
+      status = rns8::detail::hip_direct_gemm_u64_native_prefix9_device(
+          ctx->device_id,
+          state.device_a,
+          state.device_b,
+          state.C->hip_residues,
+          desc.m,
+          desc.n,
+          desc.k,
+          lda,
+          ldb,
+          state.C->desc.logical_ld);
+    }
   }
   if (status == RNS8_SUCCESS) {
     state.C->host_residues_current = false;

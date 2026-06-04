@@ -1662,6 +1662,13 @@ std::string bounded_oneshot_autotune_key(
   return out.str();
 }
 
+const char* bounded_oneshot_kernel(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedU64 &&
+             args.m >= 512 && args.n >= 512 && args.k >= 512
+      ? "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
+      : "direct_hip_prefix9_native_input_grouped_rns_gemm_v1";
+}
+
 std::string finite_oneshot_autotune_key(
     const Args& args,
     const BenchmarkResult& result,
@@ -1800,7 +1807,7 @@ void apply_bounded_oneshot_backend_metadata(const Args& args, BenchmarkResult& r
       benchmark_prefix(args) != 9) {
     return;
   }
-  const char* kernel = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1";
+  const char* kernel = bounded_oneshot_kernel(args);
   const char* epilogue = "native_input_centered_residue_then_crt_export";
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);

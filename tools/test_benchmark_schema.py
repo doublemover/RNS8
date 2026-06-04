@@ -1073,6 +1073,41 @@ def main() -> int:
     del bad_oneshot_event_phase["gpu_event_timing_summary_us"]["oneshot_native_input_h2d"]
     expect_invalid(bad_oneshot_event_phase, "direct-HIP one-shot GPU event phase set is incomplete")
 
+    small_u64_oneshot = copy.deepcopy(direct_hip_oneshot_i64)
+    small_u64_oneshot["semantics"] = "bounded_u64"
+    small_u64_oneshot["bound_kind"] = "global_max_unsigned"
+    small_u64_oneshot["backend_metadata"]["autotune_key"] = small_u64_oneshot[
+        "backend_metadata"
+    ]["autotune_key"].replace("semantics=bounded_i64", "semantics=bounded_u64")
+    validate_capture(small_u64_oneshot)
+
+    large_u64_oneshot = copy.deepcopy(small_u64_oneshot)
+    large_u64_oneshot["m"] = 512
+    large_u64_oneshot["n"] = 512
+    large_u64_oneshot["k"] = 512
+    u64_oneshot_kernel = "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
+    large_u64_oneshot["selected_kernel"] = u64_oneshot_kernel
+    large_u64_oneshot["backend_metadata"]["selected_kernel"] = u64_oneshot_kernel
+    large_u64_oneshot["backend_metadata"]["autotune_key"] = large_u64_oneshot[
+        "backend_metadata"
+    ]["autotune_key"].replace("m=64;n=128;k=64", "m=512;n=512;k=512").replace(
+        "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
+        u64_oneshot_kernel,
+    )
+    validate_capture(large_u64_oneshot)
+
+    bad_oneshot_stale_kernel = copy.deepcopy(large_u64_oneshot)
+    old_oneshot_kernel = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
+    bad_oneshot_stale_kernel["selected_kernel"] = old_oneshot_kernel
+    bad_oneshot_stale_kernel["backend_metadata"]["selected_kernel"] = old_oneshot_kernel
+    bad_oneshot_stale_kernel["backend_metadata"]["autotune_key"] = bad_oneshot_stale_kernel[
+        "backend_metadata"
+    ]["autotune_key"].replace(
+        "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",
+        old_oneshot_kernel,
+    )
+    expect_invalid(bad_oneshot_stale_kernel, "direct-HIP one-shot bounded captures must use selected_kernel")
+
     bad_finite_oneshot_pack_timing = copy.deepcopy(direct_hip_finite_oneshot)
     bad_finite_oneshot_pack_timing["raw_timings_us"]["pack"][0] = 1
     expect_invalid(bad_finite_oneshot_pack_timing, "public one-shot captures must report raw_timings_us.pack")

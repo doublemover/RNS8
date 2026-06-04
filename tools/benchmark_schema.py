@@ -97,7 +97,10 @@ DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS = {
     256: "direct_hip_native_a_finite_u8_gemm_mod256_v1",
 }
 DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
-DIRECT_HIP_BOUNDED_ONESHOT_KERNEL = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
+DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1 = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
+DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = (
+    "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
+)
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
@@ -1122,10 +1125,18 @@ class _Validator:
                 if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
                     self._error("one-shot bounded captures must use prepack_reuse_strategy=none")
                 if self.data.get("backend_selected") == "hip-direct":
-                    if self.data.get("selected_kernel") != DIRECT_HIP_BOUNDED_ONESHOT_KERNEL:
+                    expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1
+                    if (
+                        semantics == "bounded_u64"
+                        and int(self.data.get("m", 0)) >= 512
+                        and int(self.data.get("n", 0)) >= 512
+                        and int(self.data.get("k", 0)) >= 512
+                    ):
+                        expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2
+                    if self.data.get("selected_kernel") != expected_kernel:
                         self._error(
                             "direct-HIP one-shot bounded captures must use "
-                            f"selected_kernel={DIRECT_HIP_BOUNDED_ONESHOT_KERNEL}"
+                            f"selected_kernel={expected_kernel}"
                         )
                     if isinstance(backend_metadata, dict):
                         if backend_metadata.get("epilogue_mode") != DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE:

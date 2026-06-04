@@ -44,6 +44,21 @@ release-reviewed evidence, not as proof that one winner is stable across local
 driver/build/run conditions. Rerun the target shapes before installing a
 durable cache.
 
+## Direct-HIP Implementation Wins
+
+These rows compare one Direct-HIP implementation against the previous
+Direct-HIP implementation for the same public API and shape. They are not
+cross-backend AUTO winners.
+
+| Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event GEMM speedup | Status |
+|---|---:|---|---:|---:|---:|---|
+| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; i64 and smaller u64 remain on v1 |
+
+The colpair one-shot kernel was not promoted for bounded i64 because the same
+mapping regressed i64 release captures. It was also not routed for small
+bounded-u64 shapes because 64/128 averages were spike-sensitive on Windows
+`gfx1100`; they keep the prior v1 native-input grouped kernel.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend

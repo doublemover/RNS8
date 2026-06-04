@@ -31,6 +31,7 @@ Scope:
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 1024 bounded i64 | direct HIP | setup-inclusive 1.19x vs same-backend non-reuse; 2.62x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 512 bounded u64 | direct HIP | setup-inclusive 1.34x vs same-backend non-reuse; 1.41x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 reruns | 1 | 1024 bounded u64 | direct HIP | setup-inclusive 1.17x to 1.75x vs same-backend non-reuse across three focused reruns | release local reuse reruns; schema/event valid | export timing remains volatile; explicit `--reuse-packed-b` path only |
+| 2026-06-03 | direct-HIP public one-shot colpair gate | 31 | 512 bounded u64 | direct HIP | 1.09x average end-to-end, 1.21x median end-to-end, and 1.06x average GEMM-event speedup vs prior one-shot v1 kernel | final release captures schema/event valid; before captures intentionally stale under new schema | routed only for bounded-u64 Direct-HIP one-shot `m/n/k >= 512`; i64 and smaller u64 stay on v1 |
 
 ## Reuse And Prepack Summary
 
@@ -99,6 +100,21 @@ build\windows-msvc-hip-release\rns8-bench.exe `
   --m 1024 --n 1024 --k 1024 `
   --warmups 3 --repeats 9 `
   --reuse-packed-b
+
+python tools\benchmark_schema.py <captures>
+python tools\gpu_event_report.py --fail-on-unavailable <captures>
+```
+
+Direct-HIP bounded-u64 public one-shot colpair gate:
+
+```powershell
+build\windows-msvc-hip-release\rns8-bench.exe `
+  --backend hip-direct `
+  --semantics bounded-u64 `
+  --oneshot `
+  --m 512 --n 512 --k 512 `
+  --warmups 3 --repeats 9 `
+  --seed 31
 
 python tools\benchmark_schema.py <captures>
 python tools\gpu_event_report.py --fail-on-unavailable <captures>
