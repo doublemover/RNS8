@@ -330,11 +330,11 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
       return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2";
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1" ||
-             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1";
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2" ||
+             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2";
     }
   }
   if (entry.selected_backend == "rocwmma") {
@@ -342,11 +342,11 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
       return entry.selected_kernel == expected_rocwmma_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1";
+      return entry.selected_kernel == "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1" ||
-             entry.selected_kernel == "rocwmma_i8_i32_signed_tiled_hot_residue_v1";
+      return entry.selected_kernel == "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2" ||
+             entry.selected_kernel == "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2";
     }
   }
   return false;

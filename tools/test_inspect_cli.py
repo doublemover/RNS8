@@ -66,7 +66,11 @@ def main() -> int:
     ck = run_command(inspect_exe, "--backend", "ck")
     if ck.returncode == 0:
         expect_text(ck.stdout, "capability_status: implemented_opt_in_ck_backend", "ck")
-        expect_text(ck.stdout, "selected_kernel:   ck_wmma_cshuffle_i8_i32_centered_epilogue_v1", "ck")
+        expect_text(
+            ck.stdout,
+            "selected_kernel:   ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+            "ck",
+        )
         expect_text(ck.stdout, "exact_validated:   1", "ck")
         expect_text(ck.stdout, "perf_validated:    0", "ck")
         expect_text(
@@ -83,7 +87,11 @@ def main() -> int:
     rocwmma = run_command(inspect_exe, "--backend", "rocwmma")
     if rocwmma.returncode == 0:
         expect_text(rocwmma.stdout, "capability_status: implemented_opt_in_rocwmma_backend", "rocwmma")
-        expect_text(rocwmma.stdout, "selected_kernel:   rocwmma_i8_i32_signed_hot_residue_v1", "rocwmma")
+        expect_text(
+            rocwmma.stdout,
+            "selected_kernel:   rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
+            "rocwmma",
+        )
         expect_text(rocwmma.stdout, "exact_validated:   1", "rocwmma")
         expect_text(rocwmma.stdout, "perf_validated:    0", "rocwmma")
         expect_text(

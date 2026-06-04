@@ -551,7 +551,9 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(std::string(key.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
   CHECK(std::string(key.cache_key).find("prepack-v2") == 0);
   CHECK(std::string(key.cache_key).find("target_id=") != std::string::npos);
-  CHECK(std::string(key.cache_key).find("kernel=rocwmma_i8_i32_signed_hot_residue_v1") != std::string::npos);
+  CHECK(
+      std::string(key.cache_key).find("kernel=rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2") !=
+      std::string::npos);
   CHECK(std::string(key.cache_key).find("prepack_kernel=rocwmma_rns_i8_tile_swizzled_b_prepack_v1") !=
         std::string::npos);
   CHECK(std::string(key.cache_key).find("prefix_schedule_hash=") != std::string::npos);
@@ -1028,7 +1030,9 @@ TEST_CASE("rocWMMA exact-wide RNS output matches CPU and direct HIP limbs") {
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_ROCWMMA) {
-      CHECK(std::string(info.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1");
+      CHECK(
+          std::string(info.selected_kernel) ==
+          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
       CHECK(std::string(info.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
       CHECK(info.accumulator_uses_int32_inner_product == 1);

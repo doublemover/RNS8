@@ -212,7 +212,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["isa_evidence"] = "not_applicable_cpu"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=cpu-reference").replace(
-            "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+            "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
             "kernel=cpu_reference_scalar_rns_gemm_v1",
         ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
         capture["device"] = {
@@ -237,7 +237,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
         apply_accumulator_safety(capture, int32_accumulator_safety(capture))
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct").replace(
-            "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+            "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
             "kernel=direct_hip_tiled_rns_gemm_v1",
         ).replace("epilogue=ck_fused_i32_to_centered_residue_then_crt_export", "epilogue=fused_centered_residue_then_crt_export")
     elif backend == "hip-vector-alu-int64":

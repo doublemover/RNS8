@@ -289,7 +289,10 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.compiled_kernel_available = 1;
       info.exact_differential_validated = 1;
       info.is_matrix_engine_backend = 1;
-      set_text(info.selected_kernel, sizeof(info.selected_kernel), "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
+      set_text(
+          info.selected_kernel,
+          sizeof(info.selected_kernel),
+          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
       set_text(info.library_name, sizeof(info.library_name), "Composable Kernel");
       set_text(info.library_version, sizeof(info.library_version), "repo-local release/rocm-rel-7.1");
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_CK");
@@ -306,7 +309,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in CK backend using WMMA CShuffle int8 GEMM with fused centered-residue epilogue.");
+          "Opt-in CK backend using WMMA CShuffle int8 GEMM with fused centered-residue epilogue specialized for mod 256/255/251.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif
@@ -323,7 +326,10 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.exact_differential_validated = 1;
       info.performance_validated = 0;
       info.is_matrix_engine_backend = 1;
-      set_text(info.selected_kernel, sizeof(info.selected_kernel), "rocwmma_i8_i32_signed_hot_residue_v1");
+      set_text(
+          info.selected_kernel,
+          sizeof(info.selected_kernel),
+          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
       set_text(info.library_name, sizeof(info.library_name), "rocWMMA");
       set_text(info.library_version, sizeof(info.library_version), "repo-local release/rocm-rel-7.1");
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_ROCWMMA");
@@ -337,7 +343,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in rocWMMA backend using signed int8 WMMA GEMM with fused centered-residue reduction.");
+          "Opt-in rocWMMA backend using signed int8 WMMA GEMM with fused centered-residue reduction specialized for mod 256/255/251.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

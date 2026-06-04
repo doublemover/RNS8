@@ -21,7 +21,7 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
             256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
         }.get(finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1")
         if finite_modulus
-        else "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+        else "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
     )
     epilogue = (
         "ck_fused_i32_to_centered_residue_then_canonical_u8_export"
@@ -324,7 +324,7 @@ def main() -> int:
             {
                 "key": stale_kernel["key"]
                 .replace(
-                    "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+                    "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
                     "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0",
                 ),
                 "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
@@ -339,6 +339,22 @@ def main() -> int:
             assert "unsupported_autotune_kernel_for_contract" in str(exc)
         else:
             raise AssertionError("stale public-backend cache kernel was accepted")
+
+        stale_bounded_v1 = entry("-stale-bounded-v1")
+        stale_bounded_v1["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+        stale_bounded_v1["kernel_family"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+        stale_bounded_v1["key"] = stale_bounded_v1["key"].replace(
+            "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+            "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+        )
+        stale_bounded_v1_source = root / "stale-bounded-v1.json"
+        write_cache(stale_bounded_v1_source, [stale_bounded_v1])
+        try:
+            install_autotune_cache.install_cache([stale_bounded_v1_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_kernel_for_contract" in str(exc)
+        else:
+            raise AssertionError("stale bounded CK v1 cache kernel was accepted")
 
         stale_epilogue = entry("-stale-epilogue")
         stale_epilogue.update(

@@ -178,6 +178,16 @@ at 2399 us, followed by CK at 2408 us, vector-ALU at 3217 us, direct HIP at
 followed by direct HIP at 11195 us, vector-ALU at 11327 us, rocWMMA at
 11565 us, CK at 18109 us, and CPU reference at 15657400 us.
 
+Current CK and rocWMMA RNS plans now report common-modulus reducer v2
+identities after the shared epilogues gained explicit 256/255/251 reduction
+paths: `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2`,
+`ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2`,
+`rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2`, and
+`rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2`. The v1 timings in
+this section remain historical reviewed evidence only; new v2 release captures
+are required before installing or transferring any CK/rocWMMA bounded or
+exact-wide cache entry.
+
 `rns8-inspect` reports exact validated hits for both promoted keys on runtime
 target `gfx1100`: the rocWMMA 512 entry uses runtime version
 `repo-local release/rocm-rel-7.1` and the hipBLASLt 1024 entry uses
@@ -233,12 +243,16 @@ rocWMMA `rocwmma_i8_i32_signed_tiled_hot_residue_v1` measured 5095 us median
 end-to-end, followed by direct HIP at 6469 us, CK at 6854 us, vector-ALU at
 13310 us, and CPU reference at 3774230 us. The cache entry records workspace
 262144 bytes, runtime version `repo-local release/rocm-rel-7.1`, and validation
-status `reviewed_release_same_contract_fastest_windows_gfx1100`. `rns8-inspect`
-reports an exact validated hit for this key, and a matching adaptive
-`rns8-bench --backend auto` smoke emits `backend_selected: "rocwmma"`,
-`backend_metadata.performance_validated: true`, selected kernel
-`rocwmma_i8_i32_signed_tiled_hot_residue_v1`, and schema-valid
+status `reviewed_release_same_contract_fastest_windows_gfx1100`. At the time,
+`rns8-inspect` reported an exact validated hit for this key, and a matching
+adaptive `rns8-bench --backend auto` smoke emitted
+`backend_selected: "rocwmma"`, `backend_metadata.performance_validated: true`,
+selected kernel `rocwmma_i8_i32_signed_tiled_hot_residue_v1`, and
+schema-valid
 `comparison_baseline.status: "reviewed_release_same_contract_baseline"`.
+That reviewed cache identity is also historical after the current tiled v2
+selected-kernel rename; rerun adaptive release review before promoting the v2
+tiled path.
 
 The remaining adaptive groups were complete but blocked. Bounded i64 65x65x64
 stayed on vector-ALU at 402 us versus rocWMMA at 1041 us. Bounded u64

@@ -152,16 +152,16 @@ VECTOR_ALU_SELECTED_KERNELS = {
     "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
 }
 CK_SELECTED_KERNELS = {
-    "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
-    "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+    "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+    "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
 ROCWMMA_SELECTED_KERNELS = {
-    "rocwmma_i8_i32_signed_hot_residue_v1",
-    "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+    "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
+    "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
     "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
@@ -2570,8 +2570,8 @@ class _Validator:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_KERNEL_V2
             expected_kernels = {
                 "hip-direct": direct_hip_expected_kernel,
-                "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
-                "rocwmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+                "ck": "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+                "rocwmma": "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
             }
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:

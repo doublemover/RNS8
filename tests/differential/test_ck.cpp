@@ -271,7 +271,9 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_CK) {
-      CHECK(std::string(info.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
+      CHECK(
+          std::string(info.selected_kernel) ==
+          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
       CHECK(info.accumulator_uses_int32_inner_product == 1);

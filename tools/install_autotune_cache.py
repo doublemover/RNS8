@@ -161,11 +161,11 @@ def reviewed_kernel_supported_for_contract(
                 finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
             )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
-            return selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+            return selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
         if semantic_contract in BOUNDED_SEMANTICS:
             return selected_kernel in {
-                "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
-                "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+                "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+                "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
             }
     if selected_backend == "rocwmma":
         if semantic_contract in FINITE_U8_SEMANTICS:
@@ -173,11 +173,11 @@ def reviewed_kernel_supported_for_contract(
                 finite_modulus, "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
             )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
-            return selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1"
+            return selected_kernel == "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2"
         if semantic_contract in BOUNDED_SEMANTICS:
             return selected_kernel in {
-                "rocwmma_i8_i32_signed_hot_residue_v1",
-                "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+                "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
+                "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
             }
     return False
 

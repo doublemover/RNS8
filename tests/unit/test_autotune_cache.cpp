@@ -11,7 +11,8 @@
 
 namespace {
 
-constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
+constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2";
+constexpr const char* kCkBoundedOldKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
 constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
@@ -20,7 +21,8 @@ constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
 constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
 constexpr const char* kVectorU64Kernel = "hip_vector_alu_u64_exact_192b_v1";
 constexpr const char* kVectorEpilogue = "direct_int64_export";
-constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
+constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
+constexpr const char* kRocwmmaBoundedOldKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
 constexpr const char* kRocwmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
 
 rns8::detail::AutotuneCacheEntry cache_entry(
@@ -269,6 +271,47 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
   {
     auto item = entry(reviewed_key("ck", "gfx1100", "7.1", "bounded_u64") + ";finite_modulus=251");
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unexpected_key_finite_modulus"});
+  }
+  {
+    auto item = entry(reviewed_key(
+        "ck",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kCkBoundedOldKernel,
+        kCkBoundedEpilogue));
+    item.selected_kernel = kCkBoundedOldKernel;
+    item.kernel_family = kCkBoundedOldKernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    auto item = entry(reviewed_key(
+        "rocwmma",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        512,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kRocwmmaBoundedOldKernel,
+        kRocwmmaBoundedEpilogue));
+    item.selected_backend = "rocwmma";
+    item.selected_kernel = kRocwmmaBoundedOldKernel;
+    item.semantic_contract = "bounded_u64";
+    item.epilogue = kRocwmmaBoundedEpilogue;
+    item.kernel_family = kRocwmmaBoundedOldKernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {
     std::string key = reviewed_key(

@@ -927,7 +927,9 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.exact_differential_validated == 1);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
-      CHECK(std::string(capability.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_canonical_pack_workspace");
       CHECK(std::string(capability.isa_evidence) ==
@@ -949,7 +951,9 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.exact_differential_validated == 1);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_rocwmma_backend");
-      CHECK(std::string(capability.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace");
       CHECK(std::string(capability.isa_evidence) == "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide");
@@ -970,7 +974,9 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     CHECK(std::string(capability.isa_evidence) == "not_validated");
     if (backend == RNS8_BACKEND_CK) {
       CHECK(std::string(capability.status) == "not_enabled_in_this_build");
-      CHECK(std::string(capability.selected_kernel) == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1_disabled");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2_disabled");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue_disabled");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
@@ -979,7 +985,9 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.supports_wrap64 == 0);
     } else if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(std::string(capability.status) == "not_enabled_or_builtin_not_implemented");
-      CHECK(std::string(capability.selected_kernel) == "rocwmma_i8_i32_signed_hot_residue_v1_disabled");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2_disabled");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);

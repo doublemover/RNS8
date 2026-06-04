@@ -973,7 +973,7 @@ def as_exact_wide_capture(capture: dict) -> dict:
     exact["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
         "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2;"
         "epilogue=ck_fused_i32_to_centered_residue_rns_output"
         ),
         exact,
@@ -1076,7 +1076,7 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
         "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2;"
         "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
         ),
         chain,
@@ -1324,6 +1324,30 @@ def main() -> int:
     missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
     del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]
     expect_invalid(missing_accumulator_safety, "backend_metadata.accumulator_safety must be an object")
+
+    stale_ck_rns_kernel = copy.deepcopy(v4_ck_i64)
+    stale_ck_rns_kernel["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+    stale_ck_rns_kernel["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
+    stale_ck_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_rns_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+        "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
+    )
+    expect_invalid(stale_ck_rns_kernel, "CK captures must report a known CK selected_kernel")
+
+    stale_ck_tiled_rns_kernel = copy.deepcopy(v4_ck_adaptive_u64)
+    stale_ck_tiled_rns_kernel["selected_kernel"] = "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
+    stale_ck_tiled_rns_kernel["backend_metadata"][
+        "selected_kernel"
+    ] = "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1"
+    stale_ck_tiled_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_tiled_rns_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "kernel=ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+        "kernel=ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
+    )
+    expect_invalid(stale_ck_tiled_rns_kernel, "CK captures must report a known CK selected_kernel")
 
     stale_ck_accumulator_cap = copy.deepcopy(v4_ck_i64)
     stale_ck_accumulator_cap["backend_metadata"]["accumulator_safety"]["k_block_cap"] = 65536
@@ -2093,6 +2117,30 @@ def main() -> int:
     bad_rocwmma_library = copy.deepcopy(v4_rocwmma_i64)
     bad_rocwmma_library["backend_metadata"]["accelerator_library"] = "HIP runtime"
     expect_invalid(bad_rocwmma_library, "rocWMMA")
+
+    stale_rocwmma_rns_kernel = copy.deepcopy(v4_rocwmma_i64)
+    stale_rocwmma_rns_kernel["selected_kernel"] = "rocwmma_i8_i32_signed_hot_residue_v1"
+    stale_rocwmma_rns_kernel["backend_metadata"]["selected_kernel"] = "rocwmma_i8_i32_signed_hot_residue_v1"
+    stale_rocwmma_rns_kernel["backend_metadata"]["autotune_key"] = stale_rocwmma_rns_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "kernel=rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
+        "kernel=rocwmma_i8_i32_signed_hot_residue_v1",
+    )
+    expect_invalid(stale_rocwmma_rns_kernel, "rocWMMA captures must report a known rocWMMA selected_kernel")
+
+    stale_rocwmma_tiled_rns_kernel = copy.deepcopy(v4_rocwmma_adaptive_u64)
+    stale_rocwmma_tiled_rns_kernel["selected_kernel"] = "rocwmma_i8_i32_signed_tiled_hot_residue_v1"
+    stale_rocwmma_tiled_rns_kernel["backend_metadata"][
+        "selected_kernel"
+    ] = "rocwmma_i8_i32_signed_tiled_hot_residue_v1"
+    stale_rocwmma_tiled_rns_kernel["backend_metadata"][
+        "autotune_key"
+    ] = stale_rocwmma_tiled_rns_kernel["backend_metadata"]["autotune_key"].replace(
+        "kernel=rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
+        "kernel=rocwmma_i8_i32_signed_tiled_hot_residue_v1",
+    )
+    expect_invalid(stale_rocwmma_tiled_rns_kernel, "rocWMMA captures must report a known rocWMMA selected_kernel")
 
     bad_rocwmma_kernel = copy.deepcopy(v4_rocwmma_adaptive_u64)
     bad_rocwmma_kernel["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"

@@ -26,16 +26,21 @@ The latest post-fix bounded-i64 validation pass covered 512 and 1024 after the
 vector event-capture and hipBLASLt full A+B event fixes. It used seed
 `20260603`; the durable summary lives in
 [reviewed-local-evidence.md](reviewed-local-evidence.md).
+After the CK/rocWMMA shared epilogues gained explicit 256/255/251 reducer
+dispatch, current CK/rocWMMA RNS plans report v2 selected-kernel identities.
+Rows below that cite old CK/rocWMMA v1 identities are retained as historical
+post-fix evidence and need a v2 rerun before cache installation.
 
 | Shape | Current winner | Winner median end-to-end | Direct HIP median | Vector ALU median | Speedup | Decision |
 |---:|---|---:|---:|---:|---:|---|
 | 512 | Direct HIP `direct_hip_tiled_rns_gemm_v1` | 2986 us | 2986 us | 9232 us | No accelerator win | Keep direct HIP for this snapshot |
-| 1024 | CK `ck_wmma_cshuffle_i8_i32_centered_epilogue_v1` | 9222 us | 9604 us | 23777 us | 1.04x vs direct HIP, 2.58x vs vector ALU | Promotable local candidate; cache not written in this run |
+| 1024 | CK `ck_wmma_cshuffle_i8_i32_centered_epilogue_v1` | 9222 us | 9604 us | 23777 us | 1.04x vs direct HIP, 2.58x vs vector ALU | Historical v1 candidate; rerun required for current `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` before promotion |
 
 The 512 group had no missing required baselines, no duplicate backend records,
 and release-review requirements were satisfied, but no accelerator beat direct
 HIP. The 1024 group had the same clean review properties and selected CK as the
-fastest promotable accelerator.
+fastest promotable accelerator for the then-current v1 identity; current v2
+identity promotion needs a fresh release capture.
 
 This differs from the earlier June 3, 2026 seed `20260602` four-shape
 bounded-i64 matrix in [performance-model.md](performance-model.md), where
@@ -206,8 +211,8 @@ CRT export timing was lower in these captures.
 ## Promotion Boundaries
 
 - Promote now: no durable installed cache changes are made here. The latest
-  one-shot 1024 CK result is a local promotable candidate, but this doc does
-  not install it.
+  one-shot 1024 CK result was a local v1 promotable candidate, but the current
+  v2 CK identity needs rerun evidence before cache installation.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and
   rocWMMA reuse/prepack wins. They are correct and event-visible, but they
   compare different reuse contracts and need workload-level promotion policy

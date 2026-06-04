@@ -273,13 +273,19 @@ Remaining high-value imported work goes at the front of the queue:
   [performance-wins.md](performance-wins.md) kept 512 on direct HIP and found a
   narrow CK 1024 win, so rerun target shapes before installing durable cache
   policy.
+- Current CK and rocWMMA RNS selected kernels have v2 common-modulus reducer
+  identities after the shared epilogues gained explicit 256/255/251 reduction.
+  Treat all older CK/rocWMMA v1 bounded/exact-wide timings as historical until
+  matching v2 release captures exist.
 - The active hipBLASLt source path now uses
   `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`; previous
   `hipblaslt_int8_i32_scratch_reduce_baseline_v1` timings are historical and
   should not be mixed into new autotune cache evidence.
 - Adaptive bounded i64 at 1024 has a reviewed rocWMMA winner:
   `rocwmma_i8_i32_signed_tiled_hot_residue_v1`. Tiny adaptive cases and
-  bounded-u64 adaptive cases remain blocked by vector/direct baselines.
+  bounded-u64 adaptive cases remain blocked by vector/direct baselines. The
+  reviewed adaptive winner uses the older tiled v1 identity and must be rerun
+  before promotion under the current tiled v2 selected-kernel identity.
 - Finite-u8 has reviewed Windows `gfx1100` winners across ring 251, ring 255,
   and field 251. rocWMMA wins most 64/128/512 groups, CK wins 1024 ring cases,
   and hipBLASLt wins the 1024 field-251 group.
@@ -1874,6 +1880,9 @@ Technical direction:
 - Reduce shared-memory round-trip after `store_matrix_sync`; use fragment-map
   evidence before lane-owned residue emission.
 - Specialize 256/255/251 reductions in the epilogue with shared reducer nodes.
+  Implemented in the shared CK/rocWMMA RNS epilogue reducers and reflected in
+  v2 selected-kernel/schema/cache identities; release-reviewed speedups remain
+  open.
 - Expand B swizzle, transient-A pack, store-path, K-block, and split-K variants.
 - For adaptive bounded, group tile entries by prefix, shape, and resource
   behavior to avoid per-entry overhead and tail effects.
