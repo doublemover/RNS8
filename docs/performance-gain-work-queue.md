@@ -2026,7 +2026,20 @@ Technical direction:
 
 Likely first slices:
 
-- Multi-output-cell direct-HIP variant.
+- Multi-output-cell direct-HIP variant. Implemented as the opt-in
+  `direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5` experiment behind
+  `RNS8_WRAP64_HIP_COLPAIR_EXPERIMENT=1` for large `K <= 4096` wrap64 shapes.
+  It computes two adjacent output cells per thread while reusing the staged A
+  byte-limb cell, reports a distinct `wrap64_byte_gemm36_colpair_2d_kernel`
+  GPU event phase, and has CPU differential coverage for a 256x257x5 odd-column
+  tail. Windows `gfx1100` release captures under
+  `temp/perf-work-queue/wrap64-colpair-experiment-current/` are schema/event
+  valid, but do not promote the variant: at 512, default v4 beat colpair on
+  both GEMM median (904.7 us vs 2501.2 us) and end-to-end median (2339 us vs
+  7750 us); at 1024, colpair improved GEMM median only narrowly (4466.0 us vs
+  4838.8 us) while losing end-to-end median (9775 us vs 9657 us). Keep default
+  routing on v4 and treat colpair as an inspectable tuning candidate, not a
+  performance win.
 - 2048 v4 exploratory run and ISA/resource report.
 
 Relation to new architecture work:

@@ -13,9 +13,11 @@ from typing import Any
 
 SCHEMA_VERSION = 4
 WRAP64_HIP_U32_ACCUMULATOR_MAX_K = 4096
+WRAP64_HIP_COLPAIR_MIN_DIMENSION = 256
 WRAP64_LOW_PRODUCT_DIAGONALS = 8
 WRAP64_HIP_U32_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
 WRAP64_HIP_U64_KERNEL = "direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4"
+WRAP64_HIP_U32_COLPAIR_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5"
 BASELINE_STATUS_REQUIRED_NOT_RECORDED = "required_not_recorded"
 BASELINE_STATUS_REVIEWED = "reviewed_same_contract_baseline"
 BASELINE_STATUS_RELEASE_REVIEWED = "reviewed_release_same_contract_baseline"
@@ -45,8 +47,32 @@ BOUND_DISCOVERY_SOURCES = {
 }
 
 
-def wrap64_hip_expected_kernel(k_value: int) -> str:
-    return WRAP64_HIP_U32_KERNEL if 0 < k_value <= WRAP64_HIP_U32_ACCUMULATOR_MAX_K else WRAP64_HIP_U64_KERNEL
+def wrap64_hip_shape_supports_colpair_kernel(m_value: int, n_value: int, k_value: int) -> bool:
+    if not all(type(value) is int for value in [m_value, n_value, k_value]):
+        return False
+    return (
+        0 < k_value <= WRAP64_HIP_U32_ACCUMULATOR_MAX_K
+        and m_value >= WRAP64_HIP_COLPAIR_MIN_DIMENSION
+        and n_value >= WRAP64_HIP_COLPAIR_MIN_DIMENSION
+    )
+
+
+def wrap64_hip_allowed_kernels(m_value: int, n_value: int, k_value: int) -> set[str]:
+    if wrap64_hip_shape_supports_colpair_kernel(m_value, n_value, k_value):
+        return {WRAP64_HIP_U32_KERNEL, WRAP64_HIP_U32_COLPAIR_KERNEL}
+    return (
+        {WRAP64_HIP_U32_KERNEL}
+        if type(k_value) is int and 0 < k_value <= WRAP64_HIP_U32_ACCUMULATOR_MAX_K
+        else {WRAP64_HIP_U64_KERNEL}
+    )
+
+
+def wrap64_hip_expected_gemm_event_label(selected_kernel: Any) -> str:
+    return (
+        "wrap64_byte_gemm36_colpair_2d_kernel"
+        if selected_kernel == WRAP64_HIP_U32_COLPAIR_KERNEL
+        else "wrap64_byte_gemm36_tiled_2d_kernel"
+    )
 
 
 BOUND_KINDS = {
@@ -1831,9 +1857,12 @@ class _Validator:
             if bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
             if self.data.get("backend_selected") == "hip-direct":
-                expected_kernel = wrap64_hip_expected_kernel(k_value)
-                if self.data.get("selected_kernel") != expected_kernel:
-                    self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
+                allowed_kernels = wrap64_hip_allowed_kernels(self.data.get("m"), self.data.get("n"), k_value)
+                if self.data.get("selected_kernel") not in allowed_kernels:
+                    self._error(
+                        "direct-HIP wrap64 captures must use selected_kernel in "
+                        f"{sorted(allowed_kernels)}"
+                    )
                 if isinstance(backend_metadata, dict):
                     if backend_metadata.get("epilogue_mode") != "low64_wrap_export":
                         self._error("direct-HIP wrap64 captures must use backend_metadata.epilogue_mode=low64_wrap_export")
@@ -3187,6 +3216,29 @@ class _Validator:
                     self._error(
                         "direct-HIP bounded native-B reuse-A GPU event phase order must match the operation order"
                     )
+            return
+        if self.data.get("semantics") == "wrap_u64_mod_2_64" and backend == "hip-direct":
+            expected = [
+                "pack_h2d",
+                "pack_kernel",
+                "pack",
+                wrap64_hip_expected_gemm_event_label(self.data.get("selected_kernel")),
+                "rns_gemm",
+                "wrap64_export_kernel",
+                "wrap64_export_d2h",
+                "crt_export",
+            ]
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(f"direct-HIP wrap64 GPU event phase set is incomplete; missing {', '.join(missing)}")
+                if extra:
+                    self._error(
+                        f"direct-HIP wrap64 GPU event phase set contains undeclared phases: {', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error("direct-HIP wrap64 GPU event phase order must match the operation order")
             return
         if backend == "hip-vector-alu-int64":
             expected = self._expected_vector_gpu_event_phases()

@@ -55,11 +55,16 @@ Current status:
   direct-HIP kernel uses direct unsigned byte products, accumulates the low
   Comba diagonals in uint32 where safe, widens during carry propagation, and
   keeps scalar pack/export kernels for 64-like shapes where vectorized compact
-  pack/export lost end-to-end. The signedness correction algebra remains
-  implemented and tested on CPU for any future backend that exposes only signed
-  INT8 products. Matrix-engine byte-GEMM36 remains intentionally disabled until
-  a compiled unsigned-byte or correctly corrected signed-INT8 matrix instruction
-  path has ISA evidence and exact differentials.
+  pack/export lost end-to-end. An experimental two-output-cell colpair kernel,
+  `direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5`, is compiled and can be
+  selected for large `K <= 4096` shapes by setting
+  `RNS8_WRAP64_HIP_COLPAIR_EXPERIMENT=1`; it is not the default because current
+  Windows `gfx1100` captures did not show a net end-to-end win over v4. The
+  signedness correction algebra remains implemented and tested on CPU for any
+  future backend that exposes only signed INT8 products. Matrix-engine
+  byte-GEMM36 remains intentionally disabled until a compiled unsigned-byte or
+  correctly corrected signed-INT8 matrix instruction path has ISA evidence and
+  exact differentials.
 - Bounded `RNS8_BOUNDED_U64` calls are exact-result calls, not wraparound
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.

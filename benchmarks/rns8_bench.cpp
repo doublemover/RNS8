@@ -3003,6 +3003,10 @@ void append_hipblaslt_gemm_event_phases(std::vector<std::string>& phases, const 
   phases.push_back("rns_gemm");
 }
 
+const char* wrap64_direct_hip_gemm_event_label(const Args& args) {
+  return rns8::detail::wrap64_hip_gemm_event_label_for_shape(args.m, args.n, args.k);
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -3060,7 +3064,7 @@ std::vector<std::string> gpu_event_phase_order(
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "wrap64_byte_gemm36_tiled_2d_kernel",
+        wrap64_direct_hip_gemm_event_label(args),
         "rns_gemm",
         "wrap64_export_kernel",
         "wrap64_export_d2h",
@@ -3786,7 +3790,8 @@ void collect_rns_gemm_gpu_events(
 
 void collect_wrap64_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const char* label = args.wrap64_rocwmma_candidate ? kWrap64RocwmmaCandidateEventLabel : "wrap64_byte_gemm36_tiled_2d_kernel";
+  const char* label =
+      args.wrap64_rocwmma_candidate ? kWrap64RocwmmaCandidateEventLabel : wrap64_direct_hip_gemm_event_label(args);
   const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
     push_gpu_event_value(events, label, kernel);
@@ -6089,7 +6094,7 @@ const char* selected_kernel_name(
     return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
-    return rns8::detail::wrap64_hip_selected_kernel_for_k(args.k);
+    return rns8::detail::wrap64_hip_selected_kernel_for_shape(args.m, args.n, args.k);
   }
   return nullptr;
 }

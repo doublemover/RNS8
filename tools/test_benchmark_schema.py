@@ -1224,6 +1224,43 @@ def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
     return candidate
 
 
+def as_large_wrap64_colpair_capture(capture: dict) -> dict:
+    colpair = copy.deepcopy(capture)
+    old_kernel = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+    new_kernel = "direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5"
+    old_event = "wrap64_byte_gemm36_tiled_2d_kernel"
+    new_event = "wrap64_byte_gemm36_colpair_2d_kernel"
+    colpair["m"] = 256
+    colpair["n"] = 256
+    colpair["k"] = 256
+    colpair["k_block_size"] = 256
+    colpair["selected_kernel"] = new_kernel
+    colpair["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics wrap-u64 --m 256 --n 256 --k 256 "
+        "--warmups 1 --repeats 2 --seed 11"
+    )
+    colpair["backend_metadata"]["selected_kernel"] = new_kernel
+    colpair["backend_metadata"]["accumulator_safety"]["k_block_size"] = 256
+    colpair["backend_metadata"]["autotune_key"] = (
+        colpair["backend_metadata"]["autotune_key"]
+        .replace(";m=4;", ";m=256;")
+        .replace(";n=4;", ";n=256;")
+        .replace(";k=8;", ";k=256;")
+        .replace(";k_block_size=8;", ";k_block_size=256;")
+        .replace(f"kernel={old_kernel}", f"kernel={new_kernel}")
+    )
+    phase_order = colpair["timing_metadata"].get("gpu_event_phase_order")
+    if isinstance(phase_order, list):
+        colpair["timing_metadata"]["gpu_event_phase_order"] = [
+            new_event if item == old_event else item for item in phase_order
+        ]
+    for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
+        values = colpair.get(field)
+        if isinstance(values, dict) and old_event in values:
+            values[new_event] = values.pop(old_event)
+    return colpair
+
+
 def main() -> int:
     v4_wrap64_hip = expect_valid("v4_wrap64_hip.json")
     v4_adaptive_u64 = expect_valid("v4_bounded_u64_adaptive_hip.json")
@@ -1358,6 +1395,57 @@ def main() -> int:
     }
     expect_invalid(stale_per_tile_scan_global_availability, "phase_availability.global_bound_scan.timed must be false")
     wrap64 = v4_wrap64_hip
+    large_wrap64_colpair = as_large_wrap64_colpair_capture(v4_wrap64_hip)
+    validate_capture(large_wrap64_colpair)
+
+    default_large_wrap64_kernel = copy.deepcopy(large_wrap64_colpair)
+    default_large_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+    default_large_wrap64_kernel["backend_metadata"]["selected_kernel"] = (
+        "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+    )
+    default_large_wrap64_kernel["backend_metadata"]["autotune_key"] = default_large_wrap64_kernel[
+        "backend_metadata"
+    ]["autotune_key"].replace(
+        "kernel=direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5",
+        "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
+    )
+    default_large_wrap64_kernel["timing_metadata"]["gpu_event_phase_order"] = [
+        "wrap64_byte_gemm36_tiled_2d_kernel"
+        if item == "wrap64_byte_gemm36_colpair_2d_kernel"
+        else item
+        for item in default_large_wrap64_kernel["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    default_large_wrap64_kernel["gpu_event_timings_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
+        default_large_wrap64_kernel["gpu_event_timings_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+    )
+    default_large_wrap64_kernel["gpu_event_timing_summary_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
+        default_large_wrap64_kernel["gpu_event_timing_summary_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+    )
+    validate_capture(default_large_wrap64_kernel)
+
+    too_small_wrap64_colpair_kernel = copy.deepcopy(large_wrap64_colpair)
+    too_small_wrap64_colpair_kernel["m"] = 128
+    too_small_wrap64_colpair_kernel["n"] = 128
+    too_small_wrap64_colpair_kernel["backend_metadata"]["autotune_key"] = too_small_wrap64_colpair_kernel[
+        "backend_metadata"
+    ]["autotune_key"].replace(";m=256;", ";m=128;").replace(";n=256;", ";n=128;")
+    expect_invalid(too_small_wrap64_colpair_kernel, "direct-HIP wrap64 captures must use selected_kernel")
+
+    stale_large_wrap64_colpair_event = copy.deepcopy(large_wrap64_colpair)
+    stale_large_wrap64_colpair_event["timing_metadata"]["gpu_event_phase_order"] = [
+        "wrap64_byte_gemm36_tiled_2d_kernel"
+        if item == "wrap64_byte_gemm36_colpair_2d_kernel"
+        else item
+        for item in stale_large_wrap64_colpair_event["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    stale_large_wrap64_colpair_event["gpu_event_timings_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
+        stale_large_wrap64_colpair_event["gpu_event_timings_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+    )
+    stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"]["wrap64_byte_gemm36_tiled_2d_kernel"] = (
+        stale_large_wrap64_colpair_event["gpu_event_timing_summary_us"].pop("wrap64_byte_gemm36_colpair_2d_kernel")
+    )
+    expect_invalid(stale_large_wrap64_colpair_event, "wrap64_byte_gemm36_colpair_2d_kernel")
+
     v4_wrap64_rocwmma_candidate = as_wrap64_rocwmma_candidate_capture(v4_wrap64_hip)
     validate_capture(v4_wrap64_rocwmma_candidate)
 

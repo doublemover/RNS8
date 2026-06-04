@@ -336,7 +336,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      return rns8::detail::wrap64_hip_selected_kernel_for_k(plan.desc.k);
+      return rns8::detail::wrap64_hip_selected_kernel_for_shape(plan.desc.m, plan.desc.n, plan.desc.k);
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       if (plan.desc.finite_modulus == 256) {

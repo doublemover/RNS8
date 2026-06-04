@@ -266,7 +266,8 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  const hipError_t err = timed_hip_operation("wrap64_byte_gemm36_tiled_2d_kernel", [&]() {
+  const char* event_label = wrap64_hip_gemm_event_label_for_shape(m, n, k);
+  const hipError_t err = timed_hip_operation(event_label, [&]() {
     const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
         static_cast<const uint8_t*>(device_a_limbs),
         static_cast<const uint8_t*>(device_b_limbs),
