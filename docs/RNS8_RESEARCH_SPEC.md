@@ -627,6 +627,9 @@ tiled wrappers must reject non-covering tile grids, duplicate tile coordinates,
 stale selected-prefix group metadata, and invalid prefix metadata before launch
 or export-buffer growth. Zero-output tiles may have zero range bits and remain
 valid when their required and selected prefixes are otherwise well formed.
+Direct HIP all-zero scheduled exports zero-fill the compact native export
+buffer directly and do not upload tile schedule/bounds metadata for the export
+because no tile-local CRT work can run on that contract.
 Optimized matrix engine grouped kernels remain a separate validation target.
 
 For each tile:

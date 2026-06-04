@@ -208,8 +208,9 @@ Implemented correctness coverage:
   tiles are present; stale v2 adaptive captures are rejected for that schedule
   contract.
 - Direct-HIP all-zero scheduled bounded exports copy native zeros through the
-  compact export buffer without allocating or round-tripping the export status
-  buffer. Mixed zero/nonzero schedules keep the checked CRT export status path.
+  compact export buffer without uploading export tile schedule/bounds metadata
+  or allocating and round-tripping the export status buffer. Mixed zero/nonzero
+  schedules keep the checked CRT export status path.
 - Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
   low-level coverage. Private wrap64 HIP tests also cover padded-host pack and
   export into compact device byte-limb storage with reusable helper buffers. The

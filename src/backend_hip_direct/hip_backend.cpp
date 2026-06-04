@@ -3078,19 +3078,22 @@ rns8_status hip_direct_export_i64_tiled_device(
     int64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !device_entries ||
-      !device_bounds ||
-      !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
-      !checked_output_bytes(rows, cols, sizeof(int64_t)) || entry_count == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
-      max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+  if (!device_residues || !export_buffer || !export_bytes || !dst || ld < cols ||
+      !checked_matrix_elements_i32(rows, cols) || !checked_output_bytes(rows, cols, sizeof(int64_t))) {
     return RNS8_INVALID_ARGUMENT;
   }
   constexpr uint64_t export_threads = 256;
-  const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
-  if (blocks_per_tile == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
-    return RNS8_INVALID_ARGUMENT;
+  if (!all_zero_output_tiles) {
+    if (!status_buffer || !status_bytes || !device_entries || !device_bounds || entry_count == 0 ||
+        entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
+        max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
+    if (blocks_per_tile == 0 ||
+        entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
+      return RNS8_INVALID_ARGUMENT;
+    }
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -3279,19 +3282,22 @@ rns8_status hip_direct_export_u64_tiled_device(
     uint64_t* dst,
     int64_t ld) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_residues || !export_buffer || !export_bytes || !status_buffer || !status_bytes || !device_entries ||
-      !device_bounds ||
-      !dst || ld < cols || !checked_matrix_elements_i32(rows, cols) ||
-      !checked_output_bytes(rows, cols, sizeof(uint64_t)) || entry_count == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
-      max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+  if (!device_residues || !export_buffer || !export_bytes || !dst || ld < cols ||
+      !checked_matrix_elements_i32(rows, cols) || !checked_output_bytes(rows, cols, sizeof(uint64_t))) {
     return RNS8_INVALID_ARGUMENT;
   }
   constexpr uint64_t export_threads = 256;
-  const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
-  if (blocks_per_tile == 0 ||
-      entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
-    return RNS8_INVALID_ARGUMENT;
+  if (!all_zero_output_tiles) {
+    if (!status_buffer || !status_bytes || !device_entries || !device_bounds || entry_count == 0 ||
+        entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) || max_tile_elements == 0 ||
+        max_tile_elements > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const uint64_t blocks_per_tile = (max_tile_elements + export_threads - 1u) / export_threads;
+    if (blocks_per_tile == 0 ||
+        entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max()) / blocks_per_tile) {
+      return RNS8_INVALID_ARGUMENT;
+    }
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {

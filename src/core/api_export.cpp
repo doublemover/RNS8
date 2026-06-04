@@ -251,9 +251,12 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           return RNS8_INTERNAL_ERROR;
         }
         auto* mutable_c = const_cast<rns8_matrix*>(C);
-        const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
-        if (metadata_status != RNS8_SUCCESS) {
-          return metadata_status;
+        const bool all_zero_output_tiles = schedule_all_zero_output_tiles(*plan);
+        if (!all_zero_output_tiles) {
+          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+          if (metadata_status != RNS8_SUCCESS) {
+            return metadata_status;
+          }
         }
         return rns8::detail::hip_direct_export_i64_tiled_device(
             ctx->device_id,
@@ -264,11 +267,11 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
             &mutable_c->hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            mutable_c->hip_export_tile_schedule,
-            mutable_c->hip_export_tile_bounds,
-            mutable_c->hip_export_tile_schedule_count,
-            mutable_c->hip_export_tile_max_elements,
-            schedule_all_zero_output_tiles(*plan),
+            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_schedule,
+            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_bounds,
+            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_schedule_count,
+            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_max_elements,
+            all_zero_output_tiles,
             dst,
             ld);
       }
@@ -338,9 +341,12 @@ rns8_status rns8_export_u64(
           return RNS8_INTERNAL_ERROR;
         }
         auto* mutable_c = const_cast<rns8_matrix*>(C);
-        const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
-        if (metadata_status != RNS8_SUCCESS) {
-          return metadata_status;
+        const bool all_zero_output_tiles = schedule_all_zero_output_tiles(*plan);
+        if (!all_zero_output_tiles) {
+          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+          if (metadata_status != RNS8_SUCCESS) {
+            return metadata_status;
+          }
         }
         return rns8::detail::hip_direct_export_u64_tiled_device(
             ctx->device_id,
@@ -351,11 +357,11 @@ rns8_status rns8_export_u64(
             &mutable_c->hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            mutable_c->hip_export_tile_schedule,
-            mutable_c->hip_export_tile_bounds,
-            mutable_c->hip_export_tile_schedule_count,
-            mutable_c->hip_export_tile_max_elements,
-            schedule_all_zero_output_tiles(*plan),
+            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_schedule,
+            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_bounds,
+            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_schedule_count,
+            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_max_elements,
+            all_zero_output_tiles,
             dst,
             ld);
       }
