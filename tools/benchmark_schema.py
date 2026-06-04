@@ -59,6 +59,14 @@ BOUND_KINDS = {
 }
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 OUTPUT_DESTINATION_LAYOUTS = {"contiguous_row_major", "padded_row_major"}
+DIRECT_HIP_EXPORT_STAGING_POLICIES = {
+    "not_applicable",
+    "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "wrap64_forced_only_pending_padded_staging_evidence",
+    "exact_wide_signed_forced_only_local_gfx1100_padded_staging_loses",
+    "large_padded_outputs_only_default",
+}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
@@ -829,6 +837,12 @@ class _Validator:
             self._error("timing_metadata.benchmark_output_logical_ld must match output_logical_ld")
         if metadata.get("benchmark_output_ld_padding") != padding:
             self._error("timing_metadata.benchmark_output_ld_padding must match output_ld_padding")
+        staging_policy = metadata.get("direct_hip_export_staging_policy")
+        if staging_policy not in DIRECT_HIP_EXPORT_STAGING_POLICIES:
+            self._error(
+                "timing_metadata.direct_hip_export_staging_policy must be one of "
+                f"{sorted(DIRECT_HIP_EXPORT_STAGING_POLICIES)}"
+            )
 
     def _validate_hip_toolchain(self) -> None:
         toolchain = self._require("hip_toolchain", "dict")

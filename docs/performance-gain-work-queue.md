@@ -1922,8 +1922,26 @@ Likely first slices:
 - Prefix-9 bounded export specialization. Implemented for fixed-prefix
   Direct-HIP bounded export, and now also used by scheduled per-tile adaptive
   bounded export through selected-prefix 1..9 compile-time CRT dispatch.
-- Exact-wide compact D2H staging.
-- Status phase timing split across accelerator exports.
+- Exact-wide compact D2H staging. Implemented through the shared Direct-HIP
+  compact export copier for exact-wide signed and unsigned limb exports. Large
+  padded signed exact-wide exports now stay on the direct compact/pitched D2H
+  path by default because repeated Windows `gfx1100` release captures under
+  `temp/perf-work-queue/exact-wide-export-staging/` showed forced pinned staging
+  losing for signed 512x512x512 limb-4 export (`crt_export` median 3084.39 us
+  and 3497.97 us in two forced r33 runs versus 1009.40 us and 2282.29 us in the
+  matching disabled r33 runs). `RNS8_HIP_PINNED_EXPORT_STAGING=1` can still force
+  the path for experiments, and unsigned exact-wide limb-3 keeps the padded
+  default because the same matrix showed a host-export median win
+  (774.88 us forced versus 1084.08 us disabled).
+- Status phase timing split across accelerator exports. Implemented in the
+  benchmark/schema contract: bounded exports report `crt_export_status_memset`,
+  `crt_export_kernel`, `crt_export_status_d2h`, and `crt_export_d2h`, while
+  exact-wide exports report `exact_wide_export_status_memset`,
+  `exact_wide_export_kernel`, `exact_wide_export_status_d2h`, and
+  `exact_wide_export_d2h` across Direct-HIP, CK, rocWMMA, and hipBLASLt captures
+  that use Direct-HIP export. Full-width exact-wide captures whose limb count
+  covers the backend reconstruction width require zero-valued status phases and
+  reject stale nonzero status timing.
 
 Relation to new architecture work:
 
@@ -2159,13 +2177,13 @@ Likely first slices:
   too noisy for a headline claim.
 - Pinned host export staging for large padded Direct-HIP outputs. Implemented
   as an internal reusable thread-local HIP pinned host buffer for bounded,
-  finite-u8, and exact-wide Direct-HIP exports whose compact output copy is at
-  least 64 KiB and whose caller destination has padding. The backend copies
-  compact device export buffers into pinned staging, scatters into the caller's
-  requested leading dimension on the host, preserves the existing required
-  `crt_export_d2h` / `finite_export_d2h` / `exact_wide_export_d2h` GPU event
-  labels, and emits an ignored diagnostic timing sample named
-  `export_host_staging_copy` when backend timing is enabled.
+  finite-u8, and selected exact-wide Direct-HIP exports whose compact output
+  copy is at least 64 KiB and whose caller destination has padding. The backend
+  copies compact device export buffers into pinned staging, scatters into the
+  caller's requested leading dimension on the host, preserves the existing
+  required `crt_export_d2h` / `finite_export_d2h` /
+  `exact_wide_export_d2h` GPU event labels, and emits an ignored diagnostic
+  timing sample named `export_host_staging_copy` when backend timing is enabled.
   `rns8-bench` now records `direct_hip_export_staging_policy`,
   `direct_hip_pinned_export_staging_threshold_bytes`, and the benchmark output
   destination layout in `timing_metadata`, so capture metadata distinguishes
@@ -2176,13 +2194,18 @@ Likely first slices:
   contiguous destinations as different contracts.
   `RNS8_HIP_PINNED_EXPORT_STAGING=0` disables the staging path, while
   `RNS8_HIP_PINNED_EXPORT_STAGING=1` forces it for contiguous-output A/B
-  measurements. A 512x512 contiguous-output Windows `gfx1100` smoke did not
-  support default-on staging, so contiguous benchmark outputs keep the existing
-  linear D2H path by default. Focused 128x128 Windows `gfx1100` smokes under
+  measurements and for force-only semantics. A 512x512 contiguous-output
+  Windows `gfx1100` smoke did not support default-on staging, so contiguous
+  benchmark outputs keep the existing linear D2H path by default. Focused
+  128x128 Windows `gfx1100` smokes under
   `temp/perf-work-queue/padded-output-ld/` validated default padded, disabled
   padded, and forced contiguous captures with matching logical checksums and
-  required GPU events. This is an implemented transfer path, not yet a reviewed
-  headline speedup claim.
+  required GPU events. Exact-wide signed padded staging is now force-only after
+  local 512x512x512 limb-4 r33 captures showed it losing to disabled staging on
+  host export medians, while exact-wide unsigned limb-3 keeps default padded
+  staging because the same validation showed a host-export median win. This is
+  an implemented transfer path with semantic-specific default policy, not a
+  blanket headline speedup claim.
 - Wrap64 padded export staging follow-up. Implemented the reusable compact
   export copier as a shared Direct-HIP internal utility so the wrap64 byte-limb
   export path can exercise the pinned staging pool and host scatter path without

@@ -6031,6 +6031,104 @@ TEST_CASE("direct HIP exact-wide max-width padded export matches CPU ABI") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP exact-wide large padded export staging preserves ABI and elides status") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for exact-wide large padded export staging smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr int64_t m = 48;
+  constexpr int64_t n = 48;
+  constexpr int64_t k = 1;
+  constexpr int64_t limb_ld = 53;
+  constexpr uint32_t limb_count = 4;
+  static_assert(m * n * limb_count * static_cast<int64_t>(sizeof(uint64_t)) > 64 * 1024);
+
+  auto cpu_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* cpu_plan = nullptr;
+  rns8_plan* hip_plan = nullptr;
+  rns8_matrix* cpu_c = nullptr;
+  rns8_matrix* hip_c = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+
+  std::vector<boost::multiprecision::cpp_int> values;
+  values.reserve(static_cast<std::size_t>(m * n));
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      boost::multiprecision::cpp_int value =
+          ((row - col) * 257) + static_cast<int64_t>((row * col) % 97);
+      if ((row + col) % 19 == 0) {
+        value = -value - 1;
+      }
+      values.push_back(value);
+    }
+  }
+  fill_exact_residue_matrix(cpu_c, values);
+  fill_exact_residue_matrix(hip_c, values);
+  upload_exact_residues_to_hip(hip_c);
+
+  constexpr uint64_t sentinel = 0x4848484848484848ull;
+  std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
+          RNS8_SUCCESS);
+
+  {
+    ScopedEnvVar disable_staging("RNS8_HIP_PINNED_EXPORT_STAGING", "0");
+    std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    const auto export_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+
+    CHECK(has_timing_label(export_events, "exact_wide_export_kernel"));
+    CHECK(has_timing_label(export_events, "exact_wide_export_d2h"));
+    CHECK_FALSE(has_timing_label(export_events, "export_host_staging_copy"));
+    CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_memset"));
+    CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_d2h"));
+    CHECK(hip_limbs == cpu_limbs);
+  }
+
+  {
+    ScopedEnvVar force_staging("RNS8_HIP_PINNED_EXPORT_STAGING", "1");
+    std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), sentinel);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
+    const auto export_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+
+    CHECK(has_timing_label(export_events, "exact_wide_export_kernel"));
+    CHECK(has_timing_label(export_events, "exact_wide_export_d2h"));
+    CHECK(has_timing_label(export_events, "export_host_staging_copy"));
+    CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_memset"));
+    CHECK_FALSE(has_timing_label(export_events, "exact_wide_export_status_d2h"));
+    CHECK(hip_c->hip_status_buffer == nullptr);
+    CHECK(hip_limbs == cpu_limbs);
+    for (int64_t row = 0; row < m; ++row) {
+      const std::size_t padding = static_cast<std::size_t>((row * limb_ld + n) * limb_count);
+      for (uint32_t limb = 0; limb < limb_count; ++limb) {
+        CHECK(hip_limbs[padding + limb] == sentinel);
+      }
+    }
+  }
+
+  rns8_destroy_matrix(hip_c);
+  rns8_destroy_matrix(cpu_c);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP exact-wide export requires device-current resident residues") {
   if (!hip_available()) {
     SKIP("no HIP device available for exact-wide device-current export smoke");

@@ -964,6 +964,9 @@ const char* direct_hip_export_staging_policy(const Args& args, rns8_backend_kind
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return "wrap64_forced_only_pending_padded_staging_evidence";
   }
+  if (args.semantics == BenchSemantics::ExactWideSigned) {
+    return "exact_wide_signed_forced_only_local_gfx1100_padded_staging_loses";
+  }
   return "large_padded_outputs_only_default";
 }
 

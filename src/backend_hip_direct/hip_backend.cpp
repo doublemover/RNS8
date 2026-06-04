@@ -4080,7 +4080,8 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
       *export_buffer,
       rows,
       cols,
-      static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
+      static_cast<std::size_t>(limb_count) * sizeof(uint64_t),
+      false);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

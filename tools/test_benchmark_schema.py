@@ -124,6 +124,7 @@ def add_output_padding_fields(capture: dict, padding: int) -> dict:
     )
     capture["timing_metadata"]["benchmark_output_logical_ld"] = output_ld
     capture["timing_metadata"]["benchmark_output_ld_padding"] = padding
+    capture["timing_metadata"].setdefault("direct_hip_export_staging_policy", "not_applicable")
     return capture
 
 
@@ -1278,6 +1279,10 @@ def main() -> int:
     stale_output_metadata = copy.deepcopy(padded_output)
     stale_output_metadata["timing_metadata"]["benchmark_output_logical_ld"] += 1
     expect_invalid(stale_output_metadata, "benchmark_output_logical_ld must match output_logical_ld")
+
+    stale_staging_policy = copy.deepcopy(padded_output)
+    stale_staging_policy["timing_metadata"]["direct_hip_export_staging_policy"] = "large_padded_outputs_always"
+    expect_invalid(stale_staging_policy, "direct_hip_export_staging_policy")
 
     missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
     del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]
