@@ -1906,6 +1906,17 @@ def main() -> int:
     bad_v4_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_comba_correctness_v1"
     expect_invalid(bad_v4_wrap64_kernel, "byte_gemm36")
 
+    stale_v3_wrap64_kernel = copy.deepcopy(v4_wrap64_hip)
+    stale_v3_wrap64_kernel["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
+    stale_v3_wrap64_kernel["backend_metadata"]["selected_kernel"] = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
+    stale_v3_wrap64_kernel["backend_metadata"]["autotune_key"] = stale_v3_wrap64_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
+        "kernel=direct_hip_wrap64_byte_gemm36_tiled_2d_v3",
+    )
+    expect_invalid(stale_v3_wrap64_kernel, "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4")
+
     bad_event_nullability = copy.deepcopy(wrap64)
     bad_event_nullability["timing_metadata"]["gpu_event_timing"] = False
     bad_event_nullability["timing_metadata"]["gpu_event_timing_source"] = None

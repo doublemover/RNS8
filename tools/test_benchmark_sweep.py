@@ -337,7 +337,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
         metadata["autotune_key"] = metadata["autotune_key"].replace(
-            "kernel=direct_hip_wrap64_byte_gemm36_tiled_2d_v3",
+            "kernel=direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4",
             "kernel=cpu_wrap64_byte_limb_reference_v1",
         )
         capture["device"] = {

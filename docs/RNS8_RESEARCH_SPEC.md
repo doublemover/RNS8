@@ -1219,7 +1219,9 @@ bits, apply unsigned-byte or signed-correction algebra explicitly, fuse
 diagonal accumulation and carry propagation, and write low-64 output without
 materializing full per-cell INT32 scratch. It ships only after exact CPU
 byte-limb and direct-HIP wrap64 differentials, ISA matrix-instruction evidence,
-and release timings beat `direct_hip_wrap64_byte_gemm36_tiled_2d_v3`.
+and release timings beat `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4`
+for local `K <= 4096` shapes or the corresponding direct-HIP v4
+u64-accumulator fallback for larger K shapes.
 
 Low-bit research retirement rules are mandatory:
 
@@ -1519,7 +1521,9 @@ Ship rule: a matrix-engine wrap64 path ships only after it proves unsigned-byte
 or signed-corrected byte-GEMM36 algebra against the CPU byte-limb oracle,
 matches direct-HIP wrap64 output across carry-heavy and padded/tail cases,
 emits real matrix instructions, fuses carry propagation into low-64 export, and
-beats `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` in reviewed release captures.
+beats `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` in reviewed release
+captures for local `K <= 4096` shapes or the corresponding direct-HIP v4
+u64-accumulator fallback for larger K shapes.
 
 ### 17.8 Packed Layout And Prepack Cache
 
@@ -1652,7 +1656,7 @@ exist.
 | E098 | CK tile/scheduler/pipeline sweep | tune or retire per shape |
 | E099 | rocWMMA layout/prepack sweep | tune or retire per shape |
 | E100 | AMDGPU builtin IU8/IU4 hot kernel | ship only if faster than CK/rocWMMA |
-| E101 | wrap64 matrix-engine byte-GEMM36 | ship only if faster than direct-HIP v3 across the reviewed wrap64 release matrix |
+| E101 | wrap64 matrix-engine byte-GEMM36 | ship only if faster than direct-HIP v4 across the reviewed wrap64 release matrix |
 | E102 | packed layout prepack cache | production after amortization proof |
 | E103 | INT4/IU4 matrix-engine research | retire unless faster than tuned INT8 |
 | E104 | FP8/Ozaki exact-arithmetic research | research-only with verification metadata |

@@ -9,7 +9,7 @@ Scope:
 
 - Platform: Windows HIP SDK on Radeon RX 7900 XTX / `gfx1100`.
 - Semantics: bounded i64/u64 square GEMM for the latest post-fix validation
-  passes.
+  passes, plus same-backend strict wrap64 Direct-HIP implementation comparisons.
 - Evidence standard: release builds, fixed seeds, three warmups, nine measured
   repeats, schema-valid captures, CPU reference checks, and required GPU event
   timing for GPU captures.
@@ -58,6 +58,25 @@ The colpair one-shot kernel was not promoted for bounded i64 because the same
 mapping regressed i64 release captures. It was also not routed for small
 bounded-u64 shapes because 64/128 averages were spike-sensitive on Windows
 `gfx1100`; they keep the prior v1 native-input grouped kernel.
+
+The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
+for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
+low-diagonal accumulation where safe, uint64 carry propagation, vectorized
+compact byte-limb load/store where shape evidence permits, and scalar
+pack/export fallbacks for 64-like shapes. These rows compare v4 against v3 with
+release binaries, three warmups, nine measured repeats, seed `20260604`,
+schema-valid/event-valid v4 captures, and checksum-matched before/after output.
+
+| Surface | Shape | New selected kernel | Median end-to-end speedup | Event GEMM median speedup | Status |
+|---|---:|---|---:|---:|---|
+| Strict wrap64 Direct-HIP default pack/GEMM/export | 64 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.08x | 1.38x | Local implementation win; CPU byte-limb still faster at 64 |
+| Strict wrap64 Direct-HIP default pack/GEMM/export | 128 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.17x | 2.17x | Local implementation win |
+| Strict wrap64 Direct-HIP default pack/GEMM/export | 512 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.02x | 2.04x | Positive but pack/export-noisy |
+| Strict wrap64 Direct-HIP default pack/GEMM/export | 1024 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 5.60x | 8.94x | Local implementation win |
+| Strict wrap64 Direct-HIP reuse-packed inputs | 64 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.22x | 1.45x | Local implementation win |
+| Strict wrap64 Direct-HIP reuse-packed inputs | 128 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 4.67x | 3.16x | Local implementation win |
+| Strict wrap64 Direct-HIP reuse-packed inputs | 512 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.07x | 1.99x | Positive but export-noisy |
+| Strict wrap64 Direct-HIP reuse-packed inputs | 1024 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 6.74x | 7.83x | Local implementation win |
 
 ## Reuse And Prepack Wins
 

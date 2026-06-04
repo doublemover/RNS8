@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "backend_wrap64/wrap64_hip_kernel_config.hpp"
 #include "rns8/rns8.h"
 
 namespace rns8::detail {

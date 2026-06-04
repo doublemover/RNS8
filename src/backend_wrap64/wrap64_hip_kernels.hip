@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "wrap64_hip_kernel_config.hpp"
+
 namespace {
 
 constexpr int kWrap64TileM = 16;
@@ -36,13 +38,25 @@ __device__ uint32_t rns8_wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, 
   return static_cast<uint32_t>(corrected);
 }
 
-__device__ void rns8_store_u64_limbs(uint8_t* dst, uint64_t value) {
+__device__ uint32_t rns8_wrap64_unsigned_byte_product(uint8_t a, uint8_t b) {
+  return static_cast<uint32_t>(a) * static_cast<uint32_t>(b);
+}
+
+__device__ void rns8_store_u64_limbs_vectorized(uint8_t* dst, uint64_t value) {
+  *reinterpret_cast<uint64_t*>(dst) = value;
+}
+
+__device__ uint64_t rns8_load_u64_limbs_vectorized(const uint8_t* src) {
+  return *reinterpret_cast<const uint64_t*>(src);
+}
+
+__device__ void rns8_store_u64_limbs_scalar(uint8_t* dst, uint64_t value) {
   for (uint32_t limb = 0; limb < kWrap64ByteLimbs; ++limb) {
     dst[limb] = static_cast<uint8_t>((value >> (8u * limb)) & 0xffu);
   }
 }
 
-__device__ uint64_t rns8_load_u64_limbs(const uint8_t* src) {
+__device__ uint64_t rns8_load_u64_limbs_scalar(const uint8_t* src) {
   uint64_t value = 0;
 #pragma unroll
   for (uint32_t limb = 0; limb < kWrap64ByteLimbs; ++limb) {
@@ -55,20 +69,24 @@ __device__ uint8_t rns8_wrap64_packed_limb_byte(uint64_t value, uint32_t limb) {
   return static_cast<uint8_t>((value >> (8u * limb)) & 0xffu);
 }
 
-__device__ void rns8_wrap64_store_low64_from_diagonals(uint8_t* dst, const uint64_t* diagonals) {
+template <typename Accumulator>
+__device__ uint64_t rns8_wrap64_low64_from_diagonals(const Accumulator* diagonals) {
   uint64_t carry = 0;
+  uint64_t value = 0;
 #pragma unroll
   for (uint32_t diagonal_index = 0; diagonal_index < kWrap64LowProductDiagonals; ++diagonal_index) {
-    const uint64_t column = diagonals[diagonal_index] + carry;
-    dst[diagonal_index] = static_cast<uint8_t>(column & 0xffu);
+    const uint64_t column = static_cast<uint64_t>(diagonals[diagonal_index]) + carry;
+    value |= (column & 0xffu) << (8u * diagonal_index);
     carry = column >> 8u;
   }
+  return value;
 }
 
+template <typename Accumulator>
 __device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(
     uint64_t a_value,
     uint64_t b_value,
-    uint64_t* diagonals) {
+    Accumulator* diagonals) {
   const uint8_t a0 = rns8_wrap64_packed_limb_byte(a_value, 0);
   const uint8_t a1 = rns8_wrap64_packed_limb_byte(a_value, 1);
   const uint8_t a2 = rns8_wrap64_packed_limb_byte(a_value, 2);
@@ -86,42 +104,42 @@ __device__ void rns8_wrap64_accumulate_byte_gemm36_from_packed_cells(
   const uint8_t b6 = rns8_wrap64_packed_limb_byte(b_value, 6);
   const uint8_t b7 = rns8_wrap64_packed_limb_byte(b_value, 7);
 
-  diagonals[0] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b0));
-  diagonals[1] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b1)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b0);
-  diagonals[2] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b2)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b0);
-  diagonals[3] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b3)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b2) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b0);
-  diagonals[4] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b4)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b3) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b2) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b0);
-  diagonals[5] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b5)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b4) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b3) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b2) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b0);
-  diagonals[6] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b6)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b5) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b4) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b3) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b2) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a6, b0);
-  diagonals[7] += static_cast<uint64_t>(rns8_wrap64_unsigned_byte_product_from_signed_i8(a0, b7)) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a1, b6) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a2, b5) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a3, b4) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a4, b3) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a5, b2) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a6, b1) +
-                  rns8_wrap64_unsigned_byte_product_from_signed_i8(a7, b0);
+  diagonals[0] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b0));
+  diagonals[1] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b1)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b0);
+  diagonals[2] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b2)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b1) +
+                  rns8_wrap64_unsigned_byte_product(a2, b0);
+  diagonals[3] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b3)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b2) +
+                  rns8_wrap64_unsigned_byte_product(a2, b1) +
+                  rns8_wrap64_unsigned_byte_product(a3, b0);
+  diagonals[4] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b4)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b3) +
+                  rns8_wrap64_unsigned_byte_product(a2, b2) +
+                  rns8_wrap64_unsigned_byte_product(a3, b1) +
+                  rns8_wrap64_unsigned_byte_product(a4, b0);
+  diagonals[5] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b5)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b4) +
+                  rns8_wrap64_unsigned_byte_product(a2, b3) +
+                  rns8_wrap64_unsigned_byte_product(a3, b2) +
+                  rns8_wrap64_unsigned_byte_product(a4, b1) +
+                  rns8_wrap64_unsigned_byte_product(a5, b0);
+  diagonals[6] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b6)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b5) +
+                  rns8_wrap64_unsigned_byte_product(a2, b4) +
+                  rns8_wrap64_unsigned_byte_product(a3, b3) +
+                  rns8_wrap64_unsigned_byte_product(a4, b2) +
+                  rns8_wrap64_unsigned_byte_product(a5, b1) +
+                  rns8_wrap64_unsigned_byte_product(a6, b0);
+  diagonals[7] += static_cast<Accumulator>(rns8_wrap64_unsigned_byte_product(a0, b7)) +
+                  rns8_wrap64_unsigned_byte_product(a1, b6) +
+                  rns8_wrap64_unsigned_byte_product(a2, b5) +
+                  rns8_wrap64_unsigned_byte_product(a3, b4) +
+                  rns8_wrap64_unsigned_byte_product(a4, b3) +
+                  rns8_wrap64_unsigned_byte_product(a5, b2) +
+                  rns8_wrap64_unsigned_byte_product(a6, b1) +
+                  rns8_wrap64_unsigned_byte_product(a7, b0);
 }
 
 __global__ void rns8_wrap64_pack_u64_kernel(
@@ -135,10 +153,27 @@ __global__ void rns8_wrap64_pack_u64_kernel(
   if (row >= rows || col >= cols) {
     return;
   }
-  rns8_store_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
+  rns8_store_u64_limbs_vectorized(
+      byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
 }
 
-__global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
+__global__ void rns8_wrap64_pack_u64_scalar_kernel(
+    const uint64_t* src,
+    uint8_t* byte_limbs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld) {
+  const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  if (row >= rows || col >= cols) {
+    return;
+  }
+  rns8_store_u64_limbs_scalar(
+      byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
+}
+
+template <typename Accumulator>
+__device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(
     const uint8_t* a_limbs,
     const uint8_t* b_limbs,
     uint8_t* c_limbs,
@@ -157,7 +192,7 @@ __global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
   const bool stores_output = row < m && col < n;
 
   // Strict mod 2^64 needs only the low eight product diagonals; higher diagonals are multiples of 2^64.
-  uint64_t diagonals[kWrap64LowProductDiagonals] = {};
+  Accumulator diagonals[kWrap64LowProductDiagonals] = {};
   for (int64_t k_base = 0; k_base < k; k_base += kWrap64TileK) {
     const int64_t k_extent = k - k_base < kWrap64TileK ? k - k_base : kWrap64TileK;
 
@@ -168,7 +203,8 @@ __global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
       const int64_t global_k = k_base + local_k;
       uint64_t value = 0;
       if (global_row < m && local_k < k_extent) {
-        value = rns8_load_u64_limbs(a_limbs + rns8_wrap64_compact_limb_index(global_row, global_k, k, 0));
+        value = rns8_load_u64_limbs_vectorized(
+            a_limbs + rns8_wrap64_compact_limb_index(global_row, global_k, k, 0));
       }
       a_tile[cell] = value;
     }
@@ -180,7 +216,8 @@ __global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
       const int64_t global_k = k_base + local_k;
       uint64_t value = 0;
       if (local_k < k_extent && global_col < n) {
-        value = rns8_load_u64_limbs(b_limbs + rns8_wrap64_compact_limb_index(global_k, global_col, n, 0));
+        value = rns8_load_u64_limbs_vectorized(
+            b_limbs + rns8_wrap64_compact_limb_index(global_k, global_col, n, 0));
       }
       b_tile[cell] = value;
     }
@@ -203,7 +240,27 @@ __global__ void rns8_wrap64_byte_gemm36_tiled_kernel(
   }
 
   uint8_t* dst = c_limbs + rns8_wrap64_compact_limb_index(row, col, n, 0);
-  rns8_wrap64_store_low64_from_diagonals(dst, diagonals);
+  rns8_store_u64_limbs_vectorized(dst, rns8_wrap64_low64_from_diagonals(diagonals));
+}
+
+__global__ void rns8_wrap64_byte_gemm36_tiled_u32acc_kernel(
+    const uint8_t* a_limbs,
+    const uint8_t* b_limbs,
+    uint8_t* c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  rns8_wrap64_byte_gemm36_tiled_kernel_impl<uint32_t>(a_limbs, b_limbs, c_limbs, m, n, k);
+}
+
+__global__ void rns8_wrap64_byte_gemm36_tiled_u64acc_kernel(
+    const uint8_t* a_limbs,
+    const uint8_t* b_limbs,
+    uint8_t* c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  rns8_wrap64_byte_gemm36_tiled_kernel_impl<uint64_t>(a_limbs, b_limbs, c_limbs, m, n, k);
 }
 
 __global__ void rns8_wrap64_export_u64_kernel(
@@ -216,7 +273,22 @@ __global__ void rns8_wrap64_export_u64_kernel(
   if (row >= rows || col >= cols) {
     return;
   }
-  dst[row * cols + col] = rns8_load_u64_limbs(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
+  dst[row * cols + col] =
+      rns8_load_u64_limbs_vectorized(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
+}
+
+__global__ void rns8_wrap64_export_u64_scalar_kernel(
+    const uint8_t* byte_limbs,
+    uint64_t* dst,
+    int64_t rows,
+    int64_t cols) {
+  const int64_t col = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t row = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  if (row >= rows || col >= cols) {
+    return;
+  }
+  dst[row * cols + col] =
+      rns8_load_u64_limbs_scalar(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
 }
 
 }  // namespace
@@ -233,17 +305,31 @@ extern "C" int rns8_wrap64_hip_pack_u64_device(
   const dim3 blocks(
       static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
       static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
-  hipLaunchKernelGGL(
-      rns8_wrap64_pack_u64_kernel,
-      blocks,
-      threads,
-      0,
-      nullptr,
-      src,
-      byte_limbs,
-      rows,
-      cols,
-      ld);
+  if (rns8::detail::wrap64_hip_uses_vectorized_pack_export(rows, cols)) {
+    hipLaunchKernelGGL(
+        rns8_wrap64_pack_u64_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        src,
+        byte_limbs,
+        rows,
+        cols,
+        ld);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_wrap64_pack_u64_scalar_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        src,
+        byte_limbs,
+        rows,
+        cols,
+        ld);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -258,18 +344,33 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
   const int64_t tile_rows = (m + kWrap64TileM - 1) / kWrap64TileM;
   const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
   const dim3 blocks(static_cast<unsigned int>(tile_cols), static_cast<unsigned int>(tile_rows));
-  hipLaunchKernelGGL(
-      rns8_wrap64_byte_gemm36_tiled_kernel,
-      blocks,
-      threads,
-      0,
-      nullptr,
-      a_limbs,
-      b_limbs,
-      c_limbs,
-      m,
-      n,
-      k);
+  if (rns8::detail::wrap64_hip_uses_u32_accumulator(k)) {
+    hipLaunchKernelGGL(
+        rns8_wrap64_byte_gemm36_tiled_u32acc_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        a_limbs,
+        b_limbs,
+        c_limbs,
+        m,
+        n,
+        k);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_wrap64_byte_gemm36_tiled_u64acc_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        a_limbs,
+        b_limbs,
+        c_limbs,
+        m,
+        n,
+        k);
+  }
   return static_cast<int>(hipGetLastError());
 }
 
@@ -284,15 +385,28 @@ extern "C" int rns8_wrap64_hip_export_u64_device(
   const dim3 blocks(
       static_cast<unsigned int>((cols + threads_x - 1) / threads_x),
       static_cast<unsigned int>((rows + threads_y - 1) / threads_y));
-  hipLaunchKernelGGL(
-      rns8_wrap64_export_u64_kernel,
-      blocks,
-      threads,
-      0,
-      nullptr,
-      byte_limbs,
-      dst,
-      rows,
-      cols);
+  if (rns8::detail::wrap64_hip_uses_vectorized_pack_export(rows, cols)) {
+    hipLaunchKernelGGL(
+        rns8_wrap64_export_u64_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        byte_limbs,
+        dst,
+        rows,
+        cols);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_wrap64_export_u64_scalar_kernel,
+        blocks,
+        threads,
+        0,
+        nullptr,
+        byte_limbs,
+        dst,
+        rows,
+        cols);
+  }
   return static_cast<int>(hipGetLastError());
 }

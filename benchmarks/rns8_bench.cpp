@@ -5395,7 +5395,7 @@ const char* selected_kernel_name(
     return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
-    return "direct_hip_wrap64_byte_gemm36_tiled_2d_v3";
+    return rns8::detail::wrap64_hip_selected_kernel_for_k(args.k);
   }
   return nullptr;
 }

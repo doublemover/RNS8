@@ -2577,7 +2577,7 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   hip_info.struct_size = sizeof(hip_info);
   hip_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(hip_plan, &hip_info) == RNS8_SUCCESS);
-  CHECK(std::string(hip_info.selected_kernel) == "direct_hip_wrap64_byte_gemm36_tiled_2d_v3");
+  CHECK(std::string(hip_info.selected_kernel) == "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4");
   CHECK(std::string(hip_info.isa_evidence) ==
         "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine");
   REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);

@@ -233,8 +233,9 @@ Remaining high-value imported work goes at the front of the queue:
   and hipBLASLt wins the 1024 field-251 group.
 - Exact-wide reviewed Windows `gfx1100` winners are CK for signed 1024 and
   unsigned 128/512/1024. Other exact-wide reviewed shapes stay on direct HIP.
-- Direct HIP `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` remains the measured
-  strict wrap64 GPU path. The internal rocWMMA wrap64 candidate matches
+- Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` is the
+  measured strict wrap64 GPU path for reviewed 64/128/512/1024 local
+  `gfx1100` shapes. The internal rocWMMA wrap64 candidate matches
   checksums in candidate-inclusive release review but loses to direct HIP at
   every 64/128/512/1024 shape.
 - rocWMMA has a narrow runtime reusable B cache for non-tiled RNS plans with
@@ -1548,7 +1549,7 @@ Likely first slices:
 
 - 2048 bounded-i64/u64 and finite-u8 first.
 - Exact-wide 2048 export-heavy profile.
-- Wrap64 direct-HIP v3 2048 exploratory run if runtime is tolerable.
+- Wrap64 direct-HIP v4 2048 exploratory run if runtime is tolerable.
 
 Relation to new architecture work:
 
@@ -1802,24 +1803,30 @@ Relation to new architecture work:
 - Feeds "CPU/GPU Hybrid AUTO", "Fused Pack+GEMM", "Shape-Specialized Paths",
   and "Persistent Grouped Scheduler".
 
-### 36. Wrap64 Direct-HIP v3
+### 36. Wrap64 Direct-HIP v4
 
-Status: direct HIP v3 remains the measured strict wrap64 GPU path.
+Status: direct HIP v4 is the measured strict wrap64 GPU path for the local
+Windows `gfx1100` 64/128/512/1024 validation matrix. Paired release captures
+under `temp/perf-work-queue/wrap64-v4/` showed median end-to-end speedups over
+v3 of 1.07x, 1.17x, 1.02x, and 5.60x for default 64/128/512/1024 captures, and
+1.22x, 4.67x, 1.07x, and 6.74x for reuse-packed-input captures.
 
 Technical direction:
 
-- Optimize the baseline before another matrix-engine candidate.
-- Vectorize byte-limb load/store through `uint64_t` where layout permits.
-- Reduce repeated byte extraction in packed-cell accumulation.
-- Try 32-bit diagonal accumulators where safe, widening at carry boundaries.
+- Keep optimizing the direct-HIP baseline before another matrix-engine
+  candidate. v4 uses direct unsigned byte products in the scalar direct-HIP
+  kernel, dispatches a safe uint32 low-diagonal accumulator for `K <= 4096`,
+  widens at carry propagation, and keeps scalar pack/export kernels for 64-like
+  small shapes where vectorized compact pack/export lost end-to-end.
+- Use vectorized byte-limb load/store through `uint64_t` where layout and shape
+  evidence permits.
 - Increase tile K or compute multiple output cells per thread if register
   pressure allows.
 
 Likely first slices:
 
-- Byte extraction micro-optimization.
-- Vectorized load/store layout experiment.
 - Multi-output-cell direct-HIP variant.
+- 2048 v4 exploratory run and ISA/resource report.
 
 Relation to new architecture work:
 
@@ -1829,7 +1836,7 @@ Relation to new architecture work:
 ### 37. Wrap64 Matrix Engine Redesign
 
 Status: the internal rocWMMA candidate has strong correctness evidence but
-loses structurally to direct HIP v3 at every reviewed 64/128/512/1024 shape.
+loses structurally to direct HIP v4 at every reviewed 64/128/512/1024 shape.
 
 Technical direction:
 
@@ -1845,7 +1852,7 @@ Likely first slices:
 
 - Diagonal grouping design note and microbenchmark.
 - Nibble/byte high-bit correction experiment.
-- Compare candidate variants against direct-HIP v3 in wrap64 scenario corpus.
+- Compare candidate variants against direct-HIP v4 in wrap64 scenario corpus.
 
 Relation to new architecture work:
 
@@ -2118,7 +2125,8 @@ Relation to new architecture work:
 - Finish bounded-i64 winner tuning for rocWMMA 512 and hipBLASLt 1024.
 - Optimize exact-wide export before broadening exact-wide GEMM variants.
 - Expand finite-u8 CK/rocWMMA reducer specialization for 251/255/256.
-- Optimize direct-HIP wrap64 v3 before another matrix-engine candidate.
+- Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
+  candidate.
 
 ### Batch C: Representation Wins
 

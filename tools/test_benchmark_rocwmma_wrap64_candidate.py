@@ -85,7 +85,7 @@ def assert_wrap64_release_baselines(captures: list[dict]) -> None:
     assert cpu["selected_kernel"] == "cpu_wrap64_byte_limb_reference_v1"
     assert hip["backend_requested"] == "hip-direct"
     assert hip["backend_selected"] == "hip-direct"
-    assert hip["selected_kernel"] == "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
+    assert hip["selected_kernel"] == "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
     assert candidate["backend_requested"] == "rocwmma-wrap64-candidate"
 
 

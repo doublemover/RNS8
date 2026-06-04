@@ -143,9 +143,11 @@ CK for 64, 128, and 1024, and rocWMMA for 512. Ring modulus 255 selected
 rocWMMA for 64, 128, and 512, and hipBLASLt for 1024. Field modulus 251
 selected CK for 64 and 128, and rocWMMA for 512 and 1024.
 
-Release-smoke wrap64 baseline captures kept
+Release-smoke wrap64 baseline captures originally kept
 `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` as the measured GPU path for strict
-`mod 2^64`. The production-threshold release baseline is recorded below. The
+`mod 2^64`. The June 4, 2026 v4 validation superseded that direct-HIP kernel
+locally with `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4`. The
+production-threshold release baseline is recorded below. The
 internal rocWMMA wrap64 byte-GEMM36 candidate has expanded Windows `gfx1100`
 private correctness differentials and ISA smoke evidence, but no wrap64
 accelerator promotion was made because it has not been integrated as a public
@@ -280,13 +282,22 @@ measured repeats, and seed `20260602`. The report produced eight captures, four
 same-contract review groups, no missing required baselines, and no cache entries
 because no public wrap64 accelerator backend exists.
 
-Direct HIP `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` remains the measured
+Direct HIP `direct_hip_wrap64_byte_gemm36_tiled_2d_v3` was the June 3 measured
 production GPU correctness path at 1828 us for 64, 2090 us for 128, 7757 us for
 512, and 39359 us for 1024 median end-to-end. The CPU
 `cpu_wrap64_byte_limb_reference_v1` measured 710 us, 5845 us, 576082 us, and
 4729230 us at those shapes while consuming persistent byte-limb storage and
 using exact unsigned `uint64_t` wraparound arithmetic for the low-64 product.
-Any future wrap64 matrix-engine candidate must beat the direct-HIP v3 release
+On June 4, 2026, paired release captures under
+`temp/perf-work-queue/wrap64-v4/` updated the direct-HIP path to
+`direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4`. The v4 path uses direct
+unsigned byte products, a safe uint32 low-diagonal accumulator for `K <= 4096`,
+and scalar small-shape pack/export fallbacks. Against same-seed v3 captures,
+median end-to-end speedups were 1.07x, 1.17x, 1.02x, and 5.60x for default
+64/128/512/1024 captures, and 1.22x, 4.67x, 1.07x, and 6.74x for
+reuse-packed-input captures. Final v4 median end-to-end times were 1137 us,
+1245 us, 7812 us, and 6496 us for the default 64/128/512/1024 captures.
+Any future wrap64 matrix-engine candidate must beat the direct-HIP v4 release
 baseline with exact byte-limb differentials and ISA evidence before it can
 displace the current path.
 
@@ -316,7 +327,7 @@ wrap64 shapes. The CPU byte-limb, direct-HIP, and rocWMMA-candidate captures
 produced matching `checksum_u64` values within each shape, but the candidate
 lost to direct HIP at every release shape:
 
-| shape | direct-HIP v3 median us | rocWMMA candidate median us | candidate blocker |
+| shape | historical direct-HIP v3 median us | rocWMMA candidate median us | candidate blocker |
 |---|---:|---:|---|
 | 64x64x64 | 3653 | 4825 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
 | 128x128x128 | 1852 | 5202 | `internal_candidate_not_public_backend`, `not_faster_than_direct_hip` |
@@ -596,7 +607,9 @@ distribution. finite-u8 promotion requires CPU and direct-HIP finite baselines
 for the same explicit modulus. Exact-wide signed/unsigned promotion requires
 CPU and direct-HIP exact-wide baselines with the same fixed-width limb export
 contract. Strict wrap64 promotion requires CPU byte-limb and direct-HIP
-`direct_hip_wrap64_byte_gemm36_tiled_2d_v3` baselines.
+`direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` baselines for local
+`K <= 4096` shapes, or the corresponding v4 u64-accumulator fallback for larger
+K shapes.
 
 Current Windows release sweep status:
 

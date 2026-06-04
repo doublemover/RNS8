@@ -238,7 +238,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-      return "direct_hip_wrap64_byte_gemm36_tiled_2d_v3";
+      return rns8::detail::wrap64_hip_selected_kernel_for_k(plan.desc.k);
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       if (plan.desc.finite_modulus == 256) {
@@ -479,6 +479,10 @@ bool accumulator_uses_int32_inner_product_for_plan(const rns8_plan& plan) {
 }
 
 uint64_t accumulator_k_block_cap_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+      rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
+    return static_cast<uint64_t>(rns8::detail::kWrap64HipU32AccumulatorMaxK);
+  }
   if (!accumulator_uses_int32_inner_product_for_plan(plan)) {
     return 0;
   }
@@ -505,6 +509,10 @@ uint64_t accumulator_modulus_for_plan(const rns8_plan& plan) {
 }
 
 uint64_t accumulator_max_abs_input_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+      rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
+    return 255u;
+  }
   return accumulator_uses_int32_inner_product_for_plan(plan) ? 128u : 0u;
 }
 
@@ -515,6 +523,10 @@ uint64_t accumulator_max_product_for_plan(const rns8_plan& plan) {
 }
 
 uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+      rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
+    return 1u;
+  }
   if (!accumulator_uses_int32_inner_product_for_plan(plan)) {
     return 1u;
   }
@@ -556,6 +568,10 @@ std::string accumulator_type_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return "software_192bit_limb";
   }
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+      rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
+    return "uint32_low_diagonal_then_uint64_carry";
+  }
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "uint64_wraparound_byte_limb";
   }
@@ -581,6 +597,10 @@ std::string accumulator_modulus_policy_for_plan(const rns8_plan& plan) {
 std::string accumulator_safety_status_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return "exact_192bit_limb_no_int32_k_cap";
+  }
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64 &&
+      rns8::detail::wrap64_hip_uses_u32_accumulator(plan.desc.k)) {
+    return "safe_uint32_byte_limb_gemm36_k_block";
   }
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "exact_mod_2_64_byte_limb_no_int32_k_cap";

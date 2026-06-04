@@ -12,6 +12,10 @@ from typing import Any
 
 
 SCHEMA_VERSION = 4
+WRAP64_HIP_U32_ACCUMULATOR_MAX_K = 4096
+WRAP64_LOW_PRODUCT_DIAGONALS = 8
+WRAP64_HIP_U32_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
+WRAP64_HIP_U64_KERNEL = "direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4"
 BASELINE_STATUS_REQUIRED_NOT_RECORDED = "required_not_recorded"
 BASELINE_STATUS_REVIEWED = "reviewed_same_contract_baseline"
 BASELINE_STATUS_RELEASE_REVIEWED = "reviewed_release_same_contract_baseline"
@@ -37,6 +41,12 @@ BOUND_DISCOVERY_SOURCES = {
     "input_row_column_abs_summary",
     "input_exact_tile_bounds",
 }
+
+
+def wrap64_hip_expected_kernel(k_value: int) -> str:
+    return WRAP64_HIP_U32_KERNEL if 0 < k_value <= WRAP64_HIP_U32_ACCUMULATOR_MAX_K else WRAP64_HIP_U64_KERNEL
+
+
 BOUND_KINDS = {
     "none",
     "global_max_abs",
@@ -204,6 +214,7 @@ BENCHMARK_EXECUTION_MODES = {
     "internal_wrap64_rocwmma_candidate",
 }
 INT32_MAX = 2_147_483_647
+UINT32_MAX = 4_294_967_295
 DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
     "oneshot_native_input_h2d",
     "rns_gemm_kernel_group",
@@ -536,6 +547,21 @@ class _Validator:
                 "modulus": 0,
                 "status": "safe_int32_byte_limb_gemm36_k_block",
             }
+        if semantics == "wrap_u64_mod_2_64" and selected_backend == "hip-direct" and 0 < k_value <= WRAP64_HIP_U32_ACCUMULATOR_MAX_K:
+            return {
+                "uses_int32_inner_product": False,
+                "k_block_size": k_value,
+                "k_block_cap": WRAP64_HIP_U32_ACCUMULATOR_MAX_K,
+                "max_lhs_abs": 255,
+                "max_rhs_abs": 255,
+                "max_product": 255 * 255,
+                "accumulator_type": "uint32_low_diagonal_then_uint64_carry",
+                "signedness": "unsigned_byte_limb",
+                "input_domain": "uint8_byte_limb_pairs",
+                "modulus_policy": "mod_2_64_wraparound_byte_limb",
+                "modulus": 0,
+                "status": "safe_uint32_byte_limb_gemm36_k_block",
+            }
         if semantics == "wrap_u64_mod_2_64":
             return {
                 "uses_int32_inner_product": False,
@@ -616,7 +642,17 @@ class _Validator:
             if safety.get("safe_for_k_block") is not True:
                 self._error("int32 accumulator captures must set safe_for_k_block=true")
         else:
-            if safety.get("k_block_cap") != 0:
+            uint32_diagonal_accumulator = safety.get("accumulator_type") == "uint32_low_diagonal_then_uint64_carry"
+            if uint32_diagonal_accumulator:
+                k_block_size = safety.get("k_block_size")
+                k_block_cap = safety.get("k_block_cap")
+                max_product = safety.get("max_product")
+                if _is_int(k_block_size) and _is_int(k_block_cap) and k_block_size > k_block_cap:
+                    self._error("uint32 diagonal accumulator k_block_size must not exceed k_block_cap")
+                if _is_int(k_block_size) and _is_int(max_product) and k_block_size > 0:
+                    if max_product * WRAP64_LOW_PRODUCT_DIAGONALS * k_block_size > UINT32_MAX:
+                        self._error("uint32 diagonal accumulator contract exceeds uint32 range")
+            elif safety.get("k_block_cap") != 0:
                 self._error("non-int32 accumulator captures must use k_block_cap=0")
             if safety.get("safe_for_k_block") is not True:
                 self._error("non-int32 accumulator captures must set safe_for_k_block=true")
@@ -1535,6 +1571,8 @@ class _Validator:
         packed_layout = self.data.get("packed_layout_version")
         schedule = self.data.get("schedule_metadata")
         backend_metadata = self.data.get("backend_metadata")
+        k = self.data.get("k")
+        k_value = int(k) if _is_int(k) and k > 0 else 0
         bound_mode = self.data.get("bound_mode", "global")
         residue_chain_length = self._residue_chain_length()
         residue_output_mode = self._residue_output_mode()
@@ -1560,7 +1598,7 @@ class _Validator:
             if bound_mode != "global":
                 self._error("wrap64 captures must use bound_mode=global")
             if self.data.get("backend_selected") == "hip-direct":
-                expected_kernel = "direct_hip_wrap64_byte_gemm36_tiled_2d_v3"
+                expected_kernel = wrap64_hip_expected_kernel(k_value)
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(f"v4 direct-HIP wrap64 captures must use selected_kernel={expected_kernel}")
                 if isinstance(backend_metadata, dict):
