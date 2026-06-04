@@ -387,6 +387,22 @@ Likely first slices:
   repeats for ring-255 512/1024 and field-251 512/1024, while 128-size cases
   stay experimental because setup and Windows timing variance can erase the
   per-repeat pack savings.
+- Direct-HIP transient-A plus reusable-B bounded prefix-9 path.
+  Implemented for global-bound `bounded-i64` and `bounded-u64`
+  `rns8-bench --backend hip-direct --reuse-packed-b` captures whose Direct-HIP
+  plan resolves to fixed prefix 9: B is packed once into resident RNS storage,
+  A is copied as native `int64_t`/`uint64_t` per repeat, and the grouped
+  prefix-9 GEMM centers A inside the tile load while consuming resident centered
+  B. The benchmark/schema surface reports `transient_native_a_resident_b_reuse`,
+  `rns8_bench_native_a_reuse_b_path`, a distinct
+  `bounded_native_a_reuse_b_gemm_kernel_group`, and zero `pack_kernel`.
+  Windows `gfx1100` release smokes under
+  `temp/bounded-native-a-reuse-b-release/` and
+  `temp/bounded-native-a-reuse-b-release-rerun/` are schema/event-valid:
+  512 i64 was a modest setup-inclusive win in the first pass, 1024 i64 lost,
+  1024 u64 was not setup-amortized, and 512 u64 won in two passes but with
+  noisy baseline timings. Keep this experimental until broader release review
+  and a faster resident-B kernel variant prove stable end-to-end wins.
 
 Relation to existing queue:
 
@@ -1188,7 +1204,9 @@ Relation to new architecture work:
 Status: rocWMMA has a narrow non-tiled RNS B cache with
 `rns_i8_tile_swizzled_b_v1` identity and `prepack-v2` keying. hipBLASLt has
 workspace-local repeated-A and repeated-B prepack paths for fixed-prefix
-single-K-block RNS work. `production_prepack_cache_available` remains `0`.
+single-K-block RNS work. Direct-HIP now has benchmark-only finite-u8 and
+bounded prefix-9 transient-A/resident-B reuse paths. `production_prepack_cache_available`
+remains `0`.
 
 Details: the first hipBLASLt 1024 slice removes repeated heuristic selection
 from identical hot dispatches by caching the selected matmul algorithm in

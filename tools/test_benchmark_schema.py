@@ -326,6 +326,92 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
     return reused
 
 
+def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
+    reused = copy.deepcopy(capture)
+    repeats = reused["repeats"]
+    kernel = "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
+    epilogue = "native_a_centered_resident_b_residue_then_crt_export"
+    reused["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    reused["backend_requested"] = "hip-direct"
+    reused["backend_selected"] = "hip-direct"
+    reused["selected_kernel"] = kernel
+    reused["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
+    reused["backend_metadata"]["selected_kernel"] = kernel
+    reused["backend_metadata"]["accelerator_backend"] = False
+    reused["backend_metadata"]["matrix_engine_backend"] = False
+    reused["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    reused["backend_metadata"]["accelerator_version"] = "7.1"
+    reused["backend_metadata"]["capability_status"] = "implemented_correctness_backend"
+    reused["backend_metadata"]["epilogue_mode"] = epilogue
+    reused["backend_metadata"]["workspace_mode"] = "transient_native_a_resident_rns_b_output"
+    reused["backend_metadata"]["workspace_required_bytes"] = 0
+    reused["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+    reused["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_native_a_resident_b_reuse;"
+        f"kernel={kernel};epilogue={epilogue}"
+    )
+    reused["pack_mode"] = "prepacked_reuse_b"
+    reused["reuse_packed_inputs"] = True
+    reused["prepack_reuse_operands"] = ["B"]
+    reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    reused["prepack_setup_us"] = 400
+    reused["avg_prepack_setup_us"] = 400.0
+    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    reused["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+    reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    reused["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_default_stream_backend_operation_groups"
+    )
+    reused["timing_metadata"]["gpu_event_phase_order"] = [
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "bounded_native_a_reuse_b_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+    ]
+    reused["timing_metadata"]["phase_availability"]["prepack_setup"] = {
+        "timed": True,
+        "timing_key": "prepack_setup_us",
+        "scope": "one_time_before_warmups",
+        "reason": "B was packed once before warmups and reused for every measured repeat",
+    }
+    event_values = {
+        "pack_h2d": [18.0, 19.0][:repeats],
+        "pack_kernel": [0.0, 0.0][:repeats],
+        "pack": [18.0, 19.0][:repeats],
+        "bounded_native_a_reuse_b_gemm_kernel_group": [150.0, 151.0][:repeats],
+        "rns_gemm": [150.0, 151.0][:repeats],
+        "crt_export_status_memset": [0.5, 0.5][:repeats],
+        "crt_export_kernel": [30.0, 31.0][:repeats],
+        "crt_export_status_d2h": [1.0, 1.0][:repeats],
+        "crt_export_d2h": [10.0, 11.0][:repeats],
+        "crt_export": [41.5, 43.5][:repeats],
+    }
+    reused["gpu_event_timings_us"] = event_values
+    reused["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    reused["raw_timings_us"]["pack"] = [120, 125][:repeats]
+    reused["raw_timings_us"]["rns_gemm"] = [260, 270][:repeats]
+    reused["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
+    reused["raw_timings_us"]["end_to_end"] = [475, 495][:repeats]
+    reused["timing_summary_us"]["pack"] = summary(reused["raw_timings_us"]["pack"])
+    reused["timing_summary_us"]["rns_gemm"] = summary(reused["raw_timings_us"]["rns_gemm"])
+    reused["timing_summary_us"]["crt_export"] = summary(reused["raw_timings_us"]["crt_export"])
+    reused["timing_summary_us"]["end_to_end"] = summary(reused["raw_timings_us"]["end_to_end"])
+    reused["avg_pack_us"] = reused["timing_summary_us"]["pack"]["avg"]
+    reused["avg_rns_gemm_us"] = reused["timing_summary_us"]["rns_gemm"]["avg"]
+    reused["avg_crt_export_us"] = reused["timing_summary_us"]["crt_export"]["avg"]
+    reused["avg_end_to_end_us"] = reused["timing_summary_us"]["end_to_end"]["avg"]
+    reused["avg_per_modulus_gemm_estimate_us"] = reused["avg_rns_gemm_us"] / reused["prefix"]
+    return reused
+
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -742,6 +828,23 @@ def main() -> int:
     validate_capture(direct_hip_finite_oneshot)
     direct_hip_finite_native_a_reuse_b = as_direct_hip_finite_native_a_reuse_b_capture(v4_finite_ring_ck)
     validate_capture(direct_hip_finite_native_a_reuse_b)
+    direct_hip_bounded_native_a_reuse_b = as_direct_hip_bounded_native_a_reuse_b_capture(v4_ck_i64)
+    validate_capture(direct_hip_bounded_native_a_reuse_b)
+    bad_bounded_native_a_phase = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
+    bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"] = [
+        "rns_gemm_kernel_group" if phase == "bounded_native_a_reuse_b_gemm_kernel_group" else phase
+        for phase in bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    bad_bounded_native_a_phase["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
+        bad_bounded_native_a_phase["gpu_event_timings_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+    )
+    bad_bounded_native_a_phase["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
+        bad_bounded_native_a_phase["gpu_event_timing_summary_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+    )
+    expect_invalid(
+        bad_bounded_native_a_phase,
+        "direct-HIP bounded native-A reuse-B GPU event phase set is incomplete",
+    )
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
     validate_capture(exact_wide_ck)

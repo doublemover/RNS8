@@ -100,6 +100,12 @@ DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
+    "bounded_i64": "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
+}
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_canonical_u8_export"
@@ -319,6 +325,15 @@ class _Validator:
     def _is_public_oneshot_capture(self) -> bool:
         return self._is_bounded_oneshot_capture() or self._is_finite_oneshot_capture()
 
+    def _is_direct_hip_bounded_native_a_reuse_b_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self.data.get("pack_mode") == "prepacked_reuse_b"
+            and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
+            and self._benchmark_execution_mode() == "transient_native_a_resident_b_reuse"
+        )
+
     def _is_direct_hip_finite_native_a_reuse_b_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
@@ -513,7 +528,8 @@ class _Validator:
             else "rns8_bench_public_oneshot_api"
             if self._is_public_oneshot_capture()
             else "rns8_bench_native_a_reuse_b_path"
-            if self._is_direct_hip_finite_native_a_reuse_b_capture()
+            if self._is_direct_hip_bounded_native_a_reuse_b_capture()
+            or self._is_direct_hip_finite_native_a_reuse_b_capture()
             else (
                 "rns8_get_plan_backend_info"
                 if self._is_vector_alu_runtime_capture()
@@ -1065,6 +1081,7 @@ class _Validator:
                         self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
         elif semantics in {"bounded_i64", "bounded_u64"}:
             oneshot_capture = self._is_bounded_oneshot_capture()
+            native_a_reuse_b_capture = self._is_direct_hip_bounded_native_a_reuse_b_capture()
             if oneshot_capture:
                 if self.data.get("benchmark") != "rns8_bounded_gemm_public_oneshot":
                     self._error("one-shot captures must use benchmark=rns8_bounded_gemm_public_oneshot")
@@ -1111,6 +1128,33 @@ class _Validator:
                         expected_scope = "direct_hip_oneshot_default_stream_operation_groups"
                         if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+            if native_a_reuse_b_capture:
+                if bound_mode != "global":
+                    self._error("direct-HIP bounded native-A reuse-B captures must use bound_mode=global")
+                if residue_chain_length != 1 or residue_output_mode != "host_export":
+                    self._error("direct-HIP bounded native-A reuse-B captures must use host_export residue_chain_length=1")
+                expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS[semantics]
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(
+                        "direct-HIP bounded native-A reuse-B captures must use "
+                        f"selected_kernel={expected_kernel}"
+                    )
+                if isinstance(backend_metadata, dict):
+                    if backend_metadata.get("epilogue_mode") != DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE:
+                        self._error(
+                            "direct-HIP bounded native-A reuse-B captures must use "
+                            f"backend_metadata.epilogue_mode={DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE}"
+                        )
+                    if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE:
+                        self._error(
+                            "direct-HIP bounded native-A reuse-B captures must use "
+                            f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE}"
+                        )
+                    if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                        self._error(
+                            "direct-HIP bounded native-A reuse-B captures must use "
+                            f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                        )
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")
             expected_native_layout = (
@@ -1937,6 +1981,37 @@ class _Validator:
                     self._error(f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
                 if not missing and not extra:
                     self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
+            return
+        if self._is_direct_hip_bounded_native_a_reuse_b_capture():
+            expected = [
+                "pack_h2d",
+                "pack_kernel",
+                "pack",
+                "bounded_native_a_reuse_b_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(
+                        "direct-HIP bounded native-A reuse-B GPU event phase set is incomplete; "
+                        f"missing {', '.join(missing)}"
+                    )
+                if extra:
+                    self._error(
+                        "direct-HIP bounded native-A reuse-B GPU event phase set contains undeclared phases: "
+                        f"{', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error(
+                        "direct-HIP bounded native-A reuse-B GPU event phase order must match the operation order"
+                    )
             return
         if backend == "hip-vector-alu-int64":
             expected = self._expected_vector_gpu_event_phases()
