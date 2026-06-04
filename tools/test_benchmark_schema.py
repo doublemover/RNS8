@@ -115,6 +115,18 @@ def add_per_tile_input_scan_fields(capture: dict) -> dict:
     return capture
 
 
+def add_output_padding_fields(capture: dict, padding: int) -> dict:
+    output_ld = capture["n"] + padding
+    capture["output_logical_ld"] = output_ld
+    capture["output_ld_padding"] = padding
+    capture["timing_metadata"]["benchmark_output_destination_layout"] = (
+        "contiguous_row_major" if padding == 0 else "padded_row_major"
+    )
+    capture["timing_metadata"]["benchmark_output_logical_ld"] = output_ld
+    capture["timing_metadata"]["benchmark_output_ld_padding"] = padding
+    return capture
+
+
 def int32_accumulator_safety(capture: dict, cap: int = 65536) -> dict:
     k_block = min(capture["k"], cap)
     finite = capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
@@ -1157,6 +1169,21 @@ def main() -> int:
         "autotune_key"
     ].replace("kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1")
     expect_invalid(stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+
+    padded_output = add_output_padding_fields(copy.deepcopy(v4_ck_i64), 7)
+    validate_capture(padded_output)
+
+    stale_output_ld = copy.deepcopy(padded_output)
+    stale_output_ld["output_logical_ld"] += 1
+    expect_invalid(stale_output_ld, "output_logical_ld must equal n + output_ld_padding")
+
+    stale_output_layout = copy.deepcopy(padded_output)
+    stale_output_layout["timing_metadata"]["benchmark_output_destination_layout"] = "contiguous_row_major"
+    expect_invalid(stale_output_layout, "benchmark_output_destination_layout must be padded_row_major")
+
+    stale_output_metadata = copy.deepcopy(padded_output)
+    stale_output_metadata["timing_metadata"]["benchmark_output_logical_ld"] += 1
+    expect_invalid(stale_output_metadata, "benchmark_output_logical_ld must match output_logical_ld")
 
     missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
     del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]

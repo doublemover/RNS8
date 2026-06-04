@@ -606,6 +606,15 @@ def main() -> int:
     assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
     assert vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
 
+    padded_output_args = copy.copy(vector_args)
+    padded_output_args.backends = ["hip-direct"]
+    padded_output_args.output_ld_padding = 7
+    padded_output_commands = benchmark_sweep.sweep_commands(padded_output_args)
+    padded_name, padded_command, _padded_output = padded_output_commands[0]
+    assert padded_name == "bounded-i64-small-16x16x16-outpad7-hip-direct.json"
+    assert "--output-ld-padding" in padded_command
+    assert padded_command[padded_command.index("--output-ld-padding") + 1] == "7"
+
     input_scan_args = copy.copy(vector_args)
     input_scan_args.bound_source = "input-scan"
     input_scan_commands = benchmark_sweep.sweep_commands(input_scan_args)

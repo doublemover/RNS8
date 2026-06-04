@@ -125,6 +125,8 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"m={capture.get('m')}",
         f"n={capture.get('n')}",
         f"k={capture.get('k')}",
+        f"output_logical_ld={capture.get('output_logical_ld', capture.get('n'))}",
+        f"output_ld_padding={capture.get('output_ld_padding', 0)}",
         f"prefix={capture.get('prefix')}",
         f"layout={capture.get('layout')}",
         f"tile_m={tile_m}",
@@ -322,6 +324,8 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "warmups": capture.get("warmups"),
         "repeats": capture.get("repeats"),
         "layout": capture.get("layout"),
+        "output_logical_ld": capture.get("output_logical_ld", capture.get("n")),
+        "output_ld_padding": capture.get("output_ld_padding", 0),
         "reuse_packed_inputs": capture.get("reuse_packed_inputs") is True,
         "pack_mode": capture_pack_mode(capture),
         "prepack_reuse_strategy": capture_prepack_reuse_strategy(capture),
@@ -1156,6 +1160,7 @@ def capture_name(
     pack_mode: str,
     exact_wide_limb_count: int | None = None,
     residue_chain_length: int = 1,
+    output_ld_padding: int = 0,
     oneshot: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
@@ -1165,6 +1170,8 @@ def capture_name(
         parts.append(f"limbs{exact_wide_limb_count}")
     if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
+    if output_ld_padding > 0:
+        parts.append(f"outpad{output_ld_padding}")
     if oneshot:
         parts.append("oneshot")
     if pack_mode == "prepacked_reuse":
@@ -1234,6 +1241,9 @@ def command_for(
         command.extend(["--max-prefix", str(max_prefix)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
+    output_ld_padding = int(getattr(args, "output_ld_padding", 0) or 0)
+    if output_ld_padding > 0:
+        command.extend(["--output-ld-padding", str(output_ld_padding)])
     if oneshot:
         command.append("--oneshot")
     pack_mode = requested_pack_mode(args)
@@ -1270,6 +1280,8 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         raise SystemExit("--bound-source input-scan is only valid for bounded RNS sweeps")
     if getattr(args, "max_prefix", None) is not None and args.max_prefix <= 0:
         raise SystemExit("--max-prefix must be positive")
+    if int(getattr(args, "output_ld_padding", 0) or 0) < 0:
+        raise SystemExit("--output-ld-padding must be nonnegative")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if args.residue_chain_length > 1:
@@ -1323,6 +1335,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                                 requested_pack_mode(args),
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
+                                int(getattr(args, "output_ld_padding", 0) or 0),
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                             commands.append((name, command, args.out_root / name))
@@ -1347,6 +1360,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                                 requested_pack_mode(args),
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
+                                int(getattr(args, "output_ld_padding", 0) or 0),
                                 oneshot=True,
                             )
                             command = command_for(
@@ -1497,6 +1511,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="exact-wide residue-current GEMM chain length; values above 1 skip timed host export",
+    )
+    parser.add_argument(
+        "--output-ld-padding",
+        type=int,
+        default=0,
+        help="add padding columns to the benchmark host output leading dimension",
     )
     parser.add_argument(
         "--include-exact-wide-limb-variants",

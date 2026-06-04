@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -97,6 +98,7 @@ struct Args {
   int64_t m = 64;
   int64_t n = 64;
   int64_t k = 64;
+  int64_t output_ld_padding = 0;
   uint32_t warmups = 1;
   uint32_t repeats = 5;
   uint64_t seed = 1;
@@ -224,6 +226,7 @@ uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& resu
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"
+      << "                  [--output-ld-padding N]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--input-profile uniform-small|adaptive-bands]\n"
@@ -427,6 +430,8 @@ Args parse_args(int argc, char** argv) {
       args.n = parse_i64(argv[++i], "--n");
     } else if (arg == "--k" && i + 1 < argc) {
       args.k = parse_i64(argv[++i], "--k");
+    } else if (arg == "--output-ld-padding" && i + 1 < argc) {
+      args.output_ld_padding = parse_i64(argv[++i], "--output-ld-padding");
     } else if (arg == "--warmups" && i + 1 < argc) {
       args.warmups = parse_u32(argv[++i], "--warmups");
     } else if (arg == "--repeats" && i + 1 < argc) {
@@ -487,6 +492,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
+          << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--input-profile uniform-small|adaptive-bands]\n"
@@ -507,6 +513,12 @@ Args parse_args(int argc, char** argv) {
 
   if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
     usage_error("matrix dimensions must be positive and repeats must be nonzero");
+  }
+  if (args.output_ld_padding < 0) {
+    usage_error("--output-ld-padding must be nonnegative");
+  }
+  if (args.n > std::numeric_limits<int64_t>::max() - args.output_ld_padding) {
+    usage_error("--output-ld-padding makes output leading dimension overflow int64");
   }
   if (args.wrap64_rocwmma_candidate) {
     if (args.semantics != BenchSemantics::WrapU64Mod2_64) {
@@ -1328,6 +1340,28 @@ std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_coun
     usage_error(std::string("limb output size overflows size_t for ") + label);
   }
   return elements * static_cast<std::size_t>(limb_count);
+}
+
+int64_t output_logical_ld(const Args& args) {
+  if (args.output_ld_padding < 0) {
+    usage_error("--output-ld-padding must be nonnegative");
+  }
+  if (args.n > std::numeric_limits<int64_t>::max() - args.output_ld_padding) {
+    usage_error("--output-ld-padding makes output leading dimension overflow int64");
+  }
+  return args.n + args.output_ld_padding;
+}
+
+std::size_t output_elements(const Args& args, const char* label) {
+  return checked_elements(args.m, output_logical_ld(args), label);
+}
+
+std::size_t output_limb_elements(const Args& args, uint32_t limb_count, const char* label) {
+  return checked_limb_elements(args.m, output_logical_ld(args), limb_count, label);
+}
+
+const char* output_destination_layout(const Args& args) {
+  return args.output_ld_padding == 0 ? "contiguous_row_major" : "padded_row_major";
 }
 
 uint64_t ceil_div_i64_u32(int64_t value, uint32_t divisor) {
@@ -3109,6 +3143,58 @@ uint64_t checksum_u8(const std::vector<uint8_t>& values) {
   return checksum;
 }
 
+template <typename T>
+uint64_t checksum_matrix(const std::vector<T>& values, int64_t rows, int64_t cols, int64_t ld, const char* label) {
+  uint64_t checksum = 1469598103934665603ull;
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      mix_checksum(checksum, static_cast<uint64_t>(values[row_major_index(row, col, ld, label)]));
+    }
+  }
+  return checksum;
+}
+
+uint64_t checksum_limb_matrix(
+    const std::vector<uint64_t>& values,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t limb_count,
+    const char* label) {
+  uint64_t checksum = 1469598103934665603ull;
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      const std::size_t cell = row_major_index(row, col, ld, label);
+      const std::size_t base = cell * static_cast<std::size_t>(limb_count);
+      for (uint32_t limb = 0; limb < limb_count; ++limb) {
+        mix_checksum(checksum, values[base + static_cast<std::size_t>(limb)]);
+      }
+    }
+  }
+  return checksum;
+}
+
+template <typename T>
+void copy_compact_to_output(
+    const std::vector<T>& compact,
+    std::vector<T>& output,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    const char* label) {
+  if (ld == cols) {
+    std::copy(compact.begin(), compact.end(), output.begin());
+    return;
+  }
+  for (int64_t row = 0; row < rows; ++row) {
+    const std::size_t source = row_major_index(row, 0, cols, label);
+    const std::size_t destination = row_major_index(row, 0, ld, label);
+    std::copy(compact.begin() + static_cast<std::ptrdiff_t>(source),
+              compact.begin() + static_cast<std::ptrdiff_t>(source + static_cast<std::size_t>(cols)),
+              output.begin() + static_cast<std::ptrdiff_t>(destination));
+  }
+}
+
 bool backend_supports_gpu_event_capture(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
          backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
@@ -3803,7 +3889,9 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   std::mt19937_64 rng(args.seed);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<int64_t> C(output_elements(args, "C"), INT64_C(0x5a5a5a5a5a5a5a5a));
+  std::vector<int64_t> compact_C(ldc == args.n ? 0 : checked_elements(args.m, args.n, "compact C"));
   fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -3815,7 +3903,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
 
   const std::size_t a_bytes = checked_bytes(A.size(), sizeof(int64_t), "A");
   const std::size_t b_bytes = checked_bytes(B.size(), sizeof(int64_t), "B");
-  const std::size_t c_bytes = checked_bytes(C.size(), sizeof(int64_t), "C");
+  const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(int64_t), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   DeviceBuffer d_a;
   DeviceBuffer d_b;
@@ -3885,9 +3973,13 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
       fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
     }
     status = run_timed_status_operation("vector_alu_output_d2h", [&]() {
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, C.data(), d_c.ptr, c_bytes);
+      void* destination = ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr, c_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    if (ldc != args.n) {
+      copy_compact_to_output(compact_C, C, args.m, args.n, ldc, "vector C");
+    }
     if (collect_gpu_events) {
       collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
     }
@@ -3908,7 +4000,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_i64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
 }
@@ -3923,7 +4015,9 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
+  std::vector<uint64_t> compact_C(ldc == args.n ? 0 : checked_elements(args.m, args.n, "compact C"));
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -3935,7 +4029,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
 
   const std::size_t a_bytes = checked_bytes(A.size(), sizeof(uint64_t), "A");
   const std::size_t b_bytes = checked_bytes(B.size(), sizeof(uint64_t), "B");
-  const std::size_t c_bytes = checked_bytes(C.size(), sizeof(uint64_t), "C");
+  const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "device C"), sizeof(uint64_t), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   DeviceBuffer d_a;
   DeviceBuffer d_b;
@@ -4005,9 +4099,13 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
       fail_status("hip-vector-alu-int64 range check", RNS8_RANGE_ERROR);
     }
     status = run_timed_status_operation("vector_alu_output_d2h", [&]() {
-      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, C.data(), d_c.ptr, c_bytes);
+      void* destination = ldc == args.n ? static_cast<void*>(C.data()) : static_cast<void*>(compact_C.data());
+      return rns8::detail::hip_direct_copy_device_to_host(args.device_id, destination, d_c.ptr, c_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_device_to_host(vector C)", status);
+    if (ldc != args.n) {
+      copy_compact_to_output(compact_C, C, args.m, args.n, ldc, "vector C");
+    }
     if (collect_gpu_events) {
       collect_export_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result, result.gpu_events);
     }
@@ -4028,7 +4126,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
 }
@@ -4062,7 +4160,8 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   std::mt19937_64 rng(args.seed);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<int64_t> C(output_elements(args, "C"), INT64_C(0x5a5a5a5a5a5a5a5a));
   fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -4076,7 +4175,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     const rns8_status status =
-        rns8_gemm_i64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+        rns8_gemm_i64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_i64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       collect_bounded_oneshot_gpu_events(result.gpu_events);
@@ -4099,7 +4198,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_i64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
 
@@ -4107,7 +4206,8 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -4121,7 +4221,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     const rns8_status status =
-        rns8_gemm_u64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+        rns8_gemm_u64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_u64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       collect_bounded_oneshot_gpu_events(result.gpu_events);
@@ -4144,7 +4244,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
 
@@ -4158,7 +4258,8 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   std::mt19937_64 rng(args.seed);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<int64_t> C(output_elements(args, "C"), INT64_C(0x5a5a5a5a5a5a5a5a));
   fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -4420,7 +4521,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_i64(ctx, plan, c_matrix, C.data(), args.n);
+      status = rns8_export_i64(ctx, plan, c_matrix, C.data(), ldc);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -4446,10 +4547,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   if (chain_residue_output) {
-    status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), args.n);
+    status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(final chain checksum)", status);
   }
-  result.checksum = checksum_i64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
@@ -4480,7 +4581,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
@@ -4792,7 +4894,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_u64(ctx, plan, c_matrix, C.data(), args.n);
+      status = rns8_export_u64(ctx, plan, c_matrix, C.data(), ldc);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -4818,10 +4920,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   if (chain_residue_output) {
-    status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), args.n);
+    status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
@@ -4848,7 +4950,9 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(
+      output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -4962,7 +5066,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
       status =
-          rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
+          rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -4987,10 +5091,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_signed_limbs(
-        ctx, plan, latest_output_matrix, C.data(), args.n, args.exact_wide_limb_count);
+        ctx, plan, latest_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs(final chain checksum)", status);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
@@ -5013,7 +5117,9 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(
+      output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -5127,7 +5233,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
       status =
-          rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), args.n, args.exact_wide_limb_count);
+          rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -5152,10 +5258,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_unsigned_limbs(
-        ctx, plan, latest_output_matrix, C.data(), args.n, args.exact_wide_limb_count);
+        ctx, plan, latest_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs(final chain checksum)", status);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
@@ -5179,7 +5285,8 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint8_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
   for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
   for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
 
@@ -5194,10 +5301,10 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
     rns8_status status = RNS8_SUCCESS;
     if (args.semantics == BenchSemantics::FiniteFieldU8) {
       status = rns8_gemm_finite_field_u8_oneshot(
-          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     } else {
       status = rns8_gemm_finite_ring_u8_oneshot(
-          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), args.n);
+          ctx, &desc, args.finite_modulus, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     }
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
@@ -5221,7 +5328,7 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_u8(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
 
@@ -5235,7 +5342,8 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint8_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
   for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
   for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
 
@@ -5360,7 +5468,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
 
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_export_finite_u8(ctx, plan, args.finite_modulus, c_matrix, C.data(), args.n);
+    status = rns8_export_finite_u8(ctx, plan, args.finite_modulus, c_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8", status);
     if (collect_gpu_events) {
       collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -5382,7 +5490,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
-  result.checksum = checksum_u8(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -5410,7 +5518,8 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = rng();
   for (auto& value : B) value = rng();
 
@@ -5494,7 +5603,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8::detail::wrap64_hip_export_u64_device(
-        args.device_id, c_limbs.ptr, &export_buffer.ptr, &export_buffer.bytes, args.m, args.n, C.data(), args.n);
+        args.device_id, c_limbs.ptr, &export_buffer.ptr, &export_buffer.bytes, args.m, args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("wrap64_hip_export_u64_device(C)", status);
     if (collect_gpu_events) {
       collect_wrap64_export_gpu_events(result.gpu_events);
@@ -5516,7 +5625,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
 }
@@ -5529,7 +5638,8 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   std::mt19937_64 rng(args.seed);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
-  std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
+  const int64_t ldc = output_logical_ld(args);
+  std::vector<uint64_t> C(output_elements(args, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = rng();
   for (auto& value : B) value = rng();
 
@@ -5614,7 +5724,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
 
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
-    status = rns8_export_wrap_u64(ctx, plan, c_matrix, C.data(), args.n);
+    status = rns8_export_wrap_u64(ctx, plan, c_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_wrap_u64", status);
     if (collect_gpu_events) {
       collect_wrap64_export_gpu_events(result.gpu_events);
@@ -5636,7 +5746,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
-  result.checksum = checksum_u64(C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -5814,6 +5924,7 @@ void print_json(
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
   const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  const int64_t output_ld = output_logical_ld(args);
   const bool global_bound_scan_available = result.global_bound_scan_available;
   const uint32_t residue_planes_skipped = prefix > selected_prefix ? prefix - selected_prefix : 0;
   const double residue_plane_skip_fraction =
@@ -6093,6 +6204,8 @@ void print_json(
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
+  std::cout << "  \"output_logical_ld\": " << output_ld << ",\n";
+  std::cout << "  \"output_ld_padding\": " << args.output_ld_padding << ",\n";
   std::cout << "  \"prefix\": " << prefix << ",\n";
   std::cout << "  \"selected_prefix\": " << selected_prefix << ",\n";
   std::cout << "  \"requested_max_prefix\": " << prefix << ",\n";
@@ -6353,7 +6466,9 @@ void print_json(
             << direct_hip_export_staging_policy(selected_backend_kind) << "\",\n";
   std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
             << kDirectHipPinnedExportStagingThresholdBytes << ",\n";
-  std::cout << "    \"benchmark_output_destination_layout\": \"contiguous_row_major\",\n";
+  std::cout << "    \"benchmark_output_destination_layout\": \"" << output_destination_layout(args) << "\",\n";
+  std::cout << "    \"benchmark_output_logical_ld\": " << output_ld << ",\n";
+  std::cout << "    \"benchmark_output_ld_padding\": " << args.output_ld_padding << ",\n";
   std::cout << "    \"prepack_reuse_operands\": ";
   print_string_array(prepack_reuse_operands(args));
   std::cout << ",\n";

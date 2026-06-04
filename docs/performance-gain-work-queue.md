@@ -2124,13 +2124,20 @@ Likely first slices:
   `rns8-bench` now records `direct_hip_export_staging_policy`,
   `direct_hip_pinned_export_staging_threshold_bytes`, and the benchmark output
   destination layout in `timing_metadata`, so capture metadata distinguishes
-  padded-only default, disabled, and forced staging runs.
+  padded-only default, disabled, and forced staging runs. The benchmark also
+  exposes `--output-ld-padding`; captures now report `output_logical_ld`,
+  `output_ld_padding`, `benchmark_output_logical_ld`, and
+  `benchmark_output_ld_padding`, and schema/sweep review keys treat padded and
+  contiguous destinations as different contracts.
   `RNS8_HIP_PINNED_EXPORT_STAGING=0` disables the staging path, while
   `RNS8_HIP_PINNED_EXPORT_STAGING=1` forces it for contiguous-output A/B
   measurements. A 512x512 contiguous-output Windows `gfx1100` smoke did not
   support default-on staging, so contiguous benchmark outputs keep the existing
-  linear D2H path by default. This is an implemented transfer path, not yet a
-  reviewed headline speedup claim.
+  linear D2H path by default. Focused 128x128 Windows `gfx1100` smokes under
+  `temp/perf-work-queue/padded-output-ld/` validated default padded, disabled
+  padded, and forced contiguous captures with matching logical checksums and
+  required GPU events. This is an implemented transfer path, not yet a reviewed
+  headline speedup claim.
 - Async exact-wide export/D2H overlap experiment.
 - Multi-stream repeated-B pipeline scenario.
 

@@ -58,6 +58,7 @@ BOUND_KINDS = {
     "input_range_and_k",
 }
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
+OUTPUT_DESTINATION_LAYOUTS = {"contiguous_row_major", "padded_row_major"}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
@@ -751,7 +752,18 @@ class _Validator:
                             self._error(f"backend_metadata.autotune_key must include {key}={value}")
 
     def _validate_nonnegative_ints(self) -> None:
-        for key in ["bound", "prefix", "tile_m", "tile_n", "k_block_size", "seed", "warmups", "repeats", "checksum_u64"]:
+        for key in [
+            "bound",
+            "prefix",
+            "tile_m",
+            "tile_n",
+            "k_block_size",
+            "seed",
+            "warmups",
+            "repeats",
+            "checksum_u64",
+            "output_ld_padding",
+        ]:
             value = self.data.get(key)
             if _is_int(value) and value < 0:
                 self._error(f"{key} must be nonnegative")
@@ -762,6 +774,44 @@ class _Validator:
         repeats = self.data.get("repeats")
         if _is_int(repeats) and repeats <= 0:
             self._error("repeats must be positive")
+
+    def _validate_output_layout_metadata(self, metadata: dict[str, Any]) -> None:
+        present = any(key in self.data for key in ["output_logical_ld", "output_ld_padding"]) or any(
+            key in metadata
+            for key in [
+                "benchmark_output_destination_layout",
+                "benchmark_output_logical_ld",
+                "benchmark_output_ld_padding",
+            ]
+        )
+        if not present:
+            return
+
+        n = self.data.get("n")
+        output_ld = self.data.get("output_logical_ld")
+        padding = self.data.get("output_ld_padding")
+        if not _is_int(output_ld) or output_ld <= 0:
+            self._error("output_logical_ld must be a positive integer")
+            return
+        if not _is_int(padding) or padding < 0:
+            self._error("output_ld_padding must be a nonnegative integer")
+            return
+        if _is_int(n) and output_ld != n + padding:
+            self._error("output_logical_ld must equal n + output_ld_padding")
+
+        layout = metadata.get("benchmark_output_destination_layout")
+        if layout not in OUTPUT_DESTINATION_LAYOUTS:
+            self._error(
+                f"timing_metadata.benchmark_output_destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}"
+            )
+        else:
+            expected_layout = "contiguous_row_major" if padding == 0 else "padded_row_major"
+            if layout != expected_layout:
+                self._error(f"timing_metadata.benchmark_output_destination_layout must be {expected_layout}")
+        if metadata.get("benchmark_output_logical_ld") != output_ld:
+            self._error("timing_metadata.benchmark_output_logical_ld must match output_logical_ld")
+        if metadata.get("benchmark_output_ld_padding") != padding:
+            self._error("timing_metadata.benchmark_output_ld_padding must match output_ld_padding")
 
     def _validate_hip_toolchain(self) -> None:
         toolchain = self._require("hip_toolchain", "dict")
@@ -822,6 +872,7 @@ class _Validator:
                 self._error("timing_metadata.gpu_event_timing_status must be a string")
             if not isinstance(metadata.get("gpu_event_timing"), bool):
                 self._error("timing_metadata.gpu_event_timing must be a boolean")
+            self._validate_output_layout_metadata(metadata)
             metadata_mode = metadata.get("benchmark_execution_mode")
             if metadata_mode is not None:
                 if metadata_mode not in BENCHMARK_EXECUTION_MODES:
