@@ -59,17 +59,33 @@ Implemented in the current prefix-policy slice:
   `tools/benchmark_schema.py`, `tools/benchmark_sweep.py`, and
   `tools/result_compare.py`.
 
+Implemented in the current bound-discovery slice:
+
+- `rns8-bench` now has an explicit `--bound-source static-profile|input-scan`
+  switch for bounded global i64/u64 benchmark captures. The `input-scan` path
+  scans seeded A/B inputs before plan creation, computes row/column
+  absolute-summary candidates, records zero row/column counts, selects the
+  tight safe global bound, and feeds that bound into the existing prefix
+  policy.
+- Bound discovery is timed as a first-class `global_bound_scan` phase with
+  schema-validated raw timings, top-level averages, phase notes, and phase
+  availability metadata. Static profile captures remain the default and legacy
+  captures without `bound_source` are treated as static-profile evidence by
+  comparison tooling.
+- Sweep and compare tooling now carry bound-source metadata through candidate
+  evidence, cache schedule hashes, and same-contract comparisons so discovered
+  bounds are not accidentally mixed with static-profile captures.
+
 Remaining high-value imported work goes at the front of the queue:
 
 1. **Bound Discovery Pipeline**
 
-   Build public and benchmark-only bound discovery that can select prefixes
-   from real input structure before a plan is created. Start with exact row
-   absolute sums, column absolute sums, zero rows/columns, and tile max products
-   for bounded i64/u64. The planner should accept either global bounds,
-   per-tile bounds, or future row/column summaries without inferring semantics
-   from C++ types. Keep scans timed as their own benchmark phase because scan
-   cost can dominate small shapes.
+   Benchmark-only global input scans now select tighter bounded i64/u64 global
+   bounds from exact row/column absolute summaries before plan creation. The
+   remaining work is to graduate this into public descriptor/API support, add
+   per-tile and future row/column-summary planner contracts, and connect tile
+   max-product discovery to execution skip opportunities without inferring
+   semantics from C++ types.
 
    Code references: current benchmark scans in
    `benchmarks/rns8_bench.cpp` (`compute_i64_tile_bounds`,

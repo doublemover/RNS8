@@ -13,6 +13,7 @@ from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capt
 
 
 TIMING_PHASES = [
+    "global_bound_scan",
     "planning",
     "scheduling",
     "tile_bound_scan",
@@ -33,6 +34,7 @@ CONTRACT_KEYS = [
     "n",
     "k",
     "prefix",
+    "bound_source",
     "selected_prefix",
     "requested_max_prefix",
     "contract_prefix_policy",
@@ -160,6 +162,11 @@ def capture_prepack_reuse_strategy(data: dict[str, Any]) -> str:
     return "persistent_matrix_residency" if data.get("reuse_packed_inputs") is True else "none"
 
 
+def capture_bound_source(data: dict[str, Any]) -> str:
+    value = data.get("bound_source")
+    return value if isinstance(value, str) else "static_profile"
+
+
 def contract_value(data: dict[str, Any], key: str) -> Any:
     if key == "reuse_packed_inputs":
         return data.get("reuse_packed_inputs") is True
@@ -167,6 +174,8 @@ def contract_value(data: dict[str, Any], key: str) -> Any:
         return capture_pack_mode(data)
     if key == "prepack_reuse_strategy":
         return capture_prepack_reuse_strategy(data)
+    if key == "bound_source":
+        return capture_bound_source(data)
     return dotted_get(data, key)
 
 
@@ -208,6 +217,15 @@ def phase_applicable(data: dict[str, Any], phase: str) -> bool:
             and not isinstance(value, bool)
             and isinstance(summary, dict)
             and isinstance(summary.get("tile_bound_scan"), dict)
+        )
+    if phase == "global_bound_scan":
+        value = data.get("avg_global_bound_scan_us")
+        summary = data.get("timing_summary_us")
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and isinstance(summary, dict)
+            and isinstance(summary.get("global_bound_scan"), dict)
         )
     return True
 

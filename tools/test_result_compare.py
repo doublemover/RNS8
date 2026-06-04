@@ -68,6 +68,12 @@ def main() -> int:
     assert gpu_vs_gpu["gpu_compatible"] is False
     assert gpu_vs_gpu["gpu_compatibility"]["device.gcn_arch"]["match"] is False
 
+    static_bound_gpu = copy.deepcopy(gpu)
+    static_bound_gpu["bound_source"] = "static_profile"
+    legacy_vs_static = result_compare.compare(gpu, static_bound_gpu, Path("legacy.json"), Path("static.json"))
+    assert legacy_vs_static["matching_contract"] is True
+    assert legacy_vs_static["contract"]["bound_source"]["match"] is True
+
     reused_gpu = copy.deepcopy(gpu)
     reused_gpu["reuse_packed_inputs"] = True
     reused_gpu["pack_mode"] = "prepacked_reuse"

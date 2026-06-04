@@ -114,12 +114,14 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     wrap64_contract = capture.get("semantics") == "wrap_u64_mod_2_64"
     tile_m = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_m")
     tile_n = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_n")
+    bound_source = capture_bound_source(capture)
     parts = [
         f"semantics={capture.get('semantics')}",
         f"finite_modulus={capture.get('finite_modulus')}",
         f"bound_kind={capture.get('bound_kind')}",
         f"bound_mode={capture.get('bound_mode')}",
         f"bound={capture.get('bound')}",
+        f"bound_source={bound_source}",
         f"m={capture.get('m')}",
         f"n={capture.get('n')}",
         f"k={capture.get('k')}",
@@ -246,6 +248,11 @@ def capture_prepack_reuse_strategy(capture: dict[str, Any]) -> str:
     return "persistent_matrix_residency" if capture.get("reuse_packed_inputs") is True else "none"
 
 
+def capture_bound_source(capture: dict[str, Any]) -> str:
+    value = capture.get("bound_source")
+    return value if isinstance(value, str) else "static_profile"
+
+
 def requested_pack_mode(args: argparse.Namespace) -> str:
     if getattr(args, "reuse_packed_inputs", False):
         return "prepacked_reuse"
@@ -319,6 +326,8 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "pack_mode": capture_pack_mode(capture),
         "prepack_reuse_strategy": capture_prepack_reuse_strategy(capture),
         "prepack_setup_us": capture.get("prepack_setup_us"),
+        "bound_source": capture_bound_source(capture),
+        "bound_discovery": capture.get("bound_discovery"),
         "prefix": capture.get("prefix"),
         "selected_prefix": capture.get("selected_prefix"),
         "requested_max_prefix": capture.get("requested_max_prefix"),
@@ -923,10 +932,11 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     selected_prefix = capture.get("selected_prefix", schedule.get("max_selected_prefix"))
     requested_max_prefix = capture.get("requested_max_prefix", capture.get("prefix"))
     prefix_policy = capture.get("contract_prefix_policy", "legacy_v4_unspecified")
+    bound_source = capture_bound_source(capture)
     prefix_schedule_hash = (
         f"tile_rows={schedule.get('tile_rows')};tile_cols={schedule.get('tile_cols')};"
         f"selected_prefix={selected_prefix};requested_max_prefix={requested_max_prefix};"
-        f"prefix_policy={prefix_policy};"
+        f"prefix_policy={prefix_policy};bound_source={bound_source};"
         f"groups={schedule.get('prefix_group_count')};"
         f"adaptive_prefix={int(bool(schedule.get('adaptive_prefix_active')))};"
         f"adaptive_skip={int(bool(schedule.get('adaptive_skip_active')))};"
@@ -1208,6 +1218,9 @@ def command_for(
         command.extend(["--modulus", str(modulus)])
     if exact_wide_limb_count is not None:
         command.extend(["--exact-wide-limbs", str(exact_wide_limb_count)])
+    bound_source = getattr(args, "bound_source", None)
+    if bound_source:
+        command.extend(["--bound-source", bound_source])
     prefix_policy = getattr(args, "prefix_policy", None)
     max_prefix = getattr(args, "max_prefix", None)
     if prefix_policy:
@@ -1246,6 +1259,12 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
         for semantics in semantics_values
     ):
         raise SystemExit("--prefix-policy and --max-prefix are only valid for bounded or exact-wide RNS sweeps")
+    if getattr(args, "bound_source", None) == "input-scan" and any(
+        semantics not in {"bounded-i64", "bounded-u64"} for semantics in semantics_values
+    ):
+        raise SystemExit("--bound-source input-scan is only valid for bounded RNS sweeps")
+    if getattr(args, "bound_source", None) == "input-scan" and any(case.bound_mode != "global" for case in cases):
+        raise SystemExit("--bound-source input-scan currently requires global bound-mode cases")
     if getattr(args, "max_prefix", None) is not None and args.max_prefix <= 0:
         raise SystemExit("--max-prefix must be positive")
     if args.residue_chain_length < 1:
@@ -1455,6 +1474,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shape", dest="shapes", action="append", help="legacy square shape to sweep; repeatable")
     parser.add_argument("--modulus", type=int, action="append", help="finite-u8 modulus; repeatable")
     parser.add_argument("--exact-wide-limbs", type=int, action="append", help="exact-wide output limb count; repeatable")
+    parser.add_argument(
+        "--bound-source",
+        choices=["static-profile", "input-scan"],
+        help="bounded RNS bound source to pass through to rns8-bench",
+    )
     parser.add_argument(
         "--prefix-policy",
         choices=["minimum-proven", "fixed-requested"],

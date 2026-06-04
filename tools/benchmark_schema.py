@@ -27,8 +27,11 @@ COMPARISON_BASELINE_STATUSES = {
     BASELINE_STATUS_MISSING_REVIEWED,
 }
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
+BOUND_SOURCES = {"static_profile", "input_scan"}
+BOUND_DISCOVERY_SOURCES = {"static_profile_contract", "input_row_column_abs_summary"}
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
@@ -452,6 +455,7 @@ class _Validator:
         self._validate_backend_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
+        self._validate_bound_discovery_metadata()
         self._validate_prefix_policy_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
@@ -871,6 +875,35 @@ class _Validator:
             if not isinstance(scheduling.get("reason"), str) or not scheduling.get("reason"):
                 self._error("timing_metadata.phase_availability.scheduling.reason must be a nonempty string")
 
+        global_bound_scan = availability.get(GLOBAL_BOUND_TIMING_PHASE)
+        input_scan = self.data.get("bound_source") == "input_scan"
+        if input_scan and not isinstance(global_bound_scan, dict):
+            self._error("timing_metadata.phase_availability.global_bound_scan must be an object for input_scan captures")
+        elif global_bound_scan is not None:
+            if not isinstance(global_bound_scan, dict):
+                self._error("timing_metadata.phase_availability.global_bound_scan must be an object")
+            else:
+                expected_timed = input_scan
+                expected_key = GLOBAL_BOUND_TIMING_PHASE if input_scan else None
+                expected_scope = "input_row_column_abs_summary" if input_scan else "not_applicable_static_profile"
+                if global_bound_scan.get("timed") is not expected_timed:
+                    self._error(
+                        "timing_metadata.phase_availability.global_bound_scan.timed must be "
+                        f"{str(expected_timed).lower()}"
+                    )
+                if global_bound_scan.get("timing_key") != expected_key:
+                    self._error(
+                        "timing_metadata.phase_availability.global_bound_scan.timing_key must be "
+                        f"{expected_key}"
+                    )
+                if global_bound_scan.get("scope") != expected_scope:
+                    self._error(
+                        "timing_metadata.phase_availability.global_bound_scan.scope must be "
+                        f"{expected_scope}"
+                    )
+                if not isinstance(global_bound_scan.get("reason"), str) or not global_bound_scan.get("reason"):
+                    self._error("timing_metadata.phase_availability.global_bound_scan.reason must be a nonempty string")
+
         per_tile = self.data.get("bound_mode") == "per_tile"
         tile_bound_scan = availability.get(PER_TILE_TIMING_PHASE)
         if per_tile and not isinstance(tile_bound_scan, dict):
@@ -953,6 +986,8 @@ class _Validator:
 
     def _timing_phases(self) -> list[str]:
         phases = list(TIMING_PHASES)
+        if self.data.get("bound_source") == "input_scan":
+            phases.insert(0, GLOBAL_BOUND_TIMING_PHASE)
         if self.data.get("bound_mode") == "per_tile":
             phases.insert(phases.index("matrix_alloc"), PER_TILE_TIMING_PHASE)
         return phases
@@ -1041,6 +1076,94 @@ class _Validator:
             self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
+
+    def _validate_bound_discovery_metadata(self) -> None:
+        bound_source = self.data.get("bound_source")
+        discovery = self.data.get("bound_discovery")
+        semantics = self.data.get("semantics")
+        bound_mode = self.data.get("bound_mode", "global")
+        if bound_source is not None:
+            if not isinstance(bound_source, str) or bound_source not in BOUND_SOURCES:
+                self._error(f"bound_source must be one of {sorted(BOUND_SOURCES)}")
+        if discovery is None:
+            if bound_source == "input_scan":
+                self._error("input_scan captures must include bound_discovery")
+            return
+        if semantics not in {"bounded_i64", "bounded_u64"}:
+            self._error("bound_discovery is only valid for bounded captures")
+            return
+        if not isinstance(discovery, dict):
+            self._error("bound_discovery must be an object or null")
+            return
+
+        source = discovery.get("source")
+        if not isinstance(source, str) or source not in BOUND_DISCOVERY_SOURCES:
+            self._error(f"bound_discovery.source must be one of {sorted(BOUND_DISCOVERY_SOURCES)}")
+        static_bound = discovery.get("static_bound")
+        selected_bound = discovery.get("selected_bound")
+        top_bound = self.data.get("bound")
+        for key in ["static_bound", "selected_bound"]:
+            value = discovery.get(key)
+            if not _is_int(value) or value < 0:
+                self._error(f"bound_discovery.{key} must be a nonnegative integer")
+        if _is_int(selected_bound) and _is_int(top_bound) and selected_bound != top_bound:
+            self._error("bound_discovery.selected_bound must match bound")
+        if _is_int(static_bound) and _is_int(selected_bound) and selected_bound > static_bound and static_bound != 0:
+            self._error("bound_discovery.selected_bound must not exceed static_bound")
+
+        if source == "static_profile_contract":
+            if bound_source not in {None, "static_profile"}:
+                self._error("static_profile_contract captures must use bound_source=static_profile")
+            for key in [
+                "discovered_global_bound",
+                "candidate_row_sum_col_max",
+                "candidate_row_max_col_sum",
+                "row_abs_sum_max",
+                "row_abs_max",
+                "col_abs_sum_max",
+                "col_abs_max",
+                "zero_row_count",
+                "zero_col_count",
+            ]:
+                if discovery.get(key) is not None:
+                    self._error(f"static_profile_contract captures must use bound_discovery.{key}=null")
+            return
+
+        if bound_source != "input_scan":
+            self._error("input_row_column_abs_summary captures must use bound_source=input_scan")
+        if bound_mode != "global":
+            self._error("input_scan bound discovery currently requires bound_mode=global")
+        for key in [
+            "discovered_global_bound",
+            "candidate_row_sum_col_max",
+            "candidate_row_max_col_sum",
+            "row_abs_sum_max",
+            "row_abs_max",
+            "col_abs_sum_max",
+            "col_abs_max",
+            "zero_row_count",
+            "zero_col_count",
+        ]:
+            value = discovery.get(key)
+            if not _is_int(value) or value < 0:
+                self._error(f"bound_discovery.{key} must be a nonnegative integer")
+        discovered = discovery.get("discovered_global_bound")
+        candidate_a = discovery.get("candidate_row_sum_col_max")
+        candidate_b = discovery.get("candidate_row_max_col_sum")
+        if _is_int(discovered) and _is_int(candidate_a) and _is_int(candidate_b):
+            expected = min(candidate_a, candidate_b)
+            if _is_int(static_bound) and static_bound != 0:
+                expected = min(expected, static_bound)
+            if discovered != expected:
+                self._error("bound_discovery.discovered_global_bound must equal the minimum safe candidate bound")
+        if _is_int(discovered) and _is_int(selected_bound) and discovered != selected_bound:
+            self._error("input_scan bound_discovery.discovered_global_bound must match selected_bound")
+        if _is_int(discovery.get("zero_row_count")) and _is_int(self.data.get("m")):
+            if discovery.get("zero_row_count") > self.data.get("m"):
+                self._error("bound_discovery.zero_row_count must be <= m")
+        if _is_int(discovery.get("zero_col_count")) and _is_int(self.data.get("n")):
+            if discovery.get("zero_col_count") > self.data.get("n"):
+                self._error("bound_discovery.zero_col_count must be <= n")
 
     def _validate_prefix_policy_metadata(self) -> None:
         present = [field for field in PREFIX_POLICY_FIELDS if field in self.data]
@@ -1971,6 +2094,8 @@ class _Validator:
             ("avg_crt_export_us", "crt_export"),
             ("avg_end_to_end_us", "end_to_end"),
         ]
+        if GLOBAL_BOUND_TIMING_PHASE in self._timing_phases():
+            fields.insert(0, ("avg_global_bound_scan_us", GLOBAL_BOUND_TIMING_PHASE))
         fields.insert(1, ("avg_scheduling_us", "scheduling"))
         if PER_TILE_TIMING_PHASE in self._timing_phases():
             fields.insert(2, ("avg_tile_bound_scan_us", PER_TILE_TIMING_PHASE))
@@ -1994,6 +2119,16 @@ class _Validator:
                 self._error(
                     f"tile_bound_scan_us={tile_bound_scan} does not match raw average "
                     f"{_average(tile_bound_values)}"
+                )
+        if GLOBAL_BOUND_TIMING_PHASE in raw_timings:
+            global_bound_scan = self._require("global_bound_scan_us", "number")
+            global_bound_values = raw_timings.get(GLOBAL_BOUND_TIMING_PHASE)
+            if _is_number(global_bound_scan) and global_bound_values is not None and not _close(
+                float(global_bound_scan), _average(global_bound_values)
+            ):
+                self._error(
+                    f"global_bound_scan_us={global_bound_scan} does not match raw average "
+                    f"{_average(global_bound_values)}"
                 )
         prefix = self.data.get("selected_prefix", self.data.get("prefix"))
         applicable = self.data.get("per_modulus_gemm_estimate_applicable")

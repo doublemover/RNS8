@@ -83,6 +83,11 @@ enum class InputProfile {
   AdaptiveBands,
 };
 
+enum class BoundSource {
+  StaticProfile,
+  InputScan,
+};
+
 enum class PrefixPolicy {
   MinimumProven,
   FixedRequested,
@@ -105,6 +110,7 @@ struct Args {
   uint16_t finite_modulus = 251;
   BoundMode bound_mode = BoundMode::Global;
   InputProfile input_profile = InputProfile::UniformSmall;
+  BoundSource bound_source = BoundSource::StaticProfile;
   PrefixPolicy prefix_policy = PrefixPolicy::MinimumProven;
   uint32_t max_prefix_override = 0;
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
@@ -140,9 +146,23 @@ enum class PrepackReuseStrategy {
 struct BenchmarkResult {
   uint64_t plan_us = 0;
   uint64_t schedule_query_us = 0;
+  uint64_t global_bound_scan_us = 0;
+  bool global_bound_scan_available = false;
   uint64_t tile_bound_scan_us = 0;
   bool tile_bound_scan_available = false;
   uint64_t matrix_alloc_us = 0;
+  uint64_t static_bound = 0;
+  uint64_t effective_bound = 0;
+  bool effective_bound_available = false;
+  uint64_t discovered_global_bound = 0;
+  uint64_t bound_candidate_row_sum_col_max = 0;
+  uint64_t bound_candidate_row_max_col_sum = 0;
+  uint64_t row_abs_sum_max = 0;
+  uint64_t row_abs_max = 0;
+  uint64_t col_abs_sum_max = 0;
+  uint64_t col_abs_max = 0;
+  uint64_t zero_row_count = 0;
+  uint64_t zero_col_count = 0;
   std::vector<uint64_t> tile_bounds{};
   uint64_t tile_bound_min = 0;
   uint64_t tile_bound_max = 0;
@@ -199,6 +219,7 @@ uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& resu
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
       << "                  [--input-profile uniform-small|adaptive-bands]\n"
+      << "                  [--bound-source static-profile|input-scan]\n"
       << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--residue-chain-length N]\n"
@@ -366,6 +387,16 @@ InputProfile parse_input_profile(const std::string& value) {
   usage_error("unknown input profile: " + value);
 }
 
+BoundSource parse_bound_source(const std::string& value) {
+  if (value == "static-profile" || value == "static_profile" || value == "static") {
+    return BoundSource::StaticProfile;
+  }
+  if (value == "input-scan" || value == "input_scan" || value == "scan" || value == "discovered-global") {
+    return BoundSource::InputScan;
+  }
+  usage_error("unknown bound source: " + value);
+}
+
 PrefixPolicy parse_prefix_policy(const std::string& value) {
   if (value == "minimum-proven" || value == "minimum_proven" || value == "min" || value == "auto") {
     return PrefixPolicy::MinimumProven;
@@ -416,6 +447,8 @@ Args parse_args(int argc, char** argv) {
       args.bound_mode = parse_bound_mode(argv[++i]);
     } else if (arg == "--input-profile" && i + 1 < argc) {
       args.input_profile = parse_input_profile(argv[++i]);
+    } else if (arg == "--bound-source" && i + 1 < argc) {
+      args.bound_source = parse_bound_source(argv[++i]);
     } else if (arg == "--prefix-policy" && i + 1 < argc) {
       args.prefix_policy = parse_prefix_policy(argv[++i]);
     } else if (arg == "--max-prefix" && i + 1 < argc) {
@@ -449,6 +482,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
           << "                  [--input-profile uniform-small|adaptive-bands]\n"
+          << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--residue-chain-length N]\n"
@@ -521,6 +555,14 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  if (args.bound_source == BoundSource::InputScan) {
+    if (!bounded_benchmark_semantics(args.semantics)) {
+      usage_error("--bound-source input-scan is only valid for bounded-i64 or bounded-u64 semantics");
+    }
+    if (args.bound_mode != BoundMode::Global) {
+      usage_error("--bound-source input-scan currently requires --bound-mode global");
+    }
   }
   const bool rns_prefix_semantics = bounded_benchmark_semantics(args.semantics) ||
                                     exact_wide_benchmark_semantics(args.semantics);
@@ -652,6 +694,10 @@ bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
 
 const char* input_profile_name(const Args& args) {
   return args.input_profile == InputProfile::UniformSmall ? "uniform-small" : "adaptive-bands";
+}
+
+const char* bound_source_name(const Args& args) {
+  return args.bound_source == BoundSource::InputScan ? "input_scan" : "static_profile";
 }
 
 const char* backend_metadata_source(const Args& args) {
@@ -1254,6 +1300,128 @@ uint64_t benchmark_bound(const Args& args) {
     usage_error("bounded-i64 benchmark bound exceeds int64 output range");
   }
   return bound;
+}
+
+uint64_t checked_add_bound(uint64_t a, uint64_t b, const char* label) {
+  if (a > std::numeric_limits<uint64_t>::max() - b) {
+    usage_error(std::string(label) + " bound scan overflowed uint64_t");
+  }
+  return a + b;
+}
+
+uint64_t checked_mul_bound(uint64_t a, uint64_t b, const char* label) {
+  if (a != 0 && b > std::numeric_limits<uint64_t>::max() / a) {
+    usage_error(std::string(label) + " bound scan overflowed uint64_t");
+  }
+  return a * b;
+}
+
+uint64_t magnitude_for_bound_scan(int64_t value) {
+  if (value == std::numeric_limits<int64_t>::min()) {
+    usage_error("bounded-i64 input scan cannot represent abs(INT64_MIN) in int64_t");
+  }
+  return value < 0 ? static_cast<uint64_t>(-value) : static_cast<uint64_t>(value);
+}
+
+uint64_t magnitude_for_bound_scan(uint64_t value) {
+  return value;
+}
+
+struct GlobalBoundScanStats {
+  uint64_t discovered_bound = 0;
+  uint64_t candidate_row_sum_col_max = 0;
+  uint64_t candidate_row_max_col_sum = 0;
+  uint64_t row_abs_sum_max = 0;
+  uint64_t row_abs_max = 0;
+  uint64_t col_abs_sum_max = 0;
+  uint64_t col_abs_max = 0;
+  uint64_t zero_row_count = 0;
+  uint64_t zero_col_count = 0;
+};
+
+template <typename T>
+GlobalBoundScanStats compute_global_bound_scan(
+    const Args& args,
+    const std::vector<T>& A,
+    const std::vector<T>& B,
+    uint64_t static_bound) {
+  GlobalBoundScanStats stats{};
+
+  for (int64_t row = 0; row < args.m; ++row) {
+    uint64_t sum = 0;
+    uint64_t maximum = 0;
+    for (int64_t kk = 0; kk < args.k; ++kk) {
+      const uint64_t value = magnitude_for_bound_scan(A[row_major_index(row, kk, args.k, "A")]);
+      sum = checked_add_bound(sum, value, "row absolute sum");
+      maximum = std::max(maximum, value);
+    }
+    stats.row_abs_sum_max = std::max(stats.row_abs_sum_max, sum);
+    stats.row_abs_max = std::max(stats.row_abs_max, maximum);
+    if (sum == 0) {
+      ++stats.zero_row_count;
+    }
+  }
+
+  for (int64_t col = 0; col < args.n; ++col) {
+    uint64_t sum = 0;
+    uint64_t maximum = 0;
+    for (int64_t kk = 0; kk < args.k; ++kk) {
+      const uint64_t value = magnitude_for_bound_scan(B[row_major_index(kk, col, args.n, "B")]);
+      sum = checked_add_bound(sum, value, "column absolute sum");
+      maximum = std::max(maximum, value);
+    }
+    stats.col_abs_sum_max = std::max(stats.col_abs_sum_max, sum);
+    stats.col_abs_max = std::max(stats.col_abs_max, maximum);
+    if (sum == 0) {
+      ++stats.zero_col_count;
+    }
+  }
+
+  stats.candidate_row_sum_col_max =
+      checked_mul_bound(stats.row_abs_sum_max, stats.col_abs_max, "row-sum/column-max");
+  stats.candidate_row_max_col_sum =
+      checked_mul_bound(stats.row_abs_max, stats.col_abs_sum_max, "row-max/column-sum");
+  stats.discovered_bound = std::min(stats.candidate_row_sum_col_max, stats.candidate_row_max_col_sum);
+  if (static_bound != 0) {
+    stats.discovered_bound = std::min(stats.discovered_bound, static_bound);
+  }
+  return stats;
+}
+
+void record_global_bound_scan(BenchmarkResult& result, const GlobalBoundScanStats& stats, uint64_t static_bound) {
+  result.global_bound_scan_available = true;
+  result.static_bound = static_bound;
+  result.discovered_global_bound = stats.discovered_bound;
+  result.bound_candidate_row_sum_col_max = stats.candidate_row_sum_col_max;
+  result.bound_candidate_row_max_col_sum = stats.candidate_row_max_col_sum;
+  result.row_abs_sum_max = stats.row_abs_sum_max;
+  result.row_abs_max = stats.row_abs_max;
+  result.col_abs_sum_max = stats.col_abs_sum_max;
+  result.col_abs_max = stats.col_abs_max;
+  result.zero_row_count = stats.zero_row_count;
+  result.zero_col_count = stats.zero_col_count;
+}
+
+template <typename T>
+uint64_t resolve_bounded_global_bound(
+    const Args& args,
+    const std::vector<T>& A,
+    const std::vector<T>& B,
+    uint64_t static_bound,
+    BenchmarkResult& result) {
+  result.static_bound = static_bound;
+  result.effective_bound = static_bound;
+  result.effective_bound_available = true;
+  if (args.bound_source != BoundSource::InputScan) {
+    return static_bound;
+  }
+  const auto scan_start = std::chrono::steady_clock::now();
+  const GlobalBoundScanStats stats = compute_global_bound_scan(args, A, B, static_bound);
+  const auto scan_end = std::chrono::steady_clock::now();
+  result.global_bound_scan_us = elapsed_us(scan_start, scan_end);
+  record_global_bound_scan(result, stats, static_bound);
+  result.effective_bound = stats.discovered_bound;
+  return result.effective_bound;
 }
 
 uint64_t checked_tile_count(const Args& args) {
@@ -2989,6 +3157,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_i64_tile_bounds(args, A, B); });
   }
@@ -3108,6 +3277,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_u64_tile_bounds(args, A, B); });
   }
@@ -3217,8 +3387,8 @@ BenchmarkResult initialize_bounded_oneshot_result(
     rns8_context* ctx,
     const Args& args,
     uint64_t bound,
-    const rns8_gemm_desc& desc) {
-  BenchmarkResult result{};
+    const rns8_gemm_desc& desc,
+    BenchmarkResult result = {}) {
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
@@ -3245,8 +3415,10 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   std::vector<int64_t> C(checked_elements(args.m, args.n, "C"));
   fill_bounded_i64_inputs(args, A, B, rng);
 
+  BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   auto desc = gemm_desc(args, bound);
-  BenchmarkResult result = initialize_bounded_oneshot_result(ctx, args, bound, desc);
+  result = initialize_bounded_oneshot_result(ctx, args, bound, desc, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
 
   const auto run_iteration = [&](TimingSamples* samples) {
@@ -3288,8 +3460,10 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   std::vector<uint64_t> C(checked_elements(args.m, args.n, "C"));
   fill_bounded_u64_inputs(args, A, B, rng);
 
+  BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   auto desc = gemm_desc(args, bound);
-  BenchmarkResult result = initialize_bounded_oneshot_result(ctx, args, bound, desc);
+  result = initialize_bounded_oneshot_result(ctx, args, bound, desc, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
 
   const auto run_iteration = [&](TimingSamples* samples) {
@@ -3338,6 +3512,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   fill_bounded_i64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_i64_tile_bounds(args, A, B); });
   }
@@ -3615,6 +3790,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   fill_bounded_u64_inputs(args, A, B, rng);
 
   BenchmarkResult result{};
+  bound = resolve_bounded_global_bound(args, A, B, bound, result);
   if (args.bound_mode == BoundMode::PerTile) {
     record_timed_tile_bounds(result, [&]() { return compute_u64_tile_bounds(args, A, B); });
   }
@@ -4842,6 +5018,7 @@ void print_json(
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);
   const uint32_t prefix = benchmark_prefix(args);
   const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  const bool global_bound_scan_available = result.global_bound_scan_available;
   const uint32_t residue_planes_skipped = prefix > selected_prefix ? prefix - selected_prefix : 0;
   const double residue_plane_skip_fraction =
       prefix == 0 ? 0.0 : static_cast<double>(residue_planes_skipped) / static_cast<double>(prefix);
@@ -5013,6 +5190,83 @@ void print_json(
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
   std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";
   std::cout << "  \"bound\": " << bound << ",\n";
+  std::cout << "  \"bound_source\": \"" << bound_source_name(args) << "\",\n";
+  std::cout << "  \"bound_discovery\": ";
+  if (bounded_benchmark_semantics(args.semantics)) {
+    std::cout << "{\n";
+    std::cout << "    \"source\": \""
+              << (global_bound_scan_available ? "input_row_column_abs_summary" : "static_profile_contract")
+              << "\",\n";
+    std::cout << "    \"static_bound\": "
+              << (result.effective_bound_available ? result.static_bound : bound) << ",\n";
+    std::cout << "    \"selected_bound\": " << bound << ",\n";
+    std::cout << "    \"discovered_global_bound\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.discovered_global_bound;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"candidate_row_sum_col_max\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.bound_candidate_row_sum_col_max;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"candidate_row_max_col_sum\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.bound_candidate_row_max_col_sum;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"row_abs_sum_max\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.row_abs_sum_max;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"row_abs_max\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.row_abs_max;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"col_abs_sum_max\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.col_abs_sum_max;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"col_abs_max\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.col_abs_max;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"zero_row_count\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.zero_row_count;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << ",\n";
+    std::cout << "    \"zero_col_count\": ";
+    if (global_bound_scan_available) {
+      std::cout << result.zero_col_count;
+    } else {
+      std::cout << "null";
+    }
+    std::cout << "\n";
+    std::cout << "  },\n";
+  } else {
+    std::cout << "null,\n";
+  }
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
@@ -5259,7 +5513,11 @@ void print_json(
     std::cout << ",\n";
   }
   std::cout
-      << "    \"phase_order\": [\"planning\", \"scheduling\", ";
+      << "    \"phase_order\": [";
+  if (global_bound_scan_available) {
+    std::cout << "\"global_bound_scan\", ";
+  }
+  std::cout << "\"planning\", \"scheduling\", ";
   if (result.tile_bound_scan_available) {
     std::cout << "\"tile_bound_scan\", ";
   }
@@ -5272,6 +5530,9 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "    \"phase_notes\": {\n";
+  if (global_bound_scan_available) {
+    std::cout << "      \"global_bound_scan\": \"one-time exact seeded input prepass that computes row/column absolute-summary global bounds before plan creation\",\n";
+  }
   if (args.oneshot) {
     std::cout << "      \"planning\": \"one-time metadata-only rns8_create_plan timing; each measured one-shot API call performs its own internal setup inside rns_gemm/end_to_end\",\n";
   } else if (args.wrap64_rocwmma_candidate) {
@@ -5393,6 +5654,14 @@ void print_json(
   }
   std::cout << "    },\n";
   std::cout << "    \"phase_availability\": {\n";
+  if (global_bound_scan_available) {
+    std::cout << "      \"global_bound_scan\": {\n";
+    std::cout << "        \"timed\": true,\n";
+    std::cout << "        \"timing_key\": \"global_bound_scan\",\n";
+    std::cout << "        \"scope\": \"input_row_column_abs_summary\",\n";
+    std::cout << "        \"reason\": \"measured with host steady_clock around seeded input row/column absolute-summary bound discovery before plan creation\"\n";
+    std::cout << "      },\n";
+  }
   std::cout << "      \"scheduling\": {\n";
   std::cout << "        \"timed\": true,\n";
   std::cout << "        \"timing_key\": \"scheduling\",\n";
@@ -5468,6 +5737,10 @@ void print_json(
     std::cout << "  \"gpu_event_timing_summary_us\": null,\n";
   }
   std::cout << "  \"plan_us\": " << result.plan_us << ",\n";
+  if (global_bound_scan_available) {
+    std::cout << "  \"global_bound_scan_us\": " << result.global_bound_scan_us << ",\n";
+    std::cout << "  \"avg_global_bound_scan_us\": " << static_cast<double>(result.global_bound_scan_us) << ",\n";
+  }
   std::cout << "  \"avg_planning_us\": " << static_cast<double>(result.plan_us) << ",\n";
   std::cout << "  \"schedule_query_us\": " << result.schedule_query_us << ",\n";
   std::cout << "  \"avg_scheduling_us\": " << static_cast<double>(result.schedule_query_us) << ",\n";
@@ -5492,6 +5765,11 @@ void print_json(
   std::cout << "  \"avg_crt_export_us\": " << avg_export_us << ",\n";
   std::cout << "  \"avg_end_to_end_us\": " << avg_end_to_end_us << ",\n";
   std::cout << "  \"raw_timings_us\": {\n";
+  if (global_bound_scan_available) {
+    std::cout << "    \"global_bound_scan\": ";
+    print_single_u64_array(result.global_bound_scan_us);
+    std::cout << ",\n";
+  }
   std::cout << "    \"planning\": ";
   print_single_u64_array(result.plan_us);
   std::cout << ",\n";
@@ -5520,6 +5798,9 @@ void print_json(
   std::cout << "\n";
   std::cout << "  },\n";
   std::cout << "  \"timing_summary_us\": {\n";
+  if (global_bound_scan_available) {
+    print_single_timing_summary("global_bound_scan", result.global_bound_scan_us, true);
+  }
   print_single_timing_summary("planning", result.plan_us, true);
   print_single_timing_summary("scheduling", result.schedule_query_us, true);
   if (result.tile_bound_scan_available) {
@@ -5591,6 +5872,7 @@ int main(int argc, char** argv) {
       break;
   }
   rns8_destroy_context(ctx);
-  print_json(args, info, result, bound, cmdline);
+  const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
+  print_json(args, info, result, effective_bound, cmdline);
   return 0;
 }

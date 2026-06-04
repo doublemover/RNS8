@@ -53,6 +53,48 @@ def add_prefix_policy_fields(capture: dict, policy: str) -> dict:
     return capture
 
 
+def add_global_bound_scan_fields(capture: dict) -> dict:
+    bound = capture["bound"]
+    capture["bound_source"] = "input_scan"
+    capture["bound_discovery"] = {
+        "source": "input_row_column_abs_summary",
+        "static_bound": bound,
+        "selected_bound": bound,
+        "discovered_global_bound": bound,
+        "candidate_row_sum_col_max": bound,
+        "candidate_row_max_col_sum": bound,
+        "row_abs_sum_max": max(bound, 1),
+        "row_abs_max": 16,
+        "col_abs_sum_max": max(bound, 1),
+        "col_abs_max": 16,
+        "zero_row_count": 0,
+        "zero_col_count": 0,
+    }
+    capture["global_bound_scan_us"] = 7
+    capture["avg_global_bound_scan_us"] = 7.0
+    capture["raw_timings_us"]["global_bound_scan"] = [7]
+    capture["timing_summary_us"] = {
+        "global_bound_scan": {"avg": 7.0, "median": 7.0, "p95": 7.0},
+        **capture["timing_summary_us"],
+    }
+    phase_order = capture["timing_metadata"]["phase_order"]
+    capture["timing_metadata"]["phase_order"] = ["global_bound_scan", *phase_order]
+    capture["timing_metadata"]["phase_notes"] = {
+        "global_bound_scan": "one-time exact seeded input prepass that computes row/column absolute-summary global bounds before plan creation",
+        **capture["timing_metadata"]["phase_notes"],
+    }
+    capture["timing_metadata"]["phase_availability"] = {
+        "global_bound_scan": {
+            "timed": True,
+            "timing_key": "global_bound_scan",
+            "scope": "input_row_column_abs_summary",
+            "reason": "measured with host steady_clock around seeded input row/column absolute-summary bound discovery before plan creation",
+        },
+        **capture["timing_metadata"]["phase_availability"],
+    }
+    return capture
+
+
 def as_direct_hip_finite_capture(
     capture: dict, modulus: int, kernel: str, isa_evidence: str
 ) -> dict:
@@ -788,6 +830,17 @@ def main() -> int:
     bad_prefix_policy_scope = copy.deepcopy(prefixed_adaptive)
     bad_prefix_policy_scope["contract_prefix_policy"] = "minimum_proven"
     expect_invalid(bad_prefix_policy_scope, "contract_prefix_policy=minimum_proven requires bound_mode=global")
+
+    scanned_bound = add_global_bound_scan_fields(copy.deepcopy(v4_hipblaslt_i64))
+    validate_capture(scanned_bound)
+
+    stale_scanned_bound = copy.deepcopy(scanned_bound)
+    stale_scanned_bound["bound_discovery"]["discovered_global_bound"] += 1
+    expect_invalid(stale_scanned_bound, "bound_discovery.discovered_global_bound must equal")
+
+    incomplete_scanned_timing = copy.deepcopy(scanned_bound)
+    del incomplete_scanned_timing["timing_metadata"]["phase_availability"]["global_bound_scan"]
+    expect_invalid(incomplete_scanned_timing, "phase_availability.global_bound_scan must be an object")
     wrap64 = v4_wrap64_hip
     v4_wrap64_rocwmma_candidate = as_wrap64_rocwmma_candidate_capture(v4_wrap64_hip)
     validate_capture(v4_wrap64_rocwmma_candidate)

@@ -496,6 +496,22 @@ def main() -> int:
     assert vector_name == "bounded-i64-small-16x16x16-hip-vector-alu-int64.json"
     assert vector_command[vector_command.index("--backend") + 1] == "hip-vector-alu-int64-runtime"
 
+    input_scan_args = copy.copy(vector_args)
+    input_scan_args.bound_source = "input-scan"
+    input_scan_commands = benchmark_sweep.sweep_commands(input_scan_args)
+    input_scan_command = input_scan_commands[0][1]
+    assert "--bound-source" in input_scan_command
+    assert input_scan_command[input_scan_command.index("--bound-source") + 1] == "input-scan"
+
+    exact_input_scan_args = copy.copy(exact_args)
+    exact_input_scan_args.bound_source = "input-scan"
+    try:
+        benchmark_sweep.sweep_commands(exact_input_scan_args)
+    except SystemExit as exc:
+        assert "--bound-source input-scan is only valid for bounded RNS sweeps" in str(exc)
+    else:
+        raise AssertionError("input-scan bound discovery should reject non-bounded sweeps")
+
     oneshot_args = copy.copy(exact_args)
     oneshot_args.out_root = Path("temp") / "oneshot"
     oneshot_args.backends = ["hip-direct"]
@@ -619,6 +635,15 @@ def main() -> int:
         "bounded-i64-tiny-adaptive-65x65x64-cpu.json",
         "bounded-i64-medium-adaptive-1024x1024x1024-cpu.json",
     ]
+    adaptive_input_scan_args = copy.copy(adaptive_only_args)
+    adaptive_input_scan_args.bound_source = "input-scan"
+    try:
+        benchmark_sweep.sweep_commands(adaptive_input_scan_args)
+    except SystemExit as exc:
+        assert "--bound-source input-scan currently requires global bound-mode cases" in str(exc)
+    else:
+        raise AssertionError("input-scan bound discovery should reject per-tile adaptive sweeps")
+
     adaptive_only_args.include_default_adaptive = False
     try:
         benchmark_sweep.sweep_commands(adaptive_only_args)
