@@ -104,7 +104,14 @@ DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
 }
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_KERNELS = {
+    "bounded_i64": "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "bounded_u64": "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1",
+}
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
+    "uniform_small_i8_ab_resident_b_residue_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
@@ -147,6 +154,7 @@ BENCHMARK_EXECUTION_MODES = {
     "benchmark_owned_vector_alu_native_buffers",
     "public_runtime_vector_alu_native_buffers",
     "transient_native_a_resident_b_reuse",
+    "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "internal_wrap64_rocwmma_candidate",
 }
 DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
@@ -331,7 +339,16 @@ class _Validator:
             and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
             and self.data.get("pack_mode") == "prepacked_reuse_b"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
-            and self._benchmark_execution_mode() == "transient_native_a_resident_b_reuse"
+            and self._benchmark_execution_mode()
+            in {"transient_native_a_resident_b_reuse", "transient_uniform_small_i8_a_resident_i8_b_reuse"}
+        )
+
+    def _is_direct_hip_bounded_native_a_reuse_b_uniform_small(self) -> bool:
+        semantics = self.data.get("semantics")
+        distribution = self.data.get("input_distribution")
+        return (
+            (semantics == "bounded_i64" and distribution == "signed_uniform_-16_16")
+            or (semantics == "bounded_u64" and distribution == "unsigned_uniform_0_16")
         )
 
     def _is_direct_hip_finite_native_a_reuse_b_capture(self) -> bool:
@@ -527,6 +544,9 @@ class _Validator:
             if self._is_wrap64_rocwmma_candidate()
             else "rns8_bench_public_oneshot_api"
             if self._is_public_oneshot_capture()
+            else "rns8_bench_uniform_small_i8_ab_reuse_b_path"
+            if self._is_direct_hip_bounded_native_a_reuse_b_capture()
+            and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
             else "rns8_bench_native_a_reuse_b_path"
             if self._is_direct_hip_bounded_native_a_reuse_b_capture()
             or self._is_direct_hip_finite_native_a_reuse_b_capture()
@@ -1133,17 +1153,28 @@ class _Validator:
                     self._error("direct-HIP bounded native-A reuse-B captures must use bound_mode=global")
                 if residue_chain_length != 1 or residue_output_mode != "host_export":
                     self._error("direct-HIP bounded native-A reuse-B captures must use host_export residue_chain_length=1")
-                expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS[semantics]
+                uniform_small = self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
+                expected_kernel = (
+                    DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_KERNELS[semantics]
+                    if uniform_small
+                    else DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS[semantics]
+                )
+                expected_epilogue = (
+                    DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE
+                    if uniform_small
+                    else DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE
+                )
+                expected_input_profile = "uniform-small" if uniform_small else "adaptive-bands"
                 if self.data.get("selected_kernel") != expected_kernel:
                     self._error(
                         "direct-HIP bounded native-A reuse-B captures must use "
                         f"selected_kernel={expected_kernel}"
                     )
                 if isinstance(backend_metadata, dict):
-                    if backend_metadata.get("epilogue_mode") != DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE:
+                    if backend_metadata.get("epilogue_mode") != expected_epilogue:
                         self._error(
                             "direct-HIP bounded native-A reuse-B captures must use "
-                            f"backend_metadata.epilogue_mode={DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE}"
+                            f"backend_metadata.epilogue_mode={expected_epilogue}"
                         )
                     if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE:
                         self._error(
@@ -1155,6 +1186,20 @@ class _Validator:
                             "direct-HIP bounded native-A reuse-B captures must use "
                             f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
                         )
+                    autotune_key = backend_metadata.get("autotune_key")
+                    if isinstance(autotune_key, str):
+                        normalized_key = f";{autotune_key};"
+                        required_parts = {
+                            "kernel": expected_kernel,
+                            "epilogue": expected_epilogue,
+                            "input_profile": expected_input_profile,
+                        }
+                        for key, value in required_parts.items():
+                            if f";{key}={value};" not in normalized_key:
+                                self._error(
+                                    "direct-HIP bounded native-A reuse-B backend_metadata.autotune_key "
+                                    f"must include {key}={value}"
+                                )
             if _is_int(prefix) and prefix <= 0:
                 self._error(f"{semantics} captures must use a positive prefix")
             expected_native_layout = (
@@ -1983,11 +2028,16 @@ class _Validator:
                     self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
             return
         if self._is_direct_hip_bounded_native_a_reuse_b_capture():
+            gemm_event = (
+                "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+                if self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
+                else "bounded_native_a_reuse_b_gemm_kernel_group"
+            )
             expected = [
                 "pack_h2d",
                 "pack_kernel",
                 "pack",
-                "bounded_native_a_reuse_b_gemm_kernel_group",
+                gemm_event,
                 "rns_gemm",
                 "crt_export_status_memset",
                 "crt_export_kernel",

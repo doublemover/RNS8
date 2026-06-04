@@ -613,6 +613,14 @@ bool bounded_native_a_reuse_b_requested(const Args& args) {
          args.bound_mode == BoundMode::Global && args.residue_chain_length == 1;
 }
 
+bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
+  return args.input_profile == InputProfile::UniformSmall;
+}
+
+const char* input_profile_name(const Args& args) {
+  return args.input_profile == InputProfile::UniformSmall ? "uniform-small" : "adaptive-bands";
+}
+
 const char* backend_metadata_source(const Args& args) {
   if (args.wrap64_rocwmma_candidate) {
     return kWrap64RocwmmaCandidateBackendSource;
@@ -621,6 +629,9 @@ const char* backend_metadata_source(const Args& args) {
     return "rns8_bench_public_oneshot_api";
   }
   if (bounded_native_a_reuse_b_requested(args)) {
+    if (bounded_native_a_reuse_b_uniform_small_a(args)) {
+      return "rns8_bench_uniform_small_i8_ab_reuse_b_path";
+    }
     return "rns8_bench_native_a_reuse_b_path";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&
@@ -652,6 +663,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
     return "internal_wrap64_rocwmma_candidate";
   }
   if (bounded_native_a_reuse_b_requested(args)) {
+    if (bounded_native_a_reuse_b_uniform_small_a(args)) {
+      return "transient_uniform_small_i8_a_resident_i8_b_reuse";
+    }
     return "transient_native_a_resident_b_reuse";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&
@@ -1147,6 +1161,36 @@ void fill_bounded_u64_inputs(
       B[row_major_index(kk, col, args.n, "B")] = sample_unsigned_band(rng, col_band);
     }
   }
+}
+
+int8_t uniform_small_i64_to_i8(int64_t value) {
+  if (value < -16 || value > 16) {
+    usage_error("uniform-small i64 fast path received an input outside [-16, 16]");
+  }
+  return static_cast<int8_t>(value);
+}
+
+int8_t uniform_small_u64_to_i8(uint64_t value) {
+  if (value > 16) {
+    usage_error("uniform-small u64 fast path received an input outside [0, 16]");
+  }
+  return static_cast<int8_t>(value);
+}
+
+std::vector<int8_t> make_uniform_small_i8_inputs(const std::vector<int64_t>& values) {
+  std::vector<int8_t> packed(values.size());
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    packed[index] = uniform_small_i64_to_i8(values[index]);
+  }
+  return packed;
+}
+
+std::vector<int8_t> make_uniform_small_i8_inputs(const std::vector<uint64_t>& values) {
+  std::vector<int8_t> packed(values.size());
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    packed[index] = uniform_small_u64_to_i8(values[index]);
+  }
+  return packed;
 }
 
 uint64_t benchmark_bound(const Args& args) {
@@ -1652,9 +1696,36 @@ const char* finite_native_a_reuse_b_kernel(uint16_t modulus) {
 }
 
 const char* bounded_native_a_reuse_b_kernel(const Args& args) {
+  if (bounded_native_a_reuse_b_uniform_small_a(args)) {
+    return "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1";
+  }
   return args.semantics == BenchSemantics::BoundedI64
       ? "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
       : "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1";
+}
+
+const char* bounded_native_a_reuse_b_epilogue(const Args& args) {
+  return bounded_native_a_reuse_b_uniform_small_a(args)
+      ? "uniform_small_i8_ab_resident_b_residue_then_crt_export"
+      : "native_a_centered_resident_b_residue_then_crt_export";
+}
+
+const char* bounded_native_a_reuse_b_event_label(const Args& args) {
+  return bounded_native_a_reuse_b_uniform_small_a(args)
+      ? "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+      : "bounded_native_a_reuse_b_gemm_kernel_group";
+}
+
+const char* bounded_native_a_reuse_b_pack_h2d_label(const Args& args) {
+  return bounded_native_a_reuse_b_uniform_small_a(args)
+      ? "bounded_uniform_small_i8_a_h2d"
+      : "bounded_native_a_h2d";
+}
+
+const char* bounded_native_a_reuse_b_b_h2d_label(const Args& args) {
+  return bounded_native_a_reuse_b_uniform_small_a(args)
+      ? "bounded_uniform_small_i8_b_h2d"
+      : "bounded_native_b_h2d";
 }
 
 bool bounded_native_a_reuse_b_path(const Args& args, const BenchmarkResult& result) {
@@ -1686,13 +1757,14 @@ std::string bounded_native_a_reuse_b_autotune_key(
       << ";n=" << args.n
       << ";k=" << args.k
       << ";bound=" << bound
+      << ";input_profile=" << input_profile_name(args)
       << ";prefix=" << RNS8_DEFAULT_BOUNDED_PREFIX
       << ";tile_m=" << args.tile_m
       << ";tile_n=" << args.tile_n
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
-      << ";execution=transient_native_a_resident_b_reuse"
+      << ";execution=" << benchmark_execution_mode_name(args)
       << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
   return out.str();
@@ -1773,7 +1845,7 @@ void apply_bounded_native_a_reuse_b_backend_metadata(const Args& args, Benchmark
   }
   result.backend_info.performance_validated = 0;
   const char* kernel = bounded_native_a_reuse_b_kernel(args);
-  const char* epilogue = "native_a_centered_resident_b_residue_then_crt_export";
+  const char* epilogue = bounded_native_a_reuse_b_epilogue(args);
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
   set_backend_text(
@@ -2159,7 +2231,7 @@ std::vector<std::string> gpu_event_phase_order(
       "pack_kernel",
       "pack",
       bounded_native_a_reuse_b_path(args, result)
-          ? "bounded_native_a_reuse_b_gemm_kernel_group"
+          ? bounded_native_a_reuse_b_event_label(args)
           : use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group",
   };
   append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
@@ -2436,9 +2508,9 @@ void collect_finite_native_a_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_bounded_native_a_pack_gpu_events(GpuEventSamples& events) {
+void collect_bounded_native_a_pack_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double h2d = sum_event_label(events, samples, "pack", "bounded_native_a_h2d");
+  const double h2d = sum_event_label(events, samples, "pack", bounded_native_a_reuse_b_pack_h2d_label(args));
   if (events.complete) {
     push_gpu_event_value(events, "pack_h2d", h2d);
     push_gpu_event_value(events, "pack_kernel", 0.0);
@@ -2446,11 +2518,12 @@ void collect_bounded_native_a_pack_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_bounded_native_a_gemm_gpu_events(GpuEventSamples& events) {
+void collect_bounded_native_a_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double kernel = sum_event_label(events, samples, "rns_gemm", "bounded_native_a_reuse_b_gemm_kernel_group");
+  const char* label = bounded_native_a_reuse_b_event_label(args);
+  const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
-    push_gpu_event_value(events, "bounded_native_a_reuse_b_gemm_kernel_group", kernel);
+    push_gpu_event_value(events, label, kernel);
     push_gpu_event_value(events, "rns_gemm", kernel);
   }
 }
@@ -3189,6 +3262,14 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
+  const bool use_uniform_small_i8_ab_reuse_b =
+      use_native_a_reuse_b && bounded_native_a_reuse_b_uniform_small_a(args);
+  std::vector<int8_t> uniform_small_a;
+  std::vector<int8_t> uniform_small_b;
+  if (use_uniform_small_i8_ab_reuse_b) {
+    uniform_small_a = make_uniform_small_i8_inputs(A);
+    uniform_small_b = make_uniform_small_i8_inputs(B);
+  }
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -3202,19 +3283,33 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   DeviceBuffer native_a;
+  DeviceBuffer uniform_small_a_device;
+  DeviceBuffer uniform_small_b_device;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
   auto c_desc = matrix_desc(args.m, args.n, args);
-  const std::size_t native_a_bytes = use_native_a_reuse_b ? checked_bytes(A.size(), sizeof(int64_t), "native A") : 0;
-  if (use_native_a_reuse_b) {
+  const std::size_t native_a_bytes =
+      use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
+          ? checked_bytes(A.size(), sizeof(int64_t), "native A")
+          : 0;
+  const std::size_t uniform_small_a_bytes =
+      use_uniform_small_i8_ab_reuse_b ? checked_bytes(uniform_small_a.size(), sizeof(int8_t), "uniform-small A") : 0;
+  const std::size_t uniform_small_b_bytes =
+      use_uniform_small_i8_ab_reuse_b ? checked_bytes(uniform_small_b.size(), sizeof(int8_t), "uniform-small B") : 0;
+  if (use_uniform_small_i8_ab_reuse_b) {
+    uniform_small_a_device.allocate(args.device_id, uniform_small_a_bytes, "hip_direct_allocate(bounded i64 i8 A)");
+    uniform_small_b_device.allocate(args.device_id, uniform_small_b_bytes, "hip_direct_allocate(bounded i64 i8 B)");
+  } else if (use_native_a_reuse_b) {
     native_a.allocate(args.device_id, native_a_bytes, "hip_direct_allocate(bounded i64 native A)");
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   }
-  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  if (!use_uniform_small_i8_ab_reuse_b) {
+    status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  }
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
   if (residue_current_output_mode(args)) {
@@ -3238,6 +3333,15 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
   };
   const auto pack_b_input = [&](uint64_t source_version) {
+    if (use_uniform_small_i8_ab_reuse_b) {
+      (void)source_version;
+      status = run_timed_status_operation(bounded_native_a_reuse_b_b_h2d_label(args), [&]() {
+        return rns8::detail::hip_direct_copy_host_to_device(
+            args.device_id, uniform_small_b_device.ptr, uniform_small_b.data(), uniform_small_b_bytes);
+      });
+      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded i64 uniform-small B)", status);
+      return;
+    }
     if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
         return rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
@@ -3274,12 +3378,15 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
       }
     } else if (use_native_a_reuse_b) {
       begin_gpu_event_phase(collect_gpu_events);
-      status = run_timed_status_operation("bounded_native_a_h2d", [&]() {
-        return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
+      status = run_timed_status_operation(bounded_native_a_reuse_b_pack_h2d_label(args), [&]() {
+        return use_uniform_small_i8_ab_reuse_b
+            ? rns8::detail::hip_direct_copy_host_to_device(
+                  args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(), uniform_small_a_bytes)
+            : rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded i64 native A)", status);
       if (collect_gpu_events) {
-        collect_bounded_native_a_pack_gpu_events(result.gpu_events);
+        collect_bounded_native_a_pack_gpu_events(args, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       pack_end = std::chrono::steady_clock::now();
@@ -3299,20 +3406,37 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_matrix* out_matrix = c_matrix;
     rns8_matrix* final_output_matrix = c_matrix;
     if (use_native_a_reuse_b) {
-      status = rns8::detail::hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
-          args.device_id,
-          native_a.ptr,
-          b_matrix,
-          c_matrix,
-          args.m,
-          args.n,
-          args.k,
-          args.k,
-          source_version);
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix", status);
+      if (use_uniform_small_i8_ab_reuse_b) {
+        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+            args.device_id,
+            uniform_small_a_device.ptr,
+            uniform_small_b_device.ptr,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            args.n,
+            source_version);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix", status);
+        }
+      } else {
+        status = rns8::detail::hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
+            args.device_id,
+            native_a.ptr,
+            b_matrix,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix", status);
+      }
       final_output_matrix = c_matrix;
       if (collect_gpu_events) {
-        collect_bounded_native_a_gemm_gpu_events(result.gpu_events);
+        collect_bounded_native_a_gemm_gpu_events(args, result.gpu_events);
       }
     } else {
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
@@ -3375,7 +3499,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
-  rns8_destroy_matrix(b_matrix);
+  if (b_matrix) {
+    rns8_destroy_matrix(b_matrix);
+  }
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);
   }
@@ -3412,6 +3538,14 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
+  const bool use_uniform_small_i8_ab_reuse_b =
+      use_native_a_reuse_b && bounded_native_a_reuse_b_uniform_small_a(args);
+  std::vector<int8_t> uniform_small_a;
+  std::vector<int8_t> uniform_small_b;
+  if (use_uniform_small_i8_ab_reuse_b) {
+    uniform_small_a = make_uniform_small_i8_inputs(A);
+    uniform_small_b = make_uniform_small_i8_inputs(B);
+  }
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -3425,19 +3559,33 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   DeviceBuffer native_a;
+  DeviceBuffer uniform_small_a_device;
+  DeviceBuffer uniform_small_b_device;
   const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args);
   auto b_desc = matrix_desc(args.k, args.n, args);
   auto c_desc = matrix_desc(args.m, args.n, args);
-  const std::size_t native_a_bytes = use_native_a_reuse_b ? checked_bytes(A.size(), sizeof(uint64_t), "native A") : 0;
-  if (use_native_a_reuse_b) {
+  const std::size_t native_a_bytes =
+      use_native_a_reuse_b && !use_uniform_small_i8_ab_reuse_b
+          ? checked_bytes(A.size(), sizeof(uint64_t), "native A")
+          : 0;
+  const std::size_t uniform_small_a_bytes =
+      use_uniform_small_i8_ab_reuse_b ? checked_bytes(uniform_small_a.size(), sizeof(int8_t), "uniform-small A") : 0;
+  const std::size_t uniform_small_b_bytes =
+      use_uniform_small_i8_ab_reuse_b ? checked_bytes(uniform_small_b.size(), sizeof(int8_t), "uniform-small B") : 0;
+  if (use_uniform_small_i8_ab_reuse_b) {
+    uniform_small_a_device.allocate(args.device_id, uniform_small_a_bytes, "hip_direct_allocate(bounded u64 i8 A)");
+    uniform_small_b_device.allocate(args.device_id, uniform_small_b_bytes, "hip_direct_allocate(bounded u64 i8 B)");
+  } else if (use_native_a_reuse_b) {
     native_a.allocate(args.device_id, native_a_bytes, "hip_direct_allocate(bounded u64 native A)");
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
   }
-  status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  if (!use_uniform_small_i8_ab_reuse_b) {
+    status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  }
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
   if (residue_current_output_mode(args)) {
@@ -3461,6 +3609,15 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
   };
   const auto pack_b_input = [&](uint64_t source_version) {
+    if (use_uniform_small_i8_ab_reuse_b) {
+      (void)source_version;
+      status = run_timed_status_operation(bounded_native_a_reuse_b_b_h2d_label(args), [&]() {
+        return rns8::detail::hip_direct_copy_host_to_device(
+            args.device_id, uniform_small_b_device.ptr, uniform_small_b.data(), uniform_small_b_bytes);
+      });
+      if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 uniform-small B)", status);
+      return;
+    }
     if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
         return rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
@@ -3497,12 +3654,15 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       }
     } else if (use_native_a_reuse_b) {
       begin_gpu_event_phase(collect_gpu_events);
-      status = run_timed_status_operation("bounded_native_a_h2d", [&]() {
-        return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
+      status = run_timed_status_operation(bounded_native_a_reuse_b_pack_h2d_label(args), [&]() {
+        return use_uniform_small_i8_ab_reuse_b
+            ? rns8::detail::hip_direct_copy_host_to_device(
+                  args.device_id, uniform_small_a_device.ptr, uniform_small_a.data(), uniform_small_a_bytes)
+            : rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native A)", status);
       if (collect_gpu_events) {
-        collect_bounded_native_a_pack_gpu_events(result.gpu_events);
+        collect_bounded_native_a_pack_gpu_events(args, result.gpu_events);
       }
       end_gpu_event_phase(collect_gpu_events);
       pack_end = std::chrono::steady_clock::now();
@@ -3522,20 +3682,37 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_matrix* out_matrix = c_matrix;
     rns8_matrix* final_output_matrix = c_matrix;
     if (use_native_a_reuse_b) {
-      status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
-          args.device_id,
-          native_a.ptr,
-          b_matrix,
-          c_matrix,
-          args.m,
-          args.n,
-          args.k,
-          args.k,
-          source_version);
-      if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix", status);
+      if (use_uniform_small_i8_ab_reuse_b) {
+        status = rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+            args.device_id,
+            uniform_small_a_device.ptr,
+            uniform_small_b_device.ptr,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            args.n,
+            source_version);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix", status);
+        }
+      } else {
+        status = rns8::detail::hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
+            args.device_id,
+            native_a.ptr,
+            b_matrix,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix", status);
+      }
       final_output_matrix = c_matrix;
       if (collect_gpu_events) {
-        collect_bounded_native_a_gemm_gpu_events(result.gpu_events);
+        collect_bounded_native_a_gemm_gpu_events(args, result.gpu_events);
       }
     } else {
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
@@ -3598,7 +3775,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     rns8_destroy_matrix(scratch_matrix);
   }
   rns8_destroy_matrix(c_matrix);
-  rns8_destroy_matrix(b_matrix);
+  if (b_matrix) {
+    rns8_destroy_matrix(b_matrix);
+  }
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);
   }

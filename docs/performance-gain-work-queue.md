@@ -390,19 +390,34 @@ Likely first slices:
 - Direct-HIP transient-A plus reusable-B bounded prefix-9 path.
   Implemented for global-bound `bounded-i64` and `bounded-u64`
   `rns8-bench --backend hip-direct --reuse-packed-b` captures whose Direct-HIP
-  plan resolves to fixed prefix 9: B is packed once into resident RNS storage,
+  plan resolves to fixed prefix 9. Adaptive-band captures still use the generic
+  native-A/resident-RNS-B route: B is packed once into resident RNS storage,
   A is copied as native `int64_t`/`uint64_t` per repeat, and the grouped
   prefix-9 GEMM centers A inside the tile load while consuming resident centered
   B. The benchmark/schema surface reports `transient_native_a_resident_b_reuse`,
   `rns8_bench_native_a_reuse_b_path`, a distinct
   `bounded_native_a_reuse_b_gemm_kernel_group`, and zero `pack_kernel`.
-  Windows `gfx1100` release smokes under
-  `temp/bounded-native-a-reuse-b-release/` and
-  `temp/bounded-native-a-reuse-b-release-rerun/` are schema/event-valid:
-  512 i64 was a modest setup-inclusive win in the first pass, 1024 i64 lost,
-  1024 u64 was not setup-amortized, and 512 u64 won in two passes but with
-  noisy baseline timings. Keep this experimental until broader release review
-  and a faster resident-B kernel variant prove stable end-to-end wins.
+  The default uniform-small benchmark profile now takes the faster specialized
+  route: A and B are represented as single row-major `int8_t` planes because
+  all prefix-9 centered residues are identical for the generated `[-16,16]`
+  signed and `[0,16]` unsigned values. B is copied once during reuse setup,
+  A is copied per repeat, and
+  `direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1`
+  fans the same A/B planes across the prefix-9 RNS output planes in one grouped
+  launch. That surface reports
+  `transient_uniform_small_i8_a_resident_i8_b_reuse`,
+  `rns8_bench_uniform_small_i8_ab_reuse_b_path`, the
+  `uniform_small_i8_ab_resident_b_residue_then_crt_export` epilogue, the
+  `bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group` event phase, and zero
+  `pack_kernel`.
+  Windows `gfx1100` release captures under
+  `temp/uniform-small-i8-ab-reuse-b-release/` used release binaries, 3 warmups,
+  and 9 measured repeats. They are schema-valid and event-valid. Setup-inclusive
+  speedups versus the same Direct-HIP non-reuse backend were 1.51x for bounded
+  i64 512, 1.32x for bounded i64 1024, 1.26x for bounded u64 512, and 1.29x
+  for bounded u64 1024. Keep this as an explicit reuse-path implementation win,
+  not an AUTO/default-routing claim, until workload-level reuse policy decides
+  when setup and reuse metadata should drive backend selection.
 
 Relation to existing queue:
 

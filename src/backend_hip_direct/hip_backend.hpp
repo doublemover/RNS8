@@ -135,7 +135,28 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc);
+rns8_status hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
 rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
+    int device_id,
+    const void* device_a_native,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    uint64_t source_version);
+rns8_status hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_matrix(
     int device_id,
     const void* device_a_native,
     const rns8_matrix* B,
@@ -167,6 +188,17 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc);
+rns8_status hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_device(
+    int device_id,
+    const void* device_a_native,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
 rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
     int device_id,
     const void* device_a_native,
@@ -176,6 +208,38 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
     int64_t n,
     int64_t k,
     int64_t lda,
+    uint64_t source_version);
+rns8_status hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_matrix(
+    int device_id,
+    const void* device_a_native,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    uint64_t source_version);
+rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
+rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
     uint64_t source_version);
 rns8_status hip_direct_gemm_rns_tiled_device(
     int device_id,

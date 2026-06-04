@@ -1227,6 +1227,75 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
       }
     }
 
+    std::fill(hip_out.begin(), hip_out.end(), -999);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_matrix(
+                0, d_a, hip_b, hip_c, m, n, k, lda, 7) == RNS8_SUCCESS);
+    const auto uniform_small_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(uniform_small_events, "bounded_uniform_small_native_a_reuse_b_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(uniform_small_events, "bounded_native_a_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 7);
+
+    REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+      }
+    }
+
+    std::vector<int8_t> A_i8(static_cast<std::size_t>(m * lda), 0);
+    std::vector<int8_t> B_i8(static_cast<std::size_t>(k * ldb), 0);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A_i8[static_cast<std::size_t>(row * lda + col)] =
+            static_cast<int8_t>(A[static_cast<std::size_t>(row * lda + col)]);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B_i8[static_cast<std::size_t>(row * ldb + col)] =
+            static_cast<int8_t>(B[static_cast<std::size_t>(row * ldb + col)]);
+      }
+    }
+    void* d_a_i8 = nullptr;
+    void* d_b_i8 = nullptr;
+    const std::size_t a_i8_bytes = A_i8.size() * sizeof(int8_t);
+    const std::size_t b_i8_bytes = B_i8.size() * sizeof(int8_t);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, a_i8_bytes, &d_a_i8) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, b_i8_bytes, &d_b_i8) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_a_i8, A_i8.data(), a_i8_bytes) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_b_i8, B_i8.data(), b_i8_bytes) == RNS8_SUCCESS);
+
+    std::fill(hip_out.begin(), hip_out.end(), -999);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+                0, d_a_i8, d_b_i8, hip_c, m, n, k, lda, ldb, 9) == RNS8_SUCCESS);
+    const auto uniform_small_i8_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(uniform_small_i8_events, "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(uniform_small_i8_events, "bounded_native_a_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 9);
+
+    REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+      }
+    }
+
+    CHECK(rns8::detail::hip_direct_free(0, d_b_i8) == RNS8_SUCCESS);
+    CHECK(rns8::detail::hip_direct_free(0, d_a_i8) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
     rns8_destroy_matrix(hip_c);
     rns8_destroy_matrix(hip_b);
@@ -1297,6 +1366,75 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
       }
     }
 
+    std::fill(hip_out.begin(), hip_out.end(), 0xffffffffffffffffull);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_matrix(
+                0, d_a, hip_b, hip_c, m, n, k, lda, 8) == RNS8_SUCCESS);
+    const auto uniform_small_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(uniform_small_events, "bounded_uniform_small_native_a_reuse_b_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(uniform_small_events, "bounded_native_a_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 8);
+
+    REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xffffffffffffffffull);
+      }
+    }
+
+    std::vector<int8_t> A_i8(static_cast<std::size_t>(m * lda), 0);
+    std::vector<int8_t> B_i8(static_cast<std::size_t>(k * ldb), 0);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A_i8[static_cast<std::size_t>(row * lda + col)] =
+            static_cast<int8_t>(A[static_cast<std::size_t>(row * lda + col)]);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B_i8[static_cast<std::size_t>(row * ldb + col)] =
+            static_cast<int8_t>(B[static_cast<std::size_t>(row * ldb + col)]);
+      }
+    }
+    void* d_a_i8 = nullptr;
+    void* d_b_i8 = nullptr;
+    const std::size_t a_i8_bytes = A_i8.size() * sizeof(int8_t);
+    const std::size_t b_i8_bytes = B_i8.size() * sizeof(int8_t);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, a_i8_bytes, &d_a_i8) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, b_i8_bytes, &d_b_i8) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_a_i8, A_i8.data(), a_i8_bytes) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_b_i8, B_i8.data(), b_i8_bytes) == RNS8_SUCCESS);
+
+    std::fill(hip_out.begin(), hip_out.end(), 0xffffffffffffffffull);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
+                0, d_a_i8, d_b_i8, hip_c, m, n, k, lda, ldb, 10) == RNS8_SUCCESS);
+    const auto uniform_small_i8_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(uniform_small_i8_events, "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(uniform_small_i8_events, "bounded_native_a_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 10);
+
+    REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == 0xffffffffffffffffull);
+      }
+    }
+
+    CHECK(rns8::detail::hip_direct_free(0, d_b_i8) == RNS8_SUCCESS);
+    CHECK(rns8::detail::hip_direct_free(0, d_a_i8) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
     rns8_destroy_matrix(hip_c);
     rns8_destroy_matrix(hip_b);

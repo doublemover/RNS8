@@ -329,13 +329,14 @@ def as_direct_hip_finite_native_a_reuse_b_capture(capture: dict) -> dict:
 def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
-    kernel = "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
-    epilogue = "native_a_centered_resident_b_residue_then_crt_export"
-    reused["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    kernel = "direct_hip_uniform_small_i8_ab_prefix9_reuse_b_grouped_rns_gemm_v1"
+    epilogue = "uniform_small_i8_ab_resident_b_residue_then_crt_export"
+    gemm_event = "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+    reused["benchmark_execution_mode"] = "transient_uniform_small_i8_a_resident_i8_b_reuse"
     reused["backend_requested"] = "hip-direct"
     reused["backend_selected"] = "hip-direct"
     reused["selected_kernel"] = kernel
-    reused["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
+    reused["backend_metadata"]["source"] = "rns8_bench_uniform_small_i8_ab_reuse_b_path"
     reused["backend_metadata"]["selected_kernel"] = kernel
     reused["backend_metadata"]["accelerator_backend"] = False
     reused["backend_metadata"]["matrix_engine_backend"] = False
@@ -348,8 +349,9 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
     reused["backend_metadata"]["autotune_key"] = (
         "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=uniform-small;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
-        "execution=transient_native_a_resident_b_reuse;"
+        "execution=transient_uniform_small_i8_a_resident_i8_b_reuse;"
         f"kernel={kernel};epilogue={epilogue}"
     )
     reused["pack_mode"] = "prepacked_reuse_b"
@@ -358,7 +360,7 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     reused["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["prepack_setup_us"] = 400
     reused["avg_prepack_setup_us"] = 400.0
-    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    reused["timing_metadata"]["benchmark_execution_mode"] = "transient_uniform_small_i8_a_resident_i8_b_reuse"
     reused["timing_metadata"]["prepack_reuse_operands"] = ["B"]
     reused["timing_metadata"]["prepack_reuse_strategy"] = "persistent_matrix_residency"
     reused["timing_metadata"]["gpu_event_timing_source_scope"] = (
@@ -368,7 +370,7 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
         "pack_h2d",
         "pack_kernel",
         "pack",
-        "bounded_native_a_reuse_b_gemm_kernel_group",
+        gemm_event,
         "rns_gemm",
         "crt_export_status_memset",
         "crt_export_kernel",
@@ -386,7 +388,7 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
         "pack_h2d": [18.0, 19.0][:repeats],
         "pack_kernel": [0.0, 0.0][:repeats],
         "pack": [18.0, 19.0][:repeats],
-        "bounded_native_a_reuse_b_gemm_kernel_group": [150.0, 151.0][:repeats],
+        gemm_event: [150.0, 151.0][:repeats],
         "rns_gemm": [150.0, 151.0][:repeats],
         "crt_export_status_memset": [0.5, 0.5][:repeats],
         "crt_export_kernel": [30.0, 31.0][:repeats],
@@ -830,20 +832,76 @@ def main() -> int:
     validate_capture(direct_hip_finite_native_a_reuse_b)
     direct_hip_bounded_native_a_reuse_b = as_direct_hip_bounded_native_a_reuse_b_capture(v4_ck_i64)
     validate_capture(direct_hip_bounded_native_a_reuse_b)
+    adaptive_direct_hip_bounded_native_a = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
+    centered_kernel = "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
+    centered_epilogue = "native_a_centered_resident_b_residue_then_crt_export"
+    adaptive_direct_hip_bounded_native_a["input_distribution"] = "signed_adaptive_bands_-16_16"
+    adaptive_direct_hip_bounded_native_a["benchmark_execution_mode"] = "transient_native_a_resident_b_reuse"
+    adaptive_direct_hip_bounded_native_a["selected_kernel"] = centered_kernel
+    adaptive_direct_hip_bounded_native_a["backend_metadata"]["source"] = "rns8_bench_native_a_reuse_b_path"
+    adaptive_direct_hip_bounded_native_a["backend_metadata"]["selected_kernel"] = centered_kernel
+    adaptive_direct_hip_bounded_native_a["backend_metadata"]["epilogue_mode"] = centered_epilogue
+    adaptive_direct_hip_bounded_native_a["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=adaptive-bands;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_native_a_resident_b_reuse;"
+        f"kernel={centered_kernel};epilogue={centered_epilogue}"
+    )
+    adaptive_direct_hip_bounded_native_a["timing_metadata"][
+        "benchmark_execution_mode"
+    ] = "transient_native_a_resident_b_reuse"
+    adaptive_direct_hip_bounded_native_a["timing_metadata"]["gpu_event_phase_order"] = [
+        "bounded_native_a_reuse_b_gemm_kernel_group"
+        if phase == "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        else phase
+        for phase in adaptive_direct_hip_bounded_native_a["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    adaptive_direct_hip_bounded_native_a["gpu_event_timings_us"]["bounded_native_a_reuse_b_gemm_kernel_group"] = (
+        adaptive_direct_hip_bounded_native_a["gpu_event_timings_us"].pop(
+            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        )
+    )
+    adaptive_direct_hip_bounded_native_a["gpu_event_timing_summary_us"][
+        "bounded_native_a_reuse_b_gemm_kernel_group"
+    ] = adaptive_direct_hip_bounded_native_a["gpu_event_timing_summary_us"].pop(
+        "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+    )
+    validate_capture(adaptive_direct_hip_bounded_native_a)
     bad_bounded_native_a_phase = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
     bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"] = [
-        "rns_gemm_kernel_group" if phase == "bounded_native_a_reuse_b_gemm_kernel_group" else phase
+        "rns_gemm_kernel_group" if phase == "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group" else phase
         for phase in bad_bounded_native_a_phase["timing_metadata"]["gpu_event_phase_order"]
     ]
     bad_bounded_native_a_phase["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
-        bad_bounded_native_a_phase["gpu_event_timings_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+        bad_bounded_native_a_phase["gpu_event_timings_us"].pop(
+            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        )
     )
     bad_bounded_native_a_phase["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
-        bad_bounded_native_a_phase["gpu_event_timing_summary_us"].pop("bounded_native_a_reuse_b_gemm_kernel_group")
+        bad_bounded_native_a_phase["gpu_event_timing_summary_us"].pop(
+            "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group"
+        )
     )
     expect_invalid(
         bad_bounded_native_a_phase,
         "direct-HIP bounded native-A reuse-B GPU event phase set is incomplete",
+    )
+    stale_generic_bounded_native_a = copy.deepcopy(direct_hip_bounded_native_a_reuse_b)
+    stale_kernel = "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
+    stale_epilogue = "native_a_centered_resident_b_residue_then_crt_export"
+    stale_generic_bounded_native_a["selected_kernel"] = stale_kernel
+    stale_generic_bounded_native_a["backend_metadata"]["selected_kernel"] = stale_kernel
+    stale_generic_bounded_native_a["backend_metadata"]["epilogue_mode"] = stale_epilogue
+    stale_generic_bounded_native_a["backend_metadata"]["autotune_key"] = (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_native_a_resident_b_reuse;"
+        f"kernel={stale_kernel};epilogue={stale_epilogue}"
+    )
+    expect_invalid(
+        stale_generic_bounded_native_a,
+        "direct-HIP bounded native-A reuse-B captures must use selected_kernel",
     )
 
     exact_wide_ck = as_exact_wide_capture(v4_ck_i64)
