@@ -10,6 +10,24 @@ bool is_input_range_bound_kind(rns8_bound_kind bound_kind) {
   return bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K;
 }
 
+std::string ck_finite_selected_kernel(uint32_t finite_modulus) {
+  switch (finite_modulus) {
+    case 256:
+      return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
+    default:
+      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+  }
+}
+
+std::string rocwmma_finite_selected_kernel(uint32_t finite_modulus) {
+  switch (finite_modulus) {
+    case 256:
+      return "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2";
+    default:
+      return "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+  }
+}
+
 boost::multiprecision::cpp_int bounded_range_from_bound(rns8_semantics semantics, uint64_t bound) {
   using boost::multiprecision::cpp_int;
   return semantics == RNS8_BOUNDED_I64 ? cpp_int(2) * cpp_int(bound) : cpp_int(bound);
@@ -274,7 +292,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       return "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1";
     }
     if (uses_finite_storage(plan.desc.semantics)) {
-      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+      return ck_finite_selected_kernel(plan.desc.finite_modulus);
     }
     return "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
   }
@@ -283,7 +301,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       return "rocwmma_i8_i32_signed_tiled_hot_residue_v1";
     }
     if (uses_finite_storage(plan.desc.semantics)) {
-      return "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+      return rocwmma_finite_selected_kernel(plan.desc.finite_modulus);
     }
     return "rocwmma_i8_i32_signed_hot_residue_v1";
   }

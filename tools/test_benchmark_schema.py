@@ -1623,6 +1623,30 @@ def main() -> int:
     )
     expect_invalid(bad_finite_key, "finite-u8 backend_metadata.autotune_key must include finite_modulus")
 
+    bad_ck_finite_kernel = copy.deepcopy(v4_finite_ring_ck)
+    bad_ck_finite_kernel["finite_modulus"] = 256
+    bad_ck_finite_kernel["backend_metadata"]["autotune_key"] = bad_ck_finite_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "finite_modulus=255",
+        "finite_modulus=256",
+    )
+    expect_invalid(bad_ck_finite_kernel, "CK finite-u8 modulus 256 captures")
+
+    bad_rocwmma_finite_kernel = copy.deepcopy(v4_finite_field_rocwmma)
+    bad_rocwmma_finite_kernel["semantics"] = "finite_ring_u8"
+    bad_rocwmma_finite_kernel["finite_modulus"] = 256
+    bad_rocwmma_finite_kernel["backend_metadata"]["autotune_key"] = bad_rocwmma_finite_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(
+        "semantics=finite_field_u8",
+        "semantics=finite_ring_u8",
+    ).replace(
+        "finite_modulus=251",
+        "finite_modulus=256",
+    )
+    expect_invalid(bad_rocwmma_finite_kernel, "rocWMMA finite-u8 modulus 256 captures")
+
     bad_finite_epilogue = copy.deepcopy(v4_finite_field_rocwmma)
     bad_finite_epilogue["epilogue_type"] = "crt_export"
     expect_invalid(bad_finite_epilogue, "canonical_u8_export")

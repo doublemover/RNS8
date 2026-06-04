@@ -116,11 +116,13 @@ CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+    "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
 ROCWMMA_SELECTED_KERNELS = {
     "rocwmma_i8_i32_signed_hot_residue_v1",
     "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
+    "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
 DIRECT_HIP_FINITE_GENERIC_KERNEL = "direct_hip_tiled_finite_u8_gemm_v1"
 DIRECT_HIP_FINITE_SPECIALIZED_KERNELS = {
@@ -133,6 +135,14 @@ DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS = {
     251: "direct_hip_native_finite_u8_gemm_mod251_v1",
     255: "direct_hip_native_finite_u8_gemm_mod255_v1",
     256: "direct_hip_native_finite_u8_gemm_mod256_v1",
+}
+CK_FINITE_GENERIC_KERNEL = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+CK_FINITE_SPECIALIZED_KERNELS = {
+    256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
+}
+ROCWMMA_FINITE_GENERIC_KERNEL = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
+    256: "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL = "direct_hip_native_a_finite_u8_gemm_v1"
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS = {
@@ -2095,6 +2105,18 @@ class _Validator:
                             "direct-HIP finite native-A reuse-B captures must use "
                             f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE}"
                         )
+            if self.data.get("backend_selected") == "ck" and _is_int(modulus):
+                expected_kernel = CK_FINITE_SPECIALIZED_KERNELS.get(modulus, CK_FINITE_GENERIC_KERNEL)
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(
+                        f"CK finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
+                    )
+            if self.data.get("backend_selected") == "rocwmma" and _is_int(modulus):
+                expected_kernel = ROCWMMA_FINITE_SPECIALIZED_KERNELS.get(modulus, ROCWMMA_FINITE_GENERIC_KERNEL)
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(
+                        f"rocWMMA finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
+                    )
             if isinstance(schedule, dict):
                 for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
                     if schedule.get(key) != 0:

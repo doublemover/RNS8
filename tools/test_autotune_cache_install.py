@@ -15,7 +15,9 @@ import install_autotune_cache
 def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     semantics = "finite_ring_u8" if finite_modulus else "bounded_i64"
     selected_kernel = (
-        "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        {
+            256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
+        }.get(finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1")
         if finite_modulus
         else "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
     )
@@ -180,6 +182,22 @@ def main() -> int:
             assert "finite_modulus" in str(exc)
         else:
             raise AssertionError("invalid finite cache entry was accepted")
+
+        stale_finite_kernel = entry("-finite256", finite_modulus=256)
+        stale_finite_kernel["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        stale_finite_kernel["kernel_family"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        stale_finite_kernel["key"] = stale_finite_kernel["key"].replace(
+            "kernel=ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
+            "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+        )
+        stale_finite_source = root / "stale-finite-kernel.json"
+        write_cache(stale_finite_source, [stale_finite_kernel])
+        try:
+            install_autotune_cache.install_cache([stale_finite_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unsupported_autotune_kernel_for_contract" in str(exc)
+        else:
+            raise AssertionError("stale finite CK kernel cache entry was accepted")
 
         legacy_target_key = entry()
         legacy_target_key["key"] = legacy_target_key["key"].replace(";target_id=gfx1100;", ";target=gfx1100;")

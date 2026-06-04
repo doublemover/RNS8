@@ -1510,6 +1510,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-wrap64", action="store_true", help="include wrap64 CPU/direct-HIP captures")
     parser.add_argument(
         "--include-rocwmma-wrap64-candidate",
+        dest="include_wrap64_rocwmma_candidate",
         action="store_true",
         help="include the internal rocWMMA wrap64 byte-GEMM36 candidate in wrap64 sweeps",
     )

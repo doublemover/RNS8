@@ -6,6 +6,8 @@
 #include <hip/hip_runtime.h>
 #include <rocwmma/rocwmma.hpp>
 
+#include "../backend_common/finite_u8_reducer.hpp"
+
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -258,25 +260,12 @@ int zero_tile_residues(
 }
 
 __device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
-  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
-  uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
 __device__ int8_t reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {
-  const uint32_t unsigned_modulus = static_cast<uint32_t>(modulus);
-  const uint32_t magnitude =
-      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t residue = reduce_u32_small_modulus_device(magnitude, unsigned_modulus, reciprocal);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((unsigned_modulus - residue) & negative_mask);
-  const uint32_t threshold = (unsigned_modulus + 1u) / 2u;
-  residue -= unsigned_modulus & (0u - static_cast<uint32_t>(residue >= threshold));
-  return static_cast<int8_t>(static_cast<int32_t>(residue));
+  return rns8::detail::finite_u8::reduce_to_centered_accelerator_i32(
+      value, static_cast<uint32_t>(modulus), reciprocal);
 }
 
 __global__ void pack_a_rowmajor_kernel(

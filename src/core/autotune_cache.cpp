@@ -280,6 +280,24 @@ bool is_finite_u8_semantic(const std::string& semantic_contract) {
   return semantic_contract == "finite_ring_u8" || semantic_contract == "finite_field_u8";
 }
 
+std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
+  switch (finite_modulus) {
+    case 256:
+      return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
+    default:
+      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+  }
+}
+
+std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
+  switch (finite_modulus) {
+    case 256:
+      return "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2";
+    default:
+      return "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+  }
+}
+
 bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
   if (entry.selected_backend == "hip-vector-alu-int64") {
     if (entry.semantic_contract == "bounded_i64") {
@@ -295,7 +313,7 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
   }
   if (entry.selected_backend == "ck") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+      return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
       return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
@@ -307,7 +325,7 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
   }
   if (entry.selected_backend == "rocwmma") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+      return entry.selected_kernel == expected_rocwmma_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
       return entry.selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1";

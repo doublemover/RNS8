@@ -535,6 +535,13 @@ Technical direction:
   centers them inside the GEMM tile load, skips resident A/B pack kernels, and
   materializes C through the existing finite export path. This is not yet a
   reviewed speedup claim.
+- CK and rocWMMA finite-u8 reducer specialization was tested for the same
+  fixed-modulus family. The 251/255 pseudo-Mersenne reducer variants were not
+  promoted because focused Windows `gfx1100` measurements made them worse or
+  too noisy relative to the existing reviewed v1 accelerator identities.
+  Modulus 256 now has explicit CK/rocWMMA v2 selected-kernel identities with a
+  shared mask reducer, but the June 4, 2026 release/event sweep at 512x512x512
+  still favored direct-HIP end-to-end, so no reviewed cache entry was written.
 
 RNS8-specific notes:
 
@@ -2124,7 +2131,9 @@ Relation to new architecture work:
 
 - Finish bounded-i64 winner tuning for rocWMMA 512 and hipBLASLt 1024.
 - Optimize exact-wide export before broadening exact-wide GEMM variants.
-- Expand finite-u8 CK/rocWMMA reducer specialization for 251/255/256.
+- Close out finite-u8 CK/rocWMMA reducer specialization: 251/255 accelerator
+  variants are deprioritized after measurement, and 256 remains correct but
+  experimental until it beats direct-HIP end-to-end.
 - Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
   candidate.
 

@@ -12,6 +12,8 @@
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 
+#include "../backend_common/finite_u8_reducer.hpp"
+
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -236,24 +238,8 @@ struct CenteredModulo {
 
   template <typename Y, typename X>
   __host__ __device__ void operator()(Y& y, const X& x) const {
-    int32_t value = static_cast<int32_t>(x);
-    const bool negative = value < 0;
-    uint32_t magnitude =
-        negative ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-    uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(magnitude) * reciprocal) >> 32u);
-    uint32_t residue = magnitude - quotient * static_cast<uint32_t>(modulus);
-    while (residue >= static_cast<uint32_t>(modulus)) {
-      residue -= static_cast<uint32_t>(modulus);
-    }
-    int32_t centered = static_cast<int32_t>(residue);
-    if (negative && centered != 0) {
-      centered = modulus - centered;
-    }
-    const int32_t threshold = (modulus + 1) / 2;
-    if (centered >= threshold) {
-      centered -= modulus;
-    }
-    y = static_cast<Y>(centered);
+    y = static_cast<Y>(rns8::detail::finite_u8::reduce_to_centered_ck_i32(
+        static_cast<int32_t>(x), static_cast<uint32_t>(modulus), reciprocal));
   }
 };
 
@@ -364,31 +350,12 @@ bool ck_workspace_requirements_u64(
 }
 
 __device__ int8_t center_i32_device(int32_t value, int modulus, uint32_t reciprocal) {
-  const bool negative = value < 0;
-  uint32_t magnitude =
-      negative ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(magnitude) * reciprocal) >> 32u);
-  uint32_t residue = magnitude - quotient * static_cast<uint32_t>(modulus);
-  while (residue >= static_cast<uint32_t>(modulus)) {
-    residue -= static_cast<uint32_t>(modulus);
-  }
-  int32_t centered = static_cast<int32_t>(residue);
-  if (negative && centered != 0) {
-    centered = modulus - centered;
-  }
-  const int threshold = (modulus + 1) / 2;
-  if (centered >= threshold) {
-    centered -= modulus;
-  }
-  return static_cast<int8_t>(centered);
+  return rns8::detail::finite_u8::reduce_to_centered_ck_i32(value, static_cast<uint32_t>(modulus), reciprocal);
 }
 
 __device__ int8_t canonical_byte_from_centered_device(int8_t residue, int modulus) {
-  int value = static_cast<int>(residue);
-  if (value < 0) {
-    value += modulus;
-  }
-  return static_cast<int8_t>(value);
+  return static_cast<int8_t>(
+      rns8::detail::finite_u8::canonical_from_centered(residue, static_cast<uint32_t>(modulus)));
 }
 
 __global__ void pack_a_canonical_rowmajor_kernel(

@@ -273,6 +273,15 @@ Schema-valid AUTO smokes select `backend_selected=hipblaslt`,
 keys, with `backend_metadata.performance_validated: true` and reviewed-release
 comparison metadata.
 
+A focused follow-up on June 4, 2026 tested CK/rocWMMA fixed-modulus accelerator
+reducer identities for finite ring modulus 256 at 512x512x512 with release
+builds, three warmups, nine repeats, seed `20260602`, and required GPU events.
+The v2 kernels were correct and event-visible, but they did not promote:
+direct-HIP was 1382 us end-to-end, CK v2 was 1533 us, and rocWMMA v2 was
+1486 us. The older 251/255 finite accelerator winners keep their v1 kernel
+identities; attempted 251/255 accelerator fold variants remain deprioritized
+until they beat the existing release-reviewed paths end-to-end.
+
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 
 A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,

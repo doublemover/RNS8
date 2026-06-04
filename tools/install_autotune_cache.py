@@ -25,6 +25,12 @@ PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
 BOUNDED_SEMANTICS = {"bounded_i64", "bounded_u64"}
 EXACT_WIDE_SEMANTICS = {"exact_wide_signed", "exact_wide_unsigned"}
 FINITE_U8_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
+CK_FINITE_SPECIALIZED_KERNELS = {
+    256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
+}
+ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
+    256: "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
+}
 
 
 class AutotuneCacheInstallError(ValueError):
@@ -124,7 +130,7 @@ def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_
 
 
 def reviewed_kernel_supported_for_contract(
-    selected_backend: str, semantic_contract: str, selected_kernel: str
+    selected_backend: str, semantic_contract: str, selected_kernel: str, finite_modulus: int
 ) -> bool:
     if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
         if semantic_contract == "bounded_i64":
@@ -136,7 +142,9 @@ def reviewed_kernel_supported_for_contract(
         return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1"
     if selected_backend == "ck":
         if semantic_contract in FINITE_U8_SEMANTICS:
-            return selected_kernel == "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+            return selected_kernel == CK_FINITE_SPECIALIZED_KERNELS.get(
+                finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+            )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
             return selected_kernel == "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
         if semantic_contract in BOUNDED_SEMANTICS:
@@ -146,7 +154,9 @@ def reviewed_kernel_supported_for_contract(
             }
     if selected_backend == "rocwmma":
         if semantic_contract in FINITE_U8_SEMANTICS:
-            return selected_kernel == "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+            return selected_kernel == ROCWMMA_FINITE_SPECIALIZED_KERNELS.get(
+                finite_modulus, "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+            )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
             return selected_kernel == "rocwmma_i8_i32_signed_hot_residue_v1"
         if semantic_contract in BOUNDED_SEMANTICS:
@@ -261,7 +271,9 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             raise AutotuneCacheInstallError("unexpected_key_finite_modulus")
         entry["finite_modulus"] = finite_modulus
 
-        if not reviewed_kernel_supported_for_contract(selected_backend, semantic_contract, selected_kernel):
+        if not reviewed_kernel_supported_for_contract(
+            selected_backend, semantic_contract, selected_kernel, finite_modulus
+        ):
             raise AutotuneCacheInstallError("unsupported_autotune_kernel_for_contract")
         if not reviewed_epilogue_supported_for_contract(selected_backend, semantic_contract, epilogue):
             raise AutotuneCacheInstallError("unsupported_autotune_epilogue_for_contract")

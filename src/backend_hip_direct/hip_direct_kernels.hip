@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "../backend_common/finite_u8_reducer.hpp"
+
 namespace {
 
 struct rns8_plan_tile_schedule_entry {
@@ -52,111 +54,40 @@ uint32_t rns8_modulus_reciprocal_host(int modulus) {
 }
 
 __device__ uint32_t rns8_reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
-  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
-  uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
 __device__ uint32_t rns8_reduce_u32_mod255_device(uint32_t value) {
-  uint32_t residue =
-      (value & 0xffu) + ((value >> 8u) & 0xffu) + ((value >> 16u) & 0xffu) + ((value >> 24u) & 0xffu);
-  residue = (residue & 0xffu) + (residue >> 8u);
-  residue -= 255u & (0u - static_cast<uint32_t>(residue >= 255u));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_mod255(value);
 }
 
 __device__ uint32_t rns8_reduce_u32_mod251_device(uint32_t value) {
-  uint32_t residue = (value & 0xffu) + 5u * ((value >> 8u) & 0xffu) +
-                     25u * ((value >> 16u) & 0xffu) + 125u * ((value >> 24u) & 0xffu);
-  residue = (residue & 0xffu) + 5u * (residue >> 8u);
-  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
-  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
-  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
-  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 251u));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_mod251(value);
 }
 
 __device__ int8_t rns8_reduce_to_centered_mod256_device(int value) {
-  return static_cast<int8_t>(value & 0xff);
+  return rns8::detail::finite_u8::reduce_to_centered_mod256_i32(value);
 }
 
 __device__ int8_t rns8_reduce_to_centered_mod255_device(int value) {
-  const uint32_t magnitude =
-      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t residue = rns8_reduce_u32_mod255_device(magnitude);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((255u - residue) & negative_mask);
-  residue -= 255u & (0u - static_cast<uint32_t>(residue >= 128u));
-  return static_cast<int8_t>(static_cast<int32_t>(residue));
+  return rns8::detail::finite_u8::reduce_to_centered_mod255_i32(value);
 }
 
 __device__ int8_t rns8_reduce_to_centered_mod251_device(int value) {
-  const uint32_t magnitude =
-      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t residue = rns8_reduce_u32_mod251_device(magnitude);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((251u - residue) & negative_mask);
-  residue -= 251u & (0u - static_cast<uint32_t>(residue >= 126u));
-  return static_cast<int8_t>(static_cast<int32_t>(residue));
+  return rns8::detail::finite_u8::reduce_to_centered_mod251_i32(value);
 }
 
 __device__ int8_t rns8_reduce_to_centered_device(int value, int modulus, uint32_t reciprocal) {
-  if (modulus == 256) {
-    return rns8_reduce_to_centered_mod256_device(value);
-  }
-  if (modulus == 255) {
-    return rns8_reduce_to_centered_mod255_device(value);
-  }
-  if (modulus == 251) {
-    return rns8_reduce_to_centered_mod251_device(value);
-  }
-  const uint32_t unsigned_modulus = static_cast<uint32_t>(modulus);
-  const uint32_t magnitude =
-      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t residue = rns8_reduce_u32_small_modulus_device(magnitude, unsigned_modulus, reciprocal);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((unsigned_modulus - residue) & negative_mask);
-  const uint32_t threshold = (unsigned_modulus + 1u) / 2u;
-  residue -= unsigned_modulus & (0u - static_cast<uint32_t>(residue >= threshold));
-  return static_cast<int8_t>(static_cast<int32_t>(residue));
+  return rns8::detail::finite_u8::reduce_to_centered_i32(value, static_cast<uint32_t>(modulus), reciprocal);
 }
 
 template <int Modulus>
 __device__ int8_t rns8_reduce_to_centered_fixed_modulus_device(int value) {
-  if (Modulus == 256) {
-    return rns8_reduce_to_centered_mod256_device(value);
-  }
-  if (Modulus == 255) {
-    return rns8_reduce_to_centered_mod255_device(value);
-  }
-  if (Modulus == 251) {
-    return rns8_reduce_to_centered_mod251_device(value);
-  }
-  const uint32_t unsigned_modulus = static_cast<uint32_t>(Modulus);
-  const uint32_t reciprocal = static_cast<uint32_t>(kRns8ReciprocalScale / unsigned_modulus);
-  const uint32_t magnitude =
-      value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
-  uint32_t residue = rns8_reduce_u32_small_modulus_device(magnitude, unsigned_modulus, reciprocal);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((unsigned_modulus - residue) & negative_mask);
-  constexpr uint32_t threshold = (static_cast<uint32_t>(Modulus) + 1u) / 2u;
-  residue -= unsigned_modulus & (0u - static_cast<uint32_t>(residue >= threshold));
-  return static_cast<int8_t>(static_cast<int32_t>(residue));
+  return rns8::detail::finite_u8::reduce_to_centered_fixed_i32<static_cast<uint32_t>(Modulus)>(value);
 }
 
 __device__ uint32_t rns8_canonical_from_centered_device(int8_t residue, int modulus) {
-  const int value = static_cast<int>(residue);
-  return static_cast<uint32_t>(value + (modulus & -static_cast<int>(value < 0)));
+  return rns8::detail::finite_u8::canonical_from_centered(residue, static_cast<uint32_t>(modulus));
 }
 
 __device__ uint32_t rns8_mod_inverse_device(uint32_t a, uint32_t modulus) {
@@ -499,42 +430,17 @@ __device__ int8_t rns8_center_u64_device(uint64_t value, int modulus) {
 }
 
 __device__ int8_t rns8_center_u8_device(uint8_t value, int modulus) {
-  if (modulus == 256) {
-    return static_cast<int8_t>(value);
-  }
-  if (modulus == 255) {
-    return rns8_reduce_to_centered_mod255_device(static_cast<int>(value));
-  }
-  if (modulus == 251) {
-    return rns8_reduce_to_centered_mod251_device(static_cast<int>(value));
-  }
-  int residue = static_cast<int>(value) % modulus;
-  const int threshold = (modulus + 1) / 2;
-  residue -= modulus & -static_cast<int>(residue >= threshold);
-  return static_cast<int8_t>(residue);
+  return rns8::detail::finite_u8::center_u8(value, static_cast<uint32_t>(modulus));
 }
 
 template <int Modulus>
 __device__ int8_t rns8_center_u8_fixed_modulus_device(uint8_t value) {
-  if (Modulus == 256) {
-    return static_cast<int8_t>(value);
-  }
-  if (Modulus == 255) {
-    return rns8_reduce_to_centered_mod255_device(static_cast<int>(value));
-  }
-  if (Modulus == 251) {
-    return rns8_reduce_to_centered_mod251_device(static_cast<int>(value));
-  }
-  int residue = static_cast<int>(value) % Modulus;
-  constexpr int threshold = (Modulus + 1) / 2;
-  residue -= Modulus & -static_cast<int>(residue >= threshold);
-  return static_cast<int8_t>(residue);
+  return rns8::detail::finite_u8::center_u8_fixed<static_cast<uint32_t>(Modulus)>(value);
 }
 
 template <int Modulus>
 __device__ uint32_t rns8_canonical_from_centered_fixed_modulus_device(int8_t residue) {
-  const int value = static_cast<int>(residue);
-  return static_cast<uint32_t>(value + (Modulus & -static_cast<int>(value < 0)));
+  return rns8::detail::finite_u8::canonical_from_centered_fixed<static_cast<uint32_t>(Modulus)>(residue);
 }
 
 __global__ void rns8_pack_i64_kernel(
