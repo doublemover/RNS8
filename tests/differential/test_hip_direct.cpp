@@ -6684,6 +6684,24 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   }
   CHECK(hip_plan->tile_schedule[0].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
   CHECK(hip_plan->tile_schedule[2].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
+  rns8_plan_backend_info zero_skip_info{};
+  zero_skip_info.struct_size = sizeof(zero_skip_info);
+  zero_skip_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_backend_info(hip_plan, &zero_skip_info) == RNS8_SUCCESS);
+  constexpr const char* zero_skip_kernel = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
+  CHECK(std::string(zero_skip_info.selected_kernel) == zero_skip_kernel);
+  CHECK(std::string(zero_skip_info.autotune_key).find(std::string("kernel=") + zero_skip_kernel + ";") !=
+        std::string::npos);
+  uint64_t nonzero_active_entry_count = 0;
+  for (const auto& entry : hip_plan->tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+      nonzero_active_entry_count += entry.selected_prefix;
+    }
+  }
+  const uint64_t expected_zero_skip_workspace_bytes =
+      (static_cast<uint64_t>(hip_plan->tile_schedule.size()) + nonzero_active_entry_count) *
+      sizeof(rns8_plan_tile_schedule_entry);
+  CHECK(zero_skip_info.workspace_required_bytes == expected_zero_skip_workspace_bytes);
 
   auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
   auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
@@ -6706,6 +6724,10 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  CHECK(hip_workspace->hip_tile_schedule_active_entries_count == nonzero_active_entry_count);
+  CHECK(
+      hip_workspace->hip_tile_schedule_active_entries_bytes ==
+      nonzero_active_entry_count * sizeof(rns8_plan_tile_schedule_entry));
 
   std::fill(hip_c->residues.begin(), hip_c->residues.end(), sentinel);
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
@@ -6718,7 +6740,13 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   REQUIRE(rns8_pack_u64(hip, hip_a, A.data(), k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, hip_b, B.data(), n, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
   REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+  const auto zero_skip_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(zero_skip_events, "direct_hip_zero_output_tile_memset"));
+  CHECK(has_timing_label(zero_skip_events, "rns_gemm_kernel_group"));
   REQUIRE_FALSE(hip_c->host_residues_current);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
               0, hip_c->residues.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) == RNS8_SUCCESS);

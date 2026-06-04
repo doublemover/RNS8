@@ -2758,6 +2758,9 @@ std::vector<std::string> gpu_event_phase_order(
     gemm_phase = bounded_uniform_small_i8_ab_reuse_a_event_label();
   }
   std::vector<std::string> phases = {"pack_h2d", "pack_kernel", "pack", gemm_phase};
+  if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {
+    phases.push_back("direct_hip_zero_output_tile_memset");
+  }
   append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
   phases.push_back("rns_gemm");
   phases.push_back("crt_export_status_memset");
@@ -2994,13 +2997,25 @@ void record_reused_pack_gpu_events(const Args& args, rns8_backend_kind selected_
   }
 }
 
-void collect_gemm_gpu_events(GpuEventSamples& events, bool use_prepacked_b_cache) {
+void collect_gemm_gpu_events(
+    const BenchmarkResult& result,
+    GpuEventSamples& events,
+    bool use_prepacked_b_cache,
+    bool direct_hip_zero_fill) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const char* label = use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group";
-  const double kernel_group = sum_event_label(events, samples, "rns_gemm", label);
+  const bool all_tiles_zero =
+      result.zero_output_tile_count != 0 && result.zero_output_tile_count == result.schedule_info.tile_count;
+  const double kernel_group =
+      all_tiles_zero ? optional_event_label(samples, label) : sum_event_label(events, samples, "rns_gemm", label);
+  const double zero_fill =
+      direct_hip_zero_fill ? sum_event_label(events, samples, "rns_gemm", "direct_hip_zero_output_tile_memset") : 0.0;
   if (events.complete) {
     push_gpu_event_value(events, label, kernel_group);
-    push_gpu_event_value(events, "rns_gemm", kernel_group);
+    if (direct_hip_zero_fill) {
+      push_gpu_event_value(events, "direct_hip_zero_output_tile_memset", zero_fill);
+    }
+    push_gpu_event_value(events, "rns_gemm", kernel_group + zero_fill);
   }
 }
 
@@ -3244,7 +3259,11 @@ void collect_rns_gemm_gpu_events(
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     collect_finite_direct_gemm_gpu_events(events);
   } else {
-    collect_gemm_gpu_events(events, use_prepacked_b_cache);
+    collect_gemm_gpu_events(
+        result,
+        events,
+        use_prepacked_b_cache,
+        selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0);
     if (finite_benchmark_semantics(args.semantics)) {
       return;
     }
@@ -5392,6 +5411,9 @@ const char* selected_kernel_name(
     return result.backend_info.selected_kernel;
   }
   if (adaptive_execution_applied(args, info, result)) {
+    if (result.zero_output_tile_count != 0) {
+      return "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
+    }
     return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {

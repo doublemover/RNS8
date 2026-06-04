@@ -94,6 +94,12 @@ Implemented in the current proven-zero tile skip slice:
   fallback, CK, and rocWMMA tiled paths materialize zero output tiles without
   running per-tile GEMM work for selected residue planes. Residue planes above
   the selected prefix remain untouched.
+- Direct-HIP active-prefix schedules now exclude zero-output tile entries from
+  the compact GEMM workspace schedule. Zero-output tiles are materialized by a
+  separate scheduled residue-zero kernel reported as
+  `direct_hip_zero_output_tile_memset`; adaptive zero-skip plans advertise
+  `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`, while nonzero
+  adaptive plans keep `direct_hip_tiled_active_prefix_rns_gemm_v2`.
 - `rns8-bench` enables the skip only for exact seeded per-tile bound prepasses
   and reports zero tile counts, zero tile fraction, selected residue-plane skip
   counts, and schedule flags in `schedule_metadata`. Schema and sweep cache
@@ -385,6 +391,14 @@ Likely first slices:
   public row-major schedule plus a compact per-modulus active-entry schedule,
   and the GEMM dispatch uses the compact schedule to avoid tile blocks for
   residue planes that a tile did not select.
+- Compact Direct-HIP zero-output schedules. Implemented as
+  `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`: zero-output public
+  schedule entries are omitted from the active GEMM schedule and handled by the
+  event-visible `direct_hip_zero_output_tile_memset` operation before nonzero
+  scheduled GEMM work. Smoke evidence lives under
+  `temp/perf-work-queue/direct-hip-zero-active-schedule/` and validates schema
+  v4 plus required GPU events for a 256x256x512 bounded-u64 adaptive-bands
+  capture.
 
 Relation to existing queue:
 

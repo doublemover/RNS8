@@ -202,6 +202,11 @@ Implemented correctness coverage:
   adaptive execution flags, and aggregate HIP event timing scope. This is
   benchmark evidence metadata for the correctness path, not an optimized GPU
   performance claim.
+- Direct-HIP adaptive zero-output captures use the
+  `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3` kernel identity and
+  require the `direct_hip_zero_output_tile_memset` GPU event when zero-output
+  tiles are present; stale v2 adaptive captures are rejected for that schedule
+  contract.
 - Private direct HIP strict `mod 2^64` byte-limb smoke also remains as
   low-level coverage. Private wrap64 HIP tests also cover padded-host pack and
   export into compact device byte-limb storage with reusable helper buffers. The

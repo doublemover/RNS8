@@ -1888,7 +1888,36 @@ def main() -> int:
             "zero_output_skip_active": True,
         }
     )
+    zero_skip_kernel = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
+    stale_zero_skip_kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    zero_skip_schedule["selected_kernel"] = zero_skip_kernel
+    zero_skip_schedule["backend_metadata"]["selected_kernel"] = zero_skip_kernel
+    zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 1040
+    zero_skip_schedule["backend_metadata"]["autotune_key"] = zero_skip_schedule["backend_metadata"][
+        "autotune_key"
+    ].replace(stale_zero_skip_kernel, zero_skip_kernel)
+    zero_insert_at = zero_skip_schedule["timing_metadata"]["gpu_event_phase_order"].index("rns_gemm_kernel_group") + 1
+    zero_skip_schedule["timing_metadata"]["gpu_event_phase_order"].insert(
+        zero_insert_at, "direct_hip_zero_output_tile_memset"
+    )
+    repeats = zero_skip_schedule["repeats"]
+    zero_skip_schedule["gpu_event_timings_us"]["direct_hip_zero_output_tile_memset"] = [0.25] * repeats
+    zero_skip_schedule["gpu_event_timing_summary_us"]["direct_hip_zero_output_tile_memset"] = summary([0.25] * repeats)
+    zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [
+        value + 0.25 for value in zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"]
+    ]
+    zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm"] = summary(
+        zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"]
+    )
     validate_capture(zero_skip_schedule)
+
+    bad_zero_skip_stale_kernel = copy.deepcopy(zero_skip_schedule)
+    bad_zero_skip_stale_kernel["selected_kernel"] = stale_zero_skip_kernel
+    bad_zero_skip_stale_kernel["backend_metadata"]["selected_kernel"] = stale_zero_skip_kernel
+    bad_zero_skip_stale_kernel["backend_metadata"]["autotune_key"] = bad_zero_skip_stale_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace(zero_skip_kernel, stale_zero_skip_kernel)
+    expect_invalid(bad_zero_skip_stale_kernel, "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3")
 
     bad_zero_skip_unknown_flag = copy.deepcopy(zero_skip_schedule)
     bad_zero_skip_unknown_flag["schedule_metadata"]["flags"] = 4

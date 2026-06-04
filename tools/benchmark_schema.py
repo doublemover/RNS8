@@ -183,6 +183,8 @@ DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_u8_a_resident_f
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
+DIRECT_HIP_ADAPTIVE_KERNEL_V2 = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3 = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
 WRAP64_ROCWMMA_CANDIDATE_KERNEL = "rocwmma_wrap64_byte_gemm36_candidate_v0"
 CK_PREFIX_EVENT_RE = re.compile(r"^ck_prefix_(\d{2})_(pack_a|pack_b|matmul|copy_centered|add_centered)$")
 ROCWMMA_PREFIX_EVENT_RE = re.compile(
@@ -2202,8 +2204,15 @@ class _Validator:
             self._error("per-tile adaptive captures must report selected_kernel")
         else:
             selected_backend = self.data.get("backend_selected")
+            zero_output_tiles = (
+                _is_int(schedule.get("zero_output_tile_count")) and schedule.get("zero_output_tile_count") > 0
+            )
             expected_kernels = {
-                "hip-direct": "direct_hip_tiled_active_prefix_rns_gemm_v2",
+                "hip-direct": (
+                    DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3
+                    if zero_output_tiles
+                    else DIRECT_HIP_ADAPTIVE_KERNEL_V2
+                ),
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_hot_residue_v1",
             }

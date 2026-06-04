@@ -498,6 +498,8 @@ For bounded direct-HIP captures with complete event data, `gpu_event_timing` is
 - `pack_kernel`
 - `pack`
 - `rns_gemm_kernel_group`
+- `direct_hip_zero_output_tile_memset`, only for adaptive per-tile bounded
+  direct-HIP schedules with proven zero-output tiles
 - `rns_gemm`
 - `crt_export_status_memset`
 - `crt_export_kernel`

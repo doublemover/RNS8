@@ -278,6 +278,9 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
         (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED)) {
       return "direct_hip_prefix20_grouped_rns_gemm_v1";
     }
+    if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+      return "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
+    }
     return "direct_hip_tiled_active_prefix_rns_gemm_v2";
   }
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -685,6 +688,9 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
   }
   uint64_t active_entry_count = 0;
   for (const auto& entry : plan.tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+      continue;
+    }
     if (entry.selected_prefix > std::numeric_limits<uint64_t>::max() - active_entry_count) {
       return std::numeric_limits<uint64_t>::max();
     }
