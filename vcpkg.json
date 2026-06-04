@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "rns8-gemm",
+  "version-string": "0.1.0",
+  "description": "Exact integer GEMM with AMD GPU matrix engines, RNS, and CRT reconstruction.",
+  "license": "MIT",
+  "builtin-baseline": "2979dbff1b38167a2a0d2b47b7c549c61273eabf",
+  "dependencies": [
+    "boost-multiprecision",
+    "catch2",
+    "nlohmann-json"
+  ],
+  "features": {
+    "optional-exact-libs": {
+      "description": "Optional GMP and FLINT link checks for exact-reference development.",
+      "dependencies": [
+        "gmp",
+        "flint"
+      ]
+    }
+  }
+}

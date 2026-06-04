@@ -1,0 +1,16 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "linux-rocm-reference",
+      "displayName": "Linux ROCm reference fragment",
+      "description": "Reference preset fragment documenting ROCm variables; validation requires a real Linux ROCm host with supported hardware.",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx1030;gfx1100;gfx1200;gfx1201;gfx90a;gfx942;gfx950"
+      }
+    }
+  ]
+}

@@ -1,0 +1,337 @@
+{
+  "schema_version": 4,
+  "benchmark": "rns8_bounded_gemm_hip_vector_alu_int64_baseline",
+  "backend_requested": "hip-vector-alu-int64",
+  "backend_selected": "hip-vector-alu-int64",
+  "selected_kernel": "hip_vector_alu_i64_exact_192b_v1",
+  "backend_metadata": {
+    "source": "rns8_bench_vector_alu_baseline",
+    "selected_kernel": "hip_vector_alu_i64_exact_192b_v1",
+    "accelerator_backend": false,
+    "correctness_backend": true,
+    "matrix_engine_backend": false,
+    "compiled_kernel_available": true,
+    "exact_differential_validated": true,
+    "performance_validated": false,
+    "accelerator_library": "HIP runtime",
+    "accelerator_version": "7.1",
+    "capability_status": "benchmark_only_vector_alu_baseline",
+    "epilogue_mode": "direct_int64_export",
+    "workspace_mode": "benchmark_owned_device_buffers",
+    "workspace_required_bytes": 6148,
+    "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
+    "autotune_key": "backend=hip-vector-alu-int64;target_id=gfx1100;semantics=bounded_i64;m=16;n=16;k=16;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=software_192bit_limb;accumulator_signedness=signed_i64x_signed_i64;accumulator_modulus_policy=native_exact_integer_output;k_block_size=16;k_block_cap=0;kernel=hip_vector_alu_i64_exact_192b_v1;epilogue=direct_int64_export",
+    "accumulator_safety": {
+      "input_domain": "native_i64_values",
+      "signedness": "signed_i64x_signed_i64",
+      "accumulator_type": "software_192bit_limb",
+      "modulus_policy": "native_exact_integer_output",
+      "modulus": 0,
+      "uses_int32_inner_product": false,
+      "k_block_size": 16,
+      "k_block_cap": 0,
+      "max_lhs_abs": 0,
+      "max_rhs_abs": 0,
+      "max_product": 0,
+      "safe_for_k_block": true,
+      "status": "exact_192bit_limb_no_int32_k_cap"
+    }
+  },
+  "semantics": "bounded_i64",
+  "bound_kind": "global_max_abs",
+  "bound_mode": "global",
+  "bound": 4096,
+  "m": 16,
+  "n": 16,
+  "k": 16,
+  "prefix": 9,
+  "tile_m": 128,
+  "tile_n": 128,
+  "layout": "row_major",
+  "k_block_size": 16,
+  "adaptive_tile_size": null,
+  "tile_bounds_u64": null,
+  "schedule_metadata": {
+    "source": "rns8_get_plan_schedule_info",
+    "tile_m": 128,
+    "tile_n": 128,
+    "tile_rows": 1,
+    "tile_cols": 1,
+    "tile_count": 1,
+    "min_required_prefix": 2,
+    "max_required_prefix": 2,
+    "min_selected_prefix": 9,
+    "max_selected_prefix": 9,
+    "prefix_group_count": 1,
+    "adaptive_prefix_active": false,
+    "adaptive_skip_active": false,
+    "adaptive_execution_applied": false,
+    "range_bit_length": 14,
+    "zero_a_row_proof_count": 0,
+    "zero_b_col_proof_count": 0,
+    "zero_row_col_product_count": 0,
+    "planner_zero_a_row_count": 0,
+    "planner_zero_b_col_count": 0,
+    "planner_zero_row_col_product_count": 0
+  },
+  "epilogue_type": "direct_int64_export",
+  "packed_layout_version": null,
+  "seed": 13,
+  "warmups": 1,
+  "repeats": 2,
+  "input_distribution": "signed_uniform_-16_16",
+  "command_line": "rns8-bench --backend hip-vector-alu-int64 --semantics bounded-i64 --m 16 --n 16 --k 16 --warmups 1 --repeats 2 --seed 13",
+  "git_commit": "000000000000",
+  "compiler": {
+    "id": "msvc",
+    "version": "1944.35213"
+  },
+  "configured_amdgpu_targets": "gfx1100",
+  "hip_toolchain": {
+    "enabled": true,
+    "hip_root": "C:/Program Files/AMD/ROCm/7.1",
+    "hipcc_path": "C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe",
+    "hipcc_version": "HIP version: 7.1.0",
+    "hip_sdk_or_rocm_version": "7.1",
+    "version_source": "hipcc --version"
+  },
+  "device": {
+    "device_id": 0,
+    "name": "AMD Radeon RX 7900 XTX",
+    "gcn_arch": "gfx1100",
+    "hip_available": 1,
+    "hip_runtime_version": 70100000,
+    "hip_driver_version": 70100000,
+    "global_mem_bytes": 25753026560
+  },
+  "clock_power_settings": null,
+  "comparison_baseline": {
+    "status": "required_not_recorded",
+    "speedup_claimed": false,
+    "selected_reference": null,
+    "required_before_speedup_claim": [
+      "same_contract_cpu_reference",
+      "same_contract_direct_hip_correctness"
+    ],
+    "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence"
+  },
+  "derived_tops_equivalent": null,
+  "timing_source": "std::chrono::steady_clock",
+  "timing_note": "host wall-clock timings for the benchmark-only HIP vector-ALU exact int64 baseline",
+  "timing_metadata": {
+    "unit": "microseconds",
+    "source": "std::chrono::steady_clock",
+    "source_scope": "host_wall_clock",
+    "gpu_event_timing": true,
+    "gpu_event_timing_reason": "captured_by_vector_alu_native_backend_hooks",
+    "gpu_event_timing_status": "available",
+    "gpu_event_timing_source": "hipEventElapsedTime",
+    "gpu_event_timing_source_scope": "vector_alu_default_stream_native_int64_operation_groups",
+    "gpu_event_timing_caveat": "HIP event timings record benchmark/API vector-ALU native-buffer operation groups; host wall-clock timings remain required for CPU staging, range checks, API dispatch, allocations, and synchronous host-side overhead not represented on the HIP stream",
+    "phase_order": [
+      "planning",
+      "scheduling",
+      "matrix_alloc",
+      "pack",
+      "rns_gemm",
+      "crt_export",
+      "end_to_end"
+    ],
+    "gpu_event_phase_order": [
+      "vector_alu_pack_a_h2d",
+      "vector_alu_pack_b_h2d",
+      "pack",
+      "vector_alu_status_memset",
+      "vector_alu_i64_kernel",
+      "rns_gemm",
+      "vector_alu_status_d2h",
+      "vector_alu_output_d2h",
+      "crt_export"
+    ],
+    "phase_notes": {
+      "planning": "one-time rns8_create_plan schedule validation for the same bounded semantic contract",
+      "scheduling": "one-time rns8_get_plan_schedule_info host timing",
+      "matrix_alloc": "one-time benchmark-owned HIP device buffer allocation host timing",
+      "pack": "per-repeat host timing for raw bounded inputs copied to benchmark-owned HIP buffers",
+      "rns_gemm": "per-repeat host timing for one exact 192-bit-limb vector-ALU output kernel",
+      "crt_export": "per-repeat host timing for range-status D2H plus direct logical output D2H",
+      "end_to_end": "per-repeat pack plus rns_gemm plus crt_export host timing"
+    },
+    "phase_availability": {
+      "scheduling": {
+        "timed": true,
+        "timing_key": "scheduling",
+        "scope": "one_time_schedule_info_query",
+        "reason": "measured with host steady_clock around rns8_get_plan_schedule_info"
+      },
+      "reduction": {
+        "timed": false,
+        "timing_key": null,
+        "scope": "not_applicable_direct_int64_export",
+        "reason": "benchmark-only vector-ALU baseline computes exact logical outputs directly and does not use centered RNS residue reduction"
+      }
+    }
+  },
+  "gpu_event_timings_us": {
+    "vector_alu_pack_a_h2d": [
+      10.0,
+      12.0
+    ],
+    "vector_alu_pack_b_h2d": [
+      20.0,
+      28.0
+    ],
+    "pack": [
+      30.0,
+      40.0
+    ],
+    "vector_alu_status_memset": [
+      0.0,
+      0.0
+    ],
+    "vector_alu_i64_kernel": [
+      70.0,
+      90.0
+    ],
+    "rns_gemm": [
+      70.0,
+      90.0
+    ],
+    "vector_alu_status_d2h": [
+      5.0,
+      6.0
+    ],
+    "vector_alu_output_d2h": [
+      45.0,
+      54.0
+    ],
+    "crt_export": [
+      50.0,
+      60.0
+    ]
+  },
+  "gpu_event_timing_summary_us": {
+    "vector_alu_pack_a_h2d": {
+      "avg": 11.0,
+      "median": 12.0,
+      "p95": 12.0
+    },
+    "vector_alu_pack_b_h2d": {
+      "avg": 24.0,
+      "median": 28.0,
+      "p95": 28.0
+    },
+    "pack": {
+      "avg": 35.0,
+      "median": 40.0,
+      "p95": 40.0
+    },
+    "vector_alu_status_memset": {
+      "avg": 0.0,
+      "median": 0.0,
+      "p95": 0.0
+    },
+    "vector_alu_i64_kernel": {
+      "avg": 80.0,
+      "median": 90.0,
+      "p95": 90.0
+    },
+    "rns_gemm": {
+      "avg": 80.0,
+      "median": 90.0,
+      "p95": 90.0
+    },
+    "vector_alu_status_d2h": {
+      "avg": 5.5,
+      "median": 6.0,
+      "p95": 6.0
+    },
+    "vector_alu_output_d2h": {
+      "avg": 49.5,
+      "median": 54.0,
+      "p95": 54.0
+    },
+    "crt_export": {
+      "avg": 55.0,
+      "median": 60.0,
+      "p95": 60.0
+    }
+  },
+  "plan_us": 120,
+  "avg_planning_us": 120.0,
+  "schedule_query_us": 6,
+  "avg_scheduling_us": 6.0,
+  "matrix_alloc_us": 25,
+  "avg_matrix_alloc_us": 25.0,
+  "avg_pack_us": 35.0,
+  "avg_rns_gemm_us": 80.0,
+  "per_modulus_gemm_estimate_applicable": false,
+  "avg_per_modulus_gemm_estimate_us": 80.0,
+  "avg_crt_export_us": 55.0,
+  "avg_end_to_end_us": 170.0,
+  "raw_timings_us": {
+    "planning": [
+      120
+    ],
+    "scheduling": [
+      6
+    ],
+    "matrix_alloc": [
+      25
+    ],
+    "pack": [
+      30,
+      40
+    ],
+    "rns_gemm": [
+      70,
+      90
+    ],
+    "crt_export": [
+      50,
+      60
+    ],
+    "end_to_end": [
+      150,
+      190
+    ]
+  },
+  "timing_summary_us": {
+    "planning": {
+      "avg": 120.0,
+      "median": 120.0,
+      "p95": 120.0
+    },
+    "scheduling": {
+      "avg": 6.0,
+      "median": 6.0,
+      "p95": 6.0
+    },
+    "matrix_alloc": {
+      "avg": 25.0,
+      "median": 25.0,
+      "p95": 25.0
+    },
+    "pack": {
+      "avg": 35.0,
+      "median": 40.0,
+      "p95": 40.0
+    },
+    "rns_gemm": {
+      "avg": 80.0,
+      "median": 90.0,
+      "p95": 90.0
+    },
+    "crt_export": {
+      "avg": 55.0,
+      "median": 60.0,
+      "p95": 60.0
+    },
+    "end_to_end": {
+      "avg": 170.0,
+      "median": 190.0,
+      "p95": 190.0
+    }
+  },
+  "checksum_u64": 987654321
+}
