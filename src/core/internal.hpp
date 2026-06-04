@@ -221,6 +221,7 @@ cpp_int modulus_product(uint32_t prefix);
 uint32_t bit_length(const cpp_int& value);
 uint32_t required_prefix_for_range(const cpp_int& range);
 uint32_t default_prefix_for_semantics(rns8_semantics semantics);
+bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound);
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix);
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix);
 rns8_status validate_bound_contract(

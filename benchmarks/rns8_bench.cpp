@@ -1000,6 +1000,24 @@ const char* bound_kind_name(const Args& args) {
   return "unknown";
 }
 
+const char* bound_kind_name(rns8_bound_kind bound_kind) {
+  switch (bound_kind) {
+    case RNS8_BOUND_NONE:
+      return "none";
+    case RNS8_BOUND_GLOBAL_MAX_ABS:
+      return "global_max_abs";
+    case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
+      return "global_max_unsigned";
+    case RNS8_BOUND_PER_TILE_MAX_ABS:
+      return "per_tile_max_abs";
+    case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
+      return "per_tile_max_unsigned";
+    case RNS8_BOUND_INPUT_RANGE_AND_K:
+      return "input_range_and_k";
+  }
+  return "unknown";
+}
+
 const char* bound_mode_name(BoundMode mode) {
   switch (mode) {
     case BoundMode::Global:
@@ -5498,6 +5516,11 @@ void print_json(
   }
   std::cout << "  \"schedule_metadata\": {\n";
   std::cout << "    \"source\": \"" << json_escape(result.schedule_source) << "\",\n";
+  std::cout << "    \"bound_kind\": \"" << bound_kind_name(result.schedule_info.bound_kind) << "\",\n";
+  std::cout << "    \"effective_bound\": " << result.schedule_info.effective_bound << ",\n";
+  std::cout << "    \"lhs_bound\": " << result.schedule_info.lhs_bound << ",\n";
+  std::cout << "    \"rhs_bound\": " << result.schedule_info.rhs_bound << ",\n";
+  std::cout << "    \"bound_contract\": \"" << json_escape(result.schedule_info.bound_contract) << "\",\n";
   std::cout << "    \"tile_m\": " << result.schedule_info.tile_m << ",\n";
   std::cout << "    \"tile_n\": " << result.schedule_info.tile_n << ",\n";
   std::cout << "    \"tile_rows\": " << result.schedule_info.tile_rows << ",\n";

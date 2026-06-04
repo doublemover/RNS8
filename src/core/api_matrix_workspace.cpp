@@ -205,7 +205,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_min_selected_prefix == 0 && plan.schedule_max_selected_prefix == 0 &&
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
-           plan.desc.flags == 0 && plan.schedule_flags == 0;
+           plan.desc.flags == 0 && plan.schedule_flags == 0 &&
+           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0;
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return plan.desc.bound_kind == RNS8_BOUND_NONE && plan.desc.bound == 0 && plan.prefix == 0 &&
@@ -215,7 +216,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_min_selected_prefix == 0 && plan.schedule_max_selected_prefix == 0 &&
            plan.schedule_prefix_group_count == 0 && plan.schedule_range_bit_length == 0 &&
            plan.schedule_adaptive_prefix_active == 0 && plan.schedule_adaptive_skip_active == 0 &&
-           plan.desc.flags == 0 && plan.schedule_flags == 0;
+           plan.desc.flags == 0 && plan.schedule_flags == 0 &&
+           plan.desc.lhs_bound == 0 && plan.desc.rhs_bound == 0;
   }
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0 || plan.prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return false;
@@ -228,19 +230,33 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
   }
   if ((plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) &&
       (plan.desc.bound_kind != RNS8_BOUND_NONE || plan.desc.bound != 0 || plan.desc.tile_bounds != nullptr ||
-       plan.desc.tile_bounds_count != 0)) {
+       plan.desc.tile_bounds_count != 0 || plan.desc.lhs_bound != 0 || plan.desc.rhs_bound != 0)) {
     return false;
   }
   if (plan.desc.semantics == RNS8_BOUNDED_I64 &&
-      plan.desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS && plan.desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_ABS) {
+      plan.desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS &&
+      plan.desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_ABS &&
+      plan.desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K) {
     return false;
   }
   if (plan.desc.semantics == RNS8_BOUNDED_U64 &&
       plan.desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED &&
-      plan.desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+      plan.desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_UNSIGNED &&
+      plan.desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K) {
     return false;
   }
   const bool per_tile = is_per_tile_bound_kind(plan.desc.bound_kind);
+  const bool input_range = is_input_range_bound_kind(plan.desc.bound_kind);
+  if (!input_range && (plan.desc.lhs_bound != 0 || plan.desc.rhs_bound != 0)) {
+    return false;
+  }
+  if (input_range) {
+    uint64_t derived_bound = 0;
+    if (!rns8::detail::input_range_output_bound(plan.desc, derived_bound) ||
+        derived_bound != plan.desc.bound) {
+      return false;
+    }
+  }
   if (!per_tile) {
     const bool fixed_prefix_requested = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
     return plan.desc.tile_bounds == nullptr && plan.desc.tile_bounds_count == 0 && plan.tile_bounds.empty() &&
@@ -489,7 +505,7 @@ bool prepack_operand_matrix_compatible(
   if (!matrix_descriptor_matches(
           matrix,
           plan.desc.semantics,
-          plan.desc.bound_kind,
+          storage_bound_kind_for_plan(plan),
           rows,
           cols,
           storage_prefix,

@@ -574,15 +574,6 @@ TEST_CASE("known but unimplemented descriptor contracts report unsupported statu
     CHECK(rns8_create_matrix(ctx, &column_major, &storage) == RNS8_UNSUPPORTED_BACKEND);
     CHECK(storage == nullptr);
   }
-  {
-    for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
-      auto desc = gemm_desc(semantics, RNS8_BOUND_INPUT_RANGE_AND_K);
-      desc.bound = 1;
-      rns8_plan* plan = nullptr;
-      CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
-      CHECK(plan == nullptr);
-    }
-  }
   rns8_destroy_context(ctx);
 }
 

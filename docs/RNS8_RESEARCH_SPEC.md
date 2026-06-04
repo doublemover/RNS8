@@ -599,6 +599,16 @@ Rules:
 - `RNS8_BOUNDED_I64` rejects `RNS8_BOUND_NONE`.
 - `RNS8_BOUNDED_U64` rejects `RNS8_BOUND_NONE`.
 - `RNS8_BOUND_NONE` selects exact-wide or wraparound semantics only.
+- `RNS8_BOUND_INPUT_RANGE_AND_K` is a bounded i64/u64 plan descriptor
+  contract, not a persistent matrix storage kind. `rns8_gemm_desc.bound` must
+  be zero at the API boundary, `tile_bounds` must be null, and
+  `lhs_bound`/`rhs_bound` provide trusted per-operand input magnitude limits.
+  Plan creation derives the effective output bound as
+  `k * lhs_bound * rhs_bound`, rejects products outside the requested bounded
+  output semantic, stores that derived value in the plan, and schedules the
+  same minimum proven prefix as an equivalent global output-bound contract.
+  Persistent A/B/C matrices for such plans use ordinary
+  `RNS8_BOUND_GLOBAL_MAX_ABS` or `RNS8_BOUND_GLOBAL_MAX_UNSIGNED` storage.
 - User-provided bounds are trusted contract inputs and checked by debug
   verification runs when enabled.
 
@@ -677,12 +687,13 @@ tile multiples. Workspace is caller-owned through `rns8_workspace`. Temporary
 allocations inside hot calls are forbidden after plan creation.
 
 Workspaces are bound to the plan contract that created them. Backend, shape,
-prefix, semantics, bound kind, bound value, tile geometry, selected-prefix
-schedule metadata, and copied per-tile schedule identity must match before a
-workspace can be used for GEMM. Same-shape workspaces from bounded, exact-wide,
-per-tile bounded, wrap64, or different per-tile schedule contracts are rejected
-instead of being reused across semantic boundaries. Per-tile bounded matrices
-must also carry the plan's tile geometry before GEMM/export dispatch.
+prefix, semantics, bound kind, bound value, input-range bounds, tile geometry,
+selected-prefix schedule metadata, and copied per-tile schedule identity must
+match before a workspace can be used for GEMM. Same-shape workspaces from
+bounded, exact-wide, input-range bounded, per-tile bounded, wrap64, or
+different per-tile schedule contracts are rejected instead of being reused
+across semantic boundaries. Per-tile bounded matrices must also carry the
+plan's tile geometry before GEMM/export dispatch.
 
 ## 11. Public API Specification
 

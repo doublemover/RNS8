@@ -21,8 +21,11 @@ rns8_status validate_export_matrix(
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t storage_prefix = uses_rns_storage(semantics) ? rns_storage_prefix_for_plan(plan) : prefix;
+  const rns8_bound_kind storage_bound_kind =
+      uses_rns_storage(semantics) ? storage_bound_kind_for_plan(plan) : bound_kind;
   if (!matrix_descriptor_matches(
-          C, semantics, bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m, plan.desc.tile_n)) {
+          C, semantics, storage_bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
+          plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (native_vector_backend(plan.backend)) {

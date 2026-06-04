@@ -67,6 +67,11 @@ Implemented in the current bound-discovery slice:
   absolute-summary candidates, records zero row/column counts, selects the
   tight safe global bound, and feeds that bound into the existing prefix
   policy.
+- Public bounded i64/u64 plans now accept `RNS8_BOUND_INPUT_RANGE_AND_K`.
+  Callers provide trusted `lhs_bound` and `rhs_bound` input magnitude
+  contracts; plan creation derives `k * lhs_bound * rhs_bound` as the effective
+  global output bound, records it in schedule metadata, and keeps persistent
+  matrices on ordinary global signed/unsigned bounded storage.
 - Bound discovery is timed as a first-class `global_bound_scan` phase with
   schema-validated raw timings, top-level averages, phase notes, and phase
   availability metadata. Static profile captures remain the default and legacy
@@ -115,9 +120,11 @@ Remaining high-value imported work goes at the front of the queue:
 1. **Bound Discovery Pipeline**
 
    Benchmark-only global input scans now select tighter bounded i64/u64 global
-   bounds from exact row/column absolute summaries before plan creation. The
-   remaining work is to graduate this into public descriptor/API support, add
-   per-tile and future row/column-summary planner contracts, and connect tile
+   bounds from exact row/column absolute summaries before plan creation, and
+   public plans now accept trusted whole-input `lhs_bound`/`rhs_bound`
+   contracts through `RNS8_BOUND_INPUT_RANGE_AND_K`. The remaining work is to
+   add per-tile and future row/column-summary planner contracts, wire benchmark
+   input scans into those public descriptors where useful, and connect tile
    max-product discovery to execution skip opportunities without inferring
    semantics from C++ types.
 

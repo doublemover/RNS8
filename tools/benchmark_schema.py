@@ -33,6 +33,14 @@ REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
 BOUND_SOURCES = {"static_profile", "input_scan"}
 BOUND_DISCOVERY_SOURCES = {"static_profile_contract", "input_row_column_abs_summary"}
+BOUND_KINDS = {
+    "none",
+    "global_max_abs",
+    "global_max_unsigned",
+    "per_tile_max_abs",
+    "per_tile_max_unsigned",
+    "input_range_and_k",
+}
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
@@ -1180,6 +1188,29 @@ class _Validator:
         )
         if schedule.get("source") != expected_source:
             self._error(f"schedule_metadata.source must be {expected_source}")
+        schedule_bound_kind = schedule.get("bound_kind")
+        if schedule_bound_kind is not None:
+            if not isinstance(schedule_bound_kind, str) or schedule_bound_kind not in BOUND_KINDS:
+                self._error(f"schedule_metadata.bound_kind must be one of {sorted(BOUND_KINDS)}")
+            elif schedule_bound_kind != self.data.get("bound_kind"):
+                self._error("schedule_metadata.bound_kind must match bound_kind")
+        for key in ["effective_bound", "lhs_bound", "rhs_bound"]:
+            value = schedule.get(key)
+            if value is not None and (not _is_int(value) or value < 0):
+                self._error(f"schedule_metadata.{key} must be a nonnegative integer")
+        bound_contract = schedule.get("bound_contract")
+        if bound_contract is not None and not isinstance(bound_contract, str):
+            self._error("schedule_metadata.bound_contract must be a string")
+        if schedule_bound_kind == "input_range_and_k":
+            if schedule.get("bound_contract") != "input_range_and_k_derived_output_bound":
+                self._error("input-range schedules must declare the derived output bound contract")
+            for key in ["effective_bound", "lhs_bound", "rhs_bound"]:
+                if not _is_int(schedule.get(key)):
+                    self._error(f"input-range schedules require schedule_metadata.{key}")
+        elif schedule_bound_kind is not None:
+            for key in ["lhs_bound", "rhs_bound"]:
+                if _is_int(schedule.get(key)) and schedule.get(key) != 0:
+                    self._error(f"non-input-range schedules must use schedule_metadata.{key}=0")
         for key in [
             "tile_m",
             "tile_n",

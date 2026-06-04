@@ -86,6 +86,14 @@ typedef struct rns8_gemm_desc {
   uint32_t flags;
   const uint64_t* tile_bounds;
   uint64_t tile_bounds_count;
+  /*
+   * Required only for RNS8_BOUND_INPUT_RANGE_AND_K. These are explicit
+   * per-operand input magnitude contracts; plan creation derives the effective
+   * output bound as k * lhs_bound * rhs_bound and rejects contracts that cannot
+   * fit the selected bounded output semantic.
+   */
+  uint64_t lhs_bound;
+  uint64_t rhs_bound;
 } rns8_gemm_desc;
 
 typedef struct rns8_matrix_desc {
@@ -121,6 +129,12 @@ typedef struct rns8_plan_schedule_info {
   uint32_t adaptive_skip_active;
   uint32_t range_bit_length;
   uint32_t flags;
+  rns8_bound_kind bound_kind;
+  uint32_t reserved0;
+  uint64_t effective_bound;
+  uint64_t lhs_bound;
+  uint64_t rhs_bound;
+  char bound_contract[96];
 } rns8_plan_schedule_info;
 
 typedef struct rns8_plan_tile_schedule_entry {

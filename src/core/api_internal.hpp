@@ -156,7 +156,11 @@ boost::multiprecision::cpp_int schedule_required_range(const rns8_gemm_desc& des
 
 bool is_per_tile_bound_kind(rns8_bound_kind bound_kind);
 
+bool is_input_range_bound_kind(rns8_bound_kind bound_kind);
+
 boost::multiprecision::cpp_int bounded_range_from_bound(rns8_semantics semantics, uint64_t bound);
+
+rns8_bound_kind storage_bound_kind_for_plan(const rns8_plan& plan);
 
 uint32_t rns_storage_prefix_for_plan(const rns8_plan& plan);
 

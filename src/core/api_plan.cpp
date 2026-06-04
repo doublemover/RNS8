@@ -6,9 +6,20 @@ bool is_per_tile_bound_kind(rns8_bound_kind bound_kind) {
   return bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS || bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
 }
 
+bool is_input_range_bound_kind(rns8_bound_kind bound_kind) {
+  return bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K;
+}
+
 boost::multiprecision::cpp_int bounded_range_from_bound(rns8_semantics semantics, uint64_t bound) {
   using boost::multiprecision::cpp_int;
   return semantics == RNS8_BOUNDED_I64 ? cpp_int(2) * cpp_int(bound) : cpp_int(bound);
+}
+
+rns8_bound_kind storage_bound_kind_for_plan(const rns8_plan& plan) {
+  if (plan.desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K) {
+    return plan.desc.bound_kind;
+  }
+  return plan.desc.semantics == RNS8_BOUNDED_I64 ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
 }
 
 uint32_t rns_storage_prefix_for_plan(const rns8_plan& plan) {
@@ -183,6 +194,38 @@ const char* semantics_name_for_key(rns8_semantics semantics) {
       return "finite_field_u8";
   }
   return "unknown";
+}
+
+const char* bound_kind_name_for_key(rns8_bound_kind bound_kind) {
+  switch (bound_kind) {
+    case RNS8_BOUND_NONE:
+      return "none";
+    case RNS8_BOUND_GLOBAL_MAX_ABS:
+      return "global_max_abs";
+    case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
+      return "global_max_unsigned";
+    case RNS8_BOUND_PER_TILE_MAX_ABS:
+      return "per_tile_max_abs";
+    case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
+      return "per_tile_max_unsigned";
+    case RNS8_BOUND_INPUT_RANGE_AND_K:
+      return "input_range_and_k";
+  }
+  return "unknown";
+}
+
+const char* bound_contract_name_for_plan(const rns8_plan& plan) {
+  if (plan.desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+    return "input_range_and_k_derived_output_bound";
+  }
+  if (is_per_tile_bound_kind(plan.desc.bound_kind)) {
+    return "per_tile_output_bounds";
+  }
+  if (plan.desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
+      plan.desc.bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED) {
+    return "global_output_bound";
+  }
+  return "not_applicable";
 }
 
 std::string selected_kernel_for_plan(const rns8_plan& plan) {
@@ -779,6 +822,13 @@ std::string build_autotune_key(const rns8_plan& plan) {
   key += ";m=" + std::to_string(plan.desc.m);
   key += ";n=" + std::to_string(plan.desc.n);
   key += ";k=" + std::to_string(plan.desc.k);
+  key += ";bound_kind=";
+  key += bound_kind_name_for_key(plan.desc.bound_kind);
+  if (plan.desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+    key += ";effective_bound=" + std::to_string(plan.desc.bound);
+    key += ";lhs_bound=" + std::to_string(plan.desc.lhs_bound);
+    key += ";rhs_bound=" + std::to_string(plan.desc.rhs_bound);
+  }
   if (uses_finite_storage(plan.desc.semantics)) {
     key += ";finite_modulus=" + std::to_string(plan.desc.finite_modulus);
   }
@@ -1051,6 +1101,8 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.n));
   hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.k));
   hash = workspace_fingerprint_mix(hash, plan.desc.bound);
+  hash = workspace_fingerprint_mix(hash, plan.desc.lhs_bound);
+  hash = workspace_fingerprint_mix(hash, plan.desc.rhs_bound);
   hash = workspace_fingerprint_mix(hash, plan.desc.finite_modulus);
   hash = workspace_fingerprint_mix(hash, plan.desc.tile_m);
   hash = workspace_fingerprint_mix(hash, plan.desc.tile_n);
@@ -1147,6 +1199,11 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (plan->desc.tile_n == 0) {
       plan->desc.tile_n = 128;
     }
+    if (plan->desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K &&
+        !rns8::detail::input_range_output_bound(plan->desc, plan->desc.bound)) {
+      delete plan;
+      return RNS8_RANGE_ERROR;
+    }
     plan->prefix = prefix;
     plan->modulus_product = prefix == 0 ? 0 : rns8::detail::modulus_product(prefix);
     plan->backend = requested;
@@ -1196,6 +1253,11 @@ rns8_status rns8_get_plan_schedule_info(const rns8_plan* plan, rns8_plan_schedul
     out->adaptive_skip_active = plan->schedule_adaptive_skip_active;
     out->range_bit_length = plan->schedule_range_bit_length;
     out->flags = plan->schedule_flags;
+    out->bound_kind = plan->desc.bound_kind;
+    out->effective_bound = plan->desc.bound;
+    out->lhs_bound = plan->desc.lhs_bound;
+    out->rhs_bound = plan->desc.rhs_bound;
+    set_text(out->bound_contract, sizeof(out->bound_contract), bound_contract_name_for_plan(*plan));
     return RNS8_SUCCESS;
   });
 }

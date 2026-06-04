@@ -42,7 +42,9 @@ The benchmark reports:
   when exposed,
 - schedule metadata from `rns8_get_plan_schedule_info`, including tile grid,
   required prefix, selected prefix, prefix group count, and adaptive
-  prefix/skip flags,
+  prefix/skip flags. Bounded input-range plans also report the public
+  `bound_kind`, derived `effective_bound`, `lhs_bound`, `rhs_bound`, and
+  `bound_contract` string used to produce the schedule,
 - fixed seed,
 - warmup and repeat counts,
 - prefix count,

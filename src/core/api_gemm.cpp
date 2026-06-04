@@ -19,10 +19,11 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
+  const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(plan);
   if (!matrix_descriptor_matches(
           A,
           plan.desc.semantics,
-          plan.desc.bound_kind,
+          storage_bound_kind,
           plan.desc.m,
           plan.desc.k,
           storage_prefix,
@@ -31,7 +32,7 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
       !matrix_descriptor_matches(
           C,
           plan.desc.semantics,
-          plan.desc.bound_kind,
+          storage_bound_kind,
           plan.desc.m,
           plan.desc.n,
           storage_prefix,
@@ -65,14 +66,15 @@ rns8_status validate_rns_gemm_operands(
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
+  const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(plan);
   if (!matrix_descriptor_matches(
-          A, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.k, storage_prefix, plan.desc.tile_m,
+          A, plan.desc.semantics, storage_bound_kind, plan.desc.m, plan.desc.k, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n) ||
       !matrix_descriptor_matches(
-          B, plan.desc.semantics, plan.desc.bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
+          B, plan.desc.semantics, storage_bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n) ||
       !matrix_descriptor_matches(
-          C, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
+          C, plan.desc.semantics, storage_bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }

@@ -193,6 +193,32 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
   return 0;
 }
 
+bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound) {
+  output_bound = 0;
+  if (desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K ||
+      (desc.semantics != RNS8_BOUNDED_I64 && desc.semantics != RNS8_BOUNDED_U64) ||
+      desc.k <= 0) {
+    return false;
+  }
+  if (desc.semantics == RNS8_BOUNDED_I64) {
+    constexpr uint64_t max_signed_magnitude = uint64_t{1} << 63u;
+    if (desc.lhs_bound > max_signed_magnitude || desc.rhs_bound > max_signed_magnitude) {
+      return false;
+    }
+  }
+  const cpp_int product =
+      cpp_int(desc.k) * cpp_int(desc.lhs_bound) * cpp_int(desc.rhs_bound);
+  const cpp_int max_output =
+      desc.semantics == RNS8_BOUNDED_I64
+          ? cpp_int(uint64_t{1} << 63u)
+          : cpp_int(std::numeric_limits<uint64_t>::max());
+  if (product < 0 || product > max_output) {
+    return false;
+  }
+  output_bound = product.convert_to<uint64_t>();
+  return true;
+}
+
 rns8_status validate_bound_contract(
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
@@ -208,6 +234,9 @@ rns8_status validate_bound_contract(
   const cpp_int product = modulus_product(prefix);
   switch (semantics) {
     case RNS8_BOUNDED_I64: {
+      if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
       if (bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
         return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
       }
@@ -226,6 +255,9 @@ rns8_status validate_bound_contract(
       return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
     }
     case RNS8_BOUNDED_U64: {
+      if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
       if (bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
         return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
       }
@@ -282,6 +314,9 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
       desc.finite_modulus != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K && (desc.lhs_bound != 0 || desc.rhs_bound != 0)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0) {
       return RNS8_INVALID_ARGUMENT;
@@ -306,6 +341,21 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;
+  }
+  if (desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+    if (desc.bound != 0 || desc.tile_bounds != nullptr || desc.tile_bounds_count != 0 ||
+        (desc.semantics != RNS8_BOUNDED_I64 && desc.semantics != RNS8_BOUNDED_U64)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    uint64_t output_bound = 0;
+    if (!input_range_output_bound(desc, output_bound)) {
+      return RNS8_RANGE_ERROR;
+    }
+    const cpp_int product = modulus_product(prefix);
+    const cpp_int required = desc.semantics == RNS8_BOUNDED_I64
+                                 ? cpp_int(2) * cpp_int(output_bound)
+                                 : cpp_int(output_bound);
+    return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
   }
   return validate_bound_contract(desc.semantics, desc.bound_kind, desc.bound, prefix);
 }
