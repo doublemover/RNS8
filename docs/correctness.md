@@ -211,6 +211,11 @@ Implemented correctness coverage:
   require the `direct_hip_zero_output_tile_memset` GPU event when zero-output
   tiles are present; stale v2 adaptive captures are rejected for that schedule
   contract.
+- Direct-HIP uniform all-zero scheduled bounded GEMM accepts allocated A/B
+  matrices whose resident residues are not current, because the trusted exact
+  tile-bound schedule proves the backend will not read either input. Benchmark
+  schema v4 requires those captures to report zero-valued raw and GPU-event
+  pack phases rather than stale A/B packing work.
 - Direct-HIP all-zero scheduled bounded exports copy native zeros through the
   compact export buffer without uploading export tile schedule/bounds metadata
   or allocating and round-tripping the export status buffer. Mixed zero/nonzero

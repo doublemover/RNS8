@@ -518,6 +518,7 @@ class _Validator:
         self._validate_pack_reuse_fields(raw_timings)
         self._validate_residue_current_timings(raw_timings)
         self._validate_bounded_oneshot_timings(raw_timings)
+        self._validate_all_zero_direct_hip_adaptive_timings(raw_timings)
         self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
@@ -2417,6 +2418,34 @@ class _Validator:
         if isinstance(gemm_values, list) and isinstance(e2e_values, list) and gemm_values != e2e_values:
             self._error("public one-shot captures must report raw_timings_us.rns_gemm equal to end_to_end")
 
+    def _is_all_zero_direct_hip_adaptive_capture(self) -> bool:
+        schedule = self.data.get("schedule_metadata")
+        if not isinstance(schedule, dict):
+            return False
+        tile_count = schedule.get("tile_count")
+        zero_count = schedule.get("zero_output_tile_count")
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and schedule.get("adaptive_execution_applied") is True
+            and _is_int(tile_count)
+            and tile_count > 0
+            and _is_int(zero_count)
+            and zero_count == tile_count
+        )
+
+    def _validate_all_zero_direct_hip_adaptive_timings(self, raw_timings: dict[str, list[float]]) -> None:
+        if not self._is_all_zero_direct_hip_adaptive_capture():
+            return
+        values = raw_timings.get("pack")
+        if not isinstance(values, list) or any(value != 0.0 for value in values):
+            self._error(
+                "all-zero direct-HIP adaptive captures must report raw_timings_us.pack as zero-valued repeats"
+            )
+        avg_pack = self.data.get("avg_pack_us")
+        if _is_number(avg_pack) and float(avg_pack) != 0.0:
+            self._error("all-zero direct-HIP adaptive captures must report avg_pack_us=0")
+
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
@@ -2897,6 +2926,13 @@ class _Validator:
                     parsed_values.append(float(value))
             parsed[phase] = parsed_values
         self._validate_timing_summaries(parsed, "gpu_event_timing_summary_us", phases)
+        if self._is_all_zero_direct_hip_adaptive_capture():
+            for phase in ["pack_h2d", "pack_kernel", "pack"]:
+                values = parsed.get(phase)
+                if isinstance(values, list) and any(value != 0.0 for value in values):
+                    self._error(
+                        f"all-zero direct-HIP adaptive captures must report gpu_event_timings_us.{phase} as zero"
+                    )
 
     def _gpu_event_phases(self, metadata: dict[str, Any]) -> list[str]:
         phase_order = metadata.get("gpu_event_phase_order")

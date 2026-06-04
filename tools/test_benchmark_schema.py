@@ -1924,6 +1924,12 @@ def main() -> int:
         }
     )
     all_zero_skip_schedule["backend_metadata"]["workspace_required_bytes"] = 0
+    all_zero_skip_schedule["raw_timings_us"]["pack"] = [0] * repeats
+    all_zero_skip_schedule["timing_summary_us"]["pack"] = zero_summary()
+    all_zero_skip_schedule["avg_pack_us"] = 0.0
+    for phase in ["pack_h2d", "pack_kernel", "pack"]:
+        all_zero_skip_schedule["gpu_event_timings_us"][phase] = [0.0] * repeats
+        all_zero_skip_schedule["gpu_event_timing_summary_us"][phase] = zero_summary()
     all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm_kernel_group"] = [0.0] * repeats
     all_zero_skip_schedule["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = summary([0.0] * repeats)
     all_zero_skip_schedule["gpu_event_timings_us"]["rns_gemm"] = [0.25] * repeats
@@ -1933,6 +1939,25 @@ def main() -> int:
     all_zero_skip_schedule["gpu_event_timings_us"]["crt_export_status_d2h"] = [0.0] * repeats
     all_zero_skip_schedule["gpu_event_timing_summary_us"]["crt_export_status_d2h"] = summary([0.0] * repeats)
     validate_capture(all_zero_skip_schedule)
+
+    bad_all_zero_pack_timing = copy.deepcopy(all_zero_skip_schedule)
+    bad_all_zero_pack_timing["raw_timings_us"]["pack"][0] = 1
+    bad_all_zero_pack_timing["timing_summary_us"]["pack"] = summary(bad_all_zero_pack_timing["raw_timings_us"]["pack"])
+    bad_all_zero_pack_timing["avg_pack_us"] = 1.0 / repeats
+    expect_invalid(
+        bad_all_zero_pack_timing,
+        "all-zero direct-HIP adaptive captures must report raw_timings_us.pack",
+    )
+
+    bad_all_zero_pack_event = copy.deepcopy(all_zero_skip_schedule)
+    bad_all_zero_pack_event["gpu_event_timings_us"]["pack_h2d"][0] = 1.0
+    bad_all_zero_pack_event["gpu_event_timing_summary_us"]["pack_h2d"] = summary(
+        bad_all_zero_pack_event["gpu_event_timings_us"]["pack_h2d"]
+    )
+    expect_invalid(
+        bad_all_zero_pack_event,
+        "all-zero direct-HIP adaptive captures must report gpu_event_timings_us.pack_h2d",
+    )
 
     bad_zero_skip_stale_kernel = copy.deepcopy(zero_skip_schedule)
     bad_zero_skip_stale_kernel["selected_kernel"] = stale_zero_skip_kernel

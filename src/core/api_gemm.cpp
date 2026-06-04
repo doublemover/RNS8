@@ -95,6 +95,9 @@ rns8_status validate_rns_gemm_operands(
       !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan_all_zero_output_tiles(plan)) {
+    return RNS8_SUCCESS;
+  }
   if (!rns_residue_state_current_for_backend(A, plan.backend) ||
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
@@ -210,17 +213,21 @@ rns8_status rns8_gemm_rns(
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
+    const bool trusted_all_zero_direct_hip =
+        plan->backend == RNS8_BACKEND_HIP_DIRECT && plan_all_zero_output_tiles(*plan);
     // GEMM inputs are logically const; AUTO may still materialize cached RNS device residues from current native storage.
     rns8_matrix* mutable_a = const_cast<rns8_matrix*>(A);
     rns8_matrix* mutable_b = const_cast<rns8_matrix*>(B);
-    rns8_status conversion_status =
-        ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_a);
-    if (conversion_status != RNS8_SUCCESS) {
-      return conversion_status;
-    }
-    conversion_status = ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_b);
-    if (conversion_status != RNS8_SUCCESS) {
-      return conversion_status;
+    if (!trusted_all_zero_direct_hip) {
+      rns8_status conversion_status =
+          ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_a);
+      if (conversion_status != RNS8_SUCCESS) {
+        return conversion_status;
+      }
+      conversion_status = ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_b);
+      if (conversion_status != RNS8_SUCCESS) {
+        return conversion_status;
+      }
     }
     const rns8_status operand_status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C);
     if (operand_status != RNS8_SUCCESS) {

@@ -853,6 +853,16 @@ bool reuses_all_packed_inputs(const Args& args) {
   return args.reuse_packed_a && args.reuse_packed_b;
 }
 
+bool all_zero_direct_hip_input_pack_elided(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  return selected_backend == RNS8_BACKEND_HIP_DIRECT && bounded_benchmark_semantics(args.semantics) &&
+         args.bound_mode == BoundMode::PerTile && !args.oneshot && args.residue_chain_length == 1 &&
+         !args.reuse_packed_inputs && result.schedule_info_available && result.schedule_info.tile_count != 0 &&
+         result.zero_output_tile_count == result.schedule_info.tile_count;
+}
+
 bool expects_hipblaslt_pack_transpose_event(const Args& args) {
   return !reuses_all_packed_inputs(args);
 }
@@ -3950,6 +3960,8 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  const bool skip_all_zero_direct_hip_input_pack =
+      all_zero_direct_hip_input_pack_elided(args, result, selected_backend);
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_uniform_small_i8_ab_reuse_a) {
@@ -4013,7 +4025,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (reuses_all_packed_inputs(args)) {
+    if (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -4140,7 +4152,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     }
 
     if (samples) {
-      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(
+          (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) ? 0
+                                                                                  : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -4267,6 +4281,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  const bool skip_all_zero_direct_hip_input_pack =
+      all_zero_direct_hip_input_pack_elided(args, result, selected_backend);
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_uniform_small_i8_ab_reuse_a) {
@@ -4330,7 +4346,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
-    if (reuses_all_packed_inputs(args)) {
+    if (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -4457,7 +4473,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     }
 
     if (samples) {
-      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(
+          (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) ? 0
+                                                                                  : elapsed_us(pack_start, pack_end));
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -5499,6 +5517,8 @@ void print_json(
   const bool vector_alu_events = gpu_events_available && selected_backend_string == "hip-vector-alu-int64";
   const bool oneshot_hip_events =
       gpu_events_available && args.oneshot && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT;
+  const bool all_zero_direct_hip_pack_elided =
+      all_zero_direct_hip_input_pack_elided(args, result, selected_backend_kind);
   const char* gpu_event_reason = "backend_has_no_gpu_event_hooks";
   const char* gpu_event_status = "not_requested_for_selected_backend";
   const char* gpu_event_scope = "null";
@@ -5912,6 +5932,11 @@ void print_json(
                    "raw_timings_us.crt_export are zero because transient input copies, any fused native-input "
                    "direct-HIP GEMM work, logical export, and teardown happen inside the measured API call\",\n";
     }
+  } else if (all_zero_direct_hip_pack_elided) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for a trusted all-zero direct-HIP adaptive "
+                 "per-tile bounded capture; raw_timings_us.pack is zero because exact tile-bound scheduling "
+                 "proved every output tile zero before measurement, so the backend materializes resident RNS "
+                 "zero output without reading A or B\",\n";
   } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
@@ -6071,6 +6096,10 @@ void print_json(
     std::cout << "      \"pack\": \"zero-valued external phase; native input copies and any backend-local transformation are inside the measured one-shot API call\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public one-shot API call\",\n";
     std::cout << "      \"crt_export\": \"zero-valued external phase; logical output export is inside the measured one-shot API call\",\n";
+  } else if (all_zero_direct_hip_pack_elided) {
+    std::cout << "      \"pack\": \"zero-valued per-repeat phase; exact per-tile input scanning proved every output tile zero, so direct-HIP does not pack or read A/B for this capture\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for direct-HIP all-zero resident RNS output materialization\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for exporting the already-zero direct-HIP output\",\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
@@ -6136,6 +6165,8 @@ void print_json(
     std::cout << "\"\n";
   } else if (args.oneshot) {
     std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public one-shot API call\"\n";
+  } else if (all_zero_direct_hip_pack_elided) {
+    std::cout << "      \"end_to_end\": \"per-repeat direct-HIP all-zero output materialization plus export host timing; pack is intentionally elided by the trusted all-zero schedule\"\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";

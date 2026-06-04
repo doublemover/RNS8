@@ -103,6 +103,12 @@ Implemented in the current proven-zero tile skip slice:
   for a contiguous selected-plane zero fill. Adaptive zero-skip plans advertise
   `direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3`, while nonzero
   adaptive plans keep `direct_hip_tiled_active_prefix_rns_gemm_v2`.
+- Direct-HIP uniform all-zero scheduled GEMM no longer requires current A/B
+  resident residues: the trusted tile-bound schedule proves no backend kernel
+  reads those operands, so `rns8_gemm_rns` can materialize the zero output from
+  allocated matrix storage alone. Matching `rns8-bench` captures skip
+  per-repeat A/B packing for that contract and report zero-valued `pack_h2d`,
+  `pack_kernel`, and `pack` event phases.
 - Direct-HIP all-zero scheduled exports now skip CRT/status work entirely:
   the compact native export buffer is zero-filled, copied back, and the export
   path no longer uploads unused tile schedule/bounds metadata before taking the

@@ -730,6 +730,18 @@ bool hip_direct_gemm_requires_device_tile_schedule(const rns8_plan& plan) {
   return saw_zero_output_tile && !(every_tile_zero_output && uniform_zero_selected_prefix != 0);
 }
 
+bool plan_all_zero_output_tiles(const rns8_plan& plan) {
+  if (plan.tile_schedule.empty()) {
+    return false;
+  }
+  for (const auto& entry : plan.tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n) {
   max_m = plan.desc.m;
   max_n = plan.desc.n;

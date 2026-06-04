@@ -507,11 +507,14 @@ For bounded direct-HIP captures with complete event data, `gpu_event_timing` is
 - `crt_export_d2h`
 - `crt_export`
 
-For all-zero adaptive per-tile Direct-HIP schedules, export bypasses CRT and
-status traffic by zero-filling the compact native export buffer, and the export
-path does not upload tile schedule/bounds metadata for that all-zero contract.
-Captures keep the same phase order, but `crt_export_status_memset` and
-`crt_export_status_d2h` are reported as zero-valued arrays.
+For all-zero adaptive per-tile Direct-HIP schedules, input packing and export
+status traffic are both elided. The trusted tile-bound schedule proves every
+output tile zero, so the measured repeat reports zero-valued `pack_h2d`,
+`pack_kernel`, and `pack` phases, materializes resident zero RNS output without
+reading A/B, zero-fills the compact native export buffer, and avoids export
+tile schedule/bounds uploads. Captures keep the same phase order, but
+`crt_export_status_memset` and `crt_export_status_d2h` are also reported as
+zero-valued arrays.
 
 For strict wrap64 direct-HIP captures, event timing uses wrap64-specific labels
 plus current aggregate phase labels:

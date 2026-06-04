@@ -6851,6 +6851,13 @@ TEST_CASE("direct HIP all-zero per-tile bounded export skips status traffic") {
   CHECK(hip_workspace->hip_tile_schedule_active_entries_bytes == 0);
   CHECK(hip_workspace->hip_tile_schedule_active_entries == nullptr);
 
+  CHECK_FALSE(hip_a->device_residues_current);
+  CHECK_FALSE(hip_b->device_residues_current);
+  std::vector<uint64_t> hip_unpacked_out(static_cast<std::size_t>(m * n), 0xefefefefefefefefull);
+  REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, hip_unpacked_out.data(), n) == RNS8_SUCCESS);
+  CHECK(std::all_of(hip_unpacked_out.begin(), hip_unpacked_out.end(), [](uint64_t value) { return value == 0; }));
+
   REQUIRE(rns8_pack_u64(cpu, cpu_a, A.data(), k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(cpu, cpu_b, B.data(), n, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, hip_a, A.data(), k, 1) == RNS8_SUCCESS);
