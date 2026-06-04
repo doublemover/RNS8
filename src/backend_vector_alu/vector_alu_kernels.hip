@@ -12,6 +12,8 @@ struct UInt192 {
   uint64_t hi;
 };
 
+constexpr int kGemvN1BlockSize = 256;
+
 __device__ UInt192 zero192() {
   return UInt192{0, 0, 0};
 }
@@ -165,6 +167,111 @@ __global__ void gemm_u64_kernel(
   c[row * n + col] = acc.lo;
 }
 
+__global__ void gemv_n1_i64_kernel(
+    const int64_t* a,
+    const int64_t* b,
+    int64_t* c,
+    uint32_t* status,
+    int64_t m,
+    int64_t k) {
+  const int64_t row = static_cast<int64_t>(blockIdx.x);
+  const int thread = static_cast<int>(threadIdx.x);
+  if (row >= m) {
+    return;
+  }
+
+  bool negative = false;
+  UInt192 magnitude = zero192();
+  for (int64_t kk = thread; kk < k; kk += blockDim.x) {
+    const int64_t av = a[row * k + kk];
+    const int64_t bv = b[kk];
+    const bool product_negative = (av < 0) != (bv < 0);
+    const UInt192 product = product_u64_u64(abs_i64_to_u64(av), abs_i64_to_u64(bv));
+    add_signed_product(negative, magnitude, product_negative, product);
+  }
+
+  __shared__ UInt192 partial_magnitude[kGemvN1BlockSize];
+  __shared__ unsigned char partial_negative[kGemvN1BlockSize];
+  partial_magnitude[thread] = magnitude;
+  partial_negative[thread] = negative ? 1u : 0u;
+  __syncthreads();
+
+  for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (thread < stride) {
+      bool lhs_negative = partial_negative[thread] != 0u;
+      add_signed_product(
+          lhs_negative,
+          partial_magnitude[thread],
+          partial_negative[thread + stride] != 0u,
+          partial_magnitude[thread + stride]);
+      partial_negative[thread] = lhs_negative ? 1u : 0u;
+    }
+    __syncthreads();
+  }
+
+  if (thread == 0) {
+    int64_t value = 0;
+    const bool final_negative = partial_negative[0] != 0u;
+    const UInt192 final_magnitude = partial_magnitude[0];
+    if (!final_negative) {
+      if (final_magnitude.hi != 0 || final_magnitude.mid != 0 ||
+          final_magnitude.lo > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+        atomicOr(status, 1u);
+      } else {
+        value = static_cast<int64_t>(final_magnitude.lo);
+      }
+    } else {
+      const uint64_t int64_min_abs = uint64_t{1} << 63u;
+      if (final_magnitude.hi != 0 || final_magnitude.mid != 0 || final_magnitude.lo > int64_min_abs) {
+        atomicOr(status, 1u);
+      } else if (final_magnitude.lo == int64_min_abs) {
+        value = std::numeric_limits<int64_t>::min();
+      } else {
+        value = -static_cast<int64_t>(final_magnitude.lo);
+      }
+    }
+    c[row] = value;
+  }
+}
+
+__global__ void gemv_n1_u64_kernel(
+    const uint64_t* a,
+    const uint64_t* b,
+    uint64_t* c,
+    uint32_t* status,
+    int64_t m,
+    int64_t k) {
+  const int64_t row = static_cast<int64_t>(blockIdx.x);
+  const int thread = static_cast<int>(threadIdx.x);
+  if (row >= m) {
+    return;
+  }
+
+  UInt192 acc = zero192();
+  for (int64_t kk = thread; kk < k; kk += blockDim.x) {
+    add_assign(acc, product_u64_u64(a[row * k + kk], b[kk]));
+  }
+
+  __shared__ UInt192 partial[kGemvN1BlockSize];
+  partial[thread] = acc;
+  __syncthreads();
+
+  for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (thread < stride) {
+      add_assign(partial[thread], partial[thread + stride]);
+    }
+    __syncthreads();
+  }
+
+  if (thread == 0) {
+    const UInt192 final_acc = partial[0];
+    if (final_acc.hi != 0 || final_acc.mid != 0) {
+      atomicOr(status, 1u);
+    }
+    c[row] = final_acc.lo;
+  }
+}
+
 template <typename T>
 int launch_vector_gemm(
     int device_id,
@@ -178,6 +285,20 @@ int launch_vector_gemm(
   hipError_t error = hipSetDevice(device_id);
   if (error != hipSuccess) {
     return static_cast<int>(error);
+  }
+  if (m == 1 && n == 1 && k >= 4096) {
+    const dim3 block(kGemvN1BlockSize);
+    const dim3 grid(static_cast<unsigned int>(m));
+    if constexpr (std::is_same<T, int64_t>::value) {
+      hipLaunchKernelGGL(gemv_n1_i64_kernel, grid, block, 0, 0, a, b, c, status, m, k);
+    } else {
+      hipLaunchKernelGGL(gemv_n1_u64_kernel, grid, block, 0, 0, a, b, c, status, m, k);
+    }
+    error = hipGetLastError();
+    if (error != hipSuccess) {
+      return static_cast<int>(error);
+    }
+    return static_cast<int>(hipDeviceSynchronize());
   }
   const dim3 block(16, 16);
   const dim3 grid(

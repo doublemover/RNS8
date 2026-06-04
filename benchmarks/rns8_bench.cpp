@@ -2547,7 +2547,10 @@ std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& res
 
 void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uint64_t workspace_bytes) {
   const bool signed_semantics = args.semantics == BenchSemantics::BoundedI64;
-  const char* kernel = signed_semantics ? "hip_vector_alu_i64_exact_192b_v1" : "hip_vector_alu_u64_exact_192b_v1";
+  const bool gemv_n1 = args.m == 1 && args.n == 1 && args.k >= 4096;
+  const char* kernel = signed_semantics
+      ? (gemv_n1 ? "hip_vector_alu_i64_gemv_n1_exact_192b_v1" : "hip_vector_alu_i64_exact_192b_v1")
+      : (gemv_n1 ? "hip_vector_alu_u64_gemv_n1_exact_192b_v1" : "hip_vector_alu_u64_exact_192b_v1");
   result.backend_info = {};
   result.backend_info.struct_size = sizeof(result.backend_info);
   result.backend_info.abi_version = RNS8_ABI_VERSION;

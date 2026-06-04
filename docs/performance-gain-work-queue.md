@@ -1171,6 +1171,19 @@ Likely first slices:
 - Add shape-family benchmark cases: GEMV, skinny, many small, symmetric/Gram,
   and submatrix view.
 - Add direct-HIP/vector GEMV baseline.
+  Partially implemented for the native vector-ALU backend as a conservative
+  long-K dot-product specialization: `m == 1`, `n == 1`, `k >= 4096` bounded
+  i64/u64 plans now select `hip_vector_alu_i64_gemv_n1_exact_192b_v1` or
+  `hip_vector_alu_u64_gemv_n1_exact_192b_v1`. The kernel parallel-reduces K
+  across a 256-thread block while preserving the existing software 192-bit
+  exact accumulator and native output/export contract. Windows `gfx1100`
+  release captures under `temp/perf-work-queue/vector-gemv-n1/` compare against
+  detached pre-change commit `96781eb`; at 1x1x65536, bounded-u64 improved
+  average end-to-end by 2.22x and median end-to-end by 3.39x, while
+  bounded-i64 improved average end-to-end by 4.44x and median end-to-end by
+  7.41x. A broader 1024x1x1024 smoke remains gated to the generic vector GEMM
+  kernel because pack/copy overhead dominated and the new reduction kernel was
+  not a setup-inclusive win there.
 - Add view lowering choice: direct strided load vs copy-to-packed.
 
 Relation to existing queue:

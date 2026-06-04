@@ -298,15 +298,21 @@ std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
   }
 }
 
+std::string expected_vector_alu_kernel(const AutotuneCacheEntry& entry) {
+  const bool gemv_n1 = entry.m == 1 && entry.n == 1 && entry.k >= 4096;
+  if (entry.semantic_contract == "bounded_i64") {
+    return gemv_n1 ? "hip_vector_alu_i64_gemv_n1_exact_192b_v1" : "hip_vector_alu_i64_exact_192b_v1";
+  }
+  if (entry.semantic_contract == "bounded_u64") {
+    return gemv_n1 ? "hip_vector_alu_u64_gemv_n1_exact_192b_v1" : "hip_vector_alu_u64_exact_192b_v1";
+  }
+  return {};
+}
+
 bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
   if (entry.selected_backend == "hip-vector-alu-int64") {
-    if (entry.semantic_contract == "bounded_i64") {
-      return entry.selected_kernel == "hip_vector_alu_i64_exact_192b_v1";
-    }
-    if (entry.semantic_contract == "bounded_u64") {
-      return entry.selected_kernel == "hip_vector_alu_u64_exact_192b_v1";
-    }
-    return false;
+    const std::string expected = expected_vector_alu_kernel(entry);
+    return !expected.empty() && entry.selected_kernel == expected;
   }
   if (entry.selected_backend == "hipblaslt") {
     return entry.selected_kernel == "hipblaslt_int8_i32_scratch_reduce_baseline_v1";

@@ -110,7 +110,9 @@ BACKEND_REQUESTED_VALUES = BACKEND_SELECTED_VALUES | {"auto", "rocwmma-wrap64-ca
 PLACEHOLDER_GPU_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
 VECTOR_ALU_SELECTED_KERNELS = {
     "hip_vector_alu_i64_exact_192b_v1",
+    "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
+    "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
 }
 CK_SELECTED_KERNELS = {
     "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
@@ -952,6 +954,18 @@ class _Validator:
                     self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
             if metadata.get("selected_kernel") not in VECTOR_ALU_SELECTED_KERNELS:
                 self._error("hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel")
+            gemv_n1 = self.data.get("m") == 1 and self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
+            expected_kernel = (
+                "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
+                if self.data.get("semantics") == "bounded_i64" and gemv_n1
+                else "hip_vector_alu_i64_exact_192b_v1"
+                if self.data.get("semantics") == "bounded_i64"
+                else "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+                if gemv_n1
+                else "hip_vector_alu_u64_exact_192b_v1"
+            )
+            if metadata.get("selected_kernel") != expected_kernel:
+                self._error(f"hip-vector-alu-int64 captures must use selected_kernel={expected_kernel}")
             bool_expected = {
                 "accelerator_backend": False,
                 "correctness_backend": True,

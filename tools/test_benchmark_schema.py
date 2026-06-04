@@ -1132,6 +1132,32 @@ def main() -> int:
     v4_finite_field_rocwmma = expect_valid("v4_finite_field_u8_rocwmma.json")
     bounded = v4_adaptive_i64
 
+    vector_gemv = copy.deepcopy(v4_vector_u64)
+    vector_gemv["m"] = 1
+    vector_gemv["n"] = 1
+    vector_gemv["k"] = 65536
+    vector_gemv["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+    vector_gemv["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+    vector_gemv["backend_metadata"]["autotune_key"] = (
+        vector_gemv["backend_metadata"]["autotune_key"]
+        .replace(";m=16;", ";m=1;")
+        .replace(";n=16;", ";n=1;")
+        .replace(";k=16;", ";k=65536;")
+        .replace("k_block_size=16;", "k_block_size=65536;")
+        .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+    )
+    vector_gemv["backend_metadata"]["accumulator_safety"]["k_block_size"] = 65536
+    vector_gemv["k_block_size"] = 65536
+    validate_capture(vector_gemv)
+
+    stale_vector_gemv_kernel = copy.deepcopy(vector_gemv)
+    stale_vector_gemv_kernel["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
+    stale_vector_gemv_kernel["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
+    stale_vector_gemv_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv_kernel["backend_metadata"][
+        "autotune_key"
+    ].replace("kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1")
+    expect_invalid(stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+
     missing_accumulator_safety = copy.deepcopy(v4_ck_i64)
     del missing_accumulator_safety["backend_metadata"]["accumulator_safety"]
     expect_invalid(missing_accumulator_safety, "backend_metadata.accumulator_safety must be an object")

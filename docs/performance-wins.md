@@ -75,6 +75,25 @@ under `temp/perf-work-queue/tile-bound-zero-shortcut/`. This is a setup-path
 gain; measured per-repeat GPU phases still need separate backend/kernel
 optimization.
 
+## Shape-Specialized Runtime Wins
+
+These rows compare a new shape-gated runtime kernel against the previous kernel
+inside the same backend and semantic contract.
+
+| Backend | Shape | Semantics | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Median kernel speedup | Status |
+|---|---:|---|---|---:|---:|---:|---|
+| Vector ALU | 1x1x65536 | bounded u64 | `hip_vector_alu_u64_gemv_n1_exact_192b_v1` | 2.22x | 3.39x | 20.30x | Routed only for long-K dot products: `m == 1`, `n == 1`, `k >= 4096` |
+| Vector ALU | 1x1x65536 | bounded i64 | `hip_vector_alu_i64_gemv_n1_exact_192b_v1` | 4.44x | 7.41x | 35.87x | Routed only for long-K dot products: `m == 1`, `n == 1`, `k >= 4096` |
+
+The vector long-K dot captures used release binaries, three warmups, nine
+measured repeats, seed `20260604`, and required GPU events. The pre-change
+baseline was built from a temporary detached `96781eb` worktree; retained raw
+before/after captures live under `temp/perf-work-queue/vector-gemv-n1/`.
+Current schema intentionally rejects those old `n == 1` captures if they claim
+the stale generic vector kernel. A broader 1024x1x1024 smoke stayed on
+`hip_vector_alu_*_exact_192b_v1` after gating because that shape was
+pack-dominated and did not produce a setup-inclusive GEMV win.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized
