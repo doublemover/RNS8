@@ -5,7 +5,11 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -360,13 +364,27 @@ struct hip_direct_pending_timing_sample {
   hipEvent_t start = nullptr;
   hipEvent_t stop = nullptr;
 };
+
+struct pinned_host_staging_buffer {
+  int device_id = -1;
+  void* ptr = nullptr;
+  std::size_t capacity = 0;
+
+  ~pinned_host_staging_buffer() {
+    if (ptr) {
+      (void)hipHostFree(ptr);
+    }
+  }
+};
 #endif
 
 thread_local bool g_hip_direct_timing_enabled = false;
 thread_local std::vector<hip_direct_timing_sample> g_hip_direct_timing_samples;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 constexpr std::size_t kMaxPendingTimingEventsBeforeFlush = 16;
+constexpr std::size_t kPinnedExportStagingMinBytes = 64u * 1024u;
 thread_local std::vector<hip_direct_pending_timing_sample> g_hip_direct_pending_timing_samples;
+thread_local pinned_host_staging_buffer g_pinned_export_staging;
 #endif
 std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
 std::atomic<uint64_t> g_hip_direct_free_calls{0};
@@ -568,6 +586,41 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   return op_status;
 }
 
+std::string env_value(const char* name) {
+#if defined(_MSC_VER)
+  char* buffer = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&buffer, &length, name) != 0 || !buffer) {
+    return {};
+  }
+  std::string value(buffer);
+  std::free(buffer);
+  return value;
+#else
+  const char* value = std::getenv(name);
+  return value ? std::string(value) : std::string{};
+#endif
+}
+
+bool env_flag_disabled(const char* name) {
+  const std::string value = env_value(name);
+  return value == "0" || value == "false" || value == "FALSE" || value == "off" ||
+         value == "OFF" || value == "no" || value == "NO";
+}
+
+bool env_flag_enabled(const char* name) {
+  const std::string value = env_value(name);
+  return value == "1" || value == "true" || value == "TRUE" || value == "on" ||
+         value == "ON" || value == "yes" || value == "YES";
+}
+
+bool pinned_export_staging_enabled(std::size_t bytes, bool padded_destination) {
+  if (bytes < kPinnedExportStagingMinBytes || env_flag_disabled("RNS8_HIP_PINNED_EXPORT_STAGING")) {
+    return false;
+  }
+  return padded_destination || env_flag_enabled("RNS8_HIP_PINNED_EXPORT_STAGING");
+}
+
 bool checked_i32_shape(int64_t rows, int64_t cols, int64_t ld, uint32_t prefix) {
   if (rows <= 0 || cols <= 0 || ld < cols || prefix == 0 || prefix > RNS8_DEFAULT_MODULUS_COUNT) {
     return false;
@@ -597,6 +650,32 @@ bool checked_matrix_elements_i32(int64_t rows, int64_t cols) {
          static_cast<uint64_t>(std::numeric_limits<int>::max()) / static_cast<uint64_t>(cols);
 }
 
+void release_pinned_export_staging() {
+  if (g_pinned_export_staging.ptr) {
+    (void)hipHostFree(g_pinned_export_staging.ptr);
+  }
+  g_pinned_export_staging = {};
+}
+
+void* ensure_pinned_export_staging(int device_id, std::size_t bytes) {
+  if (bytes == 0) {
+    return nullptr;
+  }
+  if (g_pinned_export_staging.ptr && g_pinned_export_staging.device_id == device_id &&
+      g_pinned_export_staging.capacity >= bytes) {
+    return g_pinned_export_staging.ptr;
+  }
+  release_pinned_export_staging();
+  void* ptr = nullptr;
+  if (hipHostMalloc(&ptr, bytes, hipHostMallocDefault) != hipSuccess) {
+    return nullptr;
+  }
+  g_pinned_export_staging.device_id = device_id;
+  g_pinned_export_staging.ptr = ptr;
+  g_pinned_export_staging.capacity = bytes;
+  return ptr;
+}
+
 bool checked_output_bytes(int64_t rows, int64_t cols, std::size_t element_size) {
   if (rows <= 0 || cols <= 0 || element_size == 0) {
     return false;
@@ -606,17 +685,48 @@ bool checked_output_bytes(int64_t rows, int64_t cols, std::size_t element_size) 
          static_cast<uint64_t>(max_size / element_size / static_cast<std::size_t>(cols));
 }
 
-hipError_t copy_compact_matrix_device_to_host(
+void scatter_compact_host_matrix(
     void* dst,
     int64_t dst_ld,
     const void* src,
     int64_t rows,
     int64_t cols,
     std::size_t cell_bytes) {
-  if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
-      !checked_output_bytes(rows, dst_ld, cell_bytes)) {
-    return hipErrorInvalidValue;
+  const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
+  if (dst_ld == cols) {
+    std::memcpy(dst, src, static_cast<std::size_t>(rows) * compact_row_bytes);
+    return;
   }
+  auto* dst_bytes = static_cast<std::uint8_t*>(dst);
+  const auto* src_bytes = static_cast<const std::uint8_t*>(src);
+  const std::size_t dst_row_bytes = static_cast<std::size_t>(dst_ld) * cell_bytes;
+  for (int64_t row = 0; row < rows; ++row) {
+    std::memcpy(
+        dst_bytes + static_cast<std::size_t>(row) * dst_row_bytes,
+        src_bytes + static_cast<std::size_t>(row) * compact_row_bytes,
+        compact_row_bytes);
+  }
+}
+
+void record_export_host_staging_copy_sample(
+    const std::chrono::steady_clock::time_point& start,
+    const std::chrono::steady_clock::time_point& stop) {
+  if (!g_hip_direct_timing_enabled) {
+    return;
+  }
+  const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
+  if (nanos >= 0) {
+    hip_direct_timing_record_sample("export_host_staging_copy", static_cast<double>(nanos) / 1000.0);
+  }
+}
+
+hipError_t copy_compact_matrix_device_to_host_direct(
+    void* dst,
+    int64_t dst_ld,
+    const void* src,
+    int64_t rows,
+    int64_t cols,
+    std::size_t cell_bytes) {
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   if (dst_ld == cols) {
     return hipMemcpy(
@@ -633,6 +743,42 @@ hipError_t copy_compact_matrix_device_to_host(
       compact_row_bytes,
       static_cast<std::size_t>(rows),
       hipMemcpyDeviceToHost);
+}
+
+hipError_t copy_compact_matrix_device_to_host(
+    int device_id,
+    const char* label,
+    void* dst,
+    int64_t dst_ld,
+    const void* src,
+    int64_t rows,
+    int64_t cols,
+    std::size_t cell_bytes) {
+  if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
+      !checked_output_bytes(rows, dst_ld, cell_bytes)) {
+    return hipErrorInvalidValue;
+  }
+  const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
+  const std::size_t compact_bytes = static_cast<std::size_t>(rows) * compact_row_bytes;
+  if (pinned_export_staging_enabled(compact_bytes, dst_ld != cols)) {
+    void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
+    if (pinned) {
+      hipError_t err = timed_hip_operation(label, [&]() {
+        return hipMemcpy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
+      });
+      if (err != hipSuccess) {
+        return err;
+      }
+      const auto start = std::chrono::steady_clock::now();
+      scatter_compact_host_matrix(dst, dst_ld, pinned, rows, cols, cell_bytes);
+      const auto stop = std::chrono::steady_clock::now();
+      record_export_host_staging_copy_sample(start, stop);
+      return hipSuccess;
+    }
+  }
+  return timed_hip_operation(label, [&]() {
+    return copy_compact_matrix_device_to_host_direct(dst, dst_ld, src, rows, cols, cell_bytes);
+  });
 }
 
 bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {
@@ -3344,9 +3490,8 @@ rns8_status hip_direct_export_i64_device(
   if (host_status != static_cast<int>(RNS8_SUCCESS)) {
     return static_cast<rns8_status>(host_status);
   }
-  err = timed_hip_operation("crt_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3418,9 +3563,8 @@ rns8_status hip_direct_export_i64_tiled_device(
     if (zero_err != hipSuccess) {
       return RNS8_BACKEND_FAILURE;
     }
-    const hipError_t copy_err = timed_hip_operation("crt_export_d2h", [&]() {
-      return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
-    });
+    const hipError_t copy_err = copy_compact_matrix_device_to_host(
+        device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
     return copy_err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
@@ -3464,9 +3608,8 @@ rns8_status hip_direct_export_i64_tiled_device(
   if (host_status != static_cast<int>(RNS8_SUCCESS)) {
     return static_cast<rns8_status>(host_status);
   }
-  err = timed_hip_operation("crt_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3554,9 +3697,8 @@ rns8_status hip_direct_export_u64_device(
   if (host_status != static_cast<int>(RNS8_SUCCESS)) {
     return static_cast<rns8_status>(host_status);
   }
-  err = timed_hip_operation("crt_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3628,9 +3770,8 @@ rns8_status hip_direct_export_u64_tiled_device(
     if (zero_err != hipSuccess) {
       return RNS8_BACKEND_FAILURE;
     }
-    const hipError_t copy_err = timed_hip_operation("crt_export_d2h", [&]() {
-      return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
-    });
+    const hipError_t copy_err = copy_compact_matrix_device_to_host(
+        device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
     return copy_err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
@@ -3674,9 +3815,8 @@ rns8_status hip_direct_export_u64_tiled_device(
   if (host_status != static_cast<int>(RNS8_SUCCESS)) {
     return static_cast<rns8_status>(host_status);
   }
-  err = timed_hip_operation("crt_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3738,9 +3878,8 @@ rns8_status hip_direct_export_finite_u8_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  err = timed_hip_operation("finite_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(dst, ld, *export_buffer, rows, cols, sizeof(uint8_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id, "finite_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint8_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3827,10 +3966,15 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
       return static_cast<rns8_status>(host_status);
     }
   }
-  err = timed_hip_operation("exact_wide_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(
-        dst, ld, *export_buffer, rows, cols, static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id,
+      "exact_wide_export_d2h",
+      dst,
+      ld,
+      *export_buffer,
+      rows,
+      cols,
+      static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -3920,10 +4064,15 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
       return static_cast<rns8_status>(host_status);
     }
   }
-  err = timed_hip_operation("exact_wide_export_d2h", [&]() {
-    return copy_compact_matrix_device_to_host(
-        dst, ld, *export_buffer, rows, cols, static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
-  });
+  err = copy_compact_matrix_device_to_host(
+      device_id,
+      "exact_wide_export_d2h",
+      dst,
+      ld,
+      *export_buffer,
+      rows,
+      cols,
+      static_cast<std::size_t>(limb_count) * sizeof(uint64_t));
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

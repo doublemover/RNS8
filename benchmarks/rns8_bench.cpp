@@ -865,6 +865,49 @@ const char* benchmark_execution_mode_name(const Args& args) {
   return "persistent_resident_matrices";
 }
 
+std::string benchmark_env_value(const char* name) {
+#if defined(_MSC_VER)
+  char* buffer = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&buffer, &length, name) != 0 || !buffer) {
+    return {};
+  }
+  std::string value(buffer);
+  std::free(buffer);
+  return value;
+#else
+  const char* value = std::getenv(name);
+  return value ? std::string(value) : std::string{};
+#endif
+}
+
+bool benchmark_env_flag_disabled(const char* name) {
+  const std::string value = benchmark_env_value(name);
+  return value == "0" || value == "false" || value == "FALSE" || value == "off" ||
+         value == "OFF" || value == "no" || value == "NO";
+}
+
+bool benchmark_env_flag_enabled(const char* name) {
+  const std::string value = benchmark_env_value(name);
+  return value == "1" || value == "true" || value == "TRUE" || value == "on" ||
+         value == "ON" || value == "yes" || value == "YES";
+}
+
+const char* direct_hip_export_staging_policy(rns8_backend_kind selected_backend) {
+  if (selected_backend != RNS8_BACKEND_HIP_DIRECT) {
+    return "not_applicable";
+  }
+  if (benchmark_env_flag_disabled("RNS8_HIP_PINNED_EXPORT_STAGING")) {
+    return "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING";
+  }
+  if (benchmark_env_flag_enabled("RNS8_HIP_PINNED_EXPORT_STAGING")) {
+    return "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING";
+  }
+  return "large_padded_outputs_only_default";
+}
+
+constexpr uint64_t kDirectHipPinnedExportStagingThresholdBytes = 64u * 1024u;
+
 const char* pack_mode_name(const Args& args) {
   if (!args.reuse_packed_inputs) {
     return "per_repeat_repack";
@@ -6306,6 +6349,11 @@ void print_json(
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "    \"direct_hip_export_staging_policy\": \""
+            << direct_hip_export_staging_policy(selected_backend_kind) << "\",\n";
+  std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
+            << kDirectHipPinnedExportStagingThresholdBytes << ",\n";
+  std::cout << "    \"benchmark_output_destination_layout\": \"contiguous_row_major\",\n";
   std::cout << "    \"prepack_reuse_operands\": ";
   print_string_array(prepack_reuse_operands(args));
   std::cout << ",\n";

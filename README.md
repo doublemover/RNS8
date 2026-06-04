@@ -91,6 +91,7 @@ Public backend strings are `cpu-reference`, `hip-direct`,
 | Variable | Used by | Purpose |
 |---|---|---|
 | `RNS8_AUTOTUNE_CACHE_PATH` | Runtime and benchmark tools | Overrides the reviewed autotune-cache location. Missing or rejected hits fall back to correctness paths. |
+| `RNS8_HIP_PINNED_EXPORT_STAGING` | Direct-HIP runtime and benchmarks | Set to `0`, `false`, `off`, or `no` to disable large padded-output pinned host export staging; set to `1`, `true`, `on`, or `yes` to force staging for contiguous-output A/B transfer measurements. |
 | `VCPKG_ROOT` | CMake presets and CI | Locates the vcpkg toolchain file for CPU presets. |
 | `HIP_PATH` / `ROCM_PATH` | Dependency checks and HIP discovery | Helps locate HIP SDK or ROCm when preset roots are not enough. |
 | `LOCALAPPDATA`, `USERPROFILE`, `XDG_CACHE_HOME`, `HOME` | Autotune tooling | Default cache-root discovery when `RNS8_AUTOTUNE_CACHE_PATH` is unset. |

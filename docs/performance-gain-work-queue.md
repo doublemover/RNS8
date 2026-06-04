@@ -2112,7 +2112,25 @@ Likely first slices:
   finite-u8, exact-wide, and wrap64; finite-u8 512 median export D2H improved
   from the prior 66.2 us r33 capture to 49.2 us, but end-to-end averages remain
   too noisy for a headline claim.
-- Pinned staging benchmark option with metadata.
+- Pinned host export staging for large padded Direct-HIP outputs. Implemented
+  as an internal reusable thread-local HIP pinned host buffer for bounded,
+  finite-u8, and exact-wide Direct-HIP exports whose compact output copy is at
+  least 64 KiB and whose caller destination has padding. The backend copies
+  compact device export buffers into pinned staging, scatters into the caller's
+  requested leading dimension on the host, preserves the existing required
+  `crt_export_d2h` / `finite_export_d2h` / `exact_wide_export_d2h` GPU event
+  labels, and emits an ignored diagnostic timing sample named
+  `export_host_staging_copy` when backend timing is enabled.
+  `rns8-bench` now records `direct_hip_export_staging_policy`,
+  `direct_hip_pinned_export_staging_threshold_bytes`, and the benchmark output
+  destination layout in `timing_metadata`, so capture metadata distinguishes
+  padded-only default, disabled, and forced staging runs.
+  `RNS8_HIP_PINNED_EXPORT_STAGING=0` disables the staging path, while
+  `RNS8_HIP_PINNED_EXPORT_STAGING=1` forces it for contiguous-output A/B
+  measurements. A 512x512 contiguous-output Windows `gfx1100` smoke did not
+  support default-on staging, so contiguous benchmark outputs keep the existing
+  linear D2H path by default. This is an implemented transfer path, not yet a
+  reviewed headline speedup claim.
 - Async exact-wide export/D2H overlap experiment.
 - Multi-stream repeated-B pipeline scenario.
 

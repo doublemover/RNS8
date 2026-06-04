@@ -764,6 +764,108 @@ TEST_CASE("direct HIP ring GEMM matches CPU reference for one modulus") {
   CHECK(gpu == cpu);
 }
 
+TEST_CASE("direct HIP bounded export uses pinned staging for large padded host outputs") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for large padded direct HIP export staging smoke");
+  }
+
+  constexpr int64_t m = 96;
+  constexpr int64_t n = 96;
+  constexpr int64_t k = 3;
+  constexpr int64_t lda = k + 2;
+  constexpr int64_t ldb = n + 3;
+  constexpr int64_t ldc = n + 5;
+  constexpr int64_t sentinel = std::numeric_limits<int64_t>::min() / 3;
+  const uint64_t bound = 8192;
+
+  std::vector<int64_t> A(static_cast<std::size_t>(m * lda), 0);
+  std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), 0);
+  std::vector<int64_t> cpu_c(static_cast<std::size_t>(m * ldc), sentinel);
+  std::vector<int64_t> hip_c(static_cast<std::size_t>(m * ldc), sentinel);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] = (row % 11) - (col % 5);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] = (col % 13) - (row % 7);
+    }
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto cpu_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* cpu_plan = nullptr;
+  rns8_plan* hip_plan = nullptr;
+  rns8_workspace* cpu_workspace = nullptr;
+  rns8_workspace* hip_workspace = nullptr;
+  rns8_matrix* cpu_a = nullptr;
+  rns8_matrix* cpu_b = nullptr;
+  rns8_matrix* cpu_out = nullptr;
+  rns8_matrix* hip_a = nullptr;
+  rns8_matrix* hip_b = nullptr;
+  rns8_matrix* hip_out = nullptr;
+
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  a_desc.logical_ld = lda;
+  b_desc.logical_ld = ldb;
+  c_desc.logical_ld = ldc;
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_out) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_out) == RNS8_SUCCESS);
+
+  REQUIRE(rns8_pack_i64(cpu, cpu_a, A.data(), lda, 17) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, cpu_b, B.data(), ldb, 23) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, hip_a, A.data(), lda, 17) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hip, hip_b, B.data(), ldb, 23) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(cpu, cpu_plan, cpu_a, cpu_b, cpu_out, cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(cpu, cpu_plan, cpu_out, cpu_c.data(), ldc) == RNS8_SUCCESS);
+
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+  REQUIRE(rns8_export_i64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_SUCCESS);
+  auto export_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+
+  CHECK(has_timing_label(export_events, "crt_export_kernel"));
+  CHECK(has_timing_label(export_events, "crt_export_d2h"));
+  CHECK(has_timing_label(export_events, "export_host_staging_copy"));
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] ==
+            cpu_c[static_cast<std::size_t>(row * ldc + col)]);
+    }
+    for (int64_t col = n; col < ldc; ++col) {
+      CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] == sentinel);
+    }
+  }
+
+  rns8_destroy_matrix(hip_out);
+  rns8_destroy_matrix(hip_b);
+  rns8_destroy_matrix(hip_a);
+  rns8_destroy_matrix(cpu_out);
+  rns8_destroy_matrix(cpu_b);
+  rns8_destroy_matrix(cpu_a);
+  rns8_destroy_workspace(hip_workspace);
+  rns8_destroy_workspace(cpu_workspace);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP ring GEMM reciprocal reduction matches CPU across supported default moduli") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP reciprocal ladder smoke");
