@@ -47,8 +47,20 @@ typedef struct rns8_device_info {
  * exact-wide RNS plans execute the minimum proven prefix for the contract.
  * Set RNS8_PLAN_FORCE_FIXED_PREFIX only for controlled experiments or
  * compatibility captures that intentionally execute exactly max_prefix planes.
+ *
+ * RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS is valid only with per-tile bounded
+ * contracts whose zero tile bounds came from a trusted exact scan or proof.
+ * Without that opt-in, zero bounds remain ordinary range contracts and do not
+ * authorize execution shortcuts.
  */
 #define RNS8_PLAN_FORCE_FIXED_PREFIX 0x00000001u
+#define RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS 0x00000002u
+
+/*
+ * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and
+ * rns8_plan_tile_schedule_entry.flags.
+ */
+#define RNS8_TILE_SCHEDULE_ZERO_OUTPUT 0x00000001u
 
 typedef struct rns8_gemm_desc {
   uint64_t struct_size;

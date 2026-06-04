@@ -501,6 +501,72 @@ TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
   rns8_destroy_context(ctx);
 }
 
+TEST_CASE("bounded per-tile zero output skips require proven-zero opt-in") {
+  rns8_context* ctx = create_cpu();
+  const std::vector<uint64_t> bounds = {0, 1000, 0, 1000000};
+
+  auto desc = u64_desc(65, 65, 1, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.flags == 0);
+
+  std::vector<rns8_plan_tile_schedule_entry> entries(4);
+  uint64_t written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  CHECK(entries[0].range_bit_length == 0);
+  CHECK(entries[0].required_prefix == 1);
+  CHECK(entries[0].selected_prefix == 1);
+  CHECK(entries[0].flags == 0);
+  CHECK(entries[2].flags == 0);
+  rns8_destroy_plan(plan);
+
+  auto proven_desc = u64_desc(65, 65, 1, 0);
+  proven_desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  proven_desc.tile_m = 64;
+  proven_desc.tile_n = 64;
+  proven_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  proven_desc.tile_bounds = bounds.data();
+  proven_desc.tile_bounds_count = bounds.size();
+  rns8_plan* proven_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &proven_desc, &proven_plan) == RNS8_SUCCESS);
+
+  info = {};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(proven_plan, &info) == RNS8_SUCCESS);
+  CHECK(info.flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
+
+  entries.assign(4, {});
+  written = 0;
+  REQUIRE(rns8_get_plan_tile_schedule(proven_plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(written == entries.size());
+  CHECK(entries[0].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
+  CHECK(entries[1].flags == 0);
+  CHECK(entries[2].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
+  CHECK(entries[3].flags == 0);
+  CHECK(entries[0].range_bit_length == 0);
+  CHECK(entries[2].range_bit_length == 0);
+  rns8_destroy_plan(proven_plan);
+
+  auto global_desc = u64_desc(1, 1, 1, 1);
+  global_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  rns8_plan* invalid_plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &global_desc, &invalid_plan) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_context(ctx);
+}
+
 TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix") {
   rns8_context* ctx = create_cpu();
   const auto prefix8_product = rns8::detail::modulus_product(RNS8_DEFAULT_BOUNDED_PREFIX - 1u);
@@ -694,6 +760,56 @@ TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile 
     CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
     check_all_equal<uint64_t>(C, 123);
   }
+  {
+    const std::vector<uint64_t> bounds = {0, 10, 10, 10};
+    std::vector<uint64_t> A(m * k, 2);
+    std::vector<uint64_t> B(k * n, 3);
+    std::vector<uint64_t> C(m * ldc, 123);
+    auto desc = u64_desc(m, n, k, 0);
+    desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+    desc.tile_m = 64;
+    desc.tile_n = 64;
+    desc.tile_bounds = bounds.data();
+    desc.tile_bounds_count = bounds.size();
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    check_all_equal<uint64_t>(C, 123);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded CPU oneshot materializes proven zero per-tile outputs") {
+  rns8_context* ctx = create_cpu();
+  constexpr int64_t m = 65;
+  constexpr int64_t n = 65;
+  constexpr int64_t k = 1;
+  constexpr int64_t ldc = n + 1;
+  std::vector<uint64_t> A(m * k);
+  std::vector<uint64_t> B(k * n);
+  std::vector<uint64_t> C(static_cast<std::size_t>(m * ldc), 0xdeadbeefdeadbeefull);
+  for (int64_t row = 0; row < m; ++row) {
+    A[static_cast<std::size_t>(row)] = row < 64 ? 1 : 1000;
+  }
+  for (int64_t col = 0; col < n; ++col) {
+    B[static_cast<std::size_t>(col)] = col < 64 ? 0 : 7;
+  }
+
+  const std::vector<uint64_t> bounds = {0, 7, 0, 7000};
+  auto desc = u64_desc(m, n, k, 0);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  desc.tile_m = 64;
+  desc.tile_n = 64;
+  desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  desc.tile_bounds = bounds.data();
+  desc.tile_bounds_count = bounds.size();
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(C[static_cast<std::size_t>(row * ldc + col)] == A[static_cast<std::size_t>(row)] * B[static_cast<std::size_t>(col)]);
+    }
+    CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xdeadbeefdeadbeefull);
+  }
+
   rns8_destroy_context(ctx);
 }
 

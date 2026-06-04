@@ -39,6 +39,7 @@ constexpr int kRns8MaxInt = 2147483647;
 constexpr int64_t kRns8MaxInt64 = 0x7fffffffffffffffLL;
 constexpr int kRns8DefaultBoundedPrefix = 9;
 constexpr int kRns8MaxSupportedPrefix = 20;
+constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
 
 static_assert(
     kRns8HipTileM * kRns8HipTileN == 256,
@@ -1666,6 +1667,12 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
   const bool output_active =
       tile_local_row + thread_row < static_cast<int>(entry.row_extent) &&
       tile_local_col + thread_col < static_cast<int>(entry.col_extent);
+  if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+    if (output_active) {
+      C[row * ldc + col] = 0;
+    }
+    return;
+  }
   int32_t acc = 0;
 
   for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
@@ -1947,6 +1954,10 @@ __global__ void rns8_export_i64_scheduled_kernel(
   const int local_col = tile_cell - local_row * col_extent;
   const int global_cell =
       (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+    dst[global_cell] = 0;
+    return;
+  }
   rns8_export_i64_cell_device(
       residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }
@@ -1985,6 +1996,10 @@ __global__ void rns8_export_u64_scheduled_kernel(
   const int local_col = tile_cell - local_row * col_extent;
   const int global_cell =
       (static_cast<int>(entry.row_offset) + local_row) * cols + (static_cast<int>(entry.col_offset) + local_col);
+  if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+    dst[global_cell] = 0;
+    return;
+  }
   rns8_export_u64_cell_device(
       residues, dst, global_cell, rows * cols, static_cast<int>(entry.selected_prefix), bounds[entry_index], status);
 }

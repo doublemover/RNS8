@@ -334,6 +334,8 @@ std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
 std::atomic<uint64_t> g_hip_direct_free_calls{0};
 std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 
+constexpr uint32_t kKnownTileScheduleFlags = RNS8_TILE_SCHEDULE_ZERO_OUTPUT;
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 void destroy_pending_event_pair(hipEvent_t start, hipEvent_t stop) {
   if (stop) {
@@ -613,8 +615,8 @@ bool exact_wide_unsigned_export_requires_status(uint32_t limb_count) {
 
 bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows, int64_t cols) {
   if (entry.struct_size != sizeof(rns8_plan_tile_schedule_entry) || entry.abi_version != RNS8_ABI_VERSION ||
-      entry.flags != 0 || entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 ||
-      entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
+      (entry.flags & ~kKnownTileScheduleFlags) != 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
+      entry.row_extent <= 0 || entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
       entry.required_prefix > entry.selected_prefix || entry.selected_prefix > RNS8_MAX_SUPPORTED_PREFIX) {
     return false;
   }
@@ -2617,6 +2619,21 @@ rns8_status hip_direct_gemm_rns_tiled_device(
         for (uint64_t entry_index = 0; entry_index < entry_count; ++entry_index) {
           const auto& entry = entries[static_cast<std::size_t>(entry_index)];
           if (entry.selected_prefix != selected_prefix) {
+            continue;
+          }
+          if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+            auto* tile_c =
+                c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
+                static_cast<std::size_t>(entry.col_offset);
+            const hipError_t zero_status = hipMemset2D(
+                tile_c,
+                static_cast<std::size_t>(ldc) * sizeof(int8_t),
+                0,
+                static_cast<std::size_t>(entry.col_extent) * sizeof(int8_t),
+                static_cast<std::size_t>(entry.row_extent));
+            if (zero_status != hipSuccess) {
+              return zero_status;
+            }
             continue;
           }
           const hipError_t launch_status = launch_rns_modulus_gemm({

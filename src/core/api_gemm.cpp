@@ -18,13 +18,14 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
   if (hip_resident_rns_backend(plan.backend) && (A.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   if (!matrix_descriptor_matches(
           A,
           plan.desc.semantics,
           plan.desc.bound_kind,
           plan.desc.m,
           plan.desc.k,
-          plan.prefix,
+          storage_prefix,
           plan.desc.tile_m,
           plan.desc.tile_n) ||
       !matrix_descriptor_matches(
@@ -33,13 +34,13 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
           plan.desc.bound_kind,
           plan.desc.m,
           plan.desc.n,
-          plan.prefix,
+          storage_prefix,
           plan.desc.tile_m,
           plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, plan.prefix) ||
-      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, plan.prefix) ||
+  if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, storage_prefix) ||
+      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix) ||
       !rns_residue_state_current_for_backend(A, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -63,14 +64,15 @@ rns8_status validate_rns_gemm_operands(
       (A.hip_device_id != ctx.device_id || B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   if (!matrix_descriptor_matches(
-          A, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.k, plan.prefix, plan.desc.tile_m,
+          A, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.k, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n) ||
       !matrix_descriptor_matches(
-          B, plan.desc.semantics, plan.desc.bound_kind, plan.desc.k, plan.desc.n, plan.prefix, plan.desc.tile_m,
+          B, plan.desc.semantics, plan.desc.bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n) ||
       !matrix_descriptor_matches(
-          C, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.n, plan.prefix, plan.desc.tile_m,
+          C, plan.desc.semantics, plan.desc.bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -86,9 +88,9 @@ rns8_status validate_rns_gemm_operands(
     }
     return RNS8_SUCCESS;
   }
-  if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, plan.prefix) ||
-      !rns_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n, plan.prefix) ||
-      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, plan.prefix)) {
+  if (!rns_matrix_storage_matches(A, plan.backend, plan.desc.m, plan.desc.k, storage_prefix) ||
+      !rns_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n, storage_prefix) ||
+      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!rns_residue_state_current_for_backend(A, plan.backend) ||

@@ -121,6 +121,12 @@ void ring_gemm_modulus(
   }
 }
 
+void fill_tile_modulus(int8_t* C, int64_t row_extent, int64_t col_extent, int64_t ldc, int8_t value) {
+  for (int64_t row = 0; row < row_extent; ++row) {
+    std::fill(C + row * ldc, C + row * ldc + col_extent, value);
+  }
+}
+
 rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C) {
   if (A.desc.rows != plan.desc.m || A.desc.cols != plan.desc.k || B.desc.rows != plan.desc.k ||
       B.desc.cols != plan.desc.n || C.desc.rows != plan.desc.m || C.desc.cols != plan.desc.n) {
@@ -139,13 +145,18 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
                                      static_cast<std::size_t>(B.desc.cols);
         const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(C.desc.rows) *
                                      static_cast<std::size_t>(C.desc.cols);
+        auto* c_tile = C.residues.data() + c_offset + static_cast<std::size_t>(entry.row_offset) *
+                                                  static_cast<std::size_t>(C.desc.cols) +
+                                              static_cast<std::size_t>(entry.col_offset);
+        if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+          fill_tile_modulus(c_tile, entry.row_extent, entry.col_extent, C.desc.cols, 0);
+          continue;
+        }
         ring_gemm_modulus(
             A.residues.data() + a_offset + static_cast<std::size_t>(entry.row_offset) *
                                       static_cast<std::size_t>(A.desc.cols),
             B.residues.data() + b_offset + static_cast<std::size_t>(entry.col_offset),
-            C.residues.data() + c_offset + static_cast<std::size_t>(entry.row_offset) *
-                                      static_cast<std::size_t>(C.desc.cols) +
-                                      static_cast<std::size_t>(entry.col_offset),
+            c_tile,
             entry.row_extent,
             entry.col_extent,
             plan.desc.k,

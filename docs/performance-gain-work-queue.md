@@ -76,6 +76,24 @@ Implemented in the current bound-discovery slice:
   evidence, cache schedule hashes, and same-contract comparisons so discovered
   bounds are not accidentally mixed with static-profile captures.
 
+Implemented in the current proven-zero tile skip slice:
+
+- Per-tile bounded plans now have an explicit
+  `RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS` opt-in for zero tile bounds produced
+  by trusted exact scans. Without the opt-in, zero bounds stay ordinary range
+  contracts and still produce range errors when the actual output is nonzero.
+- Schedule entries can mark `RNS8_TILE_SCHEDULE_ZERO_OUTPUT`; schedule info
+  aggregates the flag, workspace fingerprints include it, and stale/mutated
+  plans are rejected if flags do not match copied tile bounds.
+- CPU reference, direct HIP scheduled GEMM/export, direct HIP host tiled
+  fallback, CK, and rocWMMA tiled paths materialize zero output tiles without
+  running per-tile GEMM work for selected residue planes. Residue planes above
+  the selected prefix remain untouched.
+- `rns8-bench` enables the skip only for exact seeded per-tile bound prepasses
+  and reports zero tile counts, zero tile fraction, selected residue-plane skip
+  counts, and schedule flags in `schedule_metadata`. Schema and sweep cache
+  keys validate and preserve those fields.
+
 Remaining high-value imported work goes at the front of the queue:
 
 1. **Bound Discovery Pipeline**
@@ -96,12 +114,11 @@ Remaining high-value imported work goes at the front of the queue:
 
 2. **Zero-Tile And Zero-Plane Execution Skips**
 
-   Prefix metadata alone is not enough. Add execution paths that skip GEMM and
-   export work for zero tiles, zero row/column products, and selected-prefix
-   ranges that are provably unused. The contract must still materialize correct
-   zero outputs and mark storage/currentness exactly. Start benchmark-only with
-   explicit skip counters, then graduate to backend execution after CPU and
-   direct-HIP differential coverage.
+   Proven zero tile bounds now skip tiled GEMM/export work in CPU, direct HIP,
+   CK, and rocWMMA paths. The remaining work is to extend this from whole
+   output tiles to zero row/column products and other provably unused
+   selected-prefix ranges, plus benchmark evidence showing the skip counters
+   translate into end-to-end wins on release `gfx1100` captures.
 
    Code references: tile schedule entries in `include/rns8/rns8.h`, schedule
    construction in `src/core/api_plan.cpp`, direct-HIP dispatch in

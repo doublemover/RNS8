@@ -6307,6 +6307,37 @@ TEST_CASE("direct HIP per-tile bounded oneshot matches CPU for signed and unsign
           RNS8_RANGE_ERROR);
     CHECK(rns8_gemm_u64_oneshot(hip, &bad_hip_desc, A.data(), k, B.data(), n, hip_c.data(), ldc) ==
           RNS8_RANGE_ERROR);
+
+    const std::vector<uint64_t> zero_bad_bounds = {0, 1000, 7000000, 1000000000};
+    auto zero_bad_cpu_desc = per_tile_unsigned_desc(m, n, k, zero_bad_bounds, RNS8_BACKEND_CPU_REFERENCE);
+    auto zero_bad_hip_desc = per_tile_unsigned_desc(m, n, k, zero_bad_bounds, RNS8_BACKEND_HIP_DIRECT);
+    CHECK(rns8_gemm_u64_oneshot(cpu, &zero_bad_cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), ldc) ==
+          RNS8_RANGE_ERROR);
+    CHECK(rns8_gemm_u64_oneshot(hip, &zero_bad_hip_desc, A.data(), k, B.data(), n, hip_c.data(), ldc) ==
+          RNS8_RANGE_ERROR);
+
+    std::vector<uint64_t> zero_b = B;
+    for (int64_t col = 0; col < n; ++col) {
+      zero_b[static_cast<std::size_t>(col)] = col < 64 ? 0 : 1000;
+    }
+    const std::vector<uint64_t> zero_bounds = {0, 1000, 0, 1000000000};
+    auto zero_cpu_desc = per_tile_unsigned_desc(m, n, k, zero_bounds, RNS8_BACKEND_CPU_REFERENCE);
+    auto zero_hip_desc = per_tile_unsigned_desc(m, n, k, zero_bounds, RNS8_BACKEND_HIP_DIRECT);
+    zero_cpu_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+    zero_hip_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+    std::fill(cpu_c.begin(), cpu_c.end(), 0xdeadbeefdeadbeefull);
+    std::fill(hip_c.begin(), hip_c.end(), 0xdeadbeefdeadbeefull);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &zero_cpu_desc, A.data(), k, zero_b.data(), n, cpu_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_u64_oneshot(hip, &zero_hip_desc, A.data(), k, zero_b.data(), n, hip_c.data(), ldc) ==
+            RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_c[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      CHECK(hip_c[static_cast<std::size_t>(row * ldc + n)] == 0xdeadbeefdeadbeefull);
+    }
   }
 
   {
@@ -6554,11 +6585,13 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
     A[static_cast<std::size_t>(row)] = row < 64 ? 1 : 1000000;
   }
   for (int64_t col = 0; col < n; ++col) {
-    B[static_cast<std::size_t>(col)] = col < 64 ? 7 : 1000;
+    B[static_cast<std::size_t>(col)] = col < 64 ? 0 : 1000;
   }
-  const std::vector<uint64_t> bounds = {7, 1000, 7000000, 1000000000};
+  const std::vector<uint64_t> bounds = {0, 1000, 0, 1000000000};
   auto cpu_desc = per_tile_unsigned_desc(m, n, k, bounds, RNS8_BACKEND_CPU_REFERENCE);
   auto hip_desc = per_tile_unsigned_desc(m, n, k, bounds, RNS8_BACKEND_HIP_DIRECT);
+  cpu_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  hip_desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
 
   rns8_plan* cpu_plan = nullptr;
   rns8_plan* hip_plan = nullptr;
@@ -6569,7 +6602,10 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
     CHECK(cpu_plan->tile_schedule[i].required_prefix == hip_plan->tile_schedule[i].required_prefix);
     CHECK(cpu_plan->tile_schedule[i].selected_prefix == hip_plan->tile_schedule[i].selected_prefix);
     CHECK(cpu_plan->tile_schedule[i].group_index == hip_plan->tile_schedule[i].group_index);
+    CHECK(cpu_plan->tile_schedule[i].flags == hip_plan->tile_schedule[i].flags);
   }
+  CHECK(hip_plan->tile_schedule[0].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
+  CHECK(hip_plan->tile_schedule[2].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
 
   auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);
   auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_PER_TILE_MAX_UNSIGNED);

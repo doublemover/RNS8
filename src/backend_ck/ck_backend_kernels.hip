@@ -44,6 +44,7 @@ namespace {
 constexpr uint32_t kRns8AbiVersion = 1;
 constexpr uint32_t kRns8DefaultModulusCount = 28;
 constexpr uint32_t kRns8MaxSupportedPrefix = 28;
+constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
 constexpr int64_t kRns8CanonicalSafeInt32KBlock = 32768;
 constexpr int64_t kRns8CkShapeAlignment = 64;
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
@@ -690,8 +691,8 @@ int run_ck_tile_modulus(
 
 bool checked_tile_entry(const rns8_plan_tile_schedule_entry& entry, int64_t rows, int64_t cols) {
   if (entry.struct_size != sizeof(rns8_plan_tile_schedule_entry) || entry.abi_version != kRns8AbiVersion ||
-      entry.flags != 0 || entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 ||
-      entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
+      (entry.flags & ~kRns8TileScheduleZeroOutput) != 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
+      entry.row_extent <= 0 || entry.col_extent <= 0 || entry.required_prefix == 0 || entry.selected_prefix == 0 ||
       entry.required_prefix > entry.selected_prefix || entry.selected_prefix > kRns8MaxSupportedPrefix ||
       entry.row_offset > rows || entry.col_offset > cols || entry.row_extent > rows - entry.row_offset ||
       entry.col_extent > cols - entry.col_offset) {
@@ -748,6 +749,34 @@ int run_ck_entry(
         static_cast<int>(p));
     if (result != ck_success) {
       return result;
+    }
+  }
+  return ck_success;
+}
+
+int zero_tile_residues(
+    int8_t* c_base,
+    int64_t m,
+    int64_t ldc,
+    int64_t row_offset,
+    int64_t col_offset,
+    int64_t row_extent,
+    int64_t col_extent,
+    uint32_t selected_prefix) {
+  for (uint32_t p = 0; p < selected_prefix; ++p) {
+    auto* tile_c = c_base + static_cast<uint64_t>(p) * static_cast<uint64_t>(m) * static_cast<uint64_t>(ldc) +
+                   static_cast<uint64_t>(row_offset) * static_cast<uint64_t>(ldc) +
+                   static_cast<uint64_t>(col_offset);
+    const hipError_t status = timed_hip_launch("ck_zero_output_tile_memset", nullptr, [&]() {
+      return hipMemset2D(
+          tile_c,
+          static_cast<std::size_t>(ldc) * sizeof(int8_t),
+          0,
+          static_cast<std::size_t>(col_extent) * sizeof(int8_t),
+          static_cast<std::size_t>(row_extent));
+    });
+    if (status != hipSuccess) {
+      return ck_backend_failure;
     }
   }
   return ck_success;
@@ -953,6 +982,21 @@ extern "C" int rns8_ck_gemm_rns_tiled_device(
   }
   for (uint64_t i = 0; i < entry_count; ++i) {
     const auto& entry = entries[i];
+    if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+      status = zero_tile_residues(
+          static_cast<int8_t*>(device_c_residues),
+          m,
+          ldc,
+          entry.row_offset,
+          entry.col_offset,
+          entry.row_extent,
+          entry.col_extent,
+          entry.selected_prefix);
+      if (status != ck_success) {
+        return status;
+      }
+      continue;
+    }
     status = run_ck_entry(
         static_cast<const int8_t*>(device_a_residues),
         static_cast<const int8_t*>(device_b_residues),

@@ -30,6 +30,7 @@ TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "
 GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
+TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
 BOUND_SOURCES = {"static_profile", "input_scan"}
 BOUND_DISCOVERY_SOURCES = {"static_profile_contract", "input_row_column_abs_summary"}
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
@@ -155,6 +156,7 @@ CK_DEEP_GPU_EVENT_LABELS = {
     "ck_wmma_cshuffle_matmul",
     "ck_copy_centered_kernel",
     "ck_add_centered_kernel",
+    "ck_zero_output_tile_memset",
 }
 ROCWMMA_DEEP_GPU_EVENT_LABELS = {
     "rocwmma_pack_a_kernel",
@@ -162,6 +164,7 @@ ROCWMMA_DEEP_GPU_EVENT_LABELS = {
     "rocwmma_matmul_kernel",
     "rocwmma_pack_a_prepacked_b_kernel",
     "rocwmma_matmul_prepacked_b_kernel",
+    "rocwmma_zero_output_tile_memset",
 }
 VECTOR_ALU_GPU_EVENT_LABELS = {
     "vector_alu_pack_a_h2d",
@@ -1076,6 +1079,45 @@ class _Validator:
             self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
+        flags = schedule.get("flags")
+        zero_count = schedule.get("zero_output_tile_count")
+        zero_fraction = schedule.get("zero_output_tile_fraction")
+        zero_planes = schedule.get("zero_output_selected_residue_planes")
+        zero_active = schedule.get("zero_output_skip_active")
+        if flags is not None:
+            if not _is_int(flags) or flags < 0:
+                self._error("schedule_metadata.flags must be a nonnegative integer")
+            elif flags & ~TILE_SCHEDULE_ZERO_OUTPUT:
+                self._error("schedule_metadata.flags contains unknown tile schedule flags")
+        if zero_count is not None:
+            if not _is_int(zero_count) or zero_count < 0:
+                self._error("schedule_metadata.zero_output_tile_count must be a nonnegative integer")
+            elif _is_int(tile_count) and zero_count > tile_count:
+                self._error("schedule_metadata.zero_output_tile_count must be <= tile_count")
+        if zero_fraction is not None:
+            if not _is_number(zero_fraction) or zero_fraction < 0.0 or zero_fraction > 1.0:
+                self._error("schedule_metadata.zero_output_tile_fraction must be between 0 and 1")
+            elif _is_int(zero_count) and _is_int(tile_count) and tile_count > 0:
+                expected = zero_count / tile_count
+                if abs(float(zero_fraction) - expected) > 0.000001:
+                    self._error("schedule_metadata.zero_output_tile_fraction must match zero_output_tile_count/tile_count")
+        if zero_planes is not None:
+            if not _is_int(zero_planes) or zero_planes < 0:
+                self._error("schedule_metadata.zero_output_selected_residue_planes must be a nonnegative integer")
+        if zero_active is not None:
+            if not isinstance(zero_active, bool):
+                self._error("schedule_metadata.zero_output_skip_active must be a boolean")
+            elif _is_int(zero_count) and zero_active != (zero_count > 0):
+                self._error("schedule_metadata.zero_output_skip_active must match zero_output_tile_count > 0")
+        if _is_int(zero_count):
+            if zero_count > 0 and (not _is_int(flags) or (flags & TILE_SCHEDULE_ZERO_OUTPUT) == 0):
+                self._error("schedule_metadata zero_output_tile_count requires ZERO_OUTPUT schedule flag")
+            if zero_count == 0 and _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_OUTPUT) != 0:
+                self._error("schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count > 0")
+        elif _is_int(flags) and (flags & TILE_SCHEDULE_ZERO_OUTPUT) != 0:
+            self._error("schedule_metadata ZERO_OUTPUT flag requires zero_output_tile_count")
+        if _is_int(zero_planes) and _is_int(zero_count) and zero_count == 0 and zero_planes != 0:
+            self._error("schedule_metadata.zero_output_selected_residue_planes must be zero when no zero tiles are skipped")
 
     def _validate_bound_discovery_metadata(self) -> None:
         bound_source = self.data.get("bound_source")
@@ -2166,7 +2208,7 @@ class _Validator:
     def _prefix_event_label(prefix: str, index: int, suffix: str) -> str:
         return f"{prefix}{index:02d}_{suffix}"
 
-    def _ck_deep_gpu_event_phases(self, prefix_count: int) -> list[str]:
+    def _ck_deep_gpu_event_phases(self, prefix_count: int, zero_output_tiles: bool) -> list[str]:
         phases = [
             "ck_pack_a_kernel",
             "ck_pack_b_kernel",
@@ -2174,6 +2216,8 @@ class _Validator:
             "ck_copy_centered_kernel",
             "ck_add_centered_kernel",
         ]
+        if zero_output_tiles:
+            phases.append("ck_zero_output_tile_memset")
         for index in range(prefix_count):
             phases.extend(
                 [
@@ -2186,18 +2230,27 @@ class _Validator:
             )
         return phases
 
-    def _rocwmma_deep_gpu_event_phases(self, prefix_count: int, use_prepacked_b: bool) -> list[str]:
+    def _rocwmma_deep_gpu_event_phases(
+        self,
+        prefix_count: int,
+        use_prepacked_b: bool,
+        zero_output_tiles: bool,
+    ) -> list[str]:
         if use_prepacked_b:
             phases = ["rocwmma_pack_a_prepacked_b_kernel", "rocwmma_matmul_prepacked_b_kernel"]
+            if zero_output_tiles:
+                phases.append("rocwmma_zero_output_tile_memset")
             for index in range(prefix_count):
                 phases.extend(
                     [
                         self._prefix_event_label("rocwmma_prefix_", index, "pack_a_prepacked_b"),
                         self._prefix_event_label("rocwmma_prefix_", index, "matmul_prepacked_b"),
                     ]
-                )
+            )
             return phases
         phases = ["rocwmma_pack_a_kernel", "rocwmma_pack_b_kernel", "rocwmma_matmul_kernel"]
+        if zero_output_tiles:
+            phases.append("rocwmma_zero_output_tile_memset")
         for index in range(prefix_count):
             phases.extend(
                 [
@@ -2241,10 +2294,16 @@ class _Validator:
         else:
             phases = ["pack_h2d", "pack_kernel", "pack", gemm_group]
         prefix_count = self._gpu_event_selected_prefix_count()
+        schedule = self.data.get("schedule_metadata")
+        zero_output_tiles = (
+            isinstance(schedule, dict)
+            and _is_int(schedule.get("zero_output_tile_count"))
+            and schedule.get("zero_output_tile_count") > 0
+        )
         if backend == "ck":
-            phases.extend(self._ck_deep_gpu_event_phases(prefix_count))
+            phases.extend(self._ck_deep_gpu_event_phases(prefix_count, zero_output_tiles))
         else:
-            phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b))
+            phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b, zero_output_tiles))
         phases.append("rns_gemm")
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
             phases.extend(["finite_export_kernel", "finite_export_d2h", "crt_export"])

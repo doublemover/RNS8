@@ -20,8 +20,9 @@ rns8_status validate_export_matrix(
   if (hip_device_backend(plan.backend) && C.hip_device_id != ctx.device_id) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const uint32_t storage_prefix = uses_rns_storage(semantics) ? rns_storage_prefix_for_plan(plan) : prefix;
   if (!matrix_descriptor_matches(
-          C, semantics, bound_kind, plan.desc.m, plan.desc.n, prefix, plan.desc.tile_m, plan.desc.tile_n)) {
+          C, semantics, bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m, plan.desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (native_vector_backend(plan.backend)) {
@@ -31,7 +32,7 @@ rns8_status validate_export_matrix(
                : RNS8_INVALID_ARGUMENT;
   }
   if (uses_rns_storage(semantics) &&
-      (!rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, prefix) ||
+      (!rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix) ||
        !rns_residue_state_current_for_backend(C, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -272,6 +273,11 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
     std::vector<int64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
+        const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
+        if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+          staged[static_cast<std::size_t>(row * plan->desc.n + col)] = 0;
+          continue;
+        }
         int64_t value = 0;
         const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
         const uint64_t bound = bound_for_cell(*plan, row, col);
@@ -353,6 +359,11 @@ rns8_status rns8_export_u64(
     std::vector<uint64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
     for (int64_t row = 0; row < plan->desc.m; ++row) {
       for (int64_t col = 0; col < plan->desc.n; ++col) {
+        const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
+        if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+          staged[static_cast<std::size_t>(row * plan->desc.n + col)] = 0;
+          continue;
+        }
         uint64_t value = 0;
         const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
         const uint64_t bound = bound_for_cell(*plan, row, col);

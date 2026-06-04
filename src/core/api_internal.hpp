@@ -158,6 +158,8 @@ bool is_per_tile_bound_kind(rns8_bound_kind bound_kind);
 
 boost::multiprecision::cpp_int bounded_range_from_bound(rns8_semantics semantics, uint64_t bound);
 
+uint32_t rns_storage_prefix_for_plan(const rns8_plan& plan);
+
 rns8_status configure_plan_schedule(rns8_plan& plan);
 
 const char* semantics_name_for_key(rns8_semantics semantics);
@@ -226,6 +228,8 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
 std::vector<int8_t> gather_cell_residues(const rns8_matrix& matrix, int64_t row, int64_t col, uint32_t prefix);
 
 uint64_t tile_index_for_cell(const rns8_plan& plan, int64_t row, int64_t col);
+
+const rns8_plan_tile_schedule_entry* tile_schedule_entry_for_cell(const rns8_plan& plan, int64_t row, int64_t col);
 
 uint32_t selected_prefix_for_cell(const rns8_plan& plan, int64_t row, int64_t col);
 

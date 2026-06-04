@@ -43,6 +43,7 @@ constexpr int kRns8WmmaTileK = 16;
 constexpr int kRns8WmmaWaveThreads = 32;
 constexpr int kRns8SignedSafeInt32KBlock = 65536;
 constexpr int kRns8MaxInt = 2147483647;
+constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
 constexpr uint64_t kReciprocalScale = 1ull << 32u;
 
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
@@ -226,6 +227,34 @@ bool rocwmma_workspace_requirements_u64(
     return false;
   }
   return *a_bytes <= UINT64_MAX - *b_bytes;
+}
+
+int zero_tile_residues(
+    int8_t* c_base,
+    int64_t m,
+    int64_t ldc,
+    int64_t row_offset,
+    int64_t col_offset,
+    int64_t row_extent,
+    int64_t col_extent,
+    uint32_t selected_prefix) {
+  for (uint32_t p = 0; p < selected_prefix; ++p) {
+    auto* tile_c = c_base + static_cast<uint64_t>(p) * static_cast<uint64_t>(m) * static_cast<uint64_t>(ldc) +
+                   static_cast<uint64_t>(row_offset) * static_cast<uint64_t>(ldc) +
+                   static_cast<uint64_t>(col_offset);
+    const hipError_t status = timed_hip_launch("rocwmma_zero_output_tile_memset", nullptr, [&]() {
+      return hipMemset2D(
+          tile_c,
+          static_cast<std::size_t>(ldc) * sizeof(int8_t),
+          0,
+          static_cast<std::size_t>(col_extent) * sizeof(int8_t),
+          static_cast<std::size_t>(row_extent));
+    });
+    if (status != hipSuccess) {
+      return rocwmma_backend_failure;
+    }
+  }
+  return rocwmma_success;
 }
 
 __device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
@@ -1027,9 +1056,10 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
   int max_cols = 0;
   for (unsigned long long entry_index = 0; entry_index < entry_count; ++entry_index) {
     const auto& entry = entries[entry_index];
-    if (entry.row_extent <= 0 || entry.col_extent <= 0 || entry.row_offset < 0 || entry.col_offset < 0 ||
-        entry.row_offset + entry.row_extent > m || entry.col_offset + entry.col_extent > n ||
-        entry.selected_prefix == 0 || entry.selected_prefix > kRns8MaxSupportedPrefix) {
+    if ((entry.flags & ~kRns8TileScheduleZeroOutput) != 0 || entry.row_extent <= 0 || entry.col_extent <= 0 ||
+        entry.row_offset < 0 || entry.col_offset < 0 || entry.row_offset + entry.row_extent > m ||
+        entry.col_offset + entry.col_extent > n || entry.selected_prefix == 0 ||
+        entry.selected_prefix > kRns8MaxSupportedPrefix) {
       return rocwmma_invalid_argument;
     }
     if (entry.row_extent > max_rows) {
@@ -1051,6 +1081,21 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
   const int safe_k_block = k < kRns8SignedSafeInt32KBlock ? static_cast<int>(k) : kRns8SignedSafeInt32KBlock;
   for (unsigned long long entry_index = 0; entry_index < entry_count; ++entry_index) {
     const auto& entry = entries[entry_index];
+    if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
+      const int status = zero_tile_residues(
+          c,
+          m,
+          ldc,
+          entry.row_offset,
+          entry.col_offset,
+          entry.row_extent,
+          entry.col_extent,
+          entry.selected_prefix);
+      if (status != rocwmma_success) {
+        return status;
+      }
+      continue;
+    }
     for (uint32_t modulus_index = 0; modulus_index < entry.selected_prefix; ++modulus_index) {
       const uint16_t modulus = kDefaultModuli[modulus_index];
       const auto plane_a = a + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * lda +

@@ -11,13 +11,21 @@ boost::multiprecision::cpp_int bounded_range_from_bound(rns8_semantics semantics
   return semantics == RNS8_BOUNDED_I64 ? cpp_int(2) * cpp_int(bound) : cpp_int(bound);
 }
 
+uint32_t rns_storage_prefix_for_plan(const rns8_plan& plan) {
+  if (is_per_tile_bound_kind(plan.desc.bound_kind) && plan.schedule_max_selected_prefix > 0) {
+    return plan.schedule_max_selected_prefix;
+  }
+  return plan.prefix;
+}
+
 rns8_plan_tile_schedule_entry make_tile_schedule_entry(
     const rns8_plan& plan,
     uint64_t index,
     uint32_t required_prefix,
     uint32_t selected_prefix,
     uint32_t group_index,
-    uint32_t range_bit_length) {
+    uint32_t range_bit_length,
+    uint32_t flags) {
   const uint64_t tile_row = index / plan.schedule_tile_cols;
   const uint64_t tile_col = index % plan.schedule_tile_cols;
   const int64_t row_offset = static_cast<int64_t>(tile_row * static_cast<uint64_t>(plan.desc.tile_m));
@@ -25,7 +33,7 @@ rns8_plan_tile_schedule_entry make_tile_schedule_entry(
   rns8_plan_tile_schedule_entry entry{};
   entry.struct_size = sizeof(entry);
   entry.abi_version = RNS8_ABI_VERSION;
-  entry.flags = plan.schedule_flags;
+  entry.flags = flags;
   entry.tile_row = tile_row;
   entry.tile_col = tile_col;
   entry.row_offset = row_offset;
@@ -52,6 +60,7 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
   plan.schedule_tile_count = plan.schedule_tile_rows * plan.schedule_tile_cols;
   plan.tile_bounds.clear();
   plan.tile_schedule.clear();
+  plan.schedule_flags = 0;
 
   const boost::multiprecision::cpp_int required_range = schedule_required_range(plan.desc);
   plan.schedule_range_bit_length = rns8::detail::bit_length(required_range);
@@ -86,6 +95,8 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     std::vector<uint32_t> groups;
     groups.reserve(plan.tile_bounds.size());
     const bool force_fixed_prefix = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
+    const bool allow_proven_zero_tile_skips =
+        (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
 
     for (uint64_t index = 0; index < plan.schedule_tile_count; ++index) {
       const uint64_t bound = plan.tile_bounds[static_cast<std::size_t>(index)];
@@ -107,8 +118,11 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
       if (std::find(groups.begin(), groups.end(), selected_prefix) == groups.end()) {
         groups.push_back(selected_prefix);
       }
+      const uint32_t flags =
+          allow_proven_zero_tile_skips && bound == 0 ? RNS8_TILE_SCHEDULE_ZERO_OUTPUT : 0u;
+      plan.schedule_flags |= flags;
       plan.tile_schedule.push_back(
-          make_tile_schedule_entry(plan, index, required_prefix, selected_prefix, 0, range_bits));
+          make_tile_schedule_entry(plan, index, required_prefix, selected_prefix, 0, range_bits, flags));
     }
 
     std::sort(groups.begin(), groups.end());
@@ -666,6 +680,14 @@ std::string build_autotune_key(const rns8_plan& plan) {
   key += ";groups=" + std::to_string(plan.schedule_prefix_group_count);
   key += ";adaptive_prefix=" + std::to_string(plan.schedule_adaptive_prefix_active);
   key += ";adaptive_skip=" + std::to_string(plan.schedule_adaptive_skip_active);
+  key += ";schedule_flags=" + std::to_string(plan.schedule_flags);
+  uint64_t zero_output_tile_count = 0;
+  for (const auto& entry : plan.tile_schedule) {
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+      ++zero_output_tile_count;
+    }
+  }
+  key += ";zero_output_tiles=" + std::to_string(zero_output_tile_count);
   key += ";kernel=" + plan.backend_selected_kernel;
   key += ";epilogue=" + plan.backend_epilogue_mode;
   return key;
@@ -1074,7 +1096,8 @@ rns8_status rns8_get_plan_tile_schedule(
             rns8::detail::required_prefix_for_range(range),
             plan->schedule_min_selected_prefix,
             0,
-            rns8::detail::bit_length(range));
+            rns8::detail::bit_length(range),
+            0);
         continue;
       }
       entries[index] = make_tile_schedule_entry(
@@ -1083,7 +1106,8 @@ rns8_status rns8_get_plan_tile_schedule(
           plan->schedule_min_required_prefix,
           plan->schedule_min_selected_prefix,
           0,
-          plan->schedule_range_bit_length);
+          plan->schedule_range_bit_length,
+          0);
     }
     return RNS8_SUCCESS;
   });

@@ -1390,6 +1390,25 @@ def main() -> int:
     undeclared_deep_phase["gpu_event_timing_summary_us"]["ck_prefix_99_fake_kernel"] = zero_summary()
     expect_invalid(undeclared_deep_phase, "deep accelerator GPU event phase set contains undeclared phases")
 
+    zero_deep_phase = copy.deepcopy(v4_ck_adaptive_u64)
+    zero_deep_count = zero_deep_phase["schedule_metadata"]["tile_count"]
+    zero_deep_phase["schedule_metadata"].update(
+        {
+            "flags": 1,
+            "zero_output_tile_count": zero_deep_count,
+            "zero_output_tile_fraction": 1.0,
+            "zero_output_selected_residue_planes": zero_deep_count
+            * zero_deep_phase["schedule_metadata"]["max_selected_prefix"],
+            "zero_output_skip_active": True,
+        }
+    )
+    insert_at = zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].index("ck_add_centered_kernel") + 1
+    zero_deep_phase["timing_metadata"]["gpu_event_phase_order"].insert(insert_at, "ck_zero_output_tile_memset")
+    repeats = zero_deep_phase["repeats"]
+    zero_deep_phase["gpu_event_timings_us"]["ck_zero_output_tile_memset"] = [0.25] * repeats
+    zero_deep_phase["gpu_event_timing_summary_us"]["ck_zero_output_tile_memset"] = summary([0.25] * repeats)
+    validate_capture(zero_deep_phase)
+
     bad_schedule_tile = copy.deepcopy(bounded)
     bad_schedule_tile["tile_m"] = 96
     bad_schedule_tile["schedule_metadata"]["tile_m"] = 96
@@ -1520,6 +1539,35 @@ def main() -> int:
     bad_v4_tile_count = copy.deepcopy(v4_adaptive_u64)
     bad_v4_tile_count["tile_bounds_u64"]["count"] = 3
     expect_invalid(bad_v4_tile_count, "tile_bounds_u64.count must match")
+
+    zero_skip_schedule = copy.deepcopy(v4_adaptive_u64)
+    zero_tile_count = zero_skip_schedule["schedule_metadata"]["tile_count"]
+    zero_skip_schedule["schedule_metadata"].update(
+        {
+            "flags": 1,
+            "zero_output_tile_count": 1,
+            "zero_output_tile_fraction": 1.0 / zero_tile_count,
+            "zero_output_selected_residue_planes": zero_skip_schedule["schedule_metadata"]["min_selected_prefix"],
+            "zero_output_skip_active": True,
+        }
+    )
+    validate_capture(zero_skip_schedule)
+
+    bad_zero_skip_unknown_flag = copy.deepcopy(zero_skip_schedule)
+    bad_zero_skip_unknown_flag["schedule_metadata"]["flags"] = 4
+    expect_invalid(bad_zero_skip_unknown_flag, "unknown tile schedule flags")
+
+    bad_zero_skip_missing_flag = copy.deepcopy(zero_skip_schedule)
+    del bad_zero_skip_missing_flag["schedule_metadata"]["flags"]
+    expect_invalid(bad_zero_skip_missing_flag, "requires ZERO_OUTPUT schedule flag")
+
+    bad_zero_skip_count = copy.deepcopy(zero_skip_schedule)
+    bad_zero_skip_count["schedule_metadata"]["zero_output_tile_count"] = zero_tile_count + 1
+    expect_invalid(bad_zero_skip_count, "zero_output_tile_count must be <= tile_count")
+
+    bad_zero_skip_fraction = copy.deepcopy(zero_skip_schedule)
+    bad_zero_skip_fraction["schedule_metadata"]["zero_output_tile_fraction"] = 1.0
+    expect_invalid(bad_zero_skip_fraction, "zero_output_tile_fraction must match")
 
     bad_v4_skip_flag = copy.deepcopy(v4_adaptive_u64)
     bad_v4_skip_flag["schedule_metadata"]["adaptive_skip_active"] = False

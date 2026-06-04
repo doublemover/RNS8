@@ -255,11 +255,12 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
   if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
+  const bool proven_zero_tile_skips_requested = (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
   if (!valid_tile_size(desc.tile_m)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -269,6 +270,9 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   const bool per_tile_bounds =
       desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS || desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
   if (!per_tile_bounds && (desc.tile_bounds || desc.tile_bounds_count != 0)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (proven_zero_tile_skips_requested && !per_tile_bounds) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {

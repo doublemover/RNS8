@@ -169,6 +169,8 @@ struct BenchmarkResult {
   uint64_t tile_bound_hash = 0;
   rns8_plan_schedule_info schedule_info{};
   bool schedule_info_available = false;
+  uint64_t zero_output_tile_count = 0;
+  uint64_t zero_output_selected_residue_plane_count = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
   rns8_plan_backend_info backend_info{};
   bool backend_info_available = false;
@@ -1624,6 +1626,9 @@ rns8_gemm_desc gemm_desc(const Args& args, uint64_t bound, const std::vector<uin
     desc.bound = 0;
     desc.tile_bounds = tile_bounds->data();
     desc.tile_bounds_count = static_cast<uint64_t>(tile_bounds->size());
+    if (bounded_benchmark_semantics(args.semantics) && !tile_bounds->empty()) {
+      desc.flags |= RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+    }
   }
   return desc;
 }
@@ -1865,10 +1870,30 @@ void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
   result.schedule_info.struct_size = sizeof(result.schedule_info);
   result.schedule_info.abi_version = RNS8_ABI_VERSION;
   const auto start = std::chrono::steady_clock::now();
-  const rns8_status status = rns8_get_plan_schedule_info(plan, &result.schedule_info);
+  rns8_status status = rns8_get_plan_schedule_info(plan, &result.schedule_info);
+  if (status == RNS8_SUCCESS && result.schedule_info.tile_count != 0) {
+    if (result.schedule_info.tile_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      usage_error("plan tile schedule is too large to inspect for skip counters");
+    }
+    std::vector<rns8_plan_tile_schedule_entry> entries(
+        static_cast<std::size_t>(result.schedule_info.tile_count));
+    uint64_t written = 0;
+    status = rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written);
+    if (status == RNS8_SUCCESS && written != static_cast<uint64_t>(entries.size())) {
+      usage_error("plan tile schedule query returned an unexpected entry count");
+    }
+    if (status == RNS8_SUCCESS) {
+      for (const auto& entry : entries) {
+        if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+          ++result.zero_output_tile_count;
+          result.zero_output_selected_residue_plane_count += entry.selected_prefix;
+        }
+      }
+    }
+  }
   const auto end = std::chrono::steady_clock::now();
   if (status != RNS8_SUCCESS) {
-    fail_status("rns8_get_plan_schedule_info", status);
+    fail_status("rns8_get_plan_schedule_info/rns8_get_plan_tile_schedule", status);
   }
   result.schedule_query_us = elapsed_us(start, end);
   result.schedule_info_available = true;
@@ -1904,6 +1929,8 @@ std::string bounded_oneshot_autotune_key(
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";schedule_flags=" << result.schedule_info.flags
+      << ";zero_output_tiles=" << result.zero_output_tile_count
       << ";execution=public_oneshot_transient_native_inputs"
       << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
@@ -2019,6 +2046,8 @@ std::string bounded_native_a_reuse_b_autotune_key(
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";schedule_flags=" << result.schedule_info.flags
+      << ";zero_output_tiles=" << result.zero_output_tile_count
       << ";execution=" << benchmark_execution_mode_name(args)
       << ";kernel=" << kernel
       << ";epilogue=" << epilogue;
@@ -2144,6 +2173,8 @@ std::string vector_alu_autotune_key(const Args& args, const BenchmarkResult& res
       << ";groups=" << result.schedule_info.prefix_group_count
       << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
       << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";schedule_flags=" << result.schedule_info.flags
+      << ";zero_output_tiles=" << result.zero_output_tile_count
       << ";kernel=" << kernel
       << ";epilogue=direct_int64_export";
   return out.str();
@@ -2281,12 +2312,15 @@ uint32_t gpu_event_selected_prefix_count(const Args& args, const BenchmarkResult
   return std::min<uint32_t>(benchmark_prefix(args), RNS8_DEFAULT_MODULUS_COUNT);
 }
 
-void append_ck_deep_event_phases(std::vector<std::string>& phases, uint32_t prefix_count) {
+void append_ck_deep_event_phases(std::vector<std::string>& phases, uint32_t prefix_count, bool zero_output_tiles) {
   phases.push_back("ck_pack_a_kernel");
   phases.push_back("ck_pack_b_kernel");
   phases.push_back("ck_wmma_cshuffle_matmul");
   phases.push_back("ck_copy_centered_kernel");
   phases.push_back("ck_add_centered_kernel");
+  if (zero_output_tiles) {
+    phases.push_back("ck_zero_output_tile_memset");
+  }
   for (uint32_t index = 0; index < prefix_count; ++index) {
     phases.push_back(prefix_event_label("ck_prefix_", index, "pack_a"));
     phases.push_back(prefix_event_label("ck_prefix_", index, "pack_b"));
@@ -2299,12 +2333,16 @@ void append_ck_deep_event_phases(std::vector<std::string>& phases, uint32_t pref
 void append_rocwmma_deep_event_phases(
     std::vector<std::string>& phases,
     uint32_t prefix_count,
-    bool use_prepacked_b_cache) {
+    bool use_prepacked_b_cache,
+    bool zero_output_tiles) {
   phases.push_back(use_prepacked_b_cache ? "rocwmma_pack_a_prepacked_b_kernel" : "rocwmma_pack_a_kernel");
   if (!use_prepacked_b_cache) {
     phases.push_back("rocwmma_pack_b_kernel");
   }
   phases.push_back(use_prepacked_b_cache ? "rocwmma_matmul_prepacked_b_kernel" : "rocwmma_matmul_kernel");
+  if (zero_output_tiles) {
+    phases.push_back("rocwmma_zero_output_tile_memset");
+  }
   for (uint32_t index = 0; index < prefix_count; ++index) {
     if (use_prepacked_b_cache) {
       phases.push_back(prefix_event_label("rocwmma_prefix_", index, "pack_a_prepacked_b"));
@@ -2327,10 +2365,11 @@ void append_accelerator_deep_event_phases(
     return;
   }
   const uint32_t prefix_count = gpu_event_selected_prefix_count(args, result);
+  const bool zero_output_tiles = result.zero_output_tile_count != 0;
   if (selected_backend == RNS8_BACKEND_CK) {
-    append_ck_deep_event_phases(phases, prefix_count);
+    append_ck_deep_event_phases(phases, prefix_count, zero_output_tiles);
   } else if (selected_backend == RNS8_BACKEND_ROCWMMA && !args.wrap64_rocwmma_candidate) {
-    append_rocwmma_deep_event_phases(phases, prefix_count, use_prepacked_b_cache);
+    append_rocwmma_deep_event_phases(phases, prefix_count, use_prepacked_b_cache, zero_output_tiles);
   }
 }
 
@@ -2826,31 +2865,48 @@ void collect_ck_deep_gemm_gpu_events(
     const BenchmarkResult& result,
     GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double pack_a = sum_event_label(events, samples, "rns_gemm", "ck_pack_a_kernel");
-  const double pack_b = sum_event_label(events, samples, "rns_gemm", "ck_pack_b_kernel");
-  const double matmul = sum_event_label(events, samples, "rns_gemm", "ck_wmma_cshuffle_matmul");
+  const bool all_tiles_zero =
+      result.zero_output_tile_count != 0 && result.zero_output_tile_count == result.schedule_info.tile_count;
+  const auto required_or_zero = [&](const char* label) {
+    return all_tiles_zero ? optional_event_label(samples, label) : sum_event_label(events, samples, "rns_gemm", label);
+  };
+  const double pack_a = required_or_zero("ck_pack_a_kernel");
+  const double pack_b = required_or_zero("ck_pack_b_kernel");
+  const double matmul = required_or_zero("ck_wmma_cshuffle_matmul");
   const double copy = optional_event_label(samples, "ck_copy_centered_kernel");
   const double add = optional_event_label(samples, "ck_add_centered_kernel");
+  const double zero_fill = result.zero_output_tile_count == 0
+                               ? 0.0
+                               : sum_event_label(events, samples, "rns_gemm", "ck_zero_output_tile_memset");
   if (events.complete) {
     push_gpu_event_value(events, "ck_pack_a_kernel", pack_a);
     push_gpu_event_value(events, "ck_pack_b_kernel", pack_b);
     push_gpu_event_value(events, "ck_wmma_cshuffle_matmul", matmul);
     push_gpu_event_value(events, "ck_copy_centered_kernel", copy);
     push_gpu_event_value(events, "ck_add_centered_kernel", add);
+    if (result.zero_output_tile_count != 0) {
+      push_gpu_event_value(events, "ck_zero_output_tile_memset", zero_fill);
+    }
     const uint32_t prefix_count = gpu_event_selected_prefix_count(args, result);
     for (uint32_t index = 0; index < prefix_count; ++index) {
+      const std::string pack_a_label = prefix_event_label("ck_prefix_", index, "pack_a");
+      const std::string pack_b_label = prefix_event_label("ck_prefix_", index, "pack_b");
+      const std::string matmul_label = prefix_event_label("ck_prefix_", index, "matmul");
       push_gpu_event_value(
           events,
-          prefix_event_label("ck_prefix_", index, "pack_a"),
-          sum_event_label(events, samples, "rns_gemm", prefix_event_label("ck_prefix_", index, "pack_a").c_str()));
+          pack_a_label,
+          all_tiles_zero ? optional_event_label(samples, pack_a_label.c_str())
+                         : sum_event_label(events, samples, "rns_gemm", pack_a_label.c_str()));
       push_gpu_event_value(
           events,
-          prefix_event_label("ck_prefix_", index, "pack_b"),
-          sum_event_label(events, samples, "rns_gemm", prefix_event_label("ck_prefix_", index, "pack_b").c_str()));
+          pack_b_label,
+          all_tiles_zero ? optional_event_label(samples, pack_b_label.c_str())
+                         : sum_event_label(events, samples, "rns_gemm", pack_b_label.c_str()));
       push_gpu_event_value(
           events,
-          prefix_event_label("ck_prefix_", index, "matmul"),
-          sum_event_label(events, samples, "rns_gemm", prefix_event_label("ck_prefix_", index, "matmul").c_str()));
+          matmul_label,
+          all_tiles_zero ? optional_event_label(samples, matmul_label.c_str())
+                         : sum_event_label(events, samples, "rns_gemm", matmul_label.c_str()));
       const std::string copy_label = prefix_event_label("ck_prefix_", index, "copy_centered");
       const std::string add_label = prefix_event_label("ck_prefix_", index, "add_centered");
       push_gpu_event_value(events, copy_label, optional_event_label(samples, copy_label.c_str()));
@@ -2869,29 +2925,60 @@ void collect_rocwmma_deep_gemm_gpu_events(
       use_prepacked_b_cache ? "rocwmma_pack_a_prepacked_b_kernel" : "rocwmma_pack_a_kernel";
   const char* matmul_label =
       use_prepacked_b_cache ? "rocwmma_matmul_prepacked_b_kernel" : "rocwmma_matmul_kernel";
-  const double pack_a = sum_event_label(events, samples, "rns_gemm", pack_a_label);
-  const double pack_b = use_prepacked_b_cache ? 0.0 : sum_event_label(events, samples, "rns_gemm", "rocwmma_pack_b_kernel");
-  const double matmul = sum_event_label(events, samples, "rns_gemm", matmul_label);
+  const bool all_tiles_zero =
+      result.zero_output_tile_count != 0 && result.zero_output_tile_count == result.schedule_info.tile_count;
+  const auto required_or_zero = [&](const char* label) {
+    return all_tiles_zero ? optional_event_label(samples, label) : sum_event_label(events, samples, "rns_gemm", label);
+  };
+  const double pack_a = required_or_zero(pack_a_label);
+  const double pack_b = use_prepacked_b_cache ? 0.0 : required_or_zero("rocwmma_pack_b_kernel");
+  const double matmul = required_or_zero(matmul_label);
+  const double zero_fill = result.zero_output_tile_count == 0
+                               ? 0.0
+                               : sum_event_label(events, samples, "rns_gemm", "rocwmma_zero_output_tile_memset");
   if (events.complete) {
     push_gpu_event_value(events, pack_a_label, pack_a);
     if (!use_prepacked_b_cache) {
       push_gpu_event_value(events, "rocwmma_pack_b_kernel", pack_b);
     }
     push_gpu_event_value(events, matmul_label, matmul);
+    if (result.zero_output_tile_count != 0) {
+      push_gpu_event_value(events, "rocwmma_zero_output_tile_memset", zero_fill);
+    }
     const uint32_t prefix_count = gpu_event_selected_prefix_count(args, result);
     for (uint32_t index = 0; index < prefix_count; ++index) {
       if (use_prepacked_b_cache) {
         const std::string pack_a_prefix = prefix_event_label("rocwmma_prefix_", index, "pack_a_prepacked_b");
         const std::string matmul_prefix = prefix_event_label("rocwmma_prefix_", index, "matmul_prepacked_b");
-        push_gpu_event_value(events, pack_a_prefix, sum_event_label(events, samples, "rns_gemm", pack_a_prefix.c_str()));
-        push_gpu_event_value(events, matmul_prefix, sum_event_label(events, samples, "rns_gemm", matmul_prefix.c_str()));
+        push_gpu_event_value(
+            events,
+            pack_a_prefix,
+            all_tiles_zero ? optional_event_label(samples, pack_a_prefix.c_str())
+                           : sum_event_label(events, samples, "rns_gemm", pack_a_prefix.c_str()));
+        push_gpu_event_value(
+            events,
+            matmul_prefix,
+            all_tiles_zero ? optional_event_label(samples, matmul_prefix.c_str())
+                           : sum_event_label(events, samples, "rns_gemm", matmul_prefix.c_str()));
       } else {
         const std::string pack_a_prefix = prefix_event_label("rocwmma_prefix_", index, "pack_a");
         const std::string pack_b_prefix = prefix_event_label("rocwmma_prefix_", index, "pack_b");
         const std::string matmul_prefix = prefix_event_label("rocwmma_prefix_", index, "matmul");
-        push_gpu_event_value(events, pack_a_prefix, sum_event_label(events, samples, "rns_gemm", pack_a_prefix.c_str()));
-        push_gpu_event_value(events, pack_b_prefix, sum_event_label(events, samples, "rns_gemm", pack_b_prefix.c_str()));
-        push_gpu_event_value(events, matmul_prefix, sum_event_label(events, samples, "rns_gemm", matmul_prefix.c_str()));
+        push_gpu_event_value(
+            events,
+            pack_a_prefix,
+            all_tiles_zero ? optional_event_label(samples, pack_a_prefix.c_str())
+                           : sum_event_label(events, samples, "rns_gemm", pack_a_prefix.c_str()));
+        push_gpu_event_value(
+            events,
+            pack_b_prefix,
+            all_tiles_zero ? optional_event_label(samples, pack_b_prefix.c_str())
+                           : sum_event_label(events, samples, "rns_gemm", pack_b_prefix.c_str()));
+        push_gpu_event_value(
+            events,
+            matmul_prefix,
+            all_tiles_zero ? optional_event_label(samples, matmul_prefix.c_str())
+                           : sum_event_label(events, samples, "rns_gemm", matmul_prefix.c_str()));
       }
     }
   }
@@ -5323,6 +5410,20 @@ void print_json(
   std::cout << "    \"adaptive_skip_active\": "
             << (result.schedule_info.adaptive_skip_active ? "true" : "false") << ",\n";
   std::cout << "    \"adaptive_execution_applied\": " << (adaptive_applied ? "true" : "false") << ",\n";
+  std::cout << "    \"flags\": " << result.schedule_info.flags << ",\n";
+  std::cout << "    \"zero_output_tile_count\": " << result.zero_output_tile_count << ",\n";
+  const double zero_output_tile_fraction =
+      result.schedule_info.tile_count == 0
+          ? 0.0
+          : static_cast<double>(result.zero_output_tile_count) /
+                static_cast<double>(result.schedule_info.tile_count);
+  std::cout << "    \"zero_output_tile_fraction\": ";
+  std::cout << zero_output_tile_fraction;
+  std::cout << ",\n";
+  std::cout << "    \"zero_output_selected_residue_planes\": "
+            << result.zero_output_selected_residue_plane_count << ",\n";
+  std::cout << "    \"zero_output_skip_active\": "
+            << (result.zero_output_tile_count != 0 ? "true" : "false") << ",\n";
   std::cout << "    \"range_bit_length\": " << result.schedule_info.range_bit_length << "\n";
   std::cout << "  },\n";
   std::cout << "  \"epilogue_type\": \"" << epilogue_type(args) << "\",\n";

@@ -158,7 +158,8 @@ bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backe
 }
 
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
+  constexpr uint32_t known_tile_schedule_flags = RNS8_TILE_SCHEDULE_ZERO_OUTPUT;
   if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
       !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
       (plan.desc.flags & ~allowed_flags) != 0) {
@@ -243,7 +244,8 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
            plan.schedule_prefix_group_count == 1 && plan.schedule_adaptive_prefix_active == 0 &&
            plan.schedule_max_required_prefix <= plan.prefix &&
            plan.schedule_adaptive_skip_active == (plan.prefix < plan.desc.max_prefix ? 1u : 0u) &&
-           (!fixed_prefix_requested || plan.prefix == plan.desc.max_prefix) && plan.schedule_flags == 0;
+           (!fixed_prefix_requested || plan.prefix == plan.desc.max_prefix) &&
+           (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) == 0 && plan.schedule_flags == 0;
   }
   if (plan.desc.bound != 0 || plan.desc.tile_bounds_count != static_cast<uint64_t>(plan.tile_bounds.size()) ||
       plan.desc.tile_bounds_count != plan.schedule_tile_count || plan.desc.tile_bounds != nullptr ||
@@ -251,21 +253,26 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       plan.schedule_min_selected_prefix == 0 || plan.schedule_max_required_prefix > plan.prefix ||
       plan.schedule_max_selected_prefix > plan.prefix ||
       plan.schedule_min_required_prefix > plan.schedule_max_required_prefix ||
-      plan.schedule_min_selected_prefix > plan.schedule_max_selected_prefix || plan.schedule_flags != 0) {
+      plan.schedule_min_selected_prefix > plan.schedule_max_selected_prefix ||
+      (plan.schedule_flags & ~known_tile_schedule_flags) != 0) {
     return false;
   }
   if (plan.tile_schedule.empty()) {
     return plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
            plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
            plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
-           plan.schedule_adaptive_skip_active == 0;
+           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0;
   }
   if (plan.tile_schedule.size() != plan.tile_bounds.size()) {
     return false;
   }
+  const bool allow_proven_zero_tile_skips =
+      (plan.desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
+  uint32_t aggregate_flags = 0;
   for (uint64_t index = 0; index < plan.schedule_tile_count; ++index) {
     const auto& entry = plan.tile_schedule[static_cast<std::size_t>(index)];
-    if (!rns8::detail::valid_abi(entry.struct_size, entry.abi_version, sizeof(entry)) || entry.flags != 0 ||
+    if (!rns8::detail::valid_abi(entry.struct_size, entry.abi_version, sizeof(entry)) ||
+        (entry.flags & ~known_tile_schedule_flags) != 0 ||
         entry.tile_row != index / plan.schedule_tile_cols || entry.tile_col != index % plan.schedule_tile_cols ||
         entry.row_offset < 0 || entry.col_offset < 0 || entry.row_extent <= 0 || entry.col_extent <= 0 ||
         entry.row_offset >= plan.desc.m || entry.col_offset >= plan.desc.n ||
@@ -274,8 +281,19 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
         entry.selected_prefix > plan.prefix || entry.group_index >= plan.schedule_prefix_group_count) {
       return false;
     }
+    const uint64_t tile_bound = plan.tile_bounds[static_cast<std::size_t>(index)];
+    const uint32_t expected_flags =
+        allow_proven_zero_tile_skips && tile_bound == 0 ? RNS8_TILE_SCHEDULE_ZERO_OUTPUT : 0u;
+    if (entry.flags != expected_flags) {
+      return false;
+    }
+    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0 &&
+        (tile_bound != 0 || entry.range_bit_length != 0)) {
+      return false;
+    }
+    aggregate_flags |= entry.flags;
   }
-  return true;
+  return aggregate_flags == plan.schedule_flags;
 }
 
 bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
@@ -461,13 +479,14 @@ bool prepack_operand_matrix_compatible(
   if (!prepack_operand_shape_for_plan(plan, operand_role, rows, cols)) {
     return false;
   }
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   if (!matrix_descriptor_matches(
           matrix,
           plan.desc.semantics,
           plan.desc.bound_kind,
           rows,
           cols,
-          plan.prefix,
+          storage_prefix,
           plan.desc.tile_m,
           plan.desc.tile_n)) {
     return false;
@@ -481,7 +500,7 @@ bool prepack_operand_matrix_compatible(
            matrix.finite_modulus == plan.desc.finite_modulus &&
            rns_residue_state_current_for_backend(matrix, plan.backend);
   }
-  return rns_matrix_storage_matches(matrix, plan.backend, rows, cols, plan.prefix) &&
+  return rns_matrix_storage_matches(matrix, plan.backend, rows, cols, storage_prefix) &&
          rns_residue_state_current_for_backend(matrix, plan.backend);
 }
 
@@ -1010,11 +1029,13 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
   }
   if (matrix.backend != RNS8_BACKEND_HIP_DIRECT || matrix.hip_device_id != ctx.device_id ||
       matrix.desc.semantics != plan.desc.semantics ||
-      !rns_matrix_storage_matches(matrix, plan.backend, matrix.desc.rows, matrix.desc.cols, plan.prefix) ||
+      !rns_matrix_storage_matches(
+          matrix, plan.backend, matrix.desc.rows, matrix.desc.cols, rns_storage_prefix_for_plan(plan)) ||
       !bounded_native_storage_matches(matrix, plan.desc.semantics, matrix.desc.rows, matrix.desc.cols) ||
       !bounded_native_state_current(matrix)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   rns8_status status = RNS8_SUCCESS;
   if (plan.desc.semantics == RNS8_BOUNDED_I64) {
     status = rns8::detail::hip_direct_native_i64_to_rns_device(
@@ -1023,7 +1044,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
         matrix.hip_residues,
         matrix.desc.rows,
         matrix.desc.cols,
-        plan.prefix);
+        storage_prefix);
   } else {
     status = rns8::detail::hip_direct_native_u64_to_rns_device(
         ctx.device_id,
@@ -1031,7 +1052,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
         matrix.hip_residues,
         matrix.desc.rows,
         matrix.desc.cols,
-        plan.prefix);
+        storage_prefix);
   }
   if (status != RNS8_SUCCESS) {
     matrix.device_residues_current = false;
