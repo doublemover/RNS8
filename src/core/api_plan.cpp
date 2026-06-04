@@ -42,6 +42,7 @@ rns8_plan_tile_schedule_entry make_tile_schedule_entry(
 rns8_status configure_plan_schedule(rns8_plan& plan) {
   const uint32_t tile_m = plan.desc.tile_m == 0 ? 128u : plan.desc.tile_m;
   const uint32_t tile_n = plan.desc.tile_n == 0 ? 128u : plan.desc.tile_n;
+  const uint32_t requested_max_prefix = plan.prefix;
   plan.schedule_tile_rows = ceil_div_i64_u32(plan.desc.m, tile_m);
   plan.schedule_tile_cols = ceil_div_i64_u32(plan.desc.n, tile_n);
   if (plan.schedule_tile_cols != 0 &&
@@ -84,6 +85,7 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     uint32_t max_range_bits = 0;
     std::vector<uint32_t> groups;
     groups.reserve(plan.tile_bounds.size());
+    const bool force_fixed_prefix = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
 
     for (uint64_t index = 0; index < plan.schedule_tile_count; ++index) {
       const uint64_t bound = plan.tile_bounds[static_cast<std::size_t>(index)];
@@ -96,7 +98,7 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
       if (required_prefix == 0 || required_prefix > plan.prefix) {
         return RNS8_RANGE_ERROR;
       }
-      const uint32_t selected_prefix = required_prefix;
+      const uint32_t selected_prefix = force_fixed_prefix ? plan.prefix : required_prefix;
       min_required = std::min(min_required, required_prefix);
       max_required = std::max(max_required, required_prefix);
       min_selected = std::min(min_selected, selected_prefix);
@@ -132,16 +134,20 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
   }
 
   const uint32_t required_prefix = rns8::detail::required_prefix_for_range(required_range);
-  if (required_prefix == 0 || required_prefix > plan.prefix) {
+  if (required_prefix == 0 || required_prefix > requested_max_prefix) {
     return RNS8_RANGE_ERROR;
   }
+  const bool force_fixed_prefix = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
+  const uint32_t selected_prefix = force_fixed_prefix ? requested_max_prefix : required_prefix;
+  plan.prefix = selected_prefix;
+  plan.modulus_product = rns8::detail::modulus_product(selected_prefix);
   plan.schedule_min_required_prefix = required_prefix;
   plan.schedule_max_required_prefix = required_prefix;
-  plan.schedule_min_selected_prefix = plan.prefix;
-  plan.schedule_max_selected_prefix = plan.prefix;
+  plan.schedule_min_selected_prefix = selected_prefix;
+  plan.schedule_max_selected_prefix = selected_prefix;
   plan.schedule_prefix_group_count = 1;
   plan.schedule_adaptive_prefix_active = 0;
-  plan.schedule_adaptive_skip_active = 0;
+  plan.schedule_adaptive_skip_active = selected_prefix < requested_max_prefix ? 1u : 0u;
   return RNS8_SUCCESS;
 }
 
@@ -644,6 +650,17 @@ std::string build_autotune_key(const rns8_plan& plan) {
     key += ";finite_modulus=" + std::to_string(plan.desc.finite_modulus);
   }
   key += ";prefix=" + std::to_string(plan.prefix);
+  if (uses_rns_storage(plan.desc.semantics)) {
+    key += ";requested_max_prefix=" + std::to_string(plan.desc.max_prefix);
+    key += ";prefix_policy=";
+    if ((plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0) {
+      key += "fixed_requested";
+    } else if (is_per_tile_bound_kind(plan.desc.bound_kind)) {
+      key += "per_tile_minimum";
+    } else {
+      key += "minimum_proven";
+    }
+  }
   key += ";tile_m=" + std::to_string(plan.desc.tile_m);
   key += ";tile_n=" + std::to_string(plan.desc.tile_n);
   key += ";groups=" + std::to_string(plan.schedule_prefix_group_count);

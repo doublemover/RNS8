@@ -37,6 +37,24 @@ PACK_MODE_OPERANDS = {
     "prepacked_reuse_a": ["A"],
     "prepacked_reuse_b": ["B"],
 }
+PREFIX_POLICY_FIELDS = {
+    "selected_prefix",
+    "requested_max_prefix",
+    "contract_prefix_policy",
+    "residue_planes_requested",
+    "residue_planes_selected",
+    "residue_planes_skipped",
+    "residue_plane_skip_fraction",
+}
+CONTRACT_PREFIX_POLICIES = {
+    "minimum_proven",
+    "fixed_requested",
+    "fixed_requested_residue_chain",
+    "per_tile_minimum",
+    "semantic_specific_no_rns_prefix",
+}
+RNS_PREFIX_SEMANTICS = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
+NON_RNS_PREFIX_SEMANTICS = {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -399,6 +417,7 @@ class _Validator:
         self._validate_backend_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
+        self._validate_prefix_policy_metadata()
         self._validate_semantic_contract()
         raw_timings = self._validate_raw_timings()
         self._validate_pack_reuse_fields(raw_timings)
@@ -983,6 +1002,97 @@ class _Validator:
             self._error("schedule_metadata min_required_prefix must be <= max_required_prefix")
         if _is_int(min_selected) and _is_int(max_selected) and min_selected > max_selected:
             self._error("schedule_metadata min_selected_prefix must be <= max_selected_prefix")
+
+    def _validate_prefix_policy_metadata(self) -> None:
+        present = [field for field in PREFIX_POLICY_FIELDS if field in self.data]
+        if present and len(present) != len(PREFIX_POLICY_FIELDS):
+            missing = sorted(PREFIX_POLICY_FIELDS - set(present))
+            self._error(f"prefix policy metadata fields must be complete; missing {missing}")
+            return
+        if not present:
+            return
+
+        semantics = self.data.get("semantics")
+        bound_mode = self.data.get("bound_mode", "global")
+        schedule = self.data.get("schedule_metadata")
+        prefix = self.data.get("prefix")
+        selected = self.data.get("selected_prefix")
+        requested = self.data.get("requested_max_prefix")
+        policy = self.data.get("contract_prefix_policy")
+        planes_requested = self.data.get("residue_planes_requested")
+        planes_selected = self.data.get("residue_planes_selected")
+        planes_skipped = self.data.get("residue_planes_skipped")
+        skip_fraction = self.data.get("residue_plane_skip_fraction")
+
+        for key in [
+            "selected_prefix",
+            "requested_max_prefix",
+            "residue_planes_requested",
+            "residue_planes_selected",
+            "residue_planes_skipped",
+        ]:
+            if not _is_int(self.data.get(key)) or self.data.get(key) < 0:
+                self._error(f"{key} must be a nonnegative integer")
+        if not _is_number(skip_fraction) or float(skip_fraction) < 0.0 or float(skip_fraction) > 1.0:
+            self._error("residue_plane_skip_fraction must be a number in [0, 1]")
+        if not isinstance(policy, str) or policy not in CONTRACT_PREFIX_POLICIES:
+            self._error(f"contract_prefix_policy must be one of {sorted(CONTRACT_PREFIX_POLICIES)}")
+        if _is_int(prefix) and _is_int(requested) and requested != prefix:
+            self._error("requested_max_prefix must match prefix")
+
+        if semantics in NON_RNS_PREFIX_SEMANTICS:
+            if selected != 0 or requested != 0 or planes_requested != 0 or planes_selected != 0 or planes_skipped != 0:
+                self._error("non-RNS captures must report zero prefix policy plane counts")
+            if policy != "semantic_specific_no_rns_prefix":
+                self._error("non-RNS captures must use contract_prefix_policy=semantic_specific_no_rns_prefix")
+            if _is_number(skip_fraction) and not _close(float(skip_fraction), 0.0):
+                self._error("non-RNS captures must use residue_plane_skip_fraction=0")
+            return
+
+        if semantics in RNS_PREFIX_SEMANTICS:
+            if _is_int(prefix) and prefix <= 0:
+                self._error("RNS captures with prefix policy metadata must use prefix>0")
+            if _is_int(selected) and _is_int(prefix) and selected > prefix:
+                self._error("selected_prefix must be <= prefix")
+            if isinstance(schedule, dict):
+                if schedule.get("max_selected_prefix") != selected:
+                    self._error("selected_prefix must match schedule_metadata.max_selected_prefix")
+                if (
+                    _is_int(selected)
+                    and selected > 0
+                    and _is_int(schedule.get("min_selected_prefix"))
+                    and schedule.get("min_selected_prefix") > selected
+                ):
+                    self._error("schedule_metadata.min_selected_prefix must be <= selected_prefix")
+            expected_skipped = max(int(requested) - int(selected), 0) if _is_int(requested) and _is_int(selected) else None
+            if expected_skipped is not None and planes_skipped != expected_skipped:
+                self._error("residue_planes_skipped must equal requested_max_prefix - selected_prefix")
+            if _is_int(requested) and planes_requested != requested:
+                self._error("residue_planes_requested must match requested_max_prefix")
+            if _is_int(selected) and planes_selected != selected:
+                self._error("residue_planes_selected must match selected_prefix")
+            if _is_int(requested) and requested > 0 and expected_skipped is not None:
+                expected_fraction = float(expected_skipped) / float(requested)
+                if _is_number(skip_fraction) and not _close(float(skip_fraction), expected_fraction):
+                    self._error("residue_plane_skip_fraction must match skipped/requested")
+            if policy == "semantic_specific_no_rns_prefix":
+                self._error("RNS captures must not use semantic_specific_no_rns_prefix")
+            if policy == "per_tile_minimum" and bound_mode != "per_tile":
+                self._error("contract_prefix_policy=per_tile_minimum requires bound_mode=per_tile")
+            if policy in {"minimum_proven", "fixed_requested_residue_chain"} and bound_mode != "global":
+                self._error(f"contract_prefix_policy={policy} requires bound_mode=global")
+            if policy in {"fixed_requested", "fixed_requested_residue_chain"} and _is_int(selected) and _is_int(prefix):
+                if selected != prefix or planes_skipped != 0:
+                    self._error(f"contract_prefix_policy={policy} requires selected_prefix=prefix")
+            if policy == "minimum_proven" and isinstance(schedule, dict):
+                if schedule.get("adaptive_execution_applied") is True:
+                    self._error("global minimum_proven captures must not apply adaptive execution")
+                if schedule.get("prefix_group_count") != 1:
+                    self._error("global minimum_proven captures must use one uniform selected prefix group")
+            return
+
+        self._error(f"prefix policy metadata is not supported for semantics {semantics}")
+
     def _validate_semantic_contract(self) -> None:
         semantics = self.data.get("semantics")
         prefix = self.data.get("prefix")
@@ -993,6 +1103,7 @@ class _Validator:
         residue_chain_length = self._residue_chain_length()
         residue_output_mode = self._residue_output_mode()
         status_check = self.data.get("exact_wide_export_status_check")
+        prefix_policy = self.data.get("contract_prefix_policy")
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
         if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
@@ -1164,7 +1275,12 @@ class _Validator:
                                 "backend_metadata.epilogue_mode=separate_i32_scratch_reduce_then_crt_export"
                             )
                 if isinstance(schedule, dict) and _is_int(prefix):
-                    if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                    if prefix_policy == "minimum_proven":
+                        if schedule.get("min_selected_prefix") != schedule.get("max_selected_prefix"):
+                            self._error(f"{semantics} minimum_proven global captures must use one selected prefix")
+                        if schedule.get("max_selected_prefix") > prefix:
+                            self._error(f"{semantics} selected schedule prefix must be <= prefix")
+                    elif schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                         self._error(f"{semantics} captures must use fixed selected schedule prefix equal to prefix")
                     if schedule.get("prefix_group_count") != 1:
                         self._error(f"{semantics} captures must use one fixed prefix group")
@@ -1188,7 +1304,18 @@ class _Validator:
                 if self.data.get("bound") != 0:
                     self._error("per-tile adaptive captures must use bound=0")
                 self._validate_v4_tile_bounds(semantics, schedule)
-                self._validate_v4_adaptive_schedule(prefix, schedule)
+                if prefix_policy == "fixed_requested":
+                    if isinstance(schedule, dict) and _is_int(prefix):
+                        if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                            self._error("fixed-requested per-tile captures must use selected schedule prefix equal to prefix")
+                        if schedule.get("prefix_group_count") != 1:
+                            self._error("fixed-requested per-tile captures must use one selected prefix group")
+                        if schedule.get("adaptive_prefix_active") is not False or schedule.get("adaptive_skip_active") is not False:
+                            self._error("fixed-requested per-tile captures must not set adaptive prefix flags")
+                        if schedule.get("adaptive_execution_applied") is not False:
+                            self._error("fixed-requested per-tile captures must not apply adaptive execution")
+                else:
+                    self._validate_v4_adaptive_schedule(prefix, schedule)
         elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
             if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
                 self._error("exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
@@ -1246,7 +1373,12 @@ class _Validator:
                                     f"exact-wide status-elided captures must report gpu_event_timings_us.{phase} as zero"
                                 )
             if isinstance(schedule, dict) and _is_int(prefix):
-                if schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
+                if prefix_policy == "minimum_proven":
+                    if schedule.get("min_selected_prefix") != schedule.get("max_selected_prefix"):
+                        self._error("exact-wide minimum_proven captures must use one selected prefix")
+                    if schedule.get("max_selected_prefix") > prefix:
+                        self._error("exact-wide selected schedule prefix must be <= prefix")
+                elif schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
                     self._error("exact-wide captures must use fixed selected schedule prefix equal to prefix")
                 if schedule.get("prefix_group_count") != 1:
                     self._error("exact-wide captures must use one fixed prefix group")
@@ -1763,7 +1895,7 @@ class _Validator:
                     f"tile_bound_scan_us={tile_bound_scan} does not match raw average "
                     f"{_average(tile_bound_values)}"
                 )
-        prefix = self.data.get("prefix")
+        prefix = self.data.get("selected_prefix", self.data.get("prefix"))
         applicable = self.data.get("per_modulus_gemm_estimate_applicable")
         per_modulus = self._require("avg_per_modulus_gemm_estimate_us", "number")
         gemm_values = raw_timings.get("rns_gemm")

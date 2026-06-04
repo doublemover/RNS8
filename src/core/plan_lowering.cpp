@@ -50,7 +50,7 @@ std::string schedule_strategy(const rns8_plan_schedule_info& schedule) {
     return "adaptive_per_tile_prefix_schedule";
   }
   if (schedule.adaptive_skip_active) {
-    return "uniform_reduced_prefix_schedule";
+    return "minimum_proven_uniform_prefix_schedule";
   }
   return "fixed_prefix_" + std::to_string(schedule.max_selected_prefix);
 }

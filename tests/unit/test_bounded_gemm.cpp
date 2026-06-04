@@ -182,7 +182,7 @@ TEST_CASE("bounded CPU full-width outputs preserve padded leading dimensions") {
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("bounded defaults keep the fixed 9-modulus contract") {
+TEST_CASE("bounded defaults select the minimum proven global prefix") {
   CHECK(RNS8_DEFAULT_BOUNDED_PREFIX == 9u);
 
   rns8_context* ctx = create_cpu();
@@ -194,8 +194,32 @@ TEST_CASE("bounded defaults keep the fixed 9-modulus contract") {
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
-  CHECK(info.min_selected_prefix == 9u);
-  CHECK(info.max_selected_prefix == 9u);
+  CHECK(info.min_required_prefix == 2u);
+  CHECK(info.max_required_prefix == 2u);
+  CHECK(info.min_selected_prefix == 2u);
+  CHECK(info.max_selected_prefix == 2u);
+  CHECK(info.adaptive_skip_active == 1u);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("bounded fixed-prefix flag preserves the requested global prefix") {
+  rns8_context* ctx = create_cpu();
+  auto desc = u64_desc(2, 2, 3, 1000);
+  desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_plan_schedule_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
+  CHECK(info.min_required_prefix == 2u);
+  CHECK(info.max_required_prefix == 2u);
+  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.adaptive_skip_active == 0u);
 
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
@@ -359,7 +383,7 @@ TEST_CASE("bounded CPU K-split edge cases preserve padded output and exact cance
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("bounded plan schedule exposes tile grid and fixed prefix groups") {
+TEST_CASE("bounded plan schedule exposes tile grid and minimum proven prefix groups") {
   rns8_context* ctx = create_cpu();
   auto desc = u64_desc(130, 129, 7, 1000);
   desc.tile_m = 64;
@@ -378,11 +402,11 @@ TEST_CASE("bounded plan schedule exposes tile grid and fixed prefix groups") {
   CHECK(info.tile_count == 9);
   CHECK(info.min_required_prefix == 2);
   CHECK(info.max_required_prefix == 2);
-  CHECK(info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
-  CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.min_selected_prefix == 2);
+  CHECK(info.max_selected_prefix == 2);
   CHECK(info.prefix_group_count == 1);
   CHECK(info.adaptive_prefix_active == 0);
-  CHECK(info.adaptive_skip_active == 0);
+  CHECK(info.adaptive_skip_active == 1);
   CHECK(info.range_bit_length == 10);
 
   uint64_t written = 0;
@@ -402,7 +426,7 @@ TEST_CASE("bounded plan schedule exposes tile grid and fixed prefix groups") {
   CHECK(entries.front().row_extent == 64);
   CHECK(entries.front().col_extent == 64);
   CHECK(entries.front().required_prefix == 2);
-  CHECK(entries.front().selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(entries.front().selected_prefix == 2);
   CHECK(entries.front().group_index == 0);
   CHECK(entries.front().range_bit_length == 10);
   CHECK(entries.back().tile_row == 2);
