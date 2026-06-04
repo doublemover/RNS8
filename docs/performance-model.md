@@ -184,30 +184,31 @@ paths: `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2`,
 `ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2`,
 `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2`, and
 `rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2`. The v1 timings in
-this section remain historical reviewed evidence only; new v2 release captures
-are required before installing or transferring any CK/rocWMMA bounded or
-exact-wide cache entry.
+this section remain historical reviewed evidence only; they should not be
+installed or transferred into current CK/rocWMMA bounded or exact-wide cache
+entries.
 
-`rns8-inspect` reports exact validated hits for both promoted keys on runtime
-target `gfx1100`: the rocWMMA 512 entry uses runtime version
-`repo-local release/rocm-rel-7.1` and the hipBLASLt 1024 entry uses
-`hipBLASLt 100100`. With `RNS8_AUTOTUNE_CACHE_PATH` set to the reviewed local
-cache candidate,
-schema-valid AUTO smokes emit `backend_requested: "auto"`,
-`backend_selected: "rocwmma"` for 512 and `backend_selected: "hipblaslt"` for
-1024, `backend_metadata.performance_validated: true`, and
-`comparison_baseline.status: "reviewed_release_same_contract_baseline"`. This
-is reviewed Windows `gfx1100` release evidence and cache-candidate proof; it is
-not yet a durable installed production cache policy.
+A current-v2 follow-up bounded-i64 validation on June 4, 2026 used seed
+`20260604` and reran the 512 and 1024 groups with CPU reference, direct HIP,
+`hip-vector-alu-int64`, hipBLASLt, CK, and rocWMMA release captures. It produced
+12 captures, no missing required baselines, no incompatible metadata, no
+duplicate backend records, and one reviewed cache candidate. All ten GPU
+captures passed `tools/gpu_event_report.py --fail-on-unavailable`.
 
-A follow-up post-fix bounded-i64 validation on June 3, 2026 used seed
-`20260603` and reran the 512 and 1024 groups after the vector event-capture and
-hipBLASLt full A+B event-contract fixes. That latest local snapshot is
-summarized in [performance-wins.md](performance-wins.md): 512 stayed on direct
-HIP, while 1024 selected CK at 9222 us median end-to-end, 1.04x faster than
-direct HIP and 2.58x faster than vector ALU. No cache was written in that run.
-The winner drift between the two same-day local reviews should be treated as a
-reason to rerun target shapes before installing durable cache entries.
+At 512x512x512, direct HIP
+`direct_hip_tiled_active_prefix_rns_gemm_v2` stayed fastest at 1851 us median
+end-to-end, followed by rocWMMA v2 at 2591 us, vector-ALU at 6147 us, CK v2 at
+7172 us, hipBLASLt v2 at 10101 us, and CPU reference at 565180 us. No accelerator
+cache entry was written for 512. At 1024x1024x1024, hipBLASLt
+`hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` was fastest at
+4174 us, followed by direct HIP at 4535 us, rocWMMA v2 at 12996 us, CK v2 at
+15546 us, vector-ALU at 33945 us, and CPU reference at 4915270 us. The generated
+reviewed temp cache contains that single 1024 hipBLASLt v2 entry. Installing it
+with `tools/install_autotune_cache.py --replace-existing` replaced a stale local
+default cache that failed reviewed-cache validation with a target-id/key
+mismatch. A hipBLASLt release `rns8-bench --backend auto` smoke for the same
+1024 bounded-i64 key selected hipBLASLt and reported
+`backend_metadata.performance_validated: true`.
 
 ## Windows `gfx1100` release-reviewed bounded-u64 matrix
 

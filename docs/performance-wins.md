@@ -22,32 +22,34 @@ Scope:
 
 ## Current One-Shot Winners
 
-The latest post-fix bounded-i64 validation pass covered 512 and 1024 after the
-vector event-capture and hipBLASLt full A+B event fixes. It used seed
-`20260603`; the durable summary lives in
-[reviewed-local-evidence.md](reviewed-local-evidence.md).
-After the CK/rocWMMA shared epilogues gained explicit 256/255/251 reducer
-dispatch, current CK/rocWMMA RNS plans report v2 selected-kernel identities.
-Rows below that cite old CK/rocWMMA v1 identities are retained as historical
-post-fix evidence and need a v2 rerun before cache installation.
+The current bounded-i64 validation pass covered 512 and 1024 after the vector
+event-capture fixes, hipBLASLt full A+B event-contract fixes, and CK/rocWMMA
+common-modulus reducer identity update. It used seed `20260604`, release builds,
+three warmups, nine measured repeats, and required GPU events. The durable
+summary lives in [reviewed-local-evidence.md](reviewed-local-evidence.md).
+The sweep wrote one reviewed temp cache entry, and
+`tools/install_autotune_cache.py --replace-existing` installed that current
+1024 hipBLASLt v2 entry into the local default runtime cache after the existing
+local cache failed reviewed-cache validation with a stale target-id/key mismatch.
 
 | Shape | Current winner | Winner median end-to-end | Direct HIP median | Vector ALU median | Speedup | Decision |
 |---:|---|---:|---:|---:|---:|---|
-| 512 | Direct HIP `direct_hip_tiled_rns_gemm_v1` | 2986 us | 2986 us | 9232 us | No accelerator win | Keep direct HIP for this snapshot |
-| 1024 | CK `ck_wmma_cshuffle_i8_i32_centered_epilogue_v1` | 9222 us | 9604 us | 23777 us | 1.04x vs direct HIP, 2.58x vs vector ALU | Historical v1 candidate; rerun required for current `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` before promotion |
+| 512 | Direct HIP `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | 1851 us | 6147 us | No accelerator win | Keep direct HIP; no cache entry |
+| 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 4535 us | 33945 us | 1.09x vs direct HIP, 8.13x vs vector ALU | Current reviewed v2 cache entry installed locally |
 
-The 512 group had no missing required baselines, no duplicate backend records,
-and release-review requirements were satisfied, but no accelerator beat direct
-HIP. The 1024 group had the same clean review properties and selected CK as the
-fastest promotable accelerator for the then-current v1 identity; current v2
-identity promotion needs a fresh release capture.
+Both groups had no missing required baselines, incompatible metadata, or
+duplicate backend records, and both satisfied release-review requirements. The
+ten GPU captures from the sweep passed
+`tools/gpu_event_report.py --fail-on-unavailable`. At 512, direct HIP beat
+rocWMMA v2 at 2591 us, vector ALU at 6147 us, CK v2 at 7172 us, and hipBLASLt v2
+at 10101 us. At 1024, hipBLASLt v2 beat direct HIP at 4535 us, rocWMMA v2 at
+12996 us, CK v2 at 15546 us, and vector ALU at 33945 us.
 
-This differs from the earlier June 3, 2026 seed `20260602` four-shape
-bounded-i64 matrix in [performance-model.md](performance-model.md), where
-rocWMMA won 512 and hipBLASLt won 1024. Treat that as useful historical
-release-reviewed evidence, not as proof that one winner is stable across local
-driver/build/run conditions. Rerun the target shapes before installing a
-durable cache.
+This supersedes the earlier June 3, 2026 bounded-i64 one-shot snapshots for
+current cache decisions. The seed `20260602` four-shape matrix and seed
+`20260603` post-event-fix matrix remain useful historical release-reviewed
+evidence, but their old CK/rocWMMA v1 identities must not be mixed into current
+v2 autotune cache evidence.
 
 ## Direct-HIP Implementation Wins
 
@@ -210,9 +212,9 @@ CRT export timing was lower in these captures.
 
 ## Promotion Boundaries
 
-- Promote now: no durable installed cache changes are made here. The latest
-  one-shot 1024 CK result was a local v1 promotable candidate, but the current
-  v2 CK identity needs rerun evidence before cache installation.
+- Promote now: the current local default runtime cache contains the reviewed
+  bounded-i64 1024 hipBLASLt v2 entry from the June 4, 2026 release sweep. There
+  is no 512 accelerator entry; direct HIP remains the current 512 winner.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and
   rocWMMA reuse/prepack wins. They are correct and event-visible, but they
   compare different reuse contracts and need workload-level promotion policy

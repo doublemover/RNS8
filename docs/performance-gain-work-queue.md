@@ -266,17 +266,19 @@ Remaining high-value imported work goes at the front of the queue:
   the reviewed Windows `gfx1100` bounded-u64 leader at 64, 128, 512, and 1024.
   It is bounded-only and must not be generalized into exact-wide, finite, or
   wrap64 semantics.
-- Bounded i64 has prior reviewed Windows `gfx1100` winners split by shape:
-  rocWMMA wins 512 with `rocwmma_i8_i32_signed_hot_residue_v1`; hipBLASLt wins
-  1024 with `hipblaslt_int8_i32_scratch_reduce_baseline_v1`. The latest
-  post-fix 512/1024 validation snapshot in
-  [performance-wins.md](performance-wins.md) kept 512 on direct HIP and found a
-  narrow CK 1024 win, so rerun target shapes before installing durable cache
-  policy.
+- Bounded i64 has current Windows `gfx1100` v2 release-review evidence for 512
+  and 1024. The June 4, 2026 seed `20260604` sweep kept 512 on Direct HIP
+  `direct_hip_tiled_active_prefix_rns_gemm_v2` at 1851 us and selected hipBLASLt
+  `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` at 1024 with a
+  4174 us median, 1.09x faster than Direct HIP and 8.13x faster than vector ALU.
+  The local default runtime cache now contains only that reviewed 1024
+  hipBLASLt v2 entry.
 - Current CK and rocWMMA RNS selected kernels have v2 common-modulus reducer
   identities after the shared epilogues gained explicit 256/255/251 reduction.
-  Treat all older CK/rocWMMA v1 bounded/exact-wide timings as historical until
-  matching v2 release captures exist.
+  The 512/1024 bounded-i64 v2 release captures are now complete and did not
+  promote CK or rocWMMA. Older CK/rocWMMA v1 bounded/exact-wide timings remain
+  historical for any shape or path that has not been rerun with the matching v2
+  selected-kernel identity.
 - The active hipBLASLt source path now uses
   `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2`; previous
   `hipblaslt_int8_i32_scratch_reduce_baseline_v1` timings are historical and
@@ -1753,29 +1755,34 @@ Relation to new architecture work:
 
 ### 25. Bounded-i64 Winner Tuning
 
-Status: reviewed Windows `gfx1100` winners are rocWMMA at 512 and hipBLASLt at
-1024. The first hipBLASLt slices removed repeated heuristic selection and added
-workspace-local repeated-A and repeated-B prepack evidence. The heuristic cache
-is intentionally non-durable and does not replace reviewed autotune-cache
-identity, library-version rejection, stale-kernel rejection, timing-split,
-split-K, finite-u8, or durable cache work. The fixed-prefix RNS path caches A
-and B transposed hipBLASLt operands only when source version, device, shape,
-prefix, and byte-size identity match; it is skipped for finite-u8,
+Status: current Windows `gfx1100` v2 release-review winners are Direct HIP at
+512 and hipBLASLt at 1024. The June 4, 2026 bounded-i64 sweep wrote and locally
+installed one reviewed 1024 hipBLASLt v2 cache entry; no 512 accelerator entry
+was promotable. The first hipBLASLt slices removed repeated heuristic selection
+and added workspace-local repeated-A and repeated-B prepack evidence. The
+heuristic cache is intentionally non-durable and does not replace reviewed
+autotune-cache identity, library-version rejection, stale-kernel rejection,
+timing-split, split-K, finite-u8, or durable cache work. The fixed-prefix RNS
+path caches A and B transposed hipBLASLt operands only when source version,
+device, shape, prefix, and byte-size identity match; it is skipped for finite-u8,
 adaptive/tiled plans, and split-K.
 
 Technical direction:
 
-- Tune winners, not losers. For 512 rocWMMA, focus on B layout, A transient
-  pack, residue epilogue, store path, and launch count.
+- Tune winners, not losers. For 512, current evidence points back to Direct HIP;
+  focus on pack/export cost, launch count, and one-shot active-prefix behavior
+  before spending more time on CK/rocWMMA variants that already lost the v2
+  release review.
 - For 1024 hipBLASLt, focus on repeated-A/B prepack, scratch/reduce behavior,
   heuristic replay, and external reducer locality.
-- Re-run 64/128/512/1024 plus 2048 before assuming the split persists.
+- Re-run 64/128 plus 2048 before assuming the current 512/1024 split persists
+  across the surrounding shape range.
 - Treat bounded i64 as the first production proving ground for residue-channel
   fusion, layout search, and generated variants.
 
 Likely first slices:
 
-- rocWMMA 512 A-pack/B-layout/store variants.
+- Direct-HIP 512 pack/export and launch-count tuning.
 - hipBLASLt 1024 repeated-A/B release matrix.
 - 2048 bounded-i64 exploratory release matrix.
 
@@ -1833,7 +1840,9 @@ Technical direction:
   `temp/hipblaslt-reducer-v2-smoke/` validates schema and GPU events for
   bounded-i64 512/1024; the 1024 r9 capture reported
   `hipblaslt_i32_to_residue_reduce` median 80.38 us. This is local smoke
-  evidence, not release-review promotion.
+  evidence. The later June 4, 2026 current-v2 release review selected this
+  kernel at 1024 with 4174 us median end-to-end and installed the reviewed local
+  default cache entry for that exact bounded-i64 plan key.
 - Use HIP Graphs or grouped host dispatch for repeated hipBLASLt workflows.
 
 Likely first slices:
@@ -2482,7 +2491,9 @@ Relation to new architecture work:
 
 ### Batch B: Immediate Shape Wins
 
-- Finish bounded-i64 winner tuning for rocWMMA 512 and hipBLASLt 1024.
+- Finish bounded-i64 winner tuning for Direct HIP 512 and hipBLASLt 1024; the
+  current v2 release review installed the 1024 hipBLASLt cache entry and left
+  512 on Direct HIP.
 - Optimize exact-wide export before broadening exact-wide GEMM variants.
 - Close out finite-u8 CK/rocWMMA reducer specialization: common-modulus
   251/255/256 v2 identities and reducer helpers are implemented, but the queue

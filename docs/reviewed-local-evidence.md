@@ -17,6 +17,8 @@ Scope:
 
 | Date | Command family | Seed | Shape | Backend | Result | Review status | Caveat |
 |---|---|---:|---:|---|---|---|---|
+| 2026-06-04 | bounded-i64 v2 one-shot release review | 20260604 | 512 | direct HIP | 1851 us median end-to-end; no accelerator win; rocWMMA v2 2591 us, vector ALU 6147 us, CK v2 7172 us, hipBLASLt v2 10101 us | release reviewed local matrix; required GPU events available | no cache entry; Direct HIP retained for this shape |
+| 2026-06-04 | bounded-i64 v2 one-shot release review | 20260604 | 1024 | hipBLASLt | 4174 us median end-to-end; 1.09x vs Direct HIP; 8.13x vs vector ALU | release reviewed local matrix; required GPU events available; default local cache installed | current local cache contains this v2 entry only; Windows `gfx1100` only |
 | 2026-06-03 | bounded-i64 one-shot release review | 20260603 | 512 | direct HIP | 2986 us median end-to-end; no accelerator win | release reviewed local snapshot | direct HIP retained for this snapshot; no cache installed |
 | 2026-06-03 | bounded-i64 one-shot release review | 20260603 | 1024 | CK | 9222 us median end-to-end; 1.04x vs direct HIP; 2.58x vs vector ALU | release reviewed local snapshot | promotable local candidate; cache not written in this run |
 | 2026-06-03 | bounded-i64 release matrix | 20260602 | 512 | rocWMMA | 2399 us median end-to-end; fastest promotable accelerator | release reviewed local matrix | same-day winner drift exists; rerun before durable cache install |
@@ -51,19 +53,26 @@ Current bounded-i64 one-shot claims:
 
 ```powershell
 python tools\benchmark_sweep.py `
-  --semantics bounded-i64 `
-  --case 512:512,512,512 `
-  --case 1024:1024,1024,1024 `
-  --backend direct-hip `
+  --bench build\windows-msvc-hip-release\rns8-bench.exe `
+  --bench-for hipblaslt=build\windows-msvc-hipblaslt-release\rns8-bench.exe `
+  --bench-for ck=build\windows-msvc-ck-release\rns8-bench.exe `
+  --bench-for rocwmma=build\windows-msvc-rocwmma-release\rns8-bench.exe `
+  --out-root temp\perf-work-queue\bounded-rns-v2-release `
+  --review-mode release `
+  --warmups 3 `
+  --repeats 9 `
+  --seed 20260604 `
+  --backend cpu `
+  --backend hip-direct `
   --backend hip-vector-alu-int64 `
   --backend hipblaslt `
   --backend ck `
   --backend rocwmma `
-  --warmups 3 `
-  --repeats 9 `
-  --seed 20260603 `
-  --release-review `
-  --out-root temp\benchmark-sweeps\windows-gfx1100-release-bounded-i64-current
+  --semantics bounded-i64 `
+  --case bounded-i64-512:512,512,512 `
+  --case bounded-i64-1024:1024,1024,1024 `
+  --write-autotune-cache `
+  --autotune-cache temp\perf-work-queue\bounded-rns-v2-release\autotune-cache.json
 ```
 
 Reuse/prepack comparisons:
