@@ -42,7 +42,29 @@ def main() -> int:
                                 "workflow_name": "key_switch_digit_aggregation",
                                 "phase_label": "external_product_like_dense_proxy",
                                 "reuse_profile": "large_read_only_key_material",
+                                "lowering_role": "dense_gemm_adjacent_proxy",
+                                "output_domain_requirement": "host_export",
+                                "promotion_scope": "release_candidate",
                                 "ring_dimension": 4096,
+                            },
+                        },
+                        {
+                            "family": "large-exploratory",
+                            "name": "bounded-i64-large-fixture",
+                            "capture_path": str(ck_capture),
+                            "capture_name": ck_capture.name,
+                            "output_domain": "host_export",
+                            "evidence_scope": "large shape metadata fixture",
+                            "rationale": "test queue-control scenario metadata join",
+                            "metadata": {
+                                "large_shape_role": "throughput_probe",
+                                "promotion_scope": "exploratory_only",
+                                "output_domain_requirement": "host_export",
+                                "lowering_role": "large_shape_throughput_probe",
+                                "grouping_role": "pre_grouped_baseline",
+                                "bridge_role": "native_vector_to_rns_candidate",
+                                "modulus_role": "generic_non_hot_prime",
+                                "prime_or_composite": "prime",
                             },
                         }
                     ],
@@ -113,7 +135,7 @@ def main() -> int:
         assert database["schema_version"] == 1
         assert database["capture_count"] == 2
         assert database["summary"]["scenario_counts"]["repeated-b"] == 1
-        assert database["summary"]["scenario_counts"]["unlabeled"] == 1
+        assert database["summary"]["scenario_counts"]["large-exploratory"] == 1
         assert database["summary"]["isa_report_count"] == 1
         assert database["summary"]["captures_with_isa_resources"] == 1
         hip_row = next(row for row in database["rows"] if row["capture_path"] == str(hip_capture))
@@ -126,6 +148,9 @@ def main() -> int:
         assert hip_row["scenario_workflow_name"] == "key_switch_digit_aggregation"
         assert hip_row["scenario_phase_label"] == "external_product_like_dense_proxy"
         assert hip_row["scenario_reuse_profile"] == "large_read_only_key_material"
+        assert hip_row["scenario_lowering_role"] == "dense_gemm_adjacent_proxy"
+        assert hip_row["scenario_output_domain_requirement"] == "host_export"
+        assert hip_row["scenario_promotion_scope"] == "release_candidate"
         assert hip_row["scenario_metadata"]["ring_dimension"] == 4096
         assert "key_switch_digit_aggregation" in hip_row["scenario_metadata_json"]
         assert hip_row["promotion_blockers"] == ["missing_required_baseline:cpu-reference"]
@@ -141,6 +166,14 @@ def main() -> int:
             "unknown",
         }
         ck_row = next(row for row in database["rows"] if row["capture_path"] == str(ck_capture))
+        assert ck_row["scenario_family"] == "large-exploratory"
+        assert ck_row["scenario_large_shape_role"] == "throughput_probe"
+        assert ck_row["scenario_promotion_scope"] == "exploratory_only"
+        assert ck_row["scenario_lowering_role"] == "large_shape_throughput_probe"
+        assert ck_row["scenario_grouping_role"] == "pre_grouped_baseline"
+        assert ck_row["scenario_bridge_role"] == "native_vector_to_rns_candidate"
+        assert ck_row["scenario_modulus_role"] == "generic_non_hot_prime"
+        assert ck_row["scenario_prime_or_composite"] == "prime"
         assert ck_row["isa_report_count"] == 1
         assert ck_row["isa_report_backends"] == ["ck"]
         assert ck_row["isa_report_targets"] == ["gfx1100"]
@@ -158,10 +191,19 @@ def main() -> int:
         assert "scenario_family" in csv_text
         assert "isa_wmma_count" in csv_text
         assert "scenario_source_role" in csv_text
+        assert "scenario_large_shape_role" in csv_text
+        assert "scenario_grouping_role" in csv_text
+        assert "native_vector_to_rns_candidate" in csv_text
+        assert "exploratory_only" in csv_text
         assert "key_switch_digit_aggregation" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
         assert "RNS8 Evidence Database Summary" in markdown
         assert "Scenario Metadata" in markdown
+        assert "large_shape_role" in markdown
+        assert "throughput_probe" in markdown
+        assert "promotion_scope" in markdown
+        assert "bridge_role" in markdown
+        assert "prime_or_composite" in markdown
         assert "ISA Resources" in markdown
 
     print("evidence database self-test: PASS")

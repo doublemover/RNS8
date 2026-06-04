@@ -31,6 +31,14 @@ CSV_FIELDS = [
     "scenario_workflow_name",
     "scenario_phase_label",
     "scenario_reuse_profile",
+    "scenario_lowering_role",
+    "scenario_output_domain_requirement",
+    "scenario_large_shape_role",
+    "scenario_promotion_scope",
+    "scenario_grouping_role",
+    "scenario_bridge_role",
+    "scenario_modulus_role",
+    "scenario_prime_or_composite",
     "scenario_metadata_json",
     "semantics",
     "backend",
@@ -490,6 +498,14 @@ def build_row(
         "scenario_workflow_name": scenario_extra.get("workflow_name"),
         "scenario_phase_label": scenario_extra.get("phase_label"),
         "scenario_reuse_profile": scenario_extra.get("reuse_profile"),
+        "scenario_lowering_role": scenario_extra.get("lowering_role"),
+        "scenario_output_domain_requirement": scenario_extra.get("output_domain_requirement"),
+        "scenario_large_shape_role": scenario_extra.get("large_shape_role"),
+        "scenario_promotion_scope": scenario_extra.get("promotion_scope"),
+        "scenario_grouping_role": scenario_extra.get("grouping_role"),
+        "scenario_bridge_role": scenario_extra.get("bridge_role"),
+        "scenario_modulus_role": scenario_extra.get("modulus_role"),
+        "scenario_prime_or_composite": scenario_extra.get("prime_or_composite"),
         "scenario_metadata": scenario_extra,
         "scenario_metadata_json": json.dumps(scenario_extra, sort_keys=True) if scenario_extra else None,
         "semantics": capture.get("semantics"),
@@ -635,6 +651,24 @@ def format_isa_brief(row: dict[str, Any]) -> str:
     return ";".join(parts)
 
 
+def append_count_table(
+    lines: list[str],
+    *,
+    heading: str,
+    value_heading: str,
+    counts: Counter[str],
+) -> None:
+    if not counts:
+        return
+    lines.extend(["", heading, "", f"| {value_heading} | captures |", "|---|---:|"])
+    for name, count in sorted(counts.items()):
+        lines.append(f"| {name} | {count} |")
+
+
+def scenario_metadata_counts(database: dict[str, Any], row_key: str) -> Counter[str]:
+    return Counter(str(row.get(row_key)) for row in database["rows"] if row.get(row_key))
+
+
 def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines = [
         "# RNS8 Evidence Database Summary",
@@ -655,24 +689,28 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     lines.extend(["", "## Scenario Families", "", "| family | captures |", "|---|---:|"])
     for name, count in database["summary"]["scenario_counts"].items():
         lines.append(f"| {name} | {count} |")
-    source_counts = Counter(
-        str(row.get("scenario_source_role"))
-        for row in database["rows"]
-        if row.get("scenario_source_role")
+    metadata_tables = (
+        ("source_role", "scenario_source_role"),
+        ("workflow_name", "scenario_workflow_name"),
+        ("reuse_profile", "scenario_reuse_profile"),
+        ("lowering_role", "scenario_lowering_role"),
+        ("output_domain_requirement", "scenario_output_domain_requirement"),
+        ("large_shape_role", "scenario_large_shape_role"),
+        ("promotion_scope", "scenario_promotion_scope"),
+        ("grouping_role", "scenario_grouping_role"),
+        ("bridge_role", "scenario_bridge_role"),
+        ("modulus_role", "scenario_modulus_role"),
+        ("prime_or_composite", "scenario_prime_or_composite"),
     )
-    workflow_counts = Counter(
-        str(row.get("scenario_workflow_name"))
-        for row in database["rows"]
-        if row.get("scenario_workflow_name")
-    )
-    if source_counts:
-        lines.extend(["", "## Scenario Metadata", "", "| source_role | captures |", "|---|---:|"])
-        for name, count in sorted(source_counts.items()):
-            lines.append(f"| {name} | {count} |")
-    if workflow_counts:
-        lines.extend(["", "| workflow_name | captures |", "|---|---:|"])
-        for name, count in sorted(workflow_counts.items()):
-            lines.append(f"| {name} | {count} |")
+    if any(scenario_metadata_counts(database, row_key) for _, row_key in metadata_tables):
+        lines.extend(["", "## Scenario Metadata"])
+        for label, row_key in metadata_tables:
+            append_count_table(
+                lines,
+                heading=f"### {label}",
+                value_heading=label,
+                counts=scenario_metadata_counts(database, row_key),
+            )
     isa_rows = [row for row in database["rows"] if row.get("isa_report_count")]
     if isa_rows:
         lines.extend(

@@ -643,11 +643,15 @@ def main() -> int:
     many_small_args.backends = ["hip-direct"]
     many_small_args.scenario = ["many-small"]
     many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-    assert len(many_small_entries) == 4
+    assert len(many_small_entries) == 8
     assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
     assert {entry.scenario["name"] for entry in many_small_entries} == {
         "bounded-i64-32-proxy",
         "bounded-i64-32-oneshot-proxy",
+        "bounded-i64-128-proxy",
+        "bounded-u64-64-proxy",
+        "bounded-u64-skinny-n1-proxy",
+        "exact-wide-signed-64-proxy",
         "finite-ring-64-proxy",
     }
     assert any("--oneshot" in entry.command for entry in many_small_entries)
@@ -655,6 +659,95 @@ def main() -> int:
         entry.scenario["modulus"] for entry in many_small_entries if entry.scenario["semantics"] == "finite-u8-ring"
     ) == [251, 255]
     assert all(entry.scenario.get("metadata", {}).get("evidence_role") == "proxy_single_shape_repeat" for entry in many_small_entries)
+    assert any(entry.scenario.get("metadata", {}).get("grouping_role") == "pre_grouped_baseline" for entry in many_small_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("bridge_role") == "native_vector_to_rns_candidate"
+        for entry in many_small_entries
+    )
+    assert any(
+        entry.scenario["shape"]["n"] == 1 and entry.scenario.get("metadata", {}).get("phase_label") == "pre_grouped_skinny_proxy"
+        for entry in many_small_entries
+    )
+    assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in many_small_entries)
+
+    rns_chain_args = copy.copy(scenario_args)
+    rns_chain_args.backends = ["hip-direct"]
+    rns_chain_args.scenario = ["rns-chain"]
+    rns_chain_entries = benchmark_sweep.sweep_command_entries(rns_chain_args)
+    assert [entry.scenario["name"] for entry in rns_chain_entries] == [
+        "bounded-i64-chain3",
+        "bounded-i64-chain4-256",
+        "bounded-u64-chain3-256",
+        "exact-wide-signed-chain3",
+        "exact-wide-unsigned-chain3-256",
+    ]
+    assert all(entry.scenario["output_domain"] == "residue_current_rns" for entry in rns_chain_entries)
+    assert all(entry.scenario.get("metadata", {}).get("output_domain_requirement") == "lazy_export" for entry in rns_chain_entries)
+    assert any("--residue-chain-length" in entry.command and "4" in entry.command for entry in rns_chain_entries)
+    assert any(entry.scenario.get("metadata", {}).get("chain_depth") == 4 for entry in rns_chain_entries)
+
+    large_args = copy.copy(scenario_args)
+    large_args.backends = ["hip-direct"]
+    large_args.scenario = ["large-exploratory"]
+    large_entries = benchmark_sweep.sweep_command_entries(large_args)
+    assert len(large_entries) == 18
+    assert {entry.scenario["name"] for entry in large_entries} == {
+        "bounded-i64-2048",
+        "bounded-u64-2048",
+        "bounded-i64-4096",
+        "bounded-u64-4096",
+        "exact-wide-signed-2048",
+        "exact-wide-unsigned-2048",
+        "exact-wide-signed-4096",
+        "exact-wide-unsigned-4096",
+        "finite-ring-2048",
+        "finite-field-2048",
+        "finite-ring-4096",
+        "finite-field-4096",
+        "wrap64-2048",
+        "wrap64-4096",
+    }
+    assert any(entry.scenario["shape"]["m"] == 4096 for entry in large_entries)
+    assert sorted(
+        entry.scenario["modulus"] for entry in large_entries if entry.scenario["name"] == "finite-ring-2048"
+    ) == [251, 255, 256]
+    assert all(
+        entry.scenario["exact_wide_limb_count"] == 4
+        for entry in large_entries
+        if entry.scenario["semantics"].startswith("exact-wide")
+    )
+    assert any(
+        entry.scenario.get("metadata", {}).get("large_shape_role") == "wrap64_direct_hip_throughput_probe"
+        for entry in large_entries
+    )
+
+    finite_generic_args = copy.copy(scenario_args)
+    finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
+    finite_generic_args.scenario = ["finite-generic-moduli"]
+    finite_generic_entries = benchmark_sweep.sweep_command_entries(finite_generic_args)
+    assert len(finite_generic_entries) == 5
+    assert {entry.scenario["backend"] for entry in finite_generic_entries} == {"hip-direct"}
+    assert {entry.scenario["modulus"] for entry in finite_generic_entries} == {127, 253}
+    assert {entry.scenario["name"] for entry in finite_generic_entries} == {
+        "ring-prime-127-512",
+        "field-prime-127-512",
+        "ring-composite-253-512",
+        "ring-prime-127-2048",
+        "ring-composite-253-2048",
+    }
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "finite_u8_generic_modulus"
+        for entry in finite_generic_entries
+    )
+    assert any(
+        entry.scenario.get("metadata", {}).get("prime_or_composite") == "composite"
+        for entry in finite_generic_entries
+    )
+    assert any(
+        entry.scenario["shape"]["m"] == 2048
+        and entry.scenario.get("metadata", {}).get("large_shape_role") == "finite_generic_modulus_probe"
+        for entry in finite_generic_entries
+    )
 
     algebra_args = copy.copy(scenario_args)
     algebra_args.backends = ["ck"]
