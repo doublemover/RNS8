@@ -3,6 +3,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstdint>
 #include <iterator>
 #include <limits>
@@ -48,6 +49,69 @@ bool hip_available() {
   info.abi_version = RNS8_ABI_VERSION;
   return rns8::detail::hip_direct_probe(0, info) == RNS8_SUCCESS;
 }
+
+std::string env_value_for_test(const char* name, bool* present) {
+  if (present) {
+    *present = false;
+  }
+#ifdef _WIN32
+  char* buffer = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&buffer, &length, name) != 0 || !buffer) {
+    return {};
+  }
+  std::string value(buffer, length > 0 ? length - 1 : 0);
+  std::free(buffer);
+  if (present) {
+    *present = true;
+  }
+  return value;
+#else
+  const char* value = std::getenv(name);
+  if (!value) {
+    return {};
+  }
+  if (present) {
+    *present = true;
+  }
+  return value;
+#endif
+}
+
+void set_env_for_test(const char* name, const char* value) {
+#ifdef _WIN32
+  _putenv_s(name, value);
+#else
+  setenv(name, value, 1);
+#endif
+}
+
+void clear_env_for_test(const char* name) {
+#ifdef _WIN32
+  _putenv_s(name, "");
+#else
+  unsetenv(name);
+#endif
+}
+
+struct ScopedEnvVar {
+  explicit ScopedEnvVar(const char* env_name, const char* value) : name(env_name) {
+    original = env_value_for_test(name.c_str(), &had_original);
+    set_env_for_test(name.c_str(), value);
+  }
+
+  ~ScopedEnvVar() {
+    if (had_original) {
+      set_env_for_test(name.c_str(), original.c_str());
+    } else {
+      clear_env_for_test(name.c_str());
+    }
+  }
+
+  std::string name;
+  std::string original;
+  bool had_original = false;
+};
 
 rns8_context* create_context(rns8_backend_kind backend) {
   rns8_context_options options{};
@@ -2652,6 +2716,91 @@ TEST_CASE("private HIP wrap64 pack and export helpers cover tile-tail padded lay
   CHECK(export_buffer == first_export);
   CHECK(export_bytes == first_export_bytes);
   check_export();
+
+  if (export_buffer) {
+    CHECK(rns8::detail::hip_direct_free(0, export_buffer) == RNS8_SUCCESS);
+  }
+  if (upload) {
+    CHECK(rns8::detail::hip_direct_free(0, upload) == RNS8_SUCCESS);
+  }
+  CHECK(rns8::detail::hip_direct_free(0, device_limbs) == RNS8_SUCCESS);
+}
+
+TEST_CASE("private HIP wrap64 padded export uses pinned host staging timing path") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for private wrap64 HIP pinned export staging smoke");
+  }
+
+  ScopedEnvVar force_staging("RNS8_HIP_PINNED_EXPORT_STAGING", "1");
+  constexpr int64_t rows = 128;
+  constexpr int64_t cols = 128;
+  constexpr int64_t ld = 135;
+  constexpr uint64_t sentinel = 0xfedcba9876543210ull;
+  std::vector<uint64_t> src(static_cast<std::size_t>(rows * ld), 0);
+  std::vector<uint64_t> out(static_cast<std::size_t>(rows * ld), sentinel);
+  std::vector<uint8_t> expected_limbs(static_cast<std::size_t>(rows * cols * 8), 0);
+
+  std::mt19937_64 rng(0x7772617036345f73ull);
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      uint64_t value = rng() ^ (static_cast<uint64_t>(row) << 32u) ^ static_cast<uint64_t>(col * 37);
+      if ((row + col) % 29 == 0) {
+        value = std::numeric_limits<uint64_t>::max();
+      } else if ((row + col) % 29 == 1) {
+        value = 0;
+      } else if ((row + col) % 29 == 2) {
+        value = 0x8080808080808080ull;
+      }
+      src[static_cast<std::size_t>(row * ld + col)] = value;
+      store_u64_limbs(expected_limbs, row * cols + col, value);
+    }
+  }
+
+  void* device_limbs = nullptr;
+  void* upload = nullptr;
+  std::size_t upload_bytes = 0;
+  void* export_buffer = nullptr;
+  std::size_t export_bytes = 0;
+  const std::size_t compact_bytes = expected_limbs.size();
+  REQUIRE(rns8::detail::hip_direct_allocate(0, compact_bytes, &device_limbs) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_pack_u64_device(
+              0,
+              src.data(),
+              &upload,
+              &upload_bytes,
+              device_limbs,
+              rows,
+              cols,
+              ld) == RNS8_SUCCESS);
+
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+  REQUIRE(rns8::detail::wrap64_hip_export_u64_device(
+              0,
+              device_limbs,
+              &export_buffer,
+              &export_bytes,
+              rows,
+              cols,
+              out.data(),
+              ld) == RNS8_SUCCESS);
+  auto export_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+
+  CHECK(has_timing_label(export_events, "wrap64_export_kernel"));
+  CHECK(has_timing_label(export_events, "wrap64_export_d2h"));
+  CHECK(has_timing_label(export_events, "export_host_staging_copy"));
+  REQUIRE(export_buffer != nullptr);
+  REQUIRE(export_bytes >= static_cast<std::size_t>(rows * cols * static_cast<int64_t>(sizeof(uint64_t))));
+
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      CHECK(out[static_cast<std::size_t>(row * ld + col)] == load_u64_limbs(expected_limbs, row * cols + col));
+    }
+    for (int64_t col = cols; col < ld; ++col) {
+      CHECK(out[static_cast<std::size_t>(row * ld + col)] == sentinel);
+    }
+  }
 
   if (export_buffer) {
     CHECK(rns8::detail::hip_direct_free(0, export_buffer) == RNS8_SUCCESS);

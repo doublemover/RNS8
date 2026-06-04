@@ -905,7 +905,7 @@ bool benchmark_env_flag_enabled(const char* name) {
          value == "ON" || value == "yes" || value == "YES";
 }
 
-const char* direct_hip_export_staging_policy(rns8_backend_kind selected_backend) {
+const char* direct_hip_export_staging_policy(const Args& args, rns8_backend_kind selected_backend) {
   if (selected_backend != RNS8_BACKEND_HIP_DIRECT) {
     return "not_applicable";
   }
@@ -914,6 +914,9 @@ const char* direct_hip_export_staging_policy(rns8_backend_kind selected_backend)
   }
   if (benchmark_env_flag_enabled("RNS8_HIP_PINNED_EXPORT_STAGING")) {
     return "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING";
+  }
+  if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+    return "wrap64_forced_only_pending_padded_staging_evidence";
   }
   return "large_padded_outputs_only_default";
 }
@@ -6463,7 +6466,7 @@ void print_json(
   std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
   std::cout << "    \"direct_hip_export_staging_policy\": \""
-            << direct_hip_export_staging_policy(selected_backend_kind) << "\",\n";
+            << direct_hip_export_staging_policy(args, selected_backend_kind) << "\",\n";
   std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
             << kDirectHipPinnedExportStagingThresholdBytes << ",\n";
   std::cout << "    \"benchmark_output_destination_layout\": \"" << output_destination_layout(args) << "\",\n";

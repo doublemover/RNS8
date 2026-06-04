@@ -182,34 +182,6 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   return op_status;
 }
 
-hipError_t copy_compact_u64_matrix_device_to_host(
-    uint64_t* dst,
-    int64_t dst_ld,
-    const void* src,
-    int64_t rows,
-    int64_t cols) {
-  if (!dst || !src || dst_ld < cols) {
-    return hipErrorInvalidValue;
-  }
-  std::size_t compact_bytes = 0;
-  std::size_t destination_bytes = 0;
-  if (!checked_u64_compact_bytes(rows, cols, &compact_bytes) ||
-      !checked_u64_row_pitch_bytes(rows, dst_ld, &destination_bytes)) {
-    return hipErrorInvalidValue;
-  }
-  if (dst_ld == cols) {
-    return hipMemcpy(dst, src, compact_bytes, hipMemcpyDeviceToHost);
-  }
-  return hipMemcpy2D(
-      dst,
-      static_cast<std::size_t>(dst_ld) * sizeof(uint64_t),
-      src,
-      static_cast<std::size_t>(cols) * sizeof(uint64_t),
-      static_cast<std::size_t>(cols) * sizeof(uint64_t),
-      static_cast<std::size_t>(rows),
-      hipMemcpyDeviceToHost);
-}
-
 #endif
 
 }  // namespace
@@ -358,10 +330,9 @@ rns8_status wrap64_hip_export_u64_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  err = timed_hip_operation("wrap64_export_d2h", [&]() {
-    return copy_compact_u64_matrix_device_to_host(dst, ld, *export_buffer, rows, cols);
-  });
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  status = hip_direct_copy_compact_matrix_device_to_host(
+      device_id, "wrap64_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(uint64_t), false);
+  return status;
 #else
   (void)device_id;
   (void)export_buffer;

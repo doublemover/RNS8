@@ -2138,6 +2138,20 @@ Likely first slices:
   padded, and forced contiguous captures with matching logical checksums and
   required GPU events. This is an implemented transfer path, not yet a reviewed
   headline speedup claim.
+- Wrap64 padded export staging follow-up. Implemented the reusable compact
+  export copier as a shared Direct-HIP internal utility so the wrap64 byte-limb
+  export path can exercise the pinned staging pool and host scatter path without
+  duplicating transfer code. Wrap64 does not enable padded pinned staging by
+  default: `RNS8_HIP_PINNED_EXPORT_STAGING=1` can force the path for experiments,
+  but default wrap64 export stays on the direct compact/pitched D2H copy until a
+  real win exists. Windows `gfx1100` captures under
+  `temp/perf-work-queue/wrap64-padded-export-staging/` validated schema/events
+  for default, disabled, and forced staging at 128 and 512 with matching
+  checksums inside each shape. The 512x512 forced capture lost badly versus the
+  default policy (`wrap64_export_d2h` median 244.8 us versus 66.4 us, end-to-end
+  average 7177.78 us versus 3029.56 us), so this is correctness/tooling
+  coverage and an explicit deprioritization of default wrap64 pinned export
+  staging, not a promoted speedup.
 - Async exact-wide export/D2H overlap experiment.
 - Multi-stream repeated-B pipeline scenario.
 

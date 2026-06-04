@@ -614,11 +614,11 @@ bool env_flag_enabled(const char* name) {
          value == "ON" || value == "yes" || value == "YES";
 }
 
-bool pinned_export_staging_enabled(std::size_t bytes, bool padded_destination) {
+bool pinned_export_staging_enabled(std::size_t bytes, bool padded_destination, bool default_padded_staging) {
   if (bytes < kPinnedExportStagingMinBytes || env_flag_disabled("RNS8_HIP_PINNED_EXPORT_STAGING")) {
     return false;
   }
-  return padded_destination || env_flag_enabled("RNS8_HIP_PINNED_EXPORT_STAGING");
+  return (default_padded_staging && padded_destination) || env_flag_enabled("RNS8_HIP_PINNED_EXPORT_STAGING");
 }
 
 bool checked_i32_shape(int64_t rows, int64_t cols, int64_t ld, uint32_t prefix) {
@@ -753,14 +753,15 @@ hipError_t copy_compact_matrix_device_to_host(
     const void* src,
     int64_t rows,
     int64_t cols,
-    std::size_t cell_bytes) {
+    std::size_t cell_bytes,
+    bool default_padded_staging = true) {
   if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
       !checked_output_bytes(rows, dst_ld, cell_bytes)) {
     return hipErrorInvalidValue;
   }
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   const std::size_t compact_bytes = static_cast<std::size_t>(rows) * compact_row_bytes;
-  if (pinned_export_staging_enabled(compact_bytes, dst_ld != cols)) {
+  if (pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
     if (pinned) {
       hipError_t err = timed_hip_operation(label, [&]() {
@@ -1347,6 +1348,42 @@ rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void*
   (void)dst;
   (void)src;
   (void)bytes;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_copy_compact_matrix_device_to_host(
+    int device_id,
+    const char* timing_label,
+    void* dst,
+    int64_t dst_ld,
+    const void* src,
+    int64_t rows,
+    int64_t cols,
+    std::size_t cell_bytes,
+    bool default_padded_staging) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!timing_label) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const hipError_t err =
+      copy_compact_matrix_device_to_host(
+          device_id, timing_label, dst, dst_ld, src, rows, cols, cell_bytes, default_padded_staging);
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)timing_label;
+  (void)dst;
+  (void)dst_ld;
+  (void)src;
+  (void)rows;
+  (void)cols;
+  (void)cell_bytes;
+  (void)default_padded_staging;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
