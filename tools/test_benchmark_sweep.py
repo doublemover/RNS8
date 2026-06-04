@@ -190,6 +190,22 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     return capture
 
 
+def remove_gpu_events(capture: dict) -> None:
+    timing = capture["timing_metadata"]
+    timing["gpu_event_timing"] = False
+    timing["gpu_event_timing_reason"] = "backend_event_capture_incomplete"
+    timing["gpu_event_timing_status"] = "unavailable_missing_expected_events"
+    timing["gpu_event_timing_source"] = None
+    timing["gpu_event_timing_source_scope"] = None
+    timing["gpu_event_timing_caveat"] = None
+    timing["gpu_event_phase_order"] = None
+    timing["gpu_event_timing_unavailable_reasons"] = [
+        "rns_gemm missing backend HIP event label test_missing_event"
+    ]
+    capture["gpu_event_timings_us"] = None
+    capture["gpu_event_timing_summary_us"] = None
+
+
 def bounded_capture(backend: str, end_to_end: int) -> dict:
     capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json"))
     capture["_path"] = f"{backend}-bounded.json"
@@ -918,6 +934,15 @@ def main() -> int:
     assert group["missing_hip_runtime_versions"] == []
     assert group["hip_runtime_version_complete"] is True
     assert group["hip_runtime_version_compatible"] is True
+
+    eventless_ck = finite_capture("ck", 190)
+    remove_gpu_events(eventless_ck)
+    eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")
+    eventless_group = eventless_report["groups"][0]
+    assert eventless_report["promotable_autotune_entries"] == []
+    assert eventless_group["fastest_promotable"] is None
+    eventless_candidate = next(item for item in eventless_group["candidates"] if item["backend"] == "ck")
+    assert "missing_required_gpu_events" in eventless_candidate["promotion_blockers"]
     assert group["missing_hip_driver_versions"] == []
     assert group["hip_driver_version_complete"] is True
     assert group["hip_driver_version_compatible"] is True

@@ -306,6 +306,30 @@ make schema/cache evidence precise, but their speedups remain unreviewed until
 new release captures compare them against direct HIP and the historical
 same-modulus accelerator baselines end-to-end.
 
+A current-v2 finite-u8 release review on June 4, 2026 used seed `20260604` and
+covered 512 and 1024 for ring moduli 251, 255, and 256 plus field modulus 251.
+Each group included CPU reference, Direct HIP, hipBLASLt, CK, and rocWMMA
+release captures, and all groups had complete required baselines and compatible
+runtime/toolchain metadata. The review produced five event-valid cache entries:
+rocWMMA ring-251 at 1024 measured 1709 us versus Direct HIP at 4682 us, CK
+ring-255 at 1024 measured 1938 us versus Direct HIP at 5814 us, rocWMMA
+ring-256 at 512 measured 1365 us versus Direct HIP at 5569 us, hipBLASLt
+ring-256 at 1024 measured 1792 us versus Direct HIP at 12633 us, and CK
+field-251 at 1024 measured 1860 us versus Direct HIP at 10564 us. GPU event
+reports with `--fail-on-unavailable` passed for all five promoted source
+captures.
+
+The same review intentionally did not promote field-251 at 512 after tightening
+the release cache gate: hipBLASLt measured 1471 us versus Direct HIP at 1476 us,
+but the hipBLASLt capture had `gpu_event_timing_status:
+unavailable_missing_expected_events`. `benchmark_sweep.py` now adds
+`missing_required_gpu_events` to accelerator promotion blockers, so a raw timing
+near-tie without required backend events cannot become a `performance_validated`
+cache entry. Installing the four finite temp caches with
+`tools/install_autotune_cache.py` merged five finite entries into the existing
+default local runtime cache for six entries total, preserving the bounded-i64
+1024 hipBLASLt entry.
+
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 
 A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,

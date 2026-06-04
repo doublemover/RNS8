@@ -288,9 +288,12 @@ Remaining high-value imported work goes at the front of the queue:
   bounded-u64 adaptive cases remain blocked by vector/direct baselines. The
   reviewed adaptive winner uses the older tiled v1 identity and must be rerun
   before promotion under the current tiled v2 selected-kernel identity.
-- Finite-u8 has reviewed Windows `gfx1100` winners across ring 251, ring 255,
-  and field 251. rocWMMA wins most 64/128/512 groups, CK wins 1024 ring cases,
-  and hipBLASLt wins the 1024 field-251 group.
+- Finite-u8 has current Windows `gfx1100` v2 release-review winners for 512 and
+  1024 across ring 251/255/256 and field 251. Five event-valid entries are now
+  installed in the local default cache: ring-251 1024 rocWMMA, ring-255 1024 CK,
+  ring-256 512 rocWMMA, ring-256 1024 hipBLASLt, and field-251 1024 CK. The
+  field-251 512 hipBLASLt near-tie is deliberately not promoted because its GPU
+  event capture was incomplete.
 - Exact-wide reviewed Windows `gfx1100` winners are CK for signed 1024 and
   unsigned 128/512/1024. Other exact-wide reviewed shapes stay on direct HIP.
 - Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` is the
@@ -1910,19 +1913,20 @@ Relation to new architecture work:
 ### 30. Finite-u8
 
 Status: direct HIP has fixed-modulus pack, GEMM reduction, and export kernels
-for 251/255/256. CK and rocWMMA now expose common-modulus 251/255/256 selected
-kernel identities backed by shared reducer helpers. Reviewed accelerator
-winners already exist for ring 251, ring 255, and field 251 at
-64/128/512/1024, but those captures used the older generic accelerator
-identities; the v2 identities need fresh release review before promotion.
+for 251/255/256. CK and rocWMMA expose common-modulus 251/255/256 selected
+kernel identities backed by shared reducer helpers. The June 4, 2026 current-v2
+release review closed the 512/1024 promotion question for ring 251, ring 255,
+ring 256, and field 251: five event-valid accelerator entries beat Direct HIP
+and were installed in the local default cache; field-251 512 was not promoted
+because hipBLASLt event timing was incomplete.
 
 Technical direction:
 
 - Push finite reducer specialization into CK and rocWMMA epilogues.
 - Add `finite_u8_centered_plane_v2` with layout selected by backend and
   distribution.
-- Benchmark ring 251, ring 255, ring 256, field 251, generic prime, and
-  generic composite cases.
+- Extend the reviewed matrix to 64/128, 2048, generic prime, and generic
+  composite cases before assuming the 512/1024 split generalizes.
 - Include finite modulus and finite data profile in plan/autotune identity.
 - Keep finite semantics explicit: `RNS8_FINITE_RING_U8` is `Z/qZ`, while
   `RNS8_FINITE_FIELD_U8` is a prime-field `GF(p)` contract for `p <= 251`.
@@ -2495,10 +2499,9 @@ Relation to new architecture work:
   current v2 release review installed the 1024 hipBLASLt cache entry and left
   512 on Direct HIP.
 - Optimize exact-wide export before broadening exact-wide GEMM variants.
-- Close out finite-u8 CK/rocWMMA reducer specialization: common-modulus
-  251/255/256 v2 identities and reducer helpers are implemented, but the queue
-  still needs release review to decide whether any v2 accelerator entry beats
-  its direct-HIP or historical accelerator baseline end-to-end.
+- Extend finite-u8 CK/rocWMMA reducer specialization beyond the now-reviewed
+  512/1024 ring-251/ring-255/ring-256/field-251 matrix into 64/128, 2048,
+  generic prime, and generic composite cases.
 - Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
   candidate.
 

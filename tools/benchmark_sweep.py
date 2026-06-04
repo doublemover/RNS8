@@ -602,6 +602,7 @@ def promotion_blockers(
     internal_candidate: bool,
     prepacked_reuse: bool,
     oneshot_capture: bool,
+    gpu_events_available: bool,
     end_to_end: float | None,
     direct: float | None,
     vector: float | None,
@@ -657,6 +658,8 @@ def promotion_blockers(
         blockers.append("prepacked_reuse_not_autotune_promotable")
     if oneshot_capture:
         blockers.append("oneshot_api_capture_not_autotune_promotable")
+    if accelerator and not gpu_events_available:
+        blockers.append("missing_required_gpu_events")
     if end_to_end is None:
         blockers.append("missing_end_to_end_timing")
     if direct is None:
@@ -706,6 +709,16 @@ def bottleneck_classification(capture: dict[str, Any]) -> dict[str, Any]:
         "phase": phase,
         "share": share,
     }
+
+
+def capture_gpu_events_available(capture: dict[str, Any]) -> bool:
+    timing = capture_timing_metadata(capture)
+    return (
+        timing.get("gpu_event_timing") is True
+        and timing.get("gpu_event_timing_status") == "available"
+        and bool(timing.get("gpu_event_timing_source"))
+        and isinstance(timing.get("gpu_event_phase_order"), list)
+    )
 
 
 def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
@@ -849,6 +862,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
                 oneshot_capture=oneshot_capture,
+                gpu_events_available=capture_gpu_events_available(item),
                 end_to_end=end_to_end,
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
