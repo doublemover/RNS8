@@ -121,6 +121,7 @@ NON_RNS_PREFIX_SEMANTICS = {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2
 DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_default_stream_backend_operation_groups",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
     "direct_hip_oneshot_default_stream_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
 }
@@ -285,6 +286,7 @@ BENCHMARK_EXECUTION_MODES = {
     "public_oneshot_transient_native_inputs",
     "benchmark_owned_vector_alu_native_buffers",
     "public_runtime_vector_alu_native_buffers",
+    "auto_native_to_rns_bridge",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
@@ -518,6 +520,13 @@ class _Validator:
             and self.data.get("prepack_reuse_strategy") == "none"
             and self._benchmark_execution_mode() == "transient_uniform_small_i8_ab_inputs"
             and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
+        )
+
+    def _is_direct_hip_native_to_rns_bridge_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self._benchmark_execution_mode() == "auto_native_to_rns_bridge"
         )
 
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
@@ -2172,6 +2181,18 @@ class _Validator:
                     self._error(f"{semantics} runtime vector captures must use packed_layout_version={expected_native_layout}")
             elif packed_layout is not None:
                 self._error(f"{semantics} captures must use packed_layout_version=null")
+            if self._is_direct_hip_native_to_rns_bridge_capture():
+                metadata = self.data.get("timing_metadata")
+                if self.data.get("benchmark") != "rns8_bounded_gemm_native_to_rns_bridge":
+                    self._error("native-to-RNS bridge captures must use benchmark=rns8_bounded_gemm_native_to_rns_bridge")
+                if self.data.get("backend_requested") != "auto":
+                    self._error("native-to-RNS bridge captures must use backend_requested=auto")
+                if self.data.get("pack_mode") != "per_repeat_repack":
+                    self._error("native-to-RNS bridge captures must use pack_mode=per_repeat_repack")
+                if self.data.get("reuse_packed_inputs") is not False:
+                    self._error("native-to-RNS bridge captures must not use packed-input reuse")
+                if isinstance(metadata, dict) and metadata.get("native_to_rns_bridge_forced") is not True:
+                    self._error("native-to-RNS bridge captures must set timing_metadata.native_to_rns_bridge_forced=true")
             if residue_chain_length > 1:
                 expected_epilogue_type = "residue_current_rns_output"
                 if residue_output_mode != "residue_current_rns":
@@ -2199,7 +2220,11 @@ class _Validator:
                 if self.data.get("backend_selected") == "hip-direct" and not oneshot_capture:
                     metadata = self.data.get("timing_metadata")
                     if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
-                        expected_scope = "direct_hip_default_stream_backend_operation_groups"
+                        expected_scope = (
+                            "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+                            if self._is_direct_hip_native_to_rns_bridge_capture()
+                            else "direct_hip_default_stream_backend_operation_groups"
+                        )
                         if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
                 if self.data.get("backend_selected") == "hipblaslt":
@@ -3226,6 +3251,41 @@ class _Validator:
                     self._error(
                         "direct-HIP bounded native-B reuse-A GPU event phase order must match the operation order"
                     )
+            return
+        if self._is_direct_hip_native_to_rns_bridge_capture():
+            conversion_event = (
+                "native_i64_to_rns_kernel"
+                if self.data.get("semantics") == "bounded_i64"
+                else "native_u64_to_rns_kernel"
+            )
+            expected = [
+                "pack_h2d",
+                "pack_kernel",
+                "pack",
+                conversion_event,
+                "rns_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(
+                        "direct-HIP native-to-RNS bridge GPU event phase set is incomplete; "
+                        f"missing {', '.join(missing)}"
+                    )
+                if extra:
+                    self._error(
+                        "direct-HIP native-to-RNS bridge GPU event phase set contains undeclared phases: "
+                        f"{', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error("direct-HIP native-to-RNS bridge GPU event phase order must match the operation order")
             return
         if self.data.get("semantics") == "wrap_u64_mod_2_64" and backend == "hip-direct":
             expected = [

@@ -124,6 +124,7 @@ struct Args {
   bool reuse_packed_inputs = false;
   bool reuse_packed_a = false;
   bool reuse_packed_b = false;
+  bool native_to_rns_bridge = false;
 };
 
 struct TimingSamples {
@@ -238,6 +239,7 @@ uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& resu
       << "                  [--require-adaptive-execution]\n"
       << "                  [--oneshot]\n"
       << "                  [--transient-uniform-small-inputs]\n"
+      << "                  [--native-to-rns-bridge]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -479,6 +481,8 @@ Args parse_args(int argc, char** argv) {
     } else if (arg == "--transient-uniform-small-inputs" ||
                arg == "--transient-uniform-small-i8-inputs") {
       args.transient_uniform_small_inputs = true;
+    } else if (arg == "--native-to-rns-bridge" || arg == "--force-native-to-rns-bridge") {
+      args.native_to_rns_bridge = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -508,6 +512,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--require-adaptive-execution]\n"
           << "                  [--oneshot]\n"
           << "                  [--transient-uniform-small-inputs]\n"
+          << "                  [--native-to-rns-bridge]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -558,6 +563,24 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.reuse_packed_inputs && args.vector_alu_baseline) {
     usage_error("--reuse-packed-inputs is only valid for persistent matrix benchmark paths");
+  }
+  if (args.native_to_rns_bridge) {
+    if (!bounded_benchmark_semantics(args.semantics)) {
+      usage_error("--native-to-rns-bridge is only valid for bounded-i64 or bounded-u64 semantics");
+    }
+    if (args.backend != RNS8_BACKEND_AUTO) {
+      usage_error("--native-to-rns-bridge requires --backend auto so the AUTO/direct-HIP conversion hook is active");
+    }
+    if (args.bound_mode != BoundMode::Global) {
+      usage_error("--native-to-rns-bridge currently requires --bound-mode global");
+    }
+    if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
+        args.transient_uniform_small_inputs || args.wrap64_rocwmma_candidate) {
+      usage_error("--native-to-rns-bridge cannot be combined with one-shot, reuse, vector-baseline, transient, or wrap64 modes");
+    }
+    if (args.residue_chain_length != 1) {
+      usage_error("--native-to-rns-bridge cannot be combined with --residue-chain-length > 1");
+    }
   }
   if (args.transient_uniform_small_inputs) {
     if (!bounded_benchmark_semantics(args.semantics)) {
@@ -884,6 +907,10 @@ bool runtime_vector_alu_backend(const Args& args) {
   return !args.vector_alu_baseline && args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
 }
 
+bool native_to_rns_bridge_requested(const Args& args) {
+  return args.native_to_rns_bridge;
+}
+
 bool oneshot_benchmark_mode(const Args& args) {
   return args.oneshot;
 }
@@ -897,6 +924,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (runtime_vector_alu_backend(args)) {
     return "public_runtime_vector_alu_native_buffers";
+  }
+  if (native_to_rns_bridge_requested(args)) {
+    return "auto_native_to_rns_bridge";
   }
   if (args.wrap64_rocwmma_candidate) {
     return "internal_wrap64_rocwmma_candidate";
@@ -1055,6 +1085,16 @@ std::vector<std::string> prepack_reuse_operands(const Args& args) {
 }
 
 void fail_status(const char* label, rns8_status status);
+
+void force_native_to_rns_bridge_after_pack(const Args& args, rns8_matrix* a_matrix, rns8_matrix* b_matrix) {
+  if (!native_to_rns_bridge_requested(args)) {
+    return;
+  }
+  const rns8_status status = rns8::detail::force_native_to_rns_bridge_inputs(a_matrix, b_matrix);
+  if (status != RNS8_SUCCESS) {
+    fail_status("force_native_to_rns_bridge_inputs", status);
+  }
+}
 
 const char* prepack_reuse_strategy_name(PrepackReuseStrategy strategy) {
   switch (strategy) {
@@ -1969,6 +2009,10 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, const Args& args) {
   return matrix_desc(rows, cols, args, benchmark_prefix(args));
 }
 
+rns8_backend_kind requested_backend_for_plan_desc(const Args& args) {
+  return native_to_rns_bridge_requested(args) ? RNS8_BACKEND_HIP_DIRECT : args.backend;
+}
+
 rns8_gemm_desc gemm_desc(
     const Args& args,
     uint64_t bound,
@@ -1980,7 +2024,7 @@ rns8_gemm_desc gemm_desc(
   desc.abi_version = RNS8_ABI_VERSION;
   desc.semantics = c_semantics(args.semantics);
   desc.bound_kind = bound_kind(args);
-  desc.requested_backend = args.backend;
+  desc.requested_backend = requested_backend_for_plan_desc(args);
   desc.m = args.m;
   desc.n = args.n;
   desc.k = args.k;
@@ -3007,6 +3051,19 @@ const char* wrap64_direct_hip_gemm_event_label(const Args& args) {
   return rns8::detail::wrap64_hip_gemm_event_label_for_shape(args.m, args.n, args.k);
 }
 
+const char* native_to_rns_bridge_event_label(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedI64 ? "native_i64_to_rns_kernel" : "native_u64_to_rns_kernel";
+}
+
+bool native_to_rns_bridge_path(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  return native_to_rns_bridge_requested(args) && bounded_benchmark_semantics(args.semantics) &&
+         selected_backend == RNS8_BACKEND_HIP_DIRECT && result.backend_info_available &&
+         result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -3170,7 +3227,11 @@ std::vector<std::string> gpu_event_phase_order(
         "pack",
         gemm_phase};
   } else {
-    phases = {"pack_h2d", "pack_kernel", "pack", gemm_phase};
+    phases = {"pack_h2d", "pack_kernel", "pack"};
+    if (native_to_rns_bridge_path(args, result, selected_backend)) {
+      phases.push_back(native_to_rns_bridge_event_label(args));
+    }
+    phases.push_back(gemm_phase);
   }
   if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {
     phases.push_back("direct_hip_zero_output_tile_memset");
@@ -3485,6 +3546,20 @@ void collect_gemm_gpu_events(
   }
 }
 
+void collect_native_to_rns_bridge_gemm_gpu_events(
+    const Args& args,
+    GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* conversion_label = native_to_rns_bridge_event_label(args);
+  const double conversion = sum_event_label(events, samples, "rns_gemm", conversion_label);
+  const double kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  if (events.complete) {
+    push_gpu_event_value(events, conversion_label, conversion);
+    push_gpu_event_value(events, "rns_gemm_kernel_group", kernel_group);
+    push_gpu_event_value(events, "rns_gemm", conversion + kernel_group);
+  }
+}
+
 void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const double kernel = sum_event_label(events, samples, "rns_gemm", "finite_resident_gemm_kernel");
@@ -3774,6 +3849,8 @@ void collect_rns_gemm_gpu_events(
     collect_vector_alu_gemm_gpu_events(args, events);
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     collect_finite_direct_gemm_gpu_events(events);
+  } else if (native_to_rns_bridge_path(args, result, selected_backend)) {
+    collect_native_to_rns_bridge_gemm_gpu_events(args, events);
   } else {
     collect_gemm_gpu_events(
         result,
@@ -4593,6 +4670,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     } else {
       begin_gpu_event_phase(collect_gpu_events);
       pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -4969,6 +5047,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else {
       begin_gpu_event_phase(collect_gpu_events);
       pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -5978,6 +6057,9 @@ const char* benchmark_name(const Args& args) {
   if (runtime_vector_alu_backend(args)) {
     return "rns8_bounded_gemm_hip_vector_alu_int64_runtime";
   }
+  if (native_to_rns_bridge_requested(args)) {
+    return "rns8_bounded_gemm_native_to_rns_bridge";
+  }
   if (bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "rns8_bounded_gemm_transient_uniform_small_i8";
   }
@@ -6171,6 +6253,8 @@ void print_json(
   const bool vector_alu_events = gpu_events_available && selected_backend_string == "hip-vector-alu-int64";
   const bool oneshot_hip_events =
       gpu_events_available && args.oneshot && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT;
+  const bool native_to_rns_bridge_events =
+      gpu_events_available && native_to_rns_bridge_path(args, result, selected_backend_kind);
   const bool all_zero_direct_hip_pack_elided =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend_kind);
   const char* gpu_event_reason = "backend_has_no_gpu_event_hooks";
@@ -6205,6 +6289,13 @@ void print_json(
           "kernel group, and logical export operation groups; host wall-clock timings remain required for plan creation, "
           "transient allocations, API dispatch, CPU scheduling, teardown, and synchronous host-side overhead not "
           "represented on the HIP stream\"";
+    } else if (native_to_rns_bridge_events) {
+      gpu_event_reason = "captured_by_direct_hip_native_to_rns_bridge_hooks";
+      gpu_event_scope = "\"direct_hip_native_to_rns_bridge_default_stream_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record direct-HIP pack/export operation groups plus the forced native-to-RNS "
+          "device conversion kernels inside rns_gemm; host wall-clock timings remain required for API dispatch, "
+          "CPU scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
     } else if (hipblaslt_events) {
       gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
       gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
@@ -6618,6 +6709,12 @@ void print_json(
                  "per-tile bounded capture; raw_timings_us.pack is zero because exact tile-bound scheduling "
                  "proved every output tile zero before measurement, so the backend materializes resident RNS "
                  "zero output without reading A or B\",\n";
+  } else if (native_to_rns_bridge_requested(args)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for an explicit AUTO/direct-HIP native-to-RNS "
+                 "bridge benchmark; each measured repeat packs bounded inputs into direct-HIP matrices, forces "
+                 "resident RNS input residues stale while keeping native device buffers current, runs the existing "
+                 "native-to-RNS conversion kernels inside rns8_gemm_rns, then runs the normal direct-HIP RNS GEMM "
+                 "and CRT export\",\n";
   } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
@@ -6694,6 +6791,8 @@ void print_json(
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
+  std::cout << "    \"native_to_rns_bridge_forced\": "
+            << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";
   std::cout << "    \"direct_hip_export_staging_policy\": \""
             << direct_hip_export_staging_policy(args, selected_backend_kind) << "\",\n";
   std::cout << "    \"direct_hip_pinned_export_staging_threshold_bytes\": "
@@ -6794,6 +6893,10 @@ void print_json(
     std::cout << "      \"pack\": \"zero-valued per-repeat phase; exact per-tile input scanning proved every output tile zero, so direct-HIP does not pack or read A/B for this capture\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for direct-HIP all-zero resident RNS output materialization\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for exporting the already-zero direct-HIP output\",\n";
+  } else if (native_to_rns_bridge_requested(args)) {
+    std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into direct-HIP matrices with both RNS residues and native device buffers populated\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for forced native-to-RNS device conversion of A and B followed by direct-HIP rns8_gemm_rns\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for CRT export/reconstruction into logical output\",\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent matrices before warmups\",\n";
@@ -6861,6 +6964,8 @@ void print_json(
     std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public one-shot API call\"\n";
   } else if (all_zero_direct_hip_pack_elided) {
     std::cout << "      \"end_to_end\": \"per-repeat direct-HIP all-zero output materialization plus export host timing; pack is intentionally elided by the trusted all-zero schedule\"\n";
+  } else if (native_to_rns_bridge_requested(args)) {
+    std::cout << "      \"end_to_end\": \"per-repeat pack plus native-to-RNS input conversion plus direct-HIP rns_gemm plus crt_export host timing\"\n";
   } else if (args.reuse_packed_inputs) {
     if (reuses_all_packed_inputs(args)) {
       std::cout << "      \"end_to_end\": \"per-repeat rns_gemm plus crt_export host timing; excludes one-time prepack_setup_us\"\n";
@@ -6917,6 +7022,14 @@ void print_json(
                            : "benchmark mode packs A and B inside every measured repeat"))
             << "\"\n";
   std::cout << "      },\n";
+  if (native_to_rns_bridge_requested(args)) {
+    std::cout << "      \"native_to_rns_bridge\": {\n";
+    std::cout << "        \"timed\": true,\n";
+    std::cout << "        \"timing_key\": \"rns_gemm\",\n";
+    std::cout << "        \"scope\": \"device_native_to_rns_conversion_inside_rns_gemm\",\n";
+    std::cout << "        \"reason\": \"measured as explicit native_i64_to_rns_kernel or native_u64_to_rns_kernel GPU event phases inside rns_gemm\"\n";
+    std::cout << "      },\n";
+  }
   std::cout << "      \"reduction\": {\n";
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     std::cout << "        \"timed\": false,\n";

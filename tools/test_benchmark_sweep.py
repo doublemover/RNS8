@@ -749,6 +749,33 @@ def main() -> int:
         for entry in finite_generic_entries
     )
 
+    bridge_args = copy.copy(scenario_args)
+    bridge_args.backends = None
+    bridge_args.bench_for = ["hip-direct=hip-direct-release-bench"]
+    bridge_args.scenario = ["native-to-rns-bridge"]
+    bridge_entries = benchmark_sweep.sweep_command_entries(bridge_args)
+    assert len(bridge_entries) == 4
+    assert {entry.scenario["name"] for entry in bridge_entries} == {
+        "bounded-i64-64",
+        "bounded-u64-64",
+        "bounded-i64-128",
+        "bounded-u64-128",
+    }
+    assert {entry.scenario["backend"] for entry in bridge_entries} == {"auto"}
+    assert all(entry.command[0] == "hip-direct-release-bench" for entry in bridge_entries)
+    assert all(entry.command[entry.command.index("--backend") + 1] == "auto" for entry in bridge_entries)
+    assert all("--native-to-rns-bridge" in entry.command for entry in bridge_entries)
+    assert all("--reuse-packed-inputs" not in entry.command for entry in bridge_entries)
+    assert all(entry.scenario["native_to_rns_bridge"] is True for entry in bridge_entries)
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "native_to_rns_bridge"
+        for entry in bridge_entries
+    )
+    assert any(
+        entry.scenario.get("metadata", {}).get("conversion_event_required") == "native_u64_to_rns_kernel"
+        for entry in bridge_entries
+    )
+
     algebra_args = copy.copy(scenario_args)
     algebra_args.backends = ["ck"]
     algebra_args.scenario = ["computational-algebra-proxies"]

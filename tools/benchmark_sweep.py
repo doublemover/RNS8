@@ -78,6 +78,7 @@ class ScenarioItem:
     residue_chain_length: int = 1
     output_ld_padding: int = 0
     oneshot: bool = False
+    native_to_rns_bridge: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None
@@ -1467,6 +1468,80 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 },
             ),
         ],
+        "native-to-rns-bridge": [
+            ScenarioItem(
+                "native-to-rns-bridge",
+                "bounded-i64-64",
+                "bounded-i64",
+                small_64,
+                "AUTO requested plan forced through Direct-HIP native-to-RNS conversion before RNS GEMM",
+                "host_export",
+                "turns the native-device-buffer to RNS consumer bridge into a schema-visible executable capture",
+                backends=("auto",),
+                native_to_rns_bridge=True,
+                metadata={
+                    "workflow_name": "native_to_rns_bridge",
+                    "bridge_role": "device_native_to_rns_consumer_path",
+                    "conversion_event_required": "native_i64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "native-to-rns-bridge",
+                "bounded-u64-64",
+                "bounded-u64",
+                small_64,
+                "AUTO requested plan forced through Direct-HIP native-to-RNS conversion before RNS GEMM",
+                "host_export",
+                "keeps the strong native bounded-u64 family connected to an explicit RNS consumer path",
+                backends=("auto",),
+                native_to_rns_bridge=True,
+                metadata={
+                    "workflow_name": "native_to_rns_bridge",
+                    "bridge_role": "device_native_to_rns_consumer_path",
+                    "conversion_event_required": "native_u64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "native-to-rns-bridge",
+                "bounded-i64-128",
+                "bounded-i64",
+                small_128,
+                "AUTO requested plan forced through Direct-HIP native-to-RNS conversion before RNS GEMM",
+                "host_export",
+                "checks that bridge timing remains event-visible beyond the tiniest smoke shape",
+                backends=("auto",),
+                native_to_rns_bridge=True,
+                metadata={
+                    "workflow_name": "native_to_rns_bridge",
+                    "bridge_role": "device_native_to_rns_consumer_path",
+                    "conversion_event_required": "native_i64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+            ScenarioItem(
+                "native-to-rns-bridge",
+                "bounded-u64-128",
+                "bounded-u64",
+                small_128,
+                "AUTO requested plan forced through Direct-HIP native-to-RNS conversion before RNS GEMM",
+                "host_export",
+                "checks the bounded-u64 bridge path at a shape large enough to expose conversion overhead",
+                backends=("auto",),
+                native_to_rns_bridge=True,
+                metadata={
+                    "workflow_name": "native_to_rns_bridge",
+                    "bridge_role": "device_native_to_rns_consumer_path",
+                    "conversion_event_required": "native_u64_to_rns_kernel",
+                    "selected_backend_requirement": "hip-direct",
+                    "promotion_scope": "execution_path_evidence",
+                },
+            ),
+        ],
         "rns-chain": [
             ScenarioItem(
                 "rns-chain",
@@ -2225,6 +2300,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
     scenario_args.residue_chain_length = item.residue_chain_length
     scenario_args.output_ld_padding = item.output_ld_padding
+    scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -2265,6 +2341,7 @@ def scenario_metadata(
         "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
         "residue_chain_length": item.residue_chain_length,
         "output_ld_padding": item.output_ld_padding,
+        "native_to_rns_bridge": item.native_to_rns_bridge,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -2404,6 +2481,8 @@ def command_for(
         command.append("--reuse-packed-a")
     elif pack_mode == "prepacked_reuse_b":
         command.append("--reuse-packed-b")
+    if getattr(args, "native_to_rns_bridge", False):
+        command.append("--native-to-rns-bridge")
     return command
 
 
@@ -2571,7 +2650,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
         for modulus in finite_moduli:
             for exact_wide_limb_count in exact_wide_counts:
                 for backend in backends:
-                    if not backend_allowed_for(item.semantics, item.case, backend):
+                    if not item.native_to_rns_bridge and not backend_allowed_for(item.semantics, item.case, backend):
                         continue
                     if (
                         item.residue_chain_length > 1
@@ -2579,7 +2658,11 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         and backend in {"auto", "hip-vector-alu-int64"}
                     ):
                         continue
-                    bench = backend_benches.get(backend, args.bench)
+                    bench = backend_benches.get(backend)
+                    if bench is None and item.native_to_rns_bridge and backend == "auto":
+                        bench = backend_benches.get("hip-direct")
+                    if bench is None:
+                        bench = args.bench
                     if bench is None:
                         raise SystemExit(f"no benchmark executable configured for backend {backend}")
                     base_name = capture_name(

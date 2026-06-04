@@ -142,6 +142,131 @@ def add_global_bound_scan_fields(capture: dict) -> dict:
     return capture
 
 
+def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dict:
+    bridge = copy.deepcopy(capture)
+    bridge["benchmark"] = "rns8_bounded_gemm_native_to_rns_bridge"
+    bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+    bridge["backend_requested"] = "auto"
+    bridge["backend_selected"] = "hip-direct"
+    bridge["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    bridge["bound_kind"] = "global_max_abs" if bridge["semantics"] == "bounded_i64" else "global_max_unsigned"
+    bridge["bound_mode"] = "global"
+    bridge["bound"] = 16384
+    bridge["tile_bounds_u64"] = None
+    bridge["reuse_packed_inputs"] = False
+    bridge["pack_mode"] = "per_repeat_repack"
+    bridge["prepack_reuse_operands"] = []
+    bridge["prepack_reuse_strategy"] = "none"
+    bridge["prepack_setup_us"] = None
+    bridge["avg_prepack_setup_us"] = None
+    bridge["command_line"] = (
+        "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
+        "--native-to-rns-bridge --warmups 1 --repeats 3 --seed 7"
+    )
+    bridge["timing_note"] = (
+        "host wall-clock timings for an explicit AUTO/direct-HIP native-to-RNS bridge benchmark"
+    )
+    bridge.pop("tile_bound_scan_us", None)
+    bridge.pop("avg_tile_bound_scan_us", None)
+
+    schedule = bridge["schedule_metadata"]
+    schedule["tile_rows"] = 1
+    schedule["tile_cols"] = 1
+    schedule["tile_count"] = 1
+    schedule["min_required_prefix"] = bridge["prefix"]
+    schedule["max_required_prefix"] = bridge["prefix"]
+    schedule["min_selected_prefix"] = bridge["prefix"]
+    schedule["max_selected_prefix"] = bridge["prefix"]
+    schedule["prefix_group_count"] = 1
+    schedule["adaptive_prefix_active"] = False
+    schedule["adaptive_skip_active"] = False
+    schedule["adaptive_execution_applied"] = False
+    schedule["range_bit_length"] = 32
+    schedule["zero_output_tile_count"] = 0
+    schedule["zero_output_tile_fraction"] = 0.0
+    schedule["zero_output_skip_active"] = False
+
+    metadata = bridge["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+    metadata["pack_mode"] = "per_repeat_repack"
+    metadata["native_to_rns_bridge_forced"] = True
+    metadata["prepack_reuse_operands"] = []
+    metadata["prepack_reuse_strategy"] = "none"
+    metadata["gpu_event_timing_reason"] = "captured_by_direct_hip_native_to_rns_bridge_hooks"
+    metadata["gpu_event_timing_source_scope"] = "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+    metadata["gpu_event_timing_caveat"] = (
+        "HIP event timings record direct-HIP pack/export operation groups plus forced native-to-RNS conversion"
+    )
+    metadata["phase_order"] = [
+        "planning",
+        "scheduling",
+        "matrix_alloc",
+        "pack",
+        "rns_gemm",
+        "crt_export",
+        "end_to_end",
+    ]
+    metadata["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for forced native-to-RNS device conversion of A and B followed by direct-HIP rns8_gemm_rns"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "per-repeat pack plus native-to-RNS input conversion plus direct-HIP rns_gemm plus crt_export host timing"
+    )
+    metadata["phase_availability"].pop("tile_bound_scan", None)
+    metadata["phase_availability"]["prepack_setup"] = {
+        "timed": False,
+        "timing_key": None,
+        "scope": "not_requested_per_repeat_repack",
+        "reason": "benchmark mode packs A and B inside every measured repeat",
+    }
+    metadata["phase_availability"]["native_to_rns_bridge"] = {
+        "timed": True,
+        "timing_key": "rns_gemm",
+        "scope": "device_native_to_rns_conversion_inside_rns_gemm",
+        "reason": "measured as an explicit native-to-RNS GPU event phase inside rns_gemm",
+    }
+
+    bridge["raw_timings_us"].pop("tile_bound_scan", None)
+    bridge["timing_summary_us"].pop("tile_bound_scan", None)
+    bridge["per_modulus_gemm_estimate_applicable"] = True
+    bridge["avg_per_modulus_gemm_estimate_us"] = bridge["avg_rns_gemm_us"] / float(bridge["prefix"])
+
+    backend_metadata = bridge["backend_metadata"]
+    backend_metadata["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
+    backend_metadata["workspace_mode"] = "resident_device_buffers"
+    backend_metadata["autotune_key"] = (
+        "backend=hip-direct;target_id=gfx1100;semantics=bounded_i64;m=65;n=65;k=64;"
+        "prefix=9;tile_m=64;tile_n=64;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;"
+        "accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;"
+        "kernel=direct_hip_tiled_rns_gemm_v1;epilogue=fused_centered_residue_then_crt_export"
+    )
+
+    phases = [
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        conversion_event,
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+    ]
+    metadata["gpu_event_phase_order"] = phases
+    bridge["gpu_event_timings_us"][conversion_event] = [2.0 for _ in range(bridge["repeats"])]
+    bridge["gpu_event_timings_us"]["rns_gemm"] = [
+        value + 2.0 for value in bridge["gpu_event_timings_us"]["rns_gemm_kernel_group"]
+    ]
+    bridge["gpu_event_timings_us"] = {phase: bridge["gpu_event_timings_us"][phase] for phase in phases}
+    bridge["gpu_event_timing_summary_us"] = {
+        phase: summary(values) for phase, values in bridge["gpu_event_timings_us"].items()
+    }
+    return bridge
+
+
 def add_per_tile_input_scan_fields(capture: dict) -> dict:
     capture["bound_source"] = "input_scan"
     capture["bound_discovery"] = {
@@ -1332,6 +1457,43 @@ def main() -> int:
         "autotune_key"
     ].replace("kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1")
     expect_invalid(stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+
+    native_to_rns_bridge = as_native_to_rns_bridge_capture(v4_adaptive_i64, "native_i64_to_rns_kernel")
+    validate_capture(native_to_rns_bridge)
+
+    missing_native_to_rns_event = copy.deepcopy(native_to_rns_bridge)
+    missing_native_to_rns_event["timing_metadata"]["gpu_event_phase_order"].remove("native_i64_to_rns_kernel")
+    del missing_native_to_rns_event["gpu_event_timings_us"]["native_i64_to_rns_kernel"]
+    del missing_native_to_rns_event["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"]
+    expect_invalid(
+        missing_native_to_rns_event,
+        "direct-HIP native-to-RNS bridge GPU event phase set is incomplete",
+    )
+
+    stale_native_to_rns_label = copy.deepcopy(native_to_rns_bridge)
+    phases = stale_native_to_rns_label["timing_metadata"]["gpu_event_phase_order"]
+    phases[phases.index("native_i64_to_rns_kernel")] = "native_u64_to_rns_kernel"
+    stale_native_to_rns_label["gpu_event_timings_us"]["native_u64_to_rns_kernel"] = (
+        stale_native_to_rns_label["gpu_event_timings_us"].pop("native_i64_to_rns_kernel")
+    )
+    stale_native_to_rns_label["gpu_event_timing_summary_us"]["native_u64_to_rns_kernel"] = (
+        stale_native_to_rns_label["gpu_event_timing_summary_us"].pop("native_i64_to_rns_kernel")
+    )
+    expect_invalid(
+        stale_native_to_rns_label,
+        "direct-HIP native-to-RNS bridge GPU event phase set is incomplete",
+    )
+
+    stale_native_to_rns_request = copy.deepcopy(native_to_rns_bridge)
+    stale_native_to_rns_request["backend_requested"] = "hip-direct"
+    expect_invalid(stale_native_to_rns_request, "native-to-RNS bridge captures must use backend_requested=auto")
+
+    stale_native_to_rns_metadata = copy.deepcopy(native_to_rns_bridge)
+    stale_native_to_rns_metadata["timing_metadata"]["native_to_rns_bridge_forced"] = False
+    expect_invalid(
+        stale_native_to_rns_metadata,
+        "native-to-RNS bridge captures must set timing_metadata.native_to_rns_bridge_forced=true",
+    )
 
     padded_output = add_output_padding_fields(copy.deepcopy(v4_ck_i64), 7)
     validate_capture(padded_output)

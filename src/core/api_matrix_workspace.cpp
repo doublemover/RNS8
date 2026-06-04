@@ -1323,6 +1323,36 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
 
 using namespace rns8::detail::api;
 
+namespace rns8::detail {
+
+rns8_status force_native_to_rns_bridge_inputs(rns8_matrix* a_matrix, rns8_matrix* b_matrix) {
+  return api::guard_api([&]() -> rns8_status {
+    if (!a_matrix || !b_matrix) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const auto force_one = [](rns8_matrix& matrix) -> bool {
+      if (matrix.backend != RNS8_BACKEND_HIP_DIRECT ||
+          (matrix.desc.semantics != RNS8_BOUNDED_I64 && matrix.desc.semantics != RNS8_BOUNDED_U64) ||
+          !api::bounded_native_storage_matches(matrix, matrix.desc.semantics, matrix.desc.rows, matrix.desc.cols) ||
+          !api::bounded_native_state_current(matrix)) {
+        return false;
+      }
+      matrix.host_residues_current = false;
+      matrix.device_residues_current = false;
+      matrix.host_byte_limbs_current = false;
+      matrix.device_byte_limbs_current = false;
+      return true;
+    };
+    if (a_matrix->desc.semantics != b_matrix->desc.semantics ||
+        !force_one(*a_matrix) || !force_one(*b_matrix)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return RNS8_SUCCESS;
+  });
+}
+
+}  // namespace rns8::detail
+
 rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8_workspace** out) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !out) {
