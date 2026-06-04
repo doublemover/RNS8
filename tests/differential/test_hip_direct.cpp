@@ -13,6 +13,7 @@
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
+#include "core/backend_common.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
 
@@ -4596,6 +4597,184 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
   rns8_destroy_context(vector);
   rns8_destroy_context(cpu);
+}
+
+TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for vector-to-RNS bridge smoke");
+  }
+
+  rns8_context* vector = create_context(RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  {
+    constexpr int64_t m = 2;
+    constexpr int64_t k0 = 3;
+    constexpr int64_t bridge_k = 2;
+    constexpr int64_t n = 2;
+    const std::vector<int64_t> A = {2, -3, 5, -7, 11, 13};
+    const std::vector<int64_t> B = {17, -19, 23, 29, -31, 37};
+    const std::vector<int64_t> D = {3, -5, 7, 11};
+    std::vector<int64_t> expected_first(static_cast<std::size_t>(m * bridge_k), 0);
+    std::vector<int64_t> expected(static_cast<std::size_t>(m * n), 0);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < bridge_k; ++col) {
+        for (int64_t kk = 0; kk < k0; ++kk) {
+          expected_first[static_cast<std::size_t>(row * bridge_k + col)] +=
+              A[static_cast<std::size_t>(row * k0 + kk)] * B[static_cast<std::size_t>(kk * bridge_k + col)];
+        }
+      }
+    }
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        for (int64_t kk = 0; kk < bridge_k; ++kk) {
+          expected[static_cast<std::size_t>(row * n + col)] +=
+              expected_first[static_cast<std::size_t>(row * bridge_k + kk)] *
+              D[static_cast<std::size_t>(kk * n + col)];
+        }
+      }
+    }
+
+    auto vector_desc = signed_desc(m, bridge_k, k0, 100000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    auto hip_desc = signed_desc(m, n, bridge_k, 10000000, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* vector_plan = nullptr;
+    rns8_plan* hip_plan = nullptr;
+    rns8_workspace* vector_workspace = nullptr;
+    rns8_workspace* hip_workspace = nullptr;
+    rns8_matrix* vector_a = nullptr;
+    rns8_matrix* vector_b = nullptr;
+    rns8_matrix* vector_c = nullptr;
+    rns8_matrix* hip_a = nullptr;
+    rns8_matrix* hip_b = nullptr;
+    rns8_matrix* hip_c = nullptr;
+    REQUIRE(rns8_create_plan(vector, &vector_desc, &vector_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, vector_plan, &vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+    auto vector_a_desc = matrix_desc(m, k0, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto vector_b_desc = matrix_desc(k0, bridge_k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto vector_c_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto hip_a_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto hip_b_desc = matrix_desc(bridge_k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    auto hip_c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    REQUIRE(rns8_create_matrix(vector, &vector_a_desc, &vector_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &vector_b_desc, &vector_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &vector_c_desc, &vector_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_a_desc, &hip_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_b_desc, &hip_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_c_desc, &hip_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, vector_a, A.data(), k0, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(vector, vector_b, B.data(), bridge_k, 2) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(vector_c->device_native_current);
+    CHECK_FALSE(vector_c->device_residues_current);
+    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) == RNS8_SUCCESS);
+    CHECK(hip_a->device_residues_current);
+    CHECK_FALSE(hip_a->device_native_current);
+    CHECK(hip_a->source_version == vector_c->source_version);
+    REQUIRE(rns8_pack_i64(hip, hip_b, D.data(), n, 3) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+    std::vector<int64_t> out(static_cast<std::size_t>(m * n), 0);
+    REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, out.data(), n) == RNS8_SUCCESS);
+    CHECK(out == expected);
+
+    rns8_destroy_matrix(hip_c);
+    rns8_destroy_matrix(hip_b);
+    rns8_destroy_matrix(hip_a);
+    rns8_destroy_matrix(vector_c);
+    rns8_destroy_matrix(vector_b);
+    rns8_destroy_matrix(vector_a);
+    rns8_destroy_workspace(hip_workspace);
+    rns8_destroy_workspace(vector_workspace);
+    rns8_destroy_plan(hip_plan);
+    rns8_destroy_plan(vector_plan);
+  }
+
+  {
+    constexpr int64_t m = 2;
+    constexpr int64_t k0 = 2;
+    constexpr int64_t bridge_k = 2;
+    constexpr int64_t n = 3;
+    const std::vector<uint64_t> A = {2, 3, 5, 7};
+    const std::vector<uint64_t> B = {11, 13, 17, 19};
+    const std::vector<uint64_t> D = {23, 29, 31, 37, 41, 43};
+    std::vector<uint64_t> expected_first(static_cast<std::size_t>(m * bridge_k), 0);
+    std::vector<uint64_t> expected(static_cast<std::size_t>(m * n), 0);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < bridge_k; ++col) {
+        for (int64_t kk = 0; kk < k0; ++kk) {
+          expected_first[static_cast<std::size_t>(row * bridge_k + col)] +=
+              A[static_cast<std::size_t>(row * k0 + kk)] * B[static_cast<std::size_t>(kk * bridge_k + col)];
+        }
+      }
+    }
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        for (int64_t kk = 0; kk < bridge_k; ++kk) {
+          expected[static_cast<std::size_t>(row * n + col)] +=
+              expected_first[static_cast<std::size_t>(row * bridge_k + kk)] *
+              D[static_cast<std::size_t>(kk * n + col)];
+        }
+      }
+    }
+
+    auto vector_desc = unsigned_desc(m, bridge_k, k0, 100000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    auto hip_desc = unsigned_desc(m, n, bridge_k, 10000000, RNS8_BACKEND_HIP_DIRECT);
+    rns8_plan* vector_plan = nullptr;
+    rns8_plan* hip_plan = nullptr;
+    rns8_workspace* vector_workspace = nullptr;
+    rns8_workspace* hip_workspace = nullptr;
+    rns8_matrix* vector_a = nullptr;
+    rns8_matrix* vector_b = nullptr;
+    rns8_matrix* vector_c = nullptr;
+    rns8_matrix* hip_a = nullptr;
+    rns8_matrix* hip_b = nullptr;
+    rns8_matrix* hip_c = nullptr;
+    REQUIRE(rns8_create_plan(vector, &vector_desc, &vector_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(vector, vector_plan, &vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace) == RNS8_SUCCESS);
+    auto vector_a_desc = matrix_desc(m, k0, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto vector_b_desc = matrix_desc(k0, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto vector_c_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto hip_a_desc = matrix_desc(m, bridge_k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto hip_b_desc = matrix_desc(bridge_k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto hip_c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    REQUIRE(rns8_create_matrix(vector, &vector_a_desc, &vector_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &vector_b_desc, &vector_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &vector_c_desc, &vector_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_a_desc, &hip_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_b_desc, &hip_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &hip_c_desc, &hip_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, vector_a, A.data(), k0, 11) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, vector_b, B.data(), bridge_k, 12) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) == RNS8_SUCCESS);
+    REQUIRE(vector_c->device_native_current);
+    CHECK_FALSE(vector_c->device_residues_current);
+    REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) == RNS8_SUCCESS);
+    CHECK(hip_a->device_residues_current);
+    CHECK_FALSE(hip_a->device_native_current);
+    CHECK(hip_a->source_version == vector_c->source_version);
+    REQUIRE(rns8_pack_u64(hip, hip_b, D.data(), n, 13) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
+    std::vector<uint64_t> out(static_cast<std::size_t>(m * n), 0);
+    REQUIRE(rns8_export_u64(hip, hip_plan, hip_c, out.data(), n) == RNS8_SUCCESS);
+    CHECK(out == expected);
+
+    rns8_destroy_matrix(hip_c);
+    rns8_destroy_matrix(hip_b);
+    rns8_destroy_matrix(hip_a);
+    rns8_destroy_matrix(vector_c);
+    rns8_destroy_matrix(vector_b);
+    rns8_destroy_matrix(vector_a);
+    rns8_destroy_workspace(hip_workspace);
+    rns8_destroy_workspace(vector_workspace);
+    rns8_destroy_plan(hip_plan);
+    rns8_destroy_plan(vector_plan);
+  }
+
+  rns8_destroy_context(hip);
+  rns8_destroy_context(vector);
 }
 
 TEST_CASE("vector ALU native export range errors leave destination unchanged") {
