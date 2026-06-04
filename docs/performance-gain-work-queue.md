@@ -294,8 +294,11 @@ Remaining high-value imported work goes at the front of the queue:
   ring-256 512 rocWMMA, ring-256 1024 hipBLASLt, and field-251 1024 CK. The
   field-251 512 hipBLASLt near-tie is deliberately not promoted because its GPU
   event capture was incomplete.
-- Exact-wide reviewed Windows `gfx1100` winners are CK for signed 1024 and
-  unsigned 128/512/1024. Other exact-wide reviewed shapes stay on direct HIP.
+- Exact-wide has current Windows `gfx1100` v2 release-review winners for 512 and
+  1024. Three event-valid entries are installed in the local default cache:
+  signed 512 rocWMMA, signed 1024 hipBLASLt, and unsigned 1024 CK. Unsigned 512
+  stays on Direct HIP. Older 64/128 exact-wide evidence remains historical until
+  rerun with current selected-kernel identities.
 - Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` is the
   measured strict wrap64 GPU path for reviewed 64/128/512/1024 local
   `gfx1100` shapes. The internal rocWMMA wrap64 candidate matches
@@ -1957,9 +1960,12 @@ Relation to new architecture work:
 
 ### 31. Exact-Wide
 
-Status: CK has reviewed Windows `gfx1100` wins for exact-wide signed 1024 and
-unsigned 128/512/1024. Exact-wide signed 64/128/512 and unsigned 64 remain on
-direct HIP.
+Status: the June 4, 2026 current-v2 release review covered exact-wide signed
+and unsigned 512/1024. Signed 512 now promotes rocWMMA, signed 1024 promotes
+hipBLASLt, unsigned 1024 promotes CK, and unsigned 512 stays on Direct HIP. The
+three promoted entries are event-valid and installed in the local default cache.
+Older exact-wide 64/128 evidence remains historical until rerun with current
+selected-kernel identities.
 
 Technical direction:
 
@@ -2498,7 +2504,9 @@ Relation to new architecture work:
 - Finish bounded-i64 winner tuning for Direct HIP 512 and hipBLASLt 1024; the
   current v2 release review installed the 1024 hipBLASLt cache entry and left
   512 on Direct HIP.
-- Optimize exact-wide export before broadening exact-wide GEMM variants.
+- Continue exact-wide export tuning before broadening exact-wide GEMM variants;
+  the current 512/1024 v2 matrix is reviewed and installed, but 64/128, 2048,
+  limb-count variants, and chain/lazy-export workloads remain open.
 - Extend finite-u8 CK/rocWMMA reducer specialization beyond the now-reviewed
   512/1024 ring-251/ring-255/ring-256/field-251 matrix into 64/128, 2048,
   generic prime, and generic composite cases.

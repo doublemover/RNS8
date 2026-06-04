@@ -24,6 +24,9 @@ Scope:
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 512 ring-256 | rocWMMA | 1365 us median end-to-end; 4.08x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 1024 ring-256 | hipBLASLt | 1792 us median end-to-end; 7.05x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit modulus/shape key only; Windows `gfx1100` only |
 | 2026-06-04 | finite-u8 current-v2 release review | 20260604 | 1024 field-251 | CK | 1860 us median end-to-end; 5.68x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | field-251 512 not promoted because hipBLASLt GPU events were incomplete |
+| 2026-06-04 | exact-wide current-v2 release review | 20260604 | 512 signed | rocWMMA | 7162 us median end-to-end; 1.02x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | narrow win; Windows `gfx1100` only |
+| 2026-06-04 | exact-wide current-v2 release review | 20260604 | 1024 signed | hipBLASLt | 17092 us median end-to-end; 1.32x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | explicit exact-wide signed key only; Windows `gfx1100` only |
+| 2026-06-04 | exact-wide current-v2 release review | 20260604 | 1024 unsigned | CK | 20481 us median end-to-end; 1.22x vs Direct HIP | release reviewed local matrix; required GPU events available; default local cache installed | unsigned 512 stayed on Direct HIP |
 | 2026-06-03 | bounded-i64 one-shot release review | 20260603 | 512 | direct HIP | 2986 us median end-to-end; no accelerator win | release reviewed local snapshot | direct HIP retained for this snapshot; no cache installed |
 | 2026-06-03 | bounded-i64 one-shot release review | 20260603 | 1024 | CK | 9222 us median end-to-end; 1.04x vs direct HIP; 2.58x vs vector ALU | release reviewed local snapshot | promotable local candidate; cache not written in this run |
 | 2026-06-03 | bounded-i64 release matrix | 20260602 | 512 | rocWMMA | 2399 us median end-to-end; fastest promotable accelerator | release reviewed local matrix | same-day winner drift exists; rerun before durable cache install |
@@ -108,6 +111,32 @@ python tools\benchmark_sweep.py `
   --case ring256-1024:1024,1024,1024 `
   --write-autotune-cache `
   --autotune-cache temp\perf-work-queue\finite-u8-v2-release\ring256\autotune-cache.json
+```
+
+Current exact-wide v2 claims:
+
+```powershell
+python tools\benchmark_sweep.py `
+  --bench build\windows-msvc-hip-release\rns8-bench.exe `
+  --bench-for hipblaslt=build\windows-msvc-hipblaslt-release\rns8-bench.exe `
+  --bench-for ck=build\windows-msvc-ck-release\rns8-bench.exe `
+  --bench-for rocwmma=build\windows-msvc-rocwmma-release\rns8-bench.exe `
+  --out-root temp\perf-work-queue\exact-wide-v2-release `
+  --review-mode release `
+  --warmups 3 `
+  --repeats 9 `
+  --seed 20260604 `
+  --backend cpu `
+  --backend hip-direct `
+  --backend hipblaslt `
+  --backend ck `
+  --backend rocwmma `
+  --semantics exact-wide-signed `
+  --semantics exact-wide-unsigned `
+  --case exact-wide-512:512,512,512 `
+  --case exact-wide-1024:1024,1024,1024 `
+  --write-autotune-cache `
+  --autotune-cache temp\perf-work-queue\exact-wide-v2-release\autotune-cache.json
 ```
 
 Reuse/prepack comparisons:

@@ -75,6 +75,26 @@ field-251 512 had a tiny hipBLASLt timing edge at 1471 us versus 1476 us for
 Direct HIP but lacked required hipBLASLt GPU events, so it is not a validated
 cache win.
 
+## Exact-Wide Accelerator Wins
+
+The current exact-wide v2 release review covered signed and unsigned 512 and
+1024 with CPU reference, Direct HIP, hipBLASLt, CK, and rocWMMA. It used seed
+`20260604`, release builds, three warmups, nine repeats, and required GPU events
+for promoted accelerators. The sweep wrote three reviewed temp cache entries,
+and `tools/install_autotune_cache.py` merged them into the local default runtime
+cache without replacing the existing bounded-i64 or finite-u8 entries.
+
+| Contract | Shape | Current winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Decision |
+|---|---:|---|---:|---:|---:|---|
+| exact-wide signed | 512 | rocWMMA `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 7297 us | 1.02x | Current reviewed v2 cache entry installed locally |
+| exact-wide signed | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 22543 us | 1.32x | Current reviewed v2 cache entry installed locally |
+| exact-wide unsigned | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 25029 us | 1.22x | Current reviewed v2 cache entry installed locally |
+
+Exact-wide unsigned 512 remains on Direct HIP at 5710 us; the closest
+accelerator was rocWMMA at 8353 us. The signed 512 win is narrow and should be
+watched in future reruns, but it is release-reviewed, event-valid, and beats the
+same-contract Direct-HIP baseline in the current v2 matrix.
+
 ## Direct-HIP Implementation Wins
 
 These rows compare one Direct-HIP implementation against the previous
@@ -238,8 +258,9 @@ CRT export timing was lower in these captures.
 
 - Promote now: the current local default runtime cache contains the reviewed
   bounded-i64 1024 hipBLASLt v2 entry plus five current finite-u8 v2 entries
-  from the June 4, 2026 release sweeps. There is no bounded-i64 512 accelerator
-  entry; Direct HIP remains the current 512 bounded-i64 winner.
+  and three current exact-wide v2 entries from the June 4, 2026 release sweeps.
+  There is no bounded-i64 512 accelerator entry; Direct HIP remains the current
+  512 bounded-i64 winner.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and
   rocWMMA reuse/prepack wins. They are correct and event-visible, but they
   compare different reuse contracts and need workload-level promotion policy

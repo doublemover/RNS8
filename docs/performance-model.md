@@ -688,9 +688,11 @@ Current Windows release sweep status:
 - finite-u8 ring moduli 251 and 255 plus finite-u8 field modulus 251 have a
   local release-reviewed matrix with 12 reviewed cache candidates keyed by
   explicit modulus;
-- exact-wide signed/unsigned 64, 128, 512, and 1024 have a local
-  release-reviewed matrix with complete CPU/direct-HIP baselines and four
-  reviewed CK cache candidates: signed 1024 plus unsigned 128, 512, and 1024;
+- exact-wide signed/unsigned 512 and 1024 have a current local v2
+  release-reviewed matrix with complete CPU/direct-HIP baselines and three
+  event-valid cache candidates: signed 512 rocWMMA, signed 1024 hipBLASLt, and
+  unsigned 1024 CK; older 64/128 exact-wide evidence remains historical until
+  rerun with current selected-kernel identities;
 - strict wrap64 has local release-reviewed CPU/direct-HIP baselines for 64, 128,
   512, and 1024; the matrix-engine accelerator candidate remains open;
 - 2048, 4096, and 8192 remain exploratory until complete baselines finish
