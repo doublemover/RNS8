@@ -62,6 +62,36 @@ class SweepCase:
     promotable: bool = True
 
 
+@dataclass(frozen=True)
+class ScenarioItem:
+    family: str
+    name: str
+    semantics: str
+    case: SweepCase
+    evidence_scope: str
+    output_domain: str
+    rationale: str
+    backends: tuple[str, ...] | None = None
+    pack_mode: str = "per_repeat_repack"
+    finite_moduli: tuple[int | None, ...] = (None,)
+    exact_wide_limb_counts: tuple[int | None, ...] = (None,)
+    residue_chain_length: int = 1
+    output_ld_padding: int = 0
+    oneshot: bool = False
+    prefix_policy: str | None = None
+    max_prefix: int | None = None
+    bound_source: str | None = None
+    include_wrap64_candidate: bool = False
+
+
+@dataclass(frozen=True)
+class SweepCommand:
+    name: str
+    command: list[str]
+    output: Path
+    scenario: dict[str, Any] | None = None
+
+
 def parse_int(text: str, label: str) -> int:
     try:
         value = int(text, 10)
@@ -1124,6 +1154,365 @@ def exact_wide_limb_counts_for(semantics: str, args: argparse.Namespace) -> list
     return list(dict.fromkeys(counts))
 
 
+def scenario_catalog() -> dict[str, list[ScenarioItem]]:
+    repeated_b_512 = parse_case("bounded-i64-512:512,512,512")
+    repeated_b_1024 = parse_case("bounded-i64-1024:1024,1024,1024")
+    exact_512 = parse_case("exact-wide-512:512,512,512")
+    finite_128 = parse_case("finite-128:128,128,128")
+    finite_512 = parse_case("finite-512:512,512,512")
+    chain_128 = parse_case("chain-128:128,128,128")
+    small_64 = parse_case("small-64:64,64,64")
+    small_128 = parse_case("small-128:128,128,128")
+    skinny_512 = parse_case("gemv-n1-512:512,1,512")
+    skinny_1024 = parse_case("gemv-n1-1024:1024,1,1024")
+    wrap64_512 = parse_case("wrap64-512:512,512,512")
+    wrap64_1024 = parse_case("wrap64-1024:1024,1024,1024")
+    large_2048 = parse_case("large-2048:2048,2048,2048", promotable=False)
+    adaptive_256 = parse_case("adaptive-bands-256:256,256,512,64,64,adaptive-bands", adaptive=True)
+    adaptive_rect = parse_case("adaptive-bands-rect:512,1024,512,128,128,adaptive-bands", adaptive=True)
+    adaptive_1024 = parse_case("adaptive-bands-1024:1024,1024,1024,128,128,adaptive-bands", adaptive=True)
+
+    bounded_gpu_backends = ("hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma")
+    bounded_per_tile_backends = ("hip-direct", "hip-vector-alu-int64", "ck", "rocwmma")
+    direct_oneshot_backends = ("cpu", "hip-direct")
+    accelerator_backends = ("hip-direct", "hipblaslt", "ck", "rocwmma")
+
+    return {
+        "adaptive-bands": [
+            ScenarioItem(
+                "adaptive-bands",
+                "bounded-i64-256",
+                "bounded-i64",
+                adaptive_256,
+                "profile-driven per-tile bounded i64 adaptive prefix deletion",
+                "host_export",
+                "proves whether adaptive scans and active-prefix schedules delete enough residue work to beat fixed-prefix baselines",
+                backends=bounded_per_tile_backends,
+                bound_source="input-scan",
+            ),
+            ScenarioItem(
+                "adaptive-bands",
+                "bounded-u64-rect",
+                "bounded-u64",
+                adaptive_rect,
+                "rectangular profile-driven bounded u64 adaptive prefix deletion",
+                "host_export",
+                "keeps adaptive evidence from being square-only and exposes row/column zero-summary behavior",
+                backends=bounded_per_tile_backends,
+                bound_source="input-scan",
+            ),
+            ScenarioItem(
+                "adaptive-bands",
+                "bounded-i64-1024",
+                "bounded-i64",
+                adaptive_1024,
+                "large profile-driven bounded i64 adaptive prefix deletion",
+                "host_export",
+                "checks whether adaptive scheduling remains useful once launch overhead is less dominant",
+                backends=bounded_per_tile_backends,
+                bound_source="input-scan",
+            ),
+        ],
+        "repeated-b": [
+            ScenarioItem(
+                "repeated-b",
+                "bounded-i64-512",
+                "bounded-i64",
+                repeated_b_512,
+                "same B operand reused across measured repeats",
+                "host_export",
+                "measures whether setup cost amortizes for the current repeated-B implementation surfaces",
+                backends=bounded_gpu_backends,
+                pack_mode="prepacked_reuse_b",
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+            ),
+            ScenarioItem(
+                "repeated-b",
+                "bounded-i64-1024",
+                "bounded-i64",
+                repeated_b_1024,
+                "same B operand reused across measured repeats",
+                "host_export",
+                "keeps hipBLASLt and rocWMMA repeated-B evidence tied to the current 1024 winner split",
+                backends=bounded_gpu_backends,
+                pack_mode="prepacked_reuse_b",
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+            ),
+        ],
+        "exact-wide-export": [
+            ScenarioItem(
+                "exact-wide-export",
+                "signed-limbs4-512",
+                "exact-wide-signed",
+                exact_512,
+                "signed exact-wide host limb export with full-width status-elided output",
+                "exact_wide_signed_limbs",
+                "profiles exact-wide export before expanding exact-wide GEMM variants",
+                backends=EXACT_WIDE_BACKENDS,
+                exact_wide_limb_counts=(4,),
+            ),
+            ScenarioItem(
+                "exact-wide-export",
+                "unsigned-limbs3-512",
+                "exact-wide-unsigned",
+                exact_512,
+                "unsigned exact-wide compact full-width three-limb export",
+                "exact_wide_unsigned_limbs",
+                "compares compact 192-bit output against the default four-limb export contract",
+                backends=EXACT_WIDE_BACKENDS,
+                exact_wide_limb_counts=(3,),
+            ),
+            ScenarioItem(
+                "exact-wide-export",
+                "unsigned-limbs4-512",
+                "exact-wide-unsigned",
+                exact_512,
+                "unsigned exact-wide default four-limb export",
+                "exact_wide_unsigned_limbs",
+                "keeps compact-output claims anchored to the current default-width baseline",
+                backends=EXACT_WIDE_BACKENDS,
+                exact_wide_limb_counts=(4,),
+            ),
+        ],
+        "finite-distributions": [
+            ScenarioItem(
+                "finite-distributions",
+                "ring-128",
+                "finite-u8-ring",
+                finite_128,
+                "small finite-ring u8 canonical-output workload",
+                "finite_u8_canonical_host_export",
+                "checks whether fixed-modulus paths stay worthwhile when setup dominates",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251, 255),
+            ),
+            ScenarioItem(
+                "finite-distributions",
+                "field-512",
+                "finite-u8-field",
+                finite_512,
+                "medium finite-field u8 canonical-output workload",
+                "finite_u8_canonical_host_export",
+                "keeps field-251 evidence separate from ring-251 and ring-255 claims",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+            ),
+        ],
+        "rns-chain": [
+            ScenarioItem(
+                "rns-chain",
+                "bounded-i64-chain3",
+                "bounded-i64",
+                chain_128,
+                "three chained RNS GEMMs with final untimed checksum export",
+                "residue_current_rns",
+                "measures lazy-export benefit without confusing it with host-output timing",
+                backends=accelerator_backends,
+                residue_chain_length=3,
+            ),
+            ScenarioItem(
+                "rns-chain",
+                "exact-wide-signed-chain3",
+                "exact-wide-signed",
+                chain_128,
+                "three chained exact-wide RNS GEMMs with final untimed checksum export",
+                "residue_current_rns",
+                "profiles exact-wide RNS-native chains separately from fixed-width limb export",
+                backends=EXACT_WIDE_BACKENDS,
+                residue_chain_length=3,
+                exact_wide_limb_counts=(4,),
+            ),
+        ],
+        "small-oneshot": [
+            ScenarioItem(
+                "small-oneshot",
+                "bounded-i64-64-persistent",
+                "bounded-i64",
+                small_64,
+                "small persistent bounded i64 baseline",
+                "host_export",
+                "compares persistent matrix setup against public one-shot transient input paths",
+                backends=direct_oneshot_backends,
+            ),
+            ScenarioItem(
+                "small-oneshot",
+                "bounded-i64-64-oneshot",
+                "bounded-i64",
+                small_64,
+                "small public one-shot bounded i64 call",
+                "native_i64_host_output",
+                "keeps small-shape one-shot evidence out of persistent RNS autotune claims",
+                backends=direct_oneshot_backends,
+                oneshot=True,
+            ),
+            ScenarioItem(
+                "small-oneshot",
+                "bounded-u64-128-persistent",
+                "bounded-u64",
+                small_128,
+                "small persistent bounded u64 baseline",
+                "host_export",
+                "compares persistent matrix setup against public one-shot transient input paths",
+                backends=direct_oneshot_backends,
+            ),
+            ScenarioItem(
+                "small-oneshot",
+                "bounded-u64-128-oneshot",
+                "bounded-u64",
+                small_128,
+                "small public one-shot bounded u64 call",
+                "native_u64_host_output",
+                "keeps small-shape one-shot evidence out of persistent RNS autotune claims",
+                backends=direct_oneshot_backends,
+                oneshot=True,
+            ),
+        ],
+        "skinny-gemv": [
+            ScenarioItem(
+                "skinny-gemv",
+                "bounded-i64-n1-512",
+                "bounded-i64",
+                skinny_512,
+                "skinny N=1 bounded i64 GEMV-like workload",
+                "host_export",
+                "exposes vector/native paths that square GEMM review can hide",
+                backends=BOUNDED_BACKENDS,
+            ),
+            ScenarioItem(
+                "skinny-gemv",
+                "bounded-u64-n1-1024",
+                "bounded-u64",
+                skinny_1024,
+                "skinny N=1 bounded u64 GEMV-like workload",
+                "host_export",
+                "checks the native vector-ALU GEMV path against RNS accelerators",
+                backends=BOUNDED_BACKENDS,
+            ),
+        ],
+        "wrap64-carry": [
+            ScenarioItem(
+                "wrap64-carry",
+                "wrap64-512",
+                "wrap-u64",
+                wrap64_512,
+                "strict mod 2^64 byte-limb carry-heavy workload",
+                "low64_wrap_u64_host_output",
+                "tracks byte-limb direct-HIP tuning separately from odd-modulus RNS claims",
+                backends=tuple(WRAP64_BACKENDS),
+                include_wrap64_candidate=True,
+            ),
+            ScenarioItem(
+                "wrap64-carry",
+                "wrap64-1024",
+                "wrap-u64",
+                wrap64_1024,
+                "strict mod 2^64 byte-limb carry-heavy workload",
+                "low64_wrap_u64_host_output",
+                "keeps large wrap64 evidence pinned to direct byte-limb behavior",
+                backends=tuple(WRAP64_BACKENDS),
+                include_wrap64_candidate=True,
+            ),
+        ],
+        "large-exploratory": [
+            ScenarioItem(
+                "large-exploratory",
+                "bounded-i64-2048",
+                "bounded-i64",
+                large_2048,
+                "large bounded i64 exploratory release-shape workload",
+                "host_export",
+                "detects whether launch overhead has stopped dominating and raw backend throughput is the limiter",
+                backends=bounded_gpu_backends,
+            ),
+            ScenarioItem(
+                "large-exploratory",
+                "bounded-u64-2048",
+                "bounded-u64",
+                large_2048,
+                "large bounded u64 exploratory release-shape workload",
+                "host_export",
+                "separates large-shape throughput evidence from promotable 64..1024 cache entries",
+                backends=bounded_gpu_backends,
+            ),
+        ],
+    }
+
+
+def scenario_names() -> list[str]:
+    return sorted(scenario_catalog())
+
+
+def selected_scenario_items(args: argparse.Namespace) -> list[ScenarioItem]:
+    requested = list(dict.fromkeys(getattr(args, "scenario", []) or []))
+    if not requested:
+        return []
+    catalog = scenario_catalog()
+    unknown = [name for name in requested if name != "all" and name not in catalog]
+    if unknown:
+        raise SystemExit(f"--scenario must be one of {scenario_names() + ['all']}, got {unknown}")
+    names = scenario_names() if "all" in requested else requested
+    items: list[ScenarioItem] = []
+    for name in names:
+        items.extend(catalog[name])
+    return items
+
+
+def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argparse.Namespace:
+    scenario_args = argparse.Namespace(**vars(args))
+    scenario_args.reuse_packed_inputs = item.pack_mode == "prepacked_reuse"
+    scenario_args.reuse_packed_a = item.pack_mode == "prepacked_reuse_a"
+    scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
+    scenario_args.residue_chain_length = item.residue_chain_length
+    scenario_args.output_ld_padding = item.output_ld_padding
+    scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
+    scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
+    scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
+    return scenario_args
+
+
+def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> list[str]:
+    backends = list(item.backends or default_backends_for(item.semantics, item.case))
+    if item.semantics == "wrap-u64" and item.include_wrap64_candidate and args.include_wrap64_rocwmma_candidate:
+        backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
+    if args.backends:
+        requested = set(args.backends)
+        backends = [backend for backend in backends if backend in requested]
+    return list(dict.fromkeys(backends))
+
+
+def scenario_metadata(
+    item: ScenarioItem,
+    backend: str,
+    modulus: int | None,
+    exact_wide_limb_count: int | None,
+    scenario_args: argparse.Namespace,
+    *,
+    oneshot: bool,
+) -> dict[str, Any]:
+    return {
+        "family": item.family,
+        "name": item.name,
+        "semantics": item.semantics,
+        "backend": backend,
+        "modulus": modulus,
+        "exact_wide_limb_count": exact_wide_limb_count,
+        "shape": {"m": item.case.m, "n": item.case.n, "k": item.case.k},
+        "tile": {"m": item.case.tile_m, "n": item.case.tile_n},
+        "bound_mode": item.case.bound_mode,
+        "input_profile": item.case.input_profile,
+        "pack_mode": requested_pack_mode(scenario_args),
+        "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
+        "residue_chain_length": item.residue_chain_length,
+        "output_ld_padding": item.output_ld_padding,
+        "oneshot": oneshot,
+        "evidence_scope": item.evidence_scope,
+        "output_domain": item.output_domain,
+        "rationale": item.rationale,
+    }
+
+
 def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
     if semantics in {"bounded-i64", "bounded-u64"}:
         return ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"] if case.bound_mode == "per-tile" else BOUNDED_BACKENDS
@@ -1256,9 +1645,9 @@ def command_for(
     return command
 
 
-def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]]:
+def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
     backend_benches = parse_backend_bench(args.bench_for)
-    commands: list[tuple[str, list[str], Path]] = []
+    commands: list[SweepCommand] = []
     semantics_values = [normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
@@ -1338,7 +1727,7 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
-                            commands.append((name, command, args.out_root / name))
+                            commands.append(SweepCommand(name, command, args.out_root / name))
                     if (include_oneshot or oneshot_only) and (
                         (semantics in BOUNDED_SEMANTICS and case.bound_mode == "global")
                         or semantics in {"finite-u8-ring", "finite-u8-field"}
@@ -1373,8 +1762,179 @@ def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]
                                 args,
                                 oneshot=True,
                             )
-                            commands.append((name, command, args.out_root / name))
+                            commands.append(SweepCommand(name, command, args.out_root / name))
     return commands
+
+
+def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
+    if any(
+        [
+            getattr(args, "semantics", None),
+            getattr(args, "case", None),
+            getattr(args, "adaptive_case", None),
+            getattr(args, "shapes", None),
+            getattr(args, "include_default_adaptive", False),
+            getattr(args, "include_adaptive_workloads", False),
+            getattr(args, "adaptive_only", False),
+            getattr(args, "include_wrap64", False),
+            getattr(args, "include_exact_wide", False),
+            getattr(args, "include_oneshot", False),
+            getattr(args, "oneshot_only", False),
+            getattr(args, "reuse_packed_inputs", False),
+            getattr(args, "reuse_packed_a", False),
+            getattr(args, "reuse_packed_b", False),
+            getattr(args, "release_matrix", False),
+            getattr(args, "include_exploratory_large", False),
+            getattr(args, "prefix_policy", None),
+            getattr(args, "max_prefix", None) is not None,
+            getattr(args, "bound_source", None),
+            int(getattr(args, "output_ld_padding", 0) or 0) != 0,
+            int(getattr(args, "residue_chain_length", 1) or 1) != 1,
+        ]
+    ):
+        raise SystemExit("--scenario cannot be combined with manual sweep shape/semantics/reuse/include flags")
+
+    backend_benches = parse_backend_bench(args.bench_for)
+    commands: list[SweepCommand] = []
+    for item in selected_scenario_items(args):
+        scenario_args = scenario_args_for_item(args, item)
+        backends = scenario_backends_for_item(args, item)
+        if not backends:
+            continue
+        finite_moduli = finite_moduli_for(item.semantics, args) if args.modulus else list(item.finite_moduli)
+        if args.exact_wide_limbs:
+            exact_wide_counts = exact_wide_limb_counts_for(item.semantics, args)
+        else:
+            exact_wide_counts = list(item.exact_wide_limb_counts)
+        for modulus in finite_moduli:
+            for exact_wide_limb_count in exact_wide_counts:
+                for backend in backends:
+                    if not backend_allowed_for(item.semantics, item.case, backend):
+                        continue
+                    if (
+                        item.residue_chain_length > 1
+                        and item.semantics in BOUNDED_SEMANTICS
+                        and backend in {"auto", "hip-vector-alu-int64"}
+                    ):
+                        continue
+                    bench = backend_benches.get(backend, args.bench)
+                    if bench is None:
+                        raise SystemExit(f"no benchmark executable configured for backend {backend}")
+                    base_name = capture_name(
+                        item.semantics,
+                        item.case,
+                        backend,
+                        modulus,
+                        requested_pack_mode(scenario_args),
+                        exact_wide_limb_count,
+                        item.residue_chain_length,
+                        item.output_ld_padding,
+                        oneshot=item.oneshot,
+                    )
+                    name = f"{item.family}-{item.name}-{base_name}"
+                    command = command_for(
+                        bench,
+                        backend,
+                        item.semantics,
+                        item.case,
+                        modulus,
+                        exact_wide_limb_count,
+                        scenario_args,
+                        oneshot=item.oneshot,
+                    )
+                    metadata = scenario_metadata(
+                        item,
+                        backend,
+                        modulus,
+                        exact_wide_limb_count,
+                        scenario_args,
+                        oneshot=item.oneshot,
+                    )
+                    output = args.out_root / "scenarios" / item.family / name
+                    commands.append(SweepCommand(name, command, output, metadata))
+    return commands
+
+
+def sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
+    return (
+        scenario_sweep_command_entries(args)
+        if getattr(args, "scenario", None)
+        else default_sweep_command_entries(args)
+    )
+
+
+def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]]:
+    return [(entry.name, entry.command, entry.output) for entry in sweep_command_entries(args)]
+
+
+def scenario_manifest(entries: list[SweepCommand], args: argparse.Namespace) -> dict[str, Any]:
+    scenario_entries = [entry for entry in entries if entry.scenario is not None]
+    families = sorted({str(entry.scenario["family"]) for entry in scenario_entries if entry.scenario})
+    return {
+        "schema_version": 1,
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "scenario_request": list(getattr(args, "scenario", []) or []),
+        "scenario_families": families,
+        "capture_count": len(scenario_entries),
+        "review_mode": args.review_mode,
+        "warmups": args.warmups,
+        "repeats": args.repeats,
+        "seed": args.seed,
+        "entries": [
+            {
+                **(entry.scenario or {}),
+                "capture_name": entry.name,
+                "capture_path": str(entry.output),
+                "command": entry.command,
+            }
+            for entry in scenario_entries
+        ],
+    }
+
+
+def write_scenario_manifest(entries: list[SweepCommand], args: argparse.Namespace, out_root: Path) -> dict[str, str] | None:
+    if not any(entry.scenario is not None for entry in entries):
+        return None
+    manifest = scenario_manifest(entries, args)
+    json_path = out_root / "scenario_manifest.json"
+    json_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    lines = [
+        "# RNS8 Scenario Benchmark Manifest",
+        "",
+        f"- schema_version: `{manifest['schema_version']}`",
+        f"- generated_utc: `{manifest['generated_utc']}`",
+        f"- scenario_request: `{','.join(manifest['scenario_request'])}`",
+        f"- scenario_families: `{','.join(manifest['scenario_families'])}`",
+        f"- captures: `{manifest['capture_count']}`",
+        f"- review_mode: `{manifest['review_mode']}`",
+        f"- warmups: `{manifest['warmups']}`",
+        f"- repeats: `{manifest['repeats']}`",
+        f"- seed: `{manifest['seed']}`",
+        "",
+        "| family | item | semantics | shape | backend | pack | output_domain | evidence_scope | capture |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for entry in manifest["entries"]:
+        shape = entry["shape"]
+        lines.append(
+            "| {family} | {name} | {semantics} | {m}x{n}x{k} | {backend} | {pack} | {domain} | {scope} | {capture} |".format(
+                family=entry["family"],
+                name=entry["name"],
+                semantics=entry["semantics"],
+                m=shape["m"],
+                n=shape["n"],
+                k=shape["k"],
+                backend=entry["backend"],
+                pack=entry["pack_mode"],
+                domain=entry["output_domain"],
+                scope=entry["evidence_scope"],
+                capture=entry["capture_name"],
+            )
+        )
+    markdown_path = out_root / "scenario_manifest.md"
+    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"scenario_manifest": str(json_path), "scenario_markdown": str(markdown_path)}
 
 
 def write_markdown_report(report: dict[str, Any], path: Path) -> None:
@@ -1480,6 +2040,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        choices=[*scenario_names(), "all"],
+        help="run a named scenario corpus family; repeatable, or use all",
+    )
     parser.add_argument("--backend", dest="backends", action="append", help="backend to sweep; repeatable")
     parser.add_argument("--semantics", action="append", help="benchmark semantics to sweep; repeatable")
     parser.add_argument("--case", action="append", help="global case NAME:M,N,K; repeatable")
@@ -1521,7 +2087,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-exact-wide-limb-variants",
         action="store_true",
-        help="include exact-wide output limb counts 1, 2, 4, 8, 16, and 32",
+        help="include exact-wide output limb counts 1, 2, 3, 4, 8, 16, and 32",
     )
     parser.add_argument("--include-default-adaptive", action="store_true", help="include default adaptive bounded cases")
     parser.add_argument(
@@ -1593,12 +2159,14 @@ def main() -> int:
     args.out_root.mkdir(parents=True, exist_ok=True)
 
     capture_paths = list(args.capture)
+    entries: list[SweepCommand] = []
     if not args.review_only:
         if args.bench is None:
             raise SystemExit("--bench is required unless --review-only is used")
-        for _name, command, output in sweep_commands(args):
-            if run_command(command, output):
-                capture_paths.append(output)
+        entries = sweep_command_entries(args)
+        for entry in entries:
+            if run_command(entry.command, entry.output):
+                capture_paths.append(entry.output)
 
     captures = validate_paths(capture_paths)
     report = review_captures(captures, review_mode=args.review_mode)
@@ -1611,18 +2179,17 @@ def main() -> int:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     markdown_path = args.out_root / "review_report.md"
     write_markdown_report(report, markdown_path)
-    print(
-        json.dumps(
-            {
-                "review_report": str(report_path),
-                "markdown_report": str(markdown_path),
-                "captures": len(captures),
-                "promoted_cache_entries": promoted,
-                "autotune_cache": str(cache_path) if args.write_autotune_cache else None,
-            },
-            indent=2,
-        )
-    )
+    scenario_paths = write_scenario_manifest(entries, args, args.out_root)
+    output = {
+        "review_report": str(report_path),
+        "markdown_report": str(markdown_path),
+        "captures": len(captures),
+        "promoted_cache_entries": promoted,
+        "autotune_cache": str(cache_path) if args.write_autotune_cache else None,
+    }
+    if scenario_paths is not None:
+        output.update(scenario_paths)
+    print(json.dumps(output, indent=2))
     return 0
 
 

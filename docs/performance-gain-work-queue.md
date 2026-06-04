@@ -1582,9 +1582,26 @@ RNS8-specific notes:
 Likely first slices:
 
 - Extend `tools/benchmark_sweep.py` scenario definitions without changing raw
-  capture schema first.
-- Add scenario tables to review Markdown.
+  capture schema first. Implemented as `tools/benchmark_sweep.py --scenario`
+  with named scenario families for `adaptive-bands`, `repeated-b`,
+  `exact-wide-export`, `finite-distributions`, `rns-chain`, `small-oneshot`,
+  `skinny-gemv`, `wrap64-carry`, `large-exploratory`, and `all`. Scenario mode
+  reuses the normal schema v4 captures and release-review logic, but writes a
+  separate `scenario_manifest.json` plus `scenario_manifest.md` under the sweep
+  output root. The manifest records scenario family, item name, shape,
+  backend, pack/reuse mode, output domain, evidence scope, rationale, command,
+  and capture path so workload labels do not mutate dense-GEMM capture schema or
+  autotune contract keys.
+- Add scenario tables to review Markdown. Implemented as the separate scenario
+  manifest Markdown table beside `review_report.md`; raw review groups stay
+  contract-keyed so scenario labels cannot accidentally make incompatible
+  captures comparable.
 - Include repeated-B hipBLASLt/rocWMMA and RNS-chain lazy-export cases.
+  Implemented in the scenario corpus: `repeated-b` emits bounded-i64 512/1024
+  `--reuse-packed-b` captures across the current GPU backend set, while
+  `rns-chain` emits bounded-i64 and exact-wide-signed three-GEMM
+  residue-current chains with final checksum export kept outside the measured
+  repeat loop.
 - Include FHE/lattice proxy metadata: ring dimension or polynomial degree,
   coefficient-modulus count, decomposition digit count, transform/current
   domain, key-material reuse profile, evidence scope, and output-domain

@@ -586,6 +586,42 @@ def main() -> int:
     assert exact_variant_commands[0][1][exact_variant_commands[0][1].index("--exact-wide-limbs") + 1] == "1"
     assert exact_variant_commands[-1][1][exact_variant_commands[-1][1].index("--exact-wide-limbs") + 1] == "32"
 
+    scenario_args = copy.copy(exact_args)
+    scenario_args.out_root = Path("temp") / "scenario"
+    scenario_args.backends = ["hip-direct"]
+    scenario_args.semantics = None
+    scenario_args.case = None
+    scenario_args.scenario = ["repeated-b"]
+    scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
+    assert len(scenario_entries) == 2
+    assert [entry.scenario["name"] for entry in scenario_entries] == ["bounded-i64-512", "bounded-i64-1024"]
+    assert all(entry.scenario["family"] == "repeated-b" for entry in scenario_entries)
+    assert all(entry.scenario["pack_mode"] == "prepacked_reuse_b" for entry in scenario_entries)
+    assert all("--reuse-packed-b" in entry.command for entry in scenario_entries)
+    assert all("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in scenario_entries)
+    assert all("--max-prefix" in entry.command and "9" in entry.command for entry in scenario_entries)
+    assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
+    assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest_paths = benchmark_sweep.write_scenario_manifest(scenario_entries, scenario_args, Path(tmp))
+        assert manifest_paths is not None
+        manifest = json.loads(Path(manifest_paths["scenario_manifest"]).read_text(encoding="utf-8"))
+        assert manifest["schema_version"] == 1
+        assert manifest["scenario_families"] == ["repeated-b"]
+        assert manifest["capture_count"] == 2
+        assert manifest["entries"][0]["output_domain"] == "host_export"
+        assert Path(manifest_paths["scenario_markdown"]).exists()
+
+    bad_scenario_args = copy.copy(scenario_args)
+    bad_scenario_args.include_oneshot = True
+    try:
+        benchmark_sweep.sweep_commands(bad_scenario_args)
+    except SystemExit as exc:
+        assert "--scenario cannot be combined" in str(exc)
+    else:
+        raise AssertionError("scenario mode should reject manual include flags")
+
     exact_chain_args = copy.copy(exact_args)
     exact_chain_args.backends = ["cpu"]
     exact_chain_args.residue_chain_length = 3
