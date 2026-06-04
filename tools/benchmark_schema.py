@@ -177,6 +177,10 @@ DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_KERNELS = {
     "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
 }
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_KERNELS = {
+    "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1",
+    "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1",
+}
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_U64_LARGE_COLPAIR_KERNEL = (
     "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
 )
@@ -185,9 +189,11 @@ DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
     "uniform_small_i8_ab_resident_b_residue_then_crt_export"
 )
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_EPILOGUE = "uniform_small_i8_ab_resident_a_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_EPILOGUE = "uniform_small_i8_ab_transient_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE = "resident_a_native_b_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_WORKSPACE = "transient_i8_b_resident_i8_a_rns_output"
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE = "transient_i8_a_transient_i8_b_rns_output"
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_WORKSPACE = "transient_native_b_resident_rns_a_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
@@ -239,6 +245,7 @@ BENCHMARK_EXECUTION_MODES = {
     "public_runtime_vector_alu_native_buffers",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
+    "transient_uniform_small_i8_ab_inputs",
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
     "internal_wrap64_rocwmma_candidate",
@@ -458,6 +465,16 @@ class _Validator:
             and self.data.get("pack_mode") == "prepacked_reuse_a"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
             and self._benchmark_execution_mode() == "transient_uniform_small_i8_b_resident_i8_a_reuse"
+            and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
+        )
+
+    def _is_direct_hip_bounded_uniform_small_transient_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self.data.get("pack_mode") == "per_repeat_repack"
+            and self.data.get("prepack_reuse_strategy") == "none"
+            and self._benchmark_execution_mode() == "transient_uniform_small_i8_ab_inputs"
             and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
         )
 
@@ -905,6 +922,8 @@ class _Validator:
             if self._is_wrap64_rocwmma_candidate()
             else "rns8_bench_public_oneshot_api"
             if self._is_public_oneshot_capture()
+            else "rns8_bench_uniform_small_i8_ab_transient_path"
+            if self._is_direct_hip_bounded_uniform_small_transient_capture()
             else "rns8_bench_uniform_small_i8_ab_reuse_b_path"
             if self._is_direct_hip_bounded_native_a_reuse_b_capture()
             and self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
@@ -2003,6 +2022,53 @@ class _Validator:
                                     "direct-HIP bounded uniform-small reuse-A backend_metadata.autotune_key "
                                     f"must include {key}={value}"
                                 )
+            if self._is_direct_hip_bounded_uniform_small_transient_capture():
+                if bound_mode != "global":
+                    self._error("direct-HIP bounded uniform-small transient captures must use bound_mode=global")
+                if residue_chain_length != 1 or residue_output_mode != "host_export":
+                    self._error(
+                        "direct-HIP bounded uniform-small transient captures must use host_export residue_chain_length=1"
+                    )
+                if self.data.get("reuse_packed_inputs") is True:
+                    self._error("direct-HIP bounded uniform-small transient captures must not use packed-input reuse")
+                expected_kernel = DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_KERNELS[semantics]
+                expected_epilogue = DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_EPILOGUE
+                if self.data.get("selected_kernel") != expected_kernel:
+                    self._error(
+                        "direct-HIP bounded uniform-small transient captures must use "
+                        f"selected_kernel={expected_kernel}"
+                    )
+                if isinstance(backend_metadata, dict):
+                    if backend_metadata.get("epilogue_mode") != expected_epilogue:
+                        self._error(
+                            "direct-HIP bounded uniform-small transient captures must use "
+                            f"backend_metadata.epilogue_mode={expected_epilogue}"
+                        )
+                    if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE:
+                        self._error(
+                            "direct-HIP bounded uniform-small transient captures must use "
+                            f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE}"
+                        )
+                    if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                        self._error(
+                            "direct-HIP bounded uniform-small transient captures must use "
+                            f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                        )
+                    autotune_key = backend_metadata.get("autotune_key")
+                    if isinstance(autotune_key, str):
+                        normalized_key = f";{autotune_key};"
+                        required_parts = {
+                            "kernel": expected_kernel,
+                            "epilogue": expected_epilogue,
+                            "input_profile": "uniform-small",
+                            "execution": "transient_uniform_small_i8_ab_inputs",
+                        }
+                        for key, value in required_parts.items():
+                            if f";{key}={value};" not in normalized_key:
+                                self._error(
+                                    "direct-HIP bounded uniform-small transient backend_metadata.autotune_key "
+                                    f"must include {key}={value}"
+                                )
             if self._is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture():
                 if bound_mode != "global":
                     self._error("direct-HIP bounded native-B reuse-A captures must use bound_mode=global")
@@ -2976,6 +3042,37 @@ class _Validator:
                     self._error(f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
                 if not missing and not extra:
                     self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
+            return
+        if self._is_direct_hip_bounded_uniform_small_transient_capture():
+            expected = [
+                "bounded_uniform_small_i8_a_h2d",
+                "bounded_uniform_small_i8_b_h2d",
+                "pack",
+                "bounded_uniform_small_i8_ab_transient_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(
+                        "direct-HIP bounded uniform-small transient GPU event phase set is incomplete; "
+                        f"missing {', '.join(missing)}"
+                    )
+                if extra:
+                    self._error(
+                        "direct-HIP bounded uniform-small transient GPU event phase set contains undeclared phases: "
+                        f"{', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error(
+                        "direct-HIP bounded uniform-small transient GPU event phase order must match the operation order"
+                    )
             return
         if self._is_direct_hip_bounded_native_a_reuse_b_capture():
             gemm_event = (

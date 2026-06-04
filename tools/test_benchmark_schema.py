@@ -580,6 +580,100 @@ def as_direct_hip_bounded_native_a_reuse_b_capture(capture: dict) -> dict:
     return reused
 
 
+def as_direct_hip_bounded_uniform_small_transient_capture(capture: dict) -> dict:
+    transient = copy.deepcopy(capture)
+    repeats = transient["repeats"]
+    kernel = "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1"
+    epilogue = "uniform_small_i8_ab_transient_residue_then_crt_export"
+    gemm_event = "bounded_uniform_small_i8_ab_transient_gemm_kernel_group"
+    transient["benchmark"] = "rns8_bounded_gemm_transient_uniform_small_i8"
+    transient["benchmark_execution_mode"] = "transient_uniform_small_i8_ab_inputs"
+    transient["backend_requested"] = "hip-direct"
+    transient["backend_selected"] = "hip-direct"
+    transient["selected_kernel"] = kernel
+    transient["backend_metadata"]["source"] = "rns8_bench_uniform_small_i8_ab_transient_path"
+    transient["backend_metadata"]["selected_kernel"] = kernel
+    transient["backend_metadata"]["accelerator_backend"] = False
+    transient["backend_metadata"]["matrix_engine_backend"] = False
+    transient["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    transient["backend_metadata"]["accelerator_version"] = "7.1"
+    transient["backend_metadata"]["capability_status"] = "implemented_correctness_backend"
+    transient["backend_metadata"]["epilogue_mode"] = epilogue
+    transient["backend_metadata"]["workspace_mode"] = "transient_i8_a_transient_i8_b_rns_output"
+    transient["backend_metadata"]["workspace_required_bytes"] = 0
+    transient["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+    apply_int32_accumulator_contract(transient)
+    transient["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=uniform-small;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_uniform_small_i8_ab_inputs;"
+        f"kernel={kernel};epilogue={epilogue}"
+        ),
+        transient,
+    )
+    transient["pack_mode"] = "per_repeat_repack"
+    transient["reuse_packed_inputs"] = False
+    transient["prepack_reuse_operands"] = []
+    transient["prepack_reuse_strategy"] = "none"
+    transient["prepack_setup_us"] = None
+    transient["avg_prepack_setup_us"] = None
+    transient["timing_note"] = (
+        "host wall-clock timings for an explicit benchmark-owned direct-HIP uniform-small native-input path"
+    )
+    transient["timing_metadata"]["benchmark_execution_mode"] = "transient_uniform_small_i8_ab_inputs"
+    transient["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    transient["timing_metadata"]["prepack_reuse_operands"] = []
+    transient["timing_metadata"]["prepack_reuse_strategy"] = "none"
+    transient["timing_metadata"]["gpu_event_timing_source_scope"] = (
+        "direct_hip_default_stream_backend_operation_groups"
+    )
+    transient["timing_metadata"]["gpu_event_phase_order"] = [
+        "bounded_uniform_small_i8_a_h2d",
+        "bounded_uniform_small_i8_b_h2d",
+        "pack",
+        gemm_event,
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+    ]
+    transient["timing_metadata"]["phase_notes"]["pack"] = (
+        "per-repeat host timing for copying uniform-small A and B into benchmark-owned native int8 HIP buffers"
+    )
+    event_values = {
+        "bounded_uniform_small_i8_a_h2d": [14.0, 15.0][:repeats],
+        "bounded_uniform_small_i8_b_h2d": [16.0, 17.0][:repeats],
+        "pack": [30.0, 32.0][:repeats],
+        gemm_event: [142.0, 143.0][:repeats],
+        "rns_gemm": [142.0, 143.0][:repeats],
+        "crt_export_status_memset": [0.5, 0.5][:repeats],
+        "crt_export_kernel": [30.0, 31.0][:repeats],
+        "crt_export_status_d2h": [1.0, 1.0][:repeats],
+        "crt_export_d2h": [10.0, 11.0][:repeats],
+        "crt_export": [41.5, 43.5][:repeats],
+    }
+    transient["gpu_event_timings_us"] = event_values
+    transient["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
+    transient["raw_timings_us"]["pack"] = [115, 120][:repeats]
+    transient["raw_timings_us"]["rns_gemm"] = [250, 260][:repeats]
+    transient["raw_timings_us"]["crt_export"] = [95, 100][:repeats]
+    transient["raw_timings_us"]["end_to_end"] = [460, 480][:repeats]
+    transient["timing_summary_us"]["pack"] = summary(transient["raw_timings_us"]["pack"])
+    transient["timing_summary_us"]["rns_gemm"] = summary(transient["raw_timings_us"]["rns_gemm"])
+    transient["timing_summary_us"]["crt_export"] = summary(transient["raw_timings_us"]["crt_export"])
+    transient["timing_summary_us"]["end_to_end"] = summary(transient["raw_timings_us"]["end_to_end"])
+    transient["avg_pack_us"] = transient["timing_summary_us"]["pack"]["avg"]
+    transient["avg_rns_gemm_us"] = transient["timing_summary_us"]["rns_gemm"]["avg"]
+    transient["avg_crt_export_us"] = transient["timing_summary_us"]["crt_export"]["avg"]
+    transient["avg_end_to_end_us"] = transient["timing_summary_us"]["end_to_end"]["avg"]
+    transient["avg_per_modulus_gemm_estimate_us"] = transient["avg_rns_gemm_us"] / transient["prefix"]
+    return transient
+
+
 def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -1338,6 +1432,47 @@ def main() -> int:
     validate_capture(direct_hip_finite_native_a_reuse_b)
     direct_hip_bounded_native_a_reuse_b = as_direct_hip_bounded_native_a_reuse_b_capture(v4_ck_i64)
     validate_capture(direct_hip_bounded_native_a_reuse_b)
+    direct_hip_bounded_uniform_small_transient = as_direct_hip_bounded_uniform_small_transient_capture(v4_ck_i64)
+    validate_capture(direct_hip_bounded_uniform_small_transient)
+    stale_transient_kernel = copy.deepcopy(direct_hip_bounded_uniform_small_transient)
+    stale_transient_kernel_name = "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
+    stale_transient_kernel["selected_kernel"] = stale_transient_kernel_name
+    stale_transient_kernel["backend_metadata"]["selected_kernel"] = stale_transient_kernel_name
+    stale_transient_kernel["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;bound=16384;"
+        "input_profile=uniform-small;"
+        "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        "execution=transient_uniform_small_i8_ab_inputs;"
+        f"kernel={stale_transient_kernel_name};epilogue=uniform_small_i8_ab_transient_residue_then_crt_export"
+        ),
+        stale_transient_kernel,
+    )
+    expect_invalid(
+        stale_transient_kernel,
+        "direct-HIP bounded uniform-small transient captures must use selected_kernel",
+    )
+    stale_transient_phase = copy.deepcopy(direct_hip_bounded_uniform_small_transient)
+    stale_transient_phase["timing_metadata"]["gpu_event_phase_order"] = [
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+        if phase == "bounded_uniform_small_i8_ab_transient_gemm_kernel_group"
+        else phase
+        for phase in stale_transient_phase["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    stale_transient_phase["gpu_event_timings_us"][
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+    ] = stale_transient_phase["gpu_event_timings_us"].pop(
+        "bounded_uniform_small_i8_ab_transient_gemm_kernel_group"
+    )
+    stale_transient_phase["gpu_event_timing_summary_us"][
+        "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"
+    ] = stale_transient_phase["gpu_event_timing_summary_us"].pop(
+        "bounded_uniform_small_i8_ab_transient_gemm_kernel_group"
+    )
+    expect_invalid(
+        stale_transient_phase,
+        "direct-HIP bounded uniform-small transient GPU event phase set is incomplete",
+    )
     direct_hip_bounded_uniform_small_reuse_a = as_direct_hip_bounded_uniform_small_reuse_a_capture(v4_ck_i64)
     validate_capture(direct_hip_bounded_uniform_small_reuse_a)
     direct_hip_bounded_native_b_reuse_a = as_direct_hip_bounded_native_b_reuse_a_capture(v4_ck_i64)

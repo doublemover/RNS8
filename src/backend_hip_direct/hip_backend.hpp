@@ -359,6 +359,28 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matri
     int64_t lda,
     int64_t ldb,
     uint64_t source_version);
+rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc);
+rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    uint64_t source_version);
 rns8_status hip_direct_gemm_rns_tiled_device(
     int device_id,
     const void* device_a_residues,

@@ -2957,6 +2957,75 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matri
   return RNS8_SUCCESS;
 }
 
+rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc) {
+  return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
+      "bounded_uniform_small_i8_ab_transient_gemm_kernel_group",
+      device_id,
+      device_a_i8,
+      device_b_i8,
+      device_c_residues,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc);
+}
+
+rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix(
+    int device_id,
+    const void* device_a_i8,
+    const void* device_b_i8,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    uint64_t source_version) {
+  if (!device_a_i8 || !device_b_i8 || !C || !C->hip_residues ||
+      (C->desc.semantics != RNS8_BOUNDED_I64 && C->desc.semantics != RNS8_BOUNDED_U64) ||
+      (C->desc.semantics == RNS8_BOUNDED_I64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) ||
+      (C->desc.semantics == RNS8_BOUNDED_U64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
+      C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->desc.rows != m || C->desc.cols != n) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status status = hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device(
+      device_id,
+      device_a_i8,
+      device_b_i8,
+      C->hip_residues,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      C->desc.logical_ld);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  C->host_residues_current = false;
+  C->device_residues_current = true;
+  C->host_byte_limbs_current = false;
+  C->device_byte_limbs_current = false;
+  C->host_native_current = false;
+  C->device_native_current = false;
+  C->finite_modulus = 0;
+  C->source_version = source_version;
+  C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return RNS8_SUCCESS;
+}
+
 rns8_status hip_direct_gemm_finite_u8_resident_device(
     int device_id,
     const void* device_a_residues,

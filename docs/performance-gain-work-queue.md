@@ -672,6 +672,42 @@ Likely first slices:
   benchmark/schema surface reports `rns8_finite_u8_public_oneshot`, exact
   native-input event phases, zero external pack/export timings, and a persistent
   direct-HIP finite baseline prerequisite before any speedup claim.
+- Direct-HIP transient uniform-small A+B bounded prefix-9 path. Implemented for
+  explicit fixed-prefix global-bound `bounded-i64` and `bounded-u64`
+  `rns8-bench --backend hip-direct --prefix-policy fixed-requested
+  --transient-uniform-small-inputs` captures.
+  The benchmark copies A and B as row-major `int8_t` device buffers every
+  repeat, dispatches
+  `direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1`,
+  writes resident prefix-9 RNS residues, and uses the normal CRT export path.
+  This is a benchmark/runtime path only; it does not change public matrix
+  semantics or default AUTO routing. The benchmark/schema surface reports
+  `rns8_bench_uniform_small_i8_ab_transient_path`,
+  `transient_uniform_small_i8_ab_inputs`,
+  `uniform_small_i8_ab_transient_residue_then_crt_export`, and explicit
+  `bounded_uniform_small_i8_a_h2d`,
+  `bounded_uniform_small_i8_b_h2d`, and
+  `bounded_uniform_small_i8_ab_transient_gemm_kernel_group` GPU event phases.
+  Windows `gfx1100` release captures under
+  `temp/perf-work-queue/uniform-small-transient-i8/` used release binaries,
+  3 warmups, 9 measured repeats, fixed requested prefix 9, and seed 123. All
+  transient, persistent, and one-shot captures are schema-valid and event-valid,
+  and checksums match within each same-shape trio.
+
+  | Semantics | N | Persistent median end-to-end us | Transient median end-to-end us | One-shot median end-to-end us | Transient vs persistent | Transient vs one-shot |
+  |---|---:|---:|---:|---:|---:|---:|
+  | bounded-i64 | 64 | 930 | 1026 | 1108 | 0.91x | 1.08x |
+  | bounded-i64 | 128 | 1533 | 1060 | 3336 | 1.45x | 3.15x |
+  | bounded-i64 | 512 | 3701 | 1844 | 5130 | 2.01x | 2.78x |
+  | bounded-u64 | 64 | 1379 | 1270 | 901 | 1.09x | 0.71x |
+  | bounded-u64 | 128 | 1733 | 1169 | 1153 | 1.48x | 0.99x |
+  | bounded-u64 | 512 | 2617 | 2056 | 4120 | 1.27x | 2.00x |
+
+  Decision: keep as an explicit measured small/fixed-prefix candidate and use it
+  as the direct-HIP fused pack+GEMM comparison surface. It beats same-contract
+  persistent direct-HIP in five of six measured rows, but it is not a blanket
+  default-routing promotion because bounded-i64 64 regressed against persistent
+  and bounded-u64 64/128 remains better or roughly tied with public one-shot.
 - Direct-HIP transient-A plus reusable-B finite-u8 path.
   Implemented for `rns8-bench --backend hip-direct --semantics finite-u8-*`
   with `--reuse-packed-b`: B is packed once into persistent finite storage,
@@ -1858,7 +1894,11 @@ Likely first slices:
   `direct_hip_prefix20_grouped_rns_gemm_v1`. This has build, correctness,
   schema, and event-smoke evidence, but still needs release-sweep performance
   review before it becomes a durable speedup claim.
-- Direct-HIP fused pack+GEMM small-shape baseline.
+- Direct-HIP fused pack+GEMM small-shape baseline. Implemented as the explicit
+  `--transient-uniform-small-inputs` bounded prefix-9 benchmark/runtime path
+  described in "Fused Pack+GEMM"; it provides schema-valid, event-valid
+  same-shape evidence against persistent direct-HIP and public one-shot for
+  64/128/512 on local Windows `gfx1100`.
 
 Relation to new architecture work:
 
@@ -1932,7 +1972,12 @@ Technical direction:
 
 Likely first slices:
 
-- 64/128 one-shot vs persistent scenario matrix.
+- 64/128 one-shot vs persistent scenario matrix. Started with the fixed-prefix
+  uniform-small bounded direct-HIP matrix under
+  `temp/perf-work-queue/uniform-small-transient-i8/`, covering persistent,
+  transient-native A+B, and public one-shot at 64/128/512 for bounded i64/u64.
+  This is enough to keep the new transient path honest for small-shape work, but
+  the broader CPU/vector/accelerator small-shape selector matrix remains open.
 - CPU/direct/vector/accelerator selector explanation for tiny cases.
 - HIP Graph repeated-small benchmark mode.
 
