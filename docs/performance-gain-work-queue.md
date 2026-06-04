@@ -71,10 +71,15 @@ June 4, 2026 updates:
   corpus with reusable-B RNS-chain scenarios and larger bounded reusable-B
   coverage. The next gate is release-reviewed, same-contract promotion evidence
   for the workload shapes that these scenarios now expose.
+- Evidence database work now closes the rank 1 analysis surface: validated
+  captures get row-level roofline targets and optimization hints, and generated
+  evidence summaries include a corpus-level Roofline Priority table ranked by
+  measured bottleneck time. This is planning infrastructure only, not a speedup
+  claim.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 1 | Evidence database and roofline summary from current schema v4 captures | The repo has many reviewed captures but no compact analysis layer that ranks where time is going | Generate summary from schema-valid captures and review reports; keep raw data under `temp/` | Promote as planning infrastructure only; no speedup claim without matching reviewed captures |
+| 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
 | 2 | Partially completed scenario benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Existing scenarios now cover many-small, skinny/GEMV, RNS-chain, repeated-B, FHE/CAS proxies, native-to-RNS, and vector-to-RNS surfaces; missing gaps still need targeted additions | Keep expanding only where scenarios preserve exact CPU checks and do not imply unsupported FHE/CAS product scope |
 | 3 | 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes will show whether RNS8 is launch/export-bound or real throughput-bound | Release/exploratory review for 2048 and tolerable 4096 shapes with CPU/reference checks and required events | Use results to classify bottlenecks before deeper backend-specific tuning |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
@@ -1181,8 +1186,10 @@ Technical direction:
 RNS8-specific notes:
 
 - Current benchmark schema and review reports already capture much of the
-  identity material. The missing piece is an analysis layer that tells the
-  next implementer what to optimize first.
+  identity material. The first analysis layer now tells the next implementer
+  which semantic/scenario/backend groups consume the most measured bottleneck
+  time; remaining work is to feed it broader current capture corpora and let it
+  steer release A/B work.
 - Exact-wide and finite-u8 should be modeled separately from bounded i64/u64;
   their export and modulus costs differ.
 - Computational-algebra scenarios need phase labels in the evidence database:
@@ -1232,6 +1239,13 @@ Likely first slices:
   counts, WMMA/MFMA/global-store/LDS/wait/instruction totals, VGPR, SGPR,
   occupancy when available, RGA status, and emits compact ISA resource tables in
   `evidence_summary.md`. The reports remain temp-only evidence inputs.
+- Add a corpus-level roofline priority surface. Implemented in
+  `tools/evidence_database.py`: each row now carries a conservative
+  `roofline_target` and `optimization_hint`, and `evidence_summary.md` includes
+  a `Roofline Priority` table grouped by target/scenario/semantic/target-id and
+  ranked by total measured bottleneck time. This makes the database an execution
+  control surface for deciding the next A/B run without turning analysis output
+  into an autotune or promotion claim.
 
 Relation to existing queue:
 

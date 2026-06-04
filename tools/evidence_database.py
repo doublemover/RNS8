@@ -9,6 +9,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
@@ -62,6 +63,8 @@ CSV_FIELDS = [
     "bottleneck_class",
     "bottleneck_phase",
     "bottleneck_share",
+    "roofline_target",
+    "optimization_hint",
     "event_bottleneck_class",
     "event_bottleneck_share",
     "estimated_ops",
@@ -117,6 +120,16 @@ BACKEND_ALIASES = {
     "hip-vector-alu-int64-baseline": "vector-alu",
     "wrap64": "wrap64",
     "wrap64-byte-limb": "wrap64",
+}
+OPTIMIZATION_HINTS = {
+    "compute_throughput": "Inspect selected kernels, ISA, occupancy, and accelerator choice before pack/export work.",
+    "pack_bandwidth": "Inspect pack layout, prepack reuse, fusion, and H2D staging before GEMM tuning.",
+    "export_bandwidth": "Inspect CRT/export, status traffic, compact output, and lazy output-domain policy.",
+    "launch_api_overhead": "Inspect batching, HIP Graph replay, reuse contracts, and plan/workspace caching.",
+    "transfer_bandwidth": "Inspect H2D/D2H staging, output layout, and host/device residency policy.",
+    "status_overhead": "Inspect status memset/D2H policy and cases where overflow/status is impossible.",
+    "mixed_phase_balance": "Compare phase-specific A/B runs before specializing a single phase.",
+    "unclassified": "Capture stronger timing/event metadata before choosing an optimization target.",
 }
 
 
@@ -243,6 +256,14 @@ def isa_index_key(backend: str, target: str | None) -> str:
 
 def numeric_value(value: Any) -> int | float | None:
     return value if isinstance(value, (int, float)) else None
+
+
+def safe_float(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def sorted_strings(values: list[Any]) -> list[str]:
+    return sorted({str(value) for value in values if value is not None and str(value)})
 
 
 def summarize_isa_report(path: Path, report: dict[str, Any]) -> dict[str, Any]:
@@ -474,6 +495,112 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def roofline_target_for_row(row: dict[str, Any]) -> str:
+    event_class = str(row.get("event_bottleneck_class") or "")
+    if event_class == "status_event_bound":
+        return "status_overhead"
+    if event_class == "transfer_event_bound":
+        return "transfer_bandwidth"
+    bottleneck_class = str(row.get("bottleneck_class") or "")
+    return {
+        "compute_bound": "compute_throughput",
+        "pack_bound": "pack_bandwidth",
+        "export_bound": "export_bandwidth",
+        "launch_or_api_bound": "launch_api_overhead",
+        "mixed_bound": "mixed_phase_balance",
+    }.get(bottleneck_class, "unclassified")
+
+
+def optimization_hint_for_target(target: str) -> str:
+    return OPTIMIZATION_HINTS.get(target, OPTIMIZATION_HINTS["unclassified"])
+
+
+def bottleneck_time_us(row: dict[str, Any]) -> float:
+    phase = row.get("bottleneck_phase")
+    if isinstance(phase, str) and phase in PHASES:
+        phase_value = safe_float(row.get(f"median_{phase}_us"))
+        if phase_value is not None:
+            return phase_value
+    end_to_end = safe_float(row.get("median_end_to_end_us")) or 0.0
+    share = safe_float(row.get("bottleneck_share"))
+    if share is None:
+        return end_to_end
+    return end_to_end * max(0.0, min(share, 1.0))
+
+
+def median_or_none(values: list[float]) -> float | None:
+    return median(values) if values else None
+
+
+def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        target = str(row.get("roofline_target") or roofline_target_for_row(row))
+        scenario = str(row.get("scenario_family") or "unlabeled")
+        semantics = str(row.get("semantics") or "unknown")
+        target_id = str(row.get("target_id") or "unknown")
+        groups[(target, scenario, semantics, target_id)].append(row)
+
+    priorities: list[dict[str, Any]] = []
+    for (target, scenario, semantics, target_id), grouped_rows in groups.items():
+        end_to_end_values = [
+            value for value in (safe_float(row.get("median_end_to_end_us")) for row in grouped_rows) if value is not None
+        ]
+        bottleneck_values = [bottleneck_time_us(row) for row in grouped_rows]
+        share_values = [value for value in (safe_float(row.get("bottleneck_share")) for row in grouped_rows) if value is not None]
+        ai_values = [
+            value
+            for value in (safe_float(row.get("arithmetic_intensity_ops_per_byte")) for row in grouped_rows)
+            if value is not None
+        ]
+        gops_values = [value for value in (safe_float(row.get("measured_gops")) for row in grouped_rows) if value is not None]
+        pack_bw_values = [
+            value for value in (safe_float(row.get("pack_bandwidth_gbs")) for row in grouped_rows) if value is not None
+        ]
+        export_bw_values = [
+            value for value in (safe_float(row.get("export_bandwidth_gbs")) for row in grouped_rows) if value is not None
+        ]
+        top_rows = sorted(grouped_rows, key=bottleneck_time_us, reverse=True)[:3]
+        priorities.append(
+            {
+                "rank": 0,
+                "roofline_target": target,
+                "optimization_hint": optimization_hint_for_target(target),
+                "scenario_family": scenario,
+                "semantics": semantics,
+                "target_id": target_id,
+                "captures": len(grouped_rows),
+                "total_end_to_end_us": sum(end_to_end_values),
+                "total_bottleneck_us": sum(bottleneck_values),
+                "median_end_to_end_us": median_or_none(end_to_end_values),
+                "median_bottleneck_share": median_or_none(share_values),
+                "median_arithmetic_intensity_ops_per_byte": median_or_none(ai_values),
+                "median_measured_gops": median_or_none(gops_values),
+                "median_pack_bandwidth_gbs": median_or_none(pack_bw_values),
+                "median_export_bandwidth_gbs": median_or_none(export_bw_values),
+                "bottleneck_classes": sorted_strings([row.get("bottleneck_class") for row in grouped_rows]),
+                "bottleneck_phases": sorted_strings([row.get("bottleneck_phase") for row in grouped_rows]),
+                "event_bottlenecks": sorted_strings([row.get("event_bottleneck_class") for row in grouped_rows]),
+                "backends": sorted_strings([row.get("backend") for row in grouped_rows]),
+                "selected_kernels": sorted_strings([row.get("selected_kernel") for row in grouped_rows]),
+                "example_captures": [str(row.get("capture_path")) for row in top_rows if row.get("capture_path")],
+            }
+        )
+
+    priorities.sort(
+        key=lambda item: (
+            -float(item.get("total_bottleneck_us") or 0.0),
+            str(item.get("roofline_target")),
+            str(item.get("scenario_family")),
+            str(item.get("semantics")),
+            str(item.get("target_id")),
+        )
+    )
+    for index, item in enumerate(priorities[:limit], start=1):
+        item["rank"] = index
+    return priorities[:limit]
+
+
 def build_row(
     capture: dict[str, Any],
     scenario: dict[str, Any],
@@ -545,6 +672,8 @@ def build_row(
     }
     for phase in PHASES:
         row[f"median_{phase}_us"] = row["phase_medians_us"].get(phase)
+    row["roofline_target"] = roofline_target_for_row(row)
+    row["optimization_hint"] = optimization_hint_for_target(str(row["roofline_target"]))
     row["promotable"] = review.get("promotable")
     row["promotion_blockers"] = review.get("promotion_blockers") or []
     return row
@@ -583,6 +712,7 @@ def build_database(
             if path is not None
         }
     )
+    roofline_priority = build_roofline_priority(rows)
     return {
         "schema_version": 1,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -593,6 +723,7 @@ def build_database(
             "backend_counts": dict(sorted(backend_counts.items())),
             "isa_report_count": len(isa_report_paths),
             "captures_with_isa_resources": sum(1 for row in rows if row.get("isa_report_count", 0) > 0),
+            "roofline_priority": roofline_priority,
         },
         "rows": rows,
     }
@@ -687,6 +818,35 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     ]
     for name, count in database["summary"]["bottleneck_counts"].items():
         lines.append(f"| {name} | {count} |")
+    priority = database.get("summary", {}).get("roofline_priority") or []
+    if priority:
+        lines.extend(
+            [
+                "",
+                "## Roofline Priority",
+                "",
+                "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | median GOP/s | median AI ops/B | backends | hint |",
+                "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
+            ]
+        )
+        for item in priority:
+            lines.append(
+                "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {ai} | {backends} | {hint} |".format(
+                    rank=item.get("rank"),
+                    target=item.get("roofline_target"),
+                    scenario=item.get("scenario_family"),
+                    semantics=item.get("semantics"),
+                    target_id=item.get("target_id"),
+                    captures=item.get("captures"),
+                    bottleneck_us=format_number(item.get("total_bottleneck_us")),
+                    e2e_us=format_number(item.get("total_end_to_end_us")),
+                    share=format_number(item.get("median_bottleneck_share")),
+                    gops=format_number(item.get("median_measured_gops")),
+                    ai=format_number(item.get("median_arithmetic_intensity_ops_per_byte")),
+                    backends=",".join(item.get("backends") or []),
+                    hint=item.get("optimization_hint"),
+                )
+            )
     lines.extend(["", "## Scenario Families", "", "| family | captures |", "|---|---:|"])
     for name, count in database["summary"]["scenario_counts"].items():
         lines.append(f"| {name} | {count} |")

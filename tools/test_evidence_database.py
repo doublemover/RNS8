@@ -138,6 +138,21 @@ def main() -> int:
         assert database["summary"]["scenario_counts"]["large-exploratory"] == 1
         assert database["summary"]["isa_report_count"] == 1
         assert database["summary"]["captures_with_isa_resources"] == 1
+        assert database["summary"]["roofline_priority"]
+        first_priority = database["summary"]["roofline_priority"][0]
+        assert first_priority["rank"] == 1
+        assert first_priority["roofline_target"] in {
+            "compute_throughput",
+            "export_bandwidth",
+            "launch_api_overhead",
+            "mixed_phase_balance",
+            "pack_bandwidth",
+            "status_overhead",
+            "transfer_bandwidth",
+            "unclassified",
+        }
+        assert first_priority["total_bottleneck_us"] > 0
+        assert first_priority["optimization_hint"]
         hip_row = next(row for row in database["rows"] if row["capture_path"] == str(hip_capture))
         assert hip_row["scenario_family"] == "repeated-b"
         assert hip_row["output_domain"] == "host_export"
@@ -165,6 +180,8 @@ def main() -> int:
             "pack_bound",
             "unknown",
         }
+        assert hip_row["roofline_target"]
+        assert hip_row["optimization_hint"]
         ck_row = next(row for row in database["rows"] if row["capture_path"] == str(ck_capture))
         assert ck_row["scenario_family"] == "large-exploratory"
         assert ck_row["scenario_large_shape_role"] == "throughput_probe"
@@ -191,6 +208,7 @@ def main() -> int:
         assert "scenario_family" in csv_text
         assert "isa_wmma_count" in csv_text
         assert "scenario_source_role" in csv_text
+        assert "roofline_target" in csv_text
         assert "scenario_large_shape_role" in csv_text
         assert "scenario_grouping_role" in csv_text
         assert "native_vector_to_rns_candidate" in csv_text
@@ -198,6 +216,9 @@ def main() -> int:
         assert "key_switch_digit_aggregation" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
         assert "RNS8 Evidence Database Summary" in markdown
+        assert "Roofline Priority" in markdown
+        assert "bottleneck us" in markdown
+        assert "median GOP/s" in markdown
         assert "Scenario Metadata" in markdown
         assert "large_shape_role" in markdown
         assert "throughput_probe" in markdown
