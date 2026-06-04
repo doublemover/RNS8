@@ -1571,6 +1571,42 @@ uint64_t checked_tile_count(const Args& args) {
   return tile_count;
 }
 
+template <typename T>
+std::vector<uint8_t> compute_nonzero_a_rows(const Args& args, const std::vector<T>& A) {
+  std::vector<uint8_t> rows(static_cast<std::size_t>(args.m), 0);
+  for (int64_t row = 0; row < args.m; ++row) {
+    for (int64_t kk = 0; kk < args.k; ++kk) {
+      if (A[row_major_index(row, kk, args.k, "A")] != T{}) {
+        rows[static_cast<std::size_t>(row)] = 1;
+        break;
+      }
+    }
+  }
+  return rows;
+}
+
+template <typename T>
+std::vector<uint8_t> compute_nonzero_b_cols(const Args& args, const std::vector<T>& B) {
+  std::vector<uint8_t> cols(static_cast<std::size_t>(args.n), 0);
+  for (int64_t kk = 0; kk < args.k; ++kk) {
+    for (int64_t col = 0; col < args.n; ++col) {
+      if (B[row_major_index(kk, col, args.n, "B")] != T{}) {
+        cols[static_cast<std::size_t>(col)] = 1;
+      }
+    }
+  }
+  return cols;
+}
+
+bool range_has_nonzero_flag(const std::vector<uint8_t>& flags, int64_t begin, int64_t end) {
+  for (int64_t index = begin; index < end; ++index) {
+    if (flags[static_cast<std::size_t>(index)] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::vector<uint64_t> compute_i64_tile_bounds(
     const Args& args,
     const std::vector<int64_t>& A,
@@ -1582,15 +1618,27 @@ std::vector<uint64_t> compute_i64_tile_bounds(
   const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
   const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
   std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  const std::vector<uint8_t> nonzero_a_rows = compute_nonzero_a_rows(args, A);
+  const std::vector<uint8_t> nonzero_b_cols = compute_nonzero_b_cols(args, B);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
     const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
     for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
       const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
       const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      if (!range_has_nonzero_flag(nonzero_a_rows, row_begin, row_end) ||
+          !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
+        continue;
+      }
       uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
       for (int64_t row = row_begin; row < row_end; ++row) {
+        if (nonzero_a_rows[static_cast<std::size_t>(row)] == 0) {
+          continue;
+        }
         for (int64_t col = col_begin; col < col_end; ++col) {
+          if (nonzero_b_cols[static_cast<std::size_t>(col)] == 0) {
+            continue;
+          }
           int64_t acc = 0;
           for (int64_t kk = 0; kk < args.k; ++kk) {
             acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];
@@ -1615,15 +1663,27 @@ std::vector<uint64_t> compute_u64_tile_bounds(
   const uint64_t tile_rows = ceil_div_i64_u32(args.m, args.tile_m);
   const uint64_t tile_cols = ceil_div_i64_u32(args.n, args.tile_n);
   std::vector<uint64_t> bounds(static_cast<std::size_t>(checked_tile_count(args)), 0);
+  const std::vector<uint8_t> nonzero_a_rows = compute_nonzero_a_rows(args, A);
+  const std::vector<uint8_t> nonzero_b_cols = compute_nonzero_b_cols(args, B);
   for (uint64_t tile_row = 0; tile_row < tile_rows; ++tile_row) {
     const int64_t row_begin = static_cast<int64_t>(tile_row * static_cast<uint64_t>(args.tile_m));
     const int64_t row_end = std::min<int64_t>(args.m, row_begin + static_cast<int64_t>(args.tile_m));
     for (uint64_t tile_col = 0; tile_col < tile_cols; ++tile_col) {
       const int64_t col_begin = static_cast<int64_t>(tile_col * static_cast<uint64_t>(args.tile_n));
       const int64_t col_end = std::min<int64_t>(args.n, col_begin + static_cast<int64_t>(args.tile_n));
+      if (!range_has_nonzero_flag(nonzero_a_rows, row_begin, row_end) ||
+          !range_has_nonzero_flag(nonzero_b_cols, col_begin, col_end)) {
+        continue;
+      }
       uint64_t& tile_max = bounds[static_cast<std::size_t>(tile_row * tile_cols + tile_col)];
       for (int64_t row = row_begin; row < row_end; ++row) {
+        if (nonzero_a_rows[static_cast<std::size_t>(row)] == 0) {
+          continue;
+        }
         for (int64_t col = col_begin; col < col_end; ++col) {
+          if (nonzero_b_cols[static_cast<std::size_t>(col)] == 0) {
+            continue;
+          }
           uint64_t acc = 0;
           for (int64_t kk = 0; kk < args.k; ++kk) {
             acc += A[row_major_index(row, kk, args.k, "A")] * B[row_major_index(kk, col, args.n, "B")];

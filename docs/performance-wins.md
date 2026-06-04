@@ -59,6 +59,22 @@ mapping regressed i64 release captures. It was also not routed for small
 bounded-u64 shapes because 64/128 averages were spike-sensitive on Windows
 `gfx1100`; they keep the prior v1 native-input grouped kernel.
 
+## Planner And Prepass Wins
+
+These rows reduce benchmark/planner setup cost for adaptive bounded captures.
+They do not change math semantics, selected GPU kernels, or AUTO backend
+selection.
+
+| Surface | Shape | Change | Before | After | Speedup | Status |
+|---|---:|---|---:|---:|---:|---|
+| Exact per-tile bound discovery, bounded-u64 adaptive bands | 512 | Nonzero A-row/B-column summaries skip exact scans for proven-zero tile, row, and column products | 557635 us `tile_bound_scan` | 414379 us `tile_bound_scan` | 1.35x | Schema-valid/event-valid; tile-bound hash, selected prefix, prefix groups, zero-output tile count, and selected kernel unchanged |
+
+The same scanner change also passed a bounded-i64 512 adaptive-band release
+capture with schema v4 and required Direct-HIP GPU events. Raw captures live
+under `temp/perf-work-queue/tile-bound-zero-shortcut/`. This is a setup-path
+gain; measured per-repeat GPU phases still need separate backend/kernel
+optimization.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized

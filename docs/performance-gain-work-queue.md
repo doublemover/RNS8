@@ -145,9 +145,17 @@ Remaining high-value imported work goes at the front of the queue:
    benchmark per-tile input scans now feed exact tile max-product discovery into
    the existing adaptive prefix and zero-tile skip schedule. Public plans accept
    trusted whole-input `lhs_bound`/`rhs_bound` contracts through
-   `RNS8_BOUND_INPUT_RANGE_AND_K`. The remaining work is to add public per-tile
-   and future row/column-summary planner contracts, extend tile discovery beyond
-   whole output tiles, and promote release `gfx1100` evidence without inferring
+   `RNS8_BOUND_INPUT_RANGE_AND_K` and trusted tile-bound arrays through the
+   per-tile bound contracts. The per-tile benchmark scanner now also builds
+   nonzero A-row and B-column summaries before the exact cell scan, preserving
+   exact tile bounds while skipping scan work for tile/row/column products that
+   are already proven zero. A June 4, 2026 Windows `gfx1100` 512x512x512
+   bounded-u64 adaptive-band capture reduced `tile_bound_scan` from 557635 us
+   to 414379 us, a 1.35x prepass speedup, with the tile-bound hash, selected
+   prefix, prefix groups, zero-output tile count, selected kernel, schema v4,
+   and required GPU events unchanged. The remaining work is to add public
+   row/column-summary planner contracts, extend execution beyond whole output
+   tiles, and promote broader release `gfx1100` evidence without inferring
    semantics from C++ types.
 
    Code references: current benchmark scans in
@@ -394,6 +402,15 @@ Likely first slices:
   Implemented for current per-tile bounded captures as `tile_bound_scan` host
   timing, with schema-required raw timing, summary, phase-order, and
   phase-availability metadata.
+- Use row/column summaries inside exact per-tile bound discovery. Implemented
+  for bounded i64/u64 benchmark scans: the prepass marks nonzero A rows and B
+  columns, skips whole tile scans when either side is all zero, and skips known
+  zero rows/columns inside mixed tiles while keeping the existing exact
+  output-cell maximum for every nonzero product tile. Release evidence under
+  `temp/perf-work-queue/tile-bound-zero-shortcut/` shows a 1.35x
+  `tile_bound_scan` speedup on the 512 bounded-u64 adaptive-band case with
+  unchanged tile-bound hash and adaptive schedule metadata; the bounded-i64
+  sibling capture is schema-valid and event-valid after the same scanner change.
 - Collapse uniform per-tile schedules back to fixed-prefix dispatch without
   duplicating the fixed-prefix implementation.
   Implemented for no-op per-tile captures where every tile still requires the
