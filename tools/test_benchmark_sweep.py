@@ -937,8 +937,10 @@ def main() -> int:
         "bounded-u64-chain3-final-export-256",
         "bounded-u64-chain3-independent-final-export-256",
         "exact-wide-signed-chain3-final-export",
+        "exact-wide-signed-chain3-independent-final-export",
         "exact-wide-signed-chain3-final-export-reuse-b",
         "exact-wide-unsigned-chain3-final-export-256",
+        "exact-wide-unsigned-chain3-independent-final-export-256",
         "exact-wide-signed-chain3-final-export-512",
     ]
     assert all(entry.scenario["family"] == "rns-chain-final-output" for entry in rns_chain_final_entries)
@@ -955,6 +957,8 @@ def main() -> int:
     assert [entry.scenario["name"] for entry in independent_chain_final_entries] == [
         "bounded-i64-chain3-independent-final-export",
         "bounded-u64-chain3-independent-final-export-256",
+        "exact-wide-signed-chain3-independent-final-export",
+        "exact-wide-unsigned-chain3-independent-final-export-256",
     ]
     assert all("--residue-chain-independent-final-export" in entry.command for entry in independent_chain_final_entries)
     assert all("--residue-chain-final-export" not in entry.command for entry in independent_chain_final_entries)
@@ -1473,12 +1477,13 @@ def main() -> int:
     exact_independent_chain_args = copy.copy(exact_chain_args)
     exact_independent_chain_args.residue_chain_independent_final_export = True
     exact_independent_chain_args.next_op_hint = "final-export"
-    try:
-        benchmark_sweep.sweep_commands(exact_independent_chain_args)
-    except SystemExit as exc:
-        assert "currently supports bounded semantics only" in str(exc)
-    else:
-        raise AssertionError("exact-wide independent final-output chain should be rejected")
+    exact_independent_chain_commands = benchmark_sweep.sweep_commands(exact_independent_chain_args)
+    assert [name for name, _command, _output in exact_independent_chain_commands] == [
+        "exact-wide-signed-small-16x16x16-chain3-indepfinalexport-cpu.json",
+    ]
+    exact_independent_chain_command = exact_independent_chain_commands[0][1]
+    assert "--residue-chain-independent-final-export" in exact_independent_chain_command
+    assert "--residue-chain-final-export" not in exact_independent_chain_command
 
     vector_args = copy.copy(exact_args)
     vector_args.out_root = Path("temp") / "vector-runtime"

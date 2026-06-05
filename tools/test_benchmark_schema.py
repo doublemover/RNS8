@@ -2012,6 +2012,74 @@ def as_bounded_residue_chain_independent_final_export_capture(capture: dict) -> 
     return chain
 
 
+def as_exact_wide_residue_chain_independent_final_export_capture(capture: dict) -> dict:
+    chain = as_residue_chain_final_export_capture(capture)
+    repeats = chain["repeats"]
+    chain["benchmark"] = "rns8_residue_chain_independent_final_host_export"
+    chain["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["command_line"] = (
+        "rns8-bench --backend ck --semantics exact-wide-signed --m 64 --n 64 --k 64 "
+        "--residue-chain-length 3 --residue-chain-independent-final-export --warmups 1 --repeats 2 --seed 7"
+    )
+    chain["residue_chain_final_export"] = True
+    chain["residue_chain_independent_final_export"] = True
+    chain["residue_output_mode"] = "host_export"
+    chain["pack_mode"] = "per_repeat_repack"
+    chain["reuse_packed_inputs"] = False
+    chain["prepack_reuse_operands"] = []
+    chain["prepack_reuse_strategy"] = "none"
+    chain["prepack_setup_us"] = None
+    chain["avg_prepack_setup_us"] = None
+    chain["timing_note"] = (
+        "host wall-clock timings for an independent exact-wide final-output RNS GEMM chain; each measured repeat "
+        "performs 3 GEMM calls, exports every intermediate fixed-limb host output, repacks non-final "
+        "intermediates as the next RNS input, and includes all materialization work"
+    )
+    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["timing_metadata"]["residue_chain_final_export"] = True
+    chain["timing_metadata"]["residue_chain_independent_final_export"] = True
+    chain["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    chain["timing_metadata"]["prepack_reuse_operands"] = []
+    chain["timing_metadata"]["prepack_reuse_strategy"] = "none"
+    chain["timing_metadata"]["phase_notes"]["pack"] = (
+        "per-repeat host timing for packing original A/B plus repacking each non-final exact-wide limb output"
+    )
+    chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for 3 independent rns8_gemm_rns calls separated by fixed-limb export and RNS repack"
+    )
+    chain["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "per-repeat host timing for exporting every intermediate and final chained exact-wide limb output"
+    )
+    chain["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat original input pack plus intermediate exact-wide repacks, 3 rns_gemm calls, and every logical export"
+    )
+    chain["raw_timings_us"]["pack"] = [80, 85][:repeats]
+    chain["raw_timings_us"]["rns_gemm"] = [140, 150][:repeats]
+    chain["raw_timings_us"]["per_modulus_gemm_estimate"] = [
+        value / 20.0 for value in chain["raw_timings_us"]["rns_gemm"]
+    ]
+    chain["raw_timings_us"]["crt_export"] = [110, 120][:repeats]
+    chain["raw_timings_us"]["end_to_end"] = [
+        p + g + e
+        for p, g, e in zip(
+            chain["raw_timings_us"]["pack"],
+            chain["raw_timings_us"]["rns_gemm"],
+            chain["raw_timings_us"]["crt_export"],
+        )
+    ]
+    for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
+        chain["timing_summary_us"][phase] = summary(chain["raw_timings_us"][phase])
+    chain["timing_summary_us"]["per_modulus_gemm_estimate"] = summary(
+        chain["raw_timings_us"]["per_modulus_gemm_estimate"]
+    )
+    chain["avg_pack_us"] = chain["timing_summary_us"]["pack"]["avg"]
+    chain["avg_rns_gemm_us"] = chain["timing_summary_us"]["rns_gemm"]["avg"]
+    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"]["per_modulus_gemm_estimate"]["avg"]
+    chain["avg_crt_export_us"] = chain["timing_summary_us"]["crt_export"]["avg"]
+    chain["avg_end_to_end_us"] = chain["timing_summary_us"]["end_to_end"]["avg"]
+    return chain
+
+
 def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain = copy.deepcopy(capture)
     repeats = chain["repeats"]
@@ -3326,6 +3394,8 @@ def main() -> int:
     validate_capture(bounded_chain_ck)
     bounded_chain_independent_final_export = as_bounded_residue_chain_independent_final_export_capture(v4_ck_i64)
     validate_capture(bounded_chain_independent_final_export)
+    exact_chain_independent_final_export = as_exact_wide_residue_chain_independent_final_export_capture(v4_ck_i64)
+    validate_capture(exact_chain_independent_final_export)
 
     bad_chain_missing_next_op = copy.deepcopy(exact_chain_ck)
     del bad_chain_missing_next_op["requested_next_op"]
@@ -3405,15 +3475,10 @@ def main() -> int:
     bad_final_chain_mode["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
     expect_invalid(bad_final_chain_mode, "benchmark_execution_mode=residue_chain_final_host_export")
 
-    bad_independent_chain_exact = copy.deepcopy(exact_chain_final_export)
-    bad_independent_chain_exact["benchmark"] = "rns8_residue_chain_independent_final_host_export"
-    bad_independent_chain_exact["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
-    bad_independent_chain_exact["residue_chain_independent_final_export"] = True
-    bad_independent_chain_exact["timing_metadata"]["benchmark_execution_mode"] = (
-        "residue_chain_independent_final_host_export"
-    )
-    bad_independent_chain_exact["timing_metadata"]["residue_chain_independent_final_export"] = True
-    expect_invalid(bad_independent_chain_exact, "currently require bounded semantics")
+    bad_independent_chain_non_rns = copy.deepcopy(exact_chain_independent_final_export)
+    bad_independent_chain_non_rns["semantics"] = "finite_ring_u8"
+    bad_independent_chain_non_rns["backend_metadata"]["semantic_contract"] = "finite_ring_u8"
+    expect_invalid(bad_independent_chain_non_rns, "residue_chain_length > 1 captures must use bounded or exact-wide")
 
     bad_independent_chain_stale_mode = copy.deepcopy(bounded_chain_independent_final_export)
     bad_independent_chain_stale_mode["residue_chain_independent_final_export"] = False

@@ -3071,6 +3071,30 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "rns-chain-final-output",
+                "exact-wide-signed-chain3-independent-final-export",
+                "exact-wide-signed",
+                chain_128,
+                "three independent exact-wide signed RNS GEMMs with fixed-limb host export and RNS repack between chain steps",
+                "exact_wide_signed_limbs",
+                "same-output exact-wide control for measuring what lazy intermediate RNS residency removes",
+                backends=("cpu", "hip-direct"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                residue_chain_independent_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_independent_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "lowering_role": "limb_export_then_rns_repack_control",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+                    "promotion_scope": "independent_export_repack_control_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
                 "exact-wide-signed-chain3-final-export-reuse-b",
                 "exact-wide-signed",
                 chain_128,
@@ -3116,6 +3140,30 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                     "chain_depth": 3,
                     "validation_contract": "independent_calls_vs_chain_plus_final_export",
                     "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "exact-wide-unsigned-chain3-independent-final-export-256",
+                "exact-wide-unsigned",
+                chain_256,
+                "three independent exact-wide unsigned RNS GEMMs with fixed-limb host export and RNS repack between chain steps",
+                "exact_wide_unsigned_limbs",
+                "unsigned exact-wide same-output control for measuring what lazy intermediate RNS residency removes",
+                backends=("cpu", "hip-direct"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                residue_chain_independent_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_independent_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "lowering_role": "limb_export_then_rns_repack_control",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+                    "promotion_scope": "independent_export_repack_control_only",
                 },
             ),
             ScenarioItem(
@@ -5244,9 +5292,13 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
         if non_rns_chain:
             raise SystemExit("--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics")
     if getattr(args, "residue_chain_independent_final_export", False):
-        non_bounded_chain = [semantics for semantics in semantics_values if semantics not in BOUNDED_SEMANTICS]
-        if non_bounded_chain:
-            raise SystemExit("--residue-chain-independent-final-export currently supports bounded semantics only")
+        non_independent_chain = [
+            semantics
+            for semantics in semantics_values
+            if semantics not in BOUNDED_SEMANTICS and semantics not in EXACT_WIDE_SEMANTICS
+        ]
+        if non_independent_chain:
+            raise SystemExit("--residue-chain-independent-final-export supports bounded or exact-wide RNS semantics only")
         if requested_pack_mode(args) != "per_repeat_repack":
             raise SystemExit("--residue-chain-independent-final-export cannot be combined with packed-input reuse")
         if any(

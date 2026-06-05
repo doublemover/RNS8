@@ -3049,8 +3049,8 @@ class _Validator:
             if residue_chain_final_export is not expected_final_export:
                 self._error("residue_chain_final_export must match residue_output_mode for chain captures")
         if residue_chain_independent_final_export is True:
-            if semantics not in {"bounded_i64", "bounded_u64"}:
-                self._error("independent final-output residue-chain captures currently require bounded semantics")
+            if semantics not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
+                self._error("independent final-output residue-chain captures require bounded or exact-wide RNS semantics")
             if residue_chain_length <= 1 or residue_output_mode != "host_export":
                 self._error("independent final-output residue-chain captures must use host_export residue_chain_length > 1")
             if residue_chain_final_export is not True:
@@ -3629,10 +3629,14 @@ class _Validator:
                         if semantics == "exact_wide_signed"
                         else "exact_wide_unsigned_limb_export"
                     )
-                    if self._benchmark_execution_mode() != "residue_chain_final_host_export":
+                    if self._benchmark_execution_mode() not in {
+                        "residue_chain_final_host_export",
+                        "residue_chain_independent_final_host_export",
+                    }:
                         self._error(
                             "exact-wide residue-chain final-export captures must use "
-                            "benchmark_execution_mode=residue_chain_final_host_export"
+                            "benchmark_execution_mode=residue_chain_final_host_export or "
+                            "residue_chain_independent_final_host_export"
                         )
                 if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
                     self._error("exact-wide residue chains must use square m=n=k shapes")

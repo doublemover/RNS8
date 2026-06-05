@@ -21,6 +21,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/autotune_cache.hpp"
 #include "core/backend_common.hpp"
+#include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 
@@ -249,6 +250,9 @@ struct BenchmarkResult {
   uint64_t checksum = 0;
 };
 
+template <typename Fn>
+rns8_status run_timed_status_operation(const char* label, Fn&& fn);
+
 #if RNS8_CONFIGURED_HIP_ENABLED
 extern "C" int rns8_bench_vector_i64_gemm_device(
     int device_id,
@@ -417,6 +421,98 @@ bool exact_wide_export_status_check_required(const Args& args) {
     return args.exact_wide_limb_count < 3;
   }
   return true;
+}
+
+boost::multiprecision::cpp_int exact_wide_value_from_limbs(
+    const uint64_t* limbs,
+    uint32_t limb_count,
+    bool signed_values) {
+  boost::multiprecision::cpp_int value = 0;
+  for (uint32_t limb = 0; limb < limb_count; ++limb) {
+    value += boost::multiprecision::cpp_int(limbs[limb]) << (64u * limb);
+  }
+  if (signed_values && limb_count != 0 && (limbs[limb_count - 1] & (UINT64_C(1) << 63u)) != 0) {
+    value -= boost::multiprecision::cpp_int(1) << (64u * limb_count);
+  }
+  return value;
+}
+
+std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t limb_count) {
+  return static_cast<std::size_t>(row * ld + col) * static_cast<std::size_t>(limb_count);
+}
+
+bool benchmark_host_matrix_access_valid(int64_t rows, int64_t cols, int64_t ld) {
+  return rows > 0 && cols > 0 && ld >= cols;
+}
+
+rns8_status pack_exact_wide_limbs_as_rns(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    const uint64_t* src,
+    int64_t ld,
+    uint32_t limb_count,
+    bool signed_values,
+    uint64_t source_version) {
+  if (!ctx || !matrix || !src || limb_count == 0 || limb_count > 32 ||
+      !benchmark_host_matrix_access_valid(matrix->desc.rows, matrix->desc.cols, ld) ||
+      matrix->prefix == 0 || matrix->prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      matrix->residues.size() !=
+          static_cast<std::size_t>(matrix->prefix) * static_cast<std::size_t>(matrix->desc.rows) *
+              static_cast<std::size_t>(matrix->desc.cols)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_semantics expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
+  if (matrix->desc.semantics != expected || ctx->backend != matrix->backend) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  std::vector<boost::multiprecision::cpp_int> values;
+  values.reserve(static_cast<std::size_t>(matrix->desc.rows) * static_cast<std::size_t>(matrix->desc.cols));
+  for (int64_t row = 0; row < matrix->desc.rows; ++row) {
+    for (int64_t col = 0; col < matrix->desc.cols; ++col) {
+      values.push_back(exact_wide_value_from_limbs(
+          src + exact_wide_limb_index(row, col, ld, limb_count), limb_count, signed_values));
+    }
+  }
+
+  for (uint32_t p = 0; p < matrix->prefix; ++p) {
+    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
+    for (int64_t row = 0; row < matrix->desc.rows; ++row) {
+      for (int64_t col = 0; col < matrix->desc.cols; ++col) {
+        const std::size_t value_index =
+            static_cast<std::size_t>(row * matrix->desc.cols + col);
+        matrix->residues[rns8::detail::residue_index(*matrix, p, row, col)] =
+            rns8::detail::centered_residue(values[value_index], modulus);
+      }
+    }
+  }
+
+  matrix->source_version = source_version;
+  matrix->host_byte_limbs_current = false;
+  matrix->device_byte_limbs_current = false;
+  matrix->host_native_current = false;
+  matrix->device_native_current = false;
+
+  if (matrix->hip_residues != nullptr) {
+    if (matrix->hip_device_id != ctx->device_id ||
+        matrix->hip_residue_bytes != matrix->residues.size() * sizeof(int8_t)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status status = run_timed_status_operation("pack_h2d", [&]() {
+      return rns8::detail::hip_direct_copy_host_to_device(
+          ctx->device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes);
+    });
+    if (status != RNS8_SUCCESS) {
+      matrix->device_residues_current = false;
+      return status;
+    }
+    matrix->host_residues_current = false;
+    matrix->device_residues_current = true;
+  } else {
+    matrix->host_residues_current = true;
+    matrix->device_residues_current = false;
+  }
+  return RNS8_SUCCESS;
 }
 
 bool valid_finite_field_modulus(uint16_t modulus) {
@@ -1035,9 +1131,6 @@ Args parse_args(int argc, char** argv) {
       usage_error("residue-chain final-export modes cannot use --next-op-hint rns-gemm");
     }
     if (args.residue_chain_independent_final_export) {
-      if (!bounded_benchmark_semantics(args.semantics)) {
-        usage_error("--residue-chain-independent-final-export currently supports bounded-i64 and bounded-u64 only");
-      }
       if (args.reuse_packed_inputs || args.oneshot || grouped_task_executor_requested(args) ||
           args.transient_uniform_small_inputs || args.native_to_rns_bridge || args.vector_to_rns_chain ||
           args.hip_graph_replay || args.residue_channel_fusion) {
@@ -7591,6 +7684,62 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
+    if (residue_chain_independent_final_export_requested(args)) {
+      uint64_t pack_total_us = 0;
+      uint64_t gemm_total_us = 0;
+      uint64_t export_total_us = 0;
+      begin_gpu_event_phase(collect_gpu_events);
+
+      auto phase_start = std::chrono::steady_clock::now();
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      auto phase_end = std::chrono::steady_clock::now();
+      pack_total_us += elapsed_us(phase_start, phase_end);
+
+      for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+        phase_start = std::chrono::steady_clock::now();
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_gemm_rns(exact-wide signed independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        gemm_total_us += elapsed_us(phase_start, phase_end);
+
+        phase_start = std::chrono::steady_clock::now();
+        status = rns8_export_exact_wide_signed_limbs(
+            ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_export_exact_wide_signed_limbs(independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        export_total_us += elapsed_us(phase_start, phase_end);
+
+        if (chain_index + 1 < args.residue_chain_length) {
+          phase_start = std::chrono::steady_clock::now();
+          status = pack_exact_wide_limbs_as_rns(
+              ctx, a_matrix, C.data(), ldc, args.exact_wide_limb_count, true, source_version + chain_index + 2);
+          if (status != RNS8_SUCCESS) {
+            fail_status("pack_exact_wide_signed_limbs_as_rns(intermediate chain output)", status);
+          }
+          phase_end = std::chrono::steady_clock::now();
+          pack_total_us += elapsed_us(phase_start, phase_end);
+        }
+      }
+      latest_output_matrix = c_matrix;
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, selected_backend, result.gpu_events);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      const auto repeat_end = std::chrono::steady_clock::now();
+      if (samples) {
+        samples->pack_us.push_back(pack_total_us);
+        samples->gemm_us.push_back(gemm_total_us);
+        samples->export_us.push_back(export_total_us);
+        samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
+      }
+      return;
+    }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
     if (reuses_all_packed_inputs(args)) {
@@ -7768,6 +7917,62 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
+    if (residue_chain_independent_final_export_requested(args)) {
+      uint64_t pack_total_us = 0;
+      uint64_t gemm_total_us = 0;
+      uint64_t export_total_us = 0;
+      begin_gpu_event_phase(collect_gpu_events);
+
+      auto phase_start = std::chrono::steady_clock::now();
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      auto phase_end = std::chrono::steady_clock::now();
+      pack_total_us += elapsed_us(phase_start, phase_end);
+
+      for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+        phase_start = std::chrono::steady_clock::now();
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_gemm_rns(exact-wide unsigned independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        gemm_total_us += elapsed_us(phase_start, phase_end);
+
+        phase_start = std::chrono::steady_clock::now();
+        status = rns8_export_exact_wide_unsigned_limbs(
+            ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_export_exact_wide_unsigned_limbs(independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        export_total_us += elapsed_us(phase_start, phase_end);
+
+        if (chain_index + 1 < args.residue_chain_length) {
+          phase_start = std::chrono::steady_clock::now();
+          status = pack_exact_wide_limbs_as_rns(
+              ctx, a_matrix, C.data(), ldc, args.exact_wide_limb_count, false, source_version + chain_index + 2);
+          if (status != RNS8_SUCCESS) {
+            fail_status("pack_exact_wide_unsigned_limbs_as_rns(intermediate chain output)", status);
+          }
+          phase_end = std::chrono::steady_clock::now();
+          pack_total_us += elapsed_us(phase_start, phase_end);
+        }
+      }
+      latest_output_matrix = c_matrix;
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, selected_backend, result.gpu_events);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      const auto repeat_end = std::chrono::steady_clock::now();
+      if (samples) {
+        samples->pack_us.push_back(pack_total_us);
+        samples->gemm_us.push_back(gemm_total_us);
+        samples->export_us.push_back(export_total_us);
+        samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
+      }
+      return;
+    }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
     if (reuses_all_packed_inputs(args)) {
