@@ -68,6 +68,26 @@ The same bounded 2048 pass also produced repeated-B captures. Those are
 retained as workload-contract evidence rather than AUTO cache entries because
 `prepacked_reuse` intentionally changes the pack/reuse contract.
 
+A later bounded 4096 exploratory pass used seed `20260605`, release binaries,
+three warmups, nine repeats, and required GPU events, but intentionally did not
+include CPU or runtime vector baselines. It is therefore throughput
+classification only, not cache or public promotion evidence. The same-commit
+matrix reran 2048 beside 4096 so scaling could be read from the same build and
+driver state.
+
+| Contract | Shape | Mode | GPU-only winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Best-path scale vs same-commit 2048 |
+|---|---:|---|---|---:|---:|---:|---:|
+| bounded i64 | 4096 | non-reuse | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 52259 us | 140393 us | 2.69x | 4.11x |
+| bounded i64 | 4096 | repeated-B | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40108 us | 132674 us | 3.31x | 4.22x |
+| bounded u64 | 4096 | non-reuse | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 47467 us | 191947 us | 4.04x | 3.76x |
+| bounded u64 | 4096 | repeated-B | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 45843 us | 133831 us | 2.92x | 3.43x |
+
+The exploratory 4096 results indicate that the bounded large-shape matrix is no
+longer launch-bound in the same way as 512/1024. Pack and export are still large
+shares of hipBLASLt time, while Direct HIP is dominated by RNS GEMM at 4096.
+Do not use these rows as AUTO cache entries until a deliberately budgeted
+4096 review includes the required CPU/reference and vector baselines.
+
 ## Finite-u8 Accelerator Wins
 
 The current finite-u8 v2 release review covered 64, 128, 512, 1024, the
