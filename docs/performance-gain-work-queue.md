@@ -62,7 +62,7 @@ June 4-5, 2026 updates:
   and exact-wide RNS-chain independent final-output/export-repack controls.
   Completed and closed ranks have been moved to
   [performance-gain-completed-work.md](performance-gain-completed-work.md) so
-  this active queue stays focused on execution. The archive currently holds 26
+  this active queue stays focused on execution. The archive currently holds 27
   ranks: infrastructure lanes 1, 2, 16, 23, 25, 26, 27, 28, 32, 34, 35, 37,
   40, and 41; current-claim validation lanes 4, 5, 17, 19, and 21; finite-u8
   hot-modulus 2048 rank 14; host API batching rank 31; large-shape matrix
@@ -186,7 +186,7 @@ June 4-5, 2026 updates:
   per-task checksums folded into the capture checksum, schema-v4
   `benchmark_grouped_dispatch_evidence` metadata, and downstream
   `many_small_grouped_report.py` classification. Tiny bounded-i64, finite-u8,
-  and exact-wide signed Direct-HIP `gfx1100` smokes under
+  exact-wide signed, and exact-wide unsigned Direct-HIP `gfx1100` smokes under
   `temp/grouped-dispatch-*.json` validate schema and required GPU events. A
   release-count exact-wide signed 64 group32 follow-up under
   `temp/perf-work-queue/many-small-grouped-dispatch-current/` first classified
@@ -203,9 +203,9 @@ June 4-5, 2026 updates:
   schema/event-valid at 795.19 us per task, 4.88x faster than independent
   Direct HIP and 2.39x faster than hostbatch32, while export average drops
   from 5670 us to 1212 us. Its signed end-to-end median is effectively flat
-  versus the 792.66 us slab median, and the unsigned twin is smoke-only until
-  a matching independent unsigned baseline exists. The grouped pack+export
-  follow-up under
+  versus the 792.66 us slab median; its unsigned twin remains historical
+  smoke evidence superseded by the focused unsigned closeout below. The
+  grouped pack+export follow-up under
   `temp/perf-work-queue/many-small-grouped-pack-current/` then changes the
   strategy to
   `device_grouped_pack_and_exact_wide_export_kernels_batched_d2h`: compact A
@@ -216,8 +216,8 @@ June 4-5, 2026 updates:
   independent Direct HIP, 8.34x faster than hostbatch32, and 3.49x faster than
   the previous grouped-export-only capture; aggregate host pack average drops
   from 16873 us to 778 us, and GPU pack-event average drops from 12815 us to
-  461 us. The unsigned twin is schema/event-valid at 249.63 us per task but
-  remains smoke-only until the matching independent unsigned baseline exists.
+  461 us. Its unsigned twin remains historical smoke evidence superseded by
+  the focused unsigned closeout below.
   The current grouped pack+GEMM+export follow-up under
   `temp/perf-work-queue/many-small-grouped-gemm-current/` changes the strategy
   to `device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h`: one
@@ -225,11 +225,16 @@ June 4-5, 2026 updates:
   resident tasks. The signed capture is schema/event-valid at 66.47 us per
   task, 58.37x faster than independent Direct HIP, 28.63x faster than
   hostbatch32, and 3.43x faster than grouped pack+export; event median
-  `rns_gemm` drops from 4701.94 us to 168.70 us. The unsigned twin is
-  schema/event-valid at 63.56 us per task but remains smoke-only until the
-  matching independent unsigned baseline exists. This is still benchmark-owned
-  evidence plumbing, not a public grouped API, generic descriptor queue, AUTO
-  cache entry, or promotion claim.
+  `rns_gemm` drops from 4701.94 us to 168.70 us. A focused unsigned closeout
+  under `temp/perf-work-queue/many-small-grouped-unsigned-current/` adds the
+  missing exact-wide unsigned 64 independent and hostbatch32 baselines for CPU
+  and Direct HIP, tightens `many_small_grouped_report.py` so candidate wins
+  require same-task-count hostbatch checksum parity, and classifies the
+  Direct-HIP grouped pack+GEMM+export unsigned row as a candidate win at
+  79.09 us per task, 18.70x faster than independent Direct HIP and 13.48x
+  faster than Direct-HIP hostbatch32. This is still benchmark-owned evidence
+  plumbing, not a public grouped API, generic descriptor queue, AUTO cache
+  entry, or promotion claim.
   A hipBLASLt release capture under
   `temp/perf-work-queue/many-small-hipblaslt-finite-events/` validates the
   finite ring-251 64x64x64 diagnostic with required pack, matmul, reduce, and
@@ -580,7 +585,7 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 8 | Advanced many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline; branch-local `--grouped-dispatch N` now executes same-shape benchmark-owned persistent task groups; grouped export-only follow-ups reached 792.66-795.19 us per task; grouped pack+export reached 228.06 us per task; the current grouped pack+GEMM+export follow-up under `temp/perf-work-queue/many-small-grouped-gemm-current/` is schema/event-valid at 66.47 us per task for exact-wide signed 64 group32, 58.37x faster than independent Direct HIP, 28.63x faster than hostbatch32, and 3.43x faster than grouped pack+export, with event median `rns_gemm` reduced from 4701.94 us to 168.70 us; the unsigned twin is schema/event-valid at 63.56 us per task but smoke-only until the matching independent unsigned baseline exists | Keep open for a public or generic grouped/persistent dispatcher and broader durable workload-family proof: the current grouped path batches pack, same-shape Direct-HIP RNS GEMM, and contiguous exact-wide export only for explicit benchmark workloads, so route only explicit grouped workloads until grouping wins beyond exact-wide 64 group32 and the descriptor/lifetime/output contract is durable |
+| 8 | Advanced many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline; branch-local `--grouped-dispatch N` now executes same-shape benchmark-owned persistent task groups; grouped export-only follow-ups reached 792.66-795.19 us per task; grouped pack+export reached 228.06 us per task; the current grouped pack+GEMM+export follow-up under `temp/perf-work-queue/many-small-grouped-gemm-current/` is schema/event-valid at 66.47 us per task for exact-wide signed 64 group32, 58.37x faster than independent Direct HIP, 28.63x faster than hostbatch32, and 3.43x faster than grouped pack+export, with event median `rns_gemm` reduced from 4701.94 us to 168.70 us; the focused unsigned baseline closeout under `temp/perf-work-queue/many-small-grouped-unsigned-current/` is schema/event-valid with required events and same-task-count hostbatch checksum parity, classifying exact-wide unsigned 64 group32 as a candidate win at 79.09 us per task, 18.70x faster than independent Direct HIP and 13.48x faster than Direct-HIP hostbatch32 | Keep open for a public or generic grouped/persistent dispatcher and broader durable workload-family proof: the current grouped path batches pack, same-shape Direct-HIP RNS GEMM, and contiguous exact-wide export only for explicit benchmark workloads, so route only explicit grouped workloads until grouping wins beyond exact-wide signed/unsigned 64 group32 and the descriptor/lifetime/output contract is durable |
 | 9 | Partially completed RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, reusable-B RNS-chain scenarios, `--residue-chain-final-export` captures with `residue_chain_final_host_export`, and `--residue-chain-independent-final-export` controls with `residue_chain_independent_final_host_export` for bounded and exact-wide semantics; exact-wide signed 128 Direct-HIP residue-current captures are release-mode and event-valid; final-output reports now show Direct HIP beating CPU at bounded-i64 128 and exact-wide signed 128, reusable-B losing after setup cost, bounded resident chains beating same-backend independent export/repack controls at bounded-i64 128 by 1.84x and bounded-u64 256 by 1.96x, and exact-wide resident chains beating same-backend independent export/repack controls at signed 128 by 9.80x and unsigned 256 by 10.80x | Keep active for setup/reuse policy, broader chain matrices, and public or benchmark lifetime/currentness semantics that prevent accidental cross-workload reuse |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
@@ -632,7 +637,7 @@ June 4-5, 2026 updates:
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing plus a focused final-output CPU comparison report, but AUTO/public routing still needs same-output independent-call/export-repack wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, exact CPU comparison for the requested output, and an independent-call baseline when the workload contract claims skipped intermediate export |
-| Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof and branch-local exact-wide signed group32 wins; pack, same-shape Direct-HIP RNS GEMM, and contiguous exact-wide export are grouped for that benchmark path, but there is still no public grouped API, generic descriptor queue, or durable multi-family routing contract | Expand proof beyond exact-wide signed 64 group32 only where it survives the fastest-independent gate, add descriptor/lifetime/output-contract enforcement, and require complete GPU events for any promoted grouped or batched GPU candidate |
+| Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof plus branch-local exact-wide signed and unsigned group32 wins; pack, same-shape Direct-HIP RNS GEMM, and contiguous exact-wide export are grouped for that benchmark path, but there is still no public grouped API, generic descriptor queue, or durable multi-family routing contract | Expand proof beyond exact-wide signed/unsigned 64 group32 only where it survives the fastest-independent gate, add descriptor/lifetime/output-contract enforcement, and require complete GPU events plus same-task-count checksum parity for any promoted grouped or batched GPU candidate |
 | HIP Graph replay is implemented as a narrow benchmark lane, not a promoted workload contract | The branch-local graph path is deliberately scoped to Direct-HIP resident RNS chains and records wall-clock graph launch timing instead of normal per-kernel GPU event timing; schema/sweep/build/tiny smoke evidence now exists | Run release-size captures against the same non-graph chain, include capture/instantiate setup cost, and keep the result experimental unless it beats the same-contract non-graph path end-to-end |
 | Large 2048/4096 captures are now split between installed non-reuse wins and explicit follow-up contracts | Bounded i64/u64 2048/4096, finite-u8 hot-modulus 2048/4096, exact-wide signed/unsigned 2048/4096, and strict wrap64 2048/4096 now have CPU/reference-backed release evidence where required. Eligible bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid; repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B under the reuse workload ranks until setup identity/lifetime policy is explicit; keep strict wrap64 tuning under rank 68; do not generalize Windows `gfx1100` rows to Linux or Instinct |
 | Reuse/prepack wins use explicit reuse contracts | The branch now has a release-contract A/B/A+B matrix, but those captures intentionally change input lifetime and setup semantics versus one-shot calls | Convert only explicit reusable-input workloads with setup-inclusive break-even, source identity, stale-input rejection, and caller-visible lifetime metadata; do not install AUTO cache entries from reuse captures |
@@ -3261,8 +3266,9 @@ Current status:
   flat versus the 792.66 us async slab median. The export phase itself improves
   materially: aggregate `crt_export` average drops from 5670 us to 1212 us.
   The exact-wide unsigned 64 group32 twin is schema/event-valid at 703.34 us
-  per task, but it remains smoke-only because the current many-small corpus
-  does not include the matching independent unsigned baseline.
+  per task, but it remains historical smoke evidence superseded by the focused
+  unsigned baseline closeout under
+  `temp/perf-work-queue/many-small-grouped-unsigned-current/`.
 - The grouped pack+export follow-up under
   `temp/perf-work-queue/many-small-grouped-pack-current/` now groups the A and
   B pack stages for the same benchmark-owned exact-wide 64 group32 path: compact
@@ -3274,8 +3280,8 @@ Current status:
   grouped-export-only capture. The aggregate host pack average drops from
   16873 us to 778 us, and GPU event pack average drops from 12815 us to 461 us.
   The exact-wide unsigned 64 group32 twin is schema/event-valid at 249.63 us per
-  task, but it remains smoke-only until the matching independent unsigned
-  baseline exists.
+  task, but it remains historical smoke evidence superseded by the focused
+  unsigned baseline closeout.
 - The grouped pack+GEMM+export follow-up under
   `temp/perf-work-queue/many-small-grouped-gemm-current/` adds a same-shape
   task-prefix Direct-HIP grouped GEMM for the benchmark-owned exact-wide 64
@@ -3288,12 +3294,16 @@ Current status:
   58.37x faster than independent Direct HIP, 28.63x faster than hostbatch32,
   and 3.43x faster than the grouped pack+export capture. Event median
   `rns_gemm` drops from 4701.94 us to 168.70 us. The exact-wide unsigned 64
-  group32 twin is schema/event-valid at 63.56 us per task, but it remains
-  smoke-only until the matching independent unsigned baseline exists.
+  group32 twin is schema/event-valid at 63.56 us per task; the focused
+  unsigned rerun under
+  `temp/perf-work-queue/many-small-grouped-unsigned-current/` adds the missing
+  independent and hostbatch32 baselines and classifies the same strategy as a
+  candidate win at 79.09 us per task, 18.70x faster than independent Direct
+  HIP and 13.48x faster than Direct-HIP hostbatch32.
 - The remaining performance work is now the broader dispatcher and contract
   work: public or mechanically enforced task descriptors, descriptor/lifetime
   validation, release-size comparisons against fastest independent calls, and
-  durable workload-family wins beyond exact-wide 64 group32.
+  durable workload-family wins beyond exact-wide signed/unsigned 64 group32.
 
 Technical direction:
 

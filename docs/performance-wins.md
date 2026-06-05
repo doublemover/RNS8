@@ -385,8 +385,8 @@ and 3.49x faster than the previous one-kernel grouped-export capture; host
 aggregate pack average falls from 16873 us to 778 us, and GPU event pack average
 falls from 12815 us to 461 us. The unsigned exact-wide 64 group32 twin is
 schema/event-valid at 249.63 us per task, but the current many-small corpus
-lacks the matching independent unsigned baseline, so it remains a smoke. The
-grouped pack+GEMM+export follow-up under
+lacked the matching independent unsigned baseline at the time, so that capture
+stayed smoke-only. The grouped pack+GEMM+export follow-up under
 `temp/perf-work-queue/many-small-grouped-gemm-current/` changes the strategy
 metadata to
 `device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h`. It keeps
@@ -397,10 +397,23 @@ independent Direct HIP, 28.63x faster than hostbatch32, and 3.43x faster than
 the grouped pack+export capture. Event median `rns_gemm` drops from
 4701.94 us to 168.70 us; export is now the largest remaining event-visible
 phase in the signed capture. The unsigned exact-wide 64 group32 twin is
-schema/event-valid at 63.56 us per task but remains smoke-only until the
-matching independent unsigned baseline exists. This remains benchmark-owned
-persistent-task evidence, not a public grouped API, generic descriptor queue,
-AUTO cache entry, or Linux/Instinct claim.
+schema/event-valid at 63.56 us per task but was still smoke-only in that
+capture set.
+
+The focused unsigned closeout under
+`temp/perf-work-queue/many-small-grouped-unsigned-current/` adds the missing
+exact-wide unsigned 64 CPU and Direct-HIP independent baselines plus matching
+CPU and Direct-HIP hostbatch32 baselines. The stricter
+`tools/many_small_grouped_report.py` gate now requires same-task-count
+same-backend hostbatch checksum parity before a grouped row can become a
+candidate. With that gate, the Direct-HIP exact-wide unsigned 64 group32
+pack+GEMM+export capture is schema/event-valid and classified as a candidate
+at 79.09 us per task, versus 1479 us for independent Direct HIP and 1066 us per
+task for Direct-HIP hostbatch32. That is 18.70x faster than the same-backend
+independent baseline and 13.48x faster than the same-backend hostbatch32
+baseline, with matching combined checksum `666386315613239916`. This remains
+benchmark-owned persistent-task evidence, not a public grouped API, generic
+descriptor queue, AUTO cache entry, or Linux/Instinct claim.
 
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32

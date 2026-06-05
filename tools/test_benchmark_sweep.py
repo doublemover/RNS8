@@ -836,7 +836,7 @@ def main() -> int:
     many_small_args.backends = ["hip-direct"]
     many_small_args.scenario = ["many-small"]
     many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-    assert len(many_small_entries) == 12
+    assert len(many_small_entries) == 14
     assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
     assert {entry.scenario["name"] for entry in many_small_entries} == {
         "bounded-i64-32-proxy",
@@ -848,6 +848,8 @@ def main() -> int:
         "bounded-u64-skinny-n1-proxy",
         "exact-wide-signed-64-proxy",
         "exact-wide-signed-64-host-batch32",
+        "exact-wide-unsigned-64-proxy",
+        "exact-wide-unsigned-64-host-batch32",
         "finite-ring-64-host-batch32",
         "finite-ring-64-proxy",
     }
@@ -885,6 +887,7 @@ def main() -> int:
         "bounded-i64-64-group32",
         "finite-ring-64-group32",
         "exact-wide-signed-64-group32",
+        "exact-wide-unsigned-64-group32",
     ]
     assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
     assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
@@ -893,6 +896,12 @@ def main() -> int:
     assert any(
         entry.scenario.get("metadata", {}).get("prior_host_batch_signal")
         == "direct_hip_exact_wide_signed_64_hostbatch32"
+        for entry in grouped_dispatch_entries
+    )
+    assert any(
+        entry.scenario["semantics"] == "exact-wide-unsigned"
+        and entry.scenario.get("metadata", {}).get("comparison_required")
+        == "fastest_independent_and_same_backend_host_batch"
         for entry in grouped_dispatch_entries
     )
 

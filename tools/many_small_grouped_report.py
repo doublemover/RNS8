@@ -136,6 +136,23 @@ def gpu_events_available(capture: dict[str, Any] | None) -> bool | None:
     )
 
 
+def checksum_value(capture: dict[str, Any] | None) -> int | None:
+    if capture is None:
+        return None
+    value = capture.get("checksum_u64")
+    if value is None:
+        value = capture.get("checksum")
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def checksum_matches(left: dict[str, Any] | None, right: dict[str, Any] | None) -> bool | None:
+    left_checksum = checksum_value(left)
+    right_checksum = checksum_value(right)
+    if left_checksum is None or right_checksum is None:
+        return None
+    return left_checksum == right_checksum
+
+
 def _nested(capture: dict[str, Any], path: str) -> Any:
     value: Any = capture
     for part in path.split("."):
@@ -277,6 +294,13 @@ def decision_for(
         blockers.append("missing_same_backend_independent_baseline")
     if same_backend_host_batch is None:
         blockers.append("missing_same_backend_host_batch_baseline")
+    elif task_count_for_capture(candidate) != task_count_for_capture(same_backend_host_batch):
+        blockers.append("host_batch_task_count_mismatch")
+    host_batch_checksum_match = checksum_matches(candidate, same_backend_host_batch)
+    if same_backend_host_batch is not None and host_batch_checksum_match is None:
+        blockers.append("missing_same_backend_host_batch_checksum")
+    elif host_batch_checksum_match is False:
+        blockers.append("checksum_mismatch_same_backend_host_batch")
     release_inputs = [candidate, best_independent, same_backend_independent, same_backend_host_batch]
     if any(capture is not None and not release_satisfied(capture) for capture in release_inputs):
         blockers.append("not_release_review")
@@ -347,6 +371,13 @@ def row_for_capture(
         "same_backend_independent": capture_summary(same_backend_independent),
         "best_independent": capture_summary(best_independent),
         "same_backend_host_batch": capture_summary(same_backend_host_batch),
+        "checksum": checksum_value(capture),
+        "checksum_matches_same_backend_host_batch": checksum_matches(capture, same_backend_host_batch),
+        "same_backend_host_batch_task_count_matches": (
+            None
+            if same_backend_host_batch is None
+            else task_count_for_capture(capture) == task_count_for_capture(same_backend_host_batch)
+        ),
         "speedup_vs_same_backend_independent": speedup(same_backend_independent, capture),
         "speedup_vs_best_independent": speedup(best_independent, capture),
         "speedup_vs_same_backend_host_batch": speedup(same_backend_host_batch, capture),
@@ -422,8 +453,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | tasks | strategy | grouped per-task us | best independent | same-backend host-batch us | speedup vs best independent | speedup vs host-batch | decision | blockers |",
-            "|---|---|---|---:|---|---:|---|---:|---:|---:|---|---|",
+            "| backend | semantics | shape | tasks | strategy | grouped per-task us | best independent | same-backend host-batch us | host-batch task count match | host-batch checksum match | speedup vs best independent | speedup vs host-batch | decision | blockers |",
+            "|---|---|---|---:|---|---:|---|---:|---|---|---:|---:|---|---|",
         ]
     )
     for group in report["groups"]:
@@ -440,7 +471,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
             )
             blockers = ",".join(row.get("blockers") or []) or "none"
             lines.append(
-                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {strategy} | {per_task} | {best} | {host_batch} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
+                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {strategy} | {per_task} | {best} | {host_batch} | {task_count_match} | {checksum_match} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
                     backend=row.get("backend"),
                     semantics=row.get("semantics"),
                     m=shape.get("m"),
@@ -451,6 +482,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                     per_task=row.get("median_per_task_end_to_end_us"),
                     best=best_text,
                     host_batch=host_batch.get("median_per_task_end_to_end_us"),
+                    task_count_match=row.get("same_backend_host_batch_task_count_matches"),
+                    checksum_match=row.get("checksum_matches_same_backend_host_batch"),
                     speed_best=(
                         None
                         if row.get("speedup_vs_best_independent") is None

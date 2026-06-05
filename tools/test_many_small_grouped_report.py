@@ -44,6 +44,12 @@ def set_e2e_median(capture: dict, aggregate_median_us: float) -> dict:
     return capture
 
 
+def set_checksum(capture: dict, checksum: int) -> dict:
+    capture = copy.deepcopy(capture)
+    capture["checksum_u64"] = checksum
+    return capture
+
+
 def align_current_contract(capture: dict) -> dict:
     capture = copy.deepcopy(capture)
     capture["bound_source"] = "static_profile"
@@ -59,20 +65,34 @@ def align_current_contract(capture: dict) -> dict:
     return capture
 
 
-def build_grouped_case(grouped_per_task_us: float, *, include_host_batch: bool = True) -> list[dict]:
+def build_grouped_case(
+    grouped_per_task_us: float,
+    *,
+    include_host_batch: bool = True,
+    mismatch_host_batch_checksum: bool = False,
+    mismatch_host_batch_task_count: bool = False,
+) -> list[dict]:
     base = align_current_contract(mark_release(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json")))
     best_independent = with_path(set_e2e_median(set_backend(base, "cpu-reference"), 80.0), "independent-cpu.json")
     same_backend = with_path(set_e2e_median(set_backend(base, "hip-direct"), 100.0), "independent-hip-direct.json")
+    grouped_task_count = 32
 
     captures = [best_independent, same_backend]
     if include_host_batch:
         host_batch = as_host_api_batch_capture(same_backend)
         host_batch = set_backend(host_batch, "hip-direct")
+        if mismatch_host_batch_task_count:
+            host_batch["host_api_batch"]["batch_size"] = 16
+        else:
+            host_batch["host_api_batch"]["batch_size"] = grouped_task_count
         host_batch = set_e2e_median(host_batch, 70.0 * host_batch["host_api_batch"]["batch_size"])
+        if mismatch_host_batch_checksum:
+            host_batch = set_checksum(host_batch, int(host_batch["checksum_u64"]) + 1)
         captures.append(with_path(host_batch, "hostbatch-hip-direct.json"))
 
     grouped = as_grouped_dispatch_capture(same_backend)
     grouped = set_backend(grouped, "hip-direct")
+    grouped["grouped_dispatch"]["task_count"] = grouped_task_count
     grouped = set_e2e_median(grouped, grouped_per_task_us * grouped["grouped_dispatch"]["task_count"])
     captures.append(with_path(grouped, "grouped-hip-direct.json"))
     return captures
@@ -86,6 +106,8 @@ def main() -> int:
     assert row["decision"] == "candidate_win"
     assert round(row["speedup_vs_best_independent"], 4) == round(80.0 / 60.0, 4)
     assert round(row["speedup_vs_same_backend_host_batch"], 4) == round(70.0 / 60.0, 4)
+    assert row["checksum_matches_same_backend_host_batch"] is True
+    assert row["same_backend_host_batch_task_count_matches"] is True
 
     loss_report = many_small_grouped_report.build_report_from_captures(build_grouped_case(90.0))
     loss_row = next(
@@ -104,6 +126,32 @@ def main() -> int:
     assert missing_report["summary"]["experimental"] == 1
     assert missing_row["decision"] == "keep_experimental"
     assert "missing_same_backend_host_batch_baseline" in missing_row["blockers"]
+
+    checksum_mismatch_report = many_small_grouped_report.build_report_from_captures(
+        build_grouped_case(60.0, mismatch_host_batch_checksum=True)
+    )
+    checksum_mismatch_row = next(
+        row
+        for group in checksum_mismatch_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
+    assert checksum_mismatch_report["summary"]["experimental"] == 1
+    assert checksum_mismatch_row["decision"] == "keep_experimental"
+    assert "checksum_mismatch_same_backend_host_batch" in checksum_mismatch_row["blockers"]
+
+    task_count_mismatch_report = many_small_grouped_report.build_report_from_captures(
+        build_grouped_case(60.0, mismatch_host_batch_task_count=True)
+    )
+    task_count_mismatch_row = next(
+        row
+        for group in task_count_mismatch_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
+    assert task_count_mismatch_report["summary"]["experimental"] == 1
+    assert task_count_mismatch_row["decision"] == "keep_experimental"
+    assert "host_batch_task_count_mismatch" in task_count_mismatch_row["blockers"]
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
