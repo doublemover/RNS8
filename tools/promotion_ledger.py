@@ -15,6 +15,10 @@ DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
 MIN_SPEEDUP_MARGIN = 1.02
 
 
+def path_key(path: str | Path) -> str:
+    return str(Path(path).resolve())
+
+
 def load_cache_entries(path: Path | None) -> list[dict[str, Any]]:
     if path is None or not path.exists():
         return []
@@ -27,25 +31,75 @@ def load_cache_entries(path: Path | None) -> list[dict[str, Any]]:
     return []
 
 
-def capture_entry(path: Path) -> dict[str, Any]:
+def load_review_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
+    reviewed: dict[str, dict[str, Any]] = {}
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            continue
+        for group in data.get("groups", []):
+            if not isinstance(group, dict):
+                continue
+            for candidate in group.get("candidates", []):
+                if not isinstance(candidate, dict):
+                    continue
+                capture_path = candidate.get("capture")
+                if isinstance(capture_path, str) and capture_path:
+                    reviewed[path_key(capture_path)] = candidate
+    return reviewed
+
+
+def feature_lane_requested(item: dict[str, Any]) -> bool:
+    if item.get("requested") is True or item.get("enabled") is True or item.get("used") is True:
+        return True
+    status = item.get("capture_status") or item.get("status")
+    return isinstance(status, str) and status not in {"not_requested", "not_applicable"}
+
+
+def capture_entry(path: Path, reviewed_entry: dict[str, Any] | None = None) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
     metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     baseline = capture.get("comparison_baseline") if isinstance(capture.get("comparison_baseline"), dict) else {}
-    speedup = baseline.get("speedup_vs_baseline_median_end_to_end")
     blockers: list[str] = []
     key = metadata.get("autotune_key")
     if not key:
         blockers.append("missing_autotune_key")
-    if metadata.get("performance_validated") is not True:
+
+    reviewed_blockers: list[str] = []
+    reviewed_promotable = False
+    reviewed_speedup = None
+    if reviewed_entry is not None:
+        reviewed_blockers = [
+            str(item)
+            for item in reviewed_entry.get("promotion_blockers", [])
+            if isinstance(item, str) and item
+        ]
+        reviewed_promotable = reviewed_entry.get("promotable") is True and not reviewed_blockers
+        reviewed_speedup = reviewed_entry.get("speedup_vs_direct_hip")
+        if not isinstance(reviewed_speedup, (int, float)):
+            reviewed_speedup = reviewed_entry.get("speedup_vs_vector_alu")
+        blockers.extend(f"review_blocker:{item}" for item in reviewed_blockers)
+
+    raw_performance_validated = metadata.get("performance_validated") is True
+    if not raw_performance_validated and not reviewed_promotable:
         blockers.append("not_performance_validated")
-    if baseline.get("status") != "reviewed_release_same_contract_baseline":
+
+    raw_baseline_reviewed = baseline.get("status") == "reviewed_release_same_contract_baseline"
+    if not raw_baseline_reviewed and not reviewed_promotable:
         blockers.append("missing_release_reviewed_baseline")
+    speedup = baseline.get("speedup_vs_baseline_median_end_to_end")
+    if isinstance(reviewed_speedup, (int, float)):
+        speedup = reviewed_speedup
     if not isinstance(speedup, (int, float)) or speedup < MIN_SPEEDUP_MARGIN:
         blockers.append("missing_or_narrow_speedup_margin")
     for object_name in ("modulus_set", "export_variant", "reconstruction_variant", "grouped_dispatch", "hip_graph_replay"):
         item = capture.get(object_name)
-        if isinstance(item, dict) and item.get("promotion_eligible") is False:
+        if (
+            isinstance(item, dict)
+            and item.get("promotion_eligible") is False
+            and (object_name not in {"grouped_dispatch", "hip_graph_replay"} or feature_lane_requested(item))
+        ):
             blockers.append(f"{object_name}_non_promoting")
         if object_name == "modulus_set" and isinstance(item, dict) and item.get("cache_promotion_blocker"):
             blockers.append(str(item.get("cache_promotion_blocker")))
@@ -55,14 +109,16 @@ def capture_entry(path: Path) -> dict[str, Any]:
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "validation_status": metadata.get("capability_status"),
-        "performance_validated": metadata.get("performance_validated"),
+        "performance_validated": raw_performance_validated or reviewed_promotable,
+        "review_report_promotable": reviewed_promotable,
         "speedup_margin": speedup,
         "promotion_blockers": sorted(set(blockers)),
     }
 
 
-def build_ledger(captures: list[Path], cache_path: Path | None) -> dict[str, Any]:
-    entries = [capture_entry(path) for path in captures]
+def build_ledger(captures: list[Path], cache_path: Path | None, review_reports: list[Path] | None = None) -> dict[str, Any]:
+    reviewed = load_review_entries(review_reports or [])
+    entries = [capture_entry(path, reviewed.get(path_key(path))) for path in captures]
     cache_entries = load_cache_entries(cache_path)
     cache_keys = {entry.get("key") for entry in cache_entries if isinstance(entry.get("key"), str)}
     for entry in entries:
@@ -74,6 +130,7 @@ def build_ledger(captures: list[Path], cache_path: Path | None) -> dict[str, Any
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",
         "cache_path": str(cache_path) if cache_path else None,
+        "review_report_count": len(review_reports or []),
         "cache_entry_count": len(cache_entries),
         "entries": entries,
         "blocked_count": sum(1 for entry in entries if entry["promotion_blockers"]),
@@ -113,10 +170,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("captures", type=Path, nargs="+", help="reviewed schema-v4 benchmark captures")
     parser.add_argument("--cache", type=Path, help="installed or candidate autotune cache JSON")
+    parser.add_argument(
+        "--review-report",
+        type=Path,
+        action="append",
+        default=[],
+        help="benchmark_sweep review_report.json that proves fastest promotable same-contract candidates",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    ledger = build_ledger(args.captures, args.cache)
+    ledger = build_ledger(args.captures, args.cache, args.review_report)
     if args.json:
         print(json.dumps(ledger, indent=2, sort_keys=True))
     else:

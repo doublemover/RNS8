@@ -105,37 +105,45 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | bounded i64 | 512 | Direct HIP <br/> `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
 | bounded i64 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
 | bounded i64 | 2048 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 14220 us | 1.57x vs Direct HIP | installed |
+| bounded i64 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 3.65x vs Direct HIP | installed |
 | bounded u64 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 15128 us | 1.22x vs Direct HIP | installed |
+| bounded u64 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 37543 us | 3.16x vs Direct HIP | installed |
 | bounded i64 adaptive-bands | 1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4937 us | no accelerator win | none |
 | bounded u64 adaptive-bands | 512x1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4224 us | no accelerator win | none |
 | finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3244 us | 3.47x vs Direct HIP | installed |
+| finite ring u8 mod 251 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7284 us | 4.46x vs Direct HIP | installed |
 | finite ring u8 mod 127 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 3427 us | 1.59x vs Direct HIP | installed |
 | finite ring u8 mod 253 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 4856 us | 1.12x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2425 us | 3.05x vs Direct HIP | installed |
+| finite ring u8 mod 255 | 4096 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 8786 us | 3.83x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3017 us | 1.92x vs Direct HIP | installed |
+| finite ring u8 mod 256 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6881 us | 4.73x vs Direct HIP | installed |
 | finite field u8 mod 127 | 512 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1.10x vs Direct HIP | installed |
 | finite field u8 mod 127 | 2048 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 3424 us | 1.57x vs Direct HIP | installed |
 | finite field u8 mod 251 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1241 us | 1.05x vs Direct HIP | installed |
 | finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
 | finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3079 us | 2.97x vs Direct HIP | installed |
+| finite field u8 mod 251 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6396 us | 5.25x vs Direct HIP | installed |
 | exact-wide unsigned | 64 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4611 us | 1.67x vs Direct HIP | installed |
 | exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
 | exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
 | exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
 | exact-wide signed | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 59074 us | 2.23x vs Direct HIP | installed |
 | exact-wide unsigned | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 3.04x vs Direct HIP | installed |
+| exact-wide signed | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 176943 us | 3.61x vs Direct HIP | installed |
+| exact-wide unsigned | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 162382 us | 3.78x vs Direct HIP | installed |
 | strict wrap64 u64 | 2048 | Direct HIP <br/> `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 58331 us | 230.1x vs CPU byte-limb | none |
 
-The installed reviewed cache currently contains 31 validated entries, including the
-large 2048 bounded/finite-u8/exact-wide entries and exact-wide unsigned 64 entry
-above. Some rows are deliberately narrow local wins; Linux ROCm, Instinct,
-RDNA4, and profiler-backed production claims remain separate validation work.
+The installed reviewed cache currently contains 39 validated entries, including
+the large 2048 and eligible 4096 bounded/finite-u8/exact-wide entries above.
+Some rows are deliberately narrow local wins; Linux ROCm, Instinct, RDNA4, and
+profiler-backed production claims remain separate validation work.
 
 ## Known Limitations
 

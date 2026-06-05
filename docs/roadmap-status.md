@@ -44,8 +44,8 @@ architecture and roadmap source of truth when details disagree.
 | CPU reference | Required reference backend | Baseline only |
 | Direct HIP | Required Windows GPU correctness path | Production correctness baseline; not a matrix-engine speed claim |
 | Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and long-K `n == 1` microkernel evidence, but the current skinny-GEMV release review keeps reviewed N=1 scenario routing on Direct HIP; not a current AUTO cache winner |
-| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including finite-u8 hot-modulus 2048 and exact-wide 2048 entries |
-| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048 and generic finite-field 2048 |
+| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including eligible 4096 bounded, finite hot-modulus, and exact-wide entries |
+| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048, generic finite-field 2048, and finite ring-255 4096 |
 | rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, generic finite-ring 2048 entries, finite-field 512 entries, and smaller hot finite-u8 shapes; post-fix hot finite-u8 2048 winners are hipBLASLt |
 | AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
@@ -67,10 +67,11 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
   direct-HIP correctness, and narrow reviewed accelerator-cache paths.
 - Broader production performance gates beyond reviewed Windows `gfx1100`
   shape-scoped evidence.
-- 4096 large-shape matrices and Linux/Instinct promotion gates remain
-  unvalidated. Exact-wide 2048 now has Windows `gfx1100` CPU/direct/accelerator
-  release review and installed local cache entries; strict wrap64 2048 has
-  CPU/direct-HIP release review but no public optimized matrix-engine backend.
+- Linux/Instinct promotion gates remain unvalidated. Exact-wide 2048 and
+  eligible exact-wide 4096 rows now have Windows `gfx1100`
+  CPU/direct/accelerator release review and installed local cache entries;
+  strict wrap64 2048/4096 has CPU/direct-HIP release review but no public
+  optimized matrix-engine backend.
 
 ## Validation Boundary
 

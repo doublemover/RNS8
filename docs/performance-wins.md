@@ -90,14 +90,15 @@ Do not use the GPU-only rows above as AUTO cache entries.
 A later budgeted 4096 gate under
 `temp/perf-work-queue/large-4096-budgeted-release-current-v2/` reran bounded i64
 and bounded u64 with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and
-rocWMMA. Both groups have required baselines and GPU events, but the budget gate
-still blocks cache promotion while reviewed-summary/margin closure remains
-explicit.
+rocWMMA. Both groups have required baselines and GPU events. The promotion
+ledger closeout under
+`temp/perf-work-queue/large-4096-cache-closeout-current/` verified the reviewed
+cache entries against the installed local cache with zero blockers.
 
 | Contract | Shape | Budgeted-gate winner | Winner median end-to-end | Direct HIP median | Runtime vector median | CPU reference median | Decision |
 |---|---:|---|---:|---:|---:|---:|---|
-| bounded i64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 128995 us | 853232 us | 21244300 us | Release-gate evidence only; no 4096 cache entry installed |
-| bounded u64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 37543 us | 118674 us | 416960 us | 16592600 us | Release-gate evidence only; no 4096 cache entry installed |
+| bounded i64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 128995 us | 853232 us | 21244300 us | Current reviewed 4096 cache entry installed locally |
+| bounded u64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 37543 us | 118674 us | 416960 us | 16592600 us | Current reviewed 4096 cache entry installed locally |
 
 A follow-up non-bounded 4096 exploratory pass used the same seed and release
 settings for exact-wide, finite-u8, and strict wrap64. It is also GPU-only
@@ -126,25 +127,27 @@ CPU/reference and vector baselines are run.
 
 The budgeted 4096 gate then reran the finite hot-modulus rows with CPU and
 Direct-HIP baselines. These rows supersede the finite GPU-only scout for local
-review evidence, but they still do not install cache entries from the 4096
-budget gate.
+review evidence, and the promotion ledger closeout installed the eligible
+non-reuse 4096 finite rows in the local reviewed cache.
 
 | Contract | Shape | Budgeted-gate winner | Winner median end-to-end | Direct HIP median | CPU reference median | Decision |
 |---|---:|---|---:|---:|---:|---|
-| finite field u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6396 us | 33587 us | 4782790 us | Release-gate evidence only; no 4096 cache entry installed |
-| finite ring u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7284 us | 32508 us | 4906360 us | Release-gate evidence only; no 4096 cache entry installed |
-| finite ring u8 mod 255 | 4096 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 8786 us | 33643 us | 4714350 us | Release-gate evidence only; no 4096 cache entry installed |
-| finite ring u8 mod 256 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6881 us | 32520 us | 4685440 us | Release-gate evidence only; no 4096 cache entry installed |
+| finite field u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6396 us | 33587 us | 4782790 us | Current reviewed 4096 cache entry installed locally |
+| finite ring u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7284 us | 32508 us | 4906360 us | Current reviewed 4096 cache entry installed locally |
+| finite ring u8 mod 255 | 4096 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 8786 us | 33643 us | 4714350 us | Current reviewed 4096 cache entry installed locally |
+| finite ring u8 mod 256 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6881 us | 32520 us | 4685440 us | Current reviewed 4096 cache entry installed locally |
 
-The same budgeted 4096 gate also captured exact-wide signed 4096 GPU rows with
-required events: hipBLASLt at 172818 us, CK at 206153 us, rocWMMA at 253649 us,
-and Direct HIP at 637861 us. The initial CPU reference exceeded the 60-second
-per-capture timeout, but the release-reference rerun completed with three
-warmups and nine measured repeats. The `cpu-reference` median was 113755000 us
-with checksum `5508849193854467465`, matching every GPU row. This makes the
-best 4096 exact-wide signed local result hipBLASLt at 3.69x faster than Direct
-HIP and 658.24x faster than CPU. It remains release-gate evidence only; no
-4096 cache entry is installed from this gate.
+The signed exact-wide 4096 row was rerun on the current branch after the first
+CPU reference and GPU rows were found to be mixed-commit evidence. The current
+same-commit group under
+`temp/perf-work-queue/large-4096-signed-cache-closeout-current/` and
+`temp/perf-work-queue/large-4096-signed-cpu-current/` has CPU, Direct-HIP,
+hipBLASLt, CK, and rocWMMA rows with three warmups, nine measured repeats,
+matching checksum `5508849193854467465`, and required GPU events. hipBLASLt is
+the reviewed winner at 176943 us median end-to-end versus Direct HIP at
+639360 us, CK at 205438 us, rocWMMA at 253023 us, and CPU reference at
+113085000 us. That is 3.61x faster than Direct HIP and 639.1x faster than CPU,
+and the reviewed 4096 cache entry is installed locally.
 
 A follow-up budgeted exact-wide unsigned 4096 group under
 `temp/perf-work-queue/large-4096-unsigned-budgeted-release-current/` completed
@@ -155,8 +158,7 @@ review winner changed from the earlier GPU-only exploratory CK row to
 hipBLASLt at 162382 us median end-to-end. Direct HIP measured 614116 us, CK
 180252 us, rocWMMA 241248 us, and CPU reference 105462000 us. That makes the
 budgeted unsigned hipBLASLt row 3.78x faster than Direct HIP and 649.5x faster
-than CPU. It also remains release-gate evidence only; no 4096 cache entry is
-installed from this gate.
+than CPU. The reviewed 4096 cache entry is installed locally.
 
 The strict wrap64 4096 budget row also captured Direct HIP at 295657 us median
 end-to-end with required wrap64 GPU events. Its required byte-limb CPU reference
@@ -513,9 +515,11 @@ CRT export timing was lower in these captures.
 - Promote now: the current local default runtime cache includes the reviewed
   bounded-i64 1024 hipBLASLt v2 entry, the installed 2048 bounded entries,
   current finite-u8 v2 entries, four generic finite-u8 entries, post-fix
-  finite-u8 hot 2048 entries, and six current exact-wide v2 entries. The
-  installed reviewed cache contains 31 validated entries overall after the
-  June 5, 2026 finite-u8 2048 post-fix refresh.
+  finite-u8 hot 2048 entries, six current exact-wide v2 entries, and eight
+  eligible non-reuse 4096 entries for bounded, finite hot-modulus, and
+  exact-wide signed/unsigned contracts. The installed reviewed cache contains
+  39 validated entries overall after the June 5, 2026 4096 promotion-ledger
+  closeout.
   There is no bounded-i64 512 accelerator entry; Direct HIP remains the current
   512 bounded-i64 winner.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, CK,

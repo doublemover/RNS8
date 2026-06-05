@@ -272,7 +272,9 @@ def main() -> int:
             encoding="utf-8",
         )
         assert reuse_contract_report.build_report([capture_path])["capture_count"] == 1
-        assert promotion_ledger.build_ledger([capture_path], cache_path)["entries"][0]["installed_cache_entry"] is True
+        ledger_entry = promotion_ledger.build_ledger([capture_path], cache_path)["entries"][0]
+        assert ledger_entry["installed_cache_entry"] is True
+        assert "hip_graph_replay_non_promoting" not in ledger_entry["promotion_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
         assert tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]["variant_name"]
         assert many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"] == "grouped_dispatch"
@@ -294,6 +296,57 @@ def main() -> int:
             "hip-direct",
             "hip-vector-alu-int64",
         ]
+
+        reviewed_capture = copy.deepcopy(capture)
+        reviewed_capture["backend_metadata"]["performance_validated"] = False
+        reviewed_capture["comparison_baseline"] = {
+            "status": "required_not_recorded",
+            "speedup_claimed": False,
+            "selected_reference": None,
+            "required_before_speedup_claim": [
+                "same_contract_cpu_reference",
+                "same_contract_direct_hip_vector_alu_int64",
+                "same_contract_direct_hip_correctness",
+            ],
+            "reason": "performance_validated=false; raw capture has not been promoted against same-contract CPU and GPU baseline evidence",
+        }
+        reviewed_capture["grouped_dispatch"].update(
+            {
+                "requested": False,
+                "task_count": 1,
+                "capture_status": "not_requested",
+                "unsupported_reason": None,
+                "promotion_eligible": False,
+            }
+        )
+        reviewed_path = tmp / "reviewed-promotable.json"
+        reviewed_path.write_text(json.dumps(reviewed_capture), encoding="utf-8")
+        review_report_path = tmp / "review-report.json"
+        review_report_path.write_text(
+            json.dumps(
+                {
+                    "groups": [
+                        {
+                            "candidates": [
+                                {
+                                    "capture": str(reviewed_path),
+                                    "promotable": True,
+                                    "promotion_blockers": [],
+                                    "speedup_vs_direct_hip": 1.5,
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        reviewed_ledger = promotion_ledger.build_ledger([reviewed_path], cache_path, [review_report_path])
+        reviewed_entry = reviewed_ledger["entries"][0]
+        assert reviewed_entry["review_report_promotable"] is True
+        assert reviewed_entry["performance_validated"] is True
+        assert reviewed_entry["speedup_margin"] == 1.5
+        assert reviewed_entry["promotion_blockers"] == []
         failure_path = tmp / "starfoundry-cpu.failed.json"
         failure_path.write_text(
             json.dumps(
