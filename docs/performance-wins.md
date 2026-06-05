@@ -214,20 +214,21 @@ GEMV kernels remain useful explicit-backend microkernel evidence, but they do
 not currently justify AUTO/cache promotion for these setup-inclusive scenario
 contracts.
 
-The current `many-small` release baseline review used seed `20260605`, three
-warmups, nine repeats, and 41 schema-valid captures. It is a pre-grouped
-independent-call baseline, not a grouped-dispatch implementation. It promoted
-no cache entries: CPU wins the 32 bounded-i64 and 64 finite-u8 proxies, Direct
-HIP wins bounded-i64 128, bounded-u64 128x1x1024, and exact-wide signed 64, and
-the vector runtime wins bounded-u64 64 but remains non-cache-promotable. The
-small Direct-HIP one-shot resident-fallback diagnostic now has a focused
-schema-valid required-event capture under
-`temp/perf-work-queue/many-small-resident-oneshot-events/`, and the hipBLASLt
-finite ring-251 64 diagnostic now has a focused schema-valid required-event
-capture under `temp/perf-work-queue/many-small-hipblaslt-finite-events/`.
-Neither diagnostic is promoted evidence. This review points the next many-small
-work at grouped/persistent execution rather than more single-call accelerator
-tuning for 32/64 proxies.
+The current `many-small` release review used seed `20260605`, three warmups,
+nine repeats, and 61 same-commit schema-valid captures: 41 independent-call
+baselines and 20 host API batch captures. The mixed review has no missing
+required baselines, no duplicate backend records, compatible git/target
+metadata, and no cache entries promoted. Independent-call winners are CPU for
+bounded-i64 32, bounded-u64 64, and finite-u8 64; runtime vector ALU for
+bounded-i64 128; and Direct HIP for bounded-u64 128x1x1024 and exact-wide
+signed 64. `tools/host_api_batch_report.py` adds the setup-inclusive per-task
+batch comparison against same-backend and fastest independent-call baselines:
+only Direct-HIP exact-wide signed 64 hostbatch32 wins, at 1903 us per task
+versus the 3880 us independent Direct-HIP baseline, or 2.04x faster. The other
+19 host-batch candidates are deprioritized. This is benchmark-only workload
+evidence, not an AUTO cache entry or public batching API promotion. The small
+Direct-HIP one-shot resident-fallback diagnostic and hipBLASLt finite ring-251
+diagnostic remain focused event-cleanup evidence only.
 
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32

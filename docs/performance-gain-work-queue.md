@@ -57,9 +57,10 @@ June 4-5, 2026 updates:
   remain ranks 3, 6, 8, 9, 10, 11, 12, 13, 15, 18, and 20; they have
   benchmark/schema surfaces, focused event cleanup, or partial release evidence,
   but not enough proof for broader routing or public performance claims. Rank
-  31 is now closed as a benchmark/schema surface, but it is not a promoted
-  performance claim until host-batch captures beat independent calls in release
-  review.
+  31 is now closed as a benchmark/evidence surface: one exact-wide Direct-HIP
+  host-batch workload beats independent calls in release review, but broader
+  host batching, public routing, and device grouped execution remain rank 8
+  work.
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
   32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
   surfaces for generated reducer identities, residue-channel fusion metadata,
@@ -131,17 +132,17 @@ June 4-5, 2026 updates:
   RNS-chain scenarios, and large bounded reusable-B scenario coverage. Treat
   those as completed benchmark/tooling surfaces, not as automatic runtime
   routing or public API promotions.
-- The many-small pre-grouped baseline release review now completes under
+- The many-small release review now completes under
   `temp/perf-work-queue/many-small-current-release/` after the schema was
   tightened to distinguish prefix-9 native-input one-shot captures from smaller
-  selected-prefix Direct-HIP resident fallbacks. The review covers 41 captures
-  across seven many-small proxy groups with CPU, Direct HIP, vector ALU, and
-  optional accelerator comparators where applicable. It promotes no cache
-  entries: CPU wins the 32 bounded-i64 and 64 finite-u8 groups, Direct HIP wins
-  bounded-i64 128, bounded-u64 128x1x1024, and exact-wide signed 64, and vector
-  wins bounded-u64 64 but remains non-cache-promotable. Rank 8 stays open for
-  the real grouped/persistent dispatcher and setup-inclusive independent-call
-  comparison, not for the baseline scenario plumbing.
+  selected-prefix Direct-HIP resident fallbacks and after host-batch captures got
+  distinct review backend identities. The same-commit review covers 61 captures:
+  41 independent-call baselines plus 20 host API batch captures across seven
+  many-small proxy groups. It has no missing required baselines, no duplicate
+  backend records, compatible git/target metadata, and no cache entries
+  promoted. The independent-call winners are CPU for bounded-i64 32,
+  bounded-u64 64, and finite-u8 64; runtime vector ALU for bounded-i64 128;
+  and Direct HIP for bounded-u64 128x1x1024 and exact-wide signed 64.
 - The many-small diagnostic event holes are now closed at the focused-capture
   level. A Direct-HIP release capture under
   `temp/perf-work-queue/many-small-resident-oneshot-events/` validates the
@@ -153,13 +154,17 @@ June 4-5, 2026 updates:
   finite ring-251 64x64x64 diagnostic with required pack, matmul, reduce, and
   export events. This is event/tooling cleanup for non-promoted diagnostics,
   not a grouped execution implementation or speedup claim.
-- Host API batching now has a benchmark-owned resident-task surface under
-  `rns8-bench --host-api-batch-size`. The first smoke captures under
-  `temp/perf-work-queue/host-api-batch-smoke/` validate schema-v4 output for
-  bounded-i64 CPU and Direct HIP plus Direct-HIP finite-u8 and exact-wide signed
-  batches, and the Direct-HIP captures pass required GPU event reporting. This
-  closes rank 31 as benchmark/schema plumbing and advances rank 8's many-small
-  grouped-workload lane, but it is not release-reviewed promotion evidence yet.
+- Host API batching now has both benchmark/schema plumbing and release-reviewed
+  same-commit evidence. `tools/host_api_batch_report.py` compares batch
+  per-task medians against same-backend independent calls and the fastest
+  independent-call baseline for the same contract. The report under
+  `temp/perf-work-queue/many-small-current-release/host_api_batch_report.md`
+  covers 20 host-batch comparisons with required GPU events for every GPU
+  host-batch capture. Direct-HIP exact-wide signed 64 hostbatch32 is the only
+  full workload win: 1903 us per task versus the 3880 us Direct-HIP independent
+  baseline, 2.04x faster. The other 19 host-batch candidates are deprioritized.
+  This closes rank 31 and advances rank 8, but it is still benchmark-only
+  workload evidence rather than a public grouped API or AUTO cache promotion.
 - Large-shape validation now has a dedicated `large-release-validation`
   scenario family. It emits the missing CPU/direct/vector/accelerator
   comparator matrix for 2048 bounded i64/u64, setup-contract reuse-B 2048,
@@ -295,7 +300,7 @@ June 4-5, 2026 updates:
 | 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident selected-prefix colpair was measured under `temp/perf-work-queue/direct-hip-resident-colpair-current/` and not promoted because rerun end-to-end timing lost 4010 us versus 2434 us for the existing tiled active-prefix path despite a narrower GEMM-median signal | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
-| 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a release-reviewed pre-grouped baseline matrix: seven scenario groups, 41 schema-valid captures, no missing required baselines, no duplicate backend records, and no promoted cache entries; the focused Direct-HIP resident one-shot fallback and hipBLASLt finite ring-251 diagnostic event blockers are closed; benchmark-owned host API batch captures now exist with schema/event smoke coverage; the remaining gate is release-reviewed host-batch versus independent-call comparison and, separately, an actual device grouped/persistent dispatcher with per-task correctness, setup/error aggregation, and complete event timing for promoted candidates | Keep open for grouped execution: current evidence says single-call CPU/Direct-HIP/vector baselines dominate these tiny proxies, so promote only when grouping or batching beats independent calls including queue/setup overhead |
+| 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline, while the other 19 host-batch candidates lose to same-backend or fastest independent baselines; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed | Keep open for a real device grouped/persistent dispatcher and broader host-batch proof: current evidence says batching helps one exact-wide proxy but not bounded or finite proxies, so route only explicit benchmark workloads until grouping beats independent calls across a durable workload family |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
@@ -318,7 +323,7 @@ June 4-5, 2026 updates:
 | 28 | Closed scenario surface: end-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | `layout-search` emits layout-metadata captures for bounded RNS final export, RNS-next-op, exact-wide prefix-20, finite-u8 ring/field, and strict wrap64 byte-limb paths | Closed as benchmark surface; keep layout variants only after complete same-contract release evidence and event attribution |
 | 29 | Persistent/grouped scheduler for adaptive prefix groups | Adaptive prefix groups need launch and scheduling amortization beyond simple tile skipping | Grouped scenario captures with CPU/direct-HIP baselines and per-task correctness | Promote only when grouping beats independent calls including queue/setup overhead |
 | 30 | HIP Graph replay for repeated fixed-shape pack/GEMM/export | Repeated workflows can remove launch overhead without changing math | Internal graph replay benchmark with fixed-shape identity and handle lifetime checks | Keep internal until exact status/error behavior matches ordinary calls |
-| 31 | Closed benchmark surface: host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | `rns8-bench --host-api-batch-size` now runs same-shape independent resident tasks through one shared plan, one A/B/C matrix triplet and workspace per task, aggregate pack/GEMM/export timing, combined output checksums, schema-v4 host-batch metadata, sweep scenarios for bounded, finite, skinny, and exact-wide many-small cases, and focused Direct-HIP event smoke coverage | Closed as benchmark/schema plumbing; promote only if release-reviewed batching wins while preserving deterministic per-operation errors |
+| 31 | Closed benchmark/evidence lane: host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | `rns8-bench --host-api-batch-size` now runs same-shape independent resident tasks through one shared plan, one A/B/C matrix triplet and workspace per task, aggregate pack/GEMM/export timing, combined output checksums, schema-v4 host-batch metadata, sweep scenarios for bounded, finite, skinny, and exact-wide many-small cases, distinct `*-hostbatch` review identities, `tools/host_api_batch_report.py`, and a same-commit 20-capture release comparison against independent-call baselines | Closed as benchmark/evidence plumbing; only Direct-HIP exact-wide signed 64 hostbatch32 currently wins the full workload gate, and no AUTO/public route changes are made |
 | 32 | Closed helper lane: next-op and lazy-export metadata | PR #10 adds requested next-op and output-domain planning metadata to schema-v4 captures | Chain/lazy-export scenarios still need release proof with exact final CPU comparison | Closed as metadata; keep advisory until public API semantics are clear |
 | 33 | Reconstruction backend variants for GPU CRT/export | Current wins often move with export/status timing | Release A/B for GPU CRT, compact export, status handling, and host scatter variants | Promote only setup-inclusive export path wins, not isolated copy improvements |
 | 34 | Closed helper lane: explicit padded/contiguous output policy | PR #10 records output policy and status/export handling in schema-v4 captures | Release captures still need padded versus contiguous A/B with event-visible D2H/status phases | Closed as metadata; default-enable only per semantic/layout where repeated evidence wins |
@@ -336,7 +341,7 @@ June 4-5, 2026 updates:
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
-| Many-small grouped execution and host-batch proof remain incomplete | The pre-grouped baseline matrix is release-reviewed and the focused event blockers are closed; host API batch captures now exist, but only as smoke-tested benchmark/schema plumbing rather than release-reviewed batching wins or a device grouped dispatcher | Run release review for host-batch scenarios against independent-call baselines, implement grouped/persistent execution if host-side batching is insufficient, and require complete GPU events for any promoted grouped or batched GPU candidate |
+| Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof: only Direct-HIP exact-wide signed 64 hostbatch32 beats the fastest independent baseline, while bounded and finite host-batch candidates lose; there is still no device grouped/persistent dispatcher or public batching contract | Implement grouped/persistent execution if host-side batching is insufficient, expand exact-wide host-batch proof only where it survives the fastest-independent gate, and require complete GPU events for any promoted grouped or batched GPU candidate |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass is intentionally budgeted |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
 

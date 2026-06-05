@@ -21,6 +21,7 @@ git diff --check
 python tools\test_check_dependencies.py
 python tools\test_benchmark_schema.py
 python tools\test_result_compare.py
+python tools\test_host_api_batch_report.py
 python tools\test_benchmark_sweep.py
 python tools\check_release_tree.py
 cmake --preset cpu-debug

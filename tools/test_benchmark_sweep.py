@@ -11,6 +11,7 @@ from pathlib import Path
 
 import benchmark_sweep
 from benchmark_schema import load_capture, validate_capture
+from test_benchmark_schema import as_host_api_batch_capture
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -1710,6 +1711,18 @@ def main() -> int:
         candidate["backend"]: candidate["promotion_blockers"] for candidate in duplicate_ck_group["candidates"]
     }
     assert "duplicate_backend_capture" in duplicate_ck_blockers["ck"]
+
+    host_batch_ck = as_host_api_batch_capture(ck)
+    host_batch_report = benchmark_sweep.review_captures(
+        [ck, host_batch_ck, direct, cpu],
+        review_mode="release",
+    )
+    host_batch_group = host_batch_report["groups"][0]
+    assert host_batch_group["duplicate_backends"] == []
+    host_batch_blockers = {
+        candidate["backend"]: candidate["promotion_blockers"] for candidate in host_batch_group["candidates"]
+    }
+    assert "host_api_batch_not_autotune_promotable" in host_batch_blockers["ck-hostbatch"]
 
     reuse_report = benchmark_sweep.review_captures(
         [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],

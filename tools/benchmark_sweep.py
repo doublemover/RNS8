@@ -210,8 +210,11 @@ def backend_id(capture: dict[str, Any]) -> str:
     if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
         return WRAP64_ROCWMMA_CANDIDATE_BACKEND
     backend = str(capture.get("backend_selected"))
-    if capture_execution_mode(capture) == "public_oneshot_transient_native_inputs":
+    execution_mode = capture_execution_mode(capture)
+    if execution_mode == "public_oneshot_transient_native_inputs":
         return f"{backend}-oneshot"
+    if execution_mode == "benchmark_host_api_batch":
+        return f"{backend}-hostbatch"
     return backend
 
 
@@ -229,8 +232,15 @@ def normalized_target_id(value: Any) -> str | None:
     return text
 
 
+def backend_family_id(backend: str) -> str:
+    for suffix in ("-oneshot", "-hostbatch"):
+        if backend.endswith(suffix):
+            return backend[: -len(suffix)]
+    return backend
+
+
 def backend_requires_gpu_target(backend: str) -> bool:
-    return backend not in {"cpu-reference", "wrap64-byte-limb"}
+    return backend_family_id(backend) not in {"cpu-reference", "wrap64-byte-limb"}
 
 
 def normalized_positive_int(value: Any) -> str | None:
