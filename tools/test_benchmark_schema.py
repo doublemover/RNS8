@@ -2602,6 +2602,9 @@ def main() -> int:
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_memset"] = zero_summary()
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_d2h"] = zero_summary()
     validate_capture(exact_wide_no_status)
+    exact_wide_signed_3_limb = copy.deepcopy(exact_wide_no_status)
+    exact_wide_signed_3_limb["exact_wide_limb_count"] = 3
+    validate_capture(exact_wide_signed_3_limb)
     exact_wide_unsigned_3_limb = copy.deepcopy(exact_wide_no_status)
     exact_wide_unsigned_3_limb["semantics"] = "exact_wide_unsigned"
     exact_wide_unsigned_3_limb["epilogue_type"] = "exact_wide_unsigned_limb_export"
@@ -2648,6 +2651,10 @@ def main() -> int:
     bad_exact_status_check = copy.deepcopy(exact_wide_no_status)
     bad_exact_status_check["exact_wide_export_status_check"] = "required_for_range_check"
     expect_invalid(bad_exact_status_check, "exact_wide_export_status_check")
+
+    bad_exact_signed_2_limb_no_status = copy.deepcopy(exact_wide_no_status)
+    bad_exact_signed_2_limb_no_status["exact_wide_limb_count"] = 2
+    expect_invalid(bad_exact_signed_2_limb_no_status, "exact_wide_export_status_check")
 
     bad_exact_status_elision_events = copy.deepcopy(exact_wide_no_status)
     bad_exact_status_elision_events["gpu_event_timings_us"]["exact_wide_export_status_d2h"][0] = 1.0

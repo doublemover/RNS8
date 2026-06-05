@@ -5913,7 +5913,7 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
           RNS8_SUCCESS);
   CHECK_FALSE(hip_c->host_residues_current);
   CHECK(hip_c->hip_export_buffer != nullptr);
-  CHECK(hip_c->hip_status_buffer != nullptr);
+  CHECK(hip_c->hip_status_buffer == nullptr);
   CHECK(hip_limbs == cpu_limbs);
   CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 2) * limb_count)] == 0xaaaaaaaaaaaaaaaaull);
   CHECK(hip_limbs[static_cast<std::size_t>((0 * limb_ld + 1) * limb_count + 2)] == UINT64_MAX);
@@ -5922,6 +5922,7 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
   std::vector<uint64_t> too_few_hip(static_cast<std::size_t>(m * n), signed_range_sentinel);
   CHECK(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, too_few_cpu.data(), n, 1) == RNS8_RANGE_ERROR);
   CHECK(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, too_few_hip.data(), n, 1) == RNS8_RANGE_ERROR);
+  CHECK(hip_c->hip_status_buffer != nullptr);
   CHECK(too_few_cpu == std::vector<uint64_t>(static_cast<std::size_t>(m * n), signed_range_sentinel));
   CHECK(too_few_hip == std::vector<uint64_t>(static_cast<std::size_t>(m * n), signed_range_sentinel));
   CHECK_FALSE(hip_c->host_residues_current);
@@ -6335,11 +6336,11 @@ TEST_CASE("direct HIP exact-wide large padded export staging preserves ABI and e
 
   rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
-  constexpr int64_t m = 48;
-  constexpr int64_t n = 48;
+  constexpr int64_t m = 56;
+  constexpr int64_t n = 56;
   constexpr int64_t k = 1;
-  constexpr int64_t limb_ld = 53;
-  constexpr uint32_t limb_count = 4;
+  constexpr int64_t limb_ld = 61;
+  constexpr uint32_t limb_count = 3;
   static_assert(m * n * limb_count * static_cast<int64_t>(sizeof(uint64_t)) > 64 * 1024);
 
   auto cpu_desc = exact_signed_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);

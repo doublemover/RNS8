@@ -328,7 +328,7 @@ bool exact_wide_export_status_check_required(const Args& args) {
     return args.exact_wide_limb_count < 3;
   }
   if (args.semantics == BenchSemantics::ExactWideSigned) {
-    return args.exact_wide_limb_count < 4;
+    return args.exact_wide_limb_count < 3;
   }
   return true;
 }

@@ -376,6 +376,20 @@ export-bound after GEMM acceleration: signed 2048 reported `crt_export` at
 14182.880 us. That makes fixed-width CRT/export specialization and lazy
 residue-current output the next exact-wide performance targets.
 
+A follow-up exact-wide export specialization now treats signed three-limb
+prefix-20 output as full-width for status-elision purposes. The default
+prefix-20 product is 155 bits and the centered signed magnitude is 154 bits, so
+three 64-bit limbs cover every signed exact-wide value produced by the current
+device reconstruction range. Runtime export, benchmark metadata, and schema-v4
+validation now agree that signed and unsigned limb counts 3..32 report
+`exact_wide_export_status_check: "elided_full_width_device_reconstruction"` and
+zero-valued status memset/D2H event phases. A focused Direct-HIP 2048 A/B under
+`temp/exact-wide-signed-2048-limbs3-direct.json` and
+`temp/exact-wide-signed-2048-limbs4-direct.json` measured 190940 us median
+end-to-end for signed three-limb output versus 194115 us for signed four-limb
+output. That is output-contract-specific export evidence, not a cache-promotion
+claim.
+
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 
 A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,

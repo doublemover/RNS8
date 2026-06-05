@@ -158,6 +158,17 @@ June 4-5, 2026 updates:
   promoted captures are export-bound after GEMM acceleration, so fixed-width
   export specialization and lazy residue-current workflows stay near the front
   of the queue.
+- Exact-wide signed three-limb export now uses the full-width status-elided
+  Direct-HIP path. Prefix-20 reconstruction is 155 bits wide, so signed centered
+  outputs fit in three 64-bit limbs; the runtime, benchmark metadata, and
+  schema now treat signed limb counts 3..32 the same way unsigned 3..32 already
+  behaved for range-status elision. The focused 2048 Direct-HIP A/B captures
+  under `temp/exact-wide-signed-2048-limbs3-direct.json` and
+  `temp/exact-wide-signed-2048-limbs4-direct.json` are schema/event-valid and
+  show the three-limb output contract at 190940 us median end-to-end versus
+  194115 us for four limbs in that run. This is useful export specialization
+  evidence, not a reviewed cache entry or a replacement for four-limb output
+  when callers request four limbs.
 - `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
   matrices: `--skip-existing` reuses schema-valid existing captures and
   `--max-new-captures` caps how many new captures a pass may execute before
@@ -192,7 +203,7 @@ June 4-5, 2026 updates:
 | 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; release proof still needs same-contract timing and one final exact CPU comparison | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU reference remains exact |
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
-| 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Same-contract export-heavy captures by limb count with GPU events and checksum/limb equality | Promote only setup-inclusive export path wins, not isolated copy improvements |
+| 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
 | 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 and broader fixed limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound and route follow-up work toward fixed-width export and lazy residue-current workflows |
 | 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
@@ -818,12 +829,12 @@ Likely first slices:
   the exact-wide export path at requested limb widths. Direct-HIP export stages
   and copies `rows * cols * limb_count` limbs, and full-width device exports
   now elide range-status memset/D2H traffic when overflow is structurally
-  impossible: signed limb counts 4..32 and unsigned limb counts 3..32.
+  impossible: signed and unsigned limb counts 3..32.
   Prefix-20 Direct-HIP signed and unsigned export kernels also dispatch
   compile-time fixed limb-count variants for 1/2/3/4/8/16/32 limbs. The
-  3-limb variant is especially important for unsigned exact-wide captures
-  because it is the compact full-width 192-bit device reconstruction output and
-  can avoid both status traffic and a fourth all-zero output limb. The runtime
+  3-limb variant is especially important for exact-wide captures because it is
+  the compact full-width 192-bit device reconstruction output and can avoid both
+  status traffic and a fourth all-zero or sign-extension output limb. The runtime
   limb-count kernel is retained for other widths. Windows `gfx1100` release
   captures under `temp/perf-work-queue/exact-wide-3limb-export-current/` and
   `temp/perf-work-queue/exact-wide-3limb-export-rerun/` are schema-valid and

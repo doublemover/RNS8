@@ -2711,7 +2711,7 @@ class _Validator:
                 expected_status_check = (
                     "required_for_range_check"
                     if (
-                        (semantics == "exact_wide_signed" and limb_count < 4)
+                        (semantics == "exact_wide_signed" and limb_count < 3)
                         or (semantics == "exact_wide_unsigned" and limb_count < 3)
                     )
                     else "elided_full_width_device_reconstruction"

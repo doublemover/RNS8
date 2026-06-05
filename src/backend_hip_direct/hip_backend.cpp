@@ -792,7 +792,7 @@ bool checked_limb_export_pitch(int64_t ld, uint32_t limb_count) {
 }
 
 bool exact_wide_signed_export_requires_status(uint32_t limb_count) {
-  return limb_count < 4;
+  return limb_count < 3;
 }
 
 bool exact_wide_unsigned_export_requires_status(uint32_t limb_count) {
