@@ -117,6 +117,7 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | finite ring u8 mod 256 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 1.07x vs Direct HIP | installed |
+| finite field u8 mod 127 | 512 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1.10x vs Direct HIP | installed |
 | finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
 | finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 1.27x vs Direct HIP | installed |
 | exact-wide unsigned | 64 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4611 us | 1.67x vs Direct HIP | installed |
