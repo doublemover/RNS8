@@ -88,6 +88,27 @@ shares of hipBLASLt time, while Direct HIP is dominated by RNS GEMM at 4096.
 Do not use these rows as AUTO cache entries until a deliberately budgeted
 4096 review includes the required CPU/reference and vector baselines.
 
+A follow-up non-bounded 4096 exploratory pass used the same seed and release
+settings for exact-wide, finite-u8, and strict wrap64. It is also GPU-only
+classification, not promotion evidence: CPU and runtime vector baselines were
+intentionally omitted, and four non-promoted hipBLASLt finite captures lacked
+the expected residue-reduce event label. The event-valid 4096 winners were:
+
+| Contract | Shape | GPU-only event-valid winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Best-path scale vs same-commit 2048 |
+|---|---:|---|---:|---:|---:|---:|
+| exact-wide signed | 4096 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 279231 us | 834962 us | 2.99x | 4.19x |
+| exact-wide unsigned | 4096 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 223816 us | 821968 us | 3.67x | 3.77x |
+| finite field u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7970 us | 46818 us | 5.87x | 1.58x |
+| finite ring u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 9101 us | 82054 us | 9.02x | 1.33x |
+| finite ring u8 mod 255 | 4096 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 10131 us | 41924 us | 4.14x | 2.01x |
+| finite ring u8 mod 256 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 13632 us | 37808 us | 2.77x | 3.26x |
+| strict wrap64 u64 | 4096 | Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 352449 us | 352449 us | same backend | 7.35x |
+
+These rows are useful for deciding whether the next large-shape work should
+target GEMM throughput, export specialization, or finite event cleanup. They
+are not reviewed cache entries and should not appear in public snapshot tables
+until the missing CPU/reference and vector baselines are run.
+
 ## Finite-u8 Accelerator Wins
 
 The current finite-u8 v2 release review covered 64, 128, 512, 1024, the
