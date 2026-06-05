@@ -1119,7 +1119,7 @@ def main() -> int:
     large_4096_budgeted_args.backends = None
     large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
     large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
-    assert len(large_4096_budgeted_entries) == 17
+    assert len(large_4096_budgeted_entries) == 37
     assert {
         entry.scenario["backend"]
         for entry in large_4096_budgeted_entries
@@ -1134,6 +1134,32 @@ def main() -> int:
         entry.scenario["backend"]
         for entry in large_4096_budgeted_entries
         if entry.scenario["name"] == "exact-wide-signed-4096-budgeted-export"
+    } == {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"}
+    assert sorted(
+        (entry.scenario["modulus"], entry.scenario["backend"])
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "finite-ring-4096-hot-budgeted-baselines"
+    ) == [
+        (251, "ck"),
+        (251, "cpu"),
+        (251, "hip-direct"),
+        (251, "hipblaslt"),
+        (251, "rocwmma"),
+        (255, "ck"),
+        (255, "cpu"),
+        (255, "hip-direct"),
+        (255, "hipblaslt"),
+        (255, "rocwmma"),
+        (256, "ck"),
+        (256, "cpu"),
+        (256, "hip-direct"),
+        (256, "hipblaslt"),
+        (256, "rocwmma"),
+    ]
+    assert {
+        entry.scenario["backend"]
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "finite-field-4096-hot-budgeted-baselines"
     } == {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"}
     assert all(
         entry.scenario.get("metadata", {}).get("promotion_scope") == "non_promoting_budgeted_dry_run"

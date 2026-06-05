@@ -124,6 +124,18 @@ target GEMM throughput or export specialization. They are not reviewed cache
 entries and should not appear in public snapshot tables until the missing
 CPU/reference and vector baselines are run.
 
+The budgeted 4096 gate then reran the finite hot-modulus rows with CPU and
+Direct-HIP baselines. These rows supersede the finite GPU-only scout for local
+review evidence, but they still do not install cache entries from the 4096
+budget gate.
+
+| Contract | Shape | Budgeted-gate winner | Winner median end-to-end | Direct HIP median | CPU reference median | Decision |
+|---|---:|---|---:|---:|---:|---|
+| finite field u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6396 us | 33587 us | 4782790 us | Release-gate evidence only; no 4096 cache entry installed |
+| finite ring u8 mod 251 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7284 us | 32508 us | 4906360 us | Release-gate evidence only; no 4096 cache entry installed |
+| finite ring u8 mod 255 | 4096 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 8786 us | 33643 us | 4714350 us | Release-gate evidence only; no 4096 cache entry installed |
+| finite ring u8 mod 256 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6881 us | 32520 us | 4685440 us | Release-gate evidence only; no 4096 cache entry installed |
+
 The same budgeted 4096 gate also captured exact-wide signed 4096 GPU rows with
 required events: hipBLASLt at 172818 us, CK at 206153 us, rocWMMA at 253649 us,
 and Direct HIP at 637861 us. The CPU reference exceeded the 60-second
