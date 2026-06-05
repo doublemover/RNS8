@@ -3323,6 +3323,17 @@ bool vector_to_rns_chain_path(
          result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
+bool direct_hip_bounded_oneshot_resident_fallback_path(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  const uint32_t requested_prefix = benchmark_prefix(args);
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  return args.oneshot && bounded_benchmark_semantics(args.semantics) &&
+         selected_backend == RNS8_BACKEND_HIP_DIRECT && requested_prefix > 0 && selected_prefix > 0 &&
+         selected_prefix < requested_prefix;
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -3336,6 +3347,20 @@ std::vector<std::string> gpu_event_phase_order(
           "rns_gemm",
           "finite_export_kernel",
           "finite_export_d2h",
+          "crt_export",
+          "oneshot_api_gpu"};
+    }
+    if (direct_hip_bounded_oneshot_resident_fallback_path(args, result, selected_backend)) {
+      return {
+          "pack_h2d",
+          "pack_kernel",
+          "pack",
+          "rns_gemm_kernel_group",
+          "rns_gemm",
+          "crt_export_status_memset",
+          "crt_export_kernel",
+          "crt_export_status_d2h",
+          "crt_export_d2h",
           "crt_export",
           "oneshot_api_gpu"};
     }
@@ -4299,9 +4324,17 @@ void collect_export_gpu_events(
   }
 }
 
-void collect_bounded_oneshot_gpu_events(GpuEventSamples& events) {
+void collect_bounded_oneshot_gpu_events(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend,
+    GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const double native_h2d = sum_event_label(events, samples, "oneshot", "residue_h2d_sync");
+  const bool resident_fallback = direct_hip_bounded_oneshot_resident_fallback_path(args, result, selected_backend);
+  const double pack_h2d =
+      resident_fallback ? sum_event_label(events, samples, "oneshot", "pack_h2d")
+                        : sum_event_label(events, samples, "oneshot", "residue_h2d_sync");
+  const double pack_kernel = resident_fallback ? sum_event_label(events, samples, "oneshot", "pack_kernel") : 0.0;
   const double gemm = sum_event_label(events, samples, "oneshot", "rns_gemm_kernel_group");
   const double status_memset = optional_event_label(samples, "crt_export_status_memset");
   const double export_kernel = sum_event_label(events, samples, "oneshot", "crt_export_kernel");
@@ -4309,7 +4342,13 @@ void collect_bounded_oneshot_gpu_events(GpuEventSamples& events) {
   const double output_d2h = sum_event_label(events, samples, "oneshot", "crt_export_d2h");
   const double export_total = status_memset + export_kernel + status_d2h + output_d2h;
   if (events.complete) {
-    push_gpu_event_value(events, "oneshot_native_input_h2d", native_h2d);
+    if (resident_fallback) {
+      push_gpu_event_value(events, "pack_h2d", pack_h2d);
+      push_gpu_event_value(events, "pack_kernel", pack_kernel);
+      push_gpu_event_value(events, "pack", pack_h2d + pack_kernel);
+    } else {
+      push_gpu_event_value(events, "oneshot_native_input_h2d", pack_h2d);
+    }
     push_gpu_event_value(events, "rns_gemm_kernel_group", gemm);
     push_gpu_event_value(events, "rns_gemm", gemm);
     push_gpu_event_value(events, "crt_export_status_memset", status_memset);
@@ -4317,7 +4356,7 @@ void collect_bounded_oneshot_gpu_events(GpuEventSamples& events) {
     push_gpu_event_value(events, "crt_export_status_d2h", status_d2h);
     push_gpu_event_value(events, "crt_export_d2h", output_d2h);
     push_gpu_event_value(events, "crt_export", export_total);
-    push_gpu_event_value(events, "oneshot_api_gpu", native_h2d + gemm + export_total);
+    push_gpu_event_value(events, "oneshot_api_gpu", pack_h2d + pack_kernel + gemm + export_total);
   }
 }
 
@@ -4989,7 +5028,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
         rns8_gemm_i64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_i64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
-      collect_bounded_oneshot_gpu_events(result.gpu_events);
+      collect_bounded_oneshot_gpu_events(args, result, selected_backend, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto repeat_end = std::chrono::steady_clock::now();
@@ -5036,7 +5075,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
         rns8_gemm_u64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_u64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
-      collect_bounded_oneshot_gpu_events(result.gpu_events);
+      collect_bounded_oneshot_gpu_events(args, result, selected_backend, result.gpu_events);
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto repeat_end = std::chrono::steady_clock::now();
@@ -7277,6 +7316,9 @@ void print_json(
   const bool vector_alu_events = gpu_events_available && selected_backend_string == "hip-vector-alu-int64";
   const bool oneshot_hip_events =
       gpu_events_available && args.oneshot && selected_backend_kind == RNS8_BACKEND_HIP_DIRECT;
+  const bool oneshot_resident_fallback_events =
+      gpu_events_available &&
+      direct_hip_bounded_oneshot_resident_fallback_path(args, result, selected_backend_kind);
   const bool native_to_rns_bridge_events =
       gpu_events_available && native_to_rns_bridge_path(args, result, selected_backend_kind);
   const bool vector_to_rns_chain_events =
@@ -7308,13 +7350,23 @@ void print_json(
           "groups that keep intermediate outputs resident in RNS form; the final checksum-only logical export runs "
           "after measured repeats and is intentionally absent from gpu_event_phase_order\"";
     } else if (oneshot_hip_events) {
-      gpu_event_reason = "captured_by_direct_hip_oneshot_api_hooks";
-      gpu_event_scope = "\"direct_hip_oneshot_default_stream_operation_groups\"";
-      gpu_event_caveat =
-          "\"HIP event timings record the public one-shot API's native input H2D copies, direct-HIP GEMM "
-          "kernel group, and logical export operation groups; host wall-clock timings remain required for plan creation, "
-          "transient allocations, API dispatch, CPU scheduling, teardown, and synchronous host-side overhead not "
-          "represented on the HIP stream\"";
+      if (oneshot_resident_fallback_events) {
+        gpu_event_reason = "captured_by_direct_hip_oneshot_resident_fallback_api_hooks";
+        gpu_event_scope = "\"direct_hip_oneshot_resident_fallback_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record the public bounded one-shot API's resident fallback pack, direct-HIP GEMM "
+            "kernel group, and logical export operation groups; host wall-clock timings remain required for plan "
+            "creation, transient matrix/workspace allocation, API dispatch, CPU scheduling, teardown, and synchronous "
+            "host-side overhead not represented on the HIP stream\"";
+      } else {
+        gpu_event_reason = "captured_by_direct_hip_oneshot_api_hooks";
+        gpu_event_scope = "\"direct_hip_oneshot_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record the public one-shot API's native input H2D copies, direct-HIP GEMM "
+            "kernel group, and logical export operation groups; host wall-clock timings remain required for plan "
+            "creation, transient allocations, API dispatch, CPU scheduling, teardown, and synchronous host-side "
+            "overhead not represented on the HIP stream\"";
+      }
     } else if (native_to_rns_bridge_events) {
       gpu_event_reason = "captured_by_direct_hip_native_to_rns_bridge_hooks";
       gpu_event_scope = "\"direct_hip_native_to_rns_bridge_default_stream_operation_groups\"";

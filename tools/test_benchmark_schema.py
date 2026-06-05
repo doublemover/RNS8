@@ -859,16 +859,33 @@ def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
     )
     fallback["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
     fallback["timing_metadata"]["pack_mode"] = "per_repeat_repack"
-    fallback["timing_metadata"]["gpu_event_timing"] = False
-    fallback["timing_metadata"]["gpu_event_timing_reason"] = "backend_event_capture_incomplete"
-    fallback["timing_metadata"]["gpu_event_timing_status"] = "unavailable_missing_expected_events"
-    fallback["timing_metadata"]["gpu_event_timing_source"] = None
-    fallback["timing_metadata"]["gpu_event_timing_source_scope"] = None
-    fallback["timing_metadata"]["gpu_event_timing_caveat"] = None
-    fallback["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = [
-        "oneshot missing backend HIP event label residue_h2d_sync"
+    fallback["timing_metadata"]["gpu_event_timing"] = True
+    fallback["timing_metadata"][
+        "gpu_event_timing_reason"
+    ] = "captured_by_direct_hip_oneshot_resident_fallback_api_hooks"
+    fallback["timing_metadata"]["gpu_event_timing_status"] = "available"
+    fallback["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    fallback["timing_metadata"][
+        "gpu_event_timing_source_scope"
+    ] = "direct_hip_oneshot_resident_fallback_default_stream_operation_groups"
+    fallback["timing_metadata"]["gpu_event_timing_caveat"] = (
+        "HIP event timings record the public bounded one-shot API's resident fallback pack, direct-HIP GEMM "
+        "kernel group, and logical export operation groups; host wall-clock timings remain required"
+    )
+    fallback["timing_metadata"].pop("gpu_event_timing_unavailable_reasons", None)
+    fallback["timing_metadata"]["gpu_event_phase_order"] = [
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+        "oneshot_api_gpu",
     ]
-    fallback["timing_metadata"]["gpu_event_phase_order"] = None
     fallback["timing_metadata"]["phase_notes"]["matrix_alloc"] = (
         "zero-valued external phase; transient API allocations are inside the measured one-shot call"
     )
@@ -902,8 +919,21 @@ def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
     fallback["timing_summary_us"]["rns_gemm"] = {"avg": 1000.0, "median": 1100.0, "p95": 1100.0}
     fallback["timing_summary_us"]["crt_export"] = zero_summary()
     fallback["timing_summary_us"]["end_to_end"] = {"avg": 1000.0, "median": 1100.0, "p95": 1100.0}
-    fallback["gpu_event_timings_us"] = None
-    fallback["gpu_event_timing_summary_us"] = None
+    event_values = {
+        "pack_h2d": [9.0, 10.0][:repeats],
+        "pack_kernel": [11.0, 12.0][:repeats],
+        "pack": [20.0, 22.0][:repeats],
+        "rns_gemm_kernel_group": [90.0, 100.0][:repeats],
+        "rns_gemm": [90.0, 100.0][:repeats],
+        "crt_export_status_memset": [0.5, 0.5][:repeats],
+        "crt_export_kernel": [30.0, 31.0][:repeats],
+        "crt_export_status_d2h": [1.0, 1.0][:repeats],
+        "crt_export_d2h": [10.0, 11.0][:repeats],
+        "crt_export": [41.5, 43.5][:repeats],
+        "oneshot_api_gpu": [151.5, 165.5][:repeats],
+    }
+    fallback["gpu_event_timings_us"] = event_values
+    fallback["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
     return fallback
 
 
@@ -2941,7 +2971,16 @@ def main() -> int:
     }
     expect_invalid(
         bad_resident_fallback_stale_scope,
-        "direct-HIP one-shot captures must not use native one-shot event scope for resident fallback metadata",
+        "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
+    )
+
+    bad_resident_fallback_missing_pack = copy.deepcopy(resident_fallback_oneshot)
+    bad_resident_fallback_missing_pack["timing_metadata"]["gpu_event_phase_order"].remove("pack_kernel")
+    del bad_resident_fallback_missing_pack["gpu_event_timings_us"]["pack_kernel"]
+    del bad_resident_fallback_missing_pack["gpu_event_timing_summary_us"]["pack_kernel"]
+    expect_invalid(
+        bad_resident_fallback_missing_pack,
+        "direct-HIP one-shot resident fallback GPU event phase set is incomplete",
     )
 
     small_u64_oneshot = copy.deepcopy(direct_hip_oneshot_i64)

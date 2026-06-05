@@ -162,6 +162,7 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
     "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
     "direct_hip_oneshot_default_stream_operation_groups",
+    "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
 }
 HIPBLASLT_GPU_EVENT_SCOPES = {
@@ -353,6 +354,19 @@ INT32_MAX = 2_147_483_647
 UINT32_MAX = 4_294_967_295
 DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES = [
     "oneshot_native_input_h2d",
+    "rns_gemm_kernel_group",
+    "rns_gemm",
+    "crt_export_status_memset",
+    "crt_export_kernel",
+    "crt_export_status_d2h",
+    "crt_export_d2h",
+    "crt_export",
+    "oneshot_api_gpu",
+]
+DIRECT_HIP_ONESHOT_RESIDENT_FALLBACK_GPU_EVENT_PHASES = [
+    "pack_h2d",
+    "pack_kernel",
+    "pack",
     "rns_gemm_kernel_group",
     "rns_gemm",
     "crt_export_status_memset",
@@ -2332,10 +2346,11 @@ class _Validator:
                         if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
                     if resident_fallback_oneshot and isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
-                        stale_scope = "direct_hip_oneshot_default_stream_operation_groups"
-                        if metadata.get("gpu_event_timing_source_scope") == stale_scope:
+                        expected_scope = "direct_hip_oneshot_resident_fallback_default_stream_operation_groups"
+                        if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(
-                                "direct-HIP one-shot captures must not use native one-shot event scope "
+                                "direct-HIP one-shot captures must use "
+                                f"timing_metadata.gpu_event_timing_source_scope={expected_scope} "
                                 "for resident fallback metadata"
                             )
             if native_a_reuse_b_capture:
@@ -3570,6 +3585,26 @@ class _Validator:
                     self._error(f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
                 if not missing and not extra:
                     self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
+            return
+        if self._is_direct_hip_bounded_resident_fallback_oneshot_capture() and backend == "hip-direct":
+            expected = DIRECT_HIP_ONESHOT_RESIDENT_FALLBACK_GPU_EVENT_PHASES
+            if phases != expected:
+                missing = [phase for phase in expected if phase not in phases]
+                extra = [phase for phase in phases if phase not in expected]
+                if missing:
+                    self._error(
+                        "direct-HIP one-shot resident fallback GPU event phase set is incomplete; "
+                        f"missing {', '.join(missing)}"
+                    )
+                if extra:
+                    self._error(
+                        "direct-HIP one-shot resident fallback GPU event phase set contains undeclared phases: "
+                        f"{', '.join(extra)}"
+                    )
+                if not missing and not extra:
+                    self._error(
+                        "direct-HIP one-shot resident fallback GPU event phase order must match the resident pack/GEMM/export order"
+                    )
             return
         if self._is_direct_hip_bounded_residue_channel_fusion_capture():
             expected = [
