@@ -375,6 +375,17 @@ Any future wrap64 matrix-engine candidate must beat the direct-HIP v4 release
 baseline with exact byte-limb differentials and ISA evidence before it can
 displace the current path.
 
+A June 5, 2026 large-shape release-validation follow-up covered strict wrap64
+2048x2048x2048 with seed `20260605`, release builds, three warmups, and nine
+measured repeats. The same-contract review had no missing required baselines,
+duplicate backends, target/toolchain incompatibilities, or commit mismatches.
+The optimized CPU byte-limb reference measured 13423400 us median end-to-end,
+while Direct HIP v4 measured 58331 us median end-to-end. Required Direct-HIP GPU
+events were present; the event report attributed the median GPU stream time
+primarily to `wrap64_byte_gemm36_tiled_2d_kernel` at 43597.1 us. No cache entry
+is written because strict wrap64 Direct HIP is a correctness backend, not an
+AUTO-promoted accelerator entry.
+
 The internal rocWMMA wrap64 byte-GEMM36 candidate can now be captured with
 `rns8-bench --backend rocwmma-wrap64-candidate --semantics wrap-u64` or added to
 wrap64 sweeps with `--include-rocwmma-wrap64-candidate`. Candidate captures use a

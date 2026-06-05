@@ -197,6 +197,14 @@ schema-valid/event-valid v4 captures, and checksum-matched before/after output.
 | Strict wrap64 Direct-HIP reuse-packed inputs | 512 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.07x | 1.99x | Positive but export-noisy |
 | Strict wrap64 Direct-HIP reuse-packed inputs | 1024 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 6.74x | 7.83x | Local implementation win |
 
+The large-shape release-validation follow-up on June 5, 2026 covered strict
+wrap64 2048x2048x2048 with the same-contract byte-limb CPU reference and Direct
+HIP v4. The review had no missing required baselines, duplicate backends, target
+or toolchain mismatches, or commit mismatches. Direct HIP measured 58331 us
+median end-to-end versus 13423400 us for the CPU byte-limb reference, a 230.1x
+same-contract speedup, with required wrap64 GPU events. This is durable evidence
+for the current Direct-HIP strict wrap64 path, not an AUTO cache entry.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend

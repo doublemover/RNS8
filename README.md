@@ -123,6 +123,7 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
 | exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
 | exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
+| strict wrap64 u64 | 2048 | Direct HIP <br/> `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 58331 us | 230.1x vs CPU byte-limb | none |
 
 The installed reviewed cache currently covers 23 exact plan keys, including the
 large 2048 bounded/finite-u8 entries and exact-wide unsigned 64 entry above.

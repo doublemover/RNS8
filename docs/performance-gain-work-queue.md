@@ -119,10 +119,16 @@ June 4-5, 2026 updates:
   us for bounded-i64 and 8727 us for bounded-u64, but `prepacked_reuse` stays
   non-autotune-promotable until setup identity, lifetime, and break-even policy
   become explicit. Exact-wide 2048 still needs chunked execution because its CPU
-  comparator is too slow for one monolithic run. Wrap64 2048 also remains
-  unreviewed: the first release attempt exposed the CPU byte-limb reference as a
-  validation bottleneck, so the next step is reference-path cleanup before
-  treating wrap64 2048 timing as performance evidence.
+  comparator is too slow for one monolithic run.
+- The strict wrap64 2048 slice of `large-release-validation` is complete after
+  CPU reference-path cleanup. The two captures under
+  `temp/perf-work-queue/large-release-validation-2048-wrap64-current/` cover
+  same-contract byte-limb CPU and Direct HIP v4 at 2048x2048x2048 with release
+  settings, schema-valid captures, matching checksums, compatible
+  target/toolchain/commit metadata, and required Direct-HIP GPU events. Direct
+  HIP v4 measured 58331 us median end-to-end versus 13423400 us for the CPU
+  byte-limb reference. This is current Direct-HIP correctness-path evidence, not
+  an AUTO cache entry.
 - The finite-u8 2048 hot-modulus slice of `large-release-validation` is also
   complete. The 20 captures under
   `temp/perf-work-queue/large-release-validation-2048-finite-current/` cover
@@ -164,7 +170,7 @@ June 4-5, 2026 updates:
 |---:|---|---|---|---|
 | 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
 | 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
-| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; installed non-reuse winners are CK bounded-i64 2048, rocWMMA bounded-u64 2048, rocWMMA finite ring 251/256, and hipBLASLt finite ring 255/field 251; exact-wide 2048 still needs chunked release execution; wrap64 2048 needs CPU reference cleanup before release timing is meaningful | Keep repeated-B as explicit workload-contract evidence, and keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
+| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; strict wrap64 2048 is captured and release-reviewed with CPU byte-limb and Direct HIP v4; installed non-reuse winners are CK bounded-i64 2048, rocWMMA bounded-u64 2048, rocWMMA finite ring 251/256, and hipBLASLt finite ring 255/field 251; exact-wide 2048 still needs chunked release execution | Keep repeated-B as explicit workload-contract evidence, keep wrap64 as Direct-HIP correctness-path evidence rather than cache promotion, and keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
@@ -210,7 +216,7 @@ June 4-5, 2026 updates:
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
 | Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
-| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048 and finite-u8 hot-modulus 2048 now have CPU-backed release review and installed non-reuse winners, but repeated-B is still contract-limited, exact-wide 2048 still needs chunked CPU comparator execution, wrap64 2048 is blocked on slow CPU byte-limb reference validation, and 4096 remains exploratory | Use `--skip-existing` and `--max-new-captures` to finish the remaining `large-release-validation` 2048 chunks; fix wrap64 CPU reference throughput before rerunning strict wrap64 2048; keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
+| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited, wrap64 is a Direct-HIP correctness path rather than cache promotion, exact-wide 2048 still needs chunked CPU comparator execution, and 4096 remains exploratory | Use `--skip-existing` and `--max-new-captures` to finish the remaining exact-wide `large-release-validation` 2048 chunks; keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
 | Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
@@ -2426,10 +2432,16 @@ Relation to new architecture work:
 ### 36. Wrap64 Direct-HIP v4
 
 Status: direct HIP v4 is the measured strict wrap64 GPU path for the local
-Windows `gfx1100` 64/128/512/1024 validation matrix. Paired release captures
-under `temp/perf-work-queue/wrap64-v4/` showed median end-to-end speedups over
-v3 of 1.07x, 1.17x, 1.02x, and 5.60x for default 64/128/512/1024 captures, and
-1.22x, 4.67x, 1.07x, and 6.74x for reuse-packed-input captures.
+Windows `gfx1100` 64/128/512/1024/2048 validation matrix. Paired release
+captures under `temp/perf-work-queue/wrap64-v4/` showed median end-to-end
+speedups over v3 of 1.07x, 1.17x, 1.02x, and 5.60x for default
+64/128/512/1024 captures, and 1.22x, 4.67x, 1.07x, and 6.74x for
+reuse-packed-input captures. The June 5, 2026
+`large-release-validation` 2048 follow-up under
+`temp/perf-work-queue/large-release-validation-2048-wrap64-current/` is now
+release-reviewed with CPU byte-limb and Direct-HIP v4 baselines: Direct HIP
+measured 58331 us median end-to-end versus 13423400 us for the CPU reference,
+with required wrap64 GPU events and no missing required baselines.
 
 Technical direction:
 
@@ -2459,7 +2471,9 @@ Likely first slices:
   4838.8 us) while losing end-to-end median (9775 us vs 9657 us). Keep default
   routing on v4 and treat colpair as an inspectable tuning candidate, not a
   performance win.
-- 2048 v4 exploratory run and ISA/resource report.
+- 2048 v4 release run. Completed for CPU/direct-HIP release review; remaining
+  follow-up is an ISA/resource report and any measured v4 microarchitecture
+  tuning against this baseline.
 
 Relation to new architecture work:
 

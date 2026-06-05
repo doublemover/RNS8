@@ -67,8 +67,9 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
   direct-HIP correctness paths.
 - Broader production performance gates beyond reviewed Windows `gfx1100`
   shape-scoped evidence.
-- Exact-wide 2048, wrap64 2048, 4096 large-shape matrices, and Linux/Instinct
-  promotion gates remain unvalidated.
+- Exact-wide 2048, 4096 large-shape matrices, and Linux/Instinct promotion
+  gates remain unvalidated. Strict wrap64 2048 now has Windows `gfx1100`
+  CPU/direct-HIP release review, but no public optimized matrix-engine backend.
 
 ## Validation Boundary
 
