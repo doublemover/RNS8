@@ -24,6 +24,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_gate_review_required",
       "release_gate": "large-release-validation-4096-budgeted",
       "metadata": {
         "large_shape_role": "budgeted_4096_release_gate",
@@ -53,6 +55,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_gate_review_required",
       "finite_moduli": [
         251
       ],

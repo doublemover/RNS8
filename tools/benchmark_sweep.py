@@ -74,6 +74,8 @@ class ScenarioItem:
     evidence_scope: str
     output_domain: str
     rationale: str
+    review_mode_expectation: str
+    promotion_eligibility: str
     backends: tuple[str, ...] | None = None
     pack_mode: str = "per_repeat_repack"
     finite_moduli: tuple[int | None, ...] = (None,)
@@ -243,6 +245,8 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 _required_string(raw, "evidence_scope", label=label),
                 _required_string(raw, "output_domain", label=label),
                 _required_string(raw, "rationale", label=label),
+                _required_string(raw, "review_mode_expectation", label=label),
+                _required_string(raw, "promotion_eligibility", label=label),
                 backends=_optional_tuple(raw.get("backends"), label=f"{label}.backends"),
                 pack_mode=_required_string(raw, "pack_mode", label=label) if "pack_mode" in raw else "per_repeat_repack",
                 finite_moduli=_finite_moduli(raw.get("finite_moduli"), label=f"{label}.finite_moduli"),
@@ -1678,6 +1682,8 @@ def scenario_metadata(
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
         "rationale": item.rationale,
+        "review_mode_expectation": item.review_mode_expectation,
+        "promotion_eligibility": item.promotion_eligibility,
     }
     if item.metadata:
         metadata["metadata"] = item.metadata
@@ -2272,13 +2278,13 @@ def write_scenario_manifest(entries: list[SweepCommand], args: argparse.Namespac
         f"- repeats: `{manifest['repeats']}`",
         f"- seed: `{manifest['seed']}`",
         "",
-        "| family | item | semantics | shape | backend | pack | output_domain | evidence_scope | capture |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| family | item | semantics | shape | backend | pack | review | promotion | output_domain | evidence_scope | capture |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in manifest["entries"]:
         shape = entry["shape"]
         lines.append(
-            "| {family} | {name} | {semantics} | {m}x{n}x{k} | {backend} | {pack} | {domain} | {scope} | {capture} |".format(
+            "| {family} | {name} | {semantics} | {m}x{n}x{k} | {backend} | {pack} | {review} | {promotion} | {domain} | {scope} | {capture} |".format(
                 family=entry["family"],
                 name=entry["name"],
                 semantics=entry["semantics"],
@@ -2287,6 +2293,8 @@ def write_scenario_manifest(entries: list[SweepCommand], args: argparse.Namespac
                 k=shape["k"],
                 backend=entry["backend"],
                 pack=entry["pack_mode"],
+                review=entry["review_mode_expectation"],
+                promotion=entry["promotion_eligibility"],
                 domain=entry["output_domain"],
                 scope=entry["evidence_scope"],
                 capture=entry["capture_name"],

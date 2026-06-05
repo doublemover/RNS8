@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "residue_chain_length": 3,
       "next_op_hint": "rns-gemm",
@@ -55,6 +57,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "residue_chain_length": 3,
       "next_op_hint": "rns-gemm",
@@ -88,6 +92,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "residue_chain_length": 3,
       "next_op_hint": "rns-gemm",
@@ -120,6 +126,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "residue_chain_length": 3,
       "next_op_hint": "rns-gemm",
@@ -153,6 +161,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "exact_wide_limb_counts": [
         4
@@ -188,6 +198,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse",
       "exact_wide_limb_counts": [
         4

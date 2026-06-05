@@ -25,6 +25,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "proxy_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "next_op_hint": "rns-gemm",
       "workload_proxy": "fhe:key_switch_digit_aggregation",
@@ -62,6 +64,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "proxy_evidence_only",
       "workload_proxy": "fhe:ckks_linear_layer_dense_proxy",
       "verification_amortization": "reuse_shape_seed_reference_inputs",
       "metadata": {

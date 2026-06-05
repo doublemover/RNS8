@@ -24,6 +24,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "oneshot": true,
       "next_op_hint": "final-export"
     },
@@ -52,6 +54,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "next_op_hint": "final-export"
     },
     {
@@ -76,6 +80,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251,
         255
@@ -108,6 +114,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],

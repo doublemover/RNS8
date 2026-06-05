@@ -27,6 +27,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],
@@ -69,6 +71,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],
@@ -110,6 +114,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],
@@ -151,6 +157,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],
@@ -191,6 +199,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
       ],

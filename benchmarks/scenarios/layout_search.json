@@ -27,6 +27,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "next_op_hint": "final-export",
@@ -63,6 +65,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "next_op_hint": "rns-gemm",
@@ -99,6 +103,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "exact_wide_limb_counts": [
         4
       ],
@@ -138,6 +144,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "exact_wide_limb_counts": [
         4
       ],
@@ -177,6 +185,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "finite_moduli": [
         251,
         255,
@@ -217,6 +227,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "finite_moduli": [
         251
       ],
@@ -252,6 +264,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "wrap64_byte_limb_low64_output",

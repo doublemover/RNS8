@@ -24,6 +24,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_set_experiment",
       "prefix_policy": "fixed-requested",
       "max_prefix": 5,
       "modulus_set": "experimental:prefix5-byte-ladder-search",
@@ -55,6 +57,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "comparison_anchor_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "metadata": {

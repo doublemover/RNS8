@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 32,
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
@@ -51,6 +53,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 32,
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
@@ -79,6 +83,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
       "finite_moduli": [
         251
       ],
@@ -109,6 +115,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
       ],
@@ -141,6 +149,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
       ],

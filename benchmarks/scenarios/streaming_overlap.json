@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "resident_lifetime": true,
       "workspace_arena": true,
@@ -53,6 +55,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
       "exact_wide_limb_counts": [
         4
       ],

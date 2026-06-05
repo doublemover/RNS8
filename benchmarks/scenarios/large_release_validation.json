@@ -28,6 +28,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "metadata": {
         "workflow_name": "large_shape_release_validation",
         "large_shape_role": "required_baseline_matrix",
@@ -61,6 +63,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "metadata": {
         "workflow_name": "large_shape_release_validation",
         "large_shape_role": "required_baseline_matrix",
@@ -94,6 +98,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
         "workflow_name": "large_shape_release_validation",
@@ -130,6 +136,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
         "workflow_name": "large_shape_release_validation",
@@ -165,6 +173,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "exact_wide_limb_counts": [
         4
       ],
@@ -200,6 +210,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "exact_wide_limb_counts": [
         4
       ],
@@ -235,6 +247,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "finite_moduli": [
         251,
         255,
@@ -272,6 +286,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "finite_moduli": [
         251
       ],
@@ -304,6 +320,8 @@
         "wrap64-byte-limb",
         "hip-direct"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_backed_2048_release_review_candidate",
       "metadata": {
         "workflow_name": "large_shape_release_validation",
         "large_shape_role": "wrap64_required_baselines",

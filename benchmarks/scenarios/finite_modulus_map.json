@@ -26,6 +26,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_map",
       "finite_moduli": [
         127,
         241,
@@ -65,6 +67,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_map",
       "finite_moduli": [
         127,
         241,

@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "not_promotable",
       "finite_moduli": [
         251
       ],
@@ -64,6 +66,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -106,6 +110,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "residue_chain_length": 4,
       "metadata": {
         "source_role": "fhe_lattice_proxy",
@@ -152,6 +158,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,

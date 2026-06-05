@@ -23,6 +23,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "vector_to_rns_chain": true,
       "metadata": {
         "workflow_name": "vector_to_rns_chain",
@@ -55,6 +57,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "vector_to_rns_chain": true,
       "metadata": {
         "workflow_name": "vector_to_rns_chain",
@@ -87,6 +91,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "vector_to_rns_chain": true,
       "metadata": {
         "workflow_name": "vector_to_rns_chain",
@@ -119,6 +125,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "vector_to_rns_chain": true,
       "metadata": {
         "workflow_name": "vector_to_rns_chain",
@@ -151,6 +159,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "pack_mode": "prepacked_reuse_b",
       "vector_to_rns_chain": true,
       "metadata": {
@@ -185,6 +195,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "pack_mode": "prepacked_reuse_b",
       "vector_to_rns_chain": true,
       "metadata": {
@@ -219,6 +231,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "pack_mode": "prepacked_reuse_b",
       "vector_to_rns_chain": true,
       "metadata": {
@@ -253,6 +267,8 @@
       "backends": [
         "auto"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
       "pack_mode": "prepacked_reuse_b",
       "vector_to_rns_chain": true,
       "metadata": {

@@ -24,6 +24,8 @@
         "wrap64-byte-limb",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "include_wrap64_candidate": true
     },
     {
@@ -48,6 +50,8 @@
         "wrap64-byte-limb",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "include_wrap64_candidate": true
     }
   ]

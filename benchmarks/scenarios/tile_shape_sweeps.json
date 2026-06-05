@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "direct-hip-bounded-512-64x64",
       "metadata": {
         "promotion_scope": "tile_shape_evidence_only",
@@ -50,6 +52,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "direct-hip-bounded-512-256x128",
       "metadata": {
         "promotion_scope": "tile_shape_evidence_only",
@@ -77,6 +81,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "direct-hip-bounded-1024-64x128",
       "metadata": {
         "promotion_scope": "tile_shape_evidence_only",
@@ -104,6 +110,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "direct-hip-bounded-1024-256x256",
       "metadata": {
         "promotion_scope": "tile_shape_evidence_only",
@@ -131,6 +139,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "finite_moduli": [
         251
       ],
@@ -161,6 +171,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
       "finite_moduli": [
         251
       ],

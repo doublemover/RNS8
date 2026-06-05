@@ -28,6 +28,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "release_gate": "large-release-validation-4096-budgeted",
       "metadata": {
         "large_shape_role": "budgeted_release_validation_probe",
@@ -64,6 +66,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "release_gate": "large-release-validation-4096-budgeted",
       "metadata": {
         "large_shape_role": "budgeted_release_validation_probe",
@@ -99,6 +103,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "finite_moduli": [
         251,
         255,
@@ -138,6 +144,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "finite_moduli": [
         251
       ],
@@ -172,6 +180,8 @@
         "wrap64-byte-limb",
         "hip-direct"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "release_gate": "large-release-validation-4096-budgeted",
       "metadata": {
         "large_shape_role": "budgeted_wrap64_direct_hip_probe",
@@ -206,6 +216,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "exact_wide_limb_counts": [
         4
       ],
@@ -243,6 +255,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_budgeted_dry_run",
       "exact_wide_limb_counts": [
         4
       ],

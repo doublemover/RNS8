@@ -28,6 +28,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -62,6 +64,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -95,6 +99,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -130,6 +136,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -164,6 +172,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -197,6 +207,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -232,6 +244,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -266,6 +280,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",
@@ -299,6 +315,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
         "workflow_name": "bound_discovery_proof_mask_release_matrix",

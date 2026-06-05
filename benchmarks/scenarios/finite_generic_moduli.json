@@ -24,6 +24,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         127
       ],
@@ -58,6 +60,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         127
       ],
@@ -92,6 +96,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         253
       ],
@@ -126,6 +132,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "exploratory_only",
       "finite_moduli": [
         127
       ],
@@ -161,6 +169,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "exploratory_only",
       "finite_moduli": [
         253
       ],

@@ -23,6 +23,8 @@
       "backends": [
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "adaptive_grouped_scheduler_evidence_only",
       "prefix_policy": "minimum-proven",
       "bound_source": "input-scan",
       "adaptive_grouped_scheduler": true,

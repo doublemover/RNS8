@@ -25,6 +25,8 @@
         "hip-direct",
         "hipblaslt"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "narrow_margin_review_only",
       "metadata": {
         "promotion_scope": "narrow_margin_review_only",
         "comparison_role": "current_reducer_vs_direct_hip_baseline",
@@ -53,6 +55,8 @@
         "hip-direct",
         "hipblaslt"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
         "promotion_scope": "explicit_reuse_contract_only",

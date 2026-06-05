@@ -27,6 +27,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
       ]
@@ -56,6 +58,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         3
       ]
@@ -85,6 +89,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
       ]

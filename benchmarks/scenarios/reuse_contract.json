@@ -28,6 +28,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "metadata": {
@@ -63,6 +65,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "metadata": {
@@ -98,6 +102,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -136,6 +142,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -174,6 +182,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -212,6 +222,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -250,6 +262,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -288,6 +302,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -326,6 +342,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
         "reuse_contract_role": "nonreuse_baseline",
@@ -359,6 +377,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "baseline_only",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
         "reuse_contract_role": "nonreuse_baseline",
@@ -392,6 +412,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -428,6 +450,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -464,6 +488,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -500,6 +526,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -536,6 +564,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -572,6 +602,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",

@@ -23,7 +23,9 @@
       "backends": [
         "cpu",
         "hip-direct"
-      ]
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate"
     },
     {
       "name": "bounded-i64-64-oneshot",
@@ -47,6 +49,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "oneshot": true
     },
     {
@@ -70,7 +74,9 @@
       "backends": [
         "cpu",
         "hip-direct"
-      ]
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate"
     },
     {
       "name": "bounded-u64-128-oneshot",
@@ -94,6 +100,8 @@
         "cpu",
         "hip-direct"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "oneshot": true
     }
   ]

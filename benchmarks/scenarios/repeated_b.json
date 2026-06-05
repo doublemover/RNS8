@@ -27,6 +27,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9
@@ -56,6 +58,8 @@
         "ck",
         "rocwmma"
       ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9

@@ -492,6 +492,10 @@ def main() -> int:
         assert payload["items"]
         for item in payload["items"]:
             assert isinstance(item.get("case"), dict)
+            assert isinstance(item.get("backends"), list) and item["backends"]
+            assert isinstance(item.get("review_mode_expectation"), str) and item["review_mode_expectation"]
+            assert item["review_mode_expectation"] in {"smoke", "release"}
+            assert isinstance(item.get("promotion_eligibility"), str) and item["promotion_eligibility"]
             for key in ["name", "m", "n", "k", "tile_m", "tile_n", "bound_mode", "input_profile"]:
                 assert key in item["case"]
     for scenario_name in [
@@ -905,6 +909,8 @@ def main() -> int:
     ]
     assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
     assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
+    assert all(entry.scenario["review_mode_expectation"] == "smoke" for entry in grouped_dispatch_entries)
+    assert all(entry.scenario["promotion_eligibility"] for entry in grouped_dispatch_entries)
     assert all("--grouped-dispatch" in entry.command and "32" in entry.command for entry in grouped_dispatch_entries)
     assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
     assert any(
