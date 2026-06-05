@@ -53,7 +53,7 @@ June 4-5, 2026 updates:
   cleanup, and benchmark-owned host API batching.
   Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
   35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
-  17, and the 2048 hot-modulus portion of rank 14. Partially advanced lanes
+  17, 21, and the 2048 hot-modulus portion of rank 14. Partially advanced lanes
   remain ranks 3, 6, 8, 9, 10, 11, 12, 13, 15, 18, and 20; they have
   benchmark/schema surfaces, focused event cleanup, or partial release evidence,
   but not enough proof for broader routing or public performance claims. Rank
@@ -165,6 +165,25 @@ June 4-5, 2026 updates:
   baseline, 2.04x faster. The other 19 host-batch candidates are deprioritized.
   This closes rank 31 and advances rank 8, but it is still benchmark-only
   workload evidence rather than a public grouped API or AUTO cache promotion.
+- Bound-discovery/proof-mask setup-inclusive validation now has its own
+  `bound-discovery` scenario family and comparison report. The June 5, 2026
+  release matrix under
+  `temp/perf-work-queue/bound-discovery-current-release/` captured 51
+  schema-valid records across bounded-i64 256/1024 adaptive-band workloads and
+  a bounded-u64 512x1024 adaptive-band workload, comparing static global bounds,
+  global input-scan bounds, and per-tile proof-mask bounds across CPU, Direct
+  HIP, runtime vector ALU, hipBLASLt where supported, CK, and rocWMMA. The
+  generic release review has nine groups, no missing required baselines, no
+  duplicate backends, compatible git/target metadata, and required GPU events
+  for every non-CPU capture. `tools/bound_discovery_report.py` adds
+  `global_bound_scan` or `tile_bound_scan` setup cost to median end-to-end
+  timing and deprioritizes all 33 discovery/proof candidates. hipBLASLt global
+  input-scan improves over its own 256 bounded-i64 static baseline and CK
+  global input-scan improves over its own rectangular bounded-u64 static
+  baseline, but both lose to the fastest static workload baseline after setup
+  cost. Proof-mask per-tile candidates are event-visible and correct, but the
+  exact tile-bound prepass dominates end-to-end timing. Rank 21 is closed as
+  validated no-promotion evidence.
 - Large-shape validation now has a dedicated `large-release-validation`
   scenario family. It emits the missing CPU/direct/vector/accelerator
   comparator matrix for 2048 bounded i64/u64, setup-contract reuse-B 2048,
@@ -313,7 +332,7 @@ June 4-5, 2026 updates:
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, and large-shape reusable-B scenarios; the contract still needs repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, stale-source rejection, and chain consumer identity | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
 | 19 | hipBLASLt A/B reuse conversion from benchmark win to explicit workload contract | hipBLASLt A/B reuse is the strongest event-valid reuse signal | Public or benchmark-contract design plus release evidence including setup amortization | Promote only when one-time setup and repeated-call semantics are visible and correct |
 | 20 | Advanced Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse now has reusable-B chain, reusable consumer-B, and large bounded scenario coverage, but reuse-A and non-bounded profiles remain thin | Release evidence for adaptive, finite, exact-wide, non-uniform inputs, and RNS-chain consumers | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
-| 21 | Bound-discovery proof-mask setup-inclusive release matrix | Proof masks reduced scan cost but need broader end-to-end proof | Release captures comparing static profile, input-scan, tile-bound, and proof-mask modes | Promote only when scan cost plus execution savings beat setup-inclusive baselines |
+| 21 | Completed/deprioritized bound-discovery proof-mask setup-inclusive release matrix | Proof masks reduced scan cost but needed broader end-to-end proof | `bound-discovery` release matrix has 51 schema-valid captures, nine reviewed groups, required GPU events for all non-CPU captures, and `tools/bound_discovery_report.py` compares static global bounds, global input-scan, and proof-mask per-tile modes with scan setup cost included | Closed as no-promotion evidence: all 33 input-scan/proof-mask candidates lose the setup-inclusive gate versus same-backend or fastest static baselines; do not route discovery/proof modes until a cheaper prepass or persistent bound contract changes that result |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips; other backends are incomplete | CPU, CK, rocWMMA, and hipBLASLt correctness/event evidence for skipped work | Extend only where event traces show skipped backend work, not just metadata |
 | 23 | Closed helper lane: generated prefix-specific reducers for bounded prefixes 1..9 | PR #10 adds fixed-prefix reducer identity, dispatch, and ISA-gate surfaces | Release A/B still needs prefix-specific end-to-end proof against generic reducers | Closed as infrastructure; reopen only for measured prefix-specific speedup work |
 | 24 | Shared epilogue DSL for Direct-HIP, hipBLASLt, CK, and rocWMMA reducers | Reducer specialization is duplicated across accelerators | One DSL-generated family with schema fixtures and stale-cache rejection | Adopt only if generated names, metadata, and ISA reports remain inspectable |
@@ -359,6 +378,7 @@ June 4-5, 2026 updates:
 | CK/rocWMMA adaptive current-v2 cache promotion | Do not promote | Current adaptive-bands release review is valid, but CK and rocWMMA lose badly to Direct HIP at every reviewed group |
 | Raw smoke or discovery captures as durable claims | Do not promote | They lack the release-review and required-event gates for public claims |
 | Single-call accelerator tuning for many-small 32/64 proxies | Deprioritize | The current release review is CPU- or Direct-HIP-favored for the small proxies, and the only vector-fast bounded-u64 64 result is not an accelerator/cache entry; grouped execution is the higher-value path |
+| Current bound-discovery/proof-mask modes as default routing | Deprioritize | The setup-inclusive release matrix found zero candidate wins; per-tile proof masks are event-visible but exact tile-bound scans dominate end-to-end timing |
 
 ## Detailed Backlog And Research Notes
 

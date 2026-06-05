@@ -481,6 +481,7 @@ def main() -> int:
 
     catalog = benchmark_sweep.scenario_catalog()
     for scenario_name in [
+        "bound-discovery",
         "generated-prefix-reducers",
         "large-release-validation",
         "layout-search",
@@ -772,6 +773,60 @@ def main() -> int:
     } == {"cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"}
     assert all("--bound-mode" in entry.command and "per-tile" in entry.command for entry in adaptive_bands_entries)
     assert all("--require-adaptive-execution" in entry.command for entry in adaptive_bands_entries)
+
+    bound_discovery_args = copy.copy(scenario_args)
+    bound_discovery_args.backends = None
+    bound_discovery_args.scenario = ["bound-discovery"]
+    bound_discovery_entries = benchmark_sweep.sweep_command_entries(bound_discovery_args)
+    assert len(bound_discovery_entries) == 51
+    assert {entry.scenario["family"] for entry in bound_discovery_entries} == {"bound-discovery"}
+    assert {entry.scenario["name"] for entry in bound_discovery_entries} == {
+        "bounded-i64-256-static-global",
+        "bounded-i64-256-input-scan-global",
+        "bounded-i64-256-proof-mask-per-tile",
+        "bounded-u64-rect-static-global",
+        "bounded-u64-rect-input-scan-global",
+        "bounded-u64-rect-proof-mask-per-tile",
+        "bounded-i64-1024-static-global",
+        "bounded-i64-1024-input-scan-global",
+        "bounded-i64-1024-proof-mask-per-tile",
+    }
+    assert {
+        entry.scenario["backend"]
+        for entry in bound_discovery_entries
+        if entry.scenario["name"] == "bounded-i64-256-static-global"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+    assert {
+        entry.scenario["backend"]
+        for entry in bound_discovery_entries
+        if entry.scenario["name"] == "bounded-i64-256-proof-mask-per-tile"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"}
+    assert all("--input-profile" in entry.command and "adaptive-bands" in entry.command for entry in bound_discovery_entries)
+    assert all("--bound-source" in entry.command for entry in bound_discovery_entries)
+    assert all(
+        entry.command[entry.command.index("--bound-source") + 1] == "static-profile"
+        for entry in bound_discovery_entries
+        if entry.scenario["name"].endswith("static-global")
+    )
+    assert all(
+        entry.command[entry.command.index("--bound-source") + 1] == "input-scan"
+        for entry in bound_discovery_entries
+        if not entry.scenario["name"].endswith("static-global")
+    )
+    assert all(
+        "--bound-mode" in entry.command and entry.command[entry.command.index("--bound-mode") + 1] == "per-tile"
+        for entry in bound_discovery_entries
+        if entry.scenario["name"].endswith("proof-mask-per-tile")
+    )
+    assert all(
+        "--require-adaptive-execution" in entry.command
+        for entry in bound_discovery_entries
+        if entry.scenario["name"].endswith("proof-mask-per-tile")
+    )
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "bound_discovery_proof_mask_release_matrix"
+        for entry in bound_discovery_entries
+    )
 
     large_args = copy.copy(scenario_args)
     large_args.backends = ["hip-direct"]

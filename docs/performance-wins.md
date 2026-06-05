@@ -186,6 +186,22 @@ under `temp/perf-work-queue/tile-bound-zero-shortcut/`. This is a setup-path
 gain; measured per-repeat GPU phases still need separate backend/kernel
 optimization.
 
+A later setup-inclusive release gate deliberately did not promote
+bound-discovery routing. The June 5, 2026 `bound-discovery` scenario matrix used
+seed `20260605`, three warmups, nine repeats, and 51 schema-valid captures over
+bounded-i64 256/1024 adaptive-band workloads and a bounded-u64 512x1024
+adaptive-band workload. The generic release review had nine groups with no
+missing required baselines, duplicate backends, git/target mismatches, or
+missing GPU events for non-CPU captures. `tools/bound_discovery_report.py`
+compared 18 global input-scan captures and 15 proof-mask per-tile captures
+against same-backend and fastest static global-bound baselines with scan setup
+cost included. All 33 candidates were deprioritized. hipBLASLt global
+input-scan improved over its own 256 bounded-i64 static baseline, and CK global
+input-scan improved over its own rectangular bounded-u64 static baseline, but
+both lost to the fastest static workload baseline after setup cost. Per-tile
+proof masks were event-visible and correct, but exact tile-bound scans dominated
+setup-inclusive timing.
+
 ## Shape-Specialized Runtime Wins
 
 These rows compare a new shape-gated runtime kernel against the previous kernel
