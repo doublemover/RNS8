@@ -214,6 +214,17 @@ GEMV kernels remain useful explicit-backend microkernel evidence, but they do
 not currently justify AUTO/cache promotion for these setup-inclusive scenario
 contracts.
 
+The current `many-small` release baseline review used seed `20260605`, three
+warmups, nine repeats, and 41 schema-valid captures. It is a pre-grouped
+independent-call baseline, not a grouped-dispatch implementation. It promoted
+no cache entries: CPU wins the 32 bounded-i64 and 64 finite-u8 proxies, Direct
+HIP wins bounded-i64 128, bounded-u64 128x1x1024, and exact-wide signed 64, and
+the vector runtime wins bounded-u64 64 but remains non-cache-promotable. The
+small Direct-HIP one-shot resident-fallback diagnostic and hipBLASLt finite
+ring-251 64 diagnostic still lack required GPU events, so they are not promoted
+evidence. This review points the next many-small work at grouped/persistent
+execution rather than more single-call accelerator tuning for 32/64 proxies.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized

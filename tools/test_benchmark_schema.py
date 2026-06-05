@@ -678,6 +678,22 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
     oneshot["backend_requested"] = "hip-direct"
     oneshot["backend_selected"] = "hip-direct"
     oneshot["selected_kernel"] = kernel
+    oneshot["prefix"] = 9
+    oneshot["requested_max_prefix"] = 9
+    oneshot["selected_prefix"] = 9
+    oneshot["contract_prefix_policy"] = "minimum_proven"
+    oneshot["residue_planes_requested"] = 9
+    oneshot["residue_planes_selected"] = 9
+    oneshot["residue_planes_skipped"] = 0
+    oneshot["residue_plane_skip_fraction"] = 0.0
+    oneshot["schedule_metadata"]["min_required_prefix"] = 9
+    oneshot["schedule_metadata"]["max_required_prefix"] = 9
+    oneshot["schedule_metadata"]["min_selected_prefix"] = 9
+    oneshot["schedule_metadata"]["max_selected_prefix"] = 9
+    oneshot["schedule_metadata"]["prefix_group_count"] = 1
+    oneshot["schedule_metadata"]["adaptive_prefix_active"] = False
+    oneshot["schedule_metadata"]["adaptive_skip_active"] = False
+    oneshot["schedule_metadata"]["adaptive_execution_applied"] = False
     oneshot["backend_metadata"]["source"] = "rns8_bench_public_oneshot_api"
     oneshot["backend_metadata"]["selected_kernel"] = kernel
     oneshot["backend_metadata"]["accelerator_backend"] = False
@@ -768,6 +784,127 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
     oneshot["gpu_event_timings_us"] = event_values
     oneshot["gpu_event_timing_summary_us"] = {key: summary(value) for key, value in event_values.items()}
     return oneshot
+
+
+def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
+    fallback = copy.deepcopy(capture)
+    repeats = fallback["repeats"]
+    kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    epilogue = "fused_centered_residue_then_crt_export"
+    fallback["benchmark"] = "rns8_bounded_gemm_public_oneshot"
+    fallback["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
+    fallback["backend_requested"] = "hip-direct"
+    fallback["backend_selected"] = "hip-direct"
+    fallback["semantics"] = "bounded_i64"
+    fallback["m"] = 32
+    fallback["n"] = 32
+    fallback["k"] = 32
+    fallback["k_block_size"] = 32
+    fallback["bound_kind"] = "global_max_abs"
+    fallback["bound_mode"] = "global"
+    fallback["prefix"] = 9
+    fallback["requested_max_prefix"] = 9
+    fallback["selected_prefix"] = 2
+    fallback["contract_prefix_policy"] = "minimum_proven"
+    fallback["residue_planes_requested"] = 9
+    fallback["residue_planes_selected"] = 2
+    fallback["residue_planes_skipped"] = 7
+    fallback["residue_plane_skip_fraction"] = 7.0 / 9.0
+    fallback["selected_kernel"] = kernel
+    fallback["pack_mode"] = "per_repeat_repack"
+    fallback["prepack_reuse_strategy"] = "none"
+    fallback["reuse_packed_inputs"] = False
+    fallback["residue_output_mode"] = "host_export"
+    fallback["residue_chain_length"] = 1
+    fallback["epilogue_type"] = "crt_export"
+    fallback["tile_bounds_u64"] = None
+    fallback["schedule_metadata"]["min_required_prefix"] = 2
+    fallback["schedule_metadata"]["max_required_prefix"] = 2
+    fallback["schedule_metadata"]["min_selected_prefix"] = 2
+    fallback["schedule_metadata"]["max_selected_prefix"] = 2
+    fallback["schedule_metadata"]["prefix_group_count"] = 1
+    fallback["schedule_metadata"]["adaptive_prefix_active"] = False
+    fallback["schedule_metadata"]["adaptive_skip_active"] = True
+    fallback["schedule_metadata"]["adaptive_execution_applied"] = False
+    fallback["schedule_metadata"]["zero_output_tile_count"] = 0
+    fallback["backend_metadata"]["source"] = "rns8_bench_public_oneshot_api"
+    fallback["backend_metadata"]["selected_kernel"] = kernel
+    fallback["backend_metadata"]["accelerator_backend"] = False
+    fallback["backend_metadata"]["matrix_engine_backend"] = False
+    fallback["backend_metadata"]["accelerator_library"] = "HIP runtime"
+    fallback["backend_metadata"]["accelerator_version"] = None
+    fallback["backend_metadata"]["capability_status"] = "implemented_correctness_backend"
+    fallback["backend_metadata"]["epilogue_mode"] = epilogue
+    fallback["backend_metadata"]["workspace_mode"] = "resident_device_buffers"
+    fallback["backend_metadata"]["workspace_required_bytes"] = 0
+    fallback["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+    apply_int32_accumulator_contract(fallback)
+    fallback["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+            "backend=hip-direct;semantics=bounded_i64;m=32;n=32;k=32;bound_kind=global_max_abs;"
+            "prefix=2;requested_max_prefix=9;prefix_policy=minimum_proven;tile_m=128;tile_n=128;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=1;schedule_flags=0;zero_output_tiles=0;"
+            f"kernel={kernel};epilogue={epilogue}"
+        ),
+        fallback,
+    )
+    fallback["comparison_baseline"]["required_before_speedup_claim"] = [
+        "same_contract_cpu_reference",
+        "same_contract_direct_hip_vector_alu_int64",
+        "same_contract_direct_hip_persistent_rns",
+    ]
+    fallback["timing_note"] = (
+        "host wall-clock timings for the public bounded one-shot API; raw_timings_us.rns_gemm and "
+        "raw_timings_us.end_to_end both measure one complete call"
+    )
+    fallback["timing_metadata"]["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"
+    fallback["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    fallback["timing_metadata"]["gpu_event_timing"] = False
+    fallback["timing_metadata"]["gpu_event_timing_reason"] = "backend_event_capture_incomplete"
+    fallback["timing_metadata"]["gpu_event_timing_status"] = "unavailable_missing_expected_events"
+    fallback["timing_metadata"]["gpu_event_timing_source"] = None
+    fallback["timing_metadata"]["gpu_event_timing_source_scope"] = None
+    fallback["timing_metadata"]["gpu_event_timing_caveat"] = None
+    fallback["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = [
+        "oneshot missing backend HIP event label residue_h2d_sync"
+    ]
+    fallback["timing_metadata"]["gpu_event_phase_order"] = None
+    fallback["timing_metadata"]["phase_notes"]["matrix_alloc"] = (
+        "zero-valued external phase; transient API allocations are inside the measured one-shot call"
+    )
+    fallback["timing_metadata"]["phase_notes"]["pack"] = (
+        "zero-valued external phase; native input copies are inside the measured one-shot API call"
+    )
+    fallback["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for one complete public bounded one-shot API call"
+    )
+    fallback["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "zero-valued external phase; logical output export is inside the measured one-shot API call"
+    )
+    fallback["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "same measured duration as rns_gemm for one complete public bounded one-shot API call"
+    )
+    fallback["matrix_alloc_us"] = 0
+    fallback["avg_matrix_alloc_us"] = 0.0
+    fallback["avg_pack_us"] = 0.0
+    fallback["avg_crt_export_us"] = 0.0
+    fallback["avg_rns_gemm_us"] = 1000.0
+    fallback["avg_end_to_end_us"] = 1000.0
+    fallback["per_modulus_gemm_estimate_applicable"] = False
+    fallback["avg_per_modulus_gemm_estimate_us"] = 500.0
+    fallback["raw_timings_us"]["matrix_alloc"] = [0]
+    fallback["raw_timings_us"]["pack"] = [0] * repeats
+    fallback["raw_timings_us"]["rns_gemm"] = [900, 1100]
+    fallback["raw_timings_us"]["crt_export"] = [0] * repeats
+    fallback["raw_timings_us"]["end_to_end"] = [900, 1100]
+    fallback["timing_summary_us"]["matrix_alloc"] = zero_summary()
+    fallback["timing_summary_us"]["pack"] = zero_summary()
+    fallback["timing_summary_us"]["rns_gemm"] = {"avg": 1000.0, "median": 1100.0, "p95": 1100.0}
+    fallback["timing_summary_us"]["crt_export"] = zero_summary()
+    fallback["timing_summary_us"]["end_to_end"] = {"avg": 1000.0, "median": 1100.0, "p95": 1100.0}
+    fallback["gpu_event_timings_us"] = None
+    fallback["gpu_event_timing_summary_us"] = None
+    return fallback
 
 
 def as_direct_hip_finite_oneshot_capture(capture: dict) -> dict:
@@ -2760,6 +2897,52 @@ def main() -> int:
     del bad_oneshot_event_phase["gpu_event_timings_us"]["oneshot_native_input_h2d"]
     del bad_oneshot_event_phase["gpu_event_timing_summary_us"]["oneshot_native_input_h2d"]
     expect_invalid(bad_oneshot_event_phase, "direct-HIP one-shot GPU event phase set is incomplete")
+
+    resident_fallback_oneshot = as_direct_hip_resident_fallback_oneshot_capture(v4_ck_i64)
+    validate_capture(resident_fallback_oneshot)
+
+    bad_resident_fallback_native_metadata = copy.deepcopy(resident_fallback_oneshot)
+    bad_resident_fallback_native_metadata["backend_metadata"][
+        "epilogue_mode"
+    ] = "native_input_centered_residue_then_crt_export"
+    expect_invalid(
+        bad_resident_fallback_native_metadata,
+        "backend_metadata.epilogue_mode=fused_centered_residue_then_crt_export",
+    )
+
+    bad_resident_fallback_stale_scope = copy.deepcopy(resident_fallback_oneshot)
+    bad_resident_fallback_stale_scope["timing_metadata"]["gpu_event_timing"] = True
+    bad_resident_fallback_stale_scope["timing_metadata"][
+        "gpu_event_timing_reason"
+    ] = "captured_by_direct_hip_oneshot_api_hooks"
+    bad_resident_fallback_stale_scope["timing_metadata"]["gpu_event_timing_status"] = "available"
+    bad_resident_fallback_stale_scope["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
+    bad_resident_fallback_stale_scope["timing_metadata"][
+        "gpu_event_timing_source_scope"
+    ] = "direct_hip_oneshot_default_stream_operation_groups"
+    bad_resident_fallback_stale_scope["timing_metadata"]["gpu_event_phase_order"] = [
+        "oneshot_native_input_h2d",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+        "oneshot_api_gpu",
+    ]
+    bad_resident_fallback_stale_scope["gpu_event_timings_us"] = {
+        phase: [1.0 for _ in range(bad_resident_fallback_stale_scope["repeats"])]
+        for phase in bad_resident_fallback_stale_scope["timing_metadata"]["gpu_event_phase_order"]
+    }
+    bad_resident_fallback_stale_scope["gpu_event_timing_summary_us"] = {
+        phase: summary(values)
+        for phase, values in bad_resident_fallback_stale_scope["gpu_event_timings_us"].items()
+    }
+    expect_invalid(
+        bad_resident_fallback_stale_scope,
+        "direct-HIP one-shot captures must not use native one-shot event scope for resident fallback metadata",
+    )
 
     small_u64_oneshot = copy.deepcopy(direct_hip_oneshot_i64)
     small_u64_oneshot["semantics"] = "bounded_u64"

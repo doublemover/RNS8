@@ -245,6 +245,9 @@ DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2 = (
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
+DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_EPILOGUE = "fused_centered_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_WORKSPACE = "resident_device_buffers"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
@@ -514,6 +517,28 @@ class _Validator:
             self._benchmark_execution_mode() == "public_oneshot_transient_native_inputs"
             or self.data.get("benchmark") == "rns8_bounded_gemm_public_oneshot"
         ) and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+
+    def _is_direct_hip_bounded_native_input_oneshot_capture(self) -> bool:
+        return (
+            self._is_bounded_oneshot_capture()
+            and self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("selected_prefix") == self.data.get("prefix") == 9
+        )
+
+    def _is_direct_hip_bounded_resident_fallback_oneshot_capture(self) -> bool:
+        selected = self.data.get("selected_prefix")
+        requested = self.data.get("prefix")
+        schedule = self.data.get("schedule_metadata")
+        schedule_selected = schedule.get("max_selected_prefix") if isinstance(schedule, dict) else None
+        return (
+            self._is_bounded_oneshot_capture()
+            and self.data.get("backend_selected") == "hip-direct"
+            and _is_int(selected)
+            and _is_int(requested)
+            and selected > 0
+            and selected < requested
+            and selected == schedule_selected
+        )
 
     def _is_finite_oneshot_capture(self) -> bool:
         return (
@@ -2263,25 +2288,38 @@ class _Validator:
                 if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
                     self._error("one-shot bounded captures must use prepack_reuse_strategy=none")
                 if self.data.get("backend_selected") == "hip-direct":
-                    expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1
-                    large_oneshot_shape = all(int(self.data.get(dim, 0)) >= 512 for dim in ("m", "n", "k"))
-                    if large_oneshot_shape:
-                        expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
+                    native_input_oneshot = self._is_direct_hip_bounded_native_input_oneshot_capture()
+                    resident_fallback_oneshot = self._is_direct_hip_bounded_resident_fallback_oneshot_capture()
+                    if not native_input_oneshot and not resident_fallback_oneshot:
+                        self._error(
+                            "direct-HIP one-shot bounded captures must use either prefix-9 native-input metadata "
+                            "or selected-prefix resident fallback metadata"
+                        )
+                    expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL
+                    expected_epilogue = DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_EPILOGUE
+                    expected_workspace = DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_WORKSPACE
+                    if native_input_oneshot:
+                        expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1
+                        large_oneshot_shape = all(int(self.data.get(dim, 0)) >= 512 for dim in ("m", "n", "k"))
+                        if large_oneshot_shape:
+                            expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
+                        expected_epilogue = DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE
+                        expected_workspace = DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE
                     if self.data.get("selected_kernel") != expected_kernel:
                         self._error(
                             "direct-HIP one-shot bounded captures must use "
                             f"selected_kernel={expected_kernel}"
                         )
                     if isinstance(backend_metadata, dict):
-                        if backend_metadata.get("epilogue_mode") != DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE:
+                        if backend_metadata.get("epilogue_mode") != expected_epilogue:
                             self._error(
                                 "direct-HIP one-shot bounded captures must use "
-                                f"backend_metadata.epilogue_mode={DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE}"
+                                f"backend_metadata.epilogue_mode={expected_epilogue}"
                             )
-                        if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE:
+                        if backend_metadata.get("workspace_mode") != expected_workspace:
                             self._error(
                                 "direct-HIP one-shot bounded captures must use "
-                                f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE}"
+                                f"backend_metadata.workspace_mode={expected_workspace}"
                             )
                         if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
                             self._error(
@@ -2289,10 +2327,17 @@ class _Validator:
                                 f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
                             )
                     metadata = self.data.get("timing_metadata")
-                    if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                    if native_input_oneshot and isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
                         expected_scope = "direct_hip_oneshot_default_stream_operation_groups"
                         if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                             self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                    if resident_fallback_oneshot and isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+                        stale_scope = "direct_hip_oneshot_default_stream_operation_groups"
+                        if metadata.get("gpu_event_timing_source_scope") == stale_scope:
+                            self._error(
+                                "direct-HIP one-shot captures must not use native one-shot event scope "
+                                "for resident fallback metadata"
+                            )
             if native_a_reuse_b_capture:
                 if bound_mode != "global":
                     self._error("direct-HIP bounded native-A reuse-B captures must use bound_mode=global")
@@ -3514,7 +3559,7 @@ class _Validator:
                 if not missing and not extra:
                     self._error("direct-HIP finite one-shot GPU event phase order must match the public API operation order")
             return
-        if self._is_bounded_oneshot_capture() and backend == "hip-direct":
+        if self._is_direct_hip_bounded_native_input_oneshot_capture() and backend == "hip-direct":
             expected = DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES
             if phases != expected:
                 missing = [phase for phase in expected if phase not in phases]
