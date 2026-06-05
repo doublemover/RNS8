@@ -42,7 +42,7 @@ Evidence sources for current promotion state are
 
 ## Recent Execution Status
 
-June 4, 2026 updates:
+June 4-5, 2026 updates:
 
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
   32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
@@ -95,6 +95,24 @@ June 4, 2026 updates:
   exact-wide signed/unsigned 2048, finite-u8 hot-modulus 2048, and wrap64 2048.
   This closes the executable validation surface for the 2048 side of the large
   matrix; the expensive release captures still need to be run before promotion.
+- The first bounded 2048 slice of that validation matrix is now captured and
+  release-reviewed under
+  `temp/perf-work-queue/large-release-validation-2048-current-bounded-review/`.
+  The 24 reviewed captures cover bounded i64/u64 baseline and repeated-B
+  2048x2048x2048 cases across CPU, Direct HIP, runtime vector ALU, hipBLASLt,
+  CK, and rocWMMA with required GPU events. The non-reuse temp-only cache
+  winners are CK for bounded-i64 2048 at 14220 us and rocWMMA for bounded-u64
+  2048 at 15128 us. Repeated-B remains workload-contract evidence rather than
+  AUTO promotion: hipBLASLt wins its own repeated-B backend comparison at 9482
+  us for bounded-i64 and 8727 us for bounded-u64, but `prepacked_reuse` stays
+  non-autotune-promotable until setup identity, lifetime, and break-even policy
+  become explicit. Exact-wide, finite-u8, and wrap64 2048 release captures still
+  need chunked execution because exact-wide CPU 2048 is too slow for one
+  monolithic run.
+- `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
+  matrices: `--skip-existing` reuses schema-valid existing captures and
+  `--max-new-captures` caps how many new captures a pass may execute before
+  reviewing the accumulated set.
 - Adaptive bounded current-v2 validation is no longer blocked at the capture
   plumbing layer. The branch fixes compact per-tile CPU storage acceptance,
   one-shot compact schedule allocation, CK/rocWMMA zero-row/column-product
@@ -117,7 +135,7 @@ June 4, 2026 updates:
 |---:|---|---|---|---|
 | 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
 | 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
-| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Large-shape and large reusable-B scenario coverage exists; `large-release-validation` now emits the CPU/direct/vector/accelerator 2048 comparator matrix missing from exploratory captures; current evidence-database GPU priority points at large bounded compute, pack, and export time | Run the 2048 validation matrix before promotion; keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
+| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; temp-only non-reuse winners are CK bounded-i64 2048 and rocWMMA bounded-u64 2048; exact-wide, finite-u8, and wrap64 2048 still need chunked release execution | Install bounded 2048 cache entries only after the durable cache/docs decision; keep repeated-B as explicit workload-contract evidence, and keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
@@ -127,8 +145,8 @@ June 4, 2026 updates:
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Same-contract export-heavy captures by limb count with GPU events and checksum/limb equality | Promote only setup-inclusive export path wins, not isolated copy improvements |
 | 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
-| 13 | Exact-wide 64/128/2048/4096 and limb-count release matrix | Current exact-wide claims cover only 512/1024 for selected signedness cases | `large-release-validation` now covers exact-wide signed/unsigned 2048 with 4-limb CPU/direct/accelerator comparators; small 64/128, 4096, and limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events |
-| 14 | Finite-u8 2048/4096 hot-modulus release matrix | 2048 GPU-only evidence now exists, but CPU-backed release proof is still missing | `large-release-validation` now covers ring 251/255/256 and field 251 at 2048 with CPU/direct/accelerator comparators; tolerable 4096 remains exploratory | Promote hot-modulus cache keys only when they beat CPU and Direct HIP with required events |
+| 13 | Exact-wide 64/128/2048/4096 and limb-count release matrix | Current exact-wide claims cover only 512/1024 for selected signedness cases | `large-release-validation` can emit exact-wide signed/unsigned 2048 with 4-limb CPU/direct/accelerator comparators, but the first monolithic run stopped at the expensive exact-wide signed CPU capture; small 64/128, 2048 chunks, 4096, and limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events |
+| 14 | Finite-u8 2048/4096 hot-modulus release matrix | 2048 GPU-only evidence now exists, but CPU-backed release proof is still missing | `large-release-validation` can emit ring 251/255/256 and field 251 at 2048 with CPU/direct/accelerator comparators, but these captures have not yet run in the CPU-backed release matrix; tolerable 4096 remains exploratory | Promote hot-modulus cache keys only when they beat CPU and Direct HIP with required events |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, but broader sizes and the field-127 hipBLASLt event gap remain | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
 | 17 | Reframe Vector N=1 GEMV selector and cache policy | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds where vector beats CPU, Direct HIP, and accelerator alternatives end-to-end |
@@ -163,7 +181,7 @@ June 4, 2026 updates:
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
 | Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
-| Large 2048/4096 captures are bottleneck-classification evidence, not promotion evidence | Existing large bounded, large reusable-B, exact-wide, finite-u8, and wrap64 captures are useful for ranking work, but several are exploratory or missing CPU/reference and complete baseline coverage | Run `large-release-validation` for the 2048 CPU-backed matrix, then keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
+| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048 now has CPU-backed release review and temp-only non-reuse winners, but repeated-B is still contract-limited and exact-wide, finite-u8, wrap64, and 4096 remain exploratory or incomplete | Use `--skip-existing` and `--max-new-captures` to finish the remaining `large-release-validation` 2048 chunks, then keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
 | Exact-wide 64/128 evidence is historical | Current v2 exact-wide evidence covers 512/1024 only | Current-v2 release review for 64/128 and selected limb counts |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
 | Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |

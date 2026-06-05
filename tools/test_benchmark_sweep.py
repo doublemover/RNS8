@@ -1031,6 +1031,38 @@ def main() -> int:
         assert manifest["entries"][0]["output_domain"] == "host_export"
         assert Path(manifest_paths["scenario_markdown"]).exists()
 
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        existing = tmp_path / "existing.json"
+        existing.write_text(
+            (FIXTURE_DIR / "v4_finite_ring_u8_ck.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        missing = tmp_path / "missing.json"
+        invalid = tmp_path / "invalid.json"
+        invalid.write_text("{", encoding="utf-8")
+        assert benchmark_sweep.existing_capture_valid(existing) is True
+        assert benchmark_sweep.existing_capture_valid(missing) is False
+        assert benchmark_sweep.existing_capture_valid(invalid) is False
+        resume_args = argparse.Namespace(skip_existing=True, max_new_captures=0)
+        capture_paths = []
+        stats = benchmark_sweep.execute_sweep_entries(
+            [
+                benchmark_sweep.SweepCommand("existing", ["not-run"], existing),
+                benchmark_sweep.SweepCommand("missing", ["not-run"], missing),
+            ],
+            resume_args,
+            capture_paths,
+        )
+        assert capture_paths == [existing]
+        assert stats == {
+            "planned_captures": 2,
+            "skipped_existing_captures": 1,
+            "new_captures_attempted": 0,
+            "new_captures_completed": 0,
+            "deferred_captures": 1,
+        }
+
     bad_scenario_args = copy.copy(scenario_args)
     bad_scenario_args.include_oneshot = True
     try:

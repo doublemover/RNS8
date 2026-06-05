@@ -556,6 +556,45 @@ def validate_paths(paths: list[Path]) -> list[dict[str, Any]]:
     return captures
 
 
+def existing_capture_valid(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        data = load_capture(path)
+        validate_capture(data, path)
+    except (BenchmarkSchemaError, OSError, json.JSONDecodeError):
+        return False
+    return True
+
+
+def execute_sweep_entries(
+    entries: list[SweepCommand],
+    args: argparse.Namespace,
+    capture_paths: list[Path],
+) -> dict[str, int]:
+    stats = {
+        "planned_captures": len(entries),
+        "skipped_existing_captures": 0,
+        "new_captures_attempted": 0,
+        "new_captures_completed": 0,
+        "deferred_captures": 0,
+    }
+    max_new = getattr(args, "max_new_captures", None)
+    for entry in entries:
+        if getattr(args, "skip_existing", False) and existing_capture_valid(entry.output):
+            capture_paths.append(entry.output)
+            stats["skipped_existing_captures"] += 1
+            continue
+        if max_new is not None and stats["new_captures_attempted"] >= max_new:
+            stats["deferred_captures"] += 1
+            continue
+        stats["new_captures_attempted"] += 1
+        if run_command(entry.command, entry.output):
+            capture_paths.append(entry.output)
+            stats["new_captures_completed"] += 1
+    return stats
+
+
 def required_baselines(semantics: Any) -> list[str]:
     if semantics in {"bounded_i64", "bounded_u64"}:
         return ["cpu-reference", "hip-direct", "hip-vector-alu-int64"]
@@ -3768,6 +3807,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
     parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="reuse valid existing capture outputs instead of rerunning them",
+    )
+    parser.add_argument(
+        "--max-new-captures",
+        type=int,
+        help="limit the number of newly executed captures while still reviewing existing/skipped captures",
+    )
+    parser.add_argument(
         "--scenario",
         action="append",
         choices=[*scenario_names(), "all"],
@@ -3887,7 +3936,10 @@ def parse_args() -> argparse.Namespace:
         help="write performance_validated cache entries only for fastest promotable release-reviewed captures",
     )
     parser.add_argument("--autotune-cache", type=Path, help="override autotune cache output path")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.max_new_captures is not None and args.max_new_captures < 0:
+        parser.error("--max-new-captures must be non-negative")
+    return args
 
 
 def main() -> int:
@@ -3897,13 +3949,12 @@ def main() -> int:
 
     capture_paths = list(args.capture)
     entries: list[SweepCommand] = []
+    execution_stats: dict[str, int] | None = None
     if not args.review_only:
         if args.bench is None:
             raise SystemExit("--bench is required unless --review-only is used")
         entries = sweep_command_entries(args)
-        for entry in entries:
-            if run_command(entry.command, entry.output):
-                capture_paths.append(entry.output)
+        execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)
     report = review_captures(captures, review_mode=args.review_mode)
@@ -3924,6 +3975,8 @@ def main() -> int:
         "promoted_cache_entries": promoted,
         "autotune_cache": str(cache_path) if args.write_autotune_cache else None,
     }
+    if execution_stats is not None:
+        output["sweep_execution"] = execution_stats
     if scenario_paths is not None:
         output.update(scenario_paths)
     print(json.dumps(output, indent=2))
