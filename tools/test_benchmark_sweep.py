@@ -12,6 +12,7 @@ from pathlib import Path
 
 import benchmark_sweep
 from benchmark_schema import load_capture, validate_capture
+from metadata_registry_constants import GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
 from test_benchmark_schema import as_host_api_batch_capture
 
 
@@ -897,7 +898,7 @@ def main() -> int:
     assert any(
         entry.scenario["semantics"] == "bounded-u64"
         and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
-        == "device_grouped_pack_gemm_host_exports"
+        == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
         for entry in grouped_dispatch_entries
     )
     assert any(

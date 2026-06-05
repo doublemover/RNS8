@@ -10,6 +10,25 @@ import re
 from pathlib import Path
 from typing import Any
 
+from metadata_registry_constants import (
+    BENCHMARK_EXECUTION_MODES,
+    DIRECT_HIP_EXPORT_STAGING_POLICIES,
+    GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES,
+    GROUPED_DISPATCH_EXECUTION_STRATEGIES,
+    GROUPED_DISPATCH_STATUSES,
+    GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES,
+    GROUPED_TASK_BUCKET_POLICIES,
+    GROUPED_TASK_CHECKSUM_POLICIES,
+    GROUPED_TASK_DESCRIPTOR_LAYOUTS,
+    GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES,
+    GROUPED_TASK_SOURCE_VERSION_POLICIES,
+    GROUPED_TASK_STATUS_POLICIES,
+    GROUPED_TASK_WORKSPACE_POLICIES,
+    OUTPUT_CONTRACT_DOMAINS,
+    OUTPUT_DESTINATION_LAYOUTS,
+    STATUS_HANDLING,
+)
+
 
 SCHEMA_VERSION = 4
 WRAP64_HIP_U32_ACCUMULATOR_MAX_K = 4096
@@ -88,9 +107,7 @@ BOUND_KINDS = {
     "input_range_and_k",
 }
 PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
-OUTPUT_DESTINATION_LAYOUTS = {"contiguous_row_major", "padded_row_major"}
 NEXT_OP_HINTS = {"auto", "final-export", "rns-gemm", "native-gemm", "native-to-rns", "reuse-b"}
-STATUS_HANDLING = {"required", "structurally_elided", "not_applicable"}
 PACK_LAYOUTS = {
     "resident_rns_residue_planes",
     "wrap64_byte_limb_planes",
@@ -108,68 +125,12 @@ RESIDUE_GROUP_LAYOUTS = {
     "first_prefix9_moduli_contiguous_width3_groups",
 }
 TARGET_NAMESPACES = {"cpu", "gfx1100", "gfx11xx", "gfx12xx", "gfx9xx_gfx94x", "unknown"}
-OUTPUT_CONTRACT_DOMAINS = {
-    "rns_residue_current",
-    "finite_u8_host",
-    "wrap64_u64_host",
-    "exact_wide_limb_host",
-    "native_i64_u64_host",
-}
 REUSE_OPERAND_ROLES = {"none", "A", "B", "A+B"}
 GRAPH_REPLAY_STATUSES = {
     "not_requested",
     "unsupported_stream_capture_not_executed",
     "captured",
     "replayed",
-}
-GROUPED_DISPATCH_STATUSES = {
-    "not_requested",
-    "metadata_only_unsupported_for_execution_path",
-    "executed",
-}
-GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
-    "not_requested",
-    "host_phase_loop_per_task_export",
-    "host_phase_loop_batched_exact_wide_export_d2h",
-    "device_grouped_pack_gemm_host_exports",
-    "device_grouped_exact_wide_export_kernel_batched_d2h",
-    "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
-    "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
-}
-GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
-    "host_phase_loop_batched_exact_wide_export_d2h",
-    "device_grouped_exact_wide_export_kernel_batched_d2h",
-    "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
-    "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
-}
-GROUPED_TASK_DESCRIPTOR_LAYOUTS = {
-    "not_requested",
-    "same_shape_resident_task_triplets_v1",
-}
-GROUPED_TASK_BUCKET_POLICIES = {
-    "not_requested",
-    "single_same_shape_bucket",
-}
-GROUPED_TASK_SOURCE_VERSION_POLICIES = {
-    "not_requested",
-    "per_task_monotonic_source_version_repack",
-}
-GROUPED_TASK_WORKSPACE_POLICIES = {
-    "not_requested",
-    "one_workspace_per_task_shared_plan",
-}
-GROUPED_TASK_CHECKSUM_POLICIES = {
-    "not_requested",
-    "combined_per_task_checksum_u64",
-}
-GROUPED_TASK_STATUS_POLICIES = {
-    "not_requested",
-    "fail_fast_per_task_operation_status",
-}
-GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES = {
-    "not_requested",
-    "host_resident_task_loop",
-    "device_pointer_tables_and_compact_slabs",
 }
 STREAMING_OVERLAP_STATUSES = {
     "not_requested",
@@ -202,14 +163,6 @@ GENERATED_REDUCER_RE = re.compile(
     r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
     r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
 )
-DIRECT_HIP_EXPORT_STAGING_POLICIES = {
-    "not_applicable",
-    "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING",
-    "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING",
-    "wrap64_forced_only_pending_padded_staging_evidence",
-    "exact_wide_signed_forced_only_local_gfx1100_padded_staging_loses",
-    "large_padded_outputs_only_default",
-}
 PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
@@ -413,28 +366,6 @@ VECTOR_ALU_GPU_EVENT_LABELS = {
     "vector_alu_u64_kernel",
     "vector_alu_status_d2h",
     "vector_alu_output_d2h",
-}
-BENCHMARK_EXECUTION_MODES = {
-    "persistent_resident_matrices",
-    "public_oneshot_transient_native_inputs",
-    "benchmark_owned_vector_alu_native_buffers",
-    "public_runtime_vector_alu_native_buffers",
-    "auto_native_to_rns_bridge",
-    "vector_native_to_direct_rns_chain",
-    "benchmark_host_api_batch",
-    "hip_graph_replay_resident_rns_chain",
-    "residue_current_rns_chain",
-    "residue_chain_final_host_export",
-    "residue_chain_independent_final_host_export",
-    "transient_native_a_resident_b_reuse",
-    "transient_native_b_resident_a_reuse",
-    "transient_uniform_small_i8_ab_inputs",
-    "residue_channel_fusion_native_inputs",
-    "transient_uniform_small_i8_a_resident_i8_b_reuse",
-    "transient_uniform_small_i8_b_resident_i8_a_reuse",
-    "internal_wrap64_rocwmma_candidate",
-    "benchmark_grouped_dispatch_evidence",
-    "benchmark_hip_graph_replay_evidence",
 }
 INT32_MAX = 2_147_483_647
 UINT32_MAX = 4_294_967_295
@@ -1971,10 +1902,9 @@ class _Validator:
                     self._error("grouped task descriptor checksum_policy must combine per-task checksums")
                 if task_descriptor.get("status_policy") != "fail_fast_per_task_operation_status":
                     self._error("grouped task descriptor status_policy must fail fast on per-task operation status")
-                expected_device_policy = (
-                    "device_pointer_tables_and_compact_slabs"
-                    if isinstance(strategy, str) and strategy.startswith("device_grouped_")
-                    else "host_resident_task_loop"
+                expected_device_policy = GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES.get(
+                    strategy,
+                    "host_resident_task_loop",
                 )
                 if task_descriptor.get("device_descriptor_policy") != expected_device_policy:
                     self._error("grouped task descriptor device_descriptor_policy must match execution strategy")

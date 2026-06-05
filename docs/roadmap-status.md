@@ -55,6 +55,23 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
 [performance-wins.md](performance-wins.md), and
 [reviewed-local-evidence.md](reviewed-local-evidence.md).
 
+## Cleanup Consolidation Status
+
+The current cleanup program is an internal consolidation lane, not a public API
+or routing change. The first guardrail slice adds a checked-in metadata registry
+under `metadata/`, generated Python/C++ constants, a CMake-registered registry
+self-test, a repo hygiene reporter, and a compact golden regression runner. The
+first real adoption target is grouped-dispatch benchmark/schema metadata, and
+the grouped-dispatch scenario family now lives in data under
+`benchmarks/scenarios/`.
+
+Remaining cleanup work is intentionally incremental: broader metadata adoption,
+benchmark and schema decomposition, currentness helper migration, HIP RAII
+wrappers, Direct-HIP source splitting, grouped descriptor enforcement, and
+export/reconstruction planning. These changes must preserve public ABI, reviewed
+cache behavior, existing benchmark CLI compatibility, and Windows `gfx1100`
+validation boundaries.
+
 ## Not Yet Implemented
 
 - Linux ROCm direct-HIP parity on a real supported Linux host.

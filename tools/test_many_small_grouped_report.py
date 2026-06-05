@@ -9,6 +9,7 @@ from pathlib import Path
 
 import many_small_grouped_report
 from benchmark_schema import load_capture
+from metadata_registry_constants import GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
 from test_benchmark_schema import as_grouped_dispatch_capture, as_host_api_batch_capture
 
 
@@ -113,7 +114,9 @@ def main() -> int:
     assert row["grouped_task_descriptor_device_policy"] == "host_resident_task_loop"
 
     device_grouped_captures = build_grouped_case(60.0)
-    device_grouped_captures[-1]["grouped_dispatch"]["execution_strategy"] = "device_grouped_pack_gemm_host_exports"
+    device_grouped_captures[-1]["grouped_dispatch"][
+        "execution_strategy"
+    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
     device_grouped_captures[-1]["grouped_dispatch"]["task_descriptor_contract"][
         "device_descriptor_policy"
     ] = "device_pointer_tables_and_compact_slabs"

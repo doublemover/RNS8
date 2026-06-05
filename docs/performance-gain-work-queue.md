@@ -49,6 +49,15 @@ archive so this table can stay execution-focused.
 
 June 4-5, 2026 updates:
 
+- Cleanup consolidation has started as a guardrail/infrastructure lane, not a
+  speedup claim. The branch now has a checked-in `metadata/` registry,
+  generated Python/C++ constants, metadata-registry self-tests, a repo hygiene
+  reporter, and a compact golden regression runner. Grouped-dispatch
+  benchmark/schema constants are the first registry adoption target, and the
+  grouped-dispatch scenario family has moved from the Python catalog into
+  `benchmarks/scenarios/grouped_dispatch.json`. This is meant to reduce future
+  metadata drift and benchmark growth while preserving current public ABI,
+  AUTO cache behavior, and reviewed evidence claims.
 - Current branch reconciliation: the active queue below is updated through the
   branch-local helper/evidence work, PR #10 infrastructure merge, adaptive
   release rerun, bounded 2048 release review, finite-u8 2048 release review,

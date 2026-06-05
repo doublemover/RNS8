@@ -34,6 +34,18 @@ Start here when evaluating the repository.
   policy and validation-boundary classes.
 - [design.md](design.md): compact design notes for the implemented scaffold.
 
+Cleanup and drift-control helpers:
+
+- `metadata/`: checked-in registry for benchmark modes, grouped-dispatch
+  strategies, output policies, event phases, kernel identities, epilogues,
+  workspace modes, and claim labels.
+- `tools/metadata_registry.py`: validates the registry and regenerates tracked
+  Python/C++ constants.
+- `tools/repo_hygiene_report.py`: reports large files, duplicated metadata
+  strings, direct currentness writes, and raw HIP resource calls.
+- `tools/golden_regression_suite.py`: runs compact metadata/schema/report smoke
+  checks without broad release performance sweeps.
+
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under
 ignored `temp/`, `build/`, or `out/` paths.

@@ -7,6 +7,11 @@ import copy
 from pathlib import Path
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from metadata_registry_constants import (
+    GROUPED_DISPATCH_EXECUTION_STRATEGIES,
+    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS,
+    GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES,
+)
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -2671,14 +2676,23 @@ def main() -> int:
     validate_capture(grouped_dispatch)
 
     grouped_device_pack_gemm = copy.deepcopy(grouped_dispatch)
-    grouped_device_pack_gemm["grouped_dispatch"]["execution_strategy"] = "device_grouped_pack_gemm_host_exports"
+    grouped_device_pack_gemm["grouped_dispatch"][
+        "execution_strategy"
+    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
     grouped_device_pack_gemm["timing_metadata"][
         "grouped_dispatch_execution_strategy"
-    ] = "device_grouped_pack_gemm_host_exports"
+    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
     grouped_device_pack_gemm["grouped_dispatch"]["task_descriptor_contract"][
         "device_descriptor_policy"
     ] = "device_pointer_tables_and_compact_slabs"
     validate_capture(grouped_device_pack_gemm)
+
+    stale_registry_grouped = as_grouped_dispatch_capture(v4_ck_i64)
+    stale_registry_grouped["grouped_dispatch"]["execution_strategy"] = "device_grouped_unregistered_strategy"
+    stale_registry_grouped["timing_metadata"]["grouped_dispatch_execution_strategy"] = "device_grouped_unregistered_strategy"
+    expect_invalid(stale_registry_grouped, "grouped_dispatch.execution_strategy must be a known grouped strategy")
+    assert GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS in GROUPED_DISPATCH_EXECUTION_STRATEGIES
+    assert "device_pointer_tables_and_compact_slabs" in GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES
 
     stale_grouped_status = copy.deepcopy(grouped_dispatch)
     stale_grouped_status["grouped_dispatch"]["capture_status"] = "metadata_only_unsupported_for_execution_path"

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "comparison_baseline_statuses": [
+    "required_not_recorded",
+    "reviewed_same_contract_baseline",
+    "reviewed_release_same_contract_baseline",
+    "missing_reviewed_same_contract_baseline"
+  ],
+  "release_gate_review_statuses": [
+    "not_requested",
+    "pending_reviewed_summary",
+    "reviewed_blocked",
+    "reviewed_passed"
+  ],
+  "promotion_scopes": [
+    "autotune_cache_candidate",
+    "grouped_dispatch_evidence_only",
+    "reuse_contract_evidence_only",
+    "layout_metadata_evidence_only",
+    "reconstruction_variant_evidence_only",
+    "scenario_surface_only"
+  ],
+  "target_claim_labels": [
+    "windows_gfx1100_local",
+    "linux_rocm_required",
+    "instinct_required",
+    "rdna4_required",
+    "gpu_event_valid",
+    "same_contract",
+    "same_commit",
+    "cpu_backed",
+    "exploratory",
+    "cache_installed"
+  ]
+}

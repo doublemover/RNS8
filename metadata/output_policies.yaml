@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "destination_layouts": [
+    "contiguous_row_major",
+    "padded_row_major"
+  ],
+  "status_handling": [
+    "required",
+    "structurally_elided",
+    "not_applicable"
+  ],
+  "output_contract_domains": [
+    "rns_residue_current",
+    "finite_u8_host",
+    "wrap64_u64_host",
+    "exact_wide_limb_host",
+    "native_i64_u64_host"
+  ],
+  "direct_hip_export_staging_policies": [
+    "not_applicable",
+    "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "wrap64_forced_only_pending_padded_staging_evidence",
+    "exact_wide_signed_forced_only_local_gfx1100_padded_staging_loses",
+    "large_padded_outputs_only_default"
+  ]
+}

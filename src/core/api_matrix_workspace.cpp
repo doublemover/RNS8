@@ -206,6 +206,48 @@ void clear_native_current(rns8_matrix& matrix) {
   matrix.device_native_current = false;
 }
 
+void clear_residue_current(rns8_matrix& matrix) {
+  matrix.host_residues_current = false;
+  matrix.device_residues_current = false;
+}
+
+void clear_byte_limb_current(rns8_matrix& matrix) {
+  matrix.host_byte_limbs_current = false;
+  matrix.device_byte_limbs_current = false;
+}
+
+void invalidate_output_currentness(rns8_matrix& matrix) {
+  clear_residue_current(matrix);
+  clear_byte_limb_current(matrix);
+  clear_native_current(matrix);
+}
+
+void mark_host_residues_current(rns8_matrix& matrix) {
+  matrix.host_residues_current = true;
+  matrix.device_residues_current = false;
+  clear_byte_limb_current(matrix);
+}
+
+void mark_device_residues_current(rns8_matrix& matrix) {
+  matrix.host_residues_current = false;
+  matrix.device_residues_current = true;
+  clear_byte_limb_current(matrix);
+}
+
+void mark_host_byte_limbs_current(rns8_matrix& matrix) {
+  clear_residue_current(matrix);
+  matrix.host_byte_limbs_current = true;
+  matrix.device_byte_limbs_current = false;
+  clear_native_current(matrix);
+}
+
+void mark_device_byte_limbs_current(rns8_matrix& matrix) {
+  clear_residue_current(matrix);
+  matrix.host_byte_limbs_current = false;
+  matrix.device_byte_limbs_current = true;
+  clear_native_current(matrix);
+}
+
 bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t& residues) {
   std::size_t cells = 0;
   if (prefix == 0 || !matrix_cell_count(rows, cols, cells)) {

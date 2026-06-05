@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "generated_namespace": "rns8_metadata",
+  "benchmark_execution_modes": [
+    "persistent_resident_matrices",
+    "public_oneshot_transient_native_inputs",
+    "benchmark_owned_vector_alu_native_buffers",
+    "public_runtime_vector_alu_native_buffers",
+    "auto_native_to_rns_bridge",
+    "vector_native_to_direct_rns_chain",
+    "benchmark_host_api_batch",
+    "hip_graph_replay_resident_rns_chain",
+    "residue_current_rns_chain",
+    "residue_chain_final_host_export",
+    "residue_chain_independent_final_host_export",
+    "transient_native_a_resident_b_reuse",
+    "transient_native_b_resident_a_reuse",
+    "transient_uniform_small_i8_ab_inputs",
+    "residue_channel_fusion_native_inputs",
+    "transient_uniform_small_i8_a_resident_i8_b_reuse",
+    "transient_uniform_small_i8_b_resident_i8_a_reuse",
+    "internal_wrap64_rocwmma_candidate",
+    "benchmark_grouped_dispatch_evidence",
+    "benchmark_hip_graph_replay_evidence"
+  ],
+  "grouped_dispatch_statuses": [
+    "not_requested",
+    "metadata_only_unsupported_for_execution_path",
+    "executed"
+  ],
+  "grouped_dispatch_execution_strategies": [
+    {
+      "id": "not_requested",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "not_requested"
+    },
+    {
+      "id": "host_phase_loop_per_task_export",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "host_resident_task_loop"
+    },
+    {
+      "id": "host_phase_loop_batched_exact_wide_export_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "host_resident_task_loop"
+    },
+    {
+      "id": "device_grouped_pack_gemm_host_exports",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_exact_wide_export_kernel_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    }
+  ],
+  "grouped_task_descriptor": {
+    "descriptor_layouts": [
+      "not_requested",
+      "same_shape_resident_task_triplets_v1"
+    ],
+    "bucket_policies": [
+      "not_requested",
+      "single_same_shape_bucket"
+    ],
+    "source_version_policies": [
+      "not_requested",
+      "per_task_monotonic_source_version_repack"
+    ],
+    "workspace_policies": [
+      "not_requested",
+      "one_workspace_per_task_shared_plan"
+    ],
+    "checksum_policies": [
+      "not_requested",
+      "combined_per_task_checksum_u64"
+    ],
+    "status_policies": [
+      "not_requested",
+      "fail_fast_per_task_operation_status"
+    ],
+    "device_descriptor_policies": [
+      "not_requested",
+      "host_resident_task_loop",
+      "device_pointer_tables_and_compact_slabs"
+    ]
+  }
+}

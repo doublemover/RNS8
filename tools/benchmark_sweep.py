@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from metadata_registry_constants import GROUPED_DISPATCH_EXECUTION_STRATEGIES
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
@@ -44,6 +45,7 @@ ADAPTIVE_WORKLOAD_CASES = [
 ]
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
+SCENARIO_DATA_DIR = Path(__file__).resolve().parents[1] / "benchmarks" / "scenarios"
 INPUT_PROFILES = {"uniform-small", "adaptive-bands"}
 DEFAULT_EXACT_WIDE_LIMB_COUNT = 4
 EXACT_WIDE_LIMB_VARIANTS = [1, 2, 3, 4, 8, 16, 32]
@@ -104,6 +106,80 @@ class ScenarioItem:
     verification_amortization: str = "none"
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
+
+
+def _optional_tuple(value: Any, *, label: str) -> tuple[Any, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        raise SystemExit(f"{label} must be a nonempty list")
+    return tuple(value)
+
+
+def _tuple_or_default(value: Any, *, label: str, default: tuple[Any, ...]) -> tuple[Any, ...]:
+    converted = _optional_tuple(value, label=label)
+    return default if converted is None else converted
+
+
+def load_scenario_data_family(path: Path, cases: dict[str, SweepCase]) -> list[ScenarioItem]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"{path}: invalid scenario JSON: {exc}") from exc
+    if not isinstance(data, dict) or data.get("schema_version") != 1:
+        raise SystemExit(f"{path}: scenario data must be an object with schema_version=1")
+    family = data.get("family")
+    if not isinstance(family, str) or not family:
+        raise SystemExit(f"{path}: scenario data must declare a nonempty family")
+    raw_items = data.get("items")
+    if not isinstance(raw_items, list):
+        raise SystemExit(f"{path}: scenario data must declare items")
+
+    items: list[ScenarioItem] = []
+    for index, raw in enumerate(raw_items):
+        if not isinstance(raw, dict):
+            raise SystemExit(f"{path}: items[{index}] must be an object")
+        for key in ["name", "semantics", "case", "evidence_scope", "output_domain", "rationale"]:
+            if not isinstance(raw.get(key), str) or not raw[key]:
+                raise SystemExit(f"{path}: items[{index}].{key} must be a nonempty string")
+        case_name = raw["case"]
+        if case_name not in cases:
+            raise SystemExit(f"{path}: items[{index}] references unknown case alias {case_name!r}")
+        metadata = raw.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise SystemExit(f"{path}: items[{index}].metadata must be an object")
+        if isinstance(metadata, dict):
+            strategy = metadata.get("grouped_strategy_expectation")
+            if strategy is not None and strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+                raise SystemExit(f"{path}: items[{index}] has unregistered grouped_strategy_expectation={strategy!r}")
+        grouped_tasks = raw.get("grouped_dispatch_tasks", 1)
+        if not isinstance(grouped_tasks, int) or isinstance(grouped_tasks, bool) or grouped_tasks <= 0:
+            raise SystemExit(f"{path}: items[{index}].grouped_dispatch_tasks must be a positive integer")
+        items.append(
+            ScenarioItem(
+                family,
+                raw["name"],
+                raw["semantics"],
+                cases[case_name],
+                raw["evidence_scope"],
+                raw["output_domain"],
+                raw["rationale"],
+                backends=_optional_tuple(raw.get("backends"), label=f"{path}: items[{index}].backends"),
+                finite_moduli=_tuple_or_default(
+                    raw.get("finite_moduli"),
+                    label=f"{path}: items[{index}].finite_moduli",
+                    default=(None,),
+                ),
+                exact_wide_limb_counts=_tuple_or_default(
+                    raw.get("exact_wide_limb_counts"),
+                    label=f"{path}: items[{index}].exact_wide_limb_counts",
+                    default=(None,),
+                ),
+                grouped_dispatch_tasks=grouped_tasks,
+                metadata=metadata,
+            )
+        )
+    return items
 
 
 @dataclass(frozen=True)
@@ -1470,6 +1546,9 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     bounded_per_tile_backends = ("cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma")
     direct_oneshot_backends = ("cpu", "hip-direct")
     accelerator_backends = ("hip-direct", "hipblaslt", "ck", "rocwmma")
+    scenario_case_aliases = {
+        "many_small_64": many_small_64,
+    }
 
     return {
         "layout-search": [
@@ -4472,89 +4551,10 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 metadata={"promotion_scope": "reconstruction_variant_evidence_only", "cache_promotion_blocker": "experimental_reconstruction_variant"},
             ),
         ],
-        "grouped-dispatch": [
-            ScenarioItem(
-                "grouped-dispatch",
-                "bounded-i64-64-group32",
-                "bounded-i64",
-                many_small_64,
-                "many-small bounded i64 grouped pack+GEMM with per-task host export",
-                "host_export",
-                "checks whether the same device grouped task-prefix path helps bounded signed workloads before public resident API work",
-                backends=("hip-direct",),
-                grouped_dispatch_tasks=32,
-                metadata={
-                    "promotion_scope": "grouped_dispatch_evidence_only",
-                    "grouping_role": "same_shape_grouped_descriptor",
-                    "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports",
-                },
-            ),
-            ScenarioItem(
-                "grouped-dispatch",
-                "bounded-u64-64-group32",
-                "bounded-u64",
-                many_small_64,
-                "many-small bounded u64 grouped pack+GEMM with per-task host export",
-                "host_export",
-                "extends grouped task-prefix coverage to the unsigned bounded contract",
-                backends=("hip-direct",),
-                grouped_dispatch_tasks=32,
-                metadata={
-                    "promotion_scope": "grouped_dispatch_evidence_only",
-                    "grouping_role": "same_shape_grouped_descriptor",
-                    "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports",
-                },
-            ),
-            ScenarioItem(
-                "grouped-dispatch",
-                "finite-ring-64-group32",
-                "finite-u8-ring",
-                many_small_64,
-                "many-small finite-ring grouped-dispatch metadata capture",
-                "finite_u8_canonical_host_export",
-                "keeps finite-u8 grouped-dispatch evidence separate from bounded exact paths",
-                backends=("hip-direct",),
-                finite_moduli=(251,),
-                grouped_dispatch_tasks=32,
-                metadata={"promotion_scope": "grouped_dispatch_evidence_only", "grouping_role": "same_shape_grouped_descriptor"},
-            ),
-            ScenarioItem(
-                "grouped-dispatch",
-                "exact-wide-signed-64-group32",
-                "exact-wide-signed",
-                many_small_64,
-                "many-small exact-wide signed grouped-dispatch capture",
-                "exact_wide_signed_limbs",
-                "tests the grouped-dispatch path on the only host-batch workload that beat the fastest independent baseline",
-                backends=("hip-direct",),
-                exact_wide_limb_counts=(4,),
-                grouped_dispatch_tasks=32,
-                metadata={
-                    "promotion_scope": "grouped_dispatch_evidence_only",
-                    "grouping_role": "same_shape_grouped_descriptor",
-                    "comparison_required": "fastest_independent_and_same_backend_host_batch",
-                    "prior_host_batch_signal": "direct_hip_exact_wide_signed_64_hostbatch32",
-                },
-            ),
-            ScenarioItem(
-                "grouped-dispatch",
-                "exact-wide-unsigned-64-group32",
-                "exact-wide-unsigned",
-                many_small_64,
-                "many-small exact-wide unsigned grouped-dispatch capture",
-                "exact_wide_unsigned_limbs",
-                "turns the previous unsigned grouped smoke into a reportable same-contract grouped candidate",
-                backends=("hip-direct",),
-                exact_wide_limb_counts=(4,),
-                grouped_dispatch_tasks=32,
-                metadata={
-                    "promotion_scope": "grouped_dispatch_evidence_only",
-                    "grouping_role": "same_shape_grouped_descriptor",
-                    "comparison_required": "fastest_independent_and_same_backend_host_batch",
-                    "prior_smoke_signal": "direct_hip_exact_wide_unsigned_64_group32",
-                },
-            ),
-        ],
+        "grouped-dispatch": load_scenario_data_family(
+            SCENARIO_DATA_DIR / "grouped_dispatch.json",
+            scenario_case_aliases,
+        ),
         "resident-lifetime-arena": [
             ScenarioItem(
                 "resident-lifetime-arena",

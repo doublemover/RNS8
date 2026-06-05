@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from metadata_registry_constants import GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES
 
 
 DEFAULT_OUT_DIR = Path("temp") / "many-small-grouped-reports"
@@ -117,9 +118,7 @@ def expected_grouped_shape_key(capture: dict[str, Any]) -> str:
 def expected_grouped_device_descriptor_policy(capture: dict[str, Any]) -> str:
     grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
     strategy = grouped.get("execution_strategy")
-    if isinstance(strategy, str) and strategy.startswith("device_grouped_"):
-        return "device_pointer_tables_and_compact_slabs"
-    return "host_resident_task_loop"
+    return GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES.get(strategy, "host_resident_task_loop")
 
 
 def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
