@@ -146,6 +146,18 @@ best 4096 exact-wide signed local result hipBLASLt at 3.69x faster than Direct
 HIP and 658.24x faster than CPU. It remains release-gate evidence only; no
 4096 cache entry is installed from this gate.
 
+A follow-up budgeted exact-wide unsigned 4096 group under
+`temp/perf-work-queue/large-4096-unsigned-budgeted-release-current/` completed
+the same CPU, Direct-HIP, hipBLASLt, CK, and rocWMMA comparator set with
+release settings, schema-valid captures, matching checksum
+`9643325300233475427`, and required GPU events for every GPU capture. The
+review winner changed from the earlier GPU-only exploratory CK row to
+hipBLASLt at 162382 us median end-to-end. Direct HIP measured 614116 us, CK
+180252 us, rocWMMA 241248 us, and CPU reference 105462000 us. That makes the
+budgeted unsigned hipBLASLt row 3.78x faster than Direct HIP and 649.5x faster
+than CPU. It also remains release-gate evidence only; no 4096 cache entry is
+installed from this gate.
+
 The strict wrap64 4096 budget row also captured Direct HIP at 295657 us median
 end-to-end with required wrap64 GPU events. Its required byte-limb CPU reference
 exceeded the initial 300-second per-capture timeout, but the release-reference

@@ -1119,7 +1119,7 @@ def main() -> int:
     large_4096_budgeted_args.backends = None
     large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
     large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
-    assert len(large_4096_budgeted_entries) == 39
+    assert len(large_4096_budgeted_entries) == 44
     assert {
         entry.scenario["backend"]
         for entry in large_4096_budgeted_entries
@@ -1134,6 +1134,11 @@ def main() -> int:
         entry.scenario["backend"]
         for entry in large_4096_budgeted_entries
         if entry.scenario["name"] == "exact-wide-signed-4096-budgeted-export"
+    } == {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"}
+    assert {
+        entry.scenario["backend"]
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "exact-wide-unsigned-4096-budgeted-export"
     } == {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"}
     assert sorted(
         (entry.scenario["modulus"], entry.scenario["backend"])
