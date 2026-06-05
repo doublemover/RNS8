@@ -562,7 +562,7 @@ def main() -> int:
         tile_args,
     )
     assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
-    graph_item = catalog["hip-graph-replay"][0]
+    graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
     graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
     graph_command = benchmark_sweep.command_for(
         Path("rns8-bench"),

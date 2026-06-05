@@ -123,6 +123,12 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix);
+rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    void* stream = nullptr);
 rns8_status hip_direct_gemm_i64_native_prefix9_device(
     int device_id,
     const void* device_a_native,

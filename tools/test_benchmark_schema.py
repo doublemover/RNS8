@@ -1813,6 +1813,129 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     return chain
 
 
+def as_hip_graph_replay_capture(capture: dict) -> dict:
+    graph = as_reused_pack_capture(copy.deepcopy(capture))
+    repeats = graph["repeats"]
+    graph["benchmark"] = "rns8_hip_graph_replay_resident_rns_chain"
+    graph["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+    graph["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics bounded-i64 --m 64 --n 64 --k 64 "
+        "--reuse-packed-inputs --residue-chain-length 3 --next-op-hint rns-gemm --hip-graph-replay "
+        "--warmups 1 --repeats 3 --seed 7"
+    )
+    graph["m"] = 64
+    graph["n"] = 64
+    graph["k"] = 64
+    graph["bound_kind"] = "global_max_abs"
+    graph["bound_mode"] = "global"
+    graph["bound_source"] = "static_profile"
+    graph["bound"] = 1099511627776
+    graph["tile_bounds_u64"] = None
+    graph["schedule_metadata"]["tile_rows"] = 1
+    graph["schedule_metadata"]["tile_cols"] = 1
+    graph["schedule_metadata"]["tile_count"] = 1
+    graph["schedule_metadata"]["min_required_prefix"] = 9
+    graph["schedule_metadata"]["max_required_prefix"] = 9
+    graph["schedule_metadata"]["min_selected_prefix"] = 9
+    graph["schedule_metadata"]["max_selected_prefix"] = 9
+    graph["schedule_metadata"]["prefix_group_count"] = 1
+    graph["schedule_metadata"]["adaptive_prefix_active"] = False
+    graph["schedule_metadata"]["adaptive_skip_active"] = False
+    graph["schedule_metadata"]["adaptive_execution_applied"] = False
+    graph["schedule_metadata"]["range_bit_length"] = 41
+    graph["epilogue_type"] = "residue_current_rns_output"
+    graph["residue_chain_length"] = 3
+    graph["residue_output_mode"] = "residue_current_rns"
+    graph["per_modulus_gemm_estimate_applicable"] = False
+    graph["raw_timings_us"].pop("tile_bound_scan", None)
+    graph["timing_summary_us"].pop("tile_bound_scan", None)
+    graph["raw_timings_us"]["rns_gemm"] = [70, 71, 72][:repeats]
+    graph["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
+    graph["raw_timings_us"]["end_to_end"] = [70, 71, 72][:repeats]
+    graph["timing_summary_us"]["rns_gemm"] = summary(graph["raw_timings_us"]["rns_gemm"])
+    graph["timing_summary_us"]["crt_export"] = zero_summary()
+    graph["timing_summary_us"]["end_to_end"] = summary(graph["raw_timings_us"]["end_to_end"])
+    graph["avg_rns_gemm_us"] = graph["timing_summary_us"]["rns_gemm"]["avg"]
+    graph["avg_crt_export_us"] = 0.0
+    graph["avg_end_to_end_us"] = graph["timing_summary_us"]["end_to_end"]["avg"]
+    graph["avg_per_modulus_gemm_estimate_us"] = graph["avg_rns_gemm_us"]
+    graph["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+        "backend=hip-direct;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=64;tile_n=64;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;"
+        "epilogue=fused_centered_residue_then_crt_export"
+        ),
+        graph,
+    )
+    graph["timing_note"] = (
+        "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP residue-current RNS GEMM chain"
+    )
+    metadata = graph["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+    metadata["gpu_event_timing"] = False
+    metadata["gpu_event_timing_reason"] = "hip_graph_replay_wall_clock_only"
+    metadata["gpu_event_timing_status"] = "not_requested_graph_replay"
+    metadata["gpu_event_timing_source"] = None
+    metadata["gpu_event_timing_source_scope"] = None
+    metadata["gpu_event_timing_caveat"] = None
+    metadata["gpu_event_phase_order"] = None
+    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_notes"]["pack"] = (
+        "zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before HIP Graph capture"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for one hipGraphLaunch plus stream synchronization containing 3 captured Direct-HIP "
+        "resident RNS GEMM launches"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "zero-valued per-repeat phase; residue-current graph replay defers host logical export until one final "
+        "checksum export after measured repeats"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "same measured duration as rns_gemm for one hipGraphLaunch plus stream synchronization"
+    )
+    metadata["phase_availability"].pop("tile_bound_scan", None)
+    metadata["hip_graph_replay_enabled"] = True
+    metadata["hip_graph_replay_status"] = "available"
+    metadata["hip_graph_replay_scope"] = "direct_hip_reused_inputs_residue_current_rns_chain"
+    metadata["hip_graph_capture_us"] = 11
+    metadata["hip_graph_instantiate_us"] = 17
+    metadata["hip_graph_total_launches"] = graph["warmups"] + graph["repeats"]
+    graph["gpu_event_timings_us"] = None
+    graph["gpu_event_timing_summary_us"] = None
+    graph["hip_graph_replay"] = {
+        "requested": True,
+        "available": True,
+        "used": True,
+        "status": "available",
+        "scope": "direct_hip_reused_inputs_residue_current_rns_chain",
+        "descriptor_identity": "fixed_plan_workspace_descriptor:m=64;n=64;k=64",
+        "plan_identity": graph["backend_metadata"]["autotune_key"],
+        "setup_scope": "benchmark_hip_graph_replay_resident_rns_chain",
+        "capture_status": "replayed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+        "capture_us": 11,
+        "instantiate_us": 17,
+        "graph_launches_per_measured_repeat": 1,
+        "total_graph_launches": graph["warmups"] + graph["repeats"],
+        "captured_chain_length": 3,
+        "timing_policy": "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync",
+        "setup_policy": "A_B_prepack_before_capture_capture_and_instantiate_before_warmups",
+        "final_export_policy": "one_final_logical_export_after_measured_repeats_for_checksum_only",
+        "caveat": "captures resident Direct-HIP RNS GEMM launches only; A/B prepack setup and final checksum export are outside the graph",
+    }
+    add_target_variant_fields(graph)
+    add_requested_next_op_fields(graph, resolved="rns-gemm", requested="rns-gemm", source="cli")
+    add_output_policy_fields(
+        graph,
+        status_handling="structurally_elided",
+        per_repeat_export=False,
+        final_checksum_export=True,
+    )
+    return graph
+
+
 def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
     candidate = copy.deepcopy(capture)
     repeats = candidate["repeats"]

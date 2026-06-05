@@ -378,6 +378,7 @@ BENCHMARK_EXECUTION_MODES = {
     "auto_native_to_rns_bridge",
     "vector_native_to_direct_rns_chain",
     "benchmark_host_api_batch",
+    "hip_graph_replay_resident_rns_chain",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
@@ -558,6 +559,8 @@ class _Validator:
             return "internal_wrap64_rocwmma_candidate"
         if self._is_vector_alu_runtime_capture():
             return "public_runtime_vector_alu_native_buffers"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_resident_rns_chain":
+            return "hip_graph_replay_resident_rns_chain"
         if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
             return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
@@ -678,6 +681,9 @@ class _Validator:
     def _is_host_api_batch_capture(self) -> bool:
         return self._benchmark_execution_mode() == "benchmark_host_api_batch"
 
+    def _is_hip_graph_replay_capture(self) -> bool:
+        return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
+
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
@@ -775,6 +781,7 @@ class _Validator:
         self._validate_helper_lane_metadata()
         self._validate_starfoundry_metadata()
         self._validate_host_api_batch_metadata()
+        self._validate_hip_graph_replay_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
         self._validate_bound_discovery_metadata()
@@ -1825,6 +1832,134 @@ class _Validator:
                 expected = float(source_value) / float(batch_size)
                 if not _close(float(value), expected):
                     self._error(f"{field} must equal {source} / host_api_batch.batch_size")
+
+    def _validate_hip_graph_replay_metadata(self) -> None:
+        graph = self.data.get("hip_graph_replay")
+        is_graph = self._is_hip_graph_replay_capture()
+        if graph is None:
+            if is_graph:
+                self._error("hip_graph_replay_resident_rns_chain captures must include hip_graph_replay metadata")
+            return
+        if not isinstance(graph, dict):
+            self._error("hip_graph_replay must be an object")
+            return
+
+        for key in ["requested", "available", "used"]:
+            if not isinstance(graph.get(key), bool):
+                self._error(f"hip_graph_replay.{key} must be a boolean")
+        for key in ["status", "scope", "timing_policy", "setup_policy", "final_export_policy"]:
+            if not isinstance(graph.get(key), str):
+                self._error(f"hip_graph_replay.{key} must be a string")
+        for key in [
+            "capture_us",
+            "instantiate_us",
+            "graph_launches_per_measured_repeat",
+            "total_graph_launches",
+            "captured_chain_length",
+        ]:
+            if not _is_int(graph.get(key)) or graph.get(key) < 0:
+                self._error(f"hip_graph_replay.{key} must be a nonnegative integer")
+        caveat = graph.get("caveat")
+        if caveat is not None and not isinstance(caveat, str):
+            self._error("hip_graph_replay.caveat must be a string or null")
+
+        metadata = self.data.get("timing_metadata")
+        repeats = self.data.get("repeats")
+        warmups = self.data.get("warmups")
+        chain_length = self._residue_chain_length()
+
+        if not is_graph:
+            for key in ["requested", "available", "used"]:
+                if graph.get(key) is not False:
+                    self._error(f"non-graph captures must set hip_graph_replay.{key}=false")
+            if graph.get("status") != "not_requested":
+                self._error("non-graph captures must set hip_graph_replay.status=not_requested")
+            if graph.get("scope") != "not_applicable":
+                self._error("non-graph captures must set hip_graph_replay.scope=not_applicable")
+            for key in [
+                "capture_us",
+                "instantiate_us",
+                "graph_launches_per_measured_repeat",
+                "total_graph_launches",
+                "captured_chain_length",
+            ]:
+                if graph.get(key) != 0:
+                    self._error(f"non-graph captures must set hip_graph_replay.{key}=0")
+            for key in ["timing_policy", "setup_policy", "final_export_policy"]:
+                if graph.get(key) != "not_applicable":
+                    self._error(f"non-graph captures must set hip_graph_replay.{key}=not_applicable")
+            if isinstance(metadata, dict):
+                enabled = metadata.get("hip_graph_replay_enabled")
+                if enabled is not None and enabled is not False:
+                    self._error("non-graph captures must set timing_metadata.hip_graph_replay_enabled=false")
+            return
+
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_resident_rns_chain":
+            self._error("hip_graph_replay captures must use benchmark=rns8_hip_graph_replay_resident_rns_chain")
+        if self.data.get("backend_selected") != "hip-direct" or self.data.get("backend_requested") != "hip-direct":
+            self._error("hip_graph_replay captures must request and select backend hip-direct")
+        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
+            self._error("hip_graph_replay captures must use bounded or exact-wide RNS semantics")
+        if self.data.get("reuse_packed_inputs") is not True:
+            self._error("hip_graph_replay captures must use reuse_packed_inputs=true")
+        if self.data.get("pack_mode") != "prepacked_reuse":
+            self._error("hip_graph_replay captures must use pack_mode=prepacked_reuse")
+        if self.data.get("prepack_reuse_operands") != ["A", "B"]:
+            self._error("hip_graph_replay captures must reuse operands A and B")
+        if self.data.get("prepack_reuse_strategy") != "persistent_matrix_residency":
+            self._error("hip_graph_replay captures must use prepack_reuse_strategy=persistent_matrix_residency")
+        if chain_length <= 1 or self._residue_output_mode() != "residue_current_rns":
+            self._error("hip_graph_replay captures must use residue-current chain output")
+        if self.data.get("bound_mode") != "global":
+            self._error("hip_graph_replay captures must use bound_mode=global")
+        if self.data.get("bound_source") not in {None, "static_profile"}:
+            self._error("hip_graph_replay captures must use static-profile bounds")
+
+        for key in ["requested", "available", "used"]:
+            if graph.get(key) is not True:
+                self._error(f"hip_graph_replay captures must set hip_graph_replay.{key}=true")
+        if graph.get("status") != "available":
+            self._error("hip_graph_replay captures must set hip_graph_replay.status=available")
+        if graph.get("scope") != "direct_hip_reused_inputs_residue_current_rns_chain":
+            self._error(
+                "hip_graph_replay captures must set hip_graph_replay.scope="
+                "direct_hip_reused_inputs_residue_current_rns_chain"
+            )
+        if graph.get("graph_launches_per_measured_repeat") != 1:
+            self._error("hip_graph_replay captures must launch one graph per measured repeat")
+        if graph.get("captured_chain_length") != chain_length:
+            self._error("hip_graph_replay.captured_chain_length must match residue_chain_length")
+        if _is_int(repeats) and _is_int(warmups) and graph.get("total_graph_launches") != repeats + warmups:
+            self._error("hip_graph_replay.total_graph_launches must equal warmups + repeats")
+        if graph.get("timing_policy") != "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync":
+            self._error("hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "A_B_prepack_before_capture_capture_and_instantiate_before_warmups":
+            self._error("hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "one_final_logical_export_after_measured_repeats_for_checksum_only":
+            self._error("hip_graph_replay.final_export_policy is stale or unsupported")
+        if not isinstance(caveat, str) or "resident Direct-HIP RNS GEMM launches only" not in caveat:
+            self._error("hip_graph_replay.caveat must describe graph replay scope")
+
+        if not isinstance(metadata, dict):
+            return
+        if metadata.get("hip_graph_replay_enabled") is not True:
+            self._error("hip_graph_replay captures must set timing_metadata.hip_graph_replay_enabled=true")
+        if metadata.get("hip_graph_replay_status") != graph.get("status"):
+            self._error("timing_metadata.hip_graph_replay_status must match hip_graph_replay.status")
+        if metadata.get("hip_graph_replay_scope") != graph.get("scope"):
+            self._error("timing_metadata.hip_graph_replay_scope must match hip_graph_replay.scope")
+        if metadata.get("hip_graph_capture_us") != graph.get("capture_us"):
+            self._error("timing_metadata.hip_graph_capture_us must match hip_graph_replay.capture_us")
+        if metadata.get("hip_graph_instantiate_us") != graph.get("instantiate_us"):
+            self._error("timing_metadata.hip_graph_instantiate_us must match hip_graph_replay.instantiate_us")
+        if metadata.get("hip_graph_total_launches") != graph.get("total_graph_launches"):
+            self._error("timing_metadata.hip_graph_total_launches must match hip_graph_replay.total_graph_launches")
+        if metadata.get("gpu_event_timing") is not False:
+            self._error("hip_graph_replay captures must report gpu_event_timing=false")
+        if metadata.get("gpu_event_timing_reason") != "hip_graph_replay_wall_clock_only":
+            self._error("hip_graph_replay captures must report gpu_event_timing_reason=hip_graph_replay_wall_clock_only")
+        if metadata.get("gpu_event_timing_status") != "not_requested_graph_replay":
+            self._error("hip_graph_replay captures must report gpu_event_timing_status=not_requested_graph_replay")
 
     def _validate_backend_metadata(self) -> None:
         metadata = self._require("backend_metadata", "dict")
@@ -3484,6 +3619,7 @@ class _Validator:
                 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
                 and not self._is_direct_hip_vector_to_rns_chain_capture()
                 and not self._is_host_api_batch_capture()
+                and not self._is_hip_graph_replay_capture()
                 and self.data.get("backend_selected") != "hip-vector-alu-int64"
             )
             if applicable != expected_applicable:

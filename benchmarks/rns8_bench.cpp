@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -53,6 +54,10 @@
 
 #ifndef RNS8_SOURCE_DIR
 #  define RNS8_SOURCE_DIR "."
+#endif
+
+#if RNS8_CONFIGURED_HIP_ENABLED
+#  include <hip/hip_runtime_api.h>
 #endif
 
 namespace {
@@ -227,6 +232,15 @@ struct BenchmarkResult {
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
+  bool hip_graph_replay_requested = false;
+  bool hip_graph_replay_available = false;
+  bool hip_graph_replay_used = false;
+  uint64_t hip_graph_capture_us = 0;
+  uint64_t hip_graph_instantiate_us = 0;
+  uint64_t hip_graph_launch_count = 0;
+  std::string hip_graph_replay_status = "not_requested";
+  std::string hip_graph_replay_scope = "not_applicable";
+  std::string hip_graph_replay_caveat{};
   uint64_t checksum = 0;
 };
 
@@ -260,6 +274,25 @@ uint32_t benchmark_prefix(const Args& args);
 uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result);
 bool vector_to_rns_chain_requested(const Args& args);
 bool host_api_batch_requested(const Args& args);
+bool hip_graph_replay_requested(const Args& args);
+void record_allocation_after_warmups(BenchmarkResult& result);
+struct HipGraphReplayState {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  hipStream_t stream = nullptr;
+  hipGraph_t graph = nullptr;
+  hipGraphExec_t executable = nullptr;
+#endif
+  uint64_t launch_count = 0;
+};
+void destroy_hip_graph_replay_state(HipGraphReplayState& state);
+rns8_status capture_hip_graph_replay(
+    int device_id,
+    const std::function<rns8_status(void*)>& capture_body,
+    HipGraphReplayState& state,
+    uint64_t& capture_us,
+    uint64_t& instantiate_us,
+    std::string& error_text);
+rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text);
 
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
@@ -891,6 +924,37 @@ Args parse_args(int argc, char** argv) {
       usage_error("--host-api-batch-size > 1 cannot be combined with --residue-chain-length > 1");
     }
   }
+  if (args.hip_graph_replay) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+    usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
+#endif
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
+      usage_error("--hip-graph-replay requires --backend hip-direct");
+    }
+    if (!rns_chain_benchmark_semantics(args.semantics)) {
+      usage_error("--hip-graph-replay is only valid for bounded or exact-wide RNS semantics");
+    }
+    if (args.residue_chain_length <= 1) {
+      usage_error("--hip-graph-replay requires --residue-chain-length > 1 so output stays residue-current");
+    }
+    if (!args.reuse_packed_inputs || !args.reuse_packed_a || !args.reuse_packed_b) {
+      usage_error("--hip-graph-replay requires --reuse-packed-inputs so graph replay has stable resident A/B inputs");
+    }
+    if (args.next_op_hint != NextOpHint::RnsGemm) {
+      usage_error("--hip-graph-replay requires --next-op-hint rns-gemm");
+    }
+    if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
+      usage_error("--hip-graph-replay currently requires global static-profile bounds");
+    }
+    if (args.oneshot || host_api_batch_requested(args) || args.vector_alu_baseline ||
+        args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
+        args.native_to_rns_bridge || args.vector_to_rns_chain || args.wrap64_rocwmma_candidate ||
+        args.residue_channel_fusion) {
+      usage_error(
+          "--hip-graph-replay cannot be combined with one-shot, host batching, vector, transient, bridge, "
+          "vector-to-RNS chain, wrap64 candidate, or residue-fusion modes");
+    }
+  }
   if (args.residue_chain_length > 1) {
     if (!rns_chain_benchmark_semantics(args.semantics)) {
       usage_error("--residue-chain-length > 1 is only valid for bounded or exact-wide RNS semantics");
@@ -1168,6 +1232,10 @@ bool host_api_batch_requested(const Args& args) {
   return args.host_api_batch_size > 1;
 }
 
+bool hip_graph_replay_requested(const Args& args) {
+  return args.hip_graph_replay;
+}
+
 bool oneshot_benchmark_mode(const Args& args) {
   return args.oneshot;
 }
@@ -1190,6 +1258,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (host_api_batch_requested(args)) {
     return "benchmark_host_api_batch";
+  }
+  if (hip_graph_replay_requested(args)) {
+    return "hip_graph_replay_resident_rns_chain";
   }
   if (args.wrap64_rocwmma_candidate) {
     return "internal_wrap64_rocwmma_candidate";
@@ -1395,6 +1466,122 @@ rns8_status run_rns_gemm_with_optional_b_cache(
     return rns8_gemm_rns_prepacked_b(ctx, plan, a_matrix, b_cache, c_matrix, workspace);
   }
   return rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
+}
+
+rns8_status run_direct_hip_resident_rns_chain_no_sync(
+    const rns8_plan* plan,
+    rns8_matrix* a_matrix,
+    rns8_matrix* b_matrix,
+    rns8_matrix* c_matrix,
+    rns8_matrix* scratch_matrix,
+    uint32_t chain_length,
+    rns8_matrix** latest_output_matrix,
+    void* stream = nullptr) {
+  if (!plan || !a_matrix || !b_matrix || !c_matrix || chain_length == 0 || !latest_output_matrix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (chain_length > 1 && !scratch_matrix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_matrix* lhs_matrix = a_matrix;
+  rns8_matrix* out_matrix = c_matrix;
+  rns8_matrix* final_output_matrix = c_matrix;
+  for (uint32_t chain_index = 0; chain_index < chain_length; ++chain_index) {
+    const rns8_status status = rns8::detail::hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
+        plan, lhs_matrix, b_matrix, out_matrix, stream);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    final_output_matrix = out_matrix;
+    lhs_matrix = out_matrix;
+    out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
+  }
+  *latest_output_matrix = final_output_matrix;
+  return RNS8_SUCCESS;
+}
+
+void run_hip_graph_replay_resident_chain(
+    const Args& args,
+    BenchmarkResult& result,
+    const rns8_plan* plan,
+    rns8_matrix* a_matrix,
+    rns8_matrix* b_matrix,
+    rns8_matrix* c_matrix,
+    rns8_matrix* scratch_matrix,
+    rns8_matrix*& latest_output_matrix) {
+  result.hip_graph_replay_requested = true;
+  result.hip_graph_replay_scope = "direct_hip_reused_inputs_residue_current_rns_chain";
+  result.hip_graph_replay_caveat =
+      "captures resident Direct-HIP RNS GEMM launches only; A/B prepack setup and final checksum export are outside "
+      "the graph";
+
+  HipGraphReplayState graph_state{};
+  std::string graph_error;
+  rns8_status status = capture_hip_graph_replay(
+      args.device_id,
+      [&](void* stream) {
+        return run_direct_hip_resident_rns_chain_no_sync(
+            plan,
+            a_matrix,
+            b_matrix,
+            c_matrix,
+            scratch_matrix,
+            args.residue_chain_length,
+            &latest_output_matrix,
+            stream);
+      },
+      graph_state,
+      result.hip_graph_capture_us,
+      result.hip_graph_instantiate_us,
+      graph_error);
+  if (status != RNS8_SUCCESS) {
+    result.hip_graph_replay_status = "capture_failed";
+    result.hip_graph_replay_caveat = graph_error;
+    destroy_hip_graph_replay_state(graph_state);
+    if (!graph_error.empty()) {
+      std::cerr << graph_error << "\n";
+    }
+    fail_status("hip graph capture", status);
+  }
+
+  result.hip_graph_replay_available = true;
+  result.hip_graph_replay_used = true;
+  result.hip_graph_replay_status = "available";
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    if (status != RNS8_SUCCESS) {
+      result.hip_graph_replay_status = "warmup_launch_failed";
+      result.hip_graph_replay_caveat = graph_error;
+      destroy_hip_graph_replay_state(graph_state);
+      if (!graph_error.empty()) {
+        std::cerr << graph_error << "\n";
+      }
+      fail_status("hip graph warmup launch", status);
+    }
+  }
+  record_allocation_after_warmups(result);
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    const auto repeat_start = std::chrono::steady_clock::now();
+    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto repeat_end = std::chrono::steady_clock::now();
+    if (status != RNS8_SUCCESS) {
+      result.hip_graph_replay_status = "measured_launch_failed";
+      result.hip_graph_replay_caveat = graph_error;
+      destroy_hip_graph_replay_state(graph_state);
+      if (!graph_error.empty()) {
+        std::cerr << graph_error << "\n";
+      }
+      fail_status("hip graph measured launch", status);
+    }
+    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    result.samples.pack_us.push_back(0);
+    result.samples.gemm_us.push_back(elapsed);
+    result.samples.export_us.push_back(0);
+    result.samples.end_to_end_us.push_back(elapsed);
+  }
+  result.hip_graph_launch_count = graph_state.launch_count;
+  destroy_hip_graph_replay_state(graph_state);
 }
 
 bool maybe_create_reusable_b_prepack_cache(
@@ -2441,6 +2628,156 @@ struct DeviceBuffer {
     }
   }
 };
+
+std::string hip_graph_error_text(const char* operation, int code) {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  const auto error = static_cast<hipError_t>(code);
+  const char* name = hipGetErrorName(error);
+  const char* text = hipGetErrorString(error);
+  std::ostringstream out;
+  out << operation << " failed";
+  if (name && name[0] != '\0') {
+    out << ": " << name;
+  }
+  if (text && text[0] != '\0') {
+    out << " (" << text << ")";
+  }
+  return out.str();
+#else
+  (void)operation;
+  (void)code;
+  return "HIP graph replay requires a HIP-enabled benchmark build";
+#endif
+}
+
+void destroy_hip_graph_replay_state(HipGraphReplayState& state) {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  if (state.executable) {
+    const hipError_t status = hipGraphExecDestroy(state.executable);
+    if (status != hipSuccess) {
+      std::cerr << hip_graph_error_text("hipGraphExecDestroy", static_cast<int>(status)) << "\n";
+    }
+    state.executable = nullptr;
+  }
+  if (state.graph) {
+    const hipError_t status = hipGraphDestroy(state.graph);
+    if (status != hipSuccess) {
+      std::cerr << hip_graph_error_text("hipGraphDestroy", static_cast<int>(status)) << "\n";
+    }
+    state.graph = nullptr;
+  }
+  if (state.stream) {
+    const hipError_t status = hipStreamDestroy(state.stream);
+    if (status != hipSuccess) {
+      std::cerr << hip_graph_error_text("hipStreamDestroy", static_cast<int>(status)) << "\n";
+    }
+    state.stream = nullptr;
+  }
+#else
+  (void)state;
+#endif
+}
+
+rns8_status capture_hip_graph_replay(
+    int device_id,
+    const std::function<rns8_status(void*)>& capture_body,
+    HipGraphReplayState& state,
+    uint64_t& capture_us,
+    uint64_t& instantiate_us,
+    std::string& error_text) {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  destroy_hip_graph_replay_state(state);
+  const hipError_t device_status = hipSetDevice(device_id);
+  if (device_status != hipSuccess) {
+    error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(device_status));
+    return RNS8_BACKEND_FAILURE;
+  }
+  hipError_t status = hipStreamCreateWithFlags(&state.stream, hipStreamNonBlocking);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipStreamCreateWithFlags", static_cast<int>(status));
+    return RNS8_BACKEND_FAILURE;
+  }
+
+  const auto capture_start = std::chrono::steady_clock::now();
+  status = hipStreamBeginCapture(state.stream, hipStreamCaptureModeGlobal);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipStreamBeginCapture", static_cast<int>(status));
+    destroy_hip_graph_replay_state(state);
+    return RNS8_BACKEND_FAILURE;
+  }
+
+  const rns8_status body_status = capture_body(static_cast<void*>(state.stream));
+  hipGraph_t captured_graph = nullptr;
+  status = hipStreamEndCapture(state.stream, &captured_graph);
+  const auto capture_end = std::chrono::steady_clock::now();
+  capture_us = elapsed_us(capture_start, capture_end);
+  if (body_status != RNS8_SUCCESS) {
+    if (captured_graph) {
+      (void)hipGraphDestroy(captured_graph);
+    }
+    error_text = std::string("captured Direct-HIP graph body returned ") + rns8_status_string(body_status);
+    return body_status;
+  }
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipStreamEndCapture", static_cast<int>(status));
+    if (captured_graph) {
+      (void)hipGraphDestroy(captured_graph);
+    }
+    return RNS8_BACKEND_FAILURE;
+  }
+  state.graph = captured_graph;
+
+  const auto instantiate_start = std::chrono::steady_clock::now();
+  status = hipGraphInstantiate(&state.executable, state.graph, nullptr, nullptr, 0);
+  const auto instantiate_end = std::chrono::steady_clock::now();
+  instantiate_us = elapsed_us(instantiate_start, instantiate_end);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipGraphInstantiate", static_cast<int>(status));
+    destroy_hip_graph_replay_state(state);
+    return RNS8_BACKEND_FAILURE;
+  }
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)capture_body;
+  (void)state;
+  capture_us = 0;
+  instantiate_us = 0;
+  error_text = "HIP graph replay requires a HIP-enabled benchmark build";
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text) {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  if (!state.executable) {
+    error_text = "hip graph executable is not instantiated";
+    return RNS8_INVALID_ARGUMENT;
+  }
+  hipError_t status = hipSetDevice(device_id);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(status));
+    return RNS8_BACKEND_FAILURE;
+  }
+  status = hipGraphLaunch(state.executable, state.stream);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipGraphLaunch", static_cast<int>(status));
+    return RNS8_BACKEND_FAILURE;
+  }
+  status = hipStreamSynchronize(state.stream);
+  if (status != hipSuccess) {
+    error_text = hip_graph_error_text("hipStreamSynchronize", static_cast<int>(status));
+    return RNS8_BACKEND_FAILURE;
+  }
+  ++state.launch_count;
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)state;
+  error_text = "HIP graph replay requires a HIP-enabled benchmark build";
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 
 template <typename T>
 uint64_t vector_alu_workspace_bytes(const Args& args) {
@@ -3821,6 +4158,9 @@ rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkR
 }
 
 bool gpu_event_capture_requested(const Args& args, rns8_backend_kind selected_backend) {
+  if (hip_graph_replay_requested(args)) {
+    return false;
+  }
   return backend_supports_gpu_event_capture(selected_backend);
 }
 
@@ -5840,12 +6180,17 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
-  }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  if (hip_graph_replay_requested(args)) {
+    run_hip_graph_replay_resident_chain(
+        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
   }
   if (chain_residue_output) {
     status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), ldc);
@@ -6253,12 +6598,17 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
-  }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  if (hip_graph_replay_requested(args)) {
+    run_hip_graph_replay_resident_chain(
+        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
   }
   if (chain_residue_output) {
     status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
@@ -6600,12 +6950,17 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
-  }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  if (hip_graph_replay_requested(args)) {
+    run_hip_graph_replay_resident_chain(
+        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_signed_limbs(
@@ -6772,12 +7127,17 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
-  }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  if (hip_graph_replay_requested(args)) {
+    run_hip_graph_replay_resident_chain(
+        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_unsigned_limbs(
@@ -7396,6 +7756,9 @@ const char* benchmark_name(const Args& args) {
   if (host_api_batch_requested(args)) {
     return "rns8_host_api_batch_persistent_resident";
   }
+  if (hip_graph_replay_requested(args)) {
+    return "rns8_hip_graph_replay_resident_rns_chain";
+  }
   if (bounded_residue_channel_fusion_requested(args)) {
     return "rns8_bounded_gemm_residue_channel_fusion_experiment";
   }
@@ -7848,6 +8211,9 @@ const char* benchmark_setup_scope(const Args& args) {
   if (bounded_residue_channel_fusion_requested(args)) {
     return "benchmark_experimental_residue_channel_fusion_persistent_output";
   }
+  if (hip_graph_replay_requested(args)) {
+    return "benchmark_hip_graph_replay_resident_rns_chain";
+  }
   if (args.vector_alu_baseline || runtime_vector_alu_backend(args) || bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "benchmark_owned_transient_native_input_buffers";
   }
@@ -8262,20 +8628,6 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
-  std::cout << "  \"hip_graph_replay\": {\n";
-  std::cout << "    \"requested\": " << (args.hip_graph_replay ? "true" : "false") << ",\n";
-  std::cout << "    \"descriptor_identity\": \"fixed_plan_workspace_descriptor:m=" << args.m << ";n=" << args.n
-            << ";k=" << args.k << "\",\n";
-  std::cout << "    \"plan_identity\": \"" << json_escape(result.backend_info.autotune_key) << "\",\n";
-  std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
-  std::cout << "    \"capture_status\": \""
-            << (args.hip_graph_replay ? "unsupported_stream_capture_not_executed" : "not_requested") << "\",\n";
-  std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(args.hip_graph_replay ? std::string("fixed_descriptor_graph_replay_not_available_for_path")
-                                                  : std::string());
-  std::cout << ",\n";
-  std::cout << "    \"promotion_eligible\": false\n";
-  std::cout << "  },\n";
 }
 
 void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult& result) {
@@ -8403,7 +8755,7 @@ void print_json(
   const bool per_modulus_estimate_applicable =
       selected_prefix > 0 && args.bound_mode != BoundMode::PerTile && !adaptive_applied && !args.oneshot &&
       !args.vector_alu_baseline && !runtime_vector_alu_backend(args) && !vector_to_rns_chain_requested(args) &&
-      !host_api_batch_requested(args);
+      !host_api_batch_requested(args) && !hip_graph_replay_requested(args);
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(selected_prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
@@ -8562,6 +8914,9 @@ void print_json(
   } else if (result.gpu_events.requested) {
     gpu_event_reason = "backend_event_capture_incomplete";
     gpu_event_status = "unavailable_missing_expected_events";
+  } else if (result.hip_graph_replay_requested) {
+    gpu_event_reason = "hip_graph_replay_wall_clock_only";
+    gpu_event_status = result.hip_graph_replay_used ? "not_requested_graph_replay" : "not_requested_graph_replay_unavailable";
   } else if (chain_residue_output) {
     gpu_event_reason = "selected_chain_backend_has_no_gpu_event_hooks";
     gpu_event_status = "not_requested_for_selected_chain_backend";
@@ -8863,6 +9218,50 @@ void print_json(
                                                : "single_final_output_checksum")
             << "\"\n";
   std::cout << "  },\n";
+  std::cout << "  \"hip_graph_replay\": {\n";
+  std::cout << "    \"requested\": " << (result.hip_graph_replay_requested ? "true" : "false") << ",\n";
+  std::cout << "    \"available\": " << (result.hip_graph_replay_available ? "true" : "false") << ",\n";
+  std::cout << "    \"used\": " << (result.hip_graph_replay_used ? "true" : "false") << ",\n";
+  std::cout << "    \"status\": \"" << json_escape(result.hip_graph_replay_status) << "\",\n";
+  std::cout << "    \"scope\": \"" << json_escape(result.hip_graph_replay_scope) << "\",\n";
+  std::cout << "    \"descriptor_identity\": \"fixed_plan_workspace_descriptor:m=" << args.m << ";n=" << args.n
+            << ";k=" << args.k << "\",\n";
+  std::cout << "    \"plan_identity\": \"" << json_escape(result.backend_info.autotune_key) << "\",\n";
+  std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
+  std::cout << "    \"capture_status\": \""
+            << (result.hip_graph_replay_used ? "replayed" : "not_requested") << "\",\n";
+  std::cout << "    \"unsupported_reason\": ";
+  print_nullable_std_string(
+      result.hip_graph_replay_requested && !result.hip_graph_replay_used ? result.hip_graph_replay_caveat
+                                                                         : std::string());
+  std::cout << ",\n";
+  std::cout << "    \"promotion_eligible\": false,\n";
+  std::cout << "    \"capture_us\": " << result.hip_graph_capture_us << ",\n";
+  std::cout << "    \"instantiate_us\": " << result.hip_graph_instantiate_us << ",\n";
+  std::cout << "    \"graph_launches_per_measured_repeat\": "
+            << (result.hip_graph_replay_used ? 1 : 0) << ",\n";
+  std::cout << "    \"total_graph_launches\": " << result.hip_graph_launch_count << ",\n";
+  std::cout << "    \"captured_chain_length\": "
+            << (result.hip_graph_replay_used ? args.residue_chain_length : 0) << ",\n";
+  std::cout << "    \"timing_policy\": \""
+            << (result.hip_graph_replay_used
+                    ? "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync"
+                    : "not_applicable")
+            << "\",\n";
+  std::cout << "    \"setup_policy\": \""
+            << (result.hip_graph_replay_used
+                    ? "A_B_prepack_before_capture_capture_and_instantiate_before_warmups"
+                    : "not_applicable")
+            << "\",\n";
+  std::cout << "    \"final_export_policy\": \""
+            << (result.hip_graph_replay_used
+                    ? "one_final_logical_export_after_measured_repeats_for_checksum_only"
+                    : "not_applicable")
+            << "\",\n";
+  std::cout << "    \"caveat\": ";
+  print_nullable_std_string(result.hip_graph_replay_caveat);
+  std::cout << "\n";
+  std::cout << "  },\n";
   std::cout << "  \"packed_layout_version\": ";
   print_json_string_or_null(packed_layout_version(args));
   std::cout << ",\n";
@@ -8924,7 +9323,14 @@ void print_json(
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (chain_residue_output) {
+  if (hip_graph_replay_requested(args)) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP residue-current RNS GEMM chain; A and B are packed once before graph capture, "
+              << "capture_us and instantiate_us record one-time graph setup before warmups, each measured repeat "
+              << "runs one hipGraphLaunch plus stream synchronization containing " << args.residue_chain_length
+              << " resident RNS GEMM launches, raw_timings_us.pack and raw_timings_us.crt_export are zero, and "
+                 "one final logical export runs after measured repeats only to produce checksum_u64\",\n";
+  } else if (chain_residue_output) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for a residue-current RNS GEMM chain; "
               << "each measured repeat runs " << args.residue_chain_length
               << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and "
@@ -9062,6 +9468,12 @@ void print_json(
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
   std::cout << "    \"host_api_batch_enabled\": " << (host_api_batch_requested(args) ? "true" : "false") << ",\n";
   std::cout << "    \"host_api_batch_size\": " << args.host_api_batch_size << ",\n";
+  std::cout << "    \"hip_graph_replay_enabled\": " << (result.hip_graph_replay_used ? "true" : "false") << ",\n";
+  std::cout << "    \"hip_graph_replay_status\": \"" << json_escape(result.hip_graph_replay_status) << "\",\n";
+  std::cout << "    \"hip_graph_replay_scope\": \"" << json_escape(result.hip_graph_replay_scope) << "\",\n";
+  std::cout << "    \"hip_graph_capture_us\": " << result.hip_graph_capture_us << ",\n";
+  std::cout << "    \"hip_graph_instantiate_us\": " << result.hip_graph_instantiate_us << ",\n";
+  std::cout << "    \"hip_graph_total_launches\": " << result.hip_graph_launch_count << ",\n";
   std::cout << "    \"native_to_rns_bridge_forced\": "
             << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";
   std::cout << "    \"vector_to_rns_chain\": "
@@ -9161,7 +9573,13 @@ void print_json(
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
-  if (chain_residue_output) {
+  if (hip_graph_replay_requested(args)) {
+    std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before HIP Graph capture\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for one hipGraphLaunch plus stream synchronization containing "
+              << args.residue_chain_length
+              << " captured Direct-HIP resident RNS GEMM launches\",\n";
+    std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current graph replay defers host logical export until one final checksum export after measured repeats\",\n";
+  } else if (chain_residue_output) {
     if (args.reuse_packed_inputs) {
       if (reuses_all_packed_inputs(args)) {
         std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before warmups\",\n";
@@ -9275,7 +9693,9 @@ void print_json(
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
-  if (chain_residue_output) {
+  if (hip_graph_replay_requested(args)) {
+    std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one hipGraphLaunch plus stream synchronization; excludes one-time prepack_setup_us, hip_graph_replay.capture_us, hip_graph_replay.instantiate_us, and the final checksum-only logical export\"\n";
+  } else if (chain_residue_output) {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only logical export";
     if (args.reuse_packed_inputs) {
       std::cout << " and one-time prepack_setup_us";

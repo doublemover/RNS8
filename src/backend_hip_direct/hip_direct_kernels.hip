@@ -2832,7 +2832,7 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_ring_gemm_i8_device(
+int rns8_hip_direct_ring_gemm_i8_on_stream(
     const int8_t* d_a,
     const int8_t* d_b,
     int8_t* d_c,
@@ -2846,7 +2846,8 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     uint32_t modulus_reciprocal,
     int modulus_index,
     int selected_prefix,
-    int safe_k_block) {
+    int safe_k_block,
+    hipStream_t stream) {
   if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus <= 0 ||
       modulus_index < 0 || selected_prefix <= 0 || modulus_index >= selected_prefix ||
       selected_prefix > kRns8DefaultModulusCount ||
@@ -2868,7 +2869,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
         grid,
         block,
         0,
-        nullptr,
+        stream,
         d_a,
         d_b,
         d_c,
@@ -3213,7 +3214,7 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_a_i8_b_device(
   return static_cast<int>(err);
 }
 
-extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
+int rns8_hip_direct_ring_gemm_i8_grouped_prefix_on_stream(
     const int8_t* d_a,
     const int8_t* d_b,
     int8_t* d_c,
@@ -3224,7 +3225,8 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     int ldb,
     int ldc,
     int grouped_prefix,
-    int safe_k_block) {
+    int safe_k_block,
+    hipStream_t stream) {
   if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       grouped_prefix <= 0 || grouped_prefix > kRns8MaxSupportedPrefix ||
       safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
@@ -3249,7 +3251,7 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
         grid,
         block,
         0,
-        nullptr,
+        stream,
         d_a,
         d_b,
         d_c,
@@ -3268,6 +3270,73 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     accumulate = 1;
   }
   return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block) {
+  return rns8_hip_direct_ring_gemm_i8_on_stream(
+      d_a,
+      d_b,
+      d_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      modulus,
+      modulus_reciprocal,
+      modulus_index,
+      selected_prefix,
+      safe_k_block,
+      nullptr);
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block,
+    void* stream) {
+  return rns8_hip_direct_ring_gemm_i8_on_stream(
+      d_a,
+      d_b,
+      d_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      modulus,
+      modulus_reciprocal,
+      modulus_index,
+      selected_prefix,
+      safe_k_block,
+      reinterpret_cast<hipStream_t>(stream));
 }
 
 template <typename NativeT>
@@ -3943,6 +4012,61 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     accumulate = 1;
   }
   return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block) {
+  return rns8_hip_direct_ring_gemm_i8_grouped_prefix_on_stream(
+      d_a,
+      d_b,
+      d_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      grouped_prefix,
+      safe_k_block,
+      nullptr);
+}
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block,
+    void* stream) {
+  return rns8_hip_direct_ring_gemm_i8_grouped_prefix_on_stream(
+      d_a,
+      d_b,
+      d_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      grouped_prefix,
+      safe_k_block,
+      reinterpret_cast<hipStream_t>(stream));
 }
 
 __global__ void rns8_zero_scheduled_residue_tiles_kernel(

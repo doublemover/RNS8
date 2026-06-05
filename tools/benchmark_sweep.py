@@ -227,6 +227,8 @@ def backend_id(capture: dict[str, Any]) -> str:
         return f"{backend}-oneshot"
     if execution_mode == "benchmark_host_api_batch":
         return f"{backend}-hostbatch"
+    if execution_mode == "hip_graph_replay_resident_rns_chain":
+        return f"{backend}-hipgraph"
     return backend
 
 
@@ -683,6 +685,7 @@ def promotion_blockers(
     prepacked_reuse: bool,
     oneshot_capture: bool,
     host_api_batch_capture: bool,
+    hip_graph_replay_capture: bool,
     gpu_events_available: bool,
     end_to_end: float | None,
     cpu: float | None,
@@ -742,6 +745,8 @@ def promotion_blockers(
         blockers.append("oneshot_api_capture_not_autotune_promotable")
     if host_api_batch_capture:
         blockers.append("host_api_batch_not_autotune_promotable")
+    if hip_graph_replay_capture:
+        blockers.append("hip_graph_replay_not_autotune_promotable")
     if accelerator and not gpu_events_available:
         blockers.append("missing_required_gpu_events")
     if end_to_end is None:
@@ -921,6 +926,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             execution_mode = capture_execution_mode(item)
             oneshot_capture = execution_mode == "public_oneshot_transient_native_inputs"
             host_api_batch_capture = execution_mode == "benchmark_host_api_batch"
+            hip_graph_replay_capture = execution_mode == "hip_graph_replay_resident_rns_chain"
             end_to_end = median_phase(item, "end_to_end")
             cpu = median_phase(cpu_capture, "end_to_end") if cpu_capture else None
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
@@ -953,6 +959,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
                 oneshot_capture=oneshot_capture,
                 host_api_batch_capture=host_api_batch_capture,
+                hip_graph_replay_capture=hip_graph_replay_capture,
                 gpu_events_available=capture_gpu_events_available(item),
                 end_to_end=end_to_end,
                 cpu=cpu,
@@ -2897,6 +2904,133 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 },
             ),
         ],
+        "hip-graph-replay": [
+            ScenarioItem(
+                "hip-graph-replay",
+                "bounded-i64-chain3-reuse-inputs-baseline",
+                "bounded-i64",
+                chain_128,
+                "ordinary Direct-HIP residue-current chain with stable A and B packed once before warmups",
+                "residue_current_rns",
+                "same-contract baseline for HIP Graph replay; prepack setup and final checksum export stay visible",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "ordinary_residue_current_chain_reuse_inputs",
+                    "graph_role": "same_contract_non_graph_baseline",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "bounded-i64-chain3-reuse-inputs-graph",
+                "bounded-i64",
+                chain_128,
+                "Direct-HIP HIP Graph replay candidate for a stable-input residue-current chain",
+                "residue_current_rns",
+                "measures whether graph replay removes launch overhead for the same resident RNS chain contract",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                hip_graph_replay=True,
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "hip_graph_residue_current_chain_reuse_inputs",
+                    "graph_role": "graph_replay_candidate",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+                    "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "bounded-u64-chain3-reuse-inputs-baseline",
+                "bounded-u64",
+                chain_128,
+                "ordinary Direct-HIP bounded-u64 residue-current chain with stable A and B",
+                "residue_current_rns",
+                "keeps signed and unsigned bounded graph comparisons separate",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "ordinary_residue_current_chain_reuse_inputs",
+                    "graph_role": "same_contract_non_graph_baseline",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "bounded-u64-chain3-reuse-inputs-graph",
+                "bounded-u64",
+                chain_128,
+                "Direct-HIP HIP Graph replay candidate for bounded-u64 stable-input residue-current chains",
+                "residue_current_rns",
+                "checks whether unsigned bounded chains benefit differently from graph replay",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                hip_graph_replay=True,
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "hip_graph_residue_current_chain_reuse_inputs",
+                    "graph_role": "graph_replay_candidate",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+                    "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "exact-wide-signed-chain3-reuse-inputs-baseline",
+                "exact-wide-signed",
+                chain_128,
+                "ordinary Direct-HIP exact-wide signed residue-current chain with stable A and B",
+                "residue_current_rns",
+                "keeps graph replay compared against the same exact-wide lazy-export contract",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "ordinary_exact_wide_chain_reuse_inputs",
+                    "graph_role": "same_contract_non_graph_baseline",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "exact-wide-signed-chain3-reuse-inputs-graph",
+                "exact-wide-signed",
+                chain_128,
+                "Direct-HIP HIP Graph replay candidate for exact-wide signed residue-current chains",
+                "residue_current_rns",
+                "checks graph replay on an exact-wide lazy-export workflow before any public chain planner exists",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse",
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                hip_graph_replay=True,
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "hip_graph_replay",
+                    "phase_label": "hip_graph_exact_wide_chain_reuse_inputs",
+                    "graph_role": "graph_replay_candidate",
+                    "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+                    "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review",
+                },
+            ),
+        ],
         "small-oneshot": [
             ScenarioItem(
                 "small-oneshot",
@@ -3912,33 +4046,6 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 metadata={"promotion_scope": "reconstruction_variant_evidence_only", "cache_promotion_blocker": "experimental_reconstruction_variant"},
             ),
         ],
-        "hip-graph-replay": [
-            ScenarioItem(
-                "hip-graph-replay",
-                "bounded-i64-512-fixed-plan",
-                "bounded-i64",
-                layout_512,
-                "fixed-plan HIP graph replay metadata capture",
-                "host_export",
-                "records deterministic graph unsupported status unless a real fixed-descriptor replay path exists",
-                backends=("hip-direct",),
-                hip_graph_replay=True,
-                metadata={"promotion_scope": "graph_replay_evidence_only", "cache_promotion_blocker": "graph_replay_not_release_reviewed"},
-            ),
-            ScenarioItem(
-                "hip-graph-replay",
-                "finite-ring-512-fixed-plan",
-                "finite-u8-ring",
-                finite_512,
-                "finite-u8 fixed-plan HIP graph replay metadata capture",
-                "finite_u8_canonical_host_export",
-                "keeps graph-capture compatibility separate for finite-u8 paths",
-                backends=("hip-direct",),
-                finite_moduli=(251,),
-                hip_graph_replay=True,
-                metadata={"promotion_scope": "graph_replay_evidence_only", "cache_promotion_blocker": "graph_replay_not_release_reviewed"},
-            ),
-        ],
         "grouped-dispatch": [
             ScenarioItem(
                 "grouped-dispatch",
@@ -4427,6 +4534,8 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
     backends = list(item.backends or default_backends_for(item.semantics, item.case))
     if item.host_api_batch_size > 1:
         backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
+    if item.hip_graph_replay:
+        backends = [backend for backend in backends if backend == "hip-direct"]
     if item.semantics == "wrap-u64" and item.include_wrap64_candidate and args.include_wrap64_rocwmma_candidate:
         backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
     if args.backends:
@@ -4525,6 +4634,7 @@ def capture_name(
     residue_chain_length: int = 1,
     output_ld_padding: int = 0,
     host_api_batch_size: int = 1,
+    hip_graph_replay: bool = False,
     oneshot: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
@@ -4538,6 +4648,8 @@ def capture_name(
         parts.append(f"outpad{output_ld_padding}")
     if host_api_batch_size > 1:
         parts.append(f"hostbatch{host_api_batch_size}")
+    if hip_graph_replay:
+        parts.append("hipgraph")
     if oneshot:
         parts.append("oneshot")
     if pack_mode == "prepacked_reuse":
@@ -4725,6 +4837,23 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             raise SystemExit("--residue-channel-fusion requires --prefix-policy fixed-requested and --max-prefix 9")
         if any(semantics not in BOUNDED_SEMANTICS for semantics in semantics_values):
             raise SystemExit("--residue-channel-fusion is only valid for bounded semantics")
+    if getattr(args, "hip_graph_replay", False):
+        if requested_pack_mode(args) != "prepacked_reuse":
+            raise SystemExit("--hip-graph-replay requires --reuse-packed-inputs")
+        if args.residue_chain_length <= 1:
+            raise SystemExit("--hip-graph-replay requires --residue-chain-length > 1")
+        if getattr(args, "next_op_hint", None) != "rns-gemm":
+            raise SystemExit("--hip-graph-replay requires --next-op-hint rns-gemm")
+        if host_api_batch_size > 1 or getattr(args, "include_oneshot", False) or getattr(args, "oneshot_only", False):
+            raise SystemExit("--hip-graph-replay cannot be combined with host batching or one-shot sweeps")
+        if getattr(args, "native_to_rns_bridge", False) or getattr(args, "vector_to_rns_chain", False):
+            raise SystemExit("--hip-graph-replay cannot be combined with bridge or vector-to-RNS chain sweeps")
+        if getattr(args, "residue_channel_fusion", False):
+            raise SystemExit("--hip-graph-replay cannot be combined with residue-channel fusion")
+        if getattr(args, "bound_source", None) == "input-scan":
+            raise SystemExit("--hip-graph-replay currently requires static-profile bounds")
+        if any(semantics not in RNS_CHAIN_SEMANTICS for semantics in semantics_values):
+            raise SystemExit("--hip-graph-replay is only valid for bounded or exact-wide RNS sweeps")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if args.residue_chain_length > 1:
@@ -4759,6 +4888,8 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                 backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
             if getattr(args, "residue_channel_fusion", False):
                 backends = [backend for backend in backends if backend == "hip-direct"]
+            if getattr(args, "hip_graph_replay", False):
+                backends = [backend for backend in backends if backend == "hip-direct"]
             for modulus in finite_moduli_for(semantics, args):
                 for exact_wide_limb_count in exact_wide_limb_counts_for(semantics, args):
                     if not oneshot_only:
@@ -4784,6 +4915,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 args.residue_chain_length,
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                                 int(getattr(args, "host_api_batch_size", 1) or 1),
+                                bool(getattr(args, "hip_graph_replay", False)),
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                             commands.append(SweepCommand(name, command, args.out_root / name))
@@ -4810,6 +4942,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 args.residue_chain_length,
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                                 int(getattr(args, "host_api_batch_size", 1) or 1),
+                                bool(getattr(args, "hip_graph_replay", False)),
                                 oneshot=True,
                             )
                             command = command_for(
@@ -4910,6 +5043,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         item.residue_chain_length,
                         item.output_ld_padding,
                         item.host_api_batch_size,
+                        item.hip_graph_replay,
                         oneshot=item.oneshot,
                     )
                     name = f"{item.family}-{item.name}-{base_name}"
@@ -5227,7 +5361,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hip-graph-replay",
         action="store_true",
-        help="benchmark-only HIP graph replay metadata request",
+        help="benchmark-only Direct-HIP HIP Graph replay experiment passthrough",
     )
     parser.add_argument(
         "--workload-proxy",

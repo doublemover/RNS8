@@ -55,6 +55,22 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     int modulus_index,
     int selected_prefix,
     int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int modulus_index,
+    int selected_prefix,
+    int safe_k_block,
+    void* stream);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     const int8_t* d_a,
@@ -68,6 +84,19 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     int ldc,
     int grouped_prefix,
     int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block,
+    void* stream);
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_device(
     const int64_t* d_a,
@@ -1049,6 +1078,7 @@ struct hip_rns_modulus_launch {
   uint16_t modulus = 0;
   uint32_t modulus_index = 0;
   uint32_t selected_prefix = 0;
+  void* stream = nullptr;
 };
 
 struct hip_rns_scheduled_modulus_launch {
@@ -1109,7 +1139,7 @@ hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
   if (!checked_rns_modulus_launch(launch)) {
     return hipErrorInvalidValue;
   }
-  const int code = rns8_hip_direct_ring_gemm_i8_device(
+  const int code = rns8_hip_direct_ring_gemm_i8_device_on_stream(
       launch.a,
       launch.b,
       launch.c,
@@ -1123,7 +1153,8 @@ hipError_t launch_rns_modulus_gemm(const hip_rns_modulus_launch& launch) {
       modulus_reciprocal_u32(launch.modulus),
       static_cast<int>(launch.modulus_index),
       static_cast<int>(launch.selected_prefix),
-      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK),
+      launch.stream);
   return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
 
@@ -1163,7 +1194,8 @@ hipError_t launch_rns_grouped_prefix_gemm(
     int64_t lda,
     int64_t ldb,
     int64_t ldc,
-    uint32_t prefix) {
+    uint32_t prefix,
+    void* stream = nullptr) {
   if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -1172,7 +1204,7 @@ hipError_t launch_rns_grouped_prefix_gemm(
       RNS8_SAFE_INT32_K_BLOCK > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
     return hipErrorInvalidValue;
   }
-  const int code = rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
+  const int code = rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
       a,
       b,
       c,
@@ -1183,7 +1215,8 @@ hipError_t launch_rns_grouped_prefix_gemm(
       static_cast<int>(ldb),
       static_cast<int>(ldc),
       static_cast<int>(prefix),
-      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK),
+      stream);
   return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
 #endif
@@ -1743,6 +1776,54 @@ rns8_status hip_direct_ring_gemm_i8_device(
 #endif
 }
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+hipError_t launch_direct_rns_gemm_no_sync(
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint32_t prefix,
+    void* stream = nullptr) {
+  const auto* a_base = static_cast<const int8_t*>(device_a_residues);
+  const auto* b_base = static_cast<const int8_t*>(device_b_residues);
+  auto* c_base = static_cast<int8_t*>(device_c_residues);
+  if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX || prefix == RNS8_MAX_SUPPORTED_PREFIX) {
+    return launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix, stream);
+  }
+  for (uint32_t p = 0; p < prefix; ++p) {
+    const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
+                                 static_cast<std::size_t>(lda);
+    const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
+                                 static_cast<std::size_t>(ldb);
+    const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
+                                 static_cast<std::size_t>(ldc);
+    const hipError_t launch_status = launch_rns_modulus_gemm({
+        a_base + a_offset,
+        b_base + b_offset,
+        c_base + c_offset,
+        m,
+        n,
+        k,
+        lda,
+        ldb,
+        ldc,
+        kDefaultModuli[p],
+        p,
+        prefix,
+        stream});
+    if (launch_status != hipSuccess) {
+      return launch_status;
+    }
+  }
+  return hipSuccess;
+}
+#endif
+
 rns8_status hip_direct_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -1775,37 +1856,15 @@ rns8_status hip_direct_gemm_rns_device(
   if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX || prefix == RNS8_MAX_SUPPORTED_PREFIX) {
     const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
       const hipError_t launch_status =
-          launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
+          launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
       return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
     });
     return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    for (uint32_t p = 0; p < prefix; ++p) {
-      const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                   static_cast<std::size_t>(lda);
-      const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
-                                   static_cast<std::size_t>(ldb);
-      const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                   static_cast<std::size_t>(ldc);
-      const hipError_t launch_status = launch_rns_modulus_gemm({
-          a_base + a_offset,
-          b_base + b_offset,
-          c_base + c_offset,
-          m,
-          n,
-          k,
-          lda,
-          ldb,
-          ldc,
-          kDefaultModuli[p],
-          p,
-          prefix});
-      if (launch_status != hipSuccess) {
-        return launch_status;
-      }
-    }
-    return hipDeviceSynchronize();
+    const hipError_t launch_status =
+        launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
+    return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -1820,6 +1879,55 @@ rns8_status hip_direct_gemm_rns_device(
   (void)ldb;
   (void)ldc;
   (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!plan || !A || !B || !C || plan->backend != RNS8_BACKEND_HIP_DIRECT || !plan->tile_schedule.empty()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!A->device_residues_current || !B->device_residues_current || !A->hip_residues || !B->hip_residues ||
+      !C->hip_residues) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const hipError_t launch_status = launch_direct_rns_gemm_no_sync(
+      A->hip_residues,
+      B->hip_residues,
+      C->hip_residues,
+      plan->desc.m,
+      plan->desc.n,
+      plan->desc.k,
+      A->desc.cols,
+      B->desc.cols,
+      C->desc.cols,
+      plan->prefix,
+      stream);
+  if (launch_status != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  C->device_residues_current = true;
+  C->host_residues_current = false;
+  C->host_byte_limbs_current = false;
+  C->device_byte_limbs_current = false;
+  C->host_native_current = false;
+  C->device_native_current = false;
+  if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
+    C->source_version = static_cast<uint64_t>(A->source_version + B->source_version + 1u);
+  }
+  return RNS8_SUCCESS;
+#else
+  (void)plan;
+  (void)A;
+  (void)B;
+  (void)C;
+  (void)stream;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

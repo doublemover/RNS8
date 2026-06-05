@@ -64,6 +64,16 @@ June 4-5, 2026 updates:
   host-batch workload beats independent calls in release review, but broader
   host batching, public routing, and device grouped execution remain rank 8
   work.
+- HIP Graph replay work has moved from a generic queue item to a branch-local
+  benchmark implementation lane. The first surface is intentionally narrow:
+  Direct-HIP resident RNS GEMM chains with `--reuse-packed-inputs`,
+  `--residue-chain-length > 1`, and `--next-op-hint rns-gemm`, where graph
+  replay captures only the resident GEMM launches while A/B prepack and final
+  checksum export remain outside the graph. Schema/sweep coverage, Windows
+  release build, and a tiny `gfx1100` same-contract smoke comparison now pass
+  under `temp/perf-work-queue/hip-graph-replay-smoke/`; this is still not a
+  promoted performance claim until release-size setup-inclusive comparisons
+  pass.
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
   32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
   surfaces for generated reducer identities, residue-channel fusion metadata,
@@ -436,7 +446,7 @@ June 4-5, 2026 updates:
 | 27 | Closed helper lane: fused pack+GEMM for small one-shot bounded and finite workloads | PR #10 adds comparison surfaces for one-shot/transient fused-path experiments | Release captures still need 64/128 bounded and finite one-shot proof | Closed as benchmark surface; promote only if fused path beats CPU, Direct HIP, and current accelerator winner |
 | 28 | Closed scenario surface: end-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | `layout-search` emits layout-metadata captures for bounded RNS final export, RNS-next-op, exact-wide prefix-20, finite-u8 ring/field, and strict wrap64 byte-limb paths | Closed as benchmark surface; keep layout variants only after complete same-contract release evidence and event attribution |
 | 29 | Persistent/grouped scheduler for adaptive prefix groups | Adaptive prefix groups need launch and scheduling amortization beyond simple tile skipping | Grouped scenario captures with CPU/direct-HIP baselines and per-task correctness | Promote only when grouping beats independent calls including queue/setup overhead |
-| 30 | HIP Graph replay for repeated fixed-shape pack/GEMM/export | Repeated workflows can remove launch overhead without changing math | Internal graph replay benchmark with fixed-shape identity and handle lifetime checks | Keep internal until exact status/error behavior matches ordinary calls |
+| 30 | Advanced benchmark lane: HIP Graph replay for repeated fixed-shape Direct-HIP RNS chains | Repeated resident workflows can remove per-call launch overhead without changing math or public API semantics | Branch-local `rns8-bench --hip-graph-replay` surface targets Direct-HIP `--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm`; schema/sweep coverage, Windows release build, and tiny `gfx1100` same-contract graph replay smoke pass, with graph capture/instantiate cost recorded separately | Keep benchmark-only until release-size comparisons prove correctness, ordinary-call parity, setup-inclusive graph capture/instantiate accounting, and a real win versus the non-graph same-contract chain |
 | 31 | Closed benchmark/evidence lane: host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | `rns8-bench --host-api-batch-size` now runs same-shape independent resident tasks through one shared plan, one A/B/C matrix triplet and workspace per task, aggregate pack/GEMM/export timing, combined output checksums, schema-v4 host-batch metadata, sweep scenarios for bounded, finite, skinny, and exact-wide many-small cases, distinct `*-hostbatch` review identities, `tools/host_api_batch_report.py`, and a same-commit 20-capture release comparison against independent-call baselines | Closed as benchmark/evidence plumbing; only Direct-HIP exact-wide signed 64 hostbatch32 currently wins the full workload gate, and no AUTO/public route changes are made |
 | 32 | Closed helper lane: next-op and lazy-export metadata | PR #10 adds requested next-op and output-domain planning metadata to schema-v4 captures | Chain/lazy-export scenarios still need release proof with exact final CPU comparison | Closed as metadata; keep advisory until public API semantics are clear |
 | 33 | Reconstruction backend variants for GPU CRT/export | Current wins often move with export/status timing | Release A/B for GPU CRT, compact export, status handling, and host scatter variants | Promote only setup-inclusive export path wins, not isolated copy improvements |
@@ -464,7 +474,7 @@ June 4-5, 2026 updates:
 | 55 | Streaming pack/compute/export overlap | Repeated workflows can pipeline pack-next, compute-current, export-previous | Multi-stream benchmark with double/triple-buffered workspaces, pinned/compact transfers, explicit stream dependencies, and per-stage events | Keep disabled until status/error behavior matches the serial path and overlap is visible in events |
 | 56 | Tile-shape autotuning | Current tile sizes are conservative and may not match each backend/resource envelope | Generate and benchmark tile M/N/K/block/group variants with target id, occupancy, LDS, VGPR/SGPR, event phases, and cache keys | Promote only per target/backend/semantic when tile identity is encoded in selected kernel and autotune key |
 | 57 | Workspace arena implementation lane | Allocation metadata is visible but not yet an allocation-reduction mechanism | Device workspace arena with plan/workspace fingerprints, suballocation, stream-safe reuse, and measured allocation deltas after warmup | Promote only if allocation counters prove zero measured-repeat allocation without hiding stale workspace bugs |
-| 58 | HIP Graph replay prototype | Fixed-shape repeated workflows may be launch-bound after pack/export tuning | Internal graph capture/replay for fixed plan, workspace, matrix identities, output policy, and error/status equivalence | Keep internal until graph replay exactly matches ordinary calls for errors, synchronization, and currentness |
+| 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | The first graph path deliberately excludes pack, export, finite-u8, wrap64, and mixed-backend work | Follow-on captures must prove explicit-stream capture, status/error equivalence, currentness, and setup accounting for each broader path | Do not expand until rank 30 survives release-size same-contract review |
 | 59 | Shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads | Non-routing selector report that says what a shape-family policy would pick, why, and which blocker prevents promotion | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
 | 60 | Promotion ledger tool | Installed reviewed cache entries need durable auditability | Tool that lists installed key, evidence file, target, toolchain, selected kernel, speedup, blocker clearance, and stale invalidation reason | Treat as release hygiene; do not install or replace cache entries without ledger consistency |
 | 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | Batch reports that join HIP events, ISA, RGA/LLVM resources, rocprofiler counters, VGPR/SGPR/LDS, occupancy, waits, stores, and roofline group | Use as explanation evidence only; never replace exact correctness or timing gates |
@@ -477,6 +487,7 @@ June 4-5, 2026 updates:
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
 | Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof: only Direct-HIP exact-wide signed 64 hostbatch32 beats the fastest independent baseline, while bounded and finite host-batch candidates lose; there is still no device grouped/persistent dispatcher or public batching contract | Implement grouped/persistent execution if host-side batching is insufficient, expand exact-wide host-batch proof only where it survives the fastest-independent gate, and require complete GPU events for any promoted grouped or batched GPU candidate |
+| HIP Graph replay is implemented as a narrow benchmark lane, not a promoted workload contract | The branch-local graph path is deliberately scoped to Direct-HIP resident RNS chains and records wall-clock graph launch timing instead of normal per-kernel GPU event timing; schema/sweep/build/tiny smoke evidence now exists | Run release-size captures against the same non-graph chain, include capture/instantiate setup cost, and keep the result experimental unless it beats the same-contract non-graph path end-to-end |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, with finite hot 2048 refreshed after the hipBLASLt event fix; repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion; bounded plus finite/exact-wide/wrap64 4096 now have GPU-only throughput classification, and focused reruns clear the known stale finite hipBLASLt reducer-event gaps | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass and runtime vector comparison are intentionally budgeted |
 | Reuse/prepack wins use explicit reuse contracts | The branch now has a release-contract A/B/A+B matrix, but those captures intentionally change input lifetime and setup semantics versus one-shot calls | Convert only explicit reusable-input workloads with setup-inclusive break-even, source identity, stale-input rejection, and caller-visible lifetime metadata; do not install AUTO cache entries from reuse captures |
 
@@ -3450,15 +3461,20 @@ Promotion gate:
 - Promote only when allocation counters prove zero measured-repeat allocation
   and stale workspace tests fail cleanly.
 
-### 58. HIP Graph Replay Prototype
+### 58. HIP Graph Replay Expansion Beyond Direct-HIP RNS Chains
 
 HIP Graphs are attractive for repeated fixed-shape workflows, but they freeze a
-lot of state. RNS8 needs strict identity and error equivalence before routing.
+lot of state. The current branch now has a narrow benchmark-only Direct-HIP
+resident RNS chain graph replay lane. Broader graph work still needs strict
+identity and error equivalence before routing.
 
 Technical direction:
 
-- Capture only fixed plan, fixed workspace, fixed matrix descriptors, fixed
-  output policy, fixed streams, and fixed backend path.
+- Preserve the current narrow contract first: fixed Direct-HIP plan, fixed
+  matrix descriptors, fixed output policy, explicit nonblocking HIP stream, and
+  resident RNS GEMM launches only.
+- Treat pack, export, finite-u8, wrap64, and mixed-backend graph capture as
+  follow-on work, not implicit coverage from the Direct-HIP chain lane.
 - Include status/error behavior in the graph contract. A graph replay must not
   hide range errors, stale currentness, or failed HIP calls.
 - Compare graph replay against serial ordinary calls, host API batching, and
@@ -3467,14 +3483,17 @@ Technical direction:
 
 Likely first slices:
 
-- Direct-HIP repeated bounded 128/512 fixed-shape graph benchmark.
+- Release-size Direct-HIP repeated bounded 128/512 fixed-shape graph benchmark
+  against the same non-graph residue-current chain.
 - Finite-u8 128 graph benchmark where CPU/Direct-HIP setup dominates.
-- Graph identity schema object with plan/workspace/source/output hashes.
+- Extended graph identity schema object with plan/workspace/source/output
+  hashes once the narrow lane survives release review.
 
 Promotion gate:
 
-- No routing until graph replay matches ordinary calls for success, range
-  errors, stale inputs, and cleanup across repeated runs.
+- No expansion or routing until the narrow graph lane matches ordinary calls for
+  success, range errors, stale inputs, setup accounting, and cleanup across
+  repeated runs.
 
 ### 59. Shape-Family AUTO Shadow Mode
 
