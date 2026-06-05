@@ -681,6 +681,9 @@ class _Validator:
     def _is_host_api_batch_capture(self) -> bool:
         return self._benchmark_execution_mode() == "benchmark_host_api_batch"
 
+    def _is_grouped_dispatch_capture(self) -> bool:
+        return self._benchmark_execution_mode() == "benchmark_grouped_dispatch_evidence"
+
     def _is_hip_graph_replay_capture(self) -> bool:
         return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
 
@@ -781,6 +784,7 @@ class _Validator:
         self._validate_helper_lane_metadata()
         self._validate_starfoundry_metadata()
         self._validate_host_api_batch_metadata()
+        self._validate_grouped_dispatch_metadata()
         self._validate_hip_graph_replay_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
@@ -1722,6 +1726,74 @@ class _Validator:
                 if amortization.get("promotion_eligible") is not False:
                     self._error("verification_amortization captures must set promotion_eligible=false")
 
+    def _validate_grouped_dispatch_metadata(self) -> None:
+        grouped = self.data.get("grouped_dispatch")
+        is_grouped = self._is_grouped_dispatch_capture()
+        if grouped is None:
+            if is_grouped:
+                self._error("benchmark_grouped_dispatch_evidence captures must include grouped_dispatch metadata")
+            return
+        if not isinstance(grouped, dict):
+            return
+
+        task_count = grouped.get("task_count")
+        if is_grouped:
+            if self.data.get("benchmark") != "rns8_grouped_dispatch_persistent_resident":
+                self._error(
+                    "benchmark_grouped_dispatch_evidence captures must use "
+                    "benchmark=rns8_grouped_dispatch_persistent_resident"
+                )
+            if self.data.get("backend_selected") != "hip-direct":
+                self._error("benchmark_grouped_dispatch_evidence captures must use backend_selected=hip-direct")
+            if grouped.get("requested") is not True:
+                self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.requested=true")
+            if not _is_int(task_count) or task_count <= 1:
+                self._error("benchmark_grouped_dispatch_evidence captures must use grouped_dispatch.task_count > 1")
+            if grouped.get("capture_status") != "executed":
+                self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.capture_status=executed")
+            if grouped.get("unsupported_reason") is not None:
+                self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.unsupported_reason=null")
+            if grouped.get("promotion_eligible") is not False:
+                self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.promotion_eligible=false")
+            if self.data.get("semantics") == "wrap_u64_mod_2_64":
+                self._error("benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64")
+            if self.data.get("reuse_packed_inputs") is not False:
+                self._error("benchmark_grouped_dispatch_evidence captures must not use packed-input reuse")
+            if self.data.get("pack_mode") != "per_repeat_repack":
+                self._error("benchmark_grouped_dispatch_evidence captures must use pack_mode=per_repeat_repack")
+            if self._residue_chain_length() != 1 or self._residue_output_mode() != "host_export":
+                self._error("benchmark_grouped_dispatch_evidence captures must use host_export residue_chain_length=1")
+            if self.data.get("bound_mode") != "global":
+                self._error("benchmark_grouped_dispatch_evidence captures must use bound_mode=global")
+            if self.data.get("bound_source") not in {None, "static_profile"}:
+                self._error("benchmark_grouped_dispatch_evidence captures must use bound_source=static_profile")
+
+            batch = self.data.get("host_api_batch")
+            if not isinstance(batch, dict):
+                self._error("benchmark_grouped_dispatch_evidence captures must include disabled host_api_batch metadata")
+            elif batch.get("enabled") is not False or batch.get("batch_size") != 1:
+                self._error("benchmark_grouped_dispatch_evidence captures must keep host_api_batch disabled")
+
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict):
+                if metadata.get("grouped_dispatch_enabled") is not True:
+                    self._error("timing_metadata.grouped_dispatch_enabled must be true for grouped dispatch captures")
+                if _is_int(task_count) and metadata.get("grouped_dispatch_task_count") != task_count:
+                    self._error(
+                        "timing_metadata.grouped_dispatch_task_count must match grouped_dispatch.task_count"
+                    )
+                notes = metadata.get("phase_notes")
+                if not isinstance(notes, dict):
+                    self._error("benchmark_grouped_dispatch_evidence captures must include timing_metadata.phase_notes")
+                else:
+                    for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
+                        note = notes.get(phase)
+                        if not isinstance(note, str) or "aggregate" not in note or "grouped" not in note:
+                            self._error(
+                                f"benchmark_grouped_dispatch_evidence phase note {phase} "
+                                "must describe aggregate grouped timing"
+                            )
+
     def _validate_host_api_batch_metadata(self) -> None:
         batch = self.data.get("host_api_batch")
         is_batch = self._is_host_api_batch_capture()
@@ -1828,10 +1900,20 @@ class _Validator:
             if not _is_number(value):
                 self._error(f"{field} must be a finite number")
                 continue
-            if _is_number(source_value) and _is_int(batch_size):
-                expected = float(source_value) / float(batch_size)
+            denominator = batch_size
+            denominator_name = "host_api_batch.batch_size"
+            grouped = self.data.get("grouped_dispatch")
+            if (
+                self._is_grouped_dispatch_capture()
+                and isinstance(grouped, dict)
+                and _is_int(grouped.get("task_count"))
+            ):
+                denominator = grouped.get("task_count")
+                denominator_name = "grouped_dispatch.task_count"
+            if _is_number(source_value) and _is_int(denominator):
+                expected = float(source_value) / float(denominator)
                 if not _close(float(value), expected):
-                    self._error(f"{field} must equal {source} / host_api_batch.batch_size")
+                    self._error(f"{field} must equal {source} / {denominator_name}")
 
     def _validate_hip_graph_replay_metadata(self) -> None:
         graph = self.data.get("hip_graph_replay")
@@ -3619,6 +3701,7 @@ class _Validator:
                 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
                 and not self._is_direct_hip_vector_to_rns_chain_capture()
                 and not self._is_host_api_batch_capture()
+                and not self._is_grouped_dispatch_capture()
                 and not self._is_hip_graph_replay_capture()
                 and self.data.get("backend_selected") != "hip-vector-alu-int64"
             )

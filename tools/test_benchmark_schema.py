@@ -197,6 +197,110 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     return batch
 
 
+def as_grouped_dispatch_capture(capture: dict) -> dict:
+    grouped = copy.deepcopy(capture)
+    task_count = 8
+    kernel = "direct_hip_tiled_rns_gemm_v1"
+    epilogue = "fused_centered_residue_then_crt_export"
+    grouped["benchmark"] = "rns8_grouped_dispatch_persistent_resident"
+    grouped["benchmark_execution_mode"] = "benchmark_grouped_dispatch_evidence"
+    grouped["backend_requested"] = "hip-direct"
+    grouped["backend_selected"] = "hip-direct"
+    grouped["selected_kernel"] = kernel
+    metadata = grouped["backend_metadata"]
+    metadata["source"] = "rns8_get_plan_backend_info"
+    metadata["selected_kernel"] = kernel
+    metadata["accelerator_backend"] = False
+    metadata["matrix_engine_backend"] = False
+    metadata["accelerator_library"] = "HIP runtime"
+    metadata["accelerator_version"] = "7.1"
+    metadata["capability_status"] = "implemented_correctness_backend"
+    metadata["epilogue_mode"] = epilogue
+    metadata["workspace_mode"] = "resident_device_buffers"
+    metadata["workspace_required_bytes"] = 0
+    metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+    apply_int32_accumulator_contract(grouped)
+    metadata["autotune_key"] = with_accumulator_key_fields(
+        (
+            f"backend=hip-direct;semantics={grouped['semantics']};m={grouped['m']};n={grouped['n']};"
+            f"k={grouped['k']};prefix={grouped['prefix']};tile_m={grouped['tile_m']};"
+            f"tile_n={grouped['tile_n']};groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "execution=benchmark_grouped_dispatch_evidence;"
+            f"kernel={kernel};epilogue={epilogue}"
+        ),
+        grouped,
+    )
+    grouped["command_line"] = f'{grouped["command_line"]} --backend hip-direct --grouped-dispatch {task_count}'
+    grouped["timing_note"] = (
+        "host wall-clock timings for benchmark-owned grouped dispatch evidence; raw timings are aggregate grouped totals"
+    )
+    grouped["reuse_packed_inputs"] = False
+    grouped["pack_mode"] = "per_repeat_repack"
+    grouped["bound_mode"] = "global"
+    grouped["bound_source"] = "static_profile"
+    grouped["prepack_reuse_operands"] = []
+    grouped["prepack_reuse_strategy"] = "none"
+    grouped["prepack_setup_us"] = None
+    grouped["avg_prepack_setup_us"] = None
+    grouped["host_api_batch"] = {
+        "enabled": False,
+        "batch_size": 1,
+        "tasks_per_measured_repeat": 1,
+        "total_measured_tasks": grouped["repeats"],
+        "setup_scope": "single_task_default_benchmark_mode",
+        "timing_policy": "single_call_totals_per_measured_repeat",
+        "checksum_policy": "single_final_output_checksum",
+    }
+    grouped["grouped_dispatch"] = {
+        "requested": True,
+        "task_count": task_count,
+        "descriptor_identity": (
+            f"same_shape_m={grouped['m']};n={grouped['n']};k={grouped['k']};"
+            f"semantics={grouped['semantics']}"
+        ),
+        "source_hash": str(grouped["seed"]),
+        "output_hash": "final_checksum_u64",
+        "setup_scope": "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks",
+        "capture_status": "executed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+    }
+    grouped["per_modulus_gemm_estimate_applicable"] = False
+    grouped["avg_per_modulus_gemm_estimate_us"] = grouped["avg_rns_gemm_us"]
+    for field, source in [
+        ("avg_pack_per_task_us", "avg_pack_us"),
+        ("avg_rns_gemm_per_task_us", "avg_rns_gemm_us"),
+        ("avg_crt_export_per_task_us", "avg_crt_export_us"),
+        ("avg_end_to_end_per_task_us", "avg_end_to_end_us"),
+    ]:
+        grouped[field] = grouped[source] / float(task_count)
+    add_helper_lane_fields(grouped)
+    metadata = grouped["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "benchmark_grouped_dispatch_evidence"
+    metadata["pack_mode"] = "per_repeat_repack"
+    metadata["prepack_reuse_operands"] = []
+    metadata["prepack_reuse_strategy"] = "none"
+    metadata["host_api_batch_enabled"] = False
+    metadata["host_api_batch_size"] = 1
+    metadata["grouped_dispatch_enabled"] = True
+    metadata["grouped_dispatch_task_count"] = task_count
+    metadata["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
+    metadata["generated_reducer_identity"] = "direct_hip_fixed_prefix_9_generated_reducer_v1"
+    metadata["phase_notes"]["pack"] = (
+        "per-repeat aggregate grouped-dispatch host timing for packing A and B for independent resident tasks"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "per-repeat aggregate grouped-dispatch host timing for independent resident rns8_gemm calls"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "per-repeat aggregate grouped-dispatch pack plus rns_gemm plus crt_export host timing for independent grouped tasks"
+    )
+    return grouped
+
+
 def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dict:
     bridge = copy.deepcopy(capture)
     bridge["benchmark"] = "rns8_bounded_gemm_native_to_rns_bridge"
@@ -2305,6 +2409,33 @@ def main() -> int:
         "per-repeat pack plus rns_gemm plus crt_export host timing"
     )
     expect_invalid(stale_host_batch_note, "benchmark_host_api_batch phase note end_to_end")
+
+    grouped_dispatch = as_grouped_dispatch_capture(v4_ck_i64)
+    validate_capture(grouped_dispatch)
+
+    stale_grouped_status = copy.deepcopy(grouped_dispatch)
+    stale_grouped_status["grouped_dispatch"]["capture_status"] = "metadata_only_unsupported_for_execution_path"
+    stale_grouped_status["grouped_dispatch"][
+        "unsupported_reason"
+    ] = "grouped_dispatch_not_executed_by_current_benchmark_path"
+    expect_invalid(
+        stale_grouped_status,
+        "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.capture_status=executed",
+    )
+
+    grouped_host_batch_leak = copy.deepcopy(grouped_dispatch)
+    grouped_host_batch_leak["host_api_batch"]["enabled"] = True
+    expect_invalid(
+        grouped_host_batch_leak,
+        "host_api_batch.enabled must be false for this benchmark_execution_mode",
+    )
+
+    grouped_bad_per_task_average = copy.deepcopy(grouped_dispatch)
+    grouped_bad_per_task_average["avg_end_to_end_per_task_us"] = grouped_bad_per_task_average["avg_end_to_end_us"]
+    expect_invalid(
+        grouped_bad_per_task_average,
+        "avg_end_to_end_per_task_us must equal avg_end_to_end_us / grouped_dispatch.task_count",
+    )
 
     helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))
     add_timing_helper_fields(

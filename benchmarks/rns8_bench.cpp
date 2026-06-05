@@ -274,6 +274,9 @@ uint32_t benchmark_prefix(const Args& args);
 uint32_t selected_execution_prefix(const Args& args, const BenchmarkResult& result);
 bool vector_to_rns_chain_requested(const Args& args);
 bool host_api_batch_requested(const Args& args);
+bool grouped_dispatch_requested(const Args& args);
+bool grouped_task_executor_requested(const Args& args);
+uint32_t measured_task_count(const Args& args);
 bool hip_graph_replay_requested(const Args& args);
 void record_allocation_after_warmups(BenchmarkResult& result);
 struct HipGraphReplayState {
@@ -880,6 +883,9 @@ Args parse_args(int argc, char** argv) {
   if (args.grouped_dispatch_tasks == 0) {
     usage_error("--grouped-dispatch must be positive");
   }
+  if (host_api_batch_requested(args) && grouped_dispatch_requested(args)) {
+    usage_error("--host-api-batch-size > 1 and --grouped-dispatch > 1 cannot be combined");
+  }
   if (args.modulus_set.empty() ||
       (args.modulus_set != "default" && args.modulus_set.rfind("experimental:", 0) != 0)) {
     usage_error("--modulus-set must be default or experimental:NAME");
@@ -924,6 +930,34 @@ Args parse_args(int argc, char** argv) {
       usage_error("--host-api-batch-size > 1 cannot be combined with --residue-chain-length > 1");
     }
   }
+  if (grouped_dispatch_requested(args)) {
+#if !RNS8_CONFIGURED_HIP_ENABLED
+    usage_error("--grouped-dispatch > 1 requires a HIP-enabled benchmark build");
+#endif
+    if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
+      usage_error("--grouped-dispatch > 1 currently requires --backend hip-direct");
+    }
+    if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
+      usage_error("--grouped-dispatch > 1 is not supported for wrap-u64 in this benchmark mode");
+    }
+    if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
+      usage_error("--grouped-dispatch > 1 currently requires global static-profile bounds");
+    }
+    if (args.input_profile != InputProfile::UniformSmall) {
+      usage_error("--grouped-dispatch > 1 currently requires --input-profile uniform-small");
+    }
+    if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
+        args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
+        args.native_to_rns_bridge || args.vector_to_rns_chain || args.wrap64_rocwmma_candidate ||
+        args.residue_channel_fusion || args.hip_graph_replay) {
+      usage_error(
+          "--grouped-dispatch > 1 cannot be combined with one-shot, reuse, vector, transient, bridge, chain, "
+          "wrap64 candidate, residue-fusion, or graph-replay modes");
+    }
+    if (args.residue_chain_length != 1) {
+      usage_error("--grouped-dispatch > 1 cannot be combined with --residue-chain-length > 1");
+    }
+  }
   if (args.hip_graph_replay) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
     usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
@@ -946,12 +980,12 @@ Args parse_args(int argc, char** argv) {
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--hip-graph-replay currently requires global static-profile bounds");
     }
-    if (args.oneshot || host_api_batch_requested(args) || args.vector_alu_baseline ||
+    if (args.oneshot || grouped_task_executor_requested(args) || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
         args.native_to_rns_bridge || args.vector_to_rns_chain || args.wrap64_rocwmma_candidate ||
         args.residue_channel_fusion) {
       usage_error(
-          "--hip-graph-replay cannot be combined with one-shot, host batching, vector, transient, bridge, "
+          "--hip-graph-replay cannot be combined with one-shot, host/grouped batching, vector, transient, bridge, "
           "vector-to-RNS chain, wrap64 candidate, or residue-fusion modes");
     }
   }
@@ -1232,6 +1266,18 @@ bool host_api_batch_requested(const Args& args) {
   return args.host_api_batch_size > 1;
 }
 
+bool grouped_dispatch_requested(const Args& args) {
+  return args.grouped_dispatch_tasks > 1;
+}
+
+bool grouped_task_executor_requested(const Args& args) {
+  return host_api_batch_requested(args) || grouped_dispatch_requested(args);
+}
+
+uint32_t measured_task_count(const Args& args) {
+  return grouped_dispatch_requested(args) ? args.grouped_dispatch_tasks : args.host_api_batch_size;
+}
+
 bool hip_graph_replay_requested(const Args& args) {
   return args.hip_graph_replay;
 }
@@ -1255,6 +1301,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (vector_to_rns_chain_requested(args)) {
     return "vector_native_to_direct_rns_chain";
+  }
+  if (grouped_dispatch_requested(args)) {
+    return "benchmark_grouped_dispatch_evidence";
   }
   if (host_api_batch_requested(args)) {
     return "benchmark_host_api_batch";
@@ -4987,11 +5036,12 @@ void run_host_api_batch_iteration(
     const GemmTask& gemm_task,
     const ExportTask& export_task) {
   const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
+  const uint32_t task_count = measured_task_count(args);
   const auto repeat_start = std::chrono::steady_clock::now();
 
   const auto pack_start = repeat_start;
   begin_gpu_event_phase(collect_gpu_events);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     pack_task(tasks[task_index], task_index, host_api_batch_source_version(repeat_source_version, task_index));
   }
   if (collect_gpu_events) {
@@ -5002,7 +5052,7 @@ void run_host_api_batch_iteration(
 
   const auto gemm_start = pack_end;
   begin_gpu_event_phase(collect_gpu_events);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     gemm_task(tasks[task_index], task_index);
   }
   if (collect_gpu_events) {
@@ -5013,7 +5063,7 @@ void run_host_api_batch_iteration(
 
   const auto export_start = gemm_end;
   begin_gpu_event_phase(collect_gpu_events);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     export_task(tasks[task_index], task_index);
   }
   if (collect_gpu_events) {
@@ -5688,15 +5738,16 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
 
 BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
   std::mt19937_64 rng(args.seed);
+  const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
   const std::size_t c_elements = output_elements(args, "host batch C");
-  std::vector<std::vector<int64_t>> batch_a(args.host_api_batch_size, std::vector<int64_t>(a_elements));
-  std::vector<std::vector<int64_t>> batch_b(args.host_api_batch_size, std::vector<int64_t>(b_elements));
+  std::vector<std::vector<int64_t>> batch_a(task_count, std::vector<int64_t>(a_elements));
+  std::vector<std::vector<int64_t>> batch_b(task_count, std::vector<int64_t>(b_elements));
   std::vector<std::vector<int64_t>> batch_c(
-      args.host_api_batch_size, std::vector<int64_t>(c_elements, INT64_C(0x5a5a5a5a5a5a5a5a)));
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+      task_count, std::vector<int64_t>(c_elements, INT64_C(0x5a5a5a5a5a5a5a5a)));
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     fill_bounded_i64_inputs(args, batch_a[task_index], batch_b[task_index], rng);
   }
 
@@ -5721,7 +5772,7 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
-      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, args.host_api_batch_size);
+      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -5757,8 +5808,8 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         gemm_task,
         export_task);
   }
-  std::vector<uint64_t> task_checksums(args.host_api_batch_size);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  std::vector<uint64_t> task_checksums(task_count);
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -5770,15 +5821,16 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
 
 BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
   std::mt19937_64 rng(args.seed);
+  const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
   const std::size_t c_elements = output_elements(args, "host batch C");
-  std::vector<std::vector<uint64_t>> batch_a(args.host_api_batch_size, std::vector<uint64_t>(a_elements));
-  std::vector<std::vector<uint64_t>> batch_b(args.host_api_batch_size, std::vector<uint64_t>(b_elements));
+  std::vector<std::vector<uint64_t>> batch_a(task_count, std::vector<uint64_t>(a_elements));
+  std::vector<std::vector<uint64_t>> batch_b(task_count, std::vector<uint64_t>(b_elements));
   std::vector<std::vector<uint64_t>> batch_c(
-      args.host_api_batch_size, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+      task_count, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     fill_bounded_u64_inputs(args, batch_a[task_index], batch_b[task_index], rng);
   }
 
@@ -5803,7 +5855,7 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
-      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, args.host_api_batch_size);
+      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -5839,8 +5891,8 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         gemm_task,
         export_task);
   }
-  std::vector<uint64_t> task_checksums(args.host_api_batch_size);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  std::vector<uint64_t> task_checksums(task_count);
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -5854,7 +5906,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (args.oneshot) {
     return run_bounded_i64_oneshot(ctx, args, bound);
   }
-  if (host_api_batch_requested(args)) {
+  if (grouped_task_executor_requested(args)) {
     return run_bounded_i64_host_api_batch(ctx, args, bound);
   }
   if (args.vector_alu_baseline) {
@@ -6221,7 +6273,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (args.oneshot) {
     return run_bounded_u64_oneshot(ctx, args, bound);
   }
-  if (host_api_batch_requested(args)) {
+  if (grouped_task_executor_requested(args)) {
     return run_bounded_u64_host_api_batch(ctx, args, bound);
   }
   if (args.vector_alu_baseline) {
@@ -6638,16 +6690,17 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
 BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
+  const uint32_t task_count = measured_task_count(args);
   std::uniform_int_distribution<int64_t> dist(-16, 16);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
   const std::size_t c_elements = output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
-  std::vector<std::vector<int64_t>> batch_a(args.host_api_batch_size, std::vector<int64_t>(a_elements));
-  std::vector<std::vector<int64_t>> batch_b(args.host_api_batch_size, std::vector<int64_t>(b_elements));
+  std::vector<std::vector<int64_t>> batch_a(task_count, std::vector<int64_t>(a_elements));
+  std::vector<std::vector<int64_t>> batch_b(task_count, std::vector<int64_t>(b_elements));
   std::vector<std::vector<uint64_t>> batch_c(
-      args.host_api_batch_size, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+      task_count, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     for (auto& value : batch_a[task_index]) value = dist(rng);
     for (auto& value : batch_b[task_index]) value = dist(rng);
   }
@@ -6672,7 +6725,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
-      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, args.host_api_batch_size);
+      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -6709,8 +6762,8 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         gemm_task,
         export_task);
   }
-  std::vector<uint64_t> task_checksums(args.host_api_batch_size);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  std::vector<uint64_t> task_checksums(task_count);
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_limb_matrix(
         batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
   }
@@ -6724,16 +6777,17 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
 BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
+  const uint32_t task_count = measured_task_count(args);
   std::uniform_int_distribution<uint64_t> dist(0, 16);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
   const std::size_t c_elements = output_limb_elements(args, args.exact_wide_limb_count, "host batch C");
-  std::vector<std::vector<uint64_t>> batch_a(args.host_api_batch_size, std::vector<uint64_t>(a_elements));
-  std::vector<std::vector<uint64_t>> batch_b(args.host_api_batch_size, std::vector<uint64_t>(b_elements));
+  std::vector<std::vector<uint64_t>> batch_a(task_count, std::vector<uint64_t>(a_elements));
+  std::vector<std::vector<uint64_t>> batch_b(task_count, std::vector<uint64_t>(b_elements));
   std::vector<std::vector<uint64_t>> batch_c(
-      args.host_api_batch_size, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+      task_count, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     for (auto& value : batch_a[task_index]) value = dist(rng);
     for (auto& value : batch_b[task_index]) value = dist(rng);
   }
@@ -6758,7 +6812,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
-      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, args.host_api_batch_size);
+      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -6795,8 +6849,8 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         gemm_task,
         export_task);
   }
-  std::vector<uint64_t> task_checksums(args.host_api_batch_size);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  std::vector<uint64_t> task_checksums(task_count);
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_limb_matrix(
         batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
   }
@@ -6809,7 +6863,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
 
 BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
-  if (host_api_batch_requested(args)) {
+  if (grouped_task_executor_requested(args)) {
     return run_exact_wide_signed_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
@@ -6986,7 +7040,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
 BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
-  if (host_api_batch_requested(args)) {
+  if (grouped_task_executor_requested(args)) {
     return run_exact_wide_unsigned_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
@@ -7219,17 +7273,18 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
 BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
+  const uint32_t task_count = measured_task_count(args);
   const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
   std::uniform_int_distribution<uint32_t> dist(0, high);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch finite A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch finite B");
   const int64_t ldc = output_logical_ld(args);
   const std::size_t c_elements = output_elements(args, "host batch finite C");
-  std::vector<std::vector<uint8_t>> batch_a(args.host_api_batch_size, std::vector<uint8_t>(a_elements));
-  std::vector<std::vector<uint8_t>> batch_b(args.host_api_batch_size, std::vector<uint8_t>(b_elements));
+  std::vector<std::vector<uint8_t>> batch_a(task_count, std::vector<uint8_t>(a_elements));
+  std::vector<std::vector<uint8_t>> batch_b(task_count, std::vector<uint8_t>(b_elements));
   std::vector<std::vector<uint8_t>> batch_c(
-      args.host_api_batch_size, std::vector<uint8_t>(c_elements, 0x5au));
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+      task_count, std::vector<uint8_t>(c_elements, 0x5au));
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     for (auto& value : batch_a[task_index]) value = static_cast<uint8_t>(dist(rng));
     for (auto& value : batch_b[task_index]) value = static_cast<uint8_t>(dist(rng));
   }
@@ -7254,7 +7309,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
-      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, args.host_api_batch_size);
+      create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -7293,8 +7348,8 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         gemm_task,
         export_task);
   }
-  std::vector<uint64_t> task_checksums(args.host_api_batch_size);
-  for (uint32_t task_index = 0; task_index < args.host_api_batch_size; ++task_index) {
+  std::vector<uint64_t> task_checksums(task_count);
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch finite C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -7308,7 +7363,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (args.oneshot) {
     return run_finite_u8_oneshot(ctx, args, bound);
   }
-  if (host_api_batch_requested(args)) {
+  if (grouped_task_executor_requested(args)) {
     return run_finite_u8_host_api_batch(ctx, args, bound);
   }
   (void)bound;
@@ -7752,6 +7807,9 @@ const char* benchmark_name(const Args& args) {
   }
   if (vector_to_rns_chain_requested(args)) {
     return "rns8_bounded_gemm_vector_to_rns_chain";
+  }
+  if (grouped_dispatch_requested(args)) {
+    return "rns8_grouped_dispatch_persistent_resident";
   }
   if (host_api_batch_requested(args)) {
     return "rns8_host_api_batch_persistent_resident";
@@ -8214,6 +8272,9 @@ const char* benchmark_setup_scope(const Args& args) {
   if (hip_graph_replay_requested(args)) {
     return "benchmark_hip_graph_replay_resident_rns_chain";
   }
+  if (grouped_dispatch_requested(args)) {
+    return "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks";
+  }
   if (args.vector_alu_baseline || runtime_vector_alu_backend(args) || bounded_uniform_small_i8_ab_transient_requested(args)) {
     return "benchmark_owned_transient_native_input_buffers";
   }
@@ -8388,7 +8449,7 @@ void print_reuse_contract_json(
     const char* selected_kernel) {
   const bool reuse_enabled =
       args.reuse_packed_inputs || args.residue_chain_length > 1 || host_api_batch_requested(args) ||
-      args.grouped_dispatch_tasks > 1;
+      grouped_dispatch_requested(args);
   std::cout << "  \"reuse_contract\": {\n";
   std::cout << "    \"enabled\": " << (reuse_enabled ? "true" : "false") << ",\n";
   std::cout << "    \"operand_role\": \"" << reuse_operand_role(args) << "\",\n";
@@ -8423,7 +8484,7 @@ void print_reuse_contract_json(
     std::cout << "\"source_version_changed\"";
     first = false;
   }
-  if (args.grouped_dispatch_tasks > 1) {
+  if (grouped_dispatch_requested(args)) {
     std::cout << (first ? "" : ", ") << "\"descriptor_identity_changed\"";
     first = false;
   }
@@ -8587,7 +8648,7 @@ void print_tile_shape_variant_json(
 }
 
 void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& result) {
-  const bool grouped = args.grouped_dispatch_tasks > 1;
+  const bool grouped = grouped_dispatch_requested(args);
   const bool adaptive_grouped = args.adaptive_grouped_scheduler;
   std::cout << "  \"grouped_dispatch\": {\n";
   std::cout << "    \"requested\": " << (grouped ? "true" : "false") << ",\n";
@@ -8598,10 +8659,9 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
   std::cout << "    \"output_hash\": \"final_checksum_u64\",\n";
   std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
   std::cout << "    \"capture_status\": \""
-            << (grouped ? "metadata_only_unsupported_for_execution_path" : "not_requested") << "\",\n";
+            << (grouped ? "executed" : "not_requested") << "\",\n";
   std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(grouped ? std::string("grouped_dispatch_not_executed_by_current_benchmark_path")
-                                    : std::string());
+  print_nullable_std_string(std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
@@ -8755,13 +8815,17 @@ void print_json(
   const bool per_modulus_estimate_applicable =
       selected_prefix > 0 && args.bound_mode != BoundMode::PerTile && !adaptive_applied && !args.oneshot &&
       !args.vector_alu_baseline && !runtime_vector_alu_backend(args) && !vector_to_rns_chain_requested(args) &&
-      !host_api_batch_requested(args) && !hip_graph_replay_requested(args);
+      !grouped_task_executor_requested(args) && !hip_graph_replay_requested(args);
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(selected_prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const bool chain_residue_output = residue_current_output_mode(args);
+  const bool host_batch = host_api_batch_requested(args);
+  const bool grouped_dispatch = grouped_dispatch_requested(args);
+  const uint32_t task_count = measured_task_count(args);
+  const double task_count_denominator = static_cast<double>(task_count);
   const auto event_phase_order =
       gpu_events_available ? gpu_event_phase_order(args, result, selected_backend_kind, use_prepacked_b_cache)
                            : std::vector<std::string>{};
@@ -9199,23 +9263,22 @@ void print_json(
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
   std::cout << "  \"residue_output_mode\": \"" << residue_output_mode_name(args) << "\",\n";
   std::cout << "  \"host_api_batch\": {\n";
-  std::cout << "    \"enabled\": " << (host_api_batch_requested(args) ? "true" : "false") << ",\n";
-  std::cout << "    \"batch_size\": " << args.host_api_batch_size << ",\n";
-  std::cout << "    \"tasks_per_measured_repeat\": " << args.host_api_batch_size << ",\n";
+  std::cout << "    \"enabled\": " << (host_batch ? "true" : "false") << ",\n";
+  std::cout << "    \"batch_size\": " << (host_batch ? args.host_api_batch_size : 1) << ",\n";
+  std::cout << "    \"tasks_per_measured_repeat\": " << (host_batch ? args.host_api_batch_size : 1) << ",\n";
   std::cout << "    \"total_measured_tasks\": "
-            << static_cast<uint64_t>(args.host_api_batch_size) * static_cast<uint64_t>(args.repeats) << ",\n";
+            << static_cast<uint64_t>(host_batch ? args.host_api_batch_size : 1) * static_cast<uint64_t>(args.repeats)
+            << ",\n";
   std::cout << "    \"setup_scope\": \""
-            << (host_api_batch_requested(args)
+            << (host_batch
                     ? "one_shared_plan_per_capture_one_resident_matrix_workspace_triplet_per_task"
                     : "single_task_default_benchmark_mode")
             << "\",\n";
   std::cout << "    \"timing_policy\": \""
-            << (host_api_batch_requested(args) ? "aggregate_batch_totals_per_measured_repeat"
-                                               : "single_call_totals_per_measured_repeat")
+            << (host_batch ? "aggregate_batch_totals_per_measured_repeat" : "single_call_totals_per_measured_repeat")
             << "\",\n";
   std::cout << "    \"checksum_policy\": \""
-            << (host_api_batch_requested(args) ? "fnv1a_over_final_task_output_checksums"
-                                               : "single_final_output_checksum")
+            << (host_batch ? "fnv1a_over_final_task_output_checksums" : "single_final_output_checksum")
             << "\"\n";
   std::cout << "  },\n";
   std::cout << "  \"hip_graph_replay\": {\n";
@@ -9400,9 +9463,16 @@ void print_json(
                 << "; prepack_setup_us records the one-time pack before warmups and end_to_end includes "
                    "the per-repeat pack phase for the non-reused operand\",\n";
     }
-  } else if (host_api_batch_requested(args)) {
+  } else if (grouped_dispatch) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-owned grouped dispatch evidence; each "
+              << "measured repeat packs, runs, exports, and checks " << task_count
+              << " independent same-shape resident tasks through one shared plan and one resident matrix/workspace "
+                 "triplet per task; raw_timings_us values are aggregate grouped totals, avg_*_per_task_us fields "
+                 "divide those totals by grouped_dispatch.task_count, and this capture remains non-promotable until "
+                 "a real device grouped dispatcher exists\",\n";
+  } else if (host_batch) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-owned host API batching; each measured "
-              << "repeat packs, runs, exports, and checks " << args.host_api_batch_size
+              << "repeat packs, runs, exports, and checks " << task_count
               << " independent same-shape resident tasks through one shared plan and one resident matrix/workspace "
                  "triplet per task; raw_timings_us values are aggregate batch totals, and avg_*_per_task_us fields "
                  "divide those totals by host_api_batch.batch_size\",\n";
@@ -9466,8 +9536,10 @@ void print_json(
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
   std::cout << "    \"benchmark_execution_mode\": \"" << benchmark_execution_mode_name(args, result) << "\",\n";
   std::cout << "    \"pack_mode\": \"" << pack_mode_name(args) << "\",\n";
-  std::cout << "    \"host_api_batch_enabled\": " << (host_api_batch_requested(args) ? "true" : "false") << ",\n";
-  std::cout << "    \"host_api_batch_size\": " << args.host_api_batch_size << ",\n";
+  std::cout << "    \"host_api_batch_enabled\": " << (host_batch ? "true" : "false") << ",\n";
+  std::cout << "    \"host_api_batch_size\": " << (host_batch ? args.host_api_batch_size : 1) << ",\n";
+  std::cout << "    \"grouped_dispatch_enabled\": " << (grouped_dispatch ? "true" : "false") << ",\n";
+  std::cout << "    \"grouped_dispatch_task_count\": " << args.grouped_dispatch_tasks << ",\n";
   std::cout << "    \"hip_graph_replay_enabled\": " << (result.hip_graph_replay_used ? "true" : "false") << ",\n";
   std::cout << "    \"hip_graph_replay_status\": \"" << json_escape(result.hip_graph_replay_status) << "\",\n";
   std::cout << "    \"hip_graph_replay_scope\": \"" << json_escape(result.hip_graph_replay_scope) << "\",\n";
@@ -9562,7 +9634,9 @@ void print_json(
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned HIP device buffer allocation host timing\",\n";
   } else if (args.oneshot) {
     std::cout << "      \"matrix_alloc\": \"zero-valued external phase; transient API allocations, if any, are inside the measured one-shot call\",\n";
-  } else if (host_api_batch_requested(args)) {
+  } else if (grouped_dispatch) {
+    std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned allocation of one resident A/B/C matrix triplet and workspace per grouped dispatch task\",\n";
+  } else if (host_batch) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned allocation of one resident A/B/C matrix triplet and workspace per host API batch task\",\n";
   } else if (bounded_residue_channel_fusion_requested(args)) {
     std::cout << "      \"matrix_alloc\": \"one-time benchmark-owned native int8 A/B HIP buffers plus resident RNS output matrix allocation for the experimental width-3 residue-channel fusion comparison\",\n";
@@ -9598,12 +9672,26 @@ void print_json(
     std::cout << "      \"pack\": \"zero-valued external phase; native input copies and any backend-local transformation are inside the measured one-shot API call\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public one-shot API call\",\n";
     std::cout << "      \"crt_export\": \"zero-valued external phase; logical output export is inside the measured one-shot API call\",\n";
-  } else if (host_api_batch_requested(args)) {
+  } else if (grouped_dispatch) {
+    std::cout << "      \"pack\": \"per-repeat aggregate grouped-dispatch host timing for packing A and B for "
+              << task_count
+              << " independent resident tasks through one shared plan\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat aggregate grouped-dispatch host timing for "
+              << task_count
+              << " independent resident rns8_gemm calls through one shared plan and per-task workspace\",\n";
+    if (finite_benchmark_semantics(args.semantics)) {
+      std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for canonical finite-u8 export of every grouped task\",\n";
+    } else if (exact_wide_benchmark_semantics(args.semantics)) {
+      std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for fixed-width exact-wide limb export of every grouped task\",\n";
+    } else {
+      std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task\",\n";
+    }
+  } else if (host_batch) {
     std::cout << "      \"pack\": \"per-repeat aggregate host timing for packing A and B for "
-              << args.host_api_batch_size
+              << task_count
               << " independent resident tasks through one shared plan\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat aggregate host timing for "
-              << args.host_api_batch_size
+              << task_count
               << " independent resident rns8_gemm calls through one shared plan and per-task workspace\",\n";
     if (finite_benchmark_semantics(args.semantics)) {
       std::cout << "      \"crt_export\": \"per-repeat aggregate host timing for canonical finite-u8 export of every batch task\",\n";
@@ -9703,9 +9791,12 @@ void print_json(
     std::cout << "\"\n";
   } else if (args.oneshot) {
     std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one complete public one-shot API call\"\n";
-  } else if (host_api_batch_requested(args)) {
+  } else if (grouped_dispatch) {
+    std::cout << "      \"end_to_end\": \"per-repeat aggregate grouped-dispatch pack plus rns_gemm plus crt_export host timing for "
+              << task_count << " independent grouped tasks\"\n";
+  } else if (host_batch) {
     std::cout << "      \"end_to_end\": \"per-repeat aggregate pack plus rns_gemm plus crt_export host timing for "
-              << args.host_api_batch_size << " independent batch tasks\"\n";
+              << task_count << " independent batch tasks\"\n";
   } else if (all_zero_direct_hip_pack_elided) {
     std::cout << "      \"end_to_end\": \"per-repeat direct-HIP all-zero output materialization plus export host timing; pack is intentionally elided by the trusted all-zero schedule\"\n";
   } else if (vector_to_rns_chain_requested(args)) {
@@ -9852,19 +9943,19 @@ void print_json(
   std::cout << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
   std::cout << "  \"avg_pack_per_task_us\": "
-            << (avg_pack_us / static_cast<double>(args.host_api_batch_size)) << ",\n";
+            << (avg_pack_us / task_count_denominator) << ",\n";
   std::cout << "  \"avg_rns_gemm_us\": " << avg_gemm_us << ",\n";
   std::cout << "  \"avg_rns_gemm_per_task_us\": "
-            << (avg_gemm_us / static_cast<double>(args.host_api_batch_size)) << ",\n";
+            << (avg_gemm_us / task_count_denominator) << ",\n";
   std::cout << "  \"per_modulus_gemm_estimate_applicable\": "
             << (per_modulus_estimate_applicable ? "true" : "false") << ",\n";
   std::cout << "  \"avg_per_modulus_gemm_estimate_us\": " << avg_per_modulus_gemm_estimate_us << ",\n";
   std::cout << "  \"avg_crt_export_us\": " << avg_export_us << ",\n";
   std::cout << "  \"avg_crt_export_per_task_us\": "
-            << (avg_export_us / static_cast<double>(args.host_api_batch_size)) << ",\n";
+            << (avg_export_us / task_count_denominator) << ",\n";
   std::cout << "  \"avg_end_to_end_us\": " << avg_end_to_end_us << ",\n";
   std::cout << "  \"avg_end_to_end_per_task_us\": "
-            << (avg_end_to_end_us / static_cast<double>(args.host_api_batch_size)) << ",\n";
+            << (avg_end_to_end_us / task_count_denominator) << ",\n";
   std::cout << "  \"raw_timings_us\": {\n";
   if (global_bound_scan_available) {
     std::cout << "    \"global_bound_scan\": ";
