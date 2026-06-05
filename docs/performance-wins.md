@@ -91,8 +91,12 @@ Do not use these rows as AUTO cache entries until a deliberately budgeted
 A follow-up non-bounded 4096 exploratory pass used the same seed and release
 settings for exact-wide, finite-u8, and strict wrap64. It is also GPU-only
 classification, not promotion evidence: CPU and runtime vector baselines were
-intentionally omitted, and four non-promoted hipBLASLt finite captures lacked
-the expected residue-reduce event label. The event-valid 4096 winners were:
+intentionally omitted. The original pass had four non-promoted hipBLASLt finite
+captures missing the residue-reduce event label; a later timing-wrapper fix
+reran all 17 stale finite hipBLASLt reduce-label misses under
+`temp/perf-work-queue/finite-hipblaslt-event-reruns-all/`, and every focused
+rerun passed `tools\gpu_event_report.py --require-events`. The event-valid 4096
+winners were:
 
 | Contract | Shape | GPU-only event-valid winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Best-path scale vs same-commit 2048 |
 |---|---:|---|---:|---:|---:|---:|
@@ -105,9 +109,9 @@ the expected residue-reduce event label. The event-valid 4096 winners were:
 | strict wrap64 u64 | 4096 | Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 352449 us | 352449 us | same backend | 7.35x |
 
 These rows are useful for deciding whether the next large-shape work should
-target GEMM throughput, export specialization, or finite event cleanup. They
-are not reviewed cache entries and should not appear in public snapshot tables
-until the missing CPU/reference and vector baselines are run.
+target GEMM throughput or export specialization. They are not reviewed cache
+entries and should not appear in public snapshot tables until the missing
+CPU/reference and vector baselines are run.
 
 ## Finite-u8 Accelerator Wins
 
@@ -122,7 +126,10 @@ captures, and required GPU events for promoted accelerators.
 `tools/benchmark_sweep.py` now blocks reviewed cache promotion when an
 accelerator capture lacks required GPU event timing or loses to the CPU
 reference; the ring-255 64 rocWMMA result and non-winning 2048 ring-256
-hipBLASLt event-incomplete capture were therefore not installed.
+stale hipBLASLt event-incomplete capture were therefore not installed. The
+hipBLASLt finite timing fallback now clears that reducer-event label blocker in
+focused reruns, but cache decisions still require a fresh same-contract release
+review before any winner changes.
 
 | Contract | Shape | Current winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Decision |
 |---|---:|---|---:|---:|---:|---|
@@ -158,9 +165,11 @@ lost to Direct HIP and CK at 512, not because event data was missing.
 
 The generic ring 127/253 2048 refresh closed the previous GPU-only evidence gap
 with CPU-backed release review. rocWMMA won both reviewed contracts and was
-installed locally. hipBLASLt ring-127 2048 was still event-incomplete and lost
-to Direct HIP; ring-253 hipBLASLt had required events but also lost to Direct
-HIP and rocWMMA.
+installed locally. The stale hipBLASLt ring-127 2048 capture was
+event-incomplete and lost to Direct HIP; the focused timing-fallback rerun is
+event-complete but remains diagnostic until the full same-contract release group
+is rerun. Ring-253 hipBLASLt had required events but also lost to Direct HIP and
+rocWMMA.
 
 The field refreshes added CK for field-127 2048 and rocWMMA for field-251 512.
 The field-251 512 hipBLASLt capture now has required GPU events, including

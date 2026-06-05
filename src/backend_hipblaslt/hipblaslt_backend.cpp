@@ -4,6 +4,7 @@
 #include "core/internal.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -164,15 +165,49 @@ hipError_t create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop
   return hipErrorUnknown;
 }
 
+void record_synchronized_host_timing(const char* label, std::chrono::steady_clock::time_point start) {
+  (void)hipDeviceSynchronize();
+  const auto stop = std::chrono::steady_clock::now();
+  const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
+  hip_direct_timing_record_sample(label, microseconds);
+}
+
+bool record_elapsed_event_sample(const char* label, hipEvent_t start, hipEvent_t stop) {
+  hipError_t sync_status = hipEventSynchronize(stop);
+  if (sync_status != hipSuccess) {
+    (void)hipDeviceSynchronize();
+    sync_status = hipEventSynchronize(stop);
+  }
+  if (sync_status != hipSuccess) {
+    return false;
+  }
+  float milliseconds = 0.0f;
+  hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+  if (elapsed_status != hipSuccess) {
+    (void)hipDeviceSynchronize();
+    elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+  }
+  if (elapsed_status != hipSuccess || milliseconds < 0.0f) {
+    return false;
+  }
+  hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
+  return true;
+}
+
 template <typename Fn>
 hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
   if (!hip_direct_timing_enabled()) {
     return fn();
   }
+  const auto host_start = std::chrono::steady_clock::now();
   hipEvent_t start = nullptr;
   hipEvent_t stop = nullptr;
   if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
-    return fn();
+    const hipblasStatus_t status = fn();
+    if (status == HIPBLAS_STATUS_SUCCESS) {
+      record_synchronized_host_timing(label, host_start);
+    }
+    return status;
   }
   const hipblasStatus_t status = fn();
   if (status == HIPBLAS_STATUS_SUCCESS) {
@@ -186,9 +221,12 @@ hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
       err = hipEventRecord(stop, nullptr);
     }
     if (err == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, start, stop);
-      return status;
+      if (record_elapsed_event_sample(label, start, stop)) {
+        destroy_timing_event_pair(start, stop);
+        return status;
+      }
     }
+    record_synchronized_host_timing(label, host_start);
   }
   destroy_timing_event_pair(start, stop);
   return status;
@@ -199,10 +237,15 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   if (!hip_direct_timing_enabled()) {
     return fn();
   }
+  const auto host_start = std::chrono::steady_clock::now();
   hipEvent_t start = nullptr;
   hipEvent_t stop = nullptr;
   if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
-    return fn();
+    const hipError_t status = fn();
+    if (status == hipSuccess) {
+      record_synchronized_host_timing(label, host_start);
+    }
+    return status;
   }
   const hipError_t status = fn();
   if (status == hipSuccess) {
@@ -212,9 +255,12 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
       err = hipEventRecord(stop, nullptr);
     }
     if (err == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, start, stop);
-      return status;
+      if (record_elapsed_event_sample(label, start, stop)) {
+        destroy_timing_event_pair(start, stop);
+        return status;
+      }
     }
+    record_synchronized_host_timing(label, host_start);
   }
   destroy_timing_event_pair(start, stop);
   return status;
