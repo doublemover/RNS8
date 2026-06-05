@@ -36,6 +36,9 @@ and correctness requirements are human defined. Codex does the typing.
   or unreviewed backends fall back to correctness paths.
 - Benchmark schema v4, release-sweep review tooling, result comparison, GPU
   event reports, ISA reports, and cache-install validation.
+- Benchmark-only workload evidence for reusable operands, many-small grouped
+  dispatch, RNS-chain final-output reuse, vector N=1 kernels, and wrap64
+  byte-limb tuning.
 
 ## Quick Start
 
@@ -98,52 +101,34 @@ see [docs/performance-model.md](docs/performance-model.md),
 [docs/performance-wins.md](docs/performance-wins.md), and
 [docs/reviewed-local-evidence.md](docs/reviewed-local-evidence.md).
 
+Exactness rules are explicit:
+
+- Bounded `i64`/`u64` uses range-proven CRT/RNS, not type inference.
+- Exact-wide signed/unsigned outputs use fixed-width limb export contracts.
+- Finite-u8 rows are keyed by explicit ring or prime-field modulus.
+- Strict `mod 2^64` uses byte limbs, not odd-modulus CRT.
+
 Current local Windows `gfx1100` release-reviewed snapshot:
 
-| Contract | Shape | Current reviewed path | Median end-to-end | Comparison | Cache |
-|---|---:|---|---:|---:|---|
-| bounded i64 | 512 | Direct HIP <br/> `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
-| bounded i64 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
-| bounded i64 | 2048 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 14220 us | 1.57x vs Direct HIP | installed |
-| bounded i64 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 3.65x vs Direct HIP | installed |
-| bounded u64 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 15128 us | 1.22x vs Direct HIP | installed |
-| bounded u64 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 37543 us | 3.16x vs Direct HIP | installed |
-| bounded i64 adaptive-bands | 1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4937 us | no accelerator win | none |
-| bounded u64 adaptive-bands | 512x1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4224 us | no accelerator win | none |
-| finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
-| finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
-| finite ring u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3244 us | 3.47x vs Direct HIP | installed |
-| finite ring u8 mod 251 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 7284 us | 4.46x vs Direct HIP | installed |
-| finite ring u8 mod 127 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 3427 us | 1.59x vs Direct HIP | installed |
-| finite ring u8 mod 253 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 4856 us | 1.12x vs Direct HIP | installed |
-| finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
-| finite ring u8 mod 255 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2425 us | 3.05x vs Direct HIP | installed |
-| finite ring u8 mod 255 | 4096 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 8786 us | 3.83x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3017 us | 1.92x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6881 us | 4.73x vs Direct HIP | installed |
-| finite field u8 mod 127 | 512 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1.10x vs Direct HIP | installed |
-| finite field u8 mod 127 | 2048 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 3424 us | 1.57x vs Direct HIP | installed |
-| finite field u8 mod 251 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1241 us | 1.05x vs Direct HIP | installed |
-| finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
-| finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3079 us | 2.97x vs Direct HIP | installed |
-| finite field u8 mod 251 | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 6396 us | 5.25x vs Direct HIP | installed |
-| exact-wide unsigned | 64 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4611 us | 1.67x vs Direct HIP | installed |
-| exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
-| exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
-| exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
-| exact-wide signed | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 59074 us | 2.23x vs Direct HIP | installed |
-| exact-wide unsigned | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 3.04x vs Direct HIP | installed |
-| exact-wide signed | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 176943 us | 3.61x vs Direct HIP | installed |
-| exact-wide unsigned | 4096 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 162382 us | 3.78x vs Direct HIP | installed |
-| strict wrap64 u64 | 2048 | Direct HIP <br/> `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 58331 us | 230.1x vs CPU byte-limb | none |
+| Family | Best local evidence | Boundary |
+|---|---:|---|
+| Bounded exact | i64 4096 hipBLASLt: 35.3 ms, 3.65x vs Direct HIP.<br/>u64 4096 hipBLASLt: 37.5 ms, 3.16x. | Cache entries installed for selected 1024-4096 keys; i64 512 stays Direct HIP. |
+| Finite u8 | 4096 field-251 hipBLASLt: 6.4 ms, 5.25x.<br/>1024 ring-256 hipBLASLt: 1.8 ms, 7.05x. | Cache entries installed for selected 128-4096 modulus/shape keys, including generic 127/253 coverage. |
+| Exact-wide | 4096 signed hipBLASLt: 176.9 ms, 3.61x.<br/>4096 unsigned hipBLASLt: 162.4 ms, 3.78x. | Cache entries installed for selected semantic/shape/limb keys. |
+| Strict wrap64 | Direct HIP 2048: 58.3 ms, 230.1x vs CPU byte-limb.<br/>Direct HIP 4096: 295.7 ms, 348.1x. | Correctness path only; no AUTO cache entry or matrix-engine promotion. |
+| Reusable operands | 2048 bounded-u64 hipBLASLt A+B: 9.2 ms per repeat, 2.35x vs same-run fastest non-reuse. | Explicit workload evidence; not AUTO-promoted. |
+| Many-small grouped | Exact-wide signed group32: 66.5 us/task, 58.4x.<br/>Unsigned group32: 79.1 us/task, 18.7x. | Benchmark-owned grouped-dispatch evidence; no public grouped API yet. |
+| RNS chains | Exact-wide signed 128 chain3: 1.77 ms, 9.80x.<br/>Unsigned 256 chain3: 2.84 ms, 10.80x. | Benchmark-only lazy-output evidence; no AUTO cache entry. |
+| Shape-specialized paths | Vector N=1 i64: 7.41x vs old vector path.<br/>Direct-HIP one-shot i64 512: 3.07x vs prior Direct-HIP kernel. | Active explicit routes; not cross-backend cache claims. |
+| Planner/prepass | Adaptive bounded-u64 tile scan: 557.6 ms to 414.4 ms, 1.35x. | Setup-path win; full bound-discovery routing stayed out of promotion. |
 
-The installed reviewed cache currently contains 39 validated entries, including
-the large 2048 and eligible 4096 bounded/finite-u8/exact-wide entries above.
-Some rows are deliberately narrow local wins; Linux ROCm, Instinct, RDNA4, and
-profiler-backed production claims remain separate validation work.
+The installed reviewed cache currently contains 39 validated exact-key entries.
+The table above is intentionally compact; long kernel identities, per-row
+baselines, checksums, event status, caveats, and reproduction commands live in
+[docs/performance-wins.md](docs/performance-wins.md) and
+[docs/reviewed-local-evidence.md](docs/reviewed-local-evidence.md). Linux ROCm,
+Instinct, RDNA4, and profiler-backed production claims remain separate
+validation work.
 
 ## Known Limitations
 
