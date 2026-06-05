@@ -568,6 +568,22 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(
     int64_t rows,
     int64_t cols,
     uint32_t limb_count);
+rns8_status hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    void* device_residue_ptrs,
+    std::size_t device_residue_ptr_bytes,
+    int* out_device_id,
+    uint32_t* out_prefix);
+rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    void* device_dst,
+    int64_t rows,
+    int64_t cols,
+    uint32_t limb_count);
 rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
     int device_id,
     const void* device_residues,
@@ -593,6 +609,14 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_to_device(
     uint32_t limb_count);
 rns8_status hip_direct_export_exact_wide_unsigned_matrix_limbs_to_device(
     rns8_matrix* matrix,
+    void* device_dst,
+    int64_t rows,
+    int64_t cols,
+    uint32_t limb_count);
+rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
     void* device_dst,
     int64_t rows,
     int64_t cols,

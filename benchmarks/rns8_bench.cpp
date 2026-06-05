@@ -5152,8 +5152,9 @@ void scatter_compact_limb_output(
 
 void export_exact_wide_grouped_dispatch_slab(
     const Args& args,
-    std::vector<HostApiBatchTask>& tasks,
+    const std::vector<rns8_matrix*>& c_matrices,
     DeviceBuffer& device_slab,
+    const DeviceBuffer& device_residue_ptrs,
     std::vector<uint64_t>& host_slab,
     bool signed_output) {
   const uint32_t task_count = measured_task_count(args);
@@ -5161,26 +5162,34 @@ void export_exact_wide_grouped_dispatch_slab(
       checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "grouped export compact task");
   const std::size_t total_limb_elements =
       checked_task_slab_limb_elements(task_count, compact_limb_elements, "grouped export slab");
-  if (!device_slab.ptr || host_slab.size() != total_limb_elements) {
+  if (!device_slab.ptr || !device_residue_ptrs.ptr || c_matrices.size() != task_count ||
+      host_slab.size() != total_limb_elements) {
     usage_error("grouped exact-wide export slab is not initialized for the current task count");
   }
 
-  auto* device_limb_base = static_cast<uint64_t*>(device_slab.ptr);
-  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    HostApiBatchTask& task = tasks[task_index];
-    uint64_t* task_dst = device_limb_base + static_cast<std::size_t>(task_index) * compact_limb_elements;
-    const rns8_status status =
-        signed_output
-            ? rns8::detail::hip_direct_export_exact_wide_signed_matrix_limbs_to_device(
-                  task.c, task_dst, args.m, args.n, args.exact_wide_limb_count)
-            : rns8::detail::hip_direct_export_exact_wide_unsigned_matrix_limbs_to_device(
-                  task.c, task_dst, args.m, args.n, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) {
-      fail_status(
-          signed_output ? "hip_direct_export_exact_wide_signed_limbs_to_device(grouped dispatch)"
-                        : "hip_direct_export_exact_wide_unsigned_limbs_to_device(grouped dispatch)",
-          status);
-    }
+  const rns8_status export_status =
+      signed_output
+          ? rns8::detail::hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
+                c_matrices.data(),
+                task_count,
+                device_residue_ptrs.ptr,
+                device_slab.ptr,
+                args.m,
+                args.n,
+                args.exact_wide_limb_count)
+          : rns8::detail::hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
+                c_matrices.data(),
+                task_count,
+                device_residue_ptrs.ptr,
+                device_slab.ptr,
+                args.m,
+                args.n,
+                args.exact_wide_limb_count);
+  if (export_status != RNS8_SUCCESS) {
+    fail_status(
+        signed_output ? "hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device"
+                      : "hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device",
+        export_status);
   }
 
   const rns8_status copy_status = rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
@@ -6856,14 +6865,16 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   DeviceBuffer grouped_export_device_slab;
+  DeviceBuffer grouped_export_residue_ptrs;
   std::vector<uint64_t> grouped_export_host_slab;
+  std::vector<rns8_matrix*> grouped_export_c_matrices;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
                                            !exact_wide_export_status_check_required(args) &&
                                            args.output_ld_padding == 0;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_export_slab_enabled ? "host_phase_loop_batched_exact_wide_export_d2h"
+        grouped_export_slab_enabled ? "device_grouped_exact_wide_export_kernel_batched_d2h"
                                     : "host_phase_loop_per_task_export";
   }
 
@@ -6883,6 +6894,30 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         checked_bytes(total_limb_elements, sizeof(uint64_t), "grouped exact-wide signed slab C");
     const int device_id = args.device_id < 0 ? 0 : args.device_id;
     grouped_export_device_slab.allocate(device_id, slab_bytes, "hip_direct_allocate(grouped exact-wide signed slab C)");
+    const std::size_t pointer_bytes =
+        checked_bytes(task_count, sizeof(const void*), "grouped exact-wide signed residue pointer table");
+    grouped_export_residue_ptrs.allocate(
+        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide signed residue pointer table)");
+    grouped_export_c_matrices.reserve(task_count);
+    for (const auto& task : tasks) {
+      grouped_export_c_matrices.push_back(task.c);
+    }
+    int pointer_device_id = -1;
+    uint32_t pointer_prefix = 0;
+    status = rns8::detail::hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
+        grouped_export_c_matrices.data(),
+        task_count,
+        RNS8_EXACT_WIDE_SIGNED,
+        grouped_export_residue_ptrs.ptr,
+        grouped_export_residue_ptrs.bytes,
+        &pointer_device_id,
+        &pointer_prefix);
+    if (status != RNS8_SUCCESS) {
+      fail_status("hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(signed)", status);
+    }
+    if (pointer_device_id != grouped_export_residue_ptrs.device_id || pointer_prefix != matrix_prefix) {
+      usage_error("grouped exact-wide signed residue pointer table metadata does not match benchmark storage");
+    }
     grouped_export_host_slab.assign(total_limb_elements, UINT64_C(0x5a5a5a5a5a5a5a5a));
     result.grouped_dispatch_batched_export_enabled = true;
     result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(slab_bytes);
@@ -6904,7 +6939,12 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
         export_exact_wide_grouped_dispatch_slab(
-            args, tasks, grouped_export_device_slab, grouped_export_host_slab, true);
+            args,
+            grouped_export_c_matrices,
+            grouped_export_device_slab,
+            grouped_export_residue_ptrs,
+            grouped_export_host_slab,
+            true);
       }
       return;
     }
@@ -6985,14 +7025,16 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   DeviceBuffer grouped_export_device_slab;
+  DeviceBuffer grouped_export_residue_ptrs;
   std::vector<uint64_t> grouped_export_host_slab;
+  std::vector<rns8_matrix*> grouped_export_c_matrices;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
                                            !exact_wide_export_status_check_required(args) &&
                                            args.output_ld_padding == 0;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_export_slab_enabled ? "host_phase_loop_batched_exact_wide_export_d2h"
+        grouped_export_slab_enabled ? "device_grouped_exact_wide_export_kernel_batched_d2h"
                                     : "host_phase_loop_per_task_export";
   }
   if (grouped_export_slab_enabled) {
@@ -7004,6 +7046,30 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         checked_bytes(total_limb_elements, sizeof(uint64_t), "grouped exact-wide unsigned slab C");
     const int device_id = args.device_id < 0 ? 0 : args.device_id;
     grouped_export_device_slab.allocate(device_id, slab_bytes, "hip_direct_allocate(grouped exact-wide unsigned slab C)");
+    const std::size_t pointer_bytes =
+        checked_bytes(task_count, sizeof(const void*), "grouped exact-wide unsigned residue pointer table");
+    grouped_export_residue_ptrs.allocate(
+        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide unsigned residue pointer table)");
+    grouped_export_c_matrices.reserve(task_count);
+    for (const auto& task : tasks) {
+      grouped_export_c_matrices.push_back(task.c);
+    }
+    int pointer_device_id = -1;
+    uint32_t pointer_prefix = 0;
+    status = rns8::detail::hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
+        grouped_export_c_matrices.data(),
+        task_count,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        grouped_export_residue_ptrs.ptr,
+        grouped_export_residue_ptrs.bytes,
+        &pointer_device_id,
+        &pointer_prefix);
+    if (status != RNS8_SUCCESS) {
+      fail_status("hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(unsigned)", status);
+    }
+    if (pointer_device_id != grouped_export_residue_ptrs.device_id || pointer_prefix != matrix_prefix) {
+      usage_error("grouped exact-wide unsigned residue pointer table metadata does not match benchmark storage");
+    }
     grouped_export_host_slab.assign(total_limb_elements, UINT64_C(0x5a5a5a5a5a5a5a5a));
     result.grouped_dispatch_batched_export_enabled = true;
     result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(slab_bytes);
@@ -7025,7 +7091,12 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
         export_exact_wide_grouped_dispatch_slab(
-            args, tasks, grouped_export_device_slab, grouped_export_host_slab, false);
+            args,
+            grouped_export_c_matrices,
+            grouped_export_device_slab,
+            grouped_export_residue_ptrs,
+            grouped_export_host_slab,
+            false);
       }
       return;
     }

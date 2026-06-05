@@ -131,6 +131,11 @@ GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
     "not_requested",
     "host_phase_loop_per_task_export",
     "host_phase_loop_batched_exact_wide_export_d2h",
+    "device_grouped_exact_wide_export_kernel_batched_d2h",
+}
+GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
+    "host_phase_loop_batched_exact_wide_export_d2h",
+    "device_grouped_exact_wide_export_kernel_batched_d2h",
 }
 STREAMING_OVERLAP_STATUSES = {
     "not_requested",
@@ -1813,7 +1818,7 @@ class _Validator:
             if strategy is not None and strategy == "not_requested":
                 self._error("benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy")
             if batched_export is True:
-                if strategy != "host_phase_loop_batched_exact_wide_export_d2h":
+                if strategy not in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
                     self._error("grouped_dispatch batched export requires the batched exact-wide export strategy")
                 if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
                     self._error("grouped_dispatch batched export is only valid for exact-wide semantics")
@@ -1821,7 +1826,7 @@ class _Validator:
                     self._error("grouped_dispatch batched export requires structurally elided exact-wide status")
                 if not _is_int(slab_bytes) or slab_bytes <= 0:
                     self._error("grouped_dispatch batched export requires a positive device_output_slab_bytes")
-            elif strategy == "host_phase_loop_batched_exact_wide_export_d2h":
+            elif strategy in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
                 self._error("grouped_dispatch batched export strategy requires batched_export_enabled=true")
             if self.data.get("semantics") == "wrap_u64_mod_2_64":
                 self._error("benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64")

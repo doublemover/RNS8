@@ -3186,6 +3186,25 @@ def main() -> int:
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_memset"] = zero_summary()
     exact_wide_no_status["gpu_event_timing_summary_us"]["exact_wide_export_status_d2h"] = zero_summary()
     validate_capture(exact_wide_no_status)
+    grouped_exact_wide_device_export = as_grouped_dispatch_capture(exact_wide_no_status)
+    grouped_exact_wide_device_export["grouped_dispatch"][
+        "execution_strategy"
+    ] = "device_grouped_exact_wide_export_kernel_batched_d2h"
+    grouped_exact_wide_device_export["grouped_dispatch"]["batched_export_enabled"] = True
+    grouped_exact_wide_device_export["grouped_dispatch"]["device_output_slab_bytes"] = 786432
+    grouped_exact_wide_device_export["timing_metadata"][
+        "grouped_dispatch_execution_strategy"
+    ] = "device_grouped_exact_wide_export_kernel_batched_d2h"
+    grouped_exact_wide_device_export["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
+    grouped_exact_wide_device_export["timing_metadata"]["grouped_dispatch_device_output_slab_bytes"] = 786432
+    validate_capture(grouped_exact_wide_device_export)
+    grouped_exact_wide_missing_batched_flag = copy.deepcopy(grouped_exact_wide_device_export)
+    grouped_exact_wide_missing_batched_flag["grouped_dispatch"]["batched_export_enabled"] = False
+    grouped_exact_wide_missing_batched_flag["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = False
+    expect_invalid(
+        grouped_exact_wide_missing_batched_flag,
+        "grouped_dispatch batched export strategy requires batched_export_enabled=true",
+    )
     exact_wide_signed_3_limb = copy.deepcopy(exact_wide_no_status)
     exact_wide_signed_3_limb["exact_wide_limb_count"] = 3
     validate_capture(exact_wide_signed_3_limb)
