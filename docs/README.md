@@ -43,6 +43,8 @@ Cleanup and drift-control helpers:
   Python/C++ constants.
 - `tools/repo_hygiene_report.py`: reports large files, duplicated metadata
   strings, direct currentness writes, and raw HIP resource calls.
+- `tools/claim_validation.py`: checks durable docs for unsupported target
+  readiness wording and unqualified speedup claims.
 - `tools/golden_regression_suite.py`: runs compact metadata/schema/report smoke
   checks without broad release performance sweeps.
 
