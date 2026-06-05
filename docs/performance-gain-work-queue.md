@@ -39,6 +39,11 @@ Evidence sources for current promotion state are
 [reviewed-local-evidence.md](reviewed-local-evidence.md),
 [roadmap-status.md](roadmap-status.md), and the README's
 [current local performance snapshot](../README.md#exactness-and-performance).
+Completed and closed queue ranks are archived in
+[performance-gain-completed-work.md](performance-gain-completed-work.md). The
+active table below now contains 49 ranks. Folded duplicate rows, completed
+tooling surfaces, and no-promotion validation lanes live in the completed-work
+archive so this table can stay execution-focused.
 
 ## Recent Execution Status
 
@@ -54,16 +59,15 @@ June 4-5, 2026 updates:
   validation, bounded 4096 exploratory classification, and non-bounded 4096
   exploratory classification, plus the full bounded A/B/A+B reuse-contract
   release matrix.
-  Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
-  35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
-  17, 19, 21, and the 2048 hot-modulus portion of rank 14. Partially advanced
-  lanes remain ranks 3, 6, 8, 9, 10, 11, 12, 13, 15, 18, and 20; they have
-  benchmark/schema surfaces, focused event cleanup, or partial release evidence,
-  but not enough proof for broader routing or public performance claims. Rank
-  31 is now closed as a benchmark/evidence surface: one exact-wide Direct-HIP
-  host-batch workload beats independent calls in release review, but broader
-  host batching, public routing, and device grouped execution remain rank 8
-  work.
+  Completed and closed ranks have been moved to
+  [performance-gain-completed-work.md](performance-gain-completed-work.md) so
+  this active queue stays focused on execution. The archive currently holds 24
+  ranks: infrastructure lanes 1, 2, 16, 23, 25, 26, 27, 28, 32, 34, 35, 37,
+  40, and 41; current-claim validation lanes 4, 5, 17, 19, and 21; finite-u8
+  hot-modulus 2048 rank 14; host API batching rank 31; and folded duplicate
+  control-panel rows 7, 29, and 42. Partially advanced lanes remain in the
+  active table when they still own implementation, promotion, release-size
+  validation, or public-contract work.
 - HIP Graph replay work has moved from a generic queue item to a branch-local
   benchmark implementation lane. The first surface is intentionally narrow:
   Direct-HIP resident RNS GEMM chains with `--reuse-packed-inputs`,
@@ -227,6 +231,14 @@ June 4-5, 2026 updates:
   Linux/RDNA/CDNA validation gates, verification amortization, and a real
   FHE/lattice workload suite. These are queue additions only; none are promoted
   claims until they pass the release-review gates below.
+- The follow-up queue audit folds duplicate active rows into their stronger
+  owners: hipBLASLt bounded-i64 1024 tuning moves under rank 50, adaptive
+  grouped scheduling moves under rank 54, and non-Windows platform validation
+  moves under rank 62. It also adds ranks 68-77 for strict wrap64 v4 tuning,
+  CPU small-shape fallbacks, variance/regression gates, 8192 scouting,
+  vector/native-to-RNS fused producer-consumer work, finite input-distribution
+  matrices, split-K/K-block large-shape variants, result-cache research,
+  multi-GPU platform work, and real layout implementation search.
 - Branch-local Starfoundry closeout now gives the full rank 43-63 queue block
   executable evidence surfaces: schema-v4 objects for
   reuse/resident-lifetime/output/export/reconstruction/modulus/tile/grouped/
@@ -417,49 +429,25 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |
-| 2 | Closed scenario-surface lane: benchmark corpus for repeated, small, skinny, chain, finite, exact-wide, wrap64, CAS, and FHE-proxy workloads | Shape-only GEMM comparisons are no longer enough to choose real performance work | Scenario mode now covers repeated-B, reuse-contract A/B/A+B, small one-shot, many-small, skinny/GEMV, RNS-chain, finite distributions, finite generic moduli, exact-wide export, wrap64 carry/large probes, CAS/FHE proxies, native/vector-to-RNS, fused/pack/fusion, generated-prefix, adaptive, large-shape, and layout-search families | Closed as corpus infrastructure; keep expanding only for newly discovered workload classes with exact CPU checks and no unsupported product-scope implication |
 | 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; exact-wide signed/unsigned 2048 is captured and release-reviewed; strict wrap64 2048 is captured and release-reviewed with CPU byte-limb and Direct HIP v4; bounded i64/u64 4096 now has GPU-only same-commit exploratory non-reuse/repeated-B classification with required GPU events; finite/exact-wide/wrap64 4096 now has GPU-only exploratory classification and the stale finite hipBLASLt reducer-event misses have focused event-complete reruns | Keep repeated-B as explicit workload-contract evidence, keep wrap64 as Direct-HIP correctness-path evidence rather than cache promotion, keep 4096 as throughput classification until CPU/vector baselines are budgeted, and do not install 4096 cache entries from GPU-only evidence |
-| 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
-| 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident selected-prefix colpair was measured under `temp/perf-work-queue/direct-hip-resident-colpair-current/` and not promoted because rerun end-to-end timing lost 4010 us versus 2434 us for the existing tiled active-prefix path despite a narrower GEMM-median signal | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
-| 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
 | 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline, while the other 19 host-batch candidates lose to same-backend or fastest independent baselines; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed | Keep open for a real device grouped/persistent dispatcher and broader host-batch proof: current evidence says batching helps one exact-wide proxy but not bounded or finite proxies, so route only explicit benchmark workloads until grouping beats independent calls across a durable workload family |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
 | 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 signed/unsigned now has event-valid GPU-only classification with CK best in both groups, but no CPU or runtime vector baselines | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound, keep 4096 exploratory until release review is complete, and route follow-up work toward fixed-width export and lazy residue-current workflows |
-| 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; the post-fix rerun after the hipBLASLt finite reducer-event fallback promotes hipBLASLt for all four hot 2048 contracts and refreshes the local cache with event-complete entries | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, generic ring 127/253 2048 has CPU-backed rocWMMA cache entries, and generic field-127 2048 has a CPU-backed CK cache entry; broader modulus-family and 4096 coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
-| 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
-| 17 | Completed current skinny-GEMV selector refresh | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | `skinny-gemv` release review covered bounded-i64 512x1x512, bounded-i64 256x1x4096, and bounded-u64 1024x1x1024 with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA; Direct HIP won all three groups and no cache entry was written | Closed for current claim refresh; reopen only for a cheaper native-input/reuse path that beats Direct HIP setup-inclusively |
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, large-shape reusable-B scenarios, and a full bounded A/B/A+B release-contract matrix | `tools/reuse_contract_report.py` computes setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, and prepack source-identity metadata. Current reports classify 4/12 CPU-backed 2048 repeated-B captures, 3/16 bounded 4096 exploratory repeated-B captures, and 17/72 bounded reuse-contract A/B/A+B captures as workload candidates | Keep reuse out of AUTO until public workload lifetime, stale-source rejection, and chain-consumer identity are explicit; use the report as the promotion gate for explicit reuse workloads |
-| 19 | Completed hipBLASLt A/B reuse conversion from benchmark win to explicit workload contract | hipBLASLt A/B reuse needed a fair setup-inclusive comparison against same-backend and fastest non-reuse baselines | The `reuse-contract` release matrix has hipBLASLt stable-A, stable-B, and stable-A+B captures at bounded i64/u64 1024 and 2048 with CPU, Direct HIP, runtime vector, CK, and rocWMMA baselines. 2048 stable-A and stable-A+B are explicit workload candidates for bounded i64 and u64; 1024 stable-A and stable-A+B are deprioritized; bounded-u64 2048 stable-A+B is strongest at 9198 us setup-inclusive per repeat, 2.35x faster than the same-run fastest non-reuse baseline | Closed for contract classification; promote only explicit reusable-input workloads with visible setup, source lifetime, stale-input rejection, and repeat-count break-even policy, never as a one-shot AUTO replacement |
 | 20 | Advanced Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse now has reusable-B chain, reusable consumer-B, large bounded scenario coverage, and A/B/A+B release-contract comparisons, but non-bounded profiles remain thin | Existing Direct-HIP reuse captures can now be classified by the setup gate; the reuse-contract matrix finds Direct-HIP candidate wins for bounded-i64 1024 stable-A and stable-B, bounded-u64 1024 stable-A/B/A+B, and bounded-u64 2048 stable-A+B, while large repeated-B reports still deprioritize other Direct-HIP bounded reuse-B rows against fastest non-reuse baselines | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
-| 21 | Completed/deprioritized bound-discovery proof-mask setup-inclusive release matrix | Proof masks reduced scan cost but needed broader end-to-end proof | `bound-discovery` release matrix has 51 schema-valid captures, nine reviewed groups, required GPU events for all non-CPU captures, and `tools/bound_discovery_report.py` compares static global bounds, global input-scan, and proof-mask per-tile modes with scan setup cost included | Closed as no-promotion evidence: all 33 input-scan/proof-mask candidates lose the setup-inclusive gate versus same-backend or fastest static baselines; do not route discovery/proof modes until a cheaper prepass or persistent bound contract changes that result |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips; other backends are incomplete | CPU, CK, rocWMMA, and hipBLASLt correctness/event evidence for skipped work | Extend only where event traces show skipped backend work, not just metadata |
-| 23 | Closed helper lane: generated prefix-specific reducers for bounded prefixes 1..9 | PR #10 adds fixed-prefix reducer identity, dispatch, and ISA-gate surfaces | Release A/B still needs prefix-specific end-to-end proof against generic reducers | Closed as infrastructure; reopen only for measured prefix-specific speedup work |
 | 24 | Shared epilogue DSL for Direct-HIP, hipBLASLt, CK, and rocWMMA reducers | Reducer specialization is duplicated across accelerators | One DSL-generated family with schema fixtures and stale-cache rejection | Adopt only if generated names, metadata, and ISA reports remain inspectable |
-| 25 | Closed helper lane: residue-channel fusion experiments | PR #10 adds benchmark-only residue-channel fusion metadata and stale-schema rejection | Microbenchmarks and release captures still need to show fewer launches/materializations | Closed as exposure; continue only if fusion wins end-to-end after pack/export effects |
-| 26 | Closed helper lane: multi-modulus pack experiments | PR #10 adds pack-layout and residue-group metadata for comparison keys | Same-contract pack event comparisons still need required correctness checks | Closed as metadata surface; keep variants only if pack savings survive GEMM/export timing |
-| 27 | Closed helper lane: fused pack+GEMM for small one-shot bounded and finite workloads | PR #10 adds comparison surfaces for one-shot/transient fused-path experiments | Release captures still need 64/128 bounded and finite one-shot proof | Closed as benchmark surface; promote only if fused path beats CPU, Direct HIP, and current accelerator winner |
-| 28 | Closed scenario surface: end-to-end layout search across RNS, finite, exact-wide, and wrap64 | Layout decisions now affect pack, GEMM, reducer, export, and reuse together | `layout-search` emits layout-metadata captures for bounded RNS final export, RNS-next-op, exact-wide prefix-20, finite-u8 ring/field, and strict wrap64 byte-limb paths | Closed as benchmark surface; keep layout variants only after complete same-contract release evidence and event attribution |
-| 29 | Persistent/grouped scheduler for adaptive prefix groups | Adaptive prefix groups need launch and scheduling amortization beyond simple tile skipping | Grouped scenario captures with CPU/direct-HIP baselines and per-task correctness | Promote only when grouping beats independent calls including queue/setup overhead |
-| 30 | Advanced benchmark lane: HIP Graph replay for repeated fixed-shape Direct-HIP RNS chains | Repeated resident workflows can remove per-call launch overhead without changing math or public API semantics | Branch-local `rns8-bench --hip-graph-replay` surface targets Direct-HIP `--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm`; schema/sweep coverage, Windows release build, and tiny `gfx1100` same-contract graph replay smoke pass, with graph capture/instantiate cost recorded separately | Keep benchmark-only until release-size comparisons prove correctness, ordinary-call parity, setup-inclusive graph capture/instantiate accounting, and a real win versus the non-graph same-contract chain |
-| 31 | Closed benchmark/evidence lane: host API batching for many-small workloads | Some workloads may be too dynamic for graph capture | `rns8-bench --host-api-batch-size` now runs same-shape independent resident tasks through one shared plan, one A/B/C matrix triplet and workspace per task, aggregate pack/GEMM/export timing, combined output checksums, schema-v4 host-batch metadata, sweep scenarios for bounded, finite, skinny, and exact-wide many-small cases, distinct `*-hostbatch` review identities, `tools/host_api_batch_report.py`, and a same-commit 20-capture release comparison against independent-call baselines | Closed as benchmark/evidence plumbing; only Direct-HIP exact-wide signed 64 hostbatch32 currently wins the full workload gate, and no AUTO/public route changes are made |
-| 32 | Closed helper lane: next-op and lazy-export metadata | PR #10 adds requested next-op and output-domain planning metadata to schema-v4 captures | Chain/lazy-export scenarios still need release proof with exact final CPU comparison | Closed as metadata; keep advisory until public API semantics are clear |
+| 30 | Advanced benchmark lane: HIP Graph replay release-size validation | Repeated resident workflows can remove per-call launch overhead without changing math or public API semantics | Branch-local `rns8-bench --hip-graph-replay` surface targets Direct-HIP `--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm`; schema/sweep coverage, Windows release build, and tiny `gfx1100` same-contract graph replay smoke pass, with graph capture/instantiate cost recorded separately | Keep benchmark-only until release-size comparisons prove correctness, ordinary-call parity, setup-inclusive graph capture/instantiate accounting, and a real win versus the non-graph same-contract chain |
 | 33 | Reconstruction backend variants for GPU CRT/export | Current wins often move with export/status timing | Release A/B for GPU CRT, compact export, status handling, and host scatter variants | Promote only setup-inclusive export path wins, not isolated copy improvements |
-| 34 | Closed helper lane: explicit padded/contiguous output policy | PR #10 records output policy and status/export handling in schema-v4 captures | Release captures still need padded versus contiguous A/B with event-visible D2H/status phases | Closed as metadata; default-enable only per semantic/layout where repeated evidence wins |
-| 35 | Closed helper lane: CPU/GPU hybrid AUTO selector explanations | PR #10 reports AUTO cache hits, fallbacks, and rejection reasons for benchmark/inspect tooling | Selector behavior still needs reviewed cache evidence before routing changes | Closed as explanation surface; promote selector behavior only without weakening evidence gates |
 | 36 | AUTO cache shape-family recommendation layer | Exact-shape cache hits are too narrow for real workloads | Reviewed shape-family policy layered above exact-shape entries | Keep disabled until family recommendations cannot cross semantic/layout/target boundaries |
-| 37 | Closed helper lane: device plan cache and workspace arena evidence | PR #10 adds plan/workspace fingerprints and post-warmup allocation evidence | Benchmarks still need to separate planning, allocation, pack, GEMM, and export for real cache work | Closed as evidence surface; promote only when cache identity includes plan, target, backend, and source versions |
 | 38 | Verification-cost reduction for repeated exact workloads | Exact checks can dominate validation of repeated scenarios | Validation modes that reuse CPU/reference structure without reducing correctness | Keep tooling-only unless every promoted capture still has exact CPU differential coverage |
 | 39 | Error-detecting exact fast path with explicit metadata | Probabilistic or checked fast paths are research-only but may unlock workloads | Research captures with verification metadata and false-negative policy | Never make default exact API probabilistic; keep explicitly research-marked |
-| 40 | Closed helper lane: hardware-counter/RGA ingestion into evidence reports | PR #10 adds counter report tooling and ISA/capture cross-links | Optional counter/ISA summaries can now attach to reviewed captures | Closed as tooling; use as explanation evidence only, never as a replacement for timing and correctness gates |
-| 41 | Closed helper lane: architecture-specific kernel namespaces and target-keyed variants | PR #10 adds target-id, namespace, configured target, runtime version, and review grouping metadata | Target-specific cache entries still need real host evidence | Closed as schema/tooling; promote non-`gfx1100` only after evidence on that target |
-| 42 | Linux/Instinct/toolchain matrix gates for future non-Windows promotion | Production platform readiness is still unproven | Real Linux ROCm/Instinct builds, tests, profiling, and release captures | Keep Windows claims local until target-specific evidence exists |
-| 43 | Reuse contract ledger and persistent matrix policy | Reuse/prepack wins are correct but compare different workload contracts | Durable ledger of setup cost, repeat count, source identity, lifetime, invalidation, break-even repeats, and final-output contract | Keep reuse out of AUTO until the ledger proves a same workload family and stale-source rejection |
+| 43 | Advanced reuse contract ledger and persistent matrix policy | Reuse/prepack wins are correct but compare different workload contracts | `tools/reuse_contract_report.py` now computes setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, and prepack source-identity metadata; remaining work is public reusable-input lifetime policy, stale-source rejection, and selector eligibility | Keep reuse out of AUTO until the ledger proves a same workload family and stale-source rejection |
 | 44 | Persistent resident matrix lifetime implementation | Persistent RNS/native matrices are the core representation, but benchmark-owned lifetimes still hide useful routing semantics | Public/benchmark contract for resident A/B/C lifetimes, source versions, workspace binding, and output currentness across repeated calls | Promote only when lifetime identity prevents accidental reuse across changed descriptors, data, semantics, target, or plan |
 | 45 | Device grouped dispatcher for many-small workloads | Host API batching found one exact-wide win but no device grouped/persistent dispatcher exists | Device queue or grouped-kernel execution with per-task descriptors, exact per-task checksums, GPU events, and fastest-independent baselines | Route only explicit grouped workloads until it beats independent calls across a durable family |
 | 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy residue-current chains can avoid per-repeat CRT, but same-output proof is incomplete | Release matrix comparing independent final-output calls, residue-current chains, final export, reusable-B setup, and an API design draft for residue-current outputs | Keep benchmark-only until exact final CPU comparison and public lifetime semantics are explicit |
@@ -476,10 +464,20 @@ June 4-5, 2026 updates:
 | 57 | Workspace arena implementation lane | Allocation metadata is visible but not yet an allocation-reduction mechanism | Device workspace arena with plan/workspace fingerprints, suballocation, stream-safe reuse, and measured allocation deltas after warmup | Promote only if allocation counters prove zero measured-repeat allocation without hiding stale workspace bugs |
 | 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | The first graph path deliberately excludes pack, export, finite-u8, wrap64, and mixed-backend work | Follow-on captures must prove explicit-stream capture, status/error equivalence, currentness, and setup accounting for each broader path | Do not expand until rank 30 survives release-size same-contract review |
 | 59 | Shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads | Non-routing selector report that says what a shape-family policy would pick, why, and which blocker prevents promotion | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
-| 60 | Promotion ledger tool | Installed reviewed cache entries need durable auditability | Tool that lists installed key, evidence file, target, toolchain, selected kernel, speedup, blocker clearance, and stale invalidation reason | Treat as release hygiene; do not install or replace cache entries without ledger consistency |
+| 60 | Promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/promotion_ledger.py` now audits reviewed captures against installed cache entries; remaining work is to make ledger output part of cache-install/replacement review, stale-entry explanation, and release docs | Treat as release hygiene; do not install or replace cache entries without ledger consistency |
 | 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | Batch reports that join HIP events, ISA, RGA/LLVM resources, rocprofiler counters, VGPR/SGPR/LDS, occupancy, waits, stores, and roofline group | Use as explanation evidence only; never replace exact correctness or timing gates |
-| 62 | Linux/RDNA/CDNA validation matrix stub | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | Per-target validation template for gfx11xx/gfx12xx/gfx9x/gfx94x with build, CTest, smoke, release captures, and profiling gates | Claim only the targets that pass on real supported hosts |
+| 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | `tools/target_validation_report.py` can summarize target evidence without cross-target inference; remaining work is real Linux ROCm/RDNA/CDNA host runs plus per-target build, CTest, smoke, release capture, and profiler gates | Claim only the targets that pass on real supported hosts |
 | 63 | Verification amortization and real FHE/lattice workload suite | Exact repeated validation and FHE/lattice-inspired workloads need realistic contracts | Add suite entries for CKKS/BFV/BGV-like NTT, key-switch, relinearization, rotation, ModUp/ModDown/rescale, bootstrapping-stage, and tower reuse proxies plus safe verification amortization | Keep as workload/proxy evidence, not cryptographic correctness or library support claims |
+| 68 | Strict wrap64 Direct-HIP v4 carry/byte-limb tuning | Direct-HIP v4 is the only reviewed strict wrap64 performance path, and the active queue should own its next real tuning work instead of only rejecting matrix-engine candidates | Release A/B for byte-limb carry propagation, pack/export policy, accumulator tiling, u32 store shape, and event/ISA evidence at 512, 1024, 2048, and exploratory 4096 | Promote only Direct-HIP same-contract wins; keep rocWMMA/other matrix-engine wrap64 paths experimental until they beat v4 end-to-end |
+| 69 | CPU small-shape optimized fallback and selector thresholds | The many-small review shows CPU wins several tiny exact workloads, so CPU is a performance backend for those contracts, not only a correctness reference | CPU microbench and selector A/B for bounded-i64 32, bounded-u64 64, finite-u8 64, cache locality, threading policy, vectorized host paths, and cutoff thresholds versus Direct HIP/vector/accelerators | Route to CPU only when same-contract release evidence beats GPU paths and selector explanations stay explicit |
+| 70 | Release variance and performance regression gate | Export noise and narrow colpair/reuse wins can disappear under rerun variance | Multi-run release review policy with median/min/variance, confidence window, outlier accounting, stale-cache regression guard, and per-shape repeat budget for narrow winners | Do not promote rows whose margin is inside measured run-to-run noise or whose events shift bottlenecks unpredictably |
+| 71 | 8192 GPU-only throughput scout | `benchmark_sweep.py` exposes 8192 exploratory shapes, and very large shapes can reveal throughput limits after launch/export overhead is amortized | GPU-only bounded/finite/exact-wide/wrap64 scout with memory budget, timeout, required events, no CPU/vector promotion requirement, and explicit non-promotional label | Keep 8192 as classification until a budgeted CPU/reference method exists |
+| 72 | Vector/native-output-to-RNS fused producer-consumer path | The bridge surface exists, but a bridge that materializes extra buffers can erase vector wins | Release A/B for vector/native producer output feeding Direct-HIP RNS consumers with fused conversion, reusable-B setup, final-output comparison, and selected-kernel/currentness metadata | Promote only when the producer-consumer chain beats native host export plus repack and preserves exact final-output checks |
+| 73 | Finite-u8 data-distribution release matrix | Current finite wins are modulus-heavy; input distribution may change reducer, pack, and CPU/GPU cutoffs | Release matrix for binary, sparse, low-Hamming, small-centered, and full-uniform finite-ring/field inputs across hot and generic moduli at 128/512/1024/2048 | Keep distribution-specific routing explicit; never infer finite workload structure from modulus alone |
+| 74 | Split-K and K-block large-shape variants | Large bounded/exact-wide throughput may be limited by K-block policy, accumulator caps, and schedule upload rather than backend family | Generate split-K/K-block/tile-K variants for bounded, exact-wide, finite-u8, and wrap64 with accumulator-safety metadata, event phases, ISA/resource reports, and cache-key identity | Promote only per semantic/backend/target when selected-kernel and autotune keys encode the K-block contract |
+| 75 | Result cache and incremental GEMM research lane | Repeated exact workloads may reuse intermediate products or partial results, but that is workload-specific and easy to overclaim | Research-only captures for source identity, dirty-region metadata, partial recompute, result lifetime, and exact final CPU comparison across repeated workloads | Keep out of default GEMM and AUTO until caller-visible mutation/version contracts make reuse exact and auditable |
+| 76 | Multi-GPU sharding and device-concurrency platform lane | Multi-GPU is absent from the active queue but remains a real future performance direction for Linux/Instinct-scale work | Linux-only capability/topology inspection, modulus-group sharding design, reconstruction placement comparison, peer-transfer accounting, and multi-device release captures | Treat as platform research; no Windows `gfx1100` result can imply multi-GPU readiness |
+| 77 | Layout implementation search after scenario surface | The layout-search scenario family is closed as a surface, but no layout implementation has won the end-to-end gate | Implement and benchmark residue-plane interleave, leading-dimension policy, packed-residue layout, output-current layout, finite layout, and wrap64 byte layout variants with pack/GEMM/export attribution | Keep layouts only when complete same-contract release evidence beats current layout including conversion/setup cost |
 
 ## Validation Debt
 
@@ -507,6 +505,7 @@ June 4-5, 2026 updates:
 | Raw smoke or discovery captures as durable claims | Do not promote | They lack the release-review and required-event gates for public claims |
 | Single-call accelerator tuning for many-small 32/64 proxies | Deprioritize | The current release review is CPU- or Direct-HIP-favored for the small proxies, and the only vector-fast bounded-u64 64 result is not an accelerator/cache entry; grouped execution is the higher-value path |
 | Current bound-discovery/proof-mask modes as default routing | Deprioritize | The setup-inclusive release matrix found zero candidate wins; per-tile proof masks are event-visible but exact tile-bound scans dominate end-to-end timing |
+| AMDGPU builtins, INT4/IU4, FP8/Ozaki hybrids, Strassen, and generic sparsity | Research archive only | These need a concrete correctness kernel, explicit workload structure, or measured bottleneck that current CK/rocWMMA/Direct-HIP paths cannot answer before they deserve active execution slots |
 
 ## Detailed Backlog And Research Notes
 
@@ -3524,14 +3523,15 @@ Promotion gate:
 - Shape-family routing only after blockers are mechanical and every family
   recommendation has release-reviewed representatives plus margin policy.
 
-### 60. Promotion Ledger Tool
+### 60. Promotion Ledger Adoption And Cache-Install Gate
 
 The installed reviewed cache is now important enough to need its own audit
-surface.
+surface. The tool exists; the remaining performance-control work is making the
+ledger part of every cache install, replacement, and stale-entry review.
 
 Technical direction:
 
-- Create a ledger that joins installed cache entries to evidence summaries,
+- Use `tools/promotion_ledger.py` to join installed cache entries to evidence summaries,
   reviewed captures, target/toolchain metadata, selected kernel, epilogue,
   workspace, speedup, and promotion blockers cleared.
 - Record replacement history: old key, new key, reason, date, commit, target,
@@ -3542,8 +3542,10 @@ Technical direction:
 
 Likely first slices:
 
-- `tools/promotion_ledger.py --cache <path> --evidence <review.json>`.
-- CI/self-test fixture for stale cache entry reporting.
+- Run the ledger on every reviewed-cache install/update before accepting the
+  cache diff.
+- CI/self-test fixture for stale cache entry reporting beyond the current
+  Starfoundry report smoke.
 - Docs table summarizing installed local cache coverage by semantic.
 
 Promotion gate:
@@ -3590,7 +3592,7 @@ Promotion gate:
 - Counter findings can prioritize kernel work but cannot install cache entries
   or replace release timings.
 
-### 62. Linux/RDNA/CDNA Validation Matrix Stub
+### 62. Linux/RDNA/CDNA Validation Matrix And Target Report Gate
 
 Windows `gfx1100` is the local bring-up target. It is not Linux ROCm, RDNA4, or
 Instinct evidence.
@@ -3605,11 +3607,14 @@ Technical direction:
   version, OS, GPU name, memory size, and clock/power caveats.
 - Do not reuse Windows cache entries on Linux targets without exact reviewed
   target evidence.
+- Use `tools/target_validation_report.py` to summarize target evidence without
+  cross-target inference.
 
 Likely first slices:
 
 - `docs/platform-validation-matrix.md` or a section in release checklist.
-- `tools/target_validation_report.py` over captures and dependency reports.
+- Target-validation reports over captures and dependency reports from real
+  supported hosts.
 - Linux ROCm direct-HIP CPU/differential checklist before accelerators.
 
 Promotion gate:
@@ -3766,6 +3771,196 @@ Relation to new architecture work:
 - Feeds "Persistent Grouped Scheduler", "Reconstruction Backend", and
   "Toolchain Matrix".
 
+### 68. Strict Wrap64 Direct-HIP v4 Carry/Byte-Limb Tuning
+
+The strict `mod 2^64` path has real Direct-HIP v4 evidence and real open
+microarchitecture questions. The next work should tune the byte-limb path that
+already wins, not restart from the losing rocWMMA candidate.
+
+Technical direction:
+
+- Compare carry propagation, byte-limb packing, export policy, u32 accumulator
+  tiling, store shape, and kernel resource variants.
+- Keep CPU byte-limb reference, Direct-HIP v4 baseline, event timing, and ISA
+  reports in the same release review.
+- Include 512/1024/2048 and 4096 exploratory shapes so tuning does not regress
+  the reviewed large path.
+
+Promotion gate:
+
+- Promote only same-contract Direct-HIP end-to-end wins with required wrap64 GPU
+  events; matrix-engine wrap64 paths remain experimental until they beat v4.
+
+### 69. CPU Small-Shape Optimized Fallback And Selector Thresholds
+
+The many-small review made CPU a real performance winner for selected tiny
+contracts. That should become explicit selector policy instead of being treated
+as only correctness overhead.
+
+Technical direction:
+
+- Microbenchmark bounded-i64 32, bounded-u64 64, finite-u8 64, and nearby
+  thresholds with cache-local CPU paths, optional host vectorization, and
+  thread-count policy.
+- Compare CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA in the
+  same release groups.
+- Make selector explanations say when CPU is chosen for performance.
+
+Promotion gate:
+
+- Route to CPU only when release evidence beats GPU alternatives for the exact
+  semantic, shape, modulus, and output contract.
+
+### 70. Release Variance And Performance Regression Gate
+
+Several candidate wins are narrow or export-noisy. The queue needs a gate that
+decides when a small speedup is real enough to route.
+
+Technical direction:
+
+- Add multi-run release review for narrow cache candidates, reuse rows, and
+  rejected-but-close Direct-HIP variants.
+- Record median, minimum, variance, outliers, run order, thermal/clock caveats
+  where available, and phase-shift evidence from GPU events.
+- Add stale-cache regression guards for installed entries whose margin is inside
+  measured noise.
+
+Promotion gate:
+
+- Do not promote a row when the speedup margin is within observed variance or
+  when reruns move the bottleneck in a way the implementation does not explain.
+
+### 71. 8192 GPU-Only Throughput Scout
+
+The sweep tool already exposes 8192 exploratory shapes. Those should be used
+only to classify throughput behavior after 4096, not to create claims.
+
+Technical direction:
+
+- Run budgeted GPU-only 8192 scouts for bounded, finite-u8, exact-wide, and
+  wrap64 where memory and runtime allow.
+- Require schema validity, GPU events, target/toolchain metadata, and explicit
+  non-promotional review labels.
+- Compare 8192/4096 scaling against the same commit and backend set.
+
+Promotion gate:
+
+- Keep 8192 as throughput classification until a budgeted CPU/reference method
+  exists for same-contract release review.
+
+### 72. Vector/Native-Output-To-RNS Fused Producer-Consumer Path
+
+The vector/native-to-RNS bridge is exposed, but extra materialization can erase
+the vector win. The performance work is making the bridge cheap enough for a
+chain.
+
+Technical direction:
+
+- Fuse or otherwise minimize native-output-to-RNS conversion between a
+  vector/native producer and Direct-HIP RNS consumer.
+- Measure conversion, reusable-B setup, chain GEMM, final export, and exact
+  final-output checks in one release group.
+- Keep output-domain/currentness metadata explicit so the bridge is not a hidden
+  semantic conversion.
+
+Promotion gate:
+
+- Promote only when the complete producer-consumer chain beats native host
+  export plus repack and passes exact final-output comparison.
+
+### 73. Finite-u8 Data-Distribution Release Matrix
+
+Finite-u8 evidence is currently strong by modulus but thin by input
+distribution. Reducers and CPU/GPU cutoffs may change when data are binary,
+sparse, or low-magnitude.
+
+Technical direction:
+
+- Add release groups for binary, sparse, low-Hamming, low-centered, and
+  full-uniform finite-ring/field inputs.
+- Cover hot moduli and generic prime/composite moduli at 128/512/1024/2048.
+- Record distribution metadata in review groups so selector policy cannot mix
+  incompatible workloads.
+
+Promotion gate:
+
+- Promote distribution-specific routes only with explicit distribution metadata
+  and same-contract CPU/direct/accelerator baselines.
+
+### 74. Split-K And K-Block Large-Shape Variants
+
+Large bounded and exact-wide shapes may be limited by K-block policy,
+accumulator caps, schedule upload, or store pressure rather than backend family.
+
+Technical direction:
+
+- Generate split-K, tile-K, K-block, and accumulator-policy variants for
+  bounded, exact-wide, finite-u8, and wrap64 where the semantics allow them.
+- Keep accumulator-safety metadata, selected-kernel identity, autotune keys,
+  event phases, and ISA/resource reports tied to each variant.
+- Start from 2048/4096 cases where launch overhead is less dominant.
+
+Promotion gate:
+
+- Promote only per semantic/backend/target when the selected kernel and cache
+  key encode the K-block contract and correctness remains exact.
+
+### 75. Result Cache And Incremental GEMM Research Lane
+
+Repeated exact workloads may reuse partial products or results, but that is a
+workload contract, not a default GEMM behavior.
+
+Technical direction:
+
+- Prototype source identity, versioning, dirty-region metadata, partial
+  recompute, result lifetime, and invalidation reporting.
+- Compare repeated workloads against ordinary recompute including cache
+  management cost.
+- Keep final exact CPU comparisons for the requested output.
+
+Promotion gate:
+
+- Keep this research-only until caller-visible mutation/version contracts make
+  reuse exact and auditable.
+
+### 76. Multi-GPU Sharding And Device-Concurrency Platform Lane
+
+Multi-GPU is a real future performance direction, but it is Linux/Instinct-scale
+platform work rather than local Windows `gfx1100` optimization.
+
+Technical direction:
+
+- Inspect Linux ROCm multi-GPU topology, peer access, memory limits, and
+  profiler availability.
+- Prototype modulus-group sharding before K sharding unless profiling says
+  otherwise.
+- Compare reconstruction placement: per-device partial reconstruction versus
+  final gathered reconstruction.
+
+Promotion gate:
+
+- Claim only target/host combinations that pass real supported-host build,
+  CTest, smoke, release capture, and profiling gates.
+
+### 77. Layout Implementation Search After Scenario Surface
+
+The `layout-search` scenario family is closed as a surface. The active work is
+now real layout implementation and same-contract A/B evidence.
+
+Technical direction:
+
+- Implement residue-plane interleave, leading-dimension policy, packed-residue,
+  output-current, finite-u8, exact-wide prefix-20, and wrap64 byte-layout
+  variants.
+- Attribute pack, GEMM, reduction/export, status, and D2H effects separately.
+- Keep conversion/setup cost in the measured contract so a layout does not win
+  by moving work out of frame.
+
+Promotion gate:
+
+- Keep only layouts that beat the current layout end-to-end under release review
+  with event attribution and exact CPU comparison.
+
 ## Best Next Batches
 
 ### Batch A: Measurement And Scenario Foundation
@@ -3785,11 +3980,13 @@ Relation to new architecture work:
   same scenario benchmark family, with evidence scope and output-domain
   metadata recorded separately from dense-GEMM claims.
 - Add per-kernel CK/rocWMMA event timing and RGA resource summaries.
-- Add promotion-ledger and reuse-contract reports before converting more
+- Use promotion-ledger and reuse-contract reports before converting more
   workload-specific wins into cache or selector policy.
 - Add counter-driven occupancy/resource audit batches for the current
   export-bound exact-wide captures and rejected Direct-HIP resident colpair
   captures.
+- Add release variance/regression gates for narrow wins before they become
+  durable cache or selector entries.
 
 ### Batch B: Immediate Shape Wins
 
@@ -3809,6 +4006,10 @@ Relation to new architecture work:
   narrow and should be protected by current direct-HIP and event baselines.
 - Continue direct-HIP wrap64 v4 follow-up tuning before another matrix-engine
   candidate.
+- Add CPU small-shape fallback thresholds for the many-small contracts where the
+  release review already shows CPU wins.
+- Add split-K/K-block large-shape variants after the 2048/4096 matrices identify
+  real throughput bottlenecks.
 
 ### Batch C: Representation Wins
 
@@ -3819,6 +4020,10 @@ Relation to new architecture work:
   experimental ladders with explicit non-default metadata.
 - Add CRT/reconstruction fusion and export kernel zoo variants with
   selected-kernel, epilogue, workspace, constants, and status-policy metadata.
+- Turn the closed layout-search scenario surface into actual layout
+  implementation A/Bs.
+- Make vector/native-output-to-RNS producer-consumer chains cheap enough to beat
+  host export plus repack before considering selector policy.
 - Add polynomial-tower and Q/P-basis layout sketches for FHE/lattice proxy
   scenarios without treating them as public RNS8 storage formats.
 
@@ -3843,6 +4048,8 @@ Relation to new architecture work:
 
 - Keep AMDGPU builtins, INT4/IU4, Ozaki hybrids, Strassen, sparsity, and
   multi-GPU behind explicit research/platform work.
+- Keep 8192 runs GPU-only and non-promotional until budgeted CPU/reference
+  release review is possible.
 - Run Linux ROCm and Instinct work only on real supported hosts with separate
   evidence from Windows `gfx1100`.
 - Keep the real FHE/lattice workload suite as proxy workload evidence until
