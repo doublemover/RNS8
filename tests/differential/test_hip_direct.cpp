@@ -1322,6 +1322,93 @@ TEST_CASE("direct HIP finite u8 native A resident B path matches CPU") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP bounded i64 native prefix9 colpair path matches CPU") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP bounded i64 native colpair smoke");
+  }
+
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 23;
+  constexpr int64_t lda = 29;
+  constexpr int64_t ldb = 31;
+  constexpr int64_t ldc = 23;
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  std::vector<int64_t> A(static_cast<std::size_t>(m * lda), -777);
+  std::vector<int64_t> B(static_cast<std::size_t>(k * ldb), -888);
+  std::vector<int64_t> cpu_out(static_cast<std::size_t>(m * ldc), -999);
+  std::vector<int64_t> hip_out(static_cast<std::size_t>(m * ldc), -999);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * lda + col)] = static_cast<int64_t>((row * 17 + col * 5) % 23) - 11;
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * ldb + col)] = static_cast<int64_t>((row * 7 + col * 13) % 19) - 9;
+    }
+  }
+
+  auto cpu_desc = signed_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = signed_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_DIRECT);
+  cpu_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  hip_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) ==
+          RNS8_SUCCESS);
+
+  rns8_plan* hip_plan = nullptr;
+  rns8_matrix* hip_c = nullptr;
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+  REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+
+  void* d_a = nullptr;
+  void* d_b = nullptr;
+  const std::size_t a_bytes = A.size() * sizeof(int64_t);
+  const std::size_t b_bytes = B.size() * sizeof(int64_t);
+  REQUIRE(rns8::detail::hip_direct_allocate(0, a_bytes, &d_a) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_allocate(0, b_bytes, &d_b) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_a, A.data(), a_bytes) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_b, B.data(), b_bytes) == RNS8_SUCCESS);
+
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+  REQUIRE(rns8::detail::hip_direct_gemm_i64_native_prefix9_colpair_device(
+              0, d_a, d_b, hip_c->hip_residues, m, n, k, lda, ldb, hip_c->desc.logical_ld) == RNS8_SUCCESS);
+  const auto hip_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
+
+  hip_c->host_residues_current = false;
+  hip_c->device_residues_current = true;
+  hip_c->host_byte_limbs_current = false;
+  hip_c->device_byte_limbs_current = false;
+  hip_c->host_native_current = false;
+  hip_c->device_native_current = false;
+  REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+            cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+    }
+    for (int64_t col = n; col < ldc; ++col) {
+      CHECK(cpu_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+      CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+    }
+  }
+
+  CHECK(rns8::detail::hip_direct_free(0, d_b) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
+  rns8_destroy_matrix(hip_c);
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP bounded native A resident B smoke");

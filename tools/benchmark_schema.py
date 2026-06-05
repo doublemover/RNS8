@@ -239,9 +239,10 @@ DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS = {
 }
 DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE = "rns8_hip_direct_reciprocal_isa_gate"
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1 = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
-DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = (
+DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2 = (
     "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
 )
+DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
@@ -2263,13 +2264,9 @@ class _Validator:
                     self._error("one-shot bounded captures must use prepack_reuse_strategy=none")
                 if self.data.get("backend_selected") == "hip-direct":
                     expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_V1
-                    if (
-                        semantics == "bounded_u64"
-                        and int(self.data.get("m", 0)) >= 512
-                        and int(self.data.get("n", 0)) >= 512
-                        and int(self.data.get("k", 0)) >= 512
-                    ):
-                        expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2
+                    large_oneshot_shape = all(int(self.data.get(dim, 0)) >= 512 for dim in ("m", "n", "k"))
+                    if large_oneshot_shape:
+                        expected_kernel = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
                     if self.data.get("selected_kernel") != expected_kernel:
                         self._error(
                             "direct-HIP one-shot bounded captures must use "

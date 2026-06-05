@@ -54,7 +54,8 @@ Scope:
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 1024 bounded i64 | direct HIP | setup-inclusive 1.19x vs same-backend non-reuse; 2.62x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 captures | 1 | 512 bounded u64 | direct HIP | setup-inclusive 1.34x vs same-backend non-reuse; 1.41x vs prior v1 setup-inclusive path in before/after matrix | release local reuse capture; schema/event valid | explicit `--reuse-packed-b` path only; no AUTO/default routing change |
 | 2026-06-03 | direct-HIP uniform-small reuse-B colpair v2 reruns | 1 | 1024 bounded u64 | direct HIP | setup-inclusive 1.17x to 1.75x vs same-backend non-reuse across three focused reruns | release local reuse reruns; schema/event valid | export timing remains volatile; explicit `--reuse-packed-b` path only |
-| 2026-06-03 | direct-HIP public one-shot colpair gate | 31 | 512 bounded u64 | direct HIP | 1.09x average end-to-end, 1.21x median end-to-end, and 1.06x average GEMM-event speedup vs prior one-shot v1 kernel | final release captures schema/event valid; before captures intentionally stale under new schema | routed only for bounded-u64 Direct-HIP one-shot `m/n/k >= 512`; i64 and smaller u64 stay on v1 |
+| 2026-06-03 | direct-HIP public one-shot colpair gate | 31 | 512 bounded u64 | direct HIP | 1.09x average end-to-end, 1.21x median end-to-end, and 1.06x average GEMM-event speedup vs prior one-shot v1 kernel | final release captures schema/event valid; before captures intentionally stale under new schema | routed only for bounded-u64 Direct-HIP one-shot `m/n/k >= 512`; smaller u64 stays on v1 |
+| 2026-06-05 | direct-HIP public one-shot colpair gate | 20260605 | 512 bounded i64 | direct HIP | 2.72x average end-to-end, 3.07x median end-to-end, 3.02x median one-shot GPU API event speedup, and matching checksum vs prior one-shot v1 kernel | final release capture schema/event valid; before capture valid under prior schema and intentionally stale under current large-i64 colpair gate | explicit Direct-HIP public one-shot route only; persistent resident Direct-HIP at the same shape remains faster |
 | 2026-06-04 | direct-HIP uniform-small reuse-A colpair fixed-prefix captures | 1 | 512, 1024 bounded i64 | direct HIP | setup-inclusive 3.04x at 512 and 1.32x at 1024 vs clean `a75b0a2` same-contract repeated-A baseline over 33 repeats | release local reuse capture; schema/event/checksum valid | explicit fixed-prefix `--reuse-packed-a` path only; no AUTO/default routing change |
 | 2026-06-04 | direct-HIP uniform-small reuse-A colpair fixed-prefix captures | 1 | 512, 1024 bounded u64 | direct HIP | setup-inclusive 1.33x at 512 and 1.30x at 1024 vs clean `a75b0a2` same-contract repeated-A baseline over 33 repeats | release local reuse capture; schema/event/checksum valid | explicit fixed-prefix `--reuse-packed-a` path only; no AUTO/default routing change |
 
@@ -210,6 +211,22 @@ build\windows-msvc-hip-release\rns8-bench.exe `
 
 python tools\benchmark_schema.py <captures>
 python tools\gpu_event_report.py --fail-on-unavailable <captures>
+```
+
+Direct-HIP bounded-i64 public one-shot colpair gate:
+
+```powershell
+build\windows-msvc-hip-release\rns8-bench.exe `
+  --backend hip-direct `
+  --semantics bounded-i64 `
+  --oneshot `
+  --m 512 --n 512 --k 512 `
+  --prefix-policy fixed-requested --max-prefix 9 `
+  --warmups 3 --repeats 9 `
+  --seed 20260605
+
+python tools\benchmark_schema.py <capture>
+python tools\gpu_event_report.py --require-events <capture>
 ```
 
 Wrap64 direct-HIP baseline plus internal rocWMMA candidate:

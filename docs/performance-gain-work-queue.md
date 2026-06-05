@@ -182,6 +182,17 @@ June 4-5, 2026 updates:
   workload-contract evidence: it is not a same-output AUTO/cache entry, and
   broader promotion still needs final-output contract coverage plus explicit
   reuse lifetime and break-even policy.
+- Direct-HIP public bounded-i64 one-shot large shapes now use the existing
+  prefix-9 colpair native-input kernel. The focused before/after captures under
+  `temp/perf-work-queue/direct-hip-i64-oneshot-colpair/` compare the prior v1
+  one-shot route against `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2`
+  for 512x512x512 with fixed prefix 9, three warmups, nine repeats, and seed
+  `20260605`. The new route keeps the checksum identical and improves median
+  one-shot end-to-end time from 9368 us to 3048 us, a 3.07x win for that public
+  one-shot contract. The same-shape persistent resident Direct-HIP capture is
+  still faster at 2126 us median end-to-end, so this advances one-shot and
+  prefix-9 fusion work only; it is not an AUTO/cache promotion or a reason to
+  prefer transient one-shot over resident matrix reuse.
 - `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
   matrices: `--skip-existing` reuses schema-valid existing captures and
   `--max-new-captures` caps how many new captures a pass may execute before
@@ -211,11 +222,11 @@ June 4-5, 2026 updates:
 | 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; exact-wide signed/unsigned 2048 is captured and release-reviewed; strict wrap64 2048 is captured and release-reviewed with CPU byte-limb and Direct HIP v4; installed non-reuse winners are CK bounded-i64 2048, rocWMMA bounded-u64 2048, rocWMMA finite ring 251/256, hipBLASLt finite ring 255/field 251, and hipBLASLt exact-wide signed/unsigned 2048 | Keep repeated-B as explicit workload-contract evidence, keep wrap64 as Direct-HIP correctness-path evidence rather than cache promotion, and keep 4096 as throughput classification unless a CPU/reference release baseline is intentionally budgeted |
 | 4 | Completed current-v2 bounded-u64 rerun | Stale vector-leadership claims needed replacement after Direct-HIP and selector changes | Current-code release review covered square 64/128/512/1024 plus selected skinny cases | Closed for current claim refresh; follow-on tuning should target CK 512, hipBLASLt 256x1x4096, and Direct-HIP-favored 128/1024 cases |
 | 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
-| 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
+| 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident persistent Direct-HIP 512 still needs tuning against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
 | 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
-| 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
+| 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists, but resident prefix-9 and prefix-20 fusion still need broader release A/B | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
 | 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 and broader fixed limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound and route follow-up work toward fixed-width export and lazy residue-current workflows |
@@ -985,19 +996,24 @@ Likely first slices:
   residues for the existing CRT export path. Per-tile/adaptive plans,
   wider-prefix stress cases, persistent matrix APIs, and non-direct-HIP
   backends keep the established resident pack/GEMM/export route. A follow-up
-  large-shape bounded-u64 specialization now routes public one-shot
+  large-shape bounded i64/u64 specialization now routes public one-shot
   `m/n/k >= 512` Direct-HIP calls to
   `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2`, where each
   worker computes two neighboring output columns and reuses the centered A tile
-  value across both accumulators. Bounded i64 and smaller bounded-u64 one-shot
-  shapes remain on `direct_hip_prefix9_native_input_grouped_rns_gemm_v1`
-  because release evidence showed i64 regressions and noisy small-shape u64
-  averages. Windows `gfx1100` release captures under
+  value across both accumulators. Smaller bounded one-shot shapes remain on
+  `direct_hip_prefix9_native_input_grouped_rns_gemm_v1` because release
+  evidence was noisy or not favorable at 64/128. Windows `gfx1100` bounded-u64
+  release captures under
   `temp/oneshot-colpair-before/` and
   `temp/oneshot-colpair-release-gated/` show the routed bounded-u64 512 case
   improving average end-to-end time by 1.09x and median end-to-end time by
   1.21x against the prior v1 one-shot kernel, with schema-valid and
-  event-valid final captures.
+  event-valid final captures. The June 5, 2026 bounded-i64 route under
+  `temp/perf-work-queue/direct-hip-i64-oneshot-colpair/` improves the 512
+  public one-shot median from 9368 us to 3048 us, with matching checksum and a
+  schema/event-valid final capture. The same-shape persistent resident
+  Direct-HIP capture still measured faster at 2126 us, so this is a one-shot
+  implementation win rather than a resident-workflow routing change.
 - rocWMMA transient-A fused pack against reusable B for non-tiled RNS.
 - Benchmark split between one-shot and persistent reuse so wins are not hidden.
   Implemented as `rns8-bench --oneshot` for bounded i64/u64 CPU and

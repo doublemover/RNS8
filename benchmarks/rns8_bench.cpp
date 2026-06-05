@@ -2637,8 +2637,7 @@ std::string bounded_oneshot_autotune_key(
 }
 
 const char* bounded_oneshot_kernel(const Args& args) {
-  return args.semantics == BenchSemantics::BoundedU64 &&
-             args.m >= 512 && args.n >= 512 && args.k >= 512
+  return bounded_benchmark_semantics(args.semantics) && args.m >= 512 && args.n >= 512 && args.k >= 512
       ? "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
       : "direct_hip_prefix9_native_input_grouped_rns_gemm_v1";
 }

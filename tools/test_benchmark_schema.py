@@ -2769,33 +2769,65 @@ def main() -> int:
     ]["autotune_key"].replace("semantics=bounded_i64", "semantics=bounded_u64")
     validate_capture(small_u64_oneshot)
 
+    large_i64_oneshot = copy.deepcopy(direct_hip_oneshot_i64)
+    large_i64_oneshot["m"] = 512
+    large_i64_oneshot["n"] = 512
+    large_i64_oneshot["k"] = 512
+    large_oneshot_kernel = "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
+    large_i64_oneshot["selected_kernel"] = large_oneshot_kernel
+    large_i64_oneshot["backend_metadata"]["selected_kernel"] = large_oneshot_kernel
+    apply_int32_accumulator_contract(large_i64_oneshot)
+    large_i64_oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        large_i64_oneshot["backend_metadata"]["autotune_key"].replace(
+            "m=64;n=128;k=64",
+            "m=512;n=512;k=512",
+        ).replace(
+            "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
+            large_oneshot_kernel,
+        ),
+        large_i64_oneshot,
+    )
+    validate_capture(large_i64_oneshot)
+
+    bad_i64_oneshot_stale_kernel = copy.deepcopy(large_i64_oneshot)
+    old_oneshot_kernel = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
+    bad_i64_oneshot_stale_kernel["selected_kernel"] = old_oneshot_kernel
+    bad_i64_oneshot_stale_kernel["backend_metadata"]["selected_kernel"] = old_oneshot_kernel
+    bad_i64_oneshot_stale_kernel["backend_metadata"]["autotune_key"] = bad_i64_oneshot_stale_kernel[
+        "backend_metadata"
+    ]["autotune_key"].replace(
+        large_oneshot_kernel,
+        old_oneshot_kernel,
+    )
+    expect_invalid(bad_i64_oneshot_stale_kernel, "direct-HIP one-shot bounded captures must use selected_kernel")
+
     large_u64_oneshot = copy.deepcopy(small_u64_oneshot)
     large_u64_oneshot["m"] = 512
     large_u64_oneshot["n"] = 512
     large_u64_oneshot["k"] = 512
-    u64_oneshot_kernel = "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2"
-    large_u64_oneshot["selected_kernel"] = u64_oneshot_kernel
-    large_u64_oneshot["backend_metadata"]["selected_kernel"] = u64_oneshot_kernel
+    large_u64_oneshot["selected_kernel"] = large_oneshot_kernel
+    large_u64_oneshot["backend_metadata"]["selected_kernel"] = large_oneshot_kernel
     apply_int32_accumulator_contract(large_u64_oneshot)
+    large_u64_key = large_u64_oneshot["backend_metadata"]["autotune_key"]
     large_u64_oneshot["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
-        large_u64_oneshot[
-        "backend_metadata"
-    ]["autotune_key"].replace("m=64;n=128;k=64", "m=512;n=512;k=512").replace(
-        "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
-        u64_oneshot_kernel,
+        large_u64_key.replace(
+            "m=64;n=128;k=64",
+            "m=512;n=512;k=512",
+        ).replace(
+            "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
+            large_oneshot_kernel,
         ),
         large_u64_oneshot,
     )
     validate_capture(large_u64_oneshot)
 
     bad_oneshot_stale_kernel = copy.deepcopy(large_u64_oneshot)
-    old_oneshot_kernel = "direct_hip_prefix9_native_input_grouped_rns_gemm_v1"
     bad_oneshot_stale_kernel["selected_kernel"] = old_oneshot_kernel
     bad_oneshot_stale_kernel["backend_metadata"]["selected_kernel"] = old_oneshot_kernel
     bad_oneshot_stale_kernel["backend_metadata"]["autotune_key"] = bad_oneshot_stale_kernel[
         "backend_metadata"
     ]["autotune_key"].replace(
-        "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",
+        large_oneshot_kernel,
         old_oneshot_kernel,
     )
     expect_invalid(bad_oneshot_stale_kernel, "direct-HIP one-shot bounded captures must use selected_kernel")

@@ -173,6 +173,10 @@ bool direct_hip_native_prefix9_oneshot_eligible(
   return false;
 }
 
+bool large_native_prefix9_colpair_shape(const rns8_gemm_desc& desc) {
+  return desc.m >= 512 && desc.n >= 512 && desc.k >= 512;
+}
+
 bool direct_hip_finite_native_oneshot_eligible(
     const rns8_context& ctx,
     const rns8_gemm_desc& desc,
@@ -256,17 +260,31 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_gemm_i64_native_prefix9_device(
-        ctx->device_id,
-        state.device_a,
-        state.device_b,
-        state.C->hip_residues,
-        desc.m,
-        desc.n,
-        desc.k,
-        lda,
-        ldb,
-        state.C->desc.logical_ld);
+    if (large_native_prefix9_colpair_shape(desc)) {
+      status = rns8::detail::hip_direct_gemm_i64_native_prefix9_colpair_device(
+          ctx->device_id,
+          state.device_a,
+          state.device_b,
+          state.C->hip_residues,
+          desc.m,
+          desc.n,
+          desc.k,
+          lda,
+          ldb,
+          state.C->desc.logical_ld);
+    } else {
+      status = rns8::detail::hip_direct_gemm_i64_native_prefix9_device(
+          ctx->device_id,
+          state.device_a,
+          state.device_b,
+          state.C->hip_residues,
+          desc.m,
+          desc.n,
+          desc.k,
+          lda,
+          ldb,
+          state.C->desc.logical_ld);
+    }
   }
   if (status == RNS8_SUCCESS) {
     state.C->host_residues_current = false;
@@ -311,7 +329,7 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, state.device_b, B, b_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    if (desc.m >= 512 && desc.n >= 512 && desc.k >= 512) {
+    if (large_native_prefix9_colpair_shape(desc)) {
       status = rns8::detail::hip_direct_gemm_u64_native_prefix9_colpair_device(
           ctx->device_id,
           state.device_a,

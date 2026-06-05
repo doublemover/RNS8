@@ -141,12 +141,14 @@ cross-backend AUTO winners.
 
 | Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event GEMM speedup | Status |
 |---|---:|---|---:|---:|---:|---|
-| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; i64 and smaller u64 remain on v1 |
+| Public bounded-i64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 2.72x | 3.07x | 1.04x median | Routed only for Direct-HIP bounded-i64 `m/n/k >= 512`; persistent resident Direct-HIP remains faster for non-one-shot workflows |
+| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; smaller u64 remains on v1 |
 
-The colpair one-shot kernel was not promoted for bounded i64 because the same
-mapping regressed i64 release captures. It was also not routed for small
-bounded-u64 shapes because 64/128 averages were spike-sensitive on Windows
-`gfx1100`; they keep the prior v1 native-input grouped kernel.
+The colpair one-shot kernel is now routed for bounded i64 and bounded u64 when
+`m/n/k >= 512`. Smaller bounded one-shot shapes keep the prior v1 native-input
+grouped kernel because 64/128 evidence was noisy or not favorable on Windows
+`gfx1100`. These are public one-shot implementation wins only; they are not
+evidence that one-shot beats resident matrix reuse for repeated calls.
 
 ## Planner And Prepass Wins
 
