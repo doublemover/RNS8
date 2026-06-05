@@ -59,13 +59,15 @@ June 4-5, 2026 updates:
   compatibility CLI plus focused GPU-event, execution-mode, and
   contract-metadata modules/tests plus helper/output-policy metadata splitting;
   benchmark support and semantic-mode helpers have been split out of the bench
-  god-file; core and Direct-HIP output
-  currentness writes are helper-routed; HIP event/stream/pinned-staging/
-  temporary-buffer ownership uses internal RAII wrappers; Direct-HIP timing
-  support lives in `src/backend_hip_direct/hip_timing.cpp`; and a portable
-  non-Windows CPU ASan/UBSan preset is documented while Windows MSVC ASan stays
-  host-local until the optional runtime is installed. This is meant to reduce
-  future metadata drift, benchmark growth, resource-cleanup risk, and durable
+  god-file; core output setup, benchmark exact-wide pack materialization,
+  Direct-HIP output stamping, and native-to-RNS bridge currentness transitions
+  are helper-routed; HIP event/stream/pinned-staging/temporary-buffer ownership
+  uses internal RAII wrappers; Direct-HIP timing support lives in
+  `src/backend_hip_direct/hip_timing.cpp`; the hygiene report filters
+  intentional helper/RAII implementation sites; and a portable non-Windows CPU
+  ASan/UBSan preset is documented while Windows MSVC ASan stays host-local
+  until the optional runtime is installed. This is meant to reduce future
+  metadata drift, benchmark growth, resource-cleanup risk, and durable
   documentation claim drift while preserving current public ABI, AUTO cache
   behavior, and reviewed evidence claims.
 - Current branch reconciliation: the active queue below is updated through the
