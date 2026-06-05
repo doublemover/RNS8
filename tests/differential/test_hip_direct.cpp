@@ -15,6 +15,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/internal.hpp"
+#include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -384,8 +385,8 @@ void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::mul
       }
     }
   }
-  matrix->host_residues_current = true;
-  matrix->device_residues_current = false;
+  rns8::test::set_host_residues_current(*matrix, true);
+  rns8::test::set_device_residues_current(*matrix, false);
 }
 
 void upload_exact_residues_to_hip(rns8_matrix* matrix) {
@@ -393,8 +394,8 @@ void upload_exact_residues_to_hip(rns8_matrix* matrix) {
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
               matrix->hip_device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes) ==
           RNS8_SUCCESS);
-  matrix->host_residues_current = false;
-  matrix->device_residues_current = true;
+  rns8::test::set_host_residues_current(*matrix, false);
+  rns8::test::set_device_residues_current(*matrix, true);
 }
 
 struct BoundedHipResidentSnapshot {
@@ -1292,12 +1293,12 @@ TEST_CASE("direct HIP finite u8 native A resident B path matches CPU") {
     CHECK(has_timing_label(hip_events, "finite_native_a_gemm_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
 
-    hip_c->host_residues_current = false;
-    hip_c->device_residues_current = true;
-    hip_c->host_byte_limbs_current = false;
-    hip_c->device_byte_limbs_current = false;
-    hip_c->host_native_current = false;
-    hip_c->device_native_current = false;
+    rns8::test::set_host_residues_current(*hip_c, false);
+    rns8::test::set_device_residues_current(*hip_c, true);
+    rns8::test::set_host_byte_limbs_current(*hip_c, false);
+    rns8::test::set_device_byte_limbs_current(*hip_c, false);
+    rns8::test::set_host_native_current(*hip_c, false);
+    rns8::test::set_device_native_current(*hip_c, false);
     hip_c->finite_modulus = item.modulus;
     REQUIRE(rns8_export_finite_u8(hip, hip_plan, item.modulus, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
 
@@ -1382,12 +1383,12 @@ TEST_CASE("direct HIP bounded i64 native prefix9 colpair path matches CPU") {
   rns8::detail::hip_direct_timing_set_enabled(false);
   CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
 
-  hip_c->host_residues_current = false;
-  hip_c->device_residues_current = true;
-  hip_c->host_byte_limbs_current = false;
-  hip_c->device_byte_limbs_current = false;
-  hip_c->host_native_current = false;
-  hip_c->device_native_current = false;
+  rns8::test::set_host_residues_current(*hip_c, false);
+  rns8::test::set_device_residues_current(*hip_c, true);
+  rns8::test::set_host_byte_limbs_current(*hip_c, false);
+  rns8::test::set_device_byte_limbs_current(*hip_c, false);
+  rns8::test::set_host_native_current(*hip_c, false);
+  rns8::test::set_device_native_current(*hip_c, false);
   REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
@@ -3878,9 +3879,9 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   REQUIRE(rns8_pack_u64(hip, wrap_a, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, wrap_b, B, n, 2) == RNS8_SUCCESS);
 
-  wrap_a->host_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*wrap_a, true);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
-  wrap_a->host_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*wrap_a, false);
 
   auto bounded_workspace_desc = unsigned_desc(m, n, k, 2, RNS8_BACKEND_HIP_DIRECT);
   rns8_plan* bounded_plan = nullptr;
@@ -3891,20 +3892,20 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   rns8_destroy_workspace(bounded_workspace);
   rns8_destroy_plan(bounded_plan);
 
-  wrap_a->host_residues_current = true;
+  rns8::test::set_host_residues_current(*wrap_a, true);
   CHECK(rns8_pack_u64(hip, wrap_a, A, k, 3) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
-  wrap_a->host_residues_current = false;
+  rns8::test::set_host_residues_current(*wrap_a, false);
 
-  wrap_b->device_residues_current = true;
+  rns8::test::set_device_residues_current(*wrap_b, true);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
-  wrap_b->device_residues_current = false;
+  rns8::test::set_device_residues_current(*wrap_b, false);
 
-  wrap_a->host_byte_limbs_current = true;
-  wrap_a->device_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*wrap_a, true);
+  rns8::test::set_device_byte_limbs_current(*wrap_a, false);
   CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
-  wrap_a->host_byte_limbs_current = false;
-  wrap_a->device_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*wrap_a, false);
+  rns8::test::set_device_byte_limbs_current(*wrap_a, true);
 
   REQUIRE(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_SUCCESS);
@@ -3976,19 +3977,19 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   REQUIRE(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_SUCCESS);
   CHECK(C[0] == rns8::detail::wrap64_byte_limb_gemm_cell(A, k, B, n, 0, 0, k));
 
-  wrap_c->host_residues_current = true;
+  rns8::test::set_host_residues_current(*wrap_c, true);
   CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
-  wrap_c->host_residues_current = false;
+  rns8::test::set_host_residues_current(*wrap_c, false);
 
-  wrap_c->host_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*wrap_c, true);
   CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
-  wrap_c->host_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*wrap_c, false);
 
-  wrap_c->host_byte_limbs_current = true;
-  wrap_c->device_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*wrap_c, true);
+  rns8::test::set_device_byte_limbs_current(*wrap_c, false);
   CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);
-  wrap_c->host_byte_limbs_current = false;
-  wrap_c->device_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*wrap_c, false);
+  rns8::test::set_device_byte_limbs_current(*wrap_c, true);
 
   rns8_matrix* residue_a = nullptr;
   rns8_matrix* residue_b = nullptr;
@@ -4321,8 +4322,8 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
     REQUIRE(a_matrix->device_residues_current);
     REQUIRE(b_matrix->device_residues_current);
 
-    a_matrix->device_residues_current = false;
-    b_matrix->device_residues_current = false;
+    rns8::test::set_device_residues_current(*a_matrix, false);
+    rns8::test::set_device_residues_current(*b_matrix, false);
     REQUIRE(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
     CHECK(a_matrix->device_residues_current);
     CHECK(b_matrix->device_residues_current);
@@ -4373,8 +4374,8 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
     REQUIRE(a_matrix->device_residues_current);
     REQUIRE(b_matrix->device_residues_current);
 
-    a_matrix->device_residues_current = false;
-    b_matrix->device_residues_current = false;
+    rns8::test::set_device_residues_current(*a_matrix, false);
+    rns8::test::set_device_residues_current(*b_matrix, false);
     REQUIRE(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
     CHECK(a_matrix->device_residues_current);
     CHECK(b_matrix->device_residues_current);
@@ -4980,8 +4981,8 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
             RNS8_SUCCESS);
-    c_matrix->host_residues_current = false;
-    c_matrix->device_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, false);
+    rns8::test::set_device_residues_current(*c_matrix, true);
 
     CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK(a_matrix->host_residues_current);
@@ -5028,8 +5029,8 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
             RNS8_SUCCESS);
-    c_matrix->host_residues_current = false;
-    c_matrix->device_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, false);
+    rns8::test::set_device_residues_current(*c_matrix, true);
 
     CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK_FALSE(a_matrix->host_residues_current);
@@ -5995,7 +5996,7 @@ TEST_CASE("direct HIP exact-wide RNS output matches CPU residues") {
   std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xaaaaaaaaaaaaaaaaull);
   REQUIRE(rns8_export_exact_wide_signed_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
-  hip_c->host_residues_current = false;
+  rns8::test::set_host_residues_current(*hip_c, false);
   REQUIRE(rns8_export_exact_wide_signed_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
   CHECK_FALSE(hip_c->host_residues_current);
@@ -6075,8 +6076,8 @@ TEST_CASE("direct HIP exact-wide GEMM rejects host-current stale device inputs")
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
             RNS8_SUCCESS);
-    c_matrix->host_residues_current = false;
-    c_matrix->device_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, false);
+    rns8::test::set_device_residues_current(*c_matrix, true);
 
     CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK(a_matrix->host_residues_current);
@@ -6120,8 +6121,8 @@ TEST_CASE("direct HIP exact-wide GEMM rejects host-current stale device inputs")
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
             RNS8_SUCCESS);
-    c_matrix->host_residues_current = false;
-    c_matrix->device_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, false);
+    rns8::test::set_device_residues_current(*c_matrix, true);
 
     CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK_FALSE(a_matrix->host_residues_current);
@@ -6913,7 +6914,7 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
   std::vector<uint64_t> hip_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xbbbbbbbbbbbbbbbbull);
   REQUIRE(rns8_export_exact_wide_unsigned_limbs(cpu, cpu_plan, cpu_c, cpu_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
-  hip_c->host_residues_current = false;
+  rns8::test::set_host_residues_current(*hip_c, false);
   REQUIRE(rns8_export_exact_wide_unsigned_limbs(hip, hip_plan, hip_c, hip_limbs.data(), limb_ld, limb_count) ==
           RNS8_SUCCESS);
   CHECK_FALSE(hip_c->host_residues_current);
@@ -7686,8 +7687,8 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   std::fill(hip_c->residues.begin(), hip_c->residues.end(), sentinel);
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
               0, hip_c->hip_residues, hip_c->residues.data(), hip_c->hip_residue_bytes) == RNS8_SUCCESS);
-  hip_c->host_residues_current = true;
-  hip_c->device_residues_current = true;
+  rns8::test::set_host_residues_current(*hip_c, true);
+  rns8::test::set_device_residues_current(*hip_c, true);
 
   REQUIRE(rns8_pack_u64(cpu, cpu_a, A.data(), k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(cpu, cpu_b, B.data(), n, 1) == RNS8_SUCCESS);

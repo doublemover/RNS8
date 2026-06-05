@@ -67,43 +67,62 @@ void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* 
   std::snprintf(buffer, size, "rocwmma_prefix_%02d_%s", prefix_index, suffix);
 }
 
-void destroy_timing_event_pair(hipEvent_t start, hipEvent_t stop) {
-  if (stop) {
-    (void)hipEventDestroy(stop);
+class timing_event_pair {
+ public:
+  timing_event_pair() = default;
+  timing_event_pair(const timing_event_pair&) = delete;
+  timing_event_pair& operator=(const timing_event_pair&) = delete;
+  ~timing_event_pair() {
+    reset();
   }
-  if (start) {
-    (void)hipEventDestroy(start);
-  }
-}
 
-bool create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop) {
-  *start = nullptr;
-  *stop = nullptr;
-  for (int attempt = 0; attempt < 8; ++attempt) {
-    hipEvent_t candidate_start = nullptr;
-    hipEvent_t candidate_stop = nullptr;
-    hipError_t status = hipEventCreate(&candidate_start);
-    if (status == hipSuccess) {
-      status = hipEventCreate(&candidate_stop);
+  bool create_and_record_start() {
+    reset();
+    for (int attempt = 0; attempt < 8; ++attempt) {
+      hipError_t status = hipEventCreate(&start_);
+      if (status == hipSuccess) {
+        status = hipEventCreate(&stop_);
+      }
+      if (status == hipSuccess) {
+        status = hipEventRecord(start_, nullptr);
+      }
+      if (status == hipSuccess) {
+        return true;
+      }
+      reset();
+      if (attempt == 0) {
+        rns8::detail::hip_direct_timing_flush_pending_events();
+      }
+      if (attempt + 1 < 8) {
+        (void)hipDeviceSynchronize();
+      }
     }
-    if (status == hipSuccess) {
-      status = hipEventRecord(candidate_start, nullptr);
+    return false;
+  }
+
+  hipEvent_t start() const {
+    return start_;
+  }
+
+  hipEvent_t stop() const {
+    return stop_;
+  }
+
+ private:
+  void reset() {
+    if (stop_) {
+      (void)hipEventDestroy(stop_);
+      stop_ = nullptr;
     }
-    if (status == hipSuccess) {
-      *start = candidate_start;
-      *stop = candidate_stop;
-      return true;
-    }
-    destroy_timing_event_pair(candidate_start, candidate_stop);
-    if (attempt == 0) {
-      rns8::detail::hip_direct_timing_flush_pending_events();
-    }
-    if (attempt + 1 < 8) {
-      (void)hipDeviceSynchronize();
+    if (start_) {
+      (void)hipEventDestroy(start_);
+      start_ = nullptr;
     }
   }
-  return false;
-}
+
+  hipEvent_t start_ = nullptr;
+  hipEvent_t stop_ = nullptr;
+};
 
 void record_synchronized_host_timing(
     const char* label,
@@ -124,9 +143,8 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  if (!create_recorded_timing_event_pair(&start, &stop)) {
+  timing_event_pair events;
+  if (!events.create_and_record_start()) {
     const hipError_t status = fn();
     if (status == hipSuccess) {
       record_synchronized_host_timing(label, alias, host_start);
@@ -135,24 +153,24 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
   }
   hipError_t status = fn();
   if (status == hipSuccess) {
-    hipError_t stop_status = hipEventRecord(stop, nullptr);
+    hipError_t stop_status = hipEventRecord(events.stop(), nullptr);
     if (stop_status != hipSuccess) {
       rns8::detail::hip_direct_timing_flush_pending_events();
       (void)hipDeviceSynchronize();
-      stop_status = hipEventRecord(stop, nullptr);
+      stop_status = hipEventRecord(events.stop(), nullptr);
     }
     if (stop_status == hipSuccess) {
-      hipError_t sync_status = hipEventSynchronize(stop);
+      hipError_t sync_status = hipEventSynchronize(events.stop());
       if (sync_status != hipSuccess) {
         (void)hipDeviceSynchronize();
-        sync_status = hipEventSynchronize(stop);
+        sync_status = hipEventSynchronize(events.stop());
       }
       if (sync_status == hipSuccess) {
         float milliseconds = 0.0f;
-        hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+        hipError_t elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
         if (elapsed_status != hipSuccess) {
           (void)hipDeviceSynchronize();
-          elapsed_status = hipEventElapsedTime(&milliseconds, start, stop);
+          elapsed_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
         }
         if (elapsed_status == hipSuccess && milliseconds >= 0.0f) {
           const double microseconds = static_cast<double>(milliseconds) * 1000.0;
@@ -160,14 +178,12 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
           if (alias && alias[0] != '\0') {
             rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
           }
-          destroy_timing_event_pair(start, stop);
           return status;
         }
       }
     }
     record_synchronized_host_timing(label, alias, host_start);
   }
-  destroy_timing_event_pair(start, stop);
   return status;
 }
 

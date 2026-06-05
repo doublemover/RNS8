@@ -64,31 +64,43 @@ hygiene reporter, a compact golden regression runner, and durable documentation
 claim validation for target-readiness and speedup wording.
 
 Cleanup adoption has progressed beyond the guardrail slice: benchmark scenario
-families now live in data under `benchmarks/scenarios/` with explicit
-review-mode and promotion-eligibility contracts backed by the metadata
-registry. Benchmark schema validation has a compatibility wrapper over a
-package entrypoint, with GPU event, execution-mode, and contract-metadata
-validators plus helper/output-policy and backend metadata split into focused
-modules and CTest-backed self-tests. Shared benchmark support and semantic-mode
-helpers have been split out of
-`benchmarks/rns8_bench.cpp`; core output setup, benchmark exact-wide pack
-materialization, Direct-HIP output stamping, and native-to-RNS bridge
-currentness transitions are helper-routed; HIP event/stream/pinned-staging/
-temporary-device-buffer ownership uses internal RAII wrappers; Direct-HIP
-timing support is split into `src/backend_hip_direct/hip_timing.cpp`; and
-portable non-Windows CPU ASan/UBSan presets are available while Windows MSVC
-ASan stays as `CMakeUserPresets.json` guidance for hosts with the optional
-runtime installed. The hygiene report now filters intentional helper/RAII
-implementation sites so remaining findings point at scattered cleanup debt.
+families live in data under `benchmarks/scenarios/` with explicit review-mode
+and promotion-eligibility contracts backed by the metadata registry. Benchmark
+schema validation has a compatibility wrapper over a package entrypoint, with
+GPU event, semantic-contract, reuse-timing, execution-mode,
+contract-metadata, helper/output-policy, and backend metadata validators split
+into focused modules and CTest-backed self-tests. Shared benchmark support,
+argument parsing, backend selection, grouped-dispatch descriptor contracts, and
+large semantic lane bodies have been moved behind internal helpers or include
+units while preserving `rns8-bench` flags and schema output.
 
-Remaining cleanup work is intentionally incremental: deeper benchmark semantic
-lane splitting, residual schema package decomposition for semantic contract
-validators, workspace identity/schedule/resource decomposition, broader
-Direct-HIP source splitting, narrower currentness helpers for failure-path and
-test-owned mutations, grouped descriptor enforcement, and export/reconstruction
-planning. These changes must preserve public ABI, reviewed cache behavior,
-existing benchmark CLI compatibility, and Windows `gfx1100` validation
-boundaries.
+Core currentness transitions for output setup, benchmark exact-wide pack
+materialization, Direct-HIP output stamping, native-to-RNS bridge paths, and
+test-owned stale/currentness mutations are helper-routed. Workspace identity,
+schedule metadata, backend metadata, accelerator scratch, and prepack/resource
+teardown now flow through named internal helpers while keeping the public
+`rns8_workspace*` handle unchanged. Export/reconstruction paths now create an
+internal plan that records output layout, limb count, status policy, D2H
+policy, selected export kernel, and tiled metadata needs before touching the
+documented mutable export cache.
+
+HIP event/stream/pinned-staging/temporary-device-buffer ownership uses internal
+RAII wrappers, including CK/rocWMMA event timing helpers. Direct-HIP host code
+is split into resource, pack, GEMM, and export include units behind the same
+translation unit; the Direct-HIP `.hip` source is split into common device
+helpers plus pack, GEMM, and export kernel include units while preserving the
+existing compiled object and launch wrappers. Hardening now includes the
+portable non-Windows CPU ASan/UBSan preset, a Windows clang-cl CPU-only
+ASan/libFuzzer preset, three deterministic fuzz harnesses, and a non-GUI
+`cdb.exe` WinDbg triage helper. The hygiene report filters intentional
+helper/RAII implementation sites so remaining findings point at real drift.
+
+Remaining cleanup is now mostly validation and follow-through: run the full
+final gate on the current host, fix any sanitizer/fuzzer/HIP failures it
+exposes, and keep future optimization lanes using the registry, split schema
+modules, currentness helpers, descriptor contracts, and export plan surface.
+These changes preserve public ABI, reviewed cache behavior, existing benchmark
+CLI compatibility, and Windows `gfx1100` validation boundaries.
 
 ## Not Yet Implemented
 

@@ -26,6 +26,26 @@ class SuiteCase:
 
 DEFAULT_CASES = [
     SuiteCase("metadata_registry", "metadata_drift", [sys.executable, "tools/test_metadata_registry.py"]),
+    SuiteCase(
+        "benchmark_schema_semantic_contracts",
+        "metadata_drift",
+        [sys.executable, "tools/test_benchmark_schema_semantic_contracts.py"],
+    ),
+    SuiteCase(
+        "benchmark_schema_reuse_timing",
+        "metadata_drift",
+        [sys.executable, "tools/test_benchmark_schema_reuse_timing.py"],
+    ),
+    SuiteCase(
+        "benchmark_schema_gpu_events",
+        "metadata_drift",
+        [sys.executable, "tools/test_benchmark_schema_gpu_events.py"],
+    ),
+    SuiteCase(
+        "benchmark_schema_output_policies",
+        "metadata_drift",
+        [sys.executable, "tools/test_benchmark_schema_output_policies.py"],
+    ),
     SuiteCase("benchmark_schema", "metadata_drift", [sys.executable, "tools/test_benchmark_schema.py"]),
     SuiteCase("benchmark_sweep", "scenario_drift", [sys.executable, "tools/test_benchmark_sweep.py"]),
     SuiteCase("result_compare", "correctness_report", [sys.executable, "tools/test_result_compare.py"]),

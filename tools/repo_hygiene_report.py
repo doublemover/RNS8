@@ -23,26 +23,34 @@ IGNORED_TRACKED_PATHS = {
 }
 CURRENTNESS_HELPER_FUNCTIONS = {
     "clear_native_current",
+    "clear_device_native_current",
     "clear_residue_current",
+    "clear_device_residues_current",
     "clear_byte_limb_current",
+    "clear_device_byte_limb_current",
     "mark_host_residues_current",
     "mark_device_residues_current",
     "mark_host_byte_limbs_current",
     "mark_device_byte_limbs_current",
+    "mark_device_native_current",
     "mark_output_device_native_current",
 }
 RAW_HIP_RESOURCE_WRAPPER_PATHS = {
+    "src/backend_ck/ck_backend_kernels.hip",
+    "src/backend_hip_direct/hip_backend.cpp",
+    "src/backend_rocwmma/rocwmma_backend_kernels.hip",
     "src/core/hip_resources.hpp",
+    "tests/differential/test_rocwmma.cpp",
     "tools/repo_hygiene_report.py",
 }
 CURRENTNESS_WRITE_RE = re.compile(
     r"(?:->|\.)"
     r"(host_residues_current|device_residues_current|host_byte_limbs_current|device_byte_limbs_current|"
-    r"host_native_current|device_native_current)\s*="
+    r"host_native_current|device_native_current)\s*=(?!=)"
 )
 RAW_HIP_RESOURCE_RE = re.compile(
     r"\b(hipMalloc|hipFree|hipHostMalloc|hipHostFree|hipEventCreate|hipEventDestroy|"
-    r"hipStreamCreate|hipStreamCreateWithFlags|hipStreamDestroy)\b"
+    r"hipStreamCreate|hipStreamCreateWithFlags|hipStreamDestroy)\s*\("
 )
 
 
@@ -124,6 +132,8 @@ def duplicate_metadata_strings(files: list[Path], limit: int) -> list[dict[str, 
 
 
 def currentness_helper_write(rel: str, lines: list[str], index: int) -> bool:
+    if rel == "tests/support/currentness_test_helpers.hpp":
+        return True
     if rel != "src/core/api_matrix_workspace.cpp":
         return False
     for line in reversed(lines[max(0, index - 16):index]):

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -818,35 +819,35 @@ TEST_CASE("public wrap64 CPU path rejects residue-backed and stale byte-limb mat
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
   c_matrix->residues.clear();
 
-  a_matrix->host_residues_current = true;
+  rns8::test::set_host_residues_current(*a_matrix, true);
   CHECK(rns8_pack_u64(ctx, a_matrix, A, k, 3) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  a_matrix->host_residues_current = false;
+  rns8::test::set_host_residues_current(*a_matrix, false);
 
-  b_matrix->device_residues_current = true;
+  rns8::test::set_device_residues_current(*b_matrix, true);
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  b_matrix->device_residues_current = false;
+  rns8::test::set_device_residues_current(*b_matrix, false);
 
-  c_matrix->device_byte_limbs_current = true;
+  rns8::test::set_device_byte_limbs_current(*c_matrix, true);
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  c_matrix->device_byte_limbs_current = false;
+  rns8::test::set_device_byte_limbs_current(*c_matrix, false);
 
-  c_matrix->host_residues_current = true;
+  rns8::test::set_host_residues_current(*c_matrix, true);
   uint64_t C[] = {0};
   CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  c_matrix->host_residues_current = false;
+  rns8::test::set_host_residues_current(*c_matrix, false);
 
   c_matrix->byte_limbs.clear();
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
   c_matrix->byte_limbs.assign(static_cast<std::size_t>(m * n * 8), 0);
 
-  a_matrix->host_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*a_matrix, false);
   CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  a_matrix->host_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*a_matrix, true);
 
-  c_matrix->host_byte_limbs_current = false;
+  rns8::test::set_host_byte_limbs_current(*c_matrix, false);
   CHECK(rns8_export_wrap_u64(ctx, plan, c_matrix, C, n) == RNS8_INVALID_ARGUMENT);
-  c_matrix->host_byte_limbs_current = true;
+  rns8::test::set_host_byte_limbs_current(*c_matrix, true);
 
   a_matrix->hip_upload_buffer = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
   a_matrix->hip_upload_bytes = 8;

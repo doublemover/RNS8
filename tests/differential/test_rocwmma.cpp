@@ -10,6 +10,7 @@
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/internal.hpp"
+#include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
@@ -570,10 +571,10 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(b_cache == nullptr);
   CHECK(rns8_create_prepack_cache(rocwmma, rocwmma_plan, rocwmma_a, RNS8_OPERAND_A, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);
-  rocwmma_b->device_residues_current = false;
+  rns8::test::set_device_residues_current(*rocwmma_b, false);
   CHECK(rns8_create_prepack_cache(rocwmma, rocwmma_plan, rocwmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_INVALID_ARGUMENT);
   CHECK(b_cache == nullptr);
-  rocwmma_b->device_residues_current = true;
+  rns8::test::set_device_residues_current(*rocwmma_b, true);
   REQUIRE(rns8_create_prepack_cache(rocwmma, rocwmma_plan, rocwmma_b, RNS8_OPERAND_B, &b_cache) == RNS8_SUCCESS);
 
   rns8_prepack_cache_info cache_info{};

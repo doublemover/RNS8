@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -130,10 +131,10 @@ void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::mul
       }
     }
   }
-  matrix->host_residues_current = true;
-  matrix->device_residues_current = false;
-  matrix->host_byte_limbs_current = false;
-  matrix->device_byte_limbs_current = false;
+  rns8::test::set_host_residues_current(*matrix, true);
+  rns8::test::set_device_residues_current(*matrix, false);
+  rns8::test::set_host_byte_limbs_current(*matrix, false);
+  rns8::test::set_device_byte_limbs_current(*matrix, false);
 }
 
 }  // namespace
@@ -718,11 +719,11 @@ TEST_CASE("exact-wide CPU export rejects stale or non-RNS matrix state") {
     fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(-1)});
 
     uint64_t limbs[2] = {0x5151515151515151ull, 0x5252525252525252ull};
-    c_matrix->host_residues_current = false;
+    rns8::test::set_host_residues_current(*c_matrix, false);
     CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x5151515151515151ull);
     CHECK(limbs[1] == 0x5252525252525252ull);
-    c_matrix->host_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, true);
 
     c_matrix->byte_limbs.push_back(0);
     CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
@@ -744,17 +745,17 @@ TEST_CASE("exact-wide CPU export rejects stale or non-RNS matrix state") {
     fill_exact_residue_matrix(c_matrix, {boost::multiprecision::cpp_int(1)});
 
     uint64_t limbs[2] = {0x6161616161616161ull, 0x6262626262626262ull};
-    c_matrix->host_residues_current = false;
+    rns8::test::set_host_residues_current(*c_matrix, false);
     CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x6161616161616161ull);
     CHECK(limbs[1] == 0x6262626262626262ull);
-    c_matrix->host_residues_current = true;
+    rns8::test::set_host_residues_current(*c_matrix, true);
 
-    c_matrix->host_byte_limbs_current = true;
+    rns8::test::set_host_byte_limbs_current(*c_matrix, true);
     CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x6161616161616161ull);
     CHECK(limbs[1] == 0x6262626262626262ull);
-    c_matrix->host_byte_limbs_current = false;
+    rns8::test::set_host_byte_limbs_current(*c_matrix, false);
 
     rns8_destroy_matrix(c_matrix);
     rns8_destroy_plan(plan);

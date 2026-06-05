@@ -206,13 +206,25 @@ void clear_native_current(rns8_matrix& matrix) {
   matrix.device_native_current = false;
 }
 
+void clear_device_native_current(rns8_matrix& matrix) {
+  matrix.device_native_current = false;
+}
+
 void clear_residue_current(rns8_matrix& matrix) {
   matrix.host_residues_current = false;
   matrix.device_residues_current = false;
 }
 
+void clear_device_residues_current(rns8_matrix& matrix) {
+  matrix.device_residues_current = false;
+}
+
 void clear_byte_limb_current(rns8_matrix& matrix) {
   matrix.host_byte_limbs_current = false;
+  matrix.device_byte_limbs_current = false;
+}
+
+void clear_device_byte_limb_current(rns8_matrix& matrix) {
   matrix.device_byte_limbs_current = false;
 }
 
@@ -246,6 +258,11 @@ void mark_device_byte_limbs_current(rns8_matrix& matrix) {
   matrix.host_byte_limbs_current = false;
   matrix.device_byte_limbs_current = true;
   clear_native_current(matrix);
+}
+
+void mark_device_native_current(rns8_matrix& matrix) {
+  matrix.host_native_current = false;
+  matrix.device_native_current = true;
 }
 
 void mark_output_host_residues_current(rns8_matrix& matrix) {
@@ -938,6 +955,193 @@ bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan
          cache.device_data != nullptr && cache.device_bytes == total_cache_bytes &&
          cache.operand_pack_bytes == b_pack_bytes;
 }
+
+void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context& ctx, const rns8_plan& plan) {
+  workspace.semantics = plan.desc.semantics;
+  workspace.bound_kind = plan.desc.bound_kind;
+  workspace.m = plan.desc.m;
+  workspace.n = plan.desc.n;
+  workspace.k = plan.desc.k;
+  workspace.bound = plan.desc.bound;
+  workspace.finite_modulus = plan.desc.finite_modulus;
+  workspace.tile_m = plan.desc.tile_m;
+  workspace.tile_n = plan.desc.tile_n;
+  workspace.prefix = plan.prefix;
+  workspace.backend = plan.backend;
+  workspace.hip_device_id = hip_device_backend(plan.backend) ? ctx.device_id : -1;
+}
+
+void initialize_workspace_schedule_contract(rns8_workspace& workspace, const rns8_plan& plan) {
+  workspace.schedule_tile_rows = plan.schedule_tile_rows;
+  workspace.schedule_tile_cols = plan.schedule_tile_cols;
+  workspace.schedule_tile_count = plan.schedule_tile_count;
+  workspace.schedule_min_required_prefix = plan.schedule_min_required_prefix;
+  workspace.schedule_max_required_prefix = plan.schedule_max_required_prefix;
+  workspace.schedule_min_selected_prefix = plan.schedule_min_selected_prefix;
+  workspace.schedule_max_selected_prefix = plan.schedule_max_selected_prefix;
+  workspace.schedule_prefix_group_count = plan.schedule_prefix_group_count;
+  workspace.schedule_range_bit_length = plan.schedule_range_bit_length;
+  workspace.schedule_adaptive_prefix_active = plan.schedule_adaptive_prefix_active;
+  workspace.schedule_adaptive_skip_active = plan.schedule_adaptive_skip_active;
+  workspace.schedule_flags = plan.schedule_flags;
+  workspace.zero_a_row_count = plan.zero_a_row_count;
+  workspace.zero_b_col_count = plan.zero_b_col_count;
+  workspace.zero_row_col_product_count = plan.zero_row_col_product_count;
+  workspace.schedule_fingerprint = plan_workspace_fingerprint(plan);
+}
+
+void initialize_workspace_backend_metadata(rns8_workspace& workspace, const rns8_plan& plan) {
+  workspace.backend_workspace_required_bytes = plan.backend_workspace_required_bytes;
+  workspace.backend_selected_kernel = plan.backend_selected_kernel;
+  workspace.backend_library = plan.backend_library;
+  workspace.backend_library_version = plan.backend_library_version;
+  workspace.backend_capability_status = plan.backend_capability_status;
+  workspace.backend_epilogue_mode = plan.backend_epilogue_mode;
+  workspace.backend_workspace_mode = plan.backend_workspace_mode;
+  workspace.backend_isa_evidence = plan.backend_isa_evidence;
+  workspace.backend_target_id = plan.backend_target_id;
+  workspace.backend_autotune_key = plan.backend_autotune_key;
+  workspace.backend_performance_validated = plan.backend_performance_validated;
+}
+
+bool workspace_identity_matches_plan(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_workspace& workspace) {
+  if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
+    return false;
+  }
+  if (workspace.semantics != plan.desc.semantics || workspace.bound_kind != plan.desc.bound_kind) {
+    return false;
+  }
+  if (workspace.m != plan.desc.m || workspace.n != plan.desc.n || workspace.k != plan.desc.k ||
+      workspace.prefix != plan.prefix) {
+    return false;
+  }
+  if (hip_device_backend(plan.backend) && workspace.hip_device_id != ctx.device_id) {
+    return false;
+  }
+  return true;
+}
+
+bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+  return workspace.bound == plan.desc.bound &&
+         workspace.finite_modulus == plan.desc.finite_modulus &&
+         workspace.tile_m == plan.desc.tile_m &&
+         workspace.tile_n == plan.desc.tile_n &&
+         workspace.schedule_tile_rows == plan.schedule_tile_rows &&
+         workspace.schedule_tile_cols == plan.schedule_tile_cols &&
+         workspace.schedule_tile_count == plan.schedule_tile_count &&
+         workspace.schedule_min_required_prefix == plan.schedule_min_required_prefix &&
+         workspace.schedule_max_required_prefix == plan.schedule_max_required_prefix &&
+         workspace.schedule_min_selected_prefix == plan.schedule_min_selected_prefix &&
+         workspace.schedule_max_selected_prefix == plan.schedule_max_selected_prefix &&
+         workspace.schedule_prefix_group_count == plan.schedule_prefix_group_count &&
+         workspace.schedule_range_bit_length == plan.schedule_range_bit_length &&
+         workspace.schedule_adaptive_prefix_active == plan.schedule_adaptive_prefix_active &&
+         workspace.schedule_adaptive_skip_active == plan.schedule_adaptive_skip_active &&
+         workspace.schedule_flags == plan.schedule_flags &&
+         workspace.zero_a_row_count == plan.zero_a_row_count &&
+         workspace.zero_b_col_count == plan.zero_b_col_count &&
+         workspace.zero_row_col_product_count == plan.zero_row_col_product_count &&
+         workspace.schedule_fingerprint == plan_workspace_fingerprint(plan);
+}
+
+bool workspace_backend_metadata_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+  return workspace.backend_workspace_required_bytes == plan.backend_workspace_required_bytes &&
+         workspace.backend_selected_kernel == plan.backend_selected_kernel &&
+         workspace.backend_library == plan.backend_library &&
+         workspace.backend_library_version == plan.backend_library_version &&
+         workspace.backend_capability_status == plan.backend_capability_status &&
+         workspace.backend_epilogue_mode == plan.backend_epilogue_mode &&
+         workspace.backend_workspace_mode == plan.backend_workspace_mode &&
+         workspace.backend_isa_evidence == plan.backend_isa_evidence &&
+         workspace.backend_target_id == plan.backend_target_id &&
+         workspace.backend_autotune_key == plan.backend_autotune_key &&
+         workspace.backend_performance_validated == plan.backend_performance_validated;
+}
+
+template <typename T>
+rns8_status release_workspace_device_buffer(int device_id, T*& ptr, std::size_t& bytes) {
+  if (!ptr) {
+    bytes = 0;
+    return RNS8_SUCCESS;
+  }
+  const rns8_status status = rns8::detail::hip_direct_free(device_id, ptr);
+  ptr = nullptr;
+  bytes = 0;
+  return status;
+}
+
+void reset_workspace_active_schedule_contract(rns8_workspace& workspace) {
+  workspace.hip_tile_schedule_active_prefix_count = 0;
+  for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
+    workspace.hip_tile_schedule_active_offsets[p] = 0;
+    workspace.hip_tile_schedule_active_counts[p] = 0;
+  }
+}
+
+void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
+  workspace.hipblaslt_a_prepack_current = false;
+  workspace.hipblaslt_a_prepack_source_version = 0;
+  workspace.hipblaslt_a_prepack_m = 0;
+  workspace.hipblaslt_a_prepack_k = 0;
+  workspace.hipblaslt_a_prepack_lda = 0;
+  workspace.hipblaslt_a_prepack_prefix = 0;
+  workspace.hipblaslt_a_prepack_device_id = -1;
+}
+
+void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
+  workspace.hipblaslt_b_prepack_current = false;
+  workspace.hipblaslt_b_prepack_source_version = 0;
+  workspace.hipblaslt_b_prepack_k = 0;
+  workspace.hipblaslt_b_prepack_n = 0;
+  workspace.hipblaslt_b_prepack_ldb = 0;
+  workspace.hipblaslt_b_prepack_prefix = 0;
+  workspace.hipblaslt_b_prepack_device_id = -1;
+}
+
+rns8_status release_workspace_resources(rns8_workspace& workspace) {
+  rns8_status status = RNS8_SUCCESS;
+  const auto keep_first_error = [&](rns8_status free_status) {
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+  };
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.hip_tile_schedule, workspace.hip_tile_schedule_bytes));
+  workspace.hip_tile_schedule_count = 0;
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id,
+      workspace.hip_tile_schedule_active_entries,
+      workspace.hip_tile_schedule_active_entries_bytes));
+  workspace.hip_tile_schedule_active_entries_count = 0;
+  reset_workspace_active_schedule_contract(workspace);
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.hip_zero_a_rows, workspace.hip_zero_a_rows_bytes));
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hipblaslt_a_prepack_device_id,
+      workspace.hipblaslt_a_prepack_cache,
+      workspace.hipblaslt_a_prepack_cache_bytes));
+  reset_workspace_hipblaslt_a_prepack_contract(workspace);
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hipblaslt_b_prepack_device_id,
+      workspace.hipblaslt_b_prepack_cache,
+      workspace.hipblaslt_b_prepack_cache_bytes));
+  reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.accelerator_auxiliary, workspace.accelerator_auxiliary_bytes));
+  keep_first_error(release_workspace_device_buffer(
+      workspace.hip_device_id, workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
+  return status;
+}
+
 rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
@@ -955,35 +1159,8 @@ rns8_status validate_plan_context_workspace(
       workspace.prefix != plan.prefix) {
     return RNS8_WORKSPACE_TOO_SMALL;
   }
-  if (workspace.bound != plan.desc.bound || workspace.finite_modulus != plan.desc.finite_modulus ||
-      workspace.tile_m != plan.desc.tile_m || workspace.tile_n != plan.desc.tile_n ||
-      workspace.schedule_tile_rows != plan.schedule_tile_rows ||
-      workspace.schedule_tile_cols != plan.schedule_tile_cols ||
-      workspace.schedule_tile_count != plan.schedule_tile_count ||
-      workspace.schedule_min_required_prefix != plan.schedule_min_required_prefix ||
-      workspace.schedule_max_required_prefix != plan.schedule_max_required_prefix ||
-      workspace.schedule_min_selected_prefix != plan.schedule_min_selected_prefix ||
-      workspace.schedule_max_selected_prefix != plan.schedule_max_selected_prefix ||
-      workspace.schedule_prefix_group_count != plan.schedule_prefix_group_count ||
-      workspace.schedule_range_bit_length != plan.schedule_range_bit_length ||
-      workspace.schedule_adaptive_prefix_active != plan.schedule_adaptive_prefix_active ||
-      workspace.schedule_adaptive_skip_active != plan.schedule_adaptive_skip_active ||
-      workspace.schedule_flags != plan.schedule_flags ||
-      workspace.zero_a_row_count != plan.zero_a_row_count ||
-      workspace.zero_b_col_count != plan.zero_b_col_count ||
-      workspace.zero_row_col_product_count != plan.zero_row_col_product_count ||
-      workspace.schedule_fingerprint != plan_workspace_fingerprint(plan) ||
-      workspace.backend_workspace_required_bytes != plan.backend_workspace_required_bytes ||
-      workspace.backend_selected_kernel != plan.backend_selected_kernel ||
-      workspace.backend_library != plan.backend_library ||
-      workspace.backend_library_version != plan.backend_library_version ||
-      workspace.backend_capability_status != plan.backend_capability_status ||
-      workspace.backend_epilogue_mode != plan.backend_epilogue_mode ||
-      workspace.backend_workspace_mode != plan.backend_workspace_mode ||
-      workspace.backend_isa_evidence != plan.backend_isa_evidence ||
-      workspace.backend_target_id != plan.backend_target_id ||
-      workspace.backend_autotune_key != plan.backend_autotune_key ||
-      workspace.backend_performance_validated != plan.backend_performance_validated) {
+  if (!workspace_schedule_contract_matches_plan(plan, workspace) ||
+      !workspace_backend_metadata_matches_plan(plan, workspace)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (hip_device_backend(plan.backend) && workspace.hip_device_id != ctx.device_id) {
@@ -1174,10 +1351,9 @@ rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
   matrix.hip_export_schedule_fingerprint = 0;
   matrix.hip_export_tile_max_elements = 0;
   matrix.finite_modulus = 0;
-  matrix.device_residues_current = false;
-  matrix.device_byte_limbs_current = false;
-  matrix.host_native_current = false;
-  matrix.device_native_current = false;
+  clear_device_residues_current(matrix);
+  clear_device_byte_limb_current(matrix);
+  clear_native_current(matrix);
   return status;
 }
 
@@ -1291,11 +1467,10 @@ rns8_status upload_native_i64(rns8_context& ctx, rns8_matrix& matrix, const int6
   status = rns8::detail::hip_direct_copy_host_to_device(
       ctx.device_id, matrix.hip_native_i64, staged.data(), staged.size() * sizeof(int64_t));
   if (status != RNS8_SUCCESS) {
-    matrix.device_native_current = false;
+    clear_device_native_current(matrix);
     return status;
   }
-  matrix.host_native_current = false;
-  matrix.device_native_current = true;
+  mark_device_native_current(matrix);
   return RNS8_SUCCESS;
 }
 
@@ -1316,11 +1491,10 @@ rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint
   status = rns8::detail::hip_direct_copy_host_to_device(
       ctx.device_id, matrix.hip_native_u64, staged.data(), staged.size() * sizeof(uint64_t));
   if (status != RNS8_SUCCESS) {
-    matrix.device_native_current = false;
+    clear_device_native_current(matrix);
     return status;
   }
-  matrix.host_native_current = false;
-  matrix.device_native_current = true;
+  mark_device_native_current(matrix);
   return RNS8_SUCCESS;
 }
 
@@ -1372,7 +1546,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
         storage_prefix);
   }
   if (status != RNS8_SUCCESS) {
-    matrix.device_residues_current = false;
+    clear_device_residues_current(matrix);
     return status;
   }
   mark_device_residues_current(matrix);
@@ -1449,7 +1623,7 @@ rns8_status materialize_native_matrix_as_direct_rns(
           storage_prefix);
     }
     if (status != RNS8_SUCCESS) {
-      target->device_residues_current = false;
+      api::clear_device_residues_current(*target);
       return status;
     }
     api::mark_output_device_residues_current(*target);
@@ -1500,45 +1674,9 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     if (!workspace) {
       return RNS8_INTERNAL_ERROR;
     }
-    workspace->semantics = plan->desc.semantics;
-    workspace->bound_kind = plan->desc.bound_kind;
-    workspace->m = plan->desc.m;
-    workspace->n = plan->desc.n;
-    workspace->k = plan->desc.k;
-    workspace->bound = plan->desc.bound;
-    workspace->finite_modulus = plan->desc.finite_modulus;
-    workspace->tile_m = plan->desc.tile_m;
-    workspace->tile_n = plan->desc.tile_n;
-    workspace->prefix = plan->prefix;
-    workspace->schedule_tile_rows = plan->schedule_tile_rows;
-    workspace->schedule_tile_cols = plan->schedule_tile_cols;
-    workspace->schedule_tile_count = plan->schedule_tile_count;
-    workspace->schedule_min_required_prefix = plan->schedule_min_required_prefix;
-    workspace->schedule_max_required_prefix = plan->schedule_max_required_prefix;
-    workspace->schedule_min_selected_prefix = plan->schedule_min_selected_prefix;
-    workspace->schedule_max_selected_prefix = plan->schedule_max_selected_prefix;
-    workspace->schedule_prefix_group_count = plan->schedule_prefix_group_count;
-    workspace->schedule_range_bit_length = plan->schedule_range_bit_length;
-    workspace->schedule_adaptive_prefix_active = plan->schedule_adaptive_prefix_active;
-    workspace->schedule_adaptive_skip_active = plan->schedule_adaptive_skip_active;
-    workspace->schedule_flags = plan->schedule_flags;
-    workspace->zero_a_row_count = plan->zero_a_row_count;
-    workspace->zero_b_col_count = plan->zero_b_col_count;
-    workspace->zero_row_col_product_count = plan->zero_row_col_product_count;
-    workspace->schedule_fingerprint = plan_workspace_fingerprint(*plan);
-    workspace->backend_workspace_required_bytes = plan->backend_workspace_required_bytes;
-    workspace->backend_selected_kernel = plan->backend_selected_kernel;
-    workspace->backend_library = plan->backend_library;
-    workspace->backend_library_version = plan->backend_library_version;
-    workspace->backend_capability_status = plan->backend_capability_status;
-    workspace->backend_epilogue_mode = plan->backend_epilogue_mode;
-    workspace->backend_workspace_mode = plan->backend_workspace_mode;
-    workspace->backend_isa_evidence = plan->backend_isa_evidence;
-    workspace->backend_target_id = plan->backend_target_id;
-    workspace->backend_autotune_key = plan->backend_autotune_key;
-    workspace->backend_performance_validated = plan->backend_performance_validated;
-    workspace->backend = plan->backend;
-    workspace->hip_device_id = hip_device_backend(plan->backend) ? ctx->device_id : -1;
+    initialize_workspace_identity(*workspace, *ctx, *plan);
+    initialize_workspace_schedule_contract(*workspace, *plan);
+    initialize_workspace_backend_metadata(*workspace, *plan);
     const auto free_workspace_zero_masks = [&]() {
       if (workspace->hip_zero_b_cols) {
         (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hip_zero_b_cols);
@@ -1710,118 +1848,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
   if (workspace) {
-    rns8_status status = RNS8_SUCCESS;
-    if (workspace->hip_tile_schedule) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_tile_schedule);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hip_tile_schedule = nullptr;
-      workspace->hip_tile_schedule_bytes = 0;
-      workspace->hip_tile_schedule_count = 0;
-    }
-    if (workspace->hip_tile_schedule_active_entries) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_tile_schedule_active_entries);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hip_tile_schedule_active_entries = nullptr;
-      workspace->hip_tile_schedule_active_entries_bytes = 0;
-      workspace->hip_tile_schedule_active_entries_count = 0;
-      workspace->hip_tile_schedule_active_prefix_count = 0;
-      for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
-        workspace->hip_tile_schedule_active_offsets[p] = 0;
-        workspace->hip_tile_schedule_active_counts[p] = 0;
-      }
-    }
-    if (workspace->hip_zero_a_rows) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_zero_a_rows);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hip_zero_a_rows = nullptr;
-      workspace->hip_zero_a_rows_bytes = 0;
-    }
-    if (workspace->hip_zero_b_cols) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hip_zero_b_cols);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hip_zero_b_cols = nullptr;
-      workspace->hip_zero_b_cols_bytes = 0;
-    }
-    if (workspace->hipblaslt_int32_scratch) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hipblaslt_int32_scratch);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hipblaslt_int32_scratch = nullptr;
-      workspace->hipblaslt_int32_scratch_bytes = 0;
-    }
-    if (workspace->hipblaslt_workspace) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->hipblaslt_workspace);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hipblaslt_workspace = nullptr;
-      workspace->hipblaslt_workspace_bytes = 0;
-    }
-    if (workspace->hipblaslt_a_prepack_cache) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hipblaslt_a_prepack_device_id, workspace->hipblaslt_a_prepack_cache);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hipblaslt_a_prepack_cache = nullptr;
-      workspace->hipblaslt_a_prepack_cache_bytes = 0;
-      workspace->hipblaslt_a_prepack_current = false;
-      workspace->hipblaslt_a_prepack_source_version = 0;
-      workspace->hipblaslt_a_prepack_m = 0;
-      workspace->hipblaslt_a_prepack_k = 0;
-      workspace->hipblaslt_a_prepack_lda = 0;
-      workspace->hipblaslt_a_prepack_prefix = 0;
-      workspace->hipblaslt_a_prepack_device_id = -1;
-    }
-    if (workspace->hipblaslt_b_prepack_cache) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hipblaslt_b_prepack_device_id, workspace->hipblaslt_b_prepack_cache);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->hipblaslt_b_prepack_cache = nullptr;
-      workspace->hipblaslt_b_prepack_cache_bytes = 0;
-      workspace->hipblaslt_b_prepack_current = false;
-      workspace->hipblaslt_b_prepack_source_version = 0;
-      workspace->hipblaslt_b_prepack_k = 0;
-      workspace->hipblaslt_b_prepack_n = 0;
-      workspace->hipblaslt_b_prepack_ldb = 0;
-      workspace->hipblaslt_b_prepack_prefix = 0;
-      workspace->hipblaslt_b_prepack_device_id = -1;
-    }
-    if (workspace->accelerator_auxiliary) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->accelerator_auxiliary);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->accelerator_auxiliary = nullptr;
-      workspace->accelerator_auxiliary_bytes = 0;
-    }
-    if (workspace->accelerator_workspace) {
-      const rns8_status free_status =
-          rns8::detail::hip_direct_free(workspace->hip_device_id, workspace->accelerator_workspace);
-      if (status == RNS8_SUCCESS) {
-        status = free_status;
-      }
-      workspace->accelerator_workspace = nullptr;
-      workspace->accelerator_workspace_bytes = 0;
-    }
+    const rns8_status status = release_workspace_resources(*workspace);
     delete workspace;
     return status;
   }

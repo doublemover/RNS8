@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -1054,7 +1055,7 @@ TEST_CASE("persistent bounded CPU matrices preserve source versions and currentn
   CHECK(C[1] == 52);
   CHECK(C[2] == 26);
   CHECK(C[3] == 31);
-  c_matrix->host_residues_current = false;
+  rns8::test::set_host_residues_current(*c_matrix, false);
   CHECK(rns8_export_u64(ctx, plan, c_matrix, C, 2) == RNS8_INVALID_ARGUMENT);
 
   rns8_destroy_matrix(c_matrix);

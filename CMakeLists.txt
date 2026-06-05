@@ -16,6 +16,9 @@ option(RNS8_BUILD_TESTS "Build RNS8 correctness tests" ON)
 option(RNS8_BUILD_TOOLS "Build RNS8 command-line tools" ON)
 option(RNS8_BUILD_EXAMPLES "Build CPU-only public API examples" ON)
 option(RNS8_BUILD_BENCHMARKS "Build RNS8 benchmark shell" ON)
+option(RNS8_BUILD_SHARED "Build the public RNS8 shared library" ON)
+option(RNS8_BUILD_FUZZERS "Build CPU-only LLVM libFuzzer hardening harnesses" OFF)
+option(RNS8_ENABLE_WINDOWS_CLANG_ASAN "Link Windows clang-cl CPU targets against LLVM AddressSanitizer" OFF)
 option(RNS8_ENABLE_GMP "Require GMP and build the optional exact-reference link smoke" OFF)
 option(RNS8_ENABLE_FLINT "Require FLINT and build the optional exact-reference link smoke" OFF)
 option(RNS8_PROBE_ACCELERATORS "Run CMake evidence-only discovery for optional accelerator components" OFF)
@@ -83,6 +86,50 @@ endif()
 if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
   find_package(RNS8ThirdParty REQUIRED)
 endif()
+
+if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+  if(NOT WIN32 OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "RNS8_ENABLE_WINDOWS_CLANG_ASAN requires clang-cl on Windows")
+  endif()
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" --print-resource-dir
+    OUTPUT_VARIABLE RNS8_CLANG_RESOURCE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  set(RNS8_CLANG_RUNTIME_DIR "${RNS8_CLANG_RESOURCE_DIR}/lib/windows")
+  set(RNS8_CLANG_ASAN_DLL "${RNS8_CLANG_RUNTIME_DIR}/clang_rt.asan_dynamic-x86_64.dll")
+  set(RNS8_CLANG_ASAN_LIB "${RNS8_CLANG_RUNTIME_DIR}/clang_rt.asan_dynamic-x86_64.lib")
+  set(RNS8_CLANG_ASAN_THUNK_LIB "${RNS8_CLANG_RUNTIME_DIR}/clang_rt.asan_dynamic_runtime_thunk-x86_64.lib")
+  set(RNS8_CLANG_FUZZER_LIB "${RNS8_CLANG_RUNTIME_DIR}/clang_rt.fuzzer-x86_64.lib")
+  foreach(RNS8_REQUIRED_CLANG_RUNTIME
+      "${RNS8_CLANG_ASAN_DLL}"
+      "${RNS8_CLANG_ASAN_LIB}"
+      "${RNS8_CLANG_ASAN_THUNK_LIB}")
+    if(NOT EXISTS "${RNS8_REQUIRED_CLANG_RUNTIME}")
+      message(FATAL_ERROR "Missing required LLVM sanitizer runtime: ${RNS8_REQUIRED_CLANG_RUNTIME}")
+    endif()
+  endforeach()
+  if(RNS8_BUILD_FUZZERS AND NOT EXISTS "${RNS8_CLANG_FUZZER_LIB}")
+    message(FATAL_ERROR "Missing required LLVM libFuzzer runtime: ${RNS8_CLANG_FUZZER_LIB}")
+  endif()
+  link_libraries("${RNS8_CLANG_ASAN_LIB}" "${RNS8_CLANG_ASAN_THUNK_LIB}")
+  add_compile_definitions(_DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
+  configure_file("${RNS8_CLANG_ASAN_DLL}" "${CMAKE_CURRENT_BINARY_DIR}/clang_rt.asan_dynamic-x86_64.dll" COPYONLY)
+endif()
+
+function(rns8_copy_windows_clang_asan_runtime target_name)
+  if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    add_custom_command(
+      TARGET "${target_name}"
+      POST_BUILD
+      COMMAND
+        "${CMAKE_COMMAND}" -E copy_if_different
+          "${RNS8_CLANG_ASAN_DLL}"
+          "$<TARGET_FILE_DIR:${target_name}>"
+    )
+  endif()
+endfunction()
 
 if(RNS8_ENABLE_GMP AND NOT RNS8_GMP_FOUND)
   message(
@@ -293,17 +340,19 @@ function(rns8_configure_library target_name)
   endif()
 endfunction()
 
-add_library(rns8 SHARED ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
-add_library(rns8::rns8 ALIAS rns8)
-rns8_configure_library(rns8)
-target_compile_definitions(rns8 PRIVATE RNS8_BUILDING_LIBRARY)
-set_target_properties(
-  rns8
-  PROPERTIES
-    OUTPUT_NAME rns8
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
-)
+if(RNS8_BUILD_SHARED)
+  add_library(rns8 SHARED ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
+  add_library(rns8::rns8 ALIAS rns8)
+  rns8_configure_library(rns8)
+  target_compile_definitions(rns8 PRIVATE RNS8_BUILDING_LIBRARY)
+  set_target_properties(
+    rns8
+    PROPERTIES
+      OUTPUT_NAME rns8
+      VERSION ${PROJECT_VERSION}
+      SOVERSION ${PROJECT_VERSION_MAJOR}
+  )
+endif()
 
 add_library(rns8_static STATIC ${RNS8_PUBLIC_HEADERS} ${RNS8_SOURCES})
 add_library(rns8::rns8_static ALIAS rns8_static)
@@ -315,6 +364,7 @@ if(RNS8_BUILD_TOOLS)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)
   target_include_directories(rns8-inspect PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(rns8-inspect PRIVATE rns8_static)
+  rns8_copy_windows_clang_asan_runtime(rns8-inspect)
 
   add_executable(rns8-verify tools/rns8_verify.cpp)
   target_include_directories(
@@ -324,6 +374,7 @@ if(RNS8_BUILD_TOOLS)
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_link_libraries(rns8-verify PRIVATE rns8_static)
+  rns8_copy_windows_clang_asan_runtime(rns8-verify)
 endif()
 
 if(RNS8_BUILD_BENCHMARKS)
@@ -381,6 +432,7 @@ if(RNS8_BUILD_BENCHMARKS)
   set(
     RNS8_BENCHMARK_SOURCES
     benchmarks/rns8_bench.cpp
+    benchmarks/rns8_bench_args.cpp
     benchmarks/rns8_bench_modes.cpp
     benchmarks/rns8_bench_support.cpp
   )
@@ -411,6 +463,7 @@ if(RNS8_BUILD_BENCHMARKS)
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_link_libraries(rns8-bench PRIVATE rns8_static)
+  rns8_copy_windows_clang_asan_runtime(rns8-bench)
   if(RNS8_ENABLE_HIP)
     target_include_directories(rns8-bench PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
     target_compile_definitions(rns8-bench PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
@@ -422,6 +475,42 @@ endif()
 
 if(RNS8_BUILD_EXAMPLES)
   add_subdirectory(examples)
+endif()
+
+if(RNS8_BUILD_FUZZERS)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "RNS8_BUILD_FUZZERS requires an LLVM Clang or clang-cl compiler")
+  endif()
+
+  function(rns8_add_cpu_fuzzer target_name source_file)
+    add_executable(${target_name} "${source_file}")
+    target_compile_features(${target_name} PRIVATE cxx_std_17)
+    target_include_directories(
+      ${target_name}
+      PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_link_libraries(${target_name} PRIVATE rns8_static)
+    if(MSVC)
+      target_compile_options(${target_name} PRIVATE /fsanitize=address -fsanitize=fuzzer /W4 /permissive-)
+      if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+        target_link_libraries(${target_name} PRIVATE "${RNS8_CLANG_FUZZER_LIB}")
+      else()
+        target_link_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
+      endif()
+    else()
+      target_compile_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
+      target_link_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
+      target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    rns8_copy_windows_clang_asan_runtime(${target_name})
+  endfunction()
+
+  rns8_add_cpu_fuzzer(rns8_fuzz_plan_descriptor tests/fuzz/rns8_fuzz_plan_descriptor.cpp)
+  rns8_add_cpu_fuzzer(rns8_fuzz_export_contract tests/fuzz/rns8_fuzz_export_contract.cpp)
+  rns8_add_cpu_fuzzer(rns8_fuzz_metadata_json tests/fuzz/rns8_fuzz_metadata_json.cpp)
+  target_link_libraries(rns8_fuzz_metadata_json PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
@@ -477,6 +566,34 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(benchmark_schema_backend_metadata_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_schema_semantic_contracts_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema_semantic_contracts.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_semantic_contracts_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_schema_reuse_timing_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema_reuse_timing.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_reuse_timing_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_schema_gpu_events_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema_gpu_events.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_gpu_events_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
+    NAME benchmark_schema_output_policies_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema_output_policies.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_output_policies_self_test PROPERTIES LABELS "benchmark;schema")
 
   add_test(
     NAME metadata_registry_self_test
@@ -617,20 +734,22 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     set_tests_properties(optional_exact_libs_link_smoke PROPERTIES LABELS "tools;dependencies;optional-exact")
   endif()
 
-  add_test(
-    NAME install_downstream_cmake_smoke
-    COMMAND
-      "${CMAKE_COMMAND}"
-      "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-      "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
-      "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
-      "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-      "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/temp/install-rns8/${CMAKE_BUILD_TYPE}"
-      "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_SOURCE_DIR}/temp/downstream-rns8/${CMAKE_BUILD_TYPE}"
-      -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu")
+  if(NOT RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    add_test(
+      NAME install_downstream_cmake_smoke
+      COMMAND
+        "${CMAKE_COMMAND}"
+        "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+        "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+        "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+        "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/temp/install-rns8/${CMAKE_BUILD_TYPE}"
+        "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_SOURCE_DIR}/temp/downstream-rns8/${CMAKE_BUILD_TYPE}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu")
+  endif()
 
   add_test(
     NAME benchmark_schema_current_fixtures
@@ -909,6 +1028,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     target_compile_definitions(rns8_tests PRIVATE __HIP_PLATFORM_AMD__=1)
   endif()
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
+  rns8_copy_windows_clang_asan_runtime(rns8_tests)
   include(Catch)
   catch_discover_tests(rns8_tests)
   if(RNS8_ENABLE_HIP)
@@ -983,9 +1103,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
 endif()
 
 set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
+set(RNS8_INSTALL_TARGETS rns8_static)
+if(RNS8_BUILD_SHARED)
+  list(PREPEND RNS8_INSTALL_TARGETS rns8)
+endif()
 
 install(
-  TARGETS rns8 rns8_static
+  TARGETS ${RNS8_INSTALL_TARGETS}
   EXPORT RNS8Targets
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Runtime

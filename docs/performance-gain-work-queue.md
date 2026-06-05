@@ -56,17 +56,24 @@ June 4-5, 2026 updates:
   target-readiness and speedup wording. Scenario families now live under
   `benchmarks/scenarios/` with registry-backed review-mode and
   promotion-eligibility labels; schema validation has a package seam behind the
-  compatibility CLI plus focused GPU-event, execution-mode, and
-  contract-metadata modules/tests plus helper/output-policy and backend metadata
-  splitting; benchmark support and semantic-mode helpers have been split out of
-  the bench god-file; core output setup, benchmark exact-wide pack materialization,
-  Direct-HIP output stamping, and native-to-RNS bridge currentness transitions
-  are helper-routed; HIP event/stream/pinned-staging/temporary-buffer ownership
-  uses internal RAII wrappers; Direct-HIP timing support lives in
-  `src/backend_hip_direct/hip_timing.cpp`; the hygiene report filters
-  intentional helper/RAII implementation sites; and a portable non-Windows CPU
-  ASan/UBSan preset is documented while Windows MSVC ASan stays host-local
-  until the optional runtime is installed. This is meant to reduce future
+  compatibility CLI plus focused GPU-event, semantic-contract, reuse-timing,
+  execution-mode, contract-metadata, helper/output-policy, and backend metadata
+  modules/tests; benchmark argument parsing/backend selection, grouped
+  descriptor contracts, support code, and large semantic lane bodies have moved
+  behind helper translation units or include units; core output setup,
+  benchmark exact-wide pack materialization, Direct-HIP output stamping,
+  native-to-RNS bridge, and test-owned currentness transitions are
+  helper-routed; workspace identity, schedule metadata, backend metadata,
+  accelerator scratch, and prepack/resource teardown now flow through named
+  helpers; export/reconstruction paths create an internal plan before touching
+  the documented mutable export cache; HIP event/stream/pinned-staging/
+  temporary-buffer ownership uses internal RAII wrappers including CK/rocWMMA
+  event timing helpers; Direct-HIP host and kernel code are split by resource,
+  pack, GEMM, common helper, and export concerns behind the same object labels;
+  the hygiene report filters intentional helper/RAII implementation sites; and
+  hardening now includes the portable non-Windows CPU ASan/UBSan preset, a
+  Windows clang-cl CPU-only ASan/libFuzzer preset, deterministic fuzz harnesses,
+  and a non-GUI `cdb.exe` triage helper. This is meant to reduce future
   metadata drift, benchmark growth, resource-cleanup risk, and durable
   documentation claim drift while preserving current public ABI, AUTO cache
   behavior, and reviewed evidence claims.
