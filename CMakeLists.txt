@@ -461,6 +461,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(gpu_counter_report_self_test PROPERTIES LABELS "benchmark;evidence;gpu-counters")
 
   add_test(
+    NAME starfoundry_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_starfoundry_reports.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(starfoundry_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
+
+  add_test(
     NAME autotune_cache_install_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_autotune_cache_install.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

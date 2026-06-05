@@ -108,6 +108,41 @@ RESIDUE_GROUP_LAYOUTS = {
     "first_prefix9_moduli_contiguous_width3_groups",
 }
 TARGET_NAMESPACES = {"cpu", "gfx1100", "gfx11xx", "gfx12xx", "gfx9xx_gfx94x", "unknown"}
+OUTPUT_CONTRACT_DOMAINS = {
+    "rns_residue_current",
+    "finite_u8_host",
+    "wrap64_u64_host",
+    "exact_wide_limb_host",
+    "native_i64_u64_host",
+}
+REUSE_OPERAND_ROLES = {"none", "A", "B", "A+B"}
+GRAPH_REPLAY_STATUSES = {
+    "not_requested",
+    "unsupported_stream_capture_not_executed",
+    "captured",
+    "replayed",
+}
+GROUPED_DISPATCH_STATUSES = {
+    "not_requested",
+    "metadata_only_unsupported_for_execution_path",
+    "executed",
+}
+STREAMING_OVERLAP_STATUSES = {
+    "not_requested",
+    "metadata_only_unsupported_for_execution_path",
+    "executed",
+}
+RELEASE_GATE_REVIEW_STATUSES = {
+    "not_requested",
+    "pending_reviewed_summary",
+    "reviewed_blocked",
+    "reviewed_passed",
+}
+WORKLOAD_PROXY_FAMILIES = {
+    "not_requested",
+    "fhe_lattice_proxy",
+    "dense_exact_arithmetic_proxy",
+}
 SELECTOR_REJECTION_REASONS = {
     "unsupported semantics",
     "per-tile unsupported",
@@ -350,6 +385,8 @@ BENCHMARK_EXECUTION_MODES = {
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
     "internal_wrap64_rocwmma_candidate",
+    "benchmark_grouped_dispatch_evidence",
+    "benchmark_hip_graph_replay_evidence",
 }
 INT32_MAX = 2_147_483_647
 UINT32_MAX = 4_294_967_295
@@ -736,6 +773,7 @@ class _Validator:
         self._validate_nested_metadata()
         self._validate_backend_metadata()
         self._validate_helper_lane_metadata()
+        self._validate_starfoundry_metadata()
         self._validate_host_api_batch_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
@@ -1255,6 +1293,22 @@ class _Validator:
                 "output_policy",
                 "auto_selector",
                 "device_allocation",
+                "reuse_contract",
+                "exact_output_contract",
+                "export_variant",
+                "reconstruction_variant",
+                "modulus_set",
+                "residue_count_policy",
+                "tile_shape_variant",
+                "grouped_dispatch",
+                "adaptive_grouped_scheduler",
+                "hip_graph_replay",
+                "resident_lifetime",
+                "workspace_arena",
+                "streaming_overlap",
+                "workload_proxy",
+                "release_gate",
+                "verification_amortization",
             ]
         )
         if (
@@ -1330,6 +1384,336 @@ class _Validator:
                         "device_allocation.measured_repeat_delta",
                         device_allocation.get("measured_repeat_delta"),
                     )
+
+    def _validate_starfoundry_metadata(self) -> None:
+        reuse = self.data.get("reuse_contract")
+        if reuse is not None:
+            if not isinstance(reuse, dict):
+                self._error("reuse_contract must be an object")
+            else:
+                if not isinstance(reuse.get("enabled"), bool):
+                    self._error("reuse_contract.enabled must be a boolean")
+                if reuse.get("operand_role") not in REUSE_OPERAND_ROLES:
+                    self._error(f"reuse_contract.operand_role must be one of {sorted(REUSE_OPERAND_ROLES)}")
+                for key in [
+                    "source_version_inputs",
+                    "setup_scope",
+                    "output_domain",
+                    "next_op",
+                    "target_fingerprint",
+                    "backend_fingerprint",
+                    "workspace_fingerprint",
+                ]:
+                    if not isinstance(reuse.get(key), str):
+                        self._error(f"reuse_contract.{key} must be a string")
+                if reuse.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                    self._error(f"reuse_contract.output_domain must be one of {sorted(OUTPUT_CONTRACT_DOMAINS)}")
+                setup_cost = reuse.get("setup_cost_us")
+                if setup_cost is not None and (not _is_number(setup_cost) or setup_cost < 0):
+                    self._error("reuse_contract.setup_cost_us must be a nonnegative number or null")
+                repeats = reuse.get("measured_repeat_count")
+                if not _is_int(repeats) or repeats <= 0:
+                    self._error("reuse_contract.measured_repeat_count must be a positive integer")
+                break_even = reuse.get("break_even_repeat_count")
+                if break_even is not None and (not _is_number(break_even) or break_even <= 0):
+                    self._error("reuse_contract.break_even_repeat_count must be positive or null")
+                if not isinstance(reuse.get("promotion_eligible"), bool):
+                    self._error("reuse_contract.promotion_eligible must be a boolean")
+                invalidation = reuse.get("invalidation_reasons")
+                if not isinstance(invalidation, list) or not all(isinstance(item, str) for item in invalidation):
+                    self._error("reuse_contract.invalidation_reasons must be an array of strings")
+
+        exact_output = self.data.get("exact_output_contract")
+        if exact_output is not None:
+            if not isinstance(exact_output, dict):
+                self._error("exact_output_contract must be an object")
+            else:
+                if exact_output.get("requested_final_output") not in OUTPUT_CONTRACT_DOMAINS:
+                    self._error(
+                        f"exact_output_contract.requested_final_output must be one of {sorted(OUTPUT_CONTRACT_DOMAINS)}"
+                    )
+                limb_count = exact_output.get("limb_count")
+                if self.data.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}:
+                    if not _is_int(limb_count) or not 1 <= limb_count <= 32:
+                        self._error("exact_output_contract.limb_count must be in [1, 32] for exact-wide captures")
+                elif limb_count is not None:
+                    self._error("exact_output_contract.limb_count must be null outside exact-wide captures")
+                if exact_output.get("status_policy") not in STATUS_HANDLING:
+                    self._error(f"exact_output_contract.status_policy must be one of {sorted(STATUS_HANDLING)}")
+                if exact_output.get("output_domain_after_measured_repeats") not in OUTPUT_CONTRACT_DOMAINS:
+                    self._error("exact_output_contract.output_domain_after_measured_repeats must be a known output domain")
+                if not isinstance(exact_output.get("final_checksum_export_after_repeats"), bool):
+                    self._error("exact_output_contract.final_checksum_export_after_repeats must be a boolean")
+
+        export_variant = self.data.get("export_variant")
+        if export_variant is not None:
+            if not isinstance(export_variant, dict):
+                self._error("export_variant must be an object")
+            else:
+                if not isinstance(export_variant.get("name"), str) or not export_variant.get("name"):
+                    self._error("export_variant.name must be a nonempty string")
+                for key in ["source", "status_policy", "constants_placement"]:
+                    if not isinstance(export_variant.get(key), str):
+                        self._error(f"export_variant.{key} must be a string")
+                if export_variant.get("status_policy") not in STATUS_HANDLING:
+                    self._error(f"export_variant.status_policy must be one of {sorted(STATUS_HANDLING)}")
+                limb_count = export_variant.get("limb_count")
+                if limb_count is not None and (not _is_int(limb_count) or not 1 <= limb_count <= 32):
+                    self._error("export_variant.limb_count must be in [1, 32] or null")
+                if not isinstance(export_variant.get("promotion_eligible"), bool):
+                    self._error("export_variant.promotion_eligible must be a boolean")
+                if export_variant.get("name") != "default" and export_variant.get("promotion_eligible") is True:
+                    self._error("experimental export_variant captures must set promotion_eligible=false")
+                blocker = export_variant.get("promotion_blocker")
+                if export_variant.get("name") != "default" and not isinstance(blocker, str):
+                    self._error("experimental export_variant captures must declare promotion_blocker")
+
+        reconstruction = self.data.get("reconstruction_variant")
+        if reconstruction is not None:
+            if not isinstance(reconstruction, dict):
+                self._error("reconstruction_variant must be an object")
+            else:
+                for key in ["name", "family", "controller"]:
+                    if not isinstance(reconstruction.get(key), str) or not reconstruction.get(key):
+                        self._error(f"reconstruction_variant.{key} must be a nonempty string")
+                prefix_count = reconstruction.get("prefix_count")
+                if not _is_int(prefix_count) or prefix_count < 0:
+                    self._error("reconstruction_variant.prefix_count must be a nonnegative integer")
+                if not isinstance(reconstruction.get("promotion_eligible"), bool):
+                    self._error("reconstruction_variant.promotion_eligible must be a boolean")
+                if reconstruction.get("name") != "default_garner" and reconstruction.get("promotion_eligible") is True:
+                    self._error("experimental reconstruction_variant captures must set promotion_eligible=false")
+                blocker = reconstruction.get("promotion_blocker")
+                if reconstruction.get("name") != "default_garner" and not isinstance(blocker, str):
+                    self._error("experimental reconstruction_variant captures must declare promotion_blocker")
+
+        modulus_set = self.data.get("modulus_set")
+        if modulus_set is not None:
+            if not isinstance(modulus_set, dict):
+                self._error("modulus_set must be an object")
+            else:
+                name = modulus_set.get("name")
+                if not isinstance(name, str) or (name != "default" and not name.startswith("experimental:")):
+                    self._error("modulus_set.name must be default or experimental:NAME")
+                if not isinstance(modulus_set.get("experimental"), bool):
+                    self._error("modulus_set.experimental must be a boolean")
+                for key in ["source", "execution_ladder", "pairwise_coprime_proof", "reducer_cost_hint"]:
+                    if not isinstance(modulus_set.get(key), str):
+                        self._error(f"modulus_set.{key} must be a string")
+                for key in ["product_bits", "prefix_count"]:
+                    value = modulus_set.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"modulus_set.{key} must be a nonnegative integer")
+                if name == "default" and modulus_set.get("experimental") is not False:
+                    self._error("modulus_set.experimental must be false for default")
+                if name != "default" and not isinstance(modulus_set.get("cache_promotion_blocker"), str):
+                    self._error("experimental modulus_set captures must declare cache_promotion_blocker")
+
+        residue_policy = self.data.get("residue_count_policy")
+        if residue_policy is not None:
+            if not isinstance(residue_policy, dict):
+                self._error("residue_count_policy must be an object")
+            else:
+                for key in ["policy", "autotune_scope"]:
+                    if not isinstance(residue_policy.get(key), str):
+                        self._error(f"residue_count_policy.{key} must be a string")
+                for key in ["requested_prefix", "selected_prefix", "minimum_range_prefix", "redundant_residue_count"]:
+                    value = residue_policy.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"residue_count_policy.{key} must be a nonnegative integer")
+                if _is_int(self.data.get("selected_prefix")) and residue_policy.get("selected_prefix") != self.data.get("selected_prefix"):
+                    self._error("residue_count_policy.selected_prefix must match selected_prefix")
+                if _is_int(self.data.get("requested_max_prefix")) and residue_policy.get("requested_prefix") != self.data.get("requested_max_prefix"):
+                    self._error("residue_count_policy.requested_prefix must match requested_max_prefix")
+
+        tile_variant = self.data.get("tile_shape_variant")
+        if tile_variant is not None:
+            if not isinstance(tile_variant, dict):
+                self._error("tile_shape_variant must be an object")
+            else:
+                if not isinstance(tile_variant.get("name"), str) or not tile_variant.get("name"):
+                    self._error("tile_shape_variant.name must be a nonempty string")
+                for key in ["resource_report_key", "shape_family_bucket", "stale_kernel_rejection"]:
+                    if not isinstance(tile_variant.get(key), str):
+                        self._error(f"tile_shape_variant.{key} must be a string")
+                for key in ["tile_m", "tile_n", "tile_k"]:
+                    value = tile_variant.get(key)
+                    if not _is_int(value) or value <= 0:
+                        self._error(f"tile_shape_variant.{key} must be a positive integer")
+                if tile_variant.get("tile_m") != self.data.get("tile_m"):
+                    self._error("tile_shape_variant.tile_m must match tile_m")
+                if tile_variant.get("tile_n") != self.data.get("tile_n"):
+                    self._error("tile_shape_variant.tile_n must match tile_n")
+                if _is_int(self.data.get("k_block_size")) and tile_variant.get("tile_k") != self.data.get("k_block_size"):
+                    self._error("tile_shape_variant.tile_k must match k_block_size")
+                identity = tile_variant.get("selected_kernel_identity")
+                selected_kernel = self.data.get("selected_kernel")
+                if identity is not None and identity != selected_kernel:
+                    self._error("tile_shape_variant.selected_kernel_identity must match selected_kernel")
+
+        grouped = self.data.get("grouped_dispatch")
+        if grouped is not None:
+            if not isinstance(grouped, dict):
+                self._error("grouped_dispatch must be an object")
+            else:
+                if not isinstance(grouped.get("requested"), bool):
+                    self._error("grouped_dispatch.requested must be a boolean")
+                task_count = grouped.get("task_count")
+                if not _is_int(task_count) or task_count <= 0:
+                    self._error("grouped_dispatch.task_count must be a positive integer")
+                for key in ["descriptor_identity", "source_hash", "output_hash", "setup_scope"]:
+                    if not isinstance(grouped.get(key), str):
+                        self._error(f"grouped_dispatch.{key} must be a string")
+                if grouped.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
+                    self._error(f"grouped_dispatch.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}")
+                if task_count and task_count > 1 and grouped.get("requested") is not True:
+                    self._error("grouped_dispatch.requested must be true when task_count > 1")
+                if task_count and task_count > 1 and grouped.get("promotion_eligible") is not False:
+                    self._error("grouped_dispatch task_count > 1 must set promotion_eligible=false")
+
+        graph = self.data.get("hip_graph_replay")
+        if graph is not None:
+            if not isinstance(graph, dict):
+                self._error("hip_graph_replay must be an object")
+            else:
+                if not isinstance(graph.get("requested"), bool):
+                    self._error("hip_graph_replay.requested must be a boolean")
+                for key in ["descriptor_identity", "plan_identity", "setup_scope"]:
+                    if not isinstance(graph.get(key), str):
+                        self._error(f"hip_graph_replay.{key} must be a string")
+                if graph.get("capture_status") not in GRAPH_REPLAY_STATUSES:
+                    self._error(f"hip_graph_replay.capture_status must be one of {sorted(GRAPH_REPLAY_STATUSES)}")
+                if graph.get("requested") is True and graph.get("promotion_eligible") is not False:
+                    self._error("hip_graph_replay requested captures must set promotion_eligible=false")
+
+        adaptive = self.data.get("adaptive_grouped_scheduler")
+        if adaptive is not None:
+            if not isinstance(adaptive, dict):
+                self._error("adaptive_grouped_scheduler must be an object")
+            else:
+                if not isinstance(adaptive.get("requested"), bool):
+                    self._error("adaptive_grouped_scheduler.requested must be a boolean")
+                for key in ["strategy", "descriptor_identity", "selected_prefix_histogram"]:
+                    if not isinstance(adaptive.get(key), str):
+                        self._error(f"adaptive_grouped_scheduler.{key} must be a string")
+                for key in ["group_count", "active_tile_count", "zero_tile_count"]:
+                    value = adaptive.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"adaptive_grouped_scheduler.{key} must be a nonnegative integer")
+                if adaptive.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
+                    self._error(
+                        f"adaptive_grouped_scheduler.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}"
+                    )
+                if adaptive.get("requested") is True and adaptive.get("promotion_eligible") is not False:
+                    self._error("adaptive_grouped_scheduler requested captures must set promotion_eligible=false")
+
+        resident = self.data.get("resident_lifetime")
+        if resident is not None:
+            if not isinstance(resident, dict):
+                self._error("resident_lifetime must be an object")
+            else:
+                if not isinstance(resident.get("enabled"), bool):
+                    self._error("resident_lifetime.enabled must be a boolean")
+                for key in [
+                    "matrix_roles",
+                    "source_version_policy",
+                    "current_storage_state",
+                    "output_domain",
+                    "workspace_identity",
+                    "stale_source_rejection",
+                ]:
+                    if not isinstance(resident.get(key), str):
+                        self._error(f"resident_lifetime.{key} must be a string")
+                if resident.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                    self._error("resident_lifetime.output_domain must be a known output domain")
+                if resident.get("promotion_eligible") is not False:
+                    self._error("resident_lifetime captures must set promotion_eligible=false")
+
+        arena = self.data.get("workspace_arena")
+        if arena is not None:
+            if not isinstance(arena, dict):
+                self._error("workspace_arena must be an object")
+            else:
+                if not isinstance(arena.get("enabled"), bool):
+                    self._error("workspace_arena.enabled must be a boolean")
+                for key in ["arena_identity", "source_version_policy", "stream_safety"]:
+                    if not isinstance(arena.get(key), str):
+                        self._error(f"workspace_arena.{key} must be a string")
+                for key in ["size_bytes", "high_water_mark_bytes", "suballocation_count"]:
+                    value = arena.get(key)
+                    if not _is_int(value) or value < 0:
+                        self._error(f"workspace_arena.{key} must be a nonnegative integer")
+                if not isinstance(arena.get("measured_repeat_allocation_free"), bool):
+                    self._error("workspace_arena.measured_repeat_allocation_free must be a boolean")
+                if arena.get("promotion_eligible") is not False:
+                    self._error("workspace_arena captures must set promotion_eligible=false")
+
+        overlap = self.data.get("streaming_overlap")
+        if overlap is not None:
+            if not isinstance(overlap, dict):
+                self._error("streaming_overlap must be an object")
+            else:
+                if not isinstance(overlap.get("requested"), bool):
+                    self._error("streaming_overlap.requested must be a boolean")
+                for key in ["pipeline", "buffering", "dependency_contract", "transfer_policy"]:
+                    if not isinstance(overlap.get(key), str):
+                        self._error(f"streaming_overlap.{key} must be a string")
+                if overlap.get("capture_status") not in STREAMING_OVERLAP_STATUSES:
+                    self._error(f"streaming_overlap.capture_status must be one of {sorted(STREAMING_OVERLAP_STATUSES)}")
+                if overlap.get("requested") is True and overlap.get("promotion_eligible") is not False:
+                    self._error("streaming_overlap requested captures must set promotion_eligible=false")
+
+        proxy = self.data.get("workload_proxy")
+        if proxy is not None:
+            if not isinstance(proxy, dict):
+                self._error("workload_proxy must be an object")
+            else:
+                if not isinstance(proxy.get("enabled"), bool):
+                    self._error("workload_proxy.enabled must be a boolean")
+                if proxy.get("family") not in WORKLOAD_PROXY_FAMILIES:
+                    self._error(f"workload_proxy.family must be one of {sorted(WORKLOAD_PROXY_FAMILIES)}")
+                for key in ["label", "tower_role", "reuse_profile", "transform_role", "output_domain_requirement"]:
+                    if not isinstance(proxy.get(key), str):
+                        self._error(f"workload_proxy.{key} must be a string")
+                if proxy.get("output_domain_requirement") not in OUTPUT_CONTRACT_DOMAINS:
+                    self._error("workload_proxy.output_domain_requirement must be a known output domain")
+                if proxy.get("compatibility_claim") is not False:
+                    self._error("workload_proxy.compatibility_claim must be false")
+
+        release_gate = self.data.get("release_gate")
+        if release_gate is not None:
+            if not isinstance(release_gate, dict):
+                self._error("release_gate must be an object")
+            else:
+                if not isinstance(release_gate.get("name"), str) or not release_gate.get("name"):
+                    self._error("release_gate.name must be a nonempty string")
+                if not isinstance(release_gate.get("requested"), bool):
+                    self._error("release_gate.requested must be a boolean")
+                for key in ["classification_tier", "cpu_reference_policy", "memory_cap_policy", "resume_policy"]:
+                    if not isinstance(release_gate.get(key), str):
+                        self._error(f"release_gate.{key} must be a string")
+                if release_gate.get("review_status") not in RELEASE_GATE_REVIEW_STATUSES:
+                    self._error(f"release_gate.review_status must be one of {sorted(RELEASE_GATE_REVIEW_STATUSES)}")
+                if not isinstance(release_gate.get("cache_eligible"), bool):
+                    self._error("release_gate.cache_eligible must be a boolean")
+                blockers = release_gate.get("blockers")
+                if not isinstance(blockers, list) or not all(isinstance(item, str) for item in blockers):
+                    self._error("release_gate.blockers must be an array of strings")
+
+        amortization = self.data.get("verification_amortization")
+        if amortization is not None:
+            if not isinstance(amortization, dict):
+                self._error("verification_amortization must be an object")
+            else:
+                if not isinstance(amortization.get("enabled"), bool):
+                    self._error("verification_amortization.enabled must be a boolean")
+                for key in ["policy", "reused_reference_structure", "final_exact_comparison_status"]:
+                    if not isinstance(amortization.get(key), str):
+                        self._error(f"verification_amortization.{key} must be a string")
+                if amortization.get("final_exact_comparison_required") is not True:
+                    self._error("verification_amortization.final_exact_comparison_required must be true")
+                if amortization.get("promotion_eligible") is not False:
+                    self._error("verification_amortization captures must set promotion_eligible=false")
 
     def _validate_host_api_batch_metadata(self) -> None:
         batch = self.data.get("host_api_batch")

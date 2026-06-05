@@ -57,6 +57,31 @@ CSV_FIELDS = [
     "selected_prefix",
     "exact_wide_limb_count",
     "pack_mode",
+    "reuse_contract_enabled",
+    "reuse_contract_operand_role",
+    "reuse_contract_setup_scope",
+    "export_variant",
+    "reconstruction_variant",
+    "modulus_set",
+    "residue_count_policy",
+    "tile_shape_variant",
+    "grouped_dispatch_task_count",
+    "grouped_dispatch_status",
+    "adaptive_grouped_scheduler_requested",
+    "adaptive_grouped_scheduler_status",
+    "resident_lifetime_enabled",
+    "resident_lifetime_output_domain",
+    "workspace_arena_enabled",
+    "workspace_arena_repeat_allocation_free",
+    "streaming_overlap_requested",
+    "streaming_overlap_status",
+    "hip_graph_replay_requested",
+    "hip_graph_replay_status",
+    "release_gate",
+    "release_gate_review_status",
+    "verification_amortization_policy",
+    "workload_proxy_family",
+    "workload_proxy_label",
     "output_domain",
     "median_pack_us",
     "median_rns_gemm_us",
@@ -647,6 +672,33 @@ def build_row(
     work = estimate_work(capture)
     bottleneck = classify_bottleneck(capture)
     scenario_extra = scenario.get("metadata") if isinstance(scenario.get("metadata"), dict) else {}
+    reuse_contract = capture.get("reuse_contract") if isinstance(capture.get("reuse_contract"), dict) else {}
+    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    reconstruction_variant = (
+        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+    )
+    modulus_set = capture.get("modulus_set") if isinstance(capture.get("modulus_set"), dict) else {}
+    residue_count_policy = (
+        capture.get("residue_count_policy") if isinstance(capture.get("residue_count_policy"), dict) else {}
+    )
+    tile_shape_variant = capture.get("tile_shape_variant") if isinstance(capture.get("tile_shape_variant"), dict) else {}
+    grouped_dispatch = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    adaptive_grouped_scheduler = (
+        capture.get("adaptive_grouped_scheduler")
+        if isinstance(capture.get("adaptive_grouped_scheduler"), dict)
+        else {}
+    )
+    resident_lifetime = capture.get("resident_lifetime") if isinstance(capture.get("resident_lifetime"), dict) else {}
+    workspace_arena = capture.get("workspace_arena") if isinstance(capture.get("workspace_arena"), dict) else {}
+    streaming_overlap = capture.get("streaming_overlap") if isinstance(capture.get("streaming_overlap"), dict) else {}
+    hip_graph_replay = capture.get("hip_graph_replay") if isinstance(capture.get("hip_graph_replay"), dict) else {}
+    release_gate = capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
+    verification_amortization = (
+        capture.get("verification_amortization")
+        if isinstance(capture.get("verification_amortization"), dict)
+        else {}
+    )
+    workload_proxy = capture.get("workload_proxy") if isinstance(capture.get("workload_proxy"), dict) else {}
     row = {
         "capture_path": capture.get("_path"),
         "scenario_family": scenario.get("family", "unlabeled"),
@@ -683,6 +735,31 @@ def build_row(
         "exact_wide_limb_count": capture.get("exact_wide_limb_count"),
         "pack_mode": capture.get("pack_mode") or timing_metadata.get("pack_mode") or scenario.get("pack_mode"),
         "prepack_reuse_strategy": capture.get("prepack_reuse_strategy") or timing_metadata.get("prepack_reuse_strategy"),
+        "reuse_contract_enabled": reuse_contract.get("enabled"),
+        "reuse_contract_operand_role": reuse_contract.get("operand_role"),
+        "reuse_contract_setup_scope": reuse_contract.get("setup_scope"),
+        "export_variant": export_variant.get("name"),
+        "reconstruction_variant": reconstruction_variant.get("name"),
+        "modulus_set": modulus_set.get("name"),
+        "residue_count_policy": residue_count_policy.get("policy"),
+        "tile_shape_variant": tile_shape_variant.get("name"),
+        "grouped_dispatch_task_count": grouped_dispatch.get("task_count"),
+        "grouped_dispatch_status": grouped_dispatch.get("capture_status"),
+        "adaptive_grouped_scheduler_requested": adaptive_grouped_scheduler.get("requested"),
+        "adaptive_grouped_scheduler_status": adaptive_grouped_scheduler.get("capture_status"),
+        "resident_lifetime_enabled": resident_lifetime.get("enabled"),
+        "resident_lifetime_output_domain": resident_lifetime.get("output_domain"),
+        "workspace_arena_enabled": workspace_arena.get("enabled"),
+        "workspace_arena_repeat_allocation_free": workspace_arena.get("measured_repeat_allocation_free"),
+        "streaming_overlap_requested": streaming_overlap.get("requested"),
+        "streaming_overlap_status": streaming_overlap.get("capture_status"),
+        "hip_graph_replay_requested": hip_graph_replay.get("requested"),
+        "hip_graph_replay_status": hip_graph_replay.get("capture_status"),
+        "release_gate": release_gate.get("name"),
+        "release_gate_review_status": release_gate.get("review_status"),
+        "verification_amortization_policy": verification_amortization.get("policy"),
+        "workload_proxy_family": workload_proxy.get("family"),
+        "workload_proxy_label": workload_proxy.get("label"),
         "output_domain": scenario.get("output_domain") or capture.get("residue_output_mode"),
         "target_id": device.get("gcn_arch"),
         "device_name": device.get("name"),

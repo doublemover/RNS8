@@ -87,6 +87,19 @@ class ScenarioItem:
     bound_source: str | None = None
     next_op_hint: str | None = None
     residue_channel_fusion: bool = False
+    modulus_set: str = "default"
+    tile_shape_variant: str = "default"
+    export_variant: str = "default"
+    reconstruction_variant: str = "default_garner"
+    grouped_dispatch_tasks: int = 1
+    hip_graph_replay: bool = False
+    workload_proxy: str = "none"
+    resident_lifetime: bool = False
+    workspace_arena: bool = False
+    adaptive_grouped_scheduler: bool = False
+    streaming_overlap: bool = False
+    release_gate: str = "none"
+    verification_amortization: str = "none"
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
 
@@ -1315,6 +1328,12 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     adaptive_256 = parse_case("adaptive-bands-256:256,256,512,64,64,adaptive-bands", adaptive=True)
     adaptive_rect = parse_case("adaptive-bands-rect:512,1024,512,128,128,adaptive-bands", adaptive=True)
     adaptive_1024 = parse_case("adaptive-bands-1024:1024,1024,1024,128,128,adaptive-bands", adaptive=True)
+    tile_512_64 = SweepCase("tile-512-64x64", 512, 512, 512, 64, 64, "global", "uniform-small", False, False)
+    tile_512_256 = SweepCase("tile-512-256x128", 512, 512, 512, 256, 128, "global", "uniform-small", False, False)
+    tile_1024_64 = SweepCase("tile-1024-64x128", 1024, 1024, 1024, 64, 128, "global", "uniform-small", False, False)
+    tile_1024_256 = SweepCase("tile-1024-256x256", 1024, 1024, 1024, 256, 256, "global", "uniform-small", False, False)
+    tile_finite_2048_64 = SweepCase("finite-2048-64x64", 2048, 2048, 2048, 64, 64, "global", "uniform-small", False, False)
+    tile_finite_2048_256 = SweepCase("finite-2048-256x128", 2048, 2048, 2048, 256, 128, "global", "uniform-small", False, False)
 
     bounded_gpu_backends = ("hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma")
     bounded_release_backends = ("cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma")
@@ -3031,6 +3050,532 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 },
             ),
         ],
+        "large-release-validation-4096-budgeted": [
+            ScenarioItem(
+                "large-release-validation-4096-budgeted",
+                "bounded-i64-4096-budgeted-baselines",
+                "bounded-i64",
+                large_4096,
+                "budgeted 4096 bounded i64 release-validation dry-run/resume workload",
+                "host_export",
+                "keeps 4096 proof collection resumable and memory-capped before any release claim",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                metadata={
+                    "large_shape_role": "budgeted_release_validation_probe",
+                    "promotion_scope": "non_promoting_budgeted_dry_run",
+                    "resume_policy": "use --skip-existing with --max-new-captures",
+                    "timeout_policy": "runner_enforced_timeout_required",
+                    "cpu_chunk_metadata": "record chunking in reviewed summary if CPU baseline is split",
+                    "memory_cap_metadata": "record host and device cap before accepting capture",
+                },
+            ),
+            ScenarioItem(
+                "large-release-validation-4096-budgeted",
+                "exact-wide-signed-4096-budgeted-export",
+                "exact-wide-signed",
+                large_exact_4096,
+                "budgeted 4096 exact-wide signed export-heavy release-validation dry-run",
+                "exact_wide_signed_limbs",
+                "separates exact-wide export pressure from bounded throughput before optimization starts",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "large_shape_role": "budgeted_exact_wide_export_probe",
+                    "promotion_scope": "non_promoting_budgeted_dry_run",
+                    "resume_policy": "use --skip-existing with --max-new-captures",
+                    "memory_cap_metadata": "record output limb allocation bytes and device memory pressure",
+                },
+            ),
+        ],
+        "hipblaslt-bounded-i64-1024-ab": [
+            ScenarioItem(
+                "hipblaslt-bounded-i64-1024-ab",
+                "bounded-i64-1024-current-reducer",
+                "bounded-i64",
+                repeated_b_1024,
+                "hipBLASLt bounded i64 1024 current reducer A/B workload",
+                "host_export",
+                "keeps hipBLASLt reducer evidence comparable against Direct-HIP and CPU at a narrow-margin shape",
+                backends=("cpu", "hip-direct", "hipblaslt"),
+                metadata={
+                    "promotion_scope": "narrow_margin_review_only",
+                    "comparison_role": "current_reducer_vs_direct_hip_baseline",
+                    "margin_policy": "require reviewed same-contract margin before promotion",
+                },
+            ),
+            ScenarioItem(
+                "hipblaslt-bounded-i64-1024-ab",
+                "bounded-i64-1024-reuse-b",
+                "bounded-i64",
+                repeated_b_1024,
+                "hipBLASLt bounded i64 1024 stable-B reuse A/B workload",
+                "host_export",
+                "separates setup-inclusive reusable-B behavior from ordinary per-repeat packing",
+                backends=("hip-direct", "hipblaslt"),
+                pack_mode="prepacked_reuse_b",
+                metadata={
+                    "promotion_scope": "explicit_reuse_contract_only",
+                    "comparison_role": "reuse_b_vs_repack",
+                    "margin_policy": "narrow_margin_report_required",
+                },
+            ),
+        ],
+        "finite-modulus-map": [
+            ScenarioItem(
+                "finite-modulus-map",
+                "finite-ring-map-512",
+                "finite-u8-ring",
+                finite_generic_512,
+                "finite-ring u8 modulus map over hot and generic byte moduli",
+                "finite_u8_canonical_host_export",
+                "maps prime/composite and power-of-two behavior without assuming the hot-modulus kernels generalize",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                finite_moduli=(127, 241, 243, 251, 253, 255, 256),
+                metadata={
+                    "modulus_role": "prime_composite_power_of_two_map",
+                    "promotion_scope": "non_promoting_modulus_map",
+                    "prime_or_composite": "mixed",
+                },
+            ),
+            ScenarioItem(
+                "finite-modulus-map",
+                "finite-field-prime-map-512",
+                "finite-u8-field",
+                finite_generic_512,
+                "finite-field u8 prime modulus map",
+                "finite_u8_canonical_host_export",
+                "keeps prime field behavior separate from composite finite-ring captures",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                finite_moduli=(127, 241, 251),
+                metadata={
+                    "modulus_role": "prime_field_map",
+                    "promotion_scope": "non_promoting_modulus_map",
+                    "prime_or_composite": "prime",
+                },
+            ),
+        ],
+        "modulus-set-autotune": [
+            ScenarioItem(
+                "modulus-set-autotune",
+                "bounded-i64-prefix5-experimental-ladder",
+                "bounded-i64",
+                layout_512,
+                "experimental modulus-set and residue-count evidence for bounded i64",
+                "host_export",
+                "feeds offline ladder search and residue-count autotuning without cache promotion",
+                backends=("cpu", "hip-direct"),
+                prefix_policy="fixed-requested",
+                max_prefix=5,
+                modulus_set="experimental:prefix5-byte-ladder-search",
+                metadata={
+                    "promotion_scope": "non_promoting_modulus_set_experiment",
+                    "cache_promotion_blocker": "experimental_modulus_set",
+                    "reducer_cost_policy": "offline_search_report_required",
+                },
+            ),
+            ScenarioItem(
+                "modulus-set-autotune",
+                "bounded-u64-prefix9-default-count",
+                "bounded-u64",
+                layout_512,
+                "default ladder residue-count comparison for bounded u64",
+                "host_export",
+                "anchors experimental residue-count captures to the current default ladder",
+                backends=("cpu", "hip-direct"),
+                prefix_policy="fixed-requested",
+                max_prefix=9,
+                metadata={
+                    "promotion_scope": "comparison_anchor_only",
+                    "cache_promotion_blocker": "residue_count_policy_review_required",
+                },
+            ),
+        ],
+        "tile-shape-sweeps": [
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "bounded-i64-512-64x64",
+                "bounded-i64",
+                tile_512_64,
+                "Direct-HIP bounded i64 512 tile-shape variant",
+                "host_export",
+                "groups tile-shape evidence with kernel/resource reports before selected-kernel changes",
+                backends=("hip-direct",),
+                tile_shape_variant="direct-hip-bounded-512-64x64",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "bounded-i64-512-256x128",
+                "bounded-i64",
+                tile_512_256,
+                "Direct-HIP bounded i64 512 asymmetric tile-shape variant",
+                "host_export",
+                "tests occupancy and memory traffic sensitivity to tile M/N without changing public routing",
+                backends=("hip-direct",),
+                tile_shape_variant="direct-hip-bounded-512-256x128",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "bounded-i64-1024-64x128",
+                "bounded-i64",
+                tile_1024_64,
+                "Direct-HIP bounded i64 1024 tile-shape variant",
+                "host_export",
+                "compares 1024-size tile shape choices against event/resource evidence",
+                backends=("hip-direct",),
+                tile_shape_variant="direct-hip-bounded-1024-64x128",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "bounded-i64-1024-256x256",
+                "bounded-i64",
+                tile_1024_256,
+                "Direct-HIP bounded i64 1024 large tile-shape variant",
+                "host_export",
+                "detects stale-kernel/resource regressions before any tile-shape promotion",
+                backends=("hip-direct",),
+                tile_shape_variant="direct-hip-bounded-1024-256x256",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "finite-ring-2048-64x64",
+                "finite-u8-ring",
+                tile_finite_2048_64,
+                "Direct-HIP finite-ring u8 2048 tile-shape variant",
+                "finite_u8_canonical_host_export",
+                "keeps finite-u8 tile-shape evidence separate from bounded RNS kernels",
+                backends=("hip-direct",),
+                finite_moduli=(251,),
+                tile_shape_variant="direct-hip-finite-2048-64x64",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+            ScenarioItem(
+                "tile-shape-sweeps",
+                "finite-ring-2048-256x128",
+                "finite-u8-ring",
+                tile_finite_2048_256,
+                "Direct-HIP finite-ring u8 2048 asymmetric tile-shape variant",
+                "finite_u8_canonical_host_export",
+                "checks finite-u8 occupancy and bandwidth sensitivity before finite-kernel selection changes",
+                backends=("hip-direct",),
+                finite_moduli=(251,),
+                tile_shape_variant="direct-hip-finite-2048-256x128",
+                metadata={"promotion_scope": "tile_shape_evidence_only", "resource_report_required": "isa_or_counter"},
+            ),
+        ],
+        "exact-wide-output-chain": [
+            ScenarioItem(
+                "exact-wide-output-chain",
+                "exact-wide-signed-chain3-final-export",
+                "exact-wide-signed",
+                chain_256,
+                "exact-wide signed RNS chain with final checksum/export outside measured repeats",
+                "residue_current_then_final_limb_export",
+                "keeps lazy-output/reconstruction pressure separate from per-repeat GEMM timing",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                exact_wide_limb_counts=(4,),
+                metadata={"promotion_scope": "lazy_export_chain_evidence_only", "output_domain_requirement": "rns_then_final_export"},
+            ),
+            ScenarioItem(
+                "exact-wide-output-chain",
+                "exact-wide-unsigned-chain3-reuse-b",
+                "exact-wide-unsigned",
+                chain_256,
+                "exact-wide unsigned RNS chain with stable RHS packed once before warmups",
+                "residue_current_then_final_limb_export",
+                "tests whether reusable B matters in exact-wide lazy-output chains",
+                backends=("hip-direct", "ck", "rocwmma"),
+                residue_chain_length=3,
+                pack_mode="prepacked_reuse_b",
+                next_op_hint="rns-gemm",
+                exact_wide_limb_counts=(4,),
+                metadata={"promotion_scope": "lazy_export_chain_reuse_evidence_only", "reuse_contract": "stable_rhs_exact_wide_chain"},
+            ),
+        ],
+        "export-bound-limb-variants": [
+            ScenarioItem(
+                "export-bound-limb-variants",
+                "exact-wide-signed-limb-zoo",
+                "exact-wide-signed",
+                exact_512,
+                "exact-wide signed fixed-limb export variants",
+                "exact_wide_signed_limbs",
+                "reuses current fixed-limb export kernels while making export-bound behavior explicit",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                exact_wide_limb_counts=(1, 2, 3, 4, 8, 16, 32),
+                export_variant="fixed_limb_export_zoo",
+                metadata={"promotion_scope": "export_variant_evidence_only", "cache_promotion_blocker": "fixed_limb_export_review_required"},
+            ),
+            ScenarioItem(
+                "export-bound-limb-variants",
+                "exact-wide-unsigned-limb-zoo",
+                "exact-wide-unsigned",
+                exact_512,
+                "exact-wide unsigned fixed-limb export variants",
+                "exact_wide_unsigned_limbs",
+                "checks whether unsigned limb count changes export/status balance differently from signed",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                exact_wide_limb_counts=(1, 2, 3, 4, 8, 16, 32),
+                export_variant="fixed_limb_export_zoo",
+                metadata={"promotion_scope": "export_variant_evidence_only", "cache_promotion_blocker": "fixed_limb_export_review_required"},
+            ),
+        ],
+        "reconstruction-zoo": [
+            ScenarioItem(
+                "reconstruction-zoo",
+                "bounded-i64-garner-precomputed",
+                "bounded-i64",
+                layout_512,
+                "benchmark-only Garner reconstruction variant metadata",
+                "host_export",
+                "plumbs reconstruction variant evidence before any CRT fusion or kernel change",
+                backends=("cpu", "hip-direct"),
+                reconstruction_variant="experimental:garner_precomputed_constants",
+                metadata={"promotion_scope": "reconstruction_variant_evidence_only", "cache_promotion_blocker": "experimental_reconstruction_variant"},
+            ),
+            ScenarioItem(
+                "reconstruction-zoo",
+                "exact-wide-signed-mixed-radix",
+                "exact-wide-signed",
+                exact_512,
+                "benchmark-only exact-wide mixed-radix reconstruction variant metadata",
+                "exact_wide_signed_limbs",
+                "keeps reconstruction-zoo captures exact-checked against current output while non-promoting",
+                backends=("cpu", "hip-direct"),
+                exact_wide_limb_counts=(4,),
+                reconstruction_variant="experimental:mixed_radix_fixed_prefix20",
+                metadata={"promotion_scope": "reconstruction_variant_evidence_only", "cache_promotion_blocker": "experimental_reconstruction_variant"},
+            ),
+        ],
+        "hip-graph-replay": [
+            ScenarioItem(
+                "hip-graph-replay",
+                "bounded-i64-512-fixed-plan",
+                "bounded-i64",
+                layout_512,
+                "fixed-plan HIP graph replay metadata capture",
+                "host_export",
+                "records deterministic graph unsupported status unless a real fixed-descriptor replay path exists",
+                backends=("hip-direct",),
+                hip_graph_replay=True,
+                metadata={"promotion_scope": "graph_replay_evidence_only", "cache_promotion_blocker": "graph_replay_not_release_reviewed"},
+            ),
+            ScenarioItem(
+                "hip-graph-replay",
+                "finite-ring-512-fixed-plan",
+                "finite-u8-ring",
+                finite_512,
+                "finite-u8 fixed-plan HIP graph replay metadata capture",
+                "finite_u8_canonical_host_export",
+                "keeps graph-capture compatibility separate for finite-u8 paths",
+                backends=("hip-direct",),
+                finite_moduli=(251,),
+                hip_graph_replay=True,
+                metadata={"promotion_scope": "graph_replay_evidence_only", "cache_promotion_blocker": "graph_replay_not_release_reviewed"},
+            ),
+        ],
+        "grouped-dispatch": [
+            ScenarioItem(
+                "grouped-dispatch",
+                "bounded-i64-64-group32",
+                "bounded-i64",
+                many_small_64,
+                "many-small bounded i64 grouped-dispatch metadata capture",
+                "host_export",
+                "compares independent and host-batch captures with grouped descriptor identity before public resident API work",
+                backends=("hip-direct",),
+                grouped_dispatch_tasks=32,
+                metadata={"promotion_scope": "grouped_dispatch_evidence_only", "grouping_role": "same_shape_grouped_descriptor"},
+            ),
+            ScenarioItem(
+                "grouped-dispatch",
+                "finite-ring-64-group32",
+                "finite-u8-ring",
+                many_small_64,
+                "many-small finite-ring grouped-dispatch metadata capture",
+                "finite_u8_canonical_host_export",
+                "keeps finite-u8 grouped-dispatch evidence separate from bounded exact paths",
+                backends=("hip-direct",),
+                finite_moduli=(251,),
+                grouped_dispatch_tasks=32,
+                metadata={"promotion_scope": "grouped_dispatch_evidence_only", "grouping_role": "same_shape_grouped_descriptor"},
+            ),
+        ],
+        "resident-lifetime-arena": [
+            ScenarioItem(
+                "resident-lifetime-arena",
+                "bounded-i64-512-reuse-b-arena",
+                "bounded-i64",
+                layout_512,
+                "Direct-HIP resident lifetime plus workspace arena reuse evidence",
+                "host_export",
+                "proves resident source-version and arena allocation-free repeat metadata before public lifetime APIs",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse_b",
+                resident_lifetime=True,
+                workspace_arena=True,
+                metadata={
+                    "promotion_scope": "resident_lifetime_arena_evidence_only",
+                    "stale_source_policy": "source_descriptor_semantic_prefix_target_workspace_mismatch_rejects",
+                    "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion",
+                },
+            ),
+            ScenarioItem(
+                "resident-lifetime-arena",
+                "exact-wide-signed-chain3-arena",
+                "exact-wide-signed",
+                chain_256,
+                "exact-wide residue-current chain resident lifetime evidence",
+                "residue_current_then_final_limb_export",
+                "ties lazy exact-wide output to explicit resident currentness and workspace identity",
+                backends=("hip-direct",),
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                exact_wide_limb_counts=(4,),
+                resident_lifetime=True,
+                workspace_arena=True,
+                metadata={
+                    "promotion_scope": "resident_lifetime_arena_evidence_only",
+                    "output_domain_requirement": "rns_then_final_export",
+                },
+            ),
+        ],
+        "adaptive-grouped-scheduler": [
+            ScenarioItem(
+                "adaptive-grouped-scheduler",
+                "bounded-u64-adaptive-bands-grouped",
+                "bounded-u64",
+                adaptive_1024,
+                "Direct-HIP adaptive prefix grouped scheduler evidence",
+                "host_export",
+                "records prefix/tile/zero-mask grouping identity before routing grouped adaptive execution",
+                backends=("hip-direct",),
+                prefix_policy="minimum-proven",
+                bound_source="input-scan",
+                adaptive_grouped_scheduler=True,
+                metadata={
+                    "promotion_scope": "adaptive_grouped_scheduler_evidence_only",
+                    "schedule_strategy": "prefix_tile_zero_mask_grouped_descriptors",
+                },
+            ),
+        ],
+        "streaming-overlap": [
+            ScenarioItem(
+                "streaming-overlap",
+                "bounded-i64-512-reuse-b-overlap",
+                "bounded-i64",
+                layout_512,
+                "Direct-HIP repeated-B pack/compute/export overlap evidence",
+                "host_export",
+                "declares double-buffered stream dependency contracts before overlap routing",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse_b",
+                resident_lifetime=True,
+                workspace_arena=True,
+                streaming_overlap=True,
+                metadata={
+                    "promotion_scope": "streaming_overlap_evidence_only",
+                    "dependency_contract": "pack_before_gemm_gemm_before_export_status_before_host_read",
+                },
+            ),
+            ScenarioItem(
+                "streaming-overlap",
+                "exact-wide-signed-chain3-overlap",
+                "exact-wide-signed",
+                chain_256,
+                "exact-wide chain plus final export overlap evidence",
+                "residue_current_then_final_limb_export",
+                "tests whether final export can overlap with next pack without changing output contract",
+                backends=("hip-direct",),
+                residue_chain_length=3,
+                next_op_hint="rns-gemm",
+                exact_wide_limb_counts=(4,),
+                resident_lifetime=True,
+                workspace_arena=True,
+                streaming_overlap=True,
+                metadata={"promotion_scope": "streaming_overlap_evidence_only"},
+            ),
+        ],
+        "release-gate-closeout": [
+            ScenarioItem(
+                "release-gate-closeout",
+                "bounded-i64-4096-budgeted",
+                "bounded-i64",
+                large_4096,
+                "budgeted 4096 release gate with chunk/resume metadata",
+                "host_export",
+                "keeps 4096 classification separate from installed-cache eligibility until reviewed",
+                backends=("cpu", "hip-direct"),
+                release_gate="large-release-validation-4096-budgeted",
+                metadata={
+                    "large_shape_role": "budgeted_4096_release_gate",
+                    "promotion_scope": "release_gate_review_required",
+                    "resume_policy": "use --skip-existing with --max-new-captures",
+                },
+            ),
+            ScenarioItem(
+                "release-gate-closeout",
+                "finite-ring-4096-budgeted",
+                "finite-u8-ring",
+                large_4096,
+                "budgeted finite-u8 4096 release gate with chunk/resume metadata",
+                "finite_u8_canonical_host_export",
+                "keeps finite 4096 target claims blocked until CPU/direct baselines exist",
+                backends=("cpu", "hip-direct"),
+                finite_moduli=(251,),
+                release_gate="large-release-validation-4096-budgeted",
+                metadata={"large_shape_role": "budgeted_4096_release_gate", "promotion_scope": "release_gate_review_required"},
+            ),
+        ],
+        "fhe-lattice-proxy-starfoundry": [
+            ScenarioItem(
+                "fhe-lattice-proxy-starfoundry",
+                "key-switch-reuse-b-output-rns",
+                "bounded-i64",
+                fhe_key_switch,
+                "FHE/lattice key-switch proxy with stable RHS and RNS continuation intent",
+                "residue_current_then_final_export",
+                "groups tower/reuse/output-domain metadata without claiming compatibility with an FHE library",
+                backends=("hip-direct", "ck", "rocwmma"),
+                pack_mode="prepacked_reuse_b",
+                next_op_hint="rns-gemm",
+                workload_proxy="fhe:key_switch_digit_aggregation",
+                verification_amortization="reuse_shape_seed_reference_inputs",
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "algebra_family": "fhe_lattice",
+                    "workflow_name": "key_switch_digit_aggregation",
+                    "reuse_profile": "large_read_only_key_material",
+                    "output_domain_requirement": "rns_residue_current",
+                    "promotion_scope": "proxy_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "fhe-lattice-proxy-starfoundry",
+                "ckks-linear-layer-final-export",
+                "bounded-i64",
+                fhe_linear_layer,
+                "FHE/lattice dense linear-layer proxy with final export",
+                "host_export",
+                "keeps proxy workload grouping visible without asserting frontend library readiness",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                workload_proxy="fhe:ckks_linear_layer_dense_proxy",
+                verification_amortization="reuse_shape_seed_reference_inputs",
+                metadata={
+                    "source_role": "fhe_lattice_proxy",
+                    "algebra_family": "fhe_lattice",
+                    "workflow_name": "ckks_linear_layer_dense_proxy",
+                    "reuse_profile": "single_call_dense_layer",
+                    "output_domain_requirement": "host_export",
+                    "promotion_scope": "proxy_evidence_only",
+                },
+            ),
+        ],
         "large-exploratory": [
             ScenarioItem(
                 "large-exploratory",
@@ -3298,6 +3843,23 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
     scenario_args.next_op_hint = item.next_op_hint or getattr(args, "next_op_hint", None)
     scenario_args.residue_channel_fusion = item.residue_channel_fusion
+    scenario_args.modulus_set = item.modulus_set or getattr(args, "modulus_set", "default")
+    scenario_args.tile_shape_variant = item.tile_shape_variant or getattr(args, "tile_shape_variant", "default")
+    scenario_args.export_variant = item.export_variant or getattr(args, "export_variant", "default")
+    scenario_args.reconstruction_variant = item.reconstruction_variant or getattr(args, "reconstruction_variant", "default_garner")
+    scenario_args.grouped_dispatch_tasks = item.grouped_dispatch_tasks
+    scenario_args.hip_graph_replay = item.hip_graph_replay
+    scenario_args.workload_proxy = item.workload_proxy or getattr(args, "workload_proxy", "none")
+    scenario_args.resident_lifetime = item.resident_lifetime or getattr(args, "resident_lifetime", False)
+    scenario_args.workspace_arena = item.workspace_arena or getattr(args, "workspace_arena", False)
+    scenario_args.adaptive_grouped_scheduler = item.adaptive_grouped_scheduler or getattr(
+        args, "adaptive_grouped_scheduler", False
+    )
+    scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
+    scenario_args.release_gate = item.release_gate or getattr(args, "release_gate", "none")
+    scenario_args.verification_amortization = item.verification_amortization or getattr(
+        args, "verification_amortization", "none"
+    )
     return scenario_args
 
 
@@ -3342,6 +3904,19 @@ def scenario_metadata(
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "next_op_hint": item.next_op_hint,
         "residue_channel_fusion": item.residue_channel_fusion,
+        "modulus_set": item.modulus_set,
+        "tile_shape_variant": item.tile_shape_variant,
+        "export_variant": item.export_variant,
+        "reconstruction_variant": item.reconstruction_variant,
+        "grouped_dispatch_tasks": item.grouped_dispatch_tasks,
+        "hip_graph_replay": item.hip_graph_replay,
+        "workload_proxy": item.workload_proxy,
+        "resident_lifetime": item.resident_lifetime,
+        "workspace_arena": item.workspace_arena,
+        "adaptive_grouped_scheduler": item.adaptive_grouped_scheduler,
+        "streaming_overlap": item.streaming_overlap,
+        "release_gate": item.release_gate,
+        "verification_amortization": item.verification_amortization,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -3496,6 +4071,40 @@ def command_for(
         command.append("--native-to-rns-bridge")
     if getattr(args, "vector_to_rns_chain", False):
         command.append("--vector-to-rns-chain")
+    modulus_set = getattr(args, "modulus_set", "default")
+    if modulus_set and modulus_set != "default":
+        command.extend(["--modulus-set", modulus_set])
+    tile_shape_variant = getattr(args, "tile_shape_variant", "default")
+    if tile_shape_variant and tile_shape_variant != "default":
+        command.extend(["--tile-shape-variant", tile_shape_variant])
+    export_variant = getattr(args, "export_variant", "default")
+    if export_variant and export_variant != "default":
+        command.extend(["--export-variant", export_variant])
+    reconstruction_variant = getattr(args, "reconstruction_variant", "default_garner")
+    if reconstruction_variant and reconstruction_variant != "default_garner":
+        command.extend(["--reconstruction-variant", reconstruction_variant])
+    grouped_dispatch_tasks = int(getattr(args, "grouped_dispatch_tasks", 1) or 1)
+    if grouped_dispatch_tasks > 1:
+        command.extend(["--grouped-dispatch", str(grouped_dispatch_tasks)])
+    if getattr(args, "hip_graph_replay", False):
+        command.append("--hip-graph-replay")
+    workload_proxy = getattr(args, "workload_proxy", "none")
+    if workload_proxy and workload_proxy != "none":
+        command.extend(["--workload-proxy", workload_proxy])
+    if getattr(args, "resident_lifetime", False):
+        command.append("--resident-lifetime")
+    if getattr(args, "workspace_arena", False):
+        command.append("--workspace-arena")
+    if getattr(args, "adaptive_grouped_scheduler", False):
+        command.append("--adaptive-grouped-scheduler")
+    if getattr(args, "streaming_overlap", False):
+        command.append("--streaming-overlap")
+    release_gate = getattr(args, "release_gate", "none")
+    if release_gate and release_gate != "none":
+        command.extend(["--release-gate", release_gate])
+    verification_amortization = getattr(args, "verification_amortization", "none")
+    if verification_amortization and verification_amortization != "none":
+        command.extend(["--verification-amortization", verification_amortization])
     return command
 
 
@@ -3680,6 +4289,13 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "bound_source", None),
             getattr(args, "next_op_hint", None),
             getattr(args, "residue_channel_fusion", False),
+            getattr(args, "modulus_set", "default") != "default",
+            getattr(args, "tile_shape_variant", "default") != "default",
+            getattr(args, "export_variant", "default") != "default",
+            getattr(args, "reconstruction_variant", "default_garner") != "default_garner",
+            int(getattr(args, "grouped_dispatch_tasks", 1) or 1) != 1,
+            getattr(args, "hip_graph_replay", False),
+            getattr(args, "workload_proxy", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
             int(getattr(args, "host_api_batch_size", 1) or 1) != 1,
@@ -4023,6 +4639,72 @@ def parse_args() -> argparse.Namespace:
         help="benchmark-only direct-HIP residue-channel fusion experiment passthrough",
     )
     parser.add_argument(
+        "--modulus-set",
+        default="default",
+        help="benchmark-only modulus set metadata, default or experimental:NAME",
+    )
+    parser.add_argument(
+        "--tile-shape-variant",
+        default="default",
+        help="benchmark-only tile-shape variant label",
+    )
+    parser.add_argument(
+        "--export-variant",
+        default="default",
+        help="benchmark-only export/reconstruction evidence label",
+    )
+    parser.add_argument(
+        "--reconstruction-variant",
+        default="default_garner",
+        help="benchmark-only reconstruction variant label",
+    )
+    parser.add_argument(
+        "--grouped-dispatch-tasks",
+        type=int,
+        default=1,
+        help="benchmark-only grouped-dispatch task count metadata",
+    )
+    parser.add_argument(
+        "--hip-graph-replay",
+        action="store_true",
+        help="benchmark-only HIP graph replay metadata request",
+    )
+    parser.add_argument(
+        "--workload-proxy",
+        default="none",
+        help="benchmark-only workload proxy label",
+    )
+    parser.add_argument(
+        "--resident-lifetime",
+        action="store_true",
+        help="benchmark-only resident matrix lifetime evidence metadata",
+    )
+    parser.add_argument(
+        "--workspace-arena",
+        action="store_true",
+        help="benchmark-only workspace arena evidence metadata",
+    )
+    parser.add_argument(
+        "--adaptive-grouped-scheduler",
+        action="store_true",
+        help="benchmark-only adaptive prefix grouped scheduler evidence metadata",
+    )
+    parser.add_argument(
+        "--streaming-overlap",
+        action="store_true",
+        help="benchmark-only streaming pack/compute/export overlap evidence metadata",
+    )
+    parser.add_argument(
+        "--release-gate",
+        default="none",
+        help="benchmark-only release gate label such as large-release-validation-4096-budgeted",
+    )
+    parser.add_argument(
+        "--verification-amortization",
+        default="none",
+        help="benchmark-only verification amortization policy label",
+    )
+    parser.add_argument(
         "--include-exact-wide-limb-variants",
         action="store_true",
         help="include exact-wide output limb counts 1, 2, 3, 4, 8, 16, and 32",
@@ -4091,6 +4773,14 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
+    if args.grouped_dispatch_tasks <= 0:
+        parser.error("--grouped-dispatch-tasks must be positive")
+    if args.modulus_set != "default" and not args.modulus_set.startswith("experimental:"):
+        parser.error("--modulus-set must be default or experimental:NAME")
+    if not args.release_gate:
+        parser.error("--release-gate must not be empty")
+    if not args.verification_amortization:
+        parser.error("--verification-amortization must not be empty")
     return args
 
 

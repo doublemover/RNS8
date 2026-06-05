@@ -109,6 +109,15 @@ def main() -> int:
     expect_exit(cpu, 0, "cpu-reference json")
     expect_text(cpu.stdout, '"backend": "cpu-reference"', "cpu-reference json")
     expect_text(cpu.stdout, '"hip_available": 0', "cpu-reference json")
+    selector_shadow = run_command(inspect_exe, "--backend", "cpu-reference", "--json", "--selector-shadow")
+    expect_exit(selector_shadow, 0, "selector shadow json")
+    expect_text(selector_shadow.stdout, '"selector_shadow": {', "selector shadow json")
+    expect_text(
+        selector_shadow.stdout,
+        '"conservative_family_boundary": "exact_cache_selection_unchanged_family_advisory_only"',
+        "selector shadow json",
+    )
+    expect_text(selector_shadow.stdout, '"selected_family": "cpu_reference_family"', "selector shadow json")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         env = os.environ.copy()

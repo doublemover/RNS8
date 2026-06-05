@@ -1,5 +1,11 @@
 @PACKAGE_INIT@
 
+include(CMakeFindDependencyMacro)
+
+if(NOT TARGET roc::hipblaslt)
+  find_dependency(hipblaslt CONFIG QUIET)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/RNS8Targets.cmake")
 
 check_required_components(RNS8)
