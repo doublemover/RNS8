@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <vector>
 
 namespace rns8::detail {
 
@@ -101,22 +102,26 @@ void ring_gemm_modulus(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
   for (int64_t row = 0; row < m; ++row) {
-    for (int64_t col = 0; col < n; ++col) {
-      int8_t residue_acc = 0;
-      int64_t offset = 0;
-      while (offset < k) {
-        const int64_t block = std::min<int64_t>(RNS8_SAFE_INT32_K_BLOCK, k - offset);
-        int32_t block_acc = 0;
-        for (int64_t kk = 0; kk < block; ++kk) {
-          const int av = static_cast<int>(A[row * lda + offset + kk]);
-          const int bv = static_cast<int>(B[(offset + kk) * ldb + col]);
-          block_acc += av * bv;
+    int8_t* c_row = C + row * ldc;
+    std::fill(c_row, c_row + n, int8_t{0});
+    int64_t offset = 0;
+    while (offset < k) {
+      const int64_t block = std::min<int64_t>(RNS8_SAFE_INT32_K_BLOCK, k - offset);
+      std::fill(block_acc.begin(), block_acc.end(), 0);
+      for (int64_t kk = 0; kk < block; ++kk) {
+        const int av = static_cast<int>(A[row * lda + offset + kk]);
+        const int8_t* b_row = B + (offset + kk) * ldb;
+        for (int64_t col = 0; col < n; ++col) {
+          block_acc[static_cast<std::size_t>(col)] += av * static_cast<int>(b_row[col]);
         }
-        residue_acc = reduce_to_centered(static_cast<int64_t>(residue_acc) + block_acc, modulus);
-        offset += block;
       }
-      C[row * ldc + col] = residue_acc;
+      for (int64_t col = 0; col < n; ++col) {
+        c_row[col] =
+            reduce_to_centered(static_cast<int64_t>(c_row[col]) + block_acc[static_cast<std::size_t>(col)], modulus);
+      }
+      offset += block;
     }
   }
 }
