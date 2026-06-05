@@ -50,8 +50,8 @@ June 4-5, 2026 updates:
   Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
   35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
   and the 2048 hot-modulus portion of rank 14. Partially advanced lanes remain
-  ranks 3, 9, 13, 15, 18, and 20; they have benchmark/schema surfaces or partial
-  release evidence, but not enough proof for broader routing or public
+  ranks 3, 9, 12, 13, 15, 18, and 20; they have benchmark/schema surfaces or
+  partial release evidence, but not enough proof for broader routing or public
   performance claims.
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
   32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
@@ -169,6 +169,19 @@ June 4-5, 2026 updates:
   194115 us for four limbs in that run. This is useful export specialization
   evidence, not a reviewed cache entry or a replacement for four-limb output
   when callers request four limbs.
+- Exact-wide signed RNS-chain lazy-output evidence is now captured for the
+  Direct-HIP correctness backend. The release-mode chain captures under
+  `temp/perf-work-queue/exact-wide-rns-chain-direct-current/` cover
+  128x128x128 chain length 3 with residue-current output, no per-repeat CRT
+  export, schema-v4 validation, and required Direct-HIP GPU events. The
+  per-repeat repack chain measured 6102 us median end-to-end with 4888 us pack
+  and 2647 us RNS GEMM timing, while the explicit reusable-B chain measured
+  1201 us median end-to-end after an 11718 us setup cost. A rough workload
+  comparison against three independent 128 host-export calls is favorable for
+  the residue-current chain, especially reusable-B, but this remains
+  workload-contract evidence: it is not a same-output AUTO/cache entry, and
+  broader promotion still needs final-output contract coverage plus explicit
+  reuse lifetime and break-even policy.
 - `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
   matrices: `--skip-existing` reuses schema-valid existing captures and
   `--max-new-captures` caps how many new captures a pass may execute before
@@ -201,10 +214,10 @@ June 4-5, 2026 updates:
 | 6 | Bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Same-contract 512 release A/B against `direct_hip_tiled_active_prefix_rns_gemm_v2` | Route only if end-to-end median improves and events explain the win |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
 | 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
-| 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; release proof still needs same-contract timing and one final exact CPU comparison | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU reference remains exact |
+| 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
-| 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
+| 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 and broader fixed limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound and route follow-up work toward fixed-width export and lazy residue-current workflows |
 | 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, but broader sizes and the field-127 hipBLASLt event gap remain | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
@@ -240,7 +253,7 @@ June 4-5, 2026 updates:
 
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
-| Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
+| Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass is intentionally budgeted |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
 | Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |
@@ -852,7 +865,16 @@ Likely first slices:
   GPU-event-visible for per-repeat pack and chained `rns_gemm` work while
   keeping export phases absent from `gpu_event_phase_order`; the validation
   helper also accepts `tools/gpu_event_report.py --require-events` as the strict
-  event gate. This is not yet a public API output-domain mode.
+  event gate. The June 5, 2026 Direct-HIP release-mode pass under
+  `temp/perf-work-queue/exact-wide-rns-chain-direct-current/` captured
+  exact-wide signed 128x128x128 chain-length-3 residue-current output with
+  schema-v4 validation and required GPU events. The per-repeat repack chain
+  measured 6102 us median end-to-end with zero per-repeat CRT export; the
+  explicit reusable-B chain measured 1201 us median end-to-end after 11718 us
+  setup. The matching independent host-export captures measured 2517 us median
+  for four-limb output and 1538 us for three-limb output, so the lazy chain is a
+  useful workload signal but not a same-output cache promotion. This is not yet
+  a public API output-domain mode.
 - A batched CRT/reconstruction report that separates kernel time, status
   handling, compact copy time, constants placement, prefix grouping, limb count,
   and tree setup cost.
