@@ -6935,9 +6935,10 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
                                            !exact_wide_export_status_check_required(args) &&
                                            args.output_ld_padding == 0;
   const bool grouped_pack_slab_enabled = grouped_export_slab_enabled;
+  const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_export_slab_enabled ? "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h"
+        grouped_gemm_slab_enabled ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
                                     : "host_phase_loop_per_task_export";
   }
 
@@ -7053,7 +7054,30 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
     status = rns8_pack_i64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch exact-wide B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_gemm_slab_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
+            grouped_pack_a_device_slab.device_id,
+            grouped_pack_a_matrices.data(),
+            grouped_pack_b_matrices.data(),
+            grouped_export_c_matrices.data(),
+            task_count,
+            RNS8_EXACT_WIDE_SIGNED,
+            grouped_pack_a_residue_ptrs.ptr,
+            grouped_pack_b_residue_ptrs.ptr,
+            grouped_export_residue_ptrs.ptr,
+            args.m,
+            args.n,
+            args.k,
+            matrix_prefix);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_rns_grouped_exact_wide_matrices_device(host API batch signed)", status);
+        }
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch exact-wide signed)", status);
   };
@@ -7156,9 +7180,10 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
                                            !exact_wide_export_status_check_required(args) &&
                                            args.output_ld_padding == 0;
   const bool grouped_pack_slab_enabled = grouped_export_slab_enabled;
+  const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_export_slab_enabled ? "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h"
+        grouped_gemm_slab_enabled ? "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
                                     : "host_phase_loop_per_task_export";
   }
 
@@ -7274,7 +7299,30 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
     status = rns8_pack_u64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch exact-wide B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_gemm_slab_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
+            grouped_pack_a_device_slab.device_id,
+            grouped_pack_a_matrices.data(),
+            grouped_pack_b_matrices.data(),
+            grouped_export_c_matrices.data(),
+            task_count,
+            RNS8_EXACT_WIDE_UNSIGNED,
+            grouped_pack_a_residue_ptrs.ptr,
+            grouped_pack_b_residue_ptrs.ptr,
+            grouped_export_residue_ptrs.ptr,
+            args.m,
+            args.n,
+            args.k,
+            matrix_prefix);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_rns_grouped_exact_wide_matrices_device(host API batch unsigned)", status);
+        }
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch exact-wide unsigned)", status);
   };

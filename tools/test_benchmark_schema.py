@@ -3206,6 +3206,14 @@ def main() -> int:
         "grouped_dispatch_execution_strategy"
     ] = "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h"
     validate_capture(grouped_exact_wide_device_pack_export)
+    grouped_exact_wide_device_pack_gemm_export = copy.deepcopy(grouped_exact_wide_device_export)
+    grouped_exact_wide_device_pack_gemm_export["grouped_dispatch"][
+        "execution_strategy"
+    ] = "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
+    grouped_exact_wide_device_pack_gemm_export["timing_metadata"][
+        "grouped_dispatch_execution_strategy"
+    ] = "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h"
+    validate_capture(grouped_exact_wide_device_pack_gemm_export)
     grouped_exact_wide_missing_batched_flag = copy.deepcopy(grouped_exact_wide_device_export)
     grouped_exact_wide_missing_batched_flag["grouped_dispatch"]["batched_export_enabled"] = False
     grouped_exact_wide_missing_batched_flag["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = False

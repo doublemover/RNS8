@@ -133,11 +133,13 @@ GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
     "host_phase_loop_batched_exact_wide_export_d2h",
     "device_grouped_exact_wide_export_kernel_batched_d2h",
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+    "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
 }
 GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
     "host_phase_loop_batched_exact_wide_export_d2h",
     "device_grouped_exact_wide_export_kernel_batched_d2h",
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+    "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
 }
 STREAMING_OVERLAP_STATUSES = {
     "not_requested",

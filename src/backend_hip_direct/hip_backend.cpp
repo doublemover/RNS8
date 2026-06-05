@@ -118,6 +118,20 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
     int safe_k_block,
     void* stream);
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_task_prefix_device(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_device(
     const int64_t* d_a,
     const int64_t* d_b,
@@ -1341,6 +1355,43 @@ hipError_t launch_rns_grouped_prefix_gemm(
       stream);
   return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
 }
+
+hipError_t launch_rns_grouped_task_prefix_gemm(
+    const int8_t* const* a_ptrs,
+    const int8_t* const* b_ptrs,
+    int8_t* const* c_ptrs,
+    int64_t task_count,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t lda,
+    int64_t ldb,
+    int64_t ldc,
+    uint32_t prefix) {
+  if (!a_ptrs || !b_ptrs || !c_ptrs || task_count <= 0 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n ||
+      ldc < n || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      task_count > std::numeric_limits<int>::max() || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max() ||
+      RNS8_SAFE_INT32_K_BLOCK > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+    return hipErrorInvalidValue;
+  }
+  const int code = rns8_hip_direct_ring_gemm_i8_grouped_task_prefix_device(
+      a_ptrs,
+      b_ptrs,
+      c_ptrs,
+      static_cast<int>(task_count),
+      static_cast<int>(m),
+      static_cast<int>(n),
+      static_cast<int>(k),
+      static_cast<int>(lda),
+      static_cast<int>(ldb),
+      static_cast<int>(ldc),
+      static_cast<int>(prefix),
+      static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+  return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
+}
 #endif
 
 }  // namespace
@@ -2202,6 +2253,104 @@ rns8_status hip_direct_gemm_rns_device(
   (void)lda;
   (void)ldb;
   (void)ldc;
+  (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
+    int device_id,
+    rns8_matrix* const* a_matrices,
+    rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs,
+    const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!a_matrices || !b_matrices || !c_matrices || task_count == 0 || !device_a_residue_ptrs ||
+      !device_b_residue_ptrs || !device_c_residue_ptrs ||
+      (expected_semantics != RNS8_EXACT_WIDE_SIGNED && expected_semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
+      m <= 0 || n <= 0 || k <= 0 || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  int a_device_id = -1;
+  int b_device_id = -1;
+  int c_device_id = -1;
+  uint32_t a_prefix = 0;
+  uint32_t b_prefix = 0;
+  uint32_t c_prefix = 0;
+  rns8_status status = validate_exact_wide_grouped_matrices(
+      a_matrices, task_count, expected_semantics, m, k, true, &a_device_id, &a_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = validate_exact_wide_grouped_matrices(
+      b_matrices, task_count, expected_semantics, k, n, true, &b_device_id, &b_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = validate_exact_wide_grouped_matrices(
+      c_matrices, task_count, expected_semantics, m, n, false, &c_device_id, &c_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != b_prefix || a_prefix != c_prefix ||
+      a_prefix != prefix) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (device_id < 0) {
+    device_id = a_device_id;
+  } else if (device_id != a_device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const auto* a_ptrs = static_cast<const int8_t* const*>(device_a_residue_ptrs);
+  const auto* b_ptrs = static_cast<const int8_t* const*>(device_b_residue_ptrs);
+  auto* c_ptrs = static_cast<int8_t* const*>(const_cast<void*>(device_c_residue_ptrs));
+  const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
+    const hipError_t launch_status =
+        launch_rns_grouped_task_prefix_gemm(a_ptrs, b_ptrs, c_ptrs, task_count, m, n, k, k, n, n, prefix);
+    return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
+  });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  for (uint32_t index = 0; index < task_count; ++index) {
+    rns8_matrix* matrix = c_matrices[index];
+    matrix->device_residues_current = true;
+    matrix->host_residues_current = false;
+    matrix->host_byte_limbs_current = false;
+    matrix->device_byte_limbs_current = false;
+    matrix->host_native_current = false;
+    matrix->device_native_current = false;
+  }
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)a_matrices;
+  (void)b_matrices;
+  (void)c_matrices;
+  (void)task_count;
+  (void)expected_semantics;
+  (void)device_a_residue_ptrs;
+  (void)device_b_residue_ptrs;
+  (void)device_c_residue_ptrs;
+  (void)m;
+  (void)n;
+  (void)k;
   (void)prefix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif

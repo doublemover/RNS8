@@ -149,6 +149,20 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix);
+rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
+    int device_id,
+    rns8_matrix* const* a_matrices,
+    rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs,
+    const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint32_t prefix);
 rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
     const rns8_plan* plan,
     const rns8_matrix* A,
