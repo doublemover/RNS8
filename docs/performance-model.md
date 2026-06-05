@@ -347,6 +347,35 @@ promotion blockers when a cache candidate loses to the required CPU baseline.
 Installing the two small-shape finite temp caches increased the default local
 runtime cache to 11 entries total.
 
+## Windows `gfx1100` release-reviewed exact-wide matrix
+
+Current exact-wide v2 release reviews now cover signed and unsigned 64, 128,
+512, 1024, and 2048 with CPU reference, Direct HIP, hipBLASLt, CK, and rocWMMA
+same-contract release captures. The 512/1024 pass used seed `20260604`; the
+64/128 refresh and large 2048 pass used seed `20260605`. Promoted entries used
+release builds, three warmups, nine measured repeats, schema-v4 validation,
+same-contract CPU/direct baselines, compatible target/toolchain/commit metadata,
+and required GPU events for the selected accelerator.
+
+The installed exact-wide cache entries are: unsigned 64 hipBLASLt at 4611 us,
+signed 512 rocWMMA at 7162 us, signed 1024 hipBLASLt at 17092 us, unsigned 1024
+CK at 20481 us, signed 2048 hipBLASLt at 59074 us, and unsigned 2048 hipBLASLt
+at 40985 us. Signed 64, signed 128, unsigned 128, and unsigned 512 remain on
+Direct HIP in the current matrix.
+
+The large exact-wide 2048 release-validation pass under
+`temp/perf-work-queue/large-release-validation-2048-exact-wide-current/`
+produced two clean review groups and two installed cache entries. For signed
+2048, CPU measured 19040900 us, Direct HIP measured 131794 us, and hipBLASLt
+won at 59074 us, 2.23x faster than Direct HIP. For unsigned 2048, CPU measured
+15742000 us, Direct HIP measured 124570 us, and hipBLASLt won at 40985 us,
+3.04x faster than Direct HIP. Required GPU events show the 2048 winners are
+export-bound after GEMM acceleration: signed 2048 reported `crt_export` at
+18940.650 us and `exact_wide_export_kernel` at 18773.540 us, while unsigned
+2048 reported `crt_export` at 14407.720 us and `exact_wide_export_kernel` at
+14182.880 us. That makes fixed-width CRT/export specialization and lazy
+residue-current output the next exact-wide performance targets.
+
 ## Windows `gfx1100` release-reviewed wrap64 baseline
 
 A release-mode review on June 3, 2026 covered strict wrap64 64x64x64,
@@ -716,18 +745,19 @@ Current Windows release sweep status:
 - adaptive bounded 65x65x64 and 1024x1024x1024 have local release-reviewed
   reports with complete baselines;
 - finite-u8 ring moduli 251, 255, and 256 plus finite-u8 field modulus 251 have
-  current local v2 release-reviewed matrices at 64/128/512/1024; seven
-  event-valid entries are installed in the local default cache, and accelerator
-  cache promotion now requires beating CPU as well as Direct HIP;
-- exact-wide signed/unsigned 512 and 1024 have a current local v2
-  release-reviewed matrix with complete CPU/direct-HIP baselines and three
-  event-valid cache candidates: signed 512 rocWMMA, signed 1024 hipBLASLt, and
-  unsigned 1024 CK; older 64/128 exact-wide evidence remains historical until
-  rerun with current selected-kernel identities;
+  current local v2 release-reviewed matrices at 64/128/512/1024 plus
+  hot-modulus 2048; 11 event-valid entries are installed in the local default
+  cache, and accelerator cache promotion now requires beating CPU as well as
+  Direct HIP;
+- exact-wide signed/unsigned 64, 128, 512, 1024, and 2048 have current local v2
+  release-reviewed matrices with complete CPU/direct-HIP baselines; six
+  event-valid exact-wide entries are installed: unsigned 64 hipBLASLt, signed
+  512 rocWMMA, signed 1024 hipBLASLt, unsigned 1024 CK, and signed/unsigned
+  2048 hipBLASLt;
 - strict wrap64 has local release-reviewed CPU/direct-HIP baselines for 64, 128,
-  512, and 1024; the matrix-engine accelerator candidate remains open;
-- 2048, 4096, and 8192 remain exploratory until complete baselines finish
-  within the run cap.
+  512, 1024, and 2048; the matrix-engine accelerator candidate remains open;
+- 4096 and 8192 remain exploratory until complete baselines finish within the
+  run cap.
 
 Review reports must include per-phase medians, speedups versus direct-HIP and
 vector-ALU baselines where applicable, promotion blockers, selected kernel,
