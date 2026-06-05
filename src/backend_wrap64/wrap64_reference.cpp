@@ -1,7 +1,9 @@
 #include "core/internal.hpp"
 
+#include <algorithm>
 #include <array>
 #include <limits>
+#include <vector>
 
 namespace rns8::detail {
 
@@ -155,20 +157,10 @@ uint32_t wrap64_unsigned_byte_product_from_signed_i8(uint8_t a, uint8_t b) {
 }
 
 uint64_t wrap64_byte_limb_product(uint64_t a, uint64_t b) {
-  uint64_t out = 0;
-  uint64_t carry = 0;
-  for (uint32_t diagonal = 0; diagonal < 8; ++diagonal) {
-    uint64_t column = carry;
-    for (uint32_t i = 0; i <= diagonal; ++i) {
-      const uint32_t j = diagonal - i;
-      const uint64_t a_byte = (a >> (8u * i)) & 0xffu;
-      const uint64_t b_byte = (b >> (8u * j)) & 0xffu;
-      column += a_byte * b_byte;
-    }
-    out |= (column & 0xffu) << (8u * diagonal);
-    carry = column >> 8u;
-  }
-  return out;
+  // Unsigned overflow is defined modulo 2^64 and matches the low byte-limb
+  // Comba product. The explicit byte-pair oracle below remains for accelerator
+  // signedness/carry tests.
+  return a * b;
 }
 
 uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(
@@ -246,9 +238,19 @@ rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const
   if (!A.host_byte_limbs_current || !B.host_byte_limbs_current) {
     return RNS8_INVALID_ARGUMENT;
   }
+  std::vector<uint64_t> row_acc(static_cast<std::size_t>(plan.desc.n), 0);
   for (int64_t row = 0; row < plan.desc.m; ++row) {
+    std::fill(row_acc.begin(), row_acc.end(), 0);
+    for (int64_t kk = 0; kk < plan.desc.k; ++kk) {
+      const uint64_t a_value = wrap_u64_matrix_cell(A, row, kk);
+      const uint8_t* b_row_limbs = B.byte_limbs.data() + wrap_byte_limb_index(B, kk, 0, 0);
+      for (int64_t col = 0; col < plan.desc.n; ++col) {
+        row_acc[static_cast<std::size_t>(col)] +=
+            a_value * load_wrap_compact_u64_limbs(b_row_limbs + static_cast<std::size_t>(col) * kWrap64ByteLimbs);
+      }
+    }
     for (int64_t col = 0; col < plan.desc.n; ++col) {
-      set_wrap_u64_matrix_cell(C, row, col, wrap64_compact_byte_limb_gemm_cell(A, B, row, col, plan.desc.k));
+      set_wrap_u64_matrix_cell(C, row, col, row_acc[static_cast<std::size_t>(col)]);
     }
   }
   return RNS8_SUCCESS;

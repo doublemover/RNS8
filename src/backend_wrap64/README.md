@@ -18,17 +18,17 @@ Current status:
   backend availability. Malformed wrap metadata returns `RNS8_INVALID_ARGUMENT`;
   a valid wrap descriptor on a backend that does not implement strict byte-limb
   wraparound returns `RNS8_UNSUPPORTED_BACKEND`.
-- `wrap64_reference.cpp` contains the CPU byte-limb Comba reference for
-  low-64-bit product, GEMM-cell behavior, persistent matrix packing, persistent
-  GEMM, and low-64-bit export. It keeps strict wraparound arithmetic separate
-  from the odd-modulus CRT path. It also contains the signed-INT8 correction
-  algebra future accelerator paths must use when unsigned byte products are
-  computed through signed INT8 hardware instructions: signed byte product plus
-  explicit high-bit correction terms, not a shortcut through odd-modulus CRT or
-  a separate unsigned product. It also contains the full byte-diagonal
-  decomposition oracle used by wrap64 correctness tests. Persistent CPU GEMM
+- `wrap64_reference.cpp` contains the CPU byte-limb reference for persistent
+  matrix packing, persistent GEMM, and low-64-bit export. Persistent CPU GEMM
   consumes compact resident byte-limb matrices directly after pack, not padded
-  host storage.
+  host storage, and uses native unsigned `uint64_t` multiply/accumulate because
+  unsigned overflow is defined modulo `2^64`. The file keeps strict wraparound
+  arithmetic separate from the odd-modulus CRT path and retains the full
+  byte-diagonal decomposition oracle used by wrap64 correctness tests. It also
+  contains the signed-INT8 correction algebra future accelerator paths must use
+  when unsigned byte products are computed through signed INT8 hardware
+  instructions: signed byte product plus explicit high-bit correction terms,
+  not a shortcut through odd-modulus CRT or a separate unsigned product.
 - `wrap64_hip_kernels.hip` contains direct-HIP pack, tiled byte-limb
   correctness, and export kernels. The GEMM kernel stages 16x16 output tiles
   through K tiles, sums only the low eight Comba product diagonals, and uses the
