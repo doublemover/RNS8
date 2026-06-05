@@ -352,6 +352,18 @@ evidence, not an AUTO cache entry or public batching API promotion. The small
 Direct-HIP one-shot resident-fallback diagnostic and hipBLASLt finite ring-251
 diagnostic remain focused event-cleanup evidence only.
 
+A follow-up grouped-dispatch capture on the same exact-wide signed 64
+contract now beats both the independent Direct-HIP baseline and the earlier
+hostbatch32 candidate. The current branch `rns8-bench --grouped-dispatch 32`
+capture under
+`temp/perf-work-queue/many-small-grouped-dispatch-current/` uses three
+warmups, nine repeats, seed `20260605`, schema v4, and required Direct-HIP GPU
+events. `tools/many_small_grouped_report.py` reports 991.94 us per task for
+the grouped path versus 3880 us for independent Direct HIP and 1902.97 us for
+Direct-HIP hostbatch32, or 3.91x and 1.92x faster respectively. This remains
+benchmark-owned persistent-task evidence, not a device queue, public grouped
+API, AUTO cache entry, or Linux/Instinct claim.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized

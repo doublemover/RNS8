@@ -23,6 +23,7 @@ python tools\test_benchmark_schema.py
 python tools\test_result_compare.py
 python tools\test_bound_discovery_report.py
 python tools\test_host_api_batch_report.py
+python tools\test_many_small_grouped_report.py
 python tools\test_benchmark_sweep.py
 python tools\check_release_tree.py
 cmake --preset cpu-debug

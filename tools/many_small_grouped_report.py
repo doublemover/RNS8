@@ -9,81 +9,494 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 
 
 DEFAULT_OUT_DIR = Path("temp") / "many-small-grouped-reports"
+RELEASE_MIN_WARMUPS = 3
+RELEASE_MIN_REPEATS = 9
+REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
 
 
-def _median(capture: dict[str, Any]) -> float | None:
+def expand_inputs(paths: list[Path]) -> list[Path]:
+    expanded: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            expanded.extend(sorted(path.rglob("*.json")))
+        else:
+            expanded.append(path)
+    return expanded
+
+
+def load_validated_capture(path: Path) -> dict[str, Any]:
+    try:
+        capture = load_capture(path)
+        validate_capture(capture, path)
+    except BenchmarkSchemaError as exc:
+        raise SystemExit(str(exc)) from exc
+    capture["_path"] = str(path)
+    return capture
+
+
+def benchmark_execution_mode(capture: dict[str, Any]) -> str:
+    value = capture.get("benchmark_execution_mode")
+    if isinstance(value, str):
+        return value
+    metadata = capture.get("timing_metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("benchmark_execution_mode"), str):
+        return metadata["benchmark_execution_mode"]
+    return "persistent_resident"
+
+
+def is_grouped_dispatch(capture: dict[str, Any]) -> bool:
+    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    if grouped.get("requested") is True:
+        return True
+    return benchmark_execution_mode(capture) == "benchmark_grouped_dispatch_evidence"
+
+
+def is_host_api_batch(capture: dict[str, Any]) -> bool:
+    host_batch = capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+    if host_batch.get("enabled") is True:
+        return True
+    return benchmark_execution_mode(capture) == "benchmark_host_api_batch"
+
+
+def mode_for_capture(capture: dict[str, Any]) -> str:
+    if is_grouped_dispatch(capture):
+        return "grouped_dispatch"
+    if is_host_api_batch(capture):
+        return "host_api_batch"
+    return "independent_call"
+
+
+def backend_id(capture: dict[str, Any]) -> str:
+    selected = capture.get("backend_selected")
+    return str(selected) if selected is not None else str(capture.get("backend_requested"))
+
+
+def task_count_for_capture(capture: dict[str, Any]) -> int:
+    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    if grouped.get("requested"):
+        value = grouped.get("task_count")
+        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+    host_batch = capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+    if host_batch.get("enabled"):
+        value = host_batch.get("batch_size")
+        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+    return 1
+
+
+def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
     summary = capture.get("timing_summary_us")
-    if isinstance(summary, dict) and isinstance(summary.get("end_to_end"), dict):
-        value = summary["end_to_end"].get("median")
-        if isinstance(value, (int, float)):
-            return float(value)
+    if not isinstance(summary, dict):
+        return None
+    phase_summary = summary.get(phase)
+    if not isinstance(phase_summary, dict):
+        return None
+    value = phase_summary.get(statistic)
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def median_end_to_end_us(capture: dict[str, Any]) -> float | None:
+    return timing_summary_value(capture, "end_to_end", "median")
+
+
+def median_per_task_end_to_end_us(capture: dict[str, Any]) -> float | None:
+    median = median_end_to_end_us(capture)
+    task_count = task_count_for_capture(capture)
+    return median / task_count if median is not None and task_count > 0 else None
+
+
+def release_satisfied(capture: dict[str, Any]) -> bool:
+    return (
+        isinstance(capture.get("warmups"), int)
+        and isinstance(capture.get("repeats"), int)
+        and capture["warmups"] >= RELEASE_MIN_WARMUPS
+        and capture["repeats"] >= RELEASE_MIN_REPEATS
+    )
+
+
+def gpu_backend(capture: dict[str, Any] | None) -> bool:
+    return capture is not None and backend_id(capture) not in REFERENCE_BACKENDS
+
+
+def gpu_events_available(capture: dict[str, Any] | None) -> bool | None:
+    if capture is None or not gpu_backend(capture):
+        return None
+    metadata = capture.get("timing_metadata")
+    if not isinstance(metadata, dict):
+        return False
+    return (
+        metadata.get("gpu_event_timing") is True
+        and metadata.get("gpu_event_timing_status") == "available"
+        and isinstance(metadata.get("gpu_event_phase_order"), list)
+        and bool(metadata.get("gpu_event_timing_source"))
+    )
+
+
+def _nested(capture: dict[str, Any], path: str) -> Any:
+    value: Any = capture
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def _exact_output_status_policy(capture: dict[str, Any]) -> str | None:
+    status_policy = _nested(capture, "exact_output_contract.status_policy")
+    if status_policy is not None:
+        return str(status_policy)
+    status_check = capture.get("exact_wide_export_status_check")
+    if isinstance(status_check, str) and "elided" in status_check:
+        return "structurally_elided"
+    if status_check is not None:
+        return "required"
     return None
 
 
-def row_for_capture(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
-    host_batch = capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
-    task_count = grouped.get("task_count") if grouped.get("requested") else host_batch.get("batch_size", 1)
-    median = _median(capture)
+def _normalized_contract_value(capture: dict[str, Any], field: str) -> Any:
+    value = _nested(capture, field)
+    semantics = capture.get("semantics")
+    if field == "exact_output_contract.requested_final_output" and value is None:
+        if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            return "exact_wide_limb_host"
+    if field == "exact_output_contract.limb_count" and value is None:
+        if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            return capture.get("exact_wide_limb_count")
+    if field == "exact_output_contract.status_policy":
+        return _exact_output_status_policy(capture)
+    if field == "export_variant.name" and value is None:
+        return "default"
+    if field == "reconstruction_variant.name" and value is None:
+        return "default_garner"
+    if field == "modulus_set.name" and value is None:
+        return "default"
+    if field == "residue_count_policy.policy" and value is None:
+        return capture.get("contract_prefix_policy")
+    if field == "tile_shape_variant.name" and value is None:
+        return "default"
+    if field == "tile_shape_variant.tile_m" and value is None:
+        return capture.get("tile_m")
+    if field == "tile_shape_variant.tile_n" and value is None:
+        return capture.get("tile_n")
+    if field == "tile_shape_variant.tile_k" and value is None:
+        return capture.get("k_block_size")
+    if field == "workload_proxy.family" and value is None:
+        return "not_requested"
+    if field == "workload_proxy.label" and value is None:
+        return "none"
+    return value
+
+
+def normalized_contract_key(capture: dict[str, Any]) -> str:
+    fields = [
+        "semantics",
+        "bound_kind",
+        "bound_mode",
+        "bound",
+        "bound_source",
+        "m",
+        "n",
+        "k",
+        "prefix",
+        "selected_prefix",
+        "requested_max_prefix",
+        "contract_prefix_policy",
+        "residue_output_mode",
+        "tile_m",
+        "tile_n",
+        "k_block_size",
+        "finite_modulus",
+        "exact_output_contract.requested_final_output",
+        "exact_output_contract.limb_count",
+        "exact_output_contract.status_policy",
+        "output_policy.destination_layout",
+        "output_policy.status_handling",
+        "export_variant.name",
+        "reconstruction_variant.name",
+        "modulus_set.name",
+        "residue_count_policy.policy",
+        "tile_shape_variant.name",
+        "tile_shape_variant.tile_m",
+        "tile_shape_variant.tile_n",
+        "tile_shape_variant.tile_k",
+        "workload_proxy.family",
+        "workload_proxy.label",
+        "seed",
+        "input_distribution",
+    ]
+    return ";".join(f"{field}={_normalized_contract_value(capture, field)}" for field in fields)
+
+
+def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
+    if capture is None:
+        return None
     return {
-        "path": str(path),
-        "mode": (
-            "grouped_dispatch"
-            if grouped.get("requested")
-            else "host_api_batch"
-            if host_batch.get("enabled")
-            else "independent_call"
-        ),
-        "task_count": task_count,
-        "backend_selected": capture.get("backend_selected"),
+        "path": capture.get("_path"),
+        "mode": mode_for_capture(capture),
+        "backend": backend_id(capture),
+        "task_count": task_count_for_capture(capture),
+        "median_end_to_end_us": median_end_to_end_us(capture),
+        "median_per_task_end_to_end_us": median_per_task_end_to_end_us(capture),
+        "release_review": release_satisfied(capture),
+        "gpu_events_available": gpu_events_available(capture),
+    }
+
+
+def fastest(captures: list[dict[str, Any]]) -> dict[str, Any] | None:
+    valid = [capture for capture in captures if median_per_task_end_to_end_us(capture) is not None]
+    if not valid:
+        return None
+    return min(valid, key=lambda capture: median_per_task_end_to_end_us(capture) or float("inf"))
+
+
+def speedup(numerator_capture: dict[str, Any] | None, denominator_capture: dict[str, Any]) -> float | None:
+    numerator = median_per_task_end_to_end_us(numerator_capture) if numerator_capture is not None else None
+    denominator = median_per_task_end_to_end_us(denominator_capture)
+    if numerator is None or denominator in (None, 0.0):
+        return None
+    return numerator / denominator
+
+
+def decision_for(
+    candidate: dict[str, Any],
+    same_backend_independent: dict[str, Any] | None,
+    best_independent: dict[str, Any] | None,
+    same_backend_host_batch: dict[str, Any] | None,
+) -> tuple[str, list[str]]:
+    blockers: list[str] = []
+    if best_independent is None:
+        return "missing_baseline", ["missing_independent_contract_baseline"]
+    if same_backend_independent is None:
+        blockers.append("missing_same_backend_independent_baseline")
+    if same_backend_host_batch is None:
+        blockers.append("missing_same_backend_host_batch_baseline")
+    release_inputs = [candidate, best_independent, same_backend_independent, same_backend_host_batch]
+    if any(capture is not None and not release_satisfied(capture) for capture in release_inputs):
+        blockers.append("not_release_review")
+    for label, capture in [
+        ("grouped_dispatch", candidate),
+        ("best_independent", best_independent),
+        ("same_backend_independent", same_backend_independent),
+        ("same_backend_host_batch", same_backend_host_batch),
+    ]:
+        events = gpu_events_available(capture)
+        if events is False:
+            blockers.append(f"missing_{label}_gpu_events")
+    if speedup(best_independent, candidate) is None:
+        blockers.append("missing_end_to_end_timing")
+    if blockers:
+        return "keep_experimental", blockers
+    if speedup(best_independent, candidate) <= 1.0:
+        return "deprioritize", ["grouped_not_faster_than_best_independent_per_task"]
+    same_backend_speedup = speedup(same_backend_independent, candidate)
+    if same_backend_speedup is not None and same_backend_speedup <= 1.0:
+        return "deprioritize", ["grouped_not_faster_than_same_backend_independent_per_task"]
+    host_batch_speedup = speedup(same_backend_host_batch, candidate)
+    if host_batch_speedup is not None and host_batch_speedup <= 1.0:
+        return "deprioritize", ["grouped_not_faster_than_same_backend_host_batch_per_task"]
+    return "candidate_win", []
+
+
+def row_for_capture(
+    capture: dict[str, Any],
+    same_backend_independent: dict[str, Any] | None,
+    best_independent: dict[str, Any] | None,
+    same_backend_host_batch: dict[str, Any] | None,
+) -> dict[str, Any]:
+    mode = mode_for_capture(capture)
+    if mode == "grouped_dispatch":
+        decision, blockers = decision_for(capture, same_backend_independent, best_independent, same_backend_host_batch)
+    elif mode == "host_api_batch":
+        decision, blockers = "host_batch_baseline", []
+    else:
+        decision, blockers = "independent_baseline", []
+    return {
+        "path": capture.get("_path"),
+        "mode": mode,
+        "backend": backend_id(capture),
         "semantics": capture.get("semantics"),
+        "finite_modulus": capture.get("finite_modulus"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
-        "median_end_to_end_us": median,
-        "median_per_task_end_to_end_us": (median / task_count) if median and task_count else None,
-        "grouped_dispatch_status": grouped.get("capture_status"),
+        "task_count": task_count_for_capture(capture),
+        "median_end_to_end_us": median_end_to_end_us(capture),
+        "median_per_task_end_to_end_us": median_per_task_end_to_end_us(capture),
+        "release_review": release_satisfied(capture),
+        "gpu_events_available": gpu_events_available(capture),
+        "grouped_dispatch_status": (
+            capture.get("grouped_dispatch", {}).get("capture_status")
+            if isinstance(capture.get("grouped_dispatch"), dict)
+            else None
+        ),
+        "same_backend_independent": capture_summary(same_backend_independent),
+        "best_independent": capture_summary(best_independent),
+        "same_backend_host_batch": capture_summary(same_backend_host_batch),
+        "speedup_vs_same_backend_independent": speedup(same_backend_independent, capture),
+        "speedup_vs_best_independent": speedup(best_independent, capture),
+        "speedup_vs_same_backend_host_batch": speedup(same_backend_host_batch, capture),
+        "decision": decision,
+        "blockers": blockers,
+    }
+
+
+def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
+    by_contract: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for capture in captures:
+        by_contract[normalized_contract_key(capture)].append(capture)
+
+    groups = []
+    for key, items in sorted(by_contract.items(), key=lambda item: item[0]):
+        independent = [capture for capture in items if mode_for_capture(capture) == "independent_call"]
+        host_batches = [capture for capture in items if mode_for_capture(capture) == "host_api_batch"]
+        grouped = [capture for capture in items if mode_for_capture(capture) == "grouped_dispatch"]
+        best_independent = fastest(independent)
+        best_host_batch = fastest(host_batches)
+        best_grouped = fastest(grouped)
+        rows = []
+        for capture in sorted(items, key=lambda item: (mode_for_capture(item), backend_id(item), str(item.get("_path")))):
+            backend = backend_id(capture)
+            same_backend_independent = fastest([item for item in independent if backend_id(item) == backend])
+            same_backend_host_batch = fastest([item for item in host_batches if backend_id(item) == backend])
+            rows.append(row_for_capture(capture, same_backend_independent, best_independent, same_backend_host_batch))
+        groups.append(
+            {
+                "contract_key": key,
+                "summary": {
+                    "independent_count": len(independent),
+                    "host_batch_count": len(host_batches),
+                    "grouped_dispatch_count": len(grouped),
+                    "best_independent": capture_summary(best_independent),
+                    "best_host_batch": capture_summary(best_host_batch),
+                    "best_grouped_dispatch": capture_summary(best_grouped),
+                },
+                "rows": sorted(rows, key=lambda row: row.get("median_per_task_end_to_end_us") or float("inf")),
+            }
+        )
+
+    comparisons = [row for group in groups for row in group["rows"] if row["mode"] == "grouped_dispatch"]
+    return {
+        "schema_version": 2,
+        "policy": "many_small_grouped_evidence_only_no_public_resident_lifetime_api",
+        "summary": {
+            "groups": len(groups),
+            "grouped_dispatch_comparisons": len(comparisons),
+            "candidate_wins": sum(1 for row in comparisons if row["decision"] == "candidate_win"),
+            "deprioritized": sum(1 for row in comparisons if row["decision"] == "deprioritize"),
+            "experimental": sum(1 for row in comparisons if row["decision"] == "keep_experimental"),
+            "missing_baselines": sum(1 for row in comparisons if row["decision"] == "missing_baseline"),
+        },
+        "groups": groups,
     }
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    rows = [row_for_capture(path) for path in paths]
-    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
-    for row in rows:
-        shape = row["shape"]
-        groups[(row["semantics"], shape["m"], shape["n"], shape["k"])].append(row)
-    return {
-        "schema_version": 1,
-        "policy": "many_small_grouped_evidence_only_no_public_resident_lifetime_api",
-        "groups": [
-            {"key": key, "rows": sorted(value, key=lambda row: row.get("median_per_task_end_to_end_us") or float("inf"))}
-            for key, value in sorted(groups.items(), key=lambda item: str(item[0]))
-        ],
-    }
+    captures = [load_validated_capture(path) for path in expand_inputs(paths)]
+    return build_report_from_captures(captures)
 
 
-def write_report(report: dict[str, Any], out_dir: Path) -> Path:
+def write_markdown(report: dict[str, Any], path: Path) -> None:
+    lines = [
+        "# Many-Small Grouped Dispatch Report",
+        "",
+        "| Metric | Value |",
+        "|---|---:|",
+    ]
+    for key, value in report["summary"].items():
+        lines.append(f"| {key} | {value} |")
+    lines.extend(
+        [
+            "",
+            "| backend | semantics | shape | tasks | grouped per-task us | best independent | same-backend host-batch us | speedup vs best independent | speedup vs host-batch | decision | blockers |",
+            "|---|---|---|---:|---:|---|---:|---:|---:|---|---|",
+        ]
+    )
+    for group in report["groups"]:
+        for row in group["rows"]:
+            if row["mode"] != "grouped_dispatch":
+                continue
+            shape = row["shape"]
+            best = row.get("best_independent") or {}
+            host_batch = row.get("same_backend_host_batch") or {}
+            best_text = (
+                f"{best.get('backend')} {best.get('median_per_task_end_to_end_us')}"
+                if best
+                else "none"
+            )
+            blockers = ",".join(row.get("blockers") or []) or "none"
+            lines.append(
+                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {per_task} | {best} | {host_batch} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
+                    backend=row.get("backend"),
+                    semantics=row.get("semantics"),
+                    m=shape.get("m"),
+                    n=shape.get("n"),
+                    k=shape.get("k"),
+                    tasks=row.get("task_count"),
+                    per_task=row.get("median_per_task_end_to_end_us"),
+                    best=best_text,
+                    host_batch=host_batch.get("median_per_task_end_to_end_us"),
+                    speed_best=(
+                        None
+                        if row.get("speedup_vs_best_independent") is None
+                        else round(float(row["speedup_vs_best_independent"]), 4)
+                    ),
+                    speed_batch=(
+                        None
+                        if row.get("speedup_vs_same_backend_host_batch") is None
+                        else round(float(row["speedup_vs_same_backend_host_batch"]), 4)
+                    ),
+                    decision=row.get("decision"),
+                    blockers=blockers,
+                )
+            )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_report(report: dict[str, Any], out_dir: Path) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "many-small-grouped-report.json"
-    out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return out_path
+    json_path = out_dir / "many-small-grouped-report.json"
+    md_path = out_dir / "many-small-grouped-report.md"
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_markdown(report, md_path)
+    return {"json": json_path, "markdown": md_path}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--capture",
+        type=Path,
+        action="append",
+        help="capture file or directory; directories are searched recursively for JSON",
+    )
+    parser.add_argument("captures", type=Path, nargs="*")
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--out-json", type=Path)
+    parser.add_argument("--out-md", type=Path)
+    parser.add_argument("--json", action="store_true")
+    return parser.parse_args()
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, nargs="+")
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
-    parser.add_argument("--json", action="store_true")
-    args = parser.parse_args()
-    report = build_report(args.captures)
+    args = parse_args()
+    paths = list(args.captures)
+    if args.capture:
+        paths.extend(args.capture)
+    if not paths:
+        raise SystemExit("at least one capture file or directory is required")
+    report = build_report(paths)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
-    else:
-        print(write_report(report, args.out_dir))
+    if args.out_json:
+        args.out_json.parent.mkdir(parents=True, exist_ok=True)
+        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if args.out_md:
+        args.out_md.parent.mkdir(parents=True, exist_ok=True)
+        write_markdown(report, args.out_md)
+    if not args.json and not args.out_json and not args.out_md:
+        paths_written = write_report(report, args.out_dir)
+        print(paths_written["json"])
     return 0
 
 

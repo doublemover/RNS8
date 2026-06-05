@@ -186,9 +186,13 @@ June 4-5, 2026 updates:
   `benchmark_grouped_dispatch_evidence` metadata, and downstream
   `many_small_grouped_report.py` classification. Tiny bounded-i64, finite-u8,
   and exact-wide signed Direct-HIP `gfx1100` smokes under
-  `temp/grouped-dispatch-*.json` validate schema and required GPU events. This
-  is still benchmark-owned evidence plumbing, not a device queue, public
-  scheduler, or promotion claim.
+  `temp/grouped-dispatch-*.json` validate schema and required GPU events. A
+  release-count exact-wide signed 64 group32 follow-up under
+  `temp/perf-work-queue/many-small-grouped-dispatch-current/` now classifies as
+  a grouped-dispatch candidate win: 991.94 us per task versus 3880 us for the
+  independent Direct-HIP baseline and 1902.97 us for the same-backend
+  hostbatch32 row, with required GPU events. This is still benchmark-owned
+  evidence plumbing, not a device queue, public scheduler, or promotion claim.
   A hipBLASLt release capture under
   `temp/perf-work-queue/many-small-hipblaslt-finite-events/` validates the
   finite ring-251 64x64x64 diagnostic with required pack, matmul, reduce, and
@@ -514,7 +518,7 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline, while the other 19 host-batch candidates lose to same-backend or fastest independent baselines; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed; branch-local `--grouped-dispatch N` now executes same-shape benchmark-owned persistent task groups with schema-v4 grouped metadata, per-task checksums, aggregate timings, grouped report classification, and tiny bounded-i64/finite-u8/exact-wide Direct-HIP smoke captures with required GPU events | Keep open for release-size grouped comparisons and a real device grouped/persistent dispatcher: the current grouped path is benchmark evidence plumbing over per-task resident calls, not a device queue or public scheduler, so route only explicit benchmark workloads until grouping beats independent calls across a durable workload family |
+| 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline; branch-local `--grouped-dispatch N` now executes same-shape benchmark-owned persistent task groups, and the current exact-wide signed 64 group32 follow-up is schema/event-valid at 991.94 us per task, 3.91x faster than independent Direct HIP and 1.92x faster than same-backend hostbatch32 under `tools/many_small_grouped_report.py`; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed | Keep open for a real device grouped/persistent dispatcher and broader durable workload-family proof: the current grouped path still loops host-side over persistent resident tasks, not a device queue or public scheduler, so route only explicit benchmark workloads until grouping wins beyond the exact-wide 64 group32 evidence |
 | 9 | Partially completed RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, reusable-B RNS-chain scenarios, and branch-local `--residue-chain-final-export` captures with `residue_chain_final_host_export` schema mode; exact-wide signed 128 Direct-HIP residue-current captures are release-mode and event-valid, while tiny bounded-i64 and exact-wide signed final-output chain smokes prove schema/event completeness for per-repeat final export | Promote only when skipped intermediate export is semantically visible, setup/reuse policy is explicit, and release-size CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
@@ -3179,6 +3183,12 @@ Current status:
 - Tiny Windows `gfx1100` Direct-HIP smokes for bounded-i64, finite-u8, and
   exact-wide signed validate schema and required GPU events. These smokes prove
   the evidence path, not a performance win.
+- `tools/many_small_grouped_report.py` now compares grouped-dispatch per-task
+  medians against the fastest independent baseline and the same-backend
+  host-batch baseline for the normalized same-output contract, and emits JSON
+  plus Markdown summaries. The first release-count exact-wide signed 64
+  group32 capture is a benchmark candidate win at 991.94 us per task, beating
+  both independent Direct HIP and Direct-HIP hostbatch32.
 - The remaining performance work is still the hard part: a device-readable
   grouped dispatcher, fewer launches/materializations, release-size
   comparisons against fastest independent calls, and durable workload-family
@@ -3201,10 +3211,11 @@ Technical direction:
 Likely first slices:
 
 - Direct-HIP grouped bounded-i64 64/128 resident benchmark path.
-- Direct-HIP grouped exact-wide signed 64 path, because host batching already
-  found a real exact-wide win.
-- `many_small_grouped_report.py` comparing per-task medians against fastest
-  independent-call baseline and same-backend host-batch baseline.
+- Direct-HIP grouped exact-wide signed 64 path. The benchmark-owned path now
+  has one candidate win; the next step is replacing host-side task looping with
+  fewer launches/materializations.
+- Broader grouped matrix for bounded-i64 64/128, bounded-u64 skinny, finite-u8
+  64, and exact-wide signed 64/128 before any durable workload-family claim.
 
 Promotion gate:
 

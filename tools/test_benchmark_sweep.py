@@ -877,6 +877,25 @@ def main() -> int:
         if entry.scenario.get("host_api_batch_size", 1) > 1
     )
 
+    grouped_dispatch_args = copy.copy(scenario_args)
+    grouped_dispatch_args.backends = ["hip-direct"]
+    grouped_dispatch_args.scenario = ["grouped-dispatch"]
+    grouped_dispatch_entries = benchmark_sweep.sweep_command_entries(grouped_dispatch_args)
+    assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
+        "bounded-i64-64-group32",
+        "finite-ring-64-group32",
+        "exact-wide-signed-64-group32",
+    ]
+    assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
+    assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
+    assert all("--grouped-dispatch" in entry.command and "32" in entry.command for entry in grouped_dispatch_entries)
+    assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("prior_host_batch_signal")
+        == "direct_hip_exact_wide_signed_64_hostbatch32"
+        for entry in grouped_dispatch_entries
+    )
+
     rns_chain_args = copy.copy(scenario_args)
     rns_chain_args.backends = ["hip-direct"]
     rns_chain_args.scenario = ["rns-chain"]

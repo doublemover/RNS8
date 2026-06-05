@@ -4362,6 +4362,24 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 grouped_dispatch_tasks=32,
                 metadata={"promotion_scope": "grouped_dispatch_evidence_only", "grouping_role": "same_shape_grouped_descriptor"},
             ),
+            ScenarioItem(
+                "grouped-dispatch",
+                "exact-wide-signed-64-group32",
+                "exact-wide-signed",
+                many_small_64,
+                "many-small exact-wide signed grouped-dispatch capture",
+                "exact_wide_signed_limbs",
+                "tests the grouped-dispatch path on the only host-batch workload that beat the fastest independent baseline",
+                backends=("hip-direct",),
+                exact_wide_limb_counts=(4,),
+                grouped_dispatch_tasks=32,
+                metadata={
+                    "promotion_scope": "grouped_dispatch_evidence_only",
+                    "grouping_role": "same_shape_grouped_descriptor",
+                    "comparison_required": "fastest_independent_and_same_backend_host_batch",
+                    "prior_host_batch_signal": "direct_hip_exact_wide_signed_64_hostbatch32",
+                },
+            ),
         ],
         "resident-lifetime-arena": [
             ScenarioItem(
