@@ -345,8 +345,8 @@ one-off spreadsheet math. The report normalizes reuse captures against their
 non-reuse workload contract, adds setup cost back into the per-repeat median,
 computes break-even repeats, requires GPU events for GPU captures, and records
 whether source-version/setup-scope metadata is strong enough for a workload
-claim. The latest large-shape reports produced these explicit workload
-candidate rows:
+claim. The latest large-shape reports and bounded reuse-contract matrix produced
+these explicit workload candidate rows:
 
 | Capture family | Candidate | Setup-inclusive per-repeat | Same-backend speedup | Fastest non-reuse baseline | Workload speedup | Break-even repeats | Decision |
 |---|---|---:|---:|---|---:|---:|---|
@@ -357,21 +357,35 @@ candidate rows:
 | bounded 4096 exploratory | CK bounded-i64 2048 repeated-B | 12357 us | 4.27x | hipBLASLt | 1.03x | 1 | exploratory workload candidate |
 | bounded 4096 exploratory | hipBLASLt bounded-i64 2048 repeated-B | 11096 us | 1.15x | hipBLASLt | 1.15x | 5 | exploratory workload candidate |
 | bounded 4096 exploratory | hipBLASLt bounded-i64 4096 repeated-B | 43842 us | 1.19x | hipBLASLt | 1.19x | 3 | exploratory workload candidate |
+| reuse-contract release matrix | hipBLASLt bounded-i64 2048 repeated-A | 13404 us | 1.82x | CK 14223 us | 1.06x | 6 | explicit workload candidate |
+| reuse-contract release matrix | hipBLASLt bounded-i64 2048 repeated-A+B | 13651 us | 1.78x | CK 14223 us | 1.04x | 8 | explicit workload candidate |
+| reuse-contract release matrix | hipBLASLt bounded-u64 2048 repeated-A | 11532 us | 3.18x | same-run rocWMMA 21609 us | 1.87x | 2 | explicit workload candidate |
+| reuse-contract release matrix | hipBLASLt bounded-u64 2048 repeated-A+B | 9198 us | 3.99x | same-run rocWMMA 21609 us | 2.35x | 2 | strongest explicit hipBLASLt reuse candidate |
+| reuse-contract release matrix | hipBLASLt bounded-u64 2048 repeated-B | 17034 us | 2.15x | same-run rocWMMA 21609 us | 1.27x | 3 | explicit candidate with conservative caveat |
+| reuse-contract release matrix | hipBLASLt bounded-u64 1024 repeated-B | 8171 us | 1.21x | Direct HIP 8477 us | 1.04x | 8 | narrow explicit workload candidate |
 
-The same reports also deprioritize most repeated-B candidates after setup or
-against the fastest non-reuse backend. Direct HIP bounded repeated-B does not
-currently clear the large-shape fastest-baseline gate, and runtime vector
-reuse-B is downgraded where source-identity metadata is incomplete. These rows
-remain workload-contract evidence only; they are not AUTO cache entries.
+The same reports also deprioritize most reuse candidates after setup or against
+the fastest non-reuse backend. Direct HIP bounded repeated-B does not currently
+clear the large-shape fastest-baseline gate, runtime vector reuse-B is
+downgraded where source-identity metadata is incomplete, and hipBLASLt 1024
+stable-A/full-reuse loses the workload gate. The bounded-u64 2048 hipBLASLt
+repeated-B row wins against the same-run reuse-contract baseline, but an older
+installed rocWMMA 2048 non-reuse cache row measured 15128 us, so it should stay
+explicit-contract evidence until a same-seed rerun confirms the faster baseline
+does not erase the win. None of these rows are AUTO cache entries.
+
+The older mechanism table below remains useful for event-contract validation,
+especially the corrected hipBLASLt A+B event shape. The 2026-06-05
+reuse-contract matrix supersedes it for 1024 workload-promotion decisions.
 
 | Backend | Shape | Reuse mode | Setup-inclusive speedup over 9 repeats | Steady-state per-repeat speedup | Saved per repeat | Setup | Break-even repeats | Status |
 |---|---:|---|---:|---:|---:|---:|---:|---|
 | hipBLASLt | 512 | A | 1.47x | 1.55x | 8029.9 us | 7104 us | 1 | Event-valid experimental reuse win |
 | hipBLASLt | 512 | B | 4.72x | 5.05x | 18116.7 us | 2811 us | 1 | Event-valid experimental reuse win |
 | hipBLASLt | 512 | A+B | 5.84x | 7.68x | 19649.0 us | 8323 us | 1 | Event-valid experimental reuse win |
-| hipBLASLt | 1024 | A | 3.36x | 3.57x | 20712.4 us | 4345 us | 1 | Event-valid experimental reuse win |
-| hipBLASLt | 1024 | B | 1.74x | 1.80x | 12810.9 us | 4744 us | 1 | Event-valid experimental reuse win |
-| hipBLASLt | 1024 | A+B | 4.32x | 4.81x | 22794.2 us | 5992 us | 1 | Event-valid experimental reuse win |
+| hipBLASLt | 1024 | A | 3.36x | 3.57x | 20712.4 us | 4345 us | 1 | Historical same-backend mechanism win; current reuse-contract matrix deprioritizes workload promotion |
+| hipBLASLt | 1024 | B | 1.74x | 1.80x | 12810.9 us | 4744 us | 1 | Historical same-backend mechanism win; current matrix has only a narrow workload candidate |
+| hipBLASLt | 1024 | A+B | 4.32x | 4.81x | 22794.2 us | 5992 us | 1 | Historical same-backend mechanism win; current reuse-contract matrix deprioritizes workload promotion |
 | Direct HIP | 1024 | B, uniform-small i8 A/B colpair v2, bounded i64 | 1.19x | 1.20x | 1379.7 us | 768 us | 1 | Event-valid explicit reuse-path win |
 | Vector ALU | 512 | A | 1.54x | 1.56x | 3460.6 us | 883 us | 1 | Event-valid local reuse win |
 | Vector ALU | 512 | B | 1.53x | 1.55x | 3412.6 us | 943 us | 1 | Event-valid local reuse win |
@@ -388,6 +402,9 @@ Non-winners from the same validation pass:
 | Vector ALU | 1024 | A | 0.94x | 0.96x |
 | Vector ALU | 1024 | A+B | 0.69x | 0.71x |
 | Direct HIP | 512 | B, uniform-small i8 A/B colpair v2, bounded i64 | 1.00x | 1.02x |
+| hipBLASLt | 1024 | A | 0.28x vs fastest non-reuse, 0.45x same-backend | 0.45x same-backend |
+| hipBLASLt | 1024 | A+B | 0.87x vs fastest non-reuse, 1.40x same-backend | same-backend win does not clear fastest-baseline gate |
+| hipBLASLt | 2048 | B, bounded i64 | 0.94x vs fastest non-reuse, 1.61x same-backend | same-backend win does not clear CK gate |
 | rocWMMA | 1024 | B | 0.64x | 0.68x |
 
 The hipBLASLt full A+B reuse captures intentionally omit
@@ -447,10 +464,12 @@ CRT export timing was lower in these captures.
   June 5, 2026 finite-u8 2048 post-fix refresh.
   There is no bounded-i64 512 accelerator entry; Direct HIP remains the current
   512 bounded-i64 winner.
-- Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and
-  rocWMMA reuse/prepack wins. They are correct and event-visible, but they
-  compare different reuse contracts and need workload-level promotion policy
-  before AUTO selection. The mechanism split is summarized in
-  [reviewed-local-evidence.md](reviewed-local-evidence.md).
-- Deprioritize for now: vector 1024 repeated-A/full-reuse and rocWMMA 1024
-  repeated-B, which regressed in the latest reuse comparisons.
+- Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, CK,
+  and rocWMMA reuse/prepack wins. They are correct and event-visible, and the
+  current setup-inclusive matrix identifies explicit reusable-input workload
+  candidates, but they compare different reuse contracts and need public
+  lifetime/source policy before AUTO selection. The mechanism split is
+  summarized in [reviewed-local-evidence.md](reviewed-local-evidence.md).
+- Deprioritize for now: vector 1024 repeated-A/full-reuse, hipBLASLt 1024
+  repeated-A/full-reuse, and rocWMMA 1024 repeated-B, which lose the latest
+  setup-inclusive workload gate.

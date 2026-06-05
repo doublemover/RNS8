@@ -665,6 +665,38 @@ def main() -> int:
     assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
     assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-")
 
+    reuse_contract_args = copy.copy(scenario_args)
+    reuse_contract_args.backends = ["hipblaslt"]
+    reuse_contract_args.scenario = ["reuse-contract"]
+    reuse_contract_entries = benchmark_sweep.sweep_command_entries(reuse_contract_args)
+    assert len(reuse_contract_entries) == 16
+    assert {entry.scenario["family"] for entry in reuse_contract_entries} == {"reuse-contract"}
+    assert {entry.scenario["semantics"] for entry in reuse_contract_entries} == {"bounded-i64", "bounded-u64"}
+    assert {entry.scenario["shape"]["m"] for entry in reuse_contract_entries} == {1024, 2048}
+    assert {entry.scenario["pack_mode"] for entry in reuse_contract_entries} == {
+        "per_repeat_repack",
+        "prepacked_reuse_a",
+        "prepacked_reuse_b",
+        "prepacked_reuse",
+    }
+    assert any("--reuse-packed-a" in entry.command for entry in reuse_contract_entries)
+    assert any("--reuse-packed-b" in entry.command for entry in reuse_contract_entries)
+    assert any("--reuse-packed-inputs" in entry.command for entry in reuse_contract_entries)
+    assert all(entry.scenario["backend"] == "hipblaslt" for entry in reuse_contract_entries)
+    assert all(
+        entry.scenario.get("metadata", {}).get("workflow_name") == "reuse_contract_release_matrix"
+        for entry in reuse_contract_entries
+    )
+    assert {
+        entry.scenario.get("metadata", {}).get("reuse_contract_role")
+        for entry in reuse_contract_entries
+    } == {
+        "nonreuse_baseline",
+        "stable_a_candidate",
+        "stable_b_candidate",
+        "stable_ab_candidate",
+    }
+
     skinny_args = copy.copy(scenario_args)
     skinny_args.backends = ["hip-vector-alu-int64"]
     skinny_args.scenario = ["skinny-gemv"]
