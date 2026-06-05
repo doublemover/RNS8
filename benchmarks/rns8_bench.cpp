@@ -62,6 +62,8 @@
 #endif
 
 #include "rns8_bench_support.hpp"
+#include "rns8_bench_modes.hpp"
+#include "rns8_bench_types.hpp"
 
 namespace {
 
@@ -69,21 +71,50 @@ using rns8::bench::checked_add_bytes;
 using rns8::bench::checked_bytes;
 using rns8::bench::checked_elements;
 using rns8::bench::checked_limb_elements;
+using rns8::bench::Args;
+using rns8::bench::BenchmarkResult;
+using rns8::bench::BenchSemantics;
+using rns8::bench::BoundMode;
+using rns8::bench::bound_kind;
+using rns8::bench::bound_kind_name;
+using rns8::bench::bound_mode_name;
+using rns8::bench::bounded_benchmark_semantics;
+using rns8::bench::BoundSource;
 using rns8::bench::command_line;
 using rns8::bench::compiler_id;
 using rns8::bench::compiler_version;
+using rns8::bench::c_semantics;
+using rns8::bench::c_semantics_name;
 using rns8::bench::elapsed_us;
+using rns8::bench::exact_wide_benchmark_semantics;
+using rns8::bench::exact_wide_export_status_check_required;
 using rns8::bench::fail_hip_runtime;
 using rns8::bench::fail_status;
+using rns8::bench::finite_benchmark_semantics;
+using rns8::bench::global_bound_kind;
+using rns8::bench::GpuEventSamples;
+using rns8::bench::InputProfile;
 using rns8::bench::json_escape;
+using rns8::bench::kDefaultExactWideBenchmarkLimbCount;
 using rns8::bench::mix_checksum;
+using rns8::bench::NextOpHint;
+using rns8::bench::next_op_hint_name;
+using rns8::bench::PrepackReuseStrategy;
+using rns8::bench::PrefixPolicy;
 using rns8::bench::print_json_string_or_null;
 using rns8::bench::print_nullable_string;
+using rns8::bench::residue_chain_final_export_requested;
+using rns8::bench::residue_chain_independent_final_export_requested;
+using rns8::bench::residue_current_output_mode;
+using rns8::bench::rns_chain_benchmark_semantics;
+using rns8::bench::rns_residue_chain_requested;
 using rns8::bench::runtime_git_commit;
+using rns8::bench::semantics_name;
+using rns8::bench::TimingSamples;
 using rns8::bench::usage_error;
+using rns8::bench::valid_finite_modulus;
 
 constexpr uint32_t kBenchmarkSchemaVersion = 4;
-constexpr uint32_t kDefaultExactWideBenchmarkLimbCount = 4;
 constexpr uint32_t kWrap64RocwmmaCandidateTile = 16;
 constexpr int64_t kWrap64RocwmmaCandidateMaxK = 32768;
 constexpr const char* kWrap64RocwmmaCandidateRequestedBackend = "rocwmma-wrap64-candidate";
@@ -91,183 +122,6 @@ constexpr const char* kWrap64RocwmmaCandidateSelectedKernel = "rocwmma_wrap64_by
 constexpr const char* kWrap64RocwmmaCandidateScheduleSource = "rns8_bench_wrap64_rocwmma_candidate_static_schedule";
 constexpr const char* kWrap64RocwmmaCandidateBackendSource = "rns8_bench_wrap64_rocwmma_candidate";
 constexpr const char* kWrap64RocwmmaCandidateEventLabel = "wrap64_rocwmma_candidate_gemm36_kernel_group";
-
-enum class BenchSemantics {
-  BoundedI64,
-  BoundedU64,
-  ExactWideSigned,
-  ExactWideUnsigned,
-  WrapU64Mod2_64,
-  FiniteRingU8,
-  FiniteFieldU8,
-};
-
-enum class BoundMode {
-  Global,
-  PerTile,
-};
-
-enum class InputProfile {
-  UniformSmall,
-  AdaptiveBands,
-};
-
-enum class BoundSource {
-  StaticProfile,
-  InputScan,
-};
-
-enum class PrefixPolicy {
-  MinimumProven,
-  FixedRequested,
-};
-
-enum class NextOpHint {
-  Auto,
-  FinalExport,
-  RnsGemm,
-  NativeGemm,
-  NativeToRns,
-  ReuseB,
-};
-
-struct Args {
-  int64_t m = 64;
-  int64_t n = 64;
-  int64_t k = 64;
-  int64_t output_ld_padding = 0;
-  uint32_t warmups = 1;
-  uint32_t repeats = 5;
-  uint64_t seed = 1;
-  uint32_t tile_m = 128;
-  uint32_t tile_n = 128;
-  int device_id = std::numeric_limits<int>::min();
-  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
-  bool vector_alu_baseline = false;
-  bool wrap64_rocwmma_candidate = false;
-  BenchSemantics semantics = BenchSemantics::BoundedI64;
-  uint16_t finite_modulus = 251;
-  BoundMode bound_mode = BoundMode::Global;
-  InputProfile input_profile = InputProfile::UniformSmall;
-  BoundSource bound_source = BoundSource::StaticProfile;
-  PrefixPolicy prefix_policy = PrefixPolicy::MinimumProven;
-  uint32_t max_prefix_override = 0;
-  uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
-  uint32_t residue_chain_length = 1;
-  bool residue_chain_final_export = false;
-  bool residue_chain_independent_final_export = false;
-  uint32_t host_api_batch_size = 1;
-  bool require_adaptive_execution = false;
-  bool write_autotune_cache = false;
-  bool oneshot = false;
-  bool transient_uniform_small_inputs = false;
-  bool reuse_packed_inputs = false;
-  bool reuse_packed_a = false;
-  bool reuse_packed_b = false;
-  bool native_to_rns_bridge = false;
-  bool vector_to_rns_chain = false;
-  NextOpHint next_op_hint = NextOpHint::Auto;
-  bool residue_channel_fusion = false;
-  std::string modulus_set = "default";
-  std::string tile_shape_variant = "default";
-  std::string export_variant = "default";
-  std::string reconstruction_variant = "default_garner";
-  uint32_t grouped_dispatch_tasks = 1;
-  bool hip_graph_replay = false;
-  std::string workload_proxy = "none";
-  bool resident_lifetime = false;
-  bool workspace_arena = false;
-  bool adaptive_grouped_scheduler = false;
-  bool streaming_overlap = false;
-  std::string release_gate = "none";
-  std::string verification_amortization = "none";
-};
-
-struct TimingSamples {
-  std::vector<uint64_t> pack_us;
-  std::vector<uint64_t> gemm_us;
-  std::vector<uint64_t> export_us;
-  std::vector<uint64_t> end_to_end_us;
-};
-
-struct GpuEventSamples {
-  bool requested = false;
-  bool complete = true;
-  std::vector<std::string> unavailable_reasons;
-  std::map<std::string, std::vector<double>> timings_us;
-};
-
-enum class PrepackReuseStrategy {
-  None,
-  PersistentMatrixResidency,
-  RocwmmaReusableBCache,
-};
-
-struct BenchmarkResult {
-  uint64_t plan_us = 0;
-  uint64_t schedule_query_us = 0;
-  uint64_t global_bound_scan_us = 0;
-  bool global_bound_scan_available = false;
-  uint64_t tile_bound_scan_us = 0;
-  bool tile_bound_scan_available = false;
-  uint64_t matrix_alloc_us = 0;
-  uint64_t static_bound = 0;
-  uint64_t effective_bound = 0;
-  bool effective_bound_available = false;
-  uint64_t discovered_global_bound = 0;
-  uint64_t bound_candidate_row_sum_col_max = 0;
-  uint64_t bound_candidate_row_max_col_sum = 0;
-  uint64_t row_abs_sum_max = 0;
-  uint64_t row_abs_max = 0;
-  uint64_t col_abs_sum_max = 0;
-  uint64_t col_abs_max = 0;
-  uint64_t zero_row_count = 0;
-  uint64_t zero_col_count = 0;
-  std::vector<uint64_t> tile_bounds{};
-  std::vector<uint8_t> zero_a_rows{};
-  std::vector<uint8_t> zero_b_cols{};
-  uint64_t zero_a_row_proof_count = 0;
-  uint64_t zero_b_col_proof_count = 0;
-  uint64_t zero_row_col_product_count = 0;
-  uint64_t tile_bound_min = 0;
-  uint64_t tile_bound_max = 0;
-  uint64_t tile_bound_hash = 0;
-  rns8_plan_schedule_info schedule_info{};
-  bool schedule_info_available = false;
-  uint64_t zero_output_tile_count = 0;
-  uint64_t zero_output_selected_residue_plane_count = 0;
-  std::string schedule_source = "rns8_get_plan_schedule_info";
-  std::string target_id = "cpu";
-  rns8_plan_backend_info backend_info{};
-  bool backend_info_available = false;
-  rns8_plan_packing_info packing_info{};
-  bool packing_info_available = false;
-  rns8::detail::PlanLoweringDescription lowering_info{};
-  bool lowering_info_available = false;
-  TimingSamples samples{};
-  GpuEventSamples gpu_events{};
-  rns8::detail::hip_direct_allocation_counters allocation_before{};
-  rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
-  rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
-  bool allocation_tracking_available = false;
-  bool allocation_after_warmups_available = false;
-  uint64_t prepack_setup_us = 0;
-  bool prepack_setup_available = false;
-  PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
-  bool hip_graph_replay_requested = false;
-  bool hip_graph_replay_available = false;
-  bool hip_graph_replay_used = false;
-  uint64_t hip_graph_capture_us = 0;
-  uint64_t hip_graph_instantiate_us = 0;
-  uint64_t hip_graph_launch_count = 0;
-  std::string hip_graph_replay_status = "not_requested";
-  std::string hip_graph_replay_scope = "not_applicable";
-  std::string hip_graph_replay_caveat{};
-  bool grouped_dispatch_batched_export_enabled = false;
-  uint64_t grouped_dispatch_device_output_slab_bytes = 0;
-  std::string grouped_dispatch_execution_strategy = "not_requested";
-  uint64_t checksum = 0;
-};
 
 template <typename Fn>
 rns8_status run_timed_status_operation(const char* label, Fn&& fn);
@@ -347,50 +201,6 @@ uint64_t parse_u64_seed(const char* text) {
 
 bool valid_tile_size(uint32_t value) {
   return value >= 64 && value <= 512 && (value & (value - 1u)) == 0;
-}
-
-bool finite_benchmark_semantics(BenchSemantics semantics) {
-  return semantics == BenchSemantics::FiniteRingU8 || semantics == BenchSemantics::FiniteFieldU8;
-}
-
-bool bounded_benchmark_semantics(BenchSemantics semantics) {
-  return semantics == BenchSemantics::BoundedI64 || semantics == BenchSemantics::BoundedU64;
-}
-
-bool exact_wide_benchmark_semantics(BenchSemantics semantics) {
-  return semantics == BenchSemantics::ExactWideSigned || semantics == BenchSemantics::ExactWideUnsigned;
-}
-
-bool rns_chain_benchmark_semantics(BenchSemantics semantics) {
-  return bounded_benchmark_semantics(semantics) || exact_wide_benchmark_semantics(semantics);
-}
-
-bool rns_residue_chain_requested(const Args& args) {
-  return rns_chain_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
-}
-
-bool residue_current_output_mode(const Args& args) {
-  return rns_residue_chain_requested(args) &&
-         !(args.residue_chain_final_export || args.residue_chain_independent_final_export);
-}
-
-bool residue_chain_final_export_requested(const Args& args) {
-  return rns_residue_chain_requested(args) &&
-         (args.residue_chain_final_export || args.residue_chain_independent_final_export);
-}
-
-bool residue_chain_independent_final_export_requested(const Args& args) {
-  return rns_residue_chain_requested(args) && args.residue_chain_independent_final_export;
-}
-
-bool exact_wide_export_status_check_required(const Args& args) {
-  if (args.semantics == BenchSemantics::ExactWideUnsigned) {
-    return args.exact_wide_limb_count < 3;
-  }
-  if (args.semantics == BenchSemantics::ExactWideSigned) {
-    return args.exact_wide_limb_count < 3;
-  }
-  return true;
 }
 
 boost::multiprecision::cpp_int exact_wide_value_from_limbs(
@@ -483,28 +293,6 @@ rns8_status pack_exact_wide_limbs_as_rns(
     matrix->device_residues_current = false;
   }
   return RNS8_SUCCESS;
-}
-
-bool valid_finite_field_modulus(uint16_t modulus) {
-  if (modulus < 2 || modulus > 251) {
-    return false;
-  }
-  for (uint16_t divisor = 2; divisor * divisor <= modulus; ++divisor) {
-    if (modulus % divisor == 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool valid_finite_modulus(BenchSemantics semantics, uint16_t modulus) {
-  if (semantics == BenchSemantics::FiniteRingU8) {
-    return modulus >= 2 && modulus <= 256;
-  }
-  if (semantics == BenchSemantics::FiniteFieldU8) {
-    return valid_finite_field_modulus(modulus);
-  }
-  return true;
 }
 
 void parse_backend_option(const std::string& value, Args& args) {
@@ -610,24 +398,6 @@ NextOpHint parse_next_op_hint(const std::string& value) {
   if (value == "native-to-rns" || value == "native_to_rns") return NextOpHint::NativeToRns;
   if (value == "reuse-b" || value == "reuse_b") return NextOpHint::ReuseB;
   usage_error("unknown next-op hint: " + value);
-}
-
-const char* next_op_hint_name(NextOpHint hint) {
-  switch (hint) {
-    case NextOpHint::Auto:
-      return "auto";
-    case NextOpHint::FinalExport:
-      return "final-export";
-    case NextOpHint::RnsGemm:
-      return "rns-gemm";
-    case NextOpHint::NativeGemm:
-      return "native-gemm";
-    case NextOpHint::NativeToRns:
-      return "native-to-rns";
-    case NextOpHint::ReuseB:
-      return "reuse-b";
-  }
-  return "unknown";
 }
 
 Args parse_args(int argc, char** argv) {
@@ -1785,158 +1555,6 @@ void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
   }
   std::snprintf(dst, dst_size, "%s", text ? text : "");
   dst[dst_size - 1] = '\0';
-}
-
-const char* semantics_name(BenchSemantics semantics) {
-  switch (semantics) {
-    case BenchSemantics::BoundedI64:
-      return "bounded_i64";
-    case BenchSemantics::BoundedU64:
-      return "bounded_u64";
-    case BenchSemantics::ExactWideSigned:
-      return "exact_wide_signed";
-    case BenchSemantics::ExactWideUnsigned:
-      return "exact_wide_unsigned";
-    case BenchSemantics::WrapU64Mod2_64:
-      return "wrap_u64_mod_2_64";
-    case BenchSemantics::FiniteRingU8:
-      return "finite_ring_u8";
-    case BenchSemantics::FiniteFieldU8:
-      return "finite_field_u8";
-  }
-  return "unknown";
-}
-
-rns8_semantics c_semantics(BenchSemantics semantics) {
-  switch (semantics) {
-    case BenchSemantics::BoundedI64:
-      return RNS8_BOUNDED_I64;
-    case BenchSemantics::BoundedU64:
-      return RNS8_BOUNDED_U64;
-    case BenchSemantics::ExactWideSigned:
-      return RNS8_EXACT_WIDE_SIGNED;
-    case BenchSemantics::ExactWideUnsigned:
-      return RNS8_EXACT_WIDE_UNSIGNED;
-    case BenchSemantics::WrapU64Mod2_64:
-      return RNS8_WRAP_U64_MOD_2_64;
-    case BenchSemantics::FiniteRingU8:
-      return RNS8_FINITE_RING_U8;
-    case BenchSemantics::FiniteFieldU8:
-      return RNS8_FINITE_FIELD_U8;
-  }
-  return RNS8_BOUNDED_I64;
-}
-
-const char* c_semantics_name(rns8_semantics semantics) {
-  switch (semantics) {
-    case RNS8_BOUNDED_I64:
-      return "bounded_i64";
-    case RNS8_BOUNDED_U64:
-      return "bounded_u64";
-    case RNS8_EXACT_WIDE_SIGNED:
-      return "exact_wide_signed";
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return "exact_wide_unsigned";
-    case RNS8_WRAP_U64_MOD_2_64:
-      return "wrap_u64_mod_2_64";
-    case RNS8_FINITE_RING_U8:
-      return "finite_ring_u8";
-    case RNS8_FINITE_FIELD_U8:
-      return "finite_field_u8";
-  }
-  return "unknown";
-}
-
-rns8_bound_kind global_bound_kind(BenchSemantics semantics) {
-  switch (semantics) {
-    case BenchSemantics::BoundedI64:
-      return RNS8_BOUND_GLOBAL_MAX_ABS;
-    case BenchSemantics::BoundedU64:
-      return RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
-    case BenchSemantics::ExactWideSigned:
-    case BenchSemantics::ExactWideUnsigned:
-    case BenchSemantics::WrapU64Mod2_64:
-    case BenchSemantics::FiniteRingU8:
-    case BenchSemantics::FiniteFieldU8:
-      return RNS8_BOUND_NONE;
-  }
-  return RNS8_BOUND_NONE;
-}
-
-rns8_bound_kind bound_kind(const Args& args) {
-  if (args.bound_mode == BoundMode::PerTile) {
-    switch (args.semantics) {
-      case BenchSemantics::BoundedI64:
-        return RNS8_BOUND_PER_TILE_MAX_ABS;
-      case BenchSemantics::BoundedU64:
-        return RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
-      case BenchSemantics::ExactWideSigned:
-      case BenchSemantics::ExactWideUnsigned:
-      case BenchSemantics::WrapU64Mod2_64:
-      case BenchSemantics::FiniteRingU8:
-      case BenchSemantics::FiniteFieldU8:
-        return RNS8_BOUND_NONE;
-    }
-  }
-  return global_bound_kind(args.semantics);
-}
-
-const char* bound_kind_name(const Args& args) {
-  if (args.bound_mode == BoundMode::PerTile) {
-    switch (args.semantics) {
-      case BenchSemantics::BoundedI64:
-        return "per_tile_max_abs";
-      case BenchSemantics::BoundedU64:
-        return "per_tile_max_unsigned";
-      case BenchSemantics::ExactWideSigned:
-      case BenchSemantics::ExactWideUnsigned:
-      case BenchSemantics::WrapU64Mod2_64:
-      case BenchSemantics::FiniteRingU8:
-      case BenchSemantics::FiniteFieldU8:
-        return "none";
-    }
-  }
-  switch (args.semantics) {
-    case BenchSemantics::BoundedI64:
-      return "global_max_abs";
-    case BenchSemantics::BoundedU64:
-      return "global_max_unsigned";
-    case BenchSemantics::ExactWideSigned:
-    case BenchSemantics::ExactWideUnsigned:
-    case BenchSemantics::WrapU64Mod2_64:
-    case BenchSemantics::FiniteRingU8:
-    case BenchSemantics::FiniteFieldU8:
-      return "none";
-  }
-  return "unknown";
-}
-
-const char* bound_kind_name(rns8_bound_kind bound_kind) {
-  switch (bound_kind) {
-    case RNS8_BOUND_NONE:
-      return "none";
-    case RNS8_BOUND_GLOBAL_MAX_ABS:
-      return "global_max_abs";
-    case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
-      return "global_max_unsigned";
-    case RNS8_BOUND_PER_TILE_MAX_ABS:
-      return "per_tile_max_abs";
-    case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
-      return "per_tile_max_unsigned";
-    case RNS8_BOUND_INPUT_RANGE_AND_K:
-      return "input_range_and_k";
-  }
-  return "unknown";
-}
-
-const char* bound_mode_name(BoundMode mode) {
-  switch (mode) {
-    case BoundMode::Global:
-      return "global";
-    case BoundMode::PerTile:
-      return "per_tile";
-  }
-  return "unknown";
 }
 
 int64_t output_logical_ld(const Args& args) {

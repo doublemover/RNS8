@@ -380,6 +380,7 @@ if(RNS8_BUILD_BENCHMARKS)
   set(
     RNS8_BENCHMARK_SOURCES
     benchmarks/rns8_bench.cpp
+    benchmarks/rns8_bench_modes.cpp
     benchmarks/rns8_bench_support.cpp
   )
   if(RNS8_ENABLE_HIP)
