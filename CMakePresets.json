@@ -32,6 +32,24 @@
       }
     },
     {
+      "name": "cpu-asan-ubsan-debug",
+      "displayName": "CPU + vcpkg + ASan/UBSan (Debug)",
+      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains. This remains host-gated until validated on the target host.",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-debug",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined"
+      }
+    },
+    {
       "name": "windows-msvc-hip-debug",
       "displayName": "Windows MSVC + HIP SDK + vcpkg (Debug)",
       "description": "Windows Radeon bring-up preset using Ninja, vcpkg, and explicit HIP SDK paths.",
@@ -202,6 +220,10 @@
       "configurePreset": "cpu-release"
     },
     {
+      "name": "cpu-asan-ubsan",
+      "configurePreset": "cpu-asan-ubsan-debug"
+    },
+    {
       "name": "windows-debug",
       "configurePreset": "windows-msvc-hip-debug"
     },
@@ -261,6 +283,13 @@
     {
       "name": "cpu-release",
       "configurePreset": "cpu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-asan-ubsan",
+      "configurePreset": "cpu-asan-ubsan-debug",
       "output": {
         "outputOnFailure": true
       }

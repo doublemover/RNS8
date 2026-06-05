@@ -36,6 +36,20 @@ cmake --install build/cpu-debug --prefix temp/install-rns8/Debug
 The CPU CTest preset also runs the downstream CMake smoke when examples and
 package export support are enabled.
 
+Optional CPU sanitizer presets are available for cleanup and release-candidate
+hardening when the local toolchain supports them. The tracked portable preset is
+the non-Windows Clang/GCC-like CPU-only ASan/UBSan gate:
+
+```powershell
+cmake --preset cpu-asan-ubsan-debug
+cmake --build --preset cpu-asan-ubsan
+ctest --preset cpu-asan-ubsan --output-on-failure
+```
+
+Windows MSVC AddressSanitizer depends on optional Visual Studio runtime
+components and should be added through `CMakeUserPresets.json` for machines
+where that component is installed.
+
 ## Windows HIP Gate
 
 ```powershell
