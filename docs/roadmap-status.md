@@ -68,8 +68,9 @@ families now live in data under `benchmarks/scenarios/` with explicit
 review-mode and promotion-eligibility contracts backed by the metadata
 registry. Benchmark schema validation has a compatibility wrapper over a
 package entrypoint, with GPU event, execution-mode, and contract-metadata
-validators split into focused modules and CTest-backed self-tests. Shared
-benchmark support and semantic-mode helpers have been split out of
+validators plus helper/output-policy metadata split into focused modules and
+CTest-backed self-tests. Shared benchmark support and semantic-mode helpers
+have been split out of
 `benchmarks/rns8_bench.cpp`; core and Direct-HIP output currentness writes are
 helper-routed; HIP event/stream/pinned-staging/temporary-device-buffer
 ownership uses internal RAII wrappers; Direct-HIP timing support is split into
@@ -78,8 +79,8 @@ ASan/UBSan presets are available while Windows MSVC ASan stays as
 `CMakeUserPresets.json` guidance for hosts with the optional runtime installed.
 
 Remaining cleanup work is intentionally incremental: deeper benchmark semantic
-lane splitting, residual schema package decomposition for base/semantic/output
-policy validators, workspace identity/schedule/resource decomposition, broader
+lane splitting, residual schema package decomposition for base and semantic
+contract validators, workspace identity/schedule/resource decomposition, broader
 Direct-HIP source splitting, grouped descriptor enforcement, and
 export/reconstruction planning. These changes must preserve public ABI,
 reviewed cache behavior, existing benchmark CLI compatibility, and Windows
