@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
-from metadata_registry_constants import GROUPED_DISPATCH_EXECUTION_STRATEGIES, PLACEHOLDER_GPU_TARGET_IDS
+from metadata_registry_constants import (
+    GROUPED_DISPATCH_EXECUTION_STRATEGIES,
+    PLACEHOLDER_GPU_TARGET_IDS,
+    PROMOTION_SCOPES,
+    SCENARIO_REVIEW_MODES,
+)
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
@@ -213,6 +218,20 @@ def _metadata(raw: dict[str, Any], *, label: str) -> dict[str, Any] | None:
     return metadata
 
 
+def _scenario_review_mode(raw: dict[str, Any], *, label: str) -> str:
+    value = _required_string(raw, "review_mode_expectation", label=label)
+    if value not in SCENARIO_REVIEW_MODES:
+        raise SystemExit(f"{label}.review_mode_expectation must be a registered scenario review mode")
+    return value
+
+
+def _promotion_eligibility(raw: dict[str, Any], *, label: str) -> str:
+    value = _required_string(raw, "promotion_eligibility", label=label)
+    if value not in PROMOTION_SCOPES:
+        raise SystemExit(f"{label}.promotion_eligibility must be a registered promotion scope")
+    return value
+
+
 def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = None) -> list[ScenarioItem]:
     cases = cases or {}
     try:
@@ -245,8 +264,8 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 _required_string(raw, "evidence_scope", label=label),
                 _required_string(raw, "output_domain", label=label),
                 _required_string(raw, "rationale", label=label),
-                _required_string(raw, "review_mode_expectation", label=label),
-                _required_string(raw, "promotion_eligibility", label=label),
+                _scenario_review_mode(raw, label=label),
+                _promotion_eligibility(raw, label=label),
                 backends=_optional_tuple(raw.get("backends"), label=f"{label}.backends"),
                 pack_mode=_required_string(raw, "pack_mode", label=label) if "pack_mode" in raw else "per_repeat_repack",
                 finite_moduli=_finite_moduli(raw.get("finite_moduli"), label=f"{label}.finite_moduli"),

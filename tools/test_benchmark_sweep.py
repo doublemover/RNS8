@@ -525,6 +525,29 @@ def main() -> int:
     ]:
         assert scenario_name in catalog
         assert catalog[scenario_name]
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        scenario_path = Path(temp_dir) / "bad_scenario.json"
+        payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "grouped_dispatch.json").read_text(encoding="utf-8"))
+        payload["items"][0]["review_mode_expectation"] = "unregistered_review_mode"
+        scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            benchmark_sweep.load_scenario_data_family(scenario_path)
+        except SystemExit as exc:
+            assert "registered scenario review mode" in str(exc)
+        else:
+            raise AssertionError("expected stale scenario review mode to fail validation")
+
+        payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "grouped_dispatch.json").read_text(encoding="utf-8"))
+        payload["items"][0]["promotion_eligibility"] = "unregistered_promotion_scope"
+        scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            benchmark_sweep.load_scenario_data_family(scenario_path)
+        except SystemExit as exc:
+            assert "registered promotion scope" in str(exc)
+        else:
+            raise AssertionError("expected stale scenario promotion scope to fail validation")
+
     fusion_item = catalog["residue-channel-fusion"][0]
     assert fusion_item.residue_channel_fusion is True
     assert fusion_item.next_op_hint == "final-export"

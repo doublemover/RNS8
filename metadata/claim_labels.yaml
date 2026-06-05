@@ -13,12 +13,40 @@
     "reviewed_passed"
   ],
   "promotion_scopes": [
+    "adaptive_grouped_scheduler_evidence_only",
     "autotune_cache_candidate",
+    "baseline_only",
+    "comparison_anchor_only",
+    "cpu_backed_2048_release_review_candidate",
+    "execution_path_evidence",
+    "explicit_reuse_contract_only",
+    "exploratory_only",
+    "export_variant_evidence_only",
+    "feature_boundary",
+    "final_output_chain_evidence_only",
+    "final_output_chain_reuse_evidence_only",
     "grouped_dispatch_evidence_only",
-    "reuse_contract_evidence_only",
+    "independent_export_repack_control_only",
+    "larger_final_output_chain_evidence_only",
+    "layout_comparison_only",
     "layout_metadata_evidence_only",
+    "lazy_export_chain_evidence_only",
+    "lazy_export_chain_reuse_evidence_only",
+    "narrow_margin_review_only",
+    "non_promoting_budgeted_dry_run",
+    "non_promoting_modulus_map",
+    "non_promoting_modulus_set_experiment",
+    "not_promotable",
+    "proxy_evidence_only",
     "reconstruction_variant_evidence_only",
-    "scenario_surface_only"
+    "release_gate_review_required",
+    "release_review_candidate",
+    "resident_lifetime_arena_evidence_only",
+    "reuse_contract_evidence_only",
+    "scenario_surface_only",
+    "streaming_overlap_evidence_only",
+    "tile_shape_evidence_only",
+    "workload_comparison_only"
   ],
   "target_claim_labels": [
     "windows_gfx1100_local",
@@ -31,5 +59,9 @@
     "cpu_backed",
     "exploratory",
     "cache_installed"
+  ],
+  "scenario_review_modes": [
+    "release",
+    "smoke"
   ]
 }

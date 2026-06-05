@@ -256,6 +256,7 @@ def validate_registry(registry: Registry) -> None:
     claim = registry.claim_labels()
     _require_string_list(claim, "comparison_baseline_statuses", "claim_labels")
     _require_string_list(claim, "release_gate_review_statuses", "claim_labels")
+    _require_string_list(claim, "scenario_review_modes", "claim_labels")
     _require_string_list(claim, "promotion_scopes", "claim_labels")
     _require_string_list(claim, "target_claim_labels", "claim_labels")
 
@@ -352,6 +353,7 @@ def render_python_constants(registry: Registry) -> str:
         f"ROCWMMA_SELECTED_KERNELS = {_python_repr_set(kernel_groups['rocwmma'])}",
         f"COMPARISON_BASELINE_STATUSES = {_python_repr_set(claim['comparison_baseline_statuses'])}",
         f"RELEASE_GATE_REVIEW_STATUSES = {_python_repr_set(claim['release_gate_review_statuses'])}",
+        f"SCENARIO_REVIEW_MODES = {_python_repr_set(claim['scenario_review_modes'])}",
         f"PROMOTION_SCOPES = {_python_repr_set(claim['promotion_scopes'])}",
         f"TARGET_CLAIM_LABELS = {_python_repr_set(claim['target_claim_labels'])}",
         "",
