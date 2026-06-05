@@ -1,6 +1,6 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-04
+Status date: 2026-06-05
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
@@ -44,9 +44,9 @@ architecture and roadmap source of truth when details disagree.
 | CPU reference | Required reference backend | Baseline only |
 | Direct HIP | Required Windows GPU correctness path | Production correctness baseline; not a matrix-engine speed claim |
 | Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and current long-K `n == 1` shape-specialized win; not a current AUTO cache winner |
-| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes |
-| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
-| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
+| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including finite-u8 2048 hot-modulus entries |
+| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048 |
+| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048 and finite-u8 2048 hot-modulus entries |
 | AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
@@ -67,6 +67,8 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
   direct-HIP correctness paths.
 - Broader production performance gates beyond reviewed Windows `gfx1100`
   shape-scoped evidence.
+- Exact-wide 2048, wrap64 2048, 4096 large-shape matrices, and Linux/Instinct
+  promotion gates remain unvalidated.
 
 ## Validation Boundary
 

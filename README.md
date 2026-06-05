@@ -104,23 +104,29 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 |---|---:|---|---:|---:|---|
 | bounded i64 | 512 | Direct HIP <br/> `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
 | bounded i64 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
+| bounded i64 | 2048 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 14220 us | 1.57x vs Direct HIP | installed |
+| bounded u64 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 15128 us | 1.22x vs Direct HIP | installed |
 | bounded i64 adaptive-bands | 1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4937 us | no accelerator win | none |
 | bounded u64 adaptive-bands | 512x1024 | Direct HIP <br/> `direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1` | 4224 us | no accelerator win | none |
 | finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
+| finite ring u8 mod 251 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 4216 us | 2.23x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
+| finite ring u8 mod 255 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2845 us | 4.04x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
+| finite ring u8 mod 256 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 1.07x vs Direct HIP | installed |
 | finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
+| finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 1.27x vs Direct HIP | installed |
 | exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
 | exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
 | exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
 
-The installed reviewed cache currently covers 11 exact plan keys: one
-bounded-i64 key, seven finite-u8 keys, and three exact-wide keys. Some rows are
-deliberately narrow local wins; Linux ROCm, Instinct, RDNA4, and profiler-backed
-production claims remain separate validation work.
+The installed reviewed cache currently covers 22 exact plan keys, including the
+large 2048 bounded and finite-u8 entries above. Some rows are deliberately
+narrow local wins; Linux ROCm, Instinct, RDNA4, and profiler-backed production
+claims remain separate validation work.
 
 ## Known Limitations
 
