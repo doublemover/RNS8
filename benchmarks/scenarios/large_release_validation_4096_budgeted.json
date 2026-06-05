@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "family": "large-release-validation-4096-budgeted",
+  "items": [
+    {
+      "name": "bounded-i64-4096-budgeted-baselines",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 bounded i64 release-validation dry-run/resume workload",
+      "output_domain": "host_export",
+      "rationale": "keeps 4096 proof collection resumable and memory-capped before any release claim",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_release_validation_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "cpu_chunk_metadata": "record chunking in reviewed summary if CPU baseline is split",
+        "memory_cap_metadata": "record host and device cap before accepting capture"
+      }
+    },
+    {
+      "name": "bounded-u64-4096-budgeted-baselines",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 bounded u64 release-validation dry-run/resume workload",
+      "output_domain": "host_export",
+      "rationale": "keeps 4096 unsigned proof collection resumable and memory-capped before any release claim",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_release_validation_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "cpu_chunk_metadata": "record chunking in reviewed summary if CPU baseline is split",
+        "memory_cap_metadata": "record host and device cap before accepting capture"
+      }
+    },
+    {
+      "name": "finite-ring-4096-hot-budgeted-baselines",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 finite-ring u8 hot-modulus release-validation workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "adds CPU/direct baselines to the finite-ring 4096 hot-modulus throughput signals",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_finite_hot_modulus_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "memory_cap_metadata": "record host output allocation bytes and device memory pressure"
+      }
+    },
+    {
+      "name": "finite-field-4096-hot-budgeted-baselines",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 finite-field u8 hot-prime release-validation workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "adds CPU/direct baselines to the finite-field 4096 hot-prime throughput signal",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_finite_hot_prime_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "memory_cap_metadata": "record host output allocation bytes and device memory pressure"
+      }
+    },
+    {
+      "name": "wrap64-4096-budgeted-baselines",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 strict wrap64 byte-limb release-validation workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "adds CPU byte-limb and Direct-HIP comparator coverage to the strict wrap64 4096 throughput signal",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_wrap64_direct_hip_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "memory_cap_metadata": "record byte-limb output allocation bytes and device memory pressure"
+      }
+    },
+    {
+      "name": "exact-wide-signed-4096-budgeted-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 exact-wide signed export-heavy release-validation dry-run",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "separates exact-wide export pressure from bounded throughput before optimization starts",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_exact_wide_export_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "memory_cap_metadata": "record output limb allocation bytes and device memory pressure"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-4096-budgeted-export",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "budgeted 4096 exact-wide unsigned export-heavy release-validation dry-run",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "adds CPU and Direct-HIP comparator coverage to the unsigned exact-wide 4096 throughput signal",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "release_gate": "large-release-validation-4096-budgeted",
+      "metadata": {
+        "large_shape_role": "budgeted_exact_wide_export_probe",
+        "promotion_scope": "non_promoting_budgeted_dry_run",
+        "resume_policy": "use --skip-existing with --max-new-captures",
+        "timeout_policy": "runner_enforced_timeout_required",
+        "memory_cap_metadata": "record output limb allocation bytes and device memory pressure"
+      }
+    }
+  ]
+}

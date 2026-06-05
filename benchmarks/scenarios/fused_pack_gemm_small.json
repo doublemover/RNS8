@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "family": "fused-pack-gemm-small",
+  "items": [
+    {
+      "name": "bounded-i64-oneshot64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "public one-shot bounded i64 native-input pack+GEMM comparison",
+      "output_domain": "host_export",
+      "rationale": "compares CPU, direct-HIP, and vector-ALU native-input surfaces where setup dominates",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "oneshot": true,
+      "next_op_hint": "final-export"
+    },
+    {
+      "name": "bounded-u64-persistent128",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "persistent bounded u64 small-shape comparison including vector-ALU",
+      "output_domain": "host_export",
+      "rationale": "contrasts persistent direct-HIP RNS, vector-ALU, and accelerator candidates at small shapes",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "ck",
+        "rocwmma"
+      ],
+      "next_op_hint": "final-export"
+    },
+    {
+      "name": "finite-ring-u8-oneshot64",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "public one-shot finite-ring u8 native-input comparison",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "captures finite-u8 small one-shot behavior separately from persistent residue storage",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "finite_moduli": [
+        251,
+        255
+      ],
+      "oneshot": true,
+      "next_op_hint": "final-export"
+    },
+    {
+      "name": "finite-field-u8-persistent128",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "persistent finite-field u8 small-shape accelerator comparison",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps field-u8 small persistent evidence available for accelerator triage",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "next_op_hint": "final-export"
+    }
+  ]
+}

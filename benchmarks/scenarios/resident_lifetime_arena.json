@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "family": "resident-lifetime-arena",
+  "items": [
+    {
+      "name": "bounded-i64-512-reuse-b-arena",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP resident lifetime plus workspace arena reuse evidence",
+      "output_domain": "host_export",
+      "rationale": "proves resident source-version and arena allocation-free repeat metadata before public lifetime APIs",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "resident_lifetime_arena_evidence_only",
+        "stale_source_policy": "source_descriptor_semantic_prefix_target_workspace_mismatch_rejects",
+        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-arena",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide residue-current chain resident lifetime evidence",
+      "output_domain": "residue_current_then_final_limb_export",
+      "rationale": "ties lazy exact-wide output to explicit resident currentness and workspace identity",
+      "backends": [
+        "hip-direct"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "resident_lifetime_arena_evidence_only",
+        "output_domain_requirement": "rns_then_final_export"
+      }
+    }
+  ]
+}

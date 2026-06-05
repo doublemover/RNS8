@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "family": "hip-graph-replay",
+  "items": [
+    {
+      "name": "bounded-i64-chain3-reuse-inputs-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP residue-current chain with stable A and B packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "same-contract baseline for HIP Graph replay; prepack setup and final checksum export stay visible",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_residue_current_chain_reuse_inputs",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-chain3-reuse-inputs-graph",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for a stable-input residue-current chain",
+      "output_domain": "residue_current_rns",
+      "rationale": "measures whether graph replay removes launch overhead for the same resident RNS chain contract",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_residue_current_chain_reuse_inputs",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+        "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-reuse-inputs-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP bounded-u64 residue-current chain with stable A and B",
+      "output_domain": "residue_current_rns",
+      "rationale": "keeps signed and unsigned bounded graph comparisons separate",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_residue_current_chain_reuse_inputs",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-reuse-inputs-graph",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for bounded-u64 stable-input residue-current chains",
+      "output_domain": "residue_current_rns",
+      "rationale": "checks whether unsigned bounded chains benefit differently from graph replay",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_residue_current_chain_reuse_inputs",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+        "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-reuse-inputs-baseline",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP exact-wide signed residue-current chain with stable A and B",
+      "output_domain": "residue_current_rns",
+      "rationale": "keeps graph replay compared against the same exact-wide lazy-export contract",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_exact_wide_chain_reuse_inputs",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-reuse-inputs-graph",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for exact-wide signed residue-current chains",
+      "output_domain": "residue_current_rns",
+      "rationale": "checks graph replay on an exact-wide lazy-export workflow before any public chain planner exists",
+      "backends": [
+        "hip-direct"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_exact_wide_chain_reuse_inputs",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
+        "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    }
+  ]
+}

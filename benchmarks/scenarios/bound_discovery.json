@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "family": "bound-discovery",
+  "items": [
+    {
+      "name": "bounded-i64-256-static-global",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-256-static-global",
+        "m": 256,
+        "n": 256,
+        "k": 512,
+        "tile_m": 64,
+        "tile_n": 64,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_static_profile_baseline",
+      "output_domain": "host_export",
+      "rationale": "anchors adaptive-band input timing to the ordinary static global bound contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "static-profile",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "static_global_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-i64-256-input-scan-global",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-256-input-scan-global",
+        "m": 256,
+        "n": 256,
+        "k": 512,
+        "tile_m": 64,
+        "tile_n": 64,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_global_input_scan_candidate",
+      "output_domain": "host_export",
+      "rationale": "measures whether one-time global input scanning reduces enough residue work to beat static bounds",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "input_scan_global_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-i64-256-proof-mask-per-tile",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-256-proof-mask-per-tile",
+        "m": 256,
+        "n": 256,
+        "k": 512,
+        "tile_m": 64,
+        "tile_n": 64,
+        "bound_mode": "per-tile",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": true,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_proof_mask_candidate",
+      "output_domain": "host_export",
+      "rationale": "checks whether per-tile exact bounds plus zero row/column proofs beat static/global scan baselines",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "proof_mask_per_tile_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask",
+        "proof_mask_expected": true
+      }
+    },
+    {
+      "name": "bounded-u64-rect-static-global",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bound-discovery-u64-rect-static-global",
+        "m": 512,
+        "n": 1024,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_static_profile_baseline",
+      "output_domain": "host_export",
+      "rationale": "keeps rectangular unsigned adaptive-band input timing anchored to a static global bound baseline",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "static-profile",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "static_global_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-u64-rect-input-scan-global",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bound-discovery-u64-rect-input-scan-global",
+        "m": 512,
+        "n": 1024,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_global_input_scan_candidate",
+      "output_domain": "host_export",
+      "rationale": "tests global input-bound discovery on the rectangular bounded-u64 adaptive-band workload",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "input_scan_global_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-u64-rect-proof-mask-per-tile",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bound-discovery-u64-rect-proof-mask-per-tile",
+        "m": 512,
+        "n": 1024,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "per-tile",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": true,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_proof_mask_candidate",
+      "output_domain": "host_export",
+      "rationale": "covers proof-mask behavior on the rectangular bounded-u64 adaptive-band workload",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "proof_mask_per_tile_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask",
+        "proof_mask_expected": true
+      }
+    },
+    {
+      "name": "bounded-i64-1024-static-global",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-1024-static-global",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_static_profile_baseline",
+      "output_domain": "host_export",
+      "rationale": "anchors the larger adaptive-band workload to the ordinary static global bound contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "static-profile",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "static_global_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-input-scan-global",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-1024-input-scan-global",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_global_input_scan_candidate",
+      "output_domain": "host_export",
+      "rationale": "checks whether global input scanning still pays off once launch overhead is less dominant",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "input_scan_global_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-proof-mask-per-tile",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bound-discovery-i64-1024-proof-mask-per-tile",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "per-tile",
+        "input_profile": "adaptive-bands",
+        "require_adaptive": true,
+        "promotable": true
+      },
+      "evidence_scope": "bound_discovery_proof_mask_candidate",
+      "output_domain": "host_export",
+      "rationale": "checks larger-shape per-tile proof-mask behavior against global static and input-scan baselines",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "ck",
+        "rocwmma"
+      ],
+      "bound_source": "input-scan",
+      "metadata": {
+        "workflow_name": "bound_discovery_proof_mask_release_matrix",
+        "bound_discovery_role": "proof_mask_per_tile_candidate",
+        "promotion_scope": "workload_comparison_only",
+        "validation_contract": "setup_inclusive_static_global_vs_input_scan_vs_proof_mask",
+        "proof_mask_expected": true
+      }
+    }
+  ]
+}

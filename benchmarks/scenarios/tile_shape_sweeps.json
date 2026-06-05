@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "family": "tile-shape-sweeps",
+  "items": [
+    {
+      "name": "bounded-i64-512-64x64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "tile-512-64x64",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 64,
+        "tile_n": 64,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP bounded i64 512 tile-shape variant",
+      "output_domain": "host_export",
+      "rationale": "groups tile-shape evidence with kernel/resource reports before selected-kernel changes",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-bounded-512-64x64",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    },
+    {
+      "name": "bounded-i64-512-256x128",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "tile-512-256x128",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 256,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP bounded i64 512 asymmetric tile-shape variant",
+      "output_domain": "host_export",
+      "rationale": "tests occupancy and memory traffic sensitivity to tile M/N without changing public routing",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-bounded-512-256x128",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-64x128",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "tile-1024-64x128",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 64,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP bounded i64 1024 tile-shape variant",
+      "output_domain": "host_export",
+      "rationale": "compares 1024-size tile shape choices against event/resource evidence",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-bounded-1024-64x128",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-256x256",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "tile-1024-256x256",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 256,
+        "tile_n": 256,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP bounded i64 1024 large tile-shape variant",
+      "output_domain": "host_export",
+      "rationale": "detects stale-kernel/resource regressions before any tile-shape promotion",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-bounded-1024-256x256",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    },
+    {
+      "name": "finite-ring-2048-64x64",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-2048-64x64",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 64,
+        "tile_n": 64,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP finite-ring u8 2048 tile-shape variant",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps finite-u8 tile-shape evidence separate from bounded RNS kernels",
+      "backends": [
+        "hip-direct"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "tile_shape_variant": "direct-hip-finite-2048-64x64",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    },
+    {
+      "name": "finite-ring-2048-256x128",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-2048-256x128",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 256,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP finite-ring u8 2048 asymmetric tile-shape variant",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "checks finite-u8 occupancy and bandwidth sensitivity before finite-kernel selection changes",
+      "backends": [
+        "hip-direct"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "tile_shape_variant": "direct-hip-finite-2048-256x128",
+      "metadata": {
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "isa_or_counter"
+      }
+    }
+  ]
+}

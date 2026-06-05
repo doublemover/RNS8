@@ -1,0 +1,502 @@
+{
+  "schema_version": 1,
+  "family": "many-small",
+  "items": [
+    {
+      "name": "bounded-i64-32-proxy",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-32",
+        "m": 32,
+        "n": 32,
+        "k": 32,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small proxy using repeated fixed-shape bounded i64 captures",
+      "output_domain": "host_export",
+      "rationale": "ranks low-overhead CPU, vector, direct-HIP, and accelerator paths before a grouped independent-GEMM API exists",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "batch_proxy",
+        "shape_signature": "tiny_square",
+        "batch_count_model": 64,
+        "reuse_profile": "independent_inputs",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-i64-32-oneshot-proxy",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-32",
+        "m": 32,
+        "n": 32,
+        "k": 32,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small public one-shot bounded i64 proxy",
+      "output_domain": "native_i64_host_output",
+      "rationale": "keeps one-shot setup cost visible for tiny independent tasks instead of folding it into persistent RNS evidence",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "oneshot": true,
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "oneshot_batch_proxy",
+        "shape_signature": "tiny_square",
+        "batch_count_model": 64,
+        "reuse_profile": "independent_inputs",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-i64-32-host-batch64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-32",
+        "m": 32,
+        "n": 32,
+        "k": 32,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch bounded i64 candidate",
+      "output_domain": "host_export",
+      "rationale": "measures an actual benchmark-owned host batch of independent resident RNS tasks against the pre-grouped baseline surface",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "host_api_batch_size": 64,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "tiny_square",
+        "batch_count_model": 64,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "finite-ring-64-proxy",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small finite-ring u8 proxy with canonical host output",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "separates small finite setup overhead from medium-shape finite accelerator evidence",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251,
+        255
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_finite_ring_gemms",
+        "domain_family": "finite_ring_u8",
+        "phase_label": "batch_proxy",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "finite-ring-64-host-batch32",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch finite-ring u8 candidate",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "tests whether explicit host batching changes the setup/launch balance for small finite-ring tasks",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_finite_ring_gemms",
+        "domain_family": "finite_ring_u8",
+        "phase_label": "host_api_batch",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-u64-64-proxy",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small bounded u64 proxy for native/vector-to-RNS routing",
+      "output_domain": "host_export",
+      "rationale": "keeps the strong bounded-u64 native/vector family visible before grouped or chained consumers exist",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "pre_grouped_batch_proxy",
+        "shape_signature": "small_square",
+        "batch_count_model": 128,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "bridge_role": "native_vector_to_rns_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-i64-128-proxy",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small bounded i64 proxy at the largest small-batch square shape",
+      "output_domain": "host_export",
+      "rationale": "tests whether a future grouped dispatcher should target 128-square jobs or stay focused on tinier launch-bound cases",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "pre_grouped_batch_proxy",
+        "shape_signature": "medium_small_square",
+        "batch_count_model": 64,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-u64-skinny-n1-proxy",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "many-small-skinny-128x1x1024",
+        "m": 128,
+        "n": 1,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small skinny bounded u64 proxy for N=1 native/vector dispatch",
+      "output_domain": "host_export",
+      "rationale": "keeps skinny exact jobs in the same grouped-workload planning surface as square many-small jobs",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "pre_grouped_skinny_proxy",
+        "shape_signature": "skinny_n1_long_k",
+        "batch_count_model": 128,
+        "reuse_profile": "single_rhs_column",
+        "grouping_role": "pre_grouped_baseline",
+        "bridge_role": "native_vector_to_rns_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-u64-skinny-n1-host-batch128",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "many-small-skinny-128x1x1024",
+        "m": 128,
+        "n": 1,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch skinny bounded u64 candidate",
+      "output_domain": "host_export",
+      "rationale": "tests whether batching long-K N=1 exact jobs can beat independent resident calls before a device grouped scheduler exists",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "host_api_batch_size": 128,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "skinny_n1_long_k",
+        "batch_count_model": 128,
+        "reuse_profile": "single_rhs_column",
+        "grouping_role": "host_api_batch_candidate",
+        "bridge_role": "native_vector_to_rns_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-signed-64-proxy",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide signed proxy with fixed limb export",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "adds exact-wide jobs to the grouped-workload planning surface instead of leaving many-small evidence bounded-only",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "pre_grouped_exact_wide_proxy",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-signed-64-host-batch32",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch exact-wide signed candidate",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "measures explicit independent exact-wide task batching with fixed-limb export and per-task checksum coverage",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-64-proxy",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide unsigned proxy with fixed limb export",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "adds the unsigned exact-wide independent baseline needed to classify grouped-dispatch unsigned captures",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "pre_grouped_exact_wide_proxy",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-64-host-batch32",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch exact-wide unsigned candidate",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "pairs the existing grouped unsigned smoke path with a same-backend host-batch baseline",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    }
+  ]
+}

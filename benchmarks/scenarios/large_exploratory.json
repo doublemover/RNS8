@@ -1,0 +1,568 @@
+{
+  "schema_version": 1,
+  "family": "large-exploratory",
+  "items": [
+    {
+      "name": "bounded-i64-2048",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 exploratory release-shape workload",
+      "output_domain": "host_export",
+      "rationale": "detects whether launch overhead has stopped dominating and raw backend throughput is the limiter",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ]
+    },
+    {
+      "name": "bounded-i64-2048-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 exploratory workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether pack-bound matrix-engine paths at 2048 benefit from reusable B residency",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "large_shape_role": "throughput_probe_reuse_b",
+        "promotion_scope": "exploratory_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 exploratory release-shape workload",
+      "output_domain": "host_export",
+      "rationale": "separates large-shape throughput evidence from promotable 64..1024 cache entries",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ]
+    },
+    {
+      "name": "bounded-u64-2048-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 exploratory workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether large unsigned bounded paths amortize reusable B residency differently from signed paths",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "large_shape_role": "throughput_probe_reuse_b",
+        "promotion_scope": "exploratory_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-4096",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large bounded i64 exploratory throughput workload",
+      "output_domain": "host_export",
+      "rationale": "checks whether bounded i64 remains launch/export-bound or becomes compute/throughput-bound at 4096",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "large_shape_role": "throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "bounded-i64-4096-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large bounded i64 throughput workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "measures whether reusable B is still valuable after launch overhead is fully amortized",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "large_shape_role": "throughput_probe_reuse_b",
+        "promotion_scope": "exploratory_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-4096",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large bounded u64 exploratory throughput workload",
+      "output_domain": "host_export",
+      "rationale": "checks whether native vector, Direct-HIP, and accelerator paths scale differently once launch overhead is amortized",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "large_shape_role": "throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "bounded-u64-4096-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large bounded u64 throughput workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "tests whether large unsigned matrix-engine paths should prefer explicit stable-B contracts",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "large_shape_role": "throughput_probe_reuse_b",
+        "promotion_scope": "exploratory_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-signed-2048",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large exact-wide signed exploratory export-heavy workload",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "extends exact-wide evidence beyond 512/1024 while keeping large-shape output-limb costs visible",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "large_shape_role": "exact_wide_export_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-2048",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large exact-wide unsigned exploratory export-heavy workload",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "checks whether unsigned exact-wide export behavior diverges from signed large-shape behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "large_shape_role": "exact_wide_export_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-4096",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large exact-wide signed exploratory export-heavy workload",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "pushes exact-wide prefix-20 export and GEMM balance into a throughput-dominated shape when runtime is tolerable",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "large_shape_role": "exact_wide_throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-4096",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large exact-wide unsigned exploratory export-heavy workload",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "keeps unsigned exact-wide 4096 evidence separate from signed and default bounded paths",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "large_shape_role": "exact_wide_throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "finite-ring-2048",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-ring u8 hot-modulus exploratory workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "tests whether 1024 finite-u8 accelerator wins generalize to larger hot-modulus shapes",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "metadata": {
+        "large_shape_role": "finite_hot_modulus_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "finite-field-2048",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-field u8 hot-prime exploratory workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps field-251 large-shape evidence separate from ring-modulus behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "large_shape_role": "finite_hot_prime_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "finite-ring-4096",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large finite-ring u8 hot-modulus exploratory workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "shows whether finite hot-modulus paths remain throughput-effective at 4096 when runtime is tolerable",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "metadata": {
+        "large_shape_role": "finite_hot_modulus_throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "finite-field-4096",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large finite-field u8 hot-prime exploratory workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "separates large field-251 throughput from finite-ring composite-modulus behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "large_shape_role": "finite_hot_prime_throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "wrap64-2048",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large strict wrap64 direct byte-limb exploratory workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "extends direct-HIP wrap64 v4 evidence beyond 1024 without claiming matrix-engine promotion",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "metadata": {
+        "large_shape_role": "wrap64_direct_hip_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    },
+    {
+      "name": "wrap64-4096",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-large-4096",
+        "m": 4096,
+        "n": 4096,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "very large strict wrap64 direct byte-limb exploratory workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "tests the upper safe uint32-accumulation shape for direct-HIP wrap64 v4 when runtime is tolerable",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "metadata": {
+        "large_shape_role": "wrap64_direct_hip_throughput_probe",
+        "promotion_scope": "exploratory_only"
+      }
+    }
+  ]
+}

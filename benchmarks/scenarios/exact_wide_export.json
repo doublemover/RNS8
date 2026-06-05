@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "family": "exact-wide-export",
+  "items": [
+    {
+      "name": "signed-limbs4-512",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "signed exact-wide host limb export with full-width status-elided output",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "profiles exact-wide export before expanding exact-wide GEMM variants",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ]
+    },
+    {
+      "name": "unsigned-limbs3-512",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "unsigned exact-wide compact full-width three-limb export",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "compares compact 192-bit output against the default four-limb export contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        3
+      ]
+    },
+    {
+      "name": "unsigned-limbs4-512",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "unsigned exact-wide default four-limb export",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "keeps compact-output claims anchored to the current default-width baseline",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ]
+    }
+  ]
+}

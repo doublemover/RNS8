@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "family": "reuse-contract",
+  "items": [
+    {
+      "name": "bounded-i64-1024-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "large bounded i64 non-reuse baseline for explicit reuse contracts",
+      "output_domain": "host_export",
+      "rationale": "anchors stable-A and stable-A+B reuse comparisons to the ordinary per-repeat pack contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "nonreuse_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab"
+      }
+    },
+    {
+      "name": "bounded-u64-1024-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "large bounded u64 non-reuse baseline for explicit reuse contracts",
+      "output_domain": "host_export",
+      "rationale": "anchors unsigned stable-A and stable-A+B reuse comparisons to the ordinary per-repeat pack contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "nonreuse_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-a",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 workload with stable LHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether stable-A setup amortizes against same-backend and fastest non-reuse baselines",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_a",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_lhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-1024-reuse-a",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded u64 workload with stable LHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether unsigned stable-A setup amortizes against same-backend and fastest non-reuse baselines",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_a",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_lhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether stable-B setup amortizes in the same matrix as stable-A and stable-A+B",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-1024-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded u64 workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether unsigned stable-B setup amortizes in the same matrix as stable-A and stable-A+B",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-ab",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 workload with stable LHS and RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether full stable-input setup amortizes before converting A+B reuse into a workload contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_ab_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_lhs_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-1024-reuse-ab",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded u64 workload with stable LHS and RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether unsigned full stable-input setup amortizes before converting A+B reuse into a workload contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_ab_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "stable_lhs_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 non-reuse baseline for explicit reuse contracts",
+      "output_domain": "host_export",
+      "rationale": "keeps 2048 stable-input reuse tied to the same large-shape baseline matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "nonreuse_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 non-reuse baseline for explicit reuse contracts",
+      "output_domain": "host_export",
+      "rationale": "keeps unsigned 2048 stable-input reuse tied to the same large-shape baseline matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "nonreuse_baseline",
+        "promotion_scope": "baseline_only",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-reuse-a",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 workload with stable LHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "tests whether large stable-A reuse survives setup-inclusive review",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_a",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_lhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-reuse-a",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 workload with stable LHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "tests whether large unsigned stable-A reuse survives setup-inclusive review",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_a",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_lhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "keeps large stable-B reuse in the same explicit contract matrix as A and A+B",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "keeps large unsigned stable-B reuse in the same explicit contract matrix as A and A+B",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-reuse-ab",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 workload with stable LHS and RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "tests whether large full stable-input reuse survives setup-inclusive review",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_ab_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_lhs_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-reuse-ab",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 workload with stable LHS and RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "tests whether large unsigned full stable-input reuse survives setup-inclusive review",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "workflow_name": "reuse_contract_release_matrix",
+        "reuse_contract_role": "stable_ab_candidate",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_lhs_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_nonreuse_vs_reuse_a_reuse_b_reuse_ab",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    }
+  ]
+}

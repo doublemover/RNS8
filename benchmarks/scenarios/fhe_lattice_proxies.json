@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "family": "fhe-lattice-proxies",
+  "items": [
+    {
+      "name": "ntt-log12-pressure-proxy",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "ntt-log12-proxy",
+        "m": 4096,
+        "n": 1,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "NTT/INTT pressure proxy with power-of-two polynomial dimension",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "labels transform-pressure ranking work without claiming RNS8 currently implements an NTT backend",
+      "backends": [
+        "hip-direct"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "evidence_role": "proxy_not_ntt_proof",
+        "workflow_name": "ntt_intt_pressure",
+        "phase_label": "transform_pressure_proxy",
+        "ring_dimension": 4096,
+        "log_n": 12,
+        "coefficient_modulus_count": 1,
+        "current_domain": "coefficient_or_ntt_domain_proxy",
+        "reuse_profile": "independent_polynomial_channels",
+        "lowering_role": "not_a_dense_gemm_claim"
+      }
+    },
+    {
+      "name": "key-switch-digit-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "key-switch-1024x256x1024",
+        "m": 1024,
+        "n": 256,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "key-switch digit aggregation proxy with reused key material",
+      "output_domain": "host_export",
+      "rationale": "measures repeated read-only B-like operand reuse separately from ordinary one-shot dense GEMM evidence",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "workflow_name": "key_switch_digit_aggregation",
+        "phase_label": "external_product_like_dense_proxy",
+        "ring_dimension": 4096,
+        "log_n": 12,
+        "coefficient_modulus_count": 4,
+        "decomposition_digit_count": 4,
+        "ciphertext_component_count": 2,
+        "evaluation_key_count": 8,
+        "key_material_reuse": "B_operand_reused",
+        "reuse_profile": "large_read_only_key_material",
+        "lowering_role": "dense_gemm_adjacent_proxy"
+      }
+    },
+    {
+      "name": "ckks-rescale-chain4",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ckks-chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "CKKS rescale/mod-drop chain proxy with resident RNS output",
+      "output_domain": "residue_current_rns",
+      "rationale": "keeps chained residue-domain work separate from final native host export timings",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "residue_chain_length": 4,
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "workflow_name": "ckks_rescale_mod_drop",
+        "phase_label": "residue_chain_proxy",
+        "ring_dimension": 8192,
+        "log_n": 13,
+        "slot_count": 4096,
+        "coefficient_modulus_count": 4,
+        "modulus_chain_bits": [
+          60,
+          40,
+          40,
+          60
+        ],
+        "current_domain": "rns_residue_current",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "not_a_public_fhe_backend"
+      }
+    },
+    {
+      "name": "encrypted-linear-layer-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "linear-layer-1024x128x1024",
+        "m": 1024,
+        "n": 128,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "encrypted-inference linear-layer proxy with repeated plaintext matrix",
+      "output_domain": "host_export",
+      "rationale": "separates repeated plaintext-matrix reuse from diagonal/rotation and convolution lowerings",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "workflow_name": "encrypted_inference_linear_layer",
+        "phase_label": "dense_linear_layer_proxy",
+        "ring_dimension": 8192,
+        "log_n": 13,
+        "slot_count": 4096,
+        "coefficient_modulus_count": 4,
+        "plaintext_matrix_reuse": "B_operand_reused",
+        "reuse_profile": "many_encrypted_vectors_same_plaintext_matrix",
+        "lowering_role": "dense_gemm_proxy_not_rotation_method"
+      }
+    }
+  ]
+}

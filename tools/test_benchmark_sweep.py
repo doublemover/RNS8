@@ -482,6 +482,18 @@ def main() -> int:
     assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
 
     catalog = benchmark_sweep.scenario_catalog()
+    scenario_files = sorted(benchmark_sweep.SCENARIO_DATA_DIR.glob("*.json"))
+    assert len(scenario_files) == len(catalog)
+    loaded_families = set(catalog)
+    for path in scenario_files:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["schema_version"] == 1
+        assert payload["family"] in loaded_families
+        assert payload["items"]
+        for item in payload["items"]:
+            assert isinstance(item.get("case"), dict)
+            for key in ["name", "m", "n", "k", "tile_m", "tile_n", "bound_mode", "input_profile"]:
+                assert key in item["case"]
     for scenario_name in [
         "bound-discovery",
         "generated-prefix-reducers",

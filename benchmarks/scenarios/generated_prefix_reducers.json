@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "family": "generated-prefix-reducers",
+  "items": [
+    {
+      "name": "bounded-i64-prefix1",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded i64 fixed-prefix 1 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "proves fixed-prefix generated reducer identity and no-divide ISA gates across bounded prefixes",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 1,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 1,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-i64-prefix3",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded i64 fixed-prefix 3 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "proves fixed-prefix generated reducer identity and no-divide ISA gates across bounded prefixes",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 3,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 3,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-i64-prefix5",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded i64 fixed-prefix 5 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "proves fixed-prefix generated reducer identity and no-divide ISA gates across bounded prefixes",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 5,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 5,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-i64-prefix9",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded i64 fixed-prefix 9 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "proves fixed-prefix generated reducer identity and no-divide ISA gates across bounded prefixes",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 9,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-u64-prefix1",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded u64 fixed-prefix 1 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "mirrors signed-prefix reducer coverage for unsigned bounded semantics",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 1,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 1,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-u64-prefix3",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded u64 fixed-prefix 3 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "mirrors signed-prefix reducer coverage for unsigned bounded semantics",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 3,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 3,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-u64-prefix5",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded u64 fixed-prefix 5 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "mirrors signed-prefix reducer coverage for unsigned bounded semantics",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 5,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 5,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "bounded-u64-prefix9",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP bounded u64 fixed-prefix 9 generated reducer evidence",
+      "output_domain": "host_export",
+      "rationale": "mirrors signed-prefix reducer coverage for unsigned bounded semantics",
+      "backends": [
+        "hip-direct"
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 9,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    },
+    {
+      "name": "exact-wide-signed-prefix20",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "direct-HIP exact-wide fixed-prefix 20 generated reducer evidence",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "keeps exact-wide prefix-20 generated reducer identity tied to a compact smoke shape",
+      "backends": [
+        "hip-direct"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "generated_prefix_reducer",
+        "prefix": 20,
+        "isa_gate": "no_integer_divide_expected"
+      }
+    }
+  ]
+}

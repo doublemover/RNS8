@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "family": "exact-wide-output-chain",
+  "items": [
+    {
+      "name": "exact-wide-signed-chain3-final-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide signed RNS chain with final checksum/export outside measured repeats",
+      "output_domain": "residue_current_then_final_limb_export",
+      "rationale": "keeps lazy-output/reconstruction pressure separate from per-repeat GEMM timing",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "promotion_scope": "lazy_export_chain_evidence_only",
+        "output_domain_requirement": "rns_then_final_export"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-chain3-reuse-b",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide unsigned RNS chain with stable RHS packed once before warmups",
+      "output_domain": "residue_current_then_final_limb_export",
+      "rationale": "tests whether reusable B matters in exact-wide lazy-output chains",
+      "backends": [
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "promotion_scope": "lazy_export_chain_reuse_evidence_only",
+        "reuse_contract": "stable_rhs_exact_wide_chain"
+      }
+    }
+  ]
+}

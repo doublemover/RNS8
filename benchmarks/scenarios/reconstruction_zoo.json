@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "family": "reconstruction-zoo",
+  "items": [
+    {
+      "name": "bounded-i64-garner-precomputed",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "benchmark-only Garner reconstruction variant metadata",
+      "output_domain": "host_export",
+      "rationale": "plumbs reconstruction variant evidence before any CRT fusion or kernel change",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "reconstruction_variant": "experimental:garner_precomputed_constants",
+      "metadata": {
+        "promotion_scope": "reconstruction_variant_evidence_only",
+        "cache_promotion_blocker": "experimental_reconstruction_variant"
+      }
+    },
+    {
+      "name": "exact-wide-signed-mixed-radix",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "benchmark-only exact-wide mixed-radix reconstruction variant metadata",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "keeps reconstruction-zoo captures exact-checked against current output while non-promoting",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "reconstruction_variant": "experimental:mixed_radix_fixed_prefix20",
+      "metadata": {
+        "promotion_scope": "reconstruction_variant_evidence_only",
+        "cache_promotion_blocker": "experimental_reconstruction_variant"
+      }
+    }
+  ]
+}

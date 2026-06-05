@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "family": "large-release-validation",
+  "items": [
+    {
+      "name": "bounded-i64-2048-required-baselines",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 release-validation workload",
+      "output_domain": "host_export",
+      "rationale": "fills the required CPU, Direct-HIP, vector, and accelerator comparator set missing from exploratory 2048 captures",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "required_baseline_matrix",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_vector_accelerator_release_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-required-baselines",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 release-validation workload",
+      "output_domain": "host_export",
+      "rationale": "fills the required CPU, Direct-HIP, vector, and accelerator comparator set missing from exploratory 2048 captures",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "required_baseline_matrix",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_vector_accelerator_release_review"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-reuse-b-required-baselines",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded i64 release-validation workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether reusable B survives setup-inclusive review when the required CPU, Direct-HIP, and vector comparators are present",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "required_baseline_reuse_b_matrix",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "validation_contract": "same_contract_cpu_direct_vector_accelerator_release_review",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-2048-reuse-b-required-baselines",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large bounded u64 release-validation workload with stable RHS packed once before warmups",
+      "output_domain": "host_export",
+      "rationale": "checks whether reusable B survives setup-inclusive review when the required CPU, Direct-HIP, and vector comparators are present",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "required_baseline_reuse_b_matrix",
+        "promotion_scope": "explicit_reuse_contract_only",
+        "reuse_contract": "large_stable_rhs_prepacked_before_warmups",
+        "validation_contract": "same_contract_cpu_direct_vector_accelerator_release_review",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-signed-2048-required-baselines",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large exact-wide signed release-validation workload",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "adds CPU and Direct-HIP comparator coverage to the large exact-wide export-heavy matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "exact_wide_export_required_baselines",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_accelerator_release_review"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-2048-required-baselines",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large exact-wide unsigned release-validation workload",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "adds CPU and Direct-HIP comparator coverage to the large exact-wide export-heavy matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "exact_wide_export_required_baselines",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_accelerator_release_review"
+      }
+    },
+    {
+      "name": "finite-ring-2048-hot-required-baselines",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-ring u8 hot-modulus release-validation workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "adds CPU and Direct-HIP comparator coverage to the 2048 hot-modulus finite matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "finite_hot_modulus_required_baselines",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_accelerator_release_review"
+      }
+    },
+    {
+      "name": "finite-field-2048-hot-required-baselines",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-field u8 hot-prime release-validation workload",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "adds CPU and Direct-HIP comparator coverage to the 2048 hot-prime finite matrix",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "finite_hot_prime_required_baselines",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_cpu_direct_accelerator_release_review"
+      }
+    },
+    {
+      "name": "wrap64-2048-required-baselines",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-large-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large strict wrap64 release-validation workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "adds the required byte-limb reference beside large direct-HIP wrap64 v4 evidence",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "metadata": {
+        "workflow_name": "large_shape_release_validation",
+        "large_shape_role": "wrap64_required_baselines",
+        "promotion_scope": "cpu_backed_2048_release_review_candidate",
+        "validation_contract": "same_contract_byte_limb_direct_hip_release_review"
+      }
+    }
+  ]
+}
