@@ -125,6 +125,14 @@ June 4-5, 2026 updates:
   RNS-chain scenarios, and large bounded reusable-B scenario coverage. Treat
   those as completed benchmark/tooling surfaces, not as automatic runtime
   routing or public API promotions.
+- The many-small scenario surface is implemented, but the first release sweep
+  is not yet validated. The attempted run under
+  `temp/perf-work-queue/many-small-current-release/` exposed a schema-policy
+  blocker: small public Direct-HIP bounded one-shot captures can legitimately
+  fall back to the resident tiled RNS path, while the schema still requires the
+  native-input one-shot selected kernel and metadata. Rank 8 stays open until
+  the schema/tests distinguish resident fallback one-shot captures from true
+  native-input one-shot captures, and the many-small release sweep completes.
 - Large-shape validation now has a dedicated `large-release-validation`
   scenario family. It emits the missing CPU/direct/vector/accelerator
   comparator matrix for 2048 bounded i64/u64, setup-contract reuse-B 2048,
@@ -260,7 +268,7 @@ June 4-5, 2026 updates:
 | 5 | Completed current-v2 adaptive bounded rerun | The adaptive bounded-i64 winner used an older rocWMMA tiled-v1 identity; current-v2 review needed real CPU, Direct HIP, runtime vector, CK, and rocWMMA evidence | `adaptive-bands` release review with seed `20260604`, three warmups, nine repeats, schema-valid captures, required GPU events, and corrected same-contract grouping covered bounded-i64 256/1024 plus bounded-u64 512x1024 | Closed for current claim refresh: Direct HIP wins all reviewed adaptive-bands groups, no accelerator cache is promoted, and old rocWMMA v1 evidence is historical |
 | 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident selected-prefix colpair was measured under `temp/perf-work-queue/direct-hip-resident-colpair-current/` and not promoted because rerun end-to-end timing lost 4010 us versus 2434 us for the existing tiled active-prefix path despite a narrower GEMM-median signal | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
 | 7 | Bounded-i64 hipBLASLt 1024 tuning | 1024 has the only current bounded-i64 accelerator cache win, but it is narrow versus Direct HIP | Release A/B against current hipBLASLt v2 and Direct-HIP baseline | Keep cache entry only if correctness, event timing, and setup-inclusive end-to-end win survive |
-| 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | Grouped scenario captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Promote only when grouping beats independent calls including queue/setup overhead |
+| 8 | Many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now emits pre-grouped baseline metadata for bounded i64/u64 square jobs, skinny N=1 bounded-u64 jobs, exact-wide signed jobs, finite-u8 ring jobs, and public one-shot baselines; the next gate is fixing the small one-shot Direct-HIP resident-fallback schema policy, then running release captures with CPU/direct-HIP baselines, independent-call comparison, per-task correctness, and setup/error aggregation | Keep open: current branch work provides the control surface only; promote only when grouping beats independent calls including queue/setup overhead |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
@@ -301,6 +309,7 @@ June 4-5, 2026 updates:
 | Debt | Why It Matters | Required Refresh |
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
+| Many-small release validation is blocked at schema policy, not implementation evidence | The scenario surface exists, but the first release sweep hit a stale Direct-HIP one-shot schema expectation for small captures that fall back to resident RNS execution instead of the native-input one-shot kernel | Update schema/tests to accept resident fallback one-shot metadata only for the legitimate small Direct-HIP path, reject stale mixed metadata, then rerun `many-small` release review |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass is intentionally budgeted |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
 
@@ -2033,7 +2042,10 @@ Likely first slices:
   exact-wide signed jobs, finite-u8 ring jobs, and public one-shot baselines now
   share pre-grouped baseline metadata. These are not grouped-dispatch speedup
   claims; they are the control surface for proving whether batching 64/128 and
-  skinny exact jobs is worth implementing.
+  skinny exact jobs is worth implementing. The first full release sweep exposed
+  a schema-policy mismatch for small public Direct-HIP one-shot captures that
+  use resident RNS execution, so release validation remains open until that
+  fallback contract is encoded and retested.
 - Add scenario tables to review Markdown. Implemented as the separate scenario
   manifest Markdown table beside `review_report.md`; raw review groups stay
   contract-keyed so scenario labels cannot accidentally make incompatible
