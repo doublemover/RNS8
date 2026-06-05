@@ -119,12 +119,14 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | finite ring u8 mod 256 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 1.07x vs Direct HIP | installed |
 | finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
 | finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 1.27x vs Direct HIP | installed |
+| exact-wide unsigned | 64 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4611 us | 1.67x vs Direct HIP | installed |
 | exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
 | exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
 | exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
 
-The installed reviewed cache currently covers 22 exact plan keys, including the
-large 2048 bounded and finite-u8 entries above. Some rows are deliberately
+The installed reviewed cache currently covers 23 exact plan keys, including the
+large 2048 bounded/finite-u8 entries and exact-wide unsigned 64 entry above.
+Some rows are deliberately
 narrow local wins; Linux ROCm, Instinct, RDNA4, and profiler-backed production
 claims remain separate validation work.
 

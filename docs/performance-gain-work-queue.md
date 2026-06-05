@@ -121,6 +121,12 @@ June 4-5, 2026 updates:
   field 251 at 4432 us. All promoted winners have required GPU events; the
   non-winning hipBLASLt ring-256 capture is blocked by missing events and by
   losing to Direct HIP.
+- The exact-wide 64/128 current-v2 refresh is complete. The 20 captures under
+  `temp/perf-work-queue/exact-wide-small-v2-release/` cover signed/unsigned
+  exact-wide 64 and 128 across CPU, Direct HIP, hipBLASLt, CK, and rocWMMA.
+  Only exact-wide unsigned 64 promoted: hipBLASLt at 4611 us, 1.67x faster than
+  Direct HIP, with required GPU events and a local cache entry installed.
+  Signed 64, signed 128, and unsigned 128 stay on Direct HIP.
 - `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
   matrices: `--skip-existing` reuses schema-valid existing captures and
   `--max-new-captures` caps how many new captures a pass may execute before
@@ -157,7 +163,7 @@ June 4-5, 2026 updates:
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded and prefix-20 exact-wide captures with event-visible launch/materialization reduction | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Same-contract export-heavy captures by limb count with GPU events and checksum/limb equality | Promote only setup-inclusive export path wins, not isolated copy improvements |
 | 12 | Exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Scenario captures for chained, residue-current, and final-export workflows | Promote lazy/export changes only when output-domain metadata proves the same contract |
-| 13 | Exact-wide 64/128/2048/4096 and limb-count release matrix | Current exact-wide claims cover only 512/1024 for selected signedness cases | `large-release-validation` can emit exact-wide signed/unsigned 2048 with 4-limb CPU/direct/accelerator comparators, but the first monolithic run stopped at the expensive exact-wide signed CPU capture; small 64/128, 2048 chunks, 4096, and limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events |
+| 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; `large-release-validation` can emit exact-wide signed/unsigned 2048 with 4-limb CPU/direct/accelerator comparators, but the first monolithic run stopped at the expensive exact-wide signed CPU capture; 2048 chunks, 4096, and limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events |
 | 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, but broader sizes and the field-127 hipBLASLt event gap remain | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
@@ -194,7 +200,6 @@ June 4-5, 2026 updates:
 |---|---|---|
 | Native-to-RNS and vector-to-RNS chain captures are helper surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, but AUTO/public routing still needs same-contract release wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, and final exact CPU comparison |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048 and finite-u8 hot-modulus 2048 now have CPU-backed release review and installed non-reuse winners, but repeated-B is still contract-limited and exact-wide, wrap64, and 4096 remain exploratory or incomplete | Use `--skip-existing` and `--max-new-captures` to finish the remaining `large-release-validation` 2048 chunks, then keep 4096 claims exploratory unless a full CPU/reference release pass is explicitly budgeted |
-| Exact-wide 64/128 evidence is historical | Current v2 exact-wide evidence covers 512/1024 only | Current-v2 release review for 64/128 and selected limb counts |
 | Field-251 512 hipBLASLt near-win lacked required events | Timing-only near wins cannot enter durable cache | Rerun with complete hipBLASLt GPU events or keep Direct HIP |
 | Field-127 generic hipBLASLt capture lacked required events | Generic finite-u8 promotion cannot rely on a timing-only hipBLASLt field path | Rerun with `hipblaslt_int8_i32_matmul` and `hipblaslt_i32_to_residue_reduce` events or keep CK for field 127 |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
@@ -520,11 +525,12 @@ Remaining high-value imported work goes at the front of the queue:
   event capture was incomplete; ring-255 64 is deliberately not promoted because
   CPU reference is faster; ring-256 2048 hipBLASLt is not promoted because it
   loses to Direct HIP and lacks required events.
-- Exact-wide has current Windows `gfx1100` v2 release-review winners for 512 and
-  1024. Three event-valid entries are installed in the local default cache:
-  signed 512 rocWMMA, signed 1024 hipBLASLt, and unsigned 1024 CK. Unsigned 512
-  stays on Direct HIP. Older 64/128 exact-wide evidence remains historical until
-  rerun with current selected-kernel identities.
+- Exact-wide has current Windows `gfx1100` v2 release-review winners for 64,
+  512, and 1024. Four event-valid entries are installed in the local default
+  cache: unsigned 64 hipBLASLt, signed 512 rocWMMA, signed 1024 hipBLASLt, and
+  unsigned 1024 CK. Signed 64, signed 128, unsigned 128, and unsigned 512 stay
+  on Direct HIP. Exact-wide 2048, 4096, and broader limb-count variants remain
+  open.
 - Direct HIP `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` is the
   measured strict wrap64 GPU path for reviewed 64/128/512/1024 local
   `gfx1100` shapes. The internal rocWMMA wrap64 candidate matches
@@ -2241,12 +2247,12 @@ Relation to new architecture work:
 
 ### 31. Exact-Wide
 
-Status: the June 4, 2026 current-v2 release review covered exact-wide signed
-and unsigned 512/1024. Signed 512 now promotes rocWMMA, signed 1024 promotes
-hipBLASLt, unsigned 1024 promotes CK, and unsigned 512 stays on Direct HIP. The
-three promoted entries are event-valid and installed in the local default cache.
-Older exact-wide 64/128 evidence remains historical until rerun with current
-selected-kernel identities.
+Status: the June 4-5, 2026 current-v2 release reviews covered exact-wide signed
+and unsigned 64/128/512/1024. Unsigned 64 promotes hipBLASLt, signed 512
+promotes rocWMMA, signed 1024 promotes hipBLASLt, unsigned 1024 promotes CK,
+and signed 64, signed 128, unsigned 128, and unsigned 512 stay on Direct HIP.
+The four promoted entries are event-valid and installed in the local default
+cache.
 
 Technical direction:
 
