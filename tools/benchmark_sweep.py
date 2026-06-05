@@ -77,6 +77,7 @@ class ScenarioItem:
     finite_moduli: tuple[int | None, ...] = (None,)
     exact_wide_limb_counts: tuple[int | None, ...] = (None,)
     residue_chain_length: int = 1
+    residue_chain_final_export: bool = False
     output_ld_padding: int = 0
     host_api_batch_size: int = 1
     oneshot: bool = False
@@ -1331,6 +1332,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
     finite_generic_2048 = parse_case("finite-generic-2048:2048,2048,2048", promotable=False)
     chain_128 = parse_case("chain-128:128,128,128")
     chain_256 = parse_case("chain-256:256,256,256")
+    chain_512 = parse_case("chain-512:512,512,512")
     small_64 = parse_case("small-64:64,64,64")
     small_128 = parse_case("small-128:128,128,128")
     pack_heavy_128 = parse_case("pack-heavy-128x128x4096:128,128,4096")
@@ -2929,6 +2931,169 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                     "lowering_role": "native_rns_chain_before_limb_export",
                     "chain_depth": 3,
                     "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                },
+            ),
+        ],
+        "rns-chain-final-output": [
+            ScenarioItem(
+                "rns-chain-final-output",
+                "bounded-i64-chain3-final-export",
+                "bounded-i64",
+                chain_128,
+                "three chained bounded i64 RNS GEMMs with final host export inside each measured repeat",
+                "host_export",
+                "compares lazy intermediate residency against the same final-output contract callers already request",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "rns_chain_final_output",
+                    "phase_label": "chain_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "bounded-i64-chain3-final-export-reuse-b",
+                "bounded-i64",
+                chain_128,
+                "three chained bounded i64 RNS GEMMs with stable RHS and final host export inside each measured repeat",
+                "host_export",
+                "checks whether reusable B survives the setup-inclusive same-final-output contract",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse_b",
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "rns_chain_final_output",
+                    "phase_label": "chain_final_export_reuse_b",
+                    "output_domain_requirement": "same_final_output",
+                    "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+                    "chain_depth": 3,
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_reuse_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "bounded-u64-chain3-final-export-256",
+                "bounded-u64",
+                chain_256,
+                "three chained bounded u64 RNS GEMMs with final host export inside each measured repeat",
+                "host_export",
+                "keeps unsigned same-final-output chain evidence separate from lazy residue-current evidence",
+                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "rns_chain_final_output",
+                    "phase_label": "chain_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "exact-wide-signed-chain3-final-export",
+                "exact-wide-signed",
+                chain_128,
+                "three chained exact-wide signed RNS GEMMs with final fixed-limb export inside each measured repeat",
+                "exact_wide_signed_limbs",
+                "turns lazy exact-wide chaining into a same-final-output benchmark contract",
+                backends=EXACT_WIDE_BACKENDS,
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "lowering_role": "native_rns_chain_before_final_limb_export",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "exact-wide-signed-chain3-final-export-reuse-b",
+                "exact-wide-signed",
+                chain_128,
+                "three chained exact-wide signed RNS GEMMs with stable RHS and final fixed-limb export inside each measured repeat",
+                "exact_wide_signed_limbs",
+                "measures whether reusable B still wins when the final exact-wide host output is part of the repeat",
+                backends=("hip-direct",),
+                pack_mode="prepacked_reuse_b",
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_final_export_reuse_b",
+                    "output_domain_requirement": "same_final_output",
+                    "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+                    "lowering_role": "native_rns_chain_before_final_limb_export",
+                    "chain_depth": 3,
+                    "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_reuse_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "exact-wide-unsigned-chain3-final-export-256",
+                "exact-wide-unsigned",
+                chain_256,
+                "three chained exact-wide unsigned RNS GEMMs with final fixed-limb export inside each measured repeat",
+                "exact_wide_unsigned_limbs",
+                "adds unsigned exact-wide same-final-output chain coverage before API-level lazy output work",
+                backends=EXACT_WIDE_BACKENDS,
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "lowering_role": "native_rns_chain_before_final_limb_export",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "exact-wide-signed-chain3-final-export-512",
+                "exact-wide-signed",
+                chain_512,
+                "512-sized exact-wide signed RNS chain with final fixed-limb export inside each measured repeat",
+                "exact_wide_signed_limbs",
+                "seeds the larger same-final-output matrix without running the full 2048/4096 release sweep",
+                backends=("hip-direct",),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                next_op_hint="final-export",
+                exact_wide_limb_counts=(4,),
+                metadata={
+                    "workflow_name": "exact_wide_rns_chain_final_output",
+                    "phase_label": "chain_final_export_512",
+                    "output_domain_requirement": "same_final_output",
+                    "lowering_role": "native_rns_chain_before_final_limb_export",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_calls_vs_chain_plus_final_export",
+                    "promotion_scope": "larger_final_output_chain_evidence_only",
                 },
             ),
         ],
@@ -4626,6 +4791,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.reuse_packed_a = item.pack_mode == "prepacked_reuse_a"
     scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
     scenario_args.residue_chain_length = item.residue_chain_length
+    scenario_args.residue_chain_final_export = item.residue_chain_final_export
     scenario_args.output_ld_padding = item.output_ld_padding
     scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
@@ -4694,6 +4860,7 @@ def scenario_metadata(
         "pack_mode": requested_pack_mode(scenario_args),
         "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
         "residue_chain_length": item.residue_chain_length,
+        "residue_chain_final_export": item.residue_chain_final_export,
         "output_ld_padding": item.output_ld_padding,
         "host_api_batch_size": item.host_api_batch_size,
         "native_to_rns_bridge": item.native_to_rns_bridge,
@@ -4759,6 +4926,7 @@ def capture_name(
     pack_mode: str,
     exact_wide_limb_count: int | None = None,
     residue_chain_length: int = 1,
+    residue_chain_final_export: bool = False,
     output_ld_padding: int = 0,
     host_api_batch_size: int = 1,
     hip_graph_replay: bool = False,
@@ -4771,6 +4939,8 @@ def capture_name(
         parts.append(f"limbs{exact_wide_limb_count}")
     if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
+        if residue_chain_final_export:
+            parts.append("finalexport")
     if output_ld_padding > 0:
         parts.append(f"outpad{output_ld_padding}")
     if host_api_batch_size > 1:
@@ -4849,6 +5019,8 @@ def command_for(
         command.extend(["--max-prefix", str(max_prefix)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
+    if getattr(args, "residue_chain_final_export", False):
+        command.append("--residue-chain-final-export")
     host_api_batch_size = int(getattr(args, "host_api_batch_size", 1) or 1)
     if host_api_batch_size > 1:
         command.extend(["--host-api-batch-size", str(host_api_batch_size)])
@@ -4965,6 +5137,8 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
         if any(semantics not in BOUNDED_SEMANTICS for semantics in semantics_values):
             raise SystemExit("--residue-channel-fusion is only valid for bounded semantics")
     if getattr(args, "hip_graph_replay", False):
+        if getattr(args, "residue_chain_final_export", False):
+            raise SystemExit("--hip-graph-replay cannot be combined with --residue-chain-final-export")
         if requested_pack_mode(args) != "prepacked_reuse":
             raise SystemExit("--hip-graph-replay requires --reuse-packed-inputs")
         if args.residue_chain_length <= 1:
@@ -4983,6 +5157,10 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             raise SystemExit("--hip-graph-replay is only valid for bounded or exact-wide RNS sweeps")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
+    if getattr(args, "residue_chain_final_export", False) and args.residue_chain_length <= 1:
+        raise SystemExit("--residue-chain-final-export requires --residue-chain-length > 1")
+    if getattr(args, "residue_chain_final_export", False) and getattr(args, "next_op_hint", None) == "rns-gemm":
+        raise SystemExit("--residue-chain-final-export cannot use --next-op-hint rns-gemm")
     if args.residue_chain_length > 1:
         non_rns_chain = [semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS]
         if non_rns_chain:
@@ -5040,6 +5218,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 requested_pack_mode(args),
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
+                                bool(getattr(args, "residue_chain_final_export", False)),
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                                 int(getattr(args, "host_api_batch_size", 1) or 1),
                                 bool(getattr(args, "hip_graph_replay", False)),
@@ -5067,6 +5246,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 requested_pack_mode(args),
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
+                                bool(getattr(args, "residue_chain_final_export", False)),
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                                 int(getattr(args, "host_api_batch_size", 1) or 1),
                                 bool(getattr(args, "hip_graph_replay", False)),
@@ -5115,6 +5295,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "reconstruction_variant", "default_garner") != "default_garner",
             int(getattr(args, "grouped_dispatch_tasks", 1) or 1) != 1,
             getattr(args, "hip_graph_replay", False),
+            getattr(args, "residue_chain_final_export", False),
             getattr(args, "workload_proxy", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
@@ -5168,6 +5349,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         requested_pack_mode(scenario_args),
                         exact_wide_limb_count,
                         item.residue_chain_length,
+                        item.residue_chain_final_export,
                         item.output_ld_padding,
                         item.host_api_batch_size,
                         item.hip_graph_replay,
@@ -5445,7 +5627,12 @@ def parse_args() -> argparse.Namespace:
         "--residue-chain-length",
         type=int,
         default=1,
-        help="exact-wide residue-current GEMM chain length; values above 1 skip timed host export",
+        help="bounded/exact-wide RNS GEMM chain length; values above 1 leave output residue-current unless final export is requested",
+    )
+    parser.add_argument(
+        "--residue-chain-final-export",
+        action="store_true",
+        help="measure one final host export inside each residue-chain repeat instead of leaving output residue-current",
     )
     parser.add_argument(
         "--host-api-batch-size",

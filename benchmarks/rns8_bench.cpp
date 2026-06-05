@@ -134,6 +134,7 @@ struct Args {
   uint32_t max_prefix_override = 0;
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
   uint32_t residue_chain_length = 1;
+  bool residue_chain_final_export = false;
   uint32_t host_api_batch_size = 1;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
@@ -312,6 +313,7 @@ rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, s
       << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--residue-chain-length N]\n"
+      << "                  [--residue-chain-final-export]\n"
       << "                  [--host-api-batch-size N]\n"
       << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
       << "                  [--modulus-set default|experimental:NAME]\n"
@@ -384,8 +386,16 @@ bool rns_chain_benchmark_semantics(BenchSemantics semantics) {
   return bounded_benchmark_semantics(semantics) || exact_wide_benchmark_semantics(semantics);
 }
 
-bool residue_current_output_mode(const Args& args) {
+bool rns_residue_chain_requested(const Args& args) {
   return rns_chain_benchmark_semantics(args.semantics) && args.residue_chain_length > 1;
+}
+
+bool residue_current_output_mode(const Args& args) {
+  return rns_residue_chain_requested(args) && !args.residue_chain_final_export;
+}
+
+bool residue_chain_final_export_requested(const Args& args) {
+  return rns_residue_chain_requested(args) && args.residue_chain_final_export;
 }
 
 bool exact_wide_export_status_check_required(const Args& args) {
@@ -595,6 +605,8 @@ Args parse_args(int argc, char** argv) {
       args.exact_wide_limb_count = parse_u32(argv[++i], "--exact-wide-limbs");
     } else if (arg == "--residue-chain-length" && i + 1 < argc) {
       args.residue_chain_length = parse_u32(argv[++i], "--residue-chain-length");
+    } else if (arg == "--residue-chain-final-export") {
+      args.residue_chain_final_export = true;
     } else if (arg == "--host-api-batch-size" && i + 1 < argc) {
       args.host_api_batch_size = parse_u32(argv[++i], "--host-api-batch-size");
     } else if (arg == "--next-op-hint" && i + 1 < argc) {
@@ -664,6 +676,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--residue-chain-length N]\n"
+          << "                  [--residue-chain-final-export]\n"
           << "                  [--host-api-batch-size N]\n"
           << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
           << "                  [--modulus-set default|experimental:NAME]\n"
@@ -877,6 +890,9 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_length == 0) {
     usage_error("--residue-chain-length must be positive");
   }
+  if (args.residue_chain_final_export && args.residue_chain_length <= 1) {
+    usage_error("--residue-chain-final-export requires --residue-chain-length > 1");
+  }
   if (args.host_api_batch_size == 0) {
     usage_error("--host-api-batch-size must be positive");
   }
@@ -962,6 +978,9 @@ Args parse_args(int argc, char** argv) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
     usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
 #endif
+    if (args.residue_chain_final_export) {
+      usage_error("--hip-graph-replay cannot be combined with --residue-chain-final-export");
+    }
     if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
       usage_error("--hip-graph-replay requires --backend hip-direct");
     }
@@ -992,6 +1011,9 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_length > 1) {
     if (!rns_chain_benchmark_semantics(args.semantics)) {
       usage_error("--residue-chain-length > 1 is only valid for bounded or exact-wide RNS semantics");
+    }
+    if (args.residue_chain_final_export && args.next_op_hint == NextOpHint::RnsGemm) {
+      usage_error("--residue-chain-final-export cannot use --next-op-hint rns-gemm");
     }
     if (args.m != args.n || args.n != args.k) {
       usage_error("--residue-chain-length > 1 currently requires square m=n=k RNS shapes");
@@ -1310,6 +1332,12 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (hip_graph_replay_requested(args)) {
     return "hip_graph_replay_resident_rns_chain";
+  }
+  if (residue_chain_final_export_requested(args)) {
+    return "residue_chain_final_host_export";
+  }
+  if (residue_current_output_mode(args)) {
+    return "residue_current_rns_chain";
   }
   if (args.wrap64_rocwmma_candidate) {
     return "internal_wrap64_rocwmma_candidate";
@@ -5999,7 +6027,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
-  if (residue_current_output_mode(args)) {
+  if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
@@ -6213,7 +6241,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_i64(ctx, plan, c_matrix, C.data(), ldc);
+      status = rns8_export_i64(ctx, plan, final_output_matrix, C.data(), ldc);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_i64", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -6372,7 +6400,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
-  if (residue_current_output_mode(args)) {
+  if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
@@ -6631,7 +6659,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_u64(ctx, plan, c_matrix, C.data(), ldc);
+      status = rns8_export_u64(ctx, plan, final_output_matrix, C.data(), ldc);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_u64", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -6909,7 +6937,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
-  if (residue_current_output_mode(args)) {
+  if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
@@ -6986,8 +7014,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status =
-          rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
+      status = rns8_export_exact_wide_signed_limbs(
+          ctx, plan, final_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -7086,7 +7114,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
-  if (residue_current_output_mode(args)) {
+  if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
@@ -7163,8 +7191,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status =
-          rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
+      status = rns8_export_exact_wide_unsigned_limbs(
+          ctx, plan, final_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
       if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
@@ -7817,6 +7845,12 @@ const char* benchmark_name(const Args& args) {
   if (hip_graph_replay_requested(args)) {
     return "rns8_hip_graph_replay_resident_rns_chain";
   }
+  if (residue_chain_final_export_requested(args)) {
+    return "rns8_residue_chain_final_host_export";
+  }
+  if (residue_current_output_mode(args)) {
+    return "rns8_residue_current_rns_chain";
+  }
   if (bounded_residue_channel_fusion_requested(args)) {
     return "rns8_bounded_gemm_residue_channel_fusion_experiment";
   }
@@ -7979,6 +8013,9 @@ void print_nullable_std_string(const std::string& value) {
 std::string resolved_next_op_hint(const Args& args, const BenchmarkResult& result) {
   if (args.next_op_hint != NextOpHint::Auto) {
     return next_op_hint_name(args.next_op_hint);
+  }
+  if (residue_chain_final_export_requested(args)) {
+    return "final-export";
   }
   if (residue_current_output_mode(args)) {
     return "rns-gemm";
@@ -8822,6 +8859,7 @@ void print_json(
   const rns8_backend_kind selected_backend_kind = selected_backend_for_events(args, result);
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const bool chain_residue_output = residue_current_output_mode(args);
+  const bool chain_final_export = residue_chain_final_export_requested(args);
   const bool host_batch = host_api_batch_requested(args);
   const bool grouped_dispatch = grouped_dispatch_requested(args);
   const uint32_t task_count = measured_task_count(args);
@@ -9261,6 +9299,7 @@ void print_json(
   print_json_string_or_null(exact_wide_export_status_check_name(args));
   std::cout << ",\n";
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
+  std::cout << "  \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
   std::cout << "  \"residue_output_mode\": \"" << residue_output_mode_name(args) << "\",\n";
   std::cout << "  \"host_api_batch\": {\n";
   std::cout << "    \"enabled\": " << (host_batch ? "true" : "false") << ",\n";
@@ -9398,6 +9437,12 @@ void print_json(
               << "each measured repeat runs " << args.residue_chain_length
               << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and "
                  "one final logical export runs after measured repeats only to produce checksum_u64\",\n";
+  } else if (chain_final_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for a final-output RNS GEMM chain; each measured "
+              << "repeat runs " << args.residue_chain_length
+              << " resident RNS GEMM calls with intermediate outputs kept in RNS form, then exports the final "
+                 "logical output inside the measured repeat so raw_timings_us.crt_export and end_to_end include "
+                 "the requested host-output contract\",\n";
   } else if (args.oneshot) {
     if (finite_benchmark_semantics(args.semantics)) {
       std::cout << "  \"timing_note\": \"host wall-clock timings for the public finite-u8 one-shot API; "
@@ -9427,6 +9472,8 @@ void print_json(
                  "per-tile bounded capture; raw_timings_us.pack is zero because exact tile-bound scheduling "
                  "proved every output tile zero before measurement, so the backend materializes resident RNS "
                  "zero output without reading A or B\",\n";
+  } else if (rns_residue_chain_requested(args)) {
+    std::cout << "      \"matrix_alloc\": \"one-time persistent A/B/C matrix allocation plus one scratch matrix for alternating chained RNS outputs\",\n";
   } else if (vector_to_rns_chain_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for a vector-native-to-Direct-RNS chain; "
                  "each measured repeat packs producer A/B into the HIP vector-ALU backend, ";
@@ -9561,6 +9608,7 @@ void print_json(
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "    \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
   std::cout << "    \"pack_layout\": \"" << json_escape(benchmark_pack_layout(args, result)) << "\",\n";
   std::cout << "    \"fusion_mode\": \"" << benchmark_fusion_mode(args) << "\",\n";
   std::cout << "    \"residue_group_width\": " << benchmark_residue_group_width(args) << ",\n";
@@ -9668,6 +9716,25 @@ void print_json(
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
               << " chained rns8_gemm_rns calls that keep the intermediate output resident in RNS form\",\n";
     std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host logical export until one final checksum export after measured repeats\",\n";
+  } else if (chain_final_export) {
+    if (args.reuse_packed_inputs) {
+      if (reuses_all_packed_inputs(args)) {
+        std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before warmups\",\n";
+      } else {
+        std::cout << "      \"pack\": \"per-repeat host timing for packing " << per_repeat_pack_operand_text(args)
+                  << "; " << prepack_reuse_operand_text(args)
+                  << " was packed once into a persistent RNS matrix before warmups\",\n";
+      }
+    } else {
+      std::cout << "      \"pack\": \"per-repeat host timing for packing A and B into persistent RNS matrices\",\n";
+    }
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
+              << " chained rns8_gemm_rns calls that keep intermediate outputs resident in RNS form\",\n";
+    if (exact_wide_benchmark_semantics(args.semantics)) {
+      std::cout << "      \"crt_export\": \"per-repeat host timing for exporting the final chained exact-wide limb output inside the measured repeat\",\n";
+    } else {
+      std::cout << "      \"crt_export\": \"per-repeat host timing for exporting/reconstructing the final chained logical output inside the measured repeat\",\n";
+    }
   } else if (args.oneshot) {
     std::cout << "      \"pack\": \"zero-valued external phase; native input copies and any backend-local transformation are inside the measured one-shot API call\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one complete public one-shot API call\",\n";
@@ -9787,6 +9854,13 @@ void print_json(
     std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only logical export";
     if (args.reuse_packed_inputs) {
       std::cout << " and one-time prepack_setup_us";
+    }
+    std::cout << "\"\n";
+  } else if (chain_final_export) {
+    std::cout << "      \"end_to_end\": \"per-repeat pack plus " << args.residue_chain_length
+              << " chained rns_gemm calls plus final logical export host timing";
+    if (args.reuse_packed_inputs) {
+      std::cout << "; excludes one-time prepack_setup_us";
     }
     std::cout << "\"\n";
   } else if (args.oneshot) {

@@ -498,6 +498,7 @@ def main() -> int:
         "export-bound-limb-variants",
         "reconstruction-zoo",
         "hip-graph-replay",
+        "rns-chain-final-output",
         "grouped-dispatch",
         "resident-lifetime-arena",
         "adaptive-grouped-scheduler",
@@ -518,6 +519,7 @@ def main() -> int:
         reuse_packed_a=False,
         reuse_packed_b=False,
         residue_chain_length=1,
+        residue_chain_final_export=False,
         output_ld_padding=0,
         prefix_policy=None,
         max_prefix=None,
@@ -903,6 +905,36 @@ def main() -> int:
     assert any(
         entry.scenario.get("metadata", {}).get("reuse_contract") == "stable_chain_rhs_prepacked_before_warmups"
         for entry in rns_chain_entries
+    )
+
+    rns_chain_final_args = copy.copy(scenario_args)
+    rns_chain_final_args.backends = ["hip-direct"]
+    rns_chain_final_args.scenario = ["rns-chain-final-output"]
+    rns_chain_final_entries = benchmark_sweep.sweep_command_entries(rns_chain_final_args)
+    assert [entry.scenario["name"] for entry in rns_chain_final_entries] == [
+        "bounded-i64-chain3-final-export",
+        "bounded-i64-chain3-final-export-reuse-b",
+        "bounded-u64-chain3-final-export-256",
+        "exact-wide-signed-chain3-final-export",
+        "exact-wide-signed-chain3-final-export-reuse-b",
+        "exact-wide-unsigned-chain3-final-export-256",
+        "exact-wide-signed-chain3-final-export-512",
+    ]
+    assert all(entry.scenario["family"] == "rns-chain-final-output" for entry in rns_chain_final_entries)
+    assert all(entry.scenario["residue_chain_final_export"] is True for entry in rns_chain_final_entries)
+    assert all(entry.scenario["residue_chain_length"] == 3 for entry in rns_chain_final_entries)
+    assert all(entry.scenario["output_domain"] != "residue_current_rns" for entry in rns_chain_final_entries)
+    assert all(
+        entry.scenario.get("metadata", {}).get("output_domain_requirement") == "same_final_output"
+        for entry in rns_chain_final_entries
+    )
+    assert all("--residue-chain-final-export" in entry.command for entry in rns_chain_final_entries)
+    assert all("--next-op-hint" in entry.command and "final-export" in entry.command for entry in rns_chain_final_entries)
+    assert all("finalexport" in entry.name for entry in rns_chain_final_entries)
+    assert any(entry.scenario["shape"]["m"] == 512 for entry in rns_chain_final_entries)
+    assert any(
+        entry.scenario.get("metadata", {}).get("reuse_contract") == "stable_chain_rhs_prepacked_before_warmups"
+        for entry in rns_chain_final_entries
     )
 
     adaptive_bands_args = copy.copy(scenario_args)
@@ -1376,6 +1408,19 @@ def main() -> int:
     exact_chain_command = exact_chain_commands[0][1]
     assert "--residue-chain-length" in exact_chain_command
     assert exact_chain_command[exact_chain_command.index("--residue-chain-length") + 1] == "3"
+    assert "--residue-chain-final-export" not in exact_chain_command
+
+    exact_chain_final_args = copy.copy(exact_chain_args)
+    exact_chain_final_args.residue_chain_final_export = True
+    exact_chain_final_args.next_op_hint = "final-export"
+    exact_chain_final_commands = benchmark_sweep.sweep_commands(exact_chain_final_args)
+    assert [name for name, _command, _output in exact_chain_final_commands] == [
+        "exact-wide-signed-small-16x16x16-chain3-finalexport-cpu.json",
+    ]
+    exact_chain_final_command = exact_chain_final_commands[0][1]
+    assert "--residue-chain-final-export" in exact_chain_final_command
+    assert "--next-op-hint" in exact_chain_final_command
+    assert exact_chain_final_command[exact_chain_final_command.index("--next-op-hint") + 1] == "final-export"
 
     vector_args = copy.copy(exact_args)
     vector_args.out_root = Path("temp") / "vector-runtime"

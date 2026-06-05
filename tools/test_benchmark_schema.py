@@ -1821,7 +1821,10 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
     chain["k"] = 64
     chain["epilogue_type"] = "residue_current_rns_output"
     chain["residue_chain_length"] = 3
+    chain["residue_chain_final_export"] = False
     chain["residue_output_mode"] = "residue_current_rns"
+    chain["benchmark_execution_mode"] = "residue_current_rns_chain"
+    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_current_rns_chain"
     chain["timing_note"] = (
         "host wall-clock timings for an exact-wide residue-current RNS GEMM chain; each measured repeat runs "
         "3 resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and one "
@@ -1853,6 +1856,68 @@ def as_residue_current_chain_capture(capture: dict) -> dict:
     return chain
 
 
+def as_residue_chain_final_export_capture(capture: dict) -> dict:
+    chain = as_exact_wide_capture(capture)
+    repeats = chain["repeats"]
+    chain["benchmark"] = "rns8_residue_chain_final_host_export"
+    chain["benchmark_execution_mode"] = "residue_chain_final_host_export"
+    chain["command_line"] = (
+        "rns8-bench --backend ck --semantics exact-wide-signed --m 64 --n 64 --k 64 "
+        "--residue-chain-length 3 --residue-chain-final-export --warmups 1 --repeats 2 --seed 7"
+    )
+    chain["m"] = 64
+    chain["n"] = 64
+    chain["k"] = 64
+    chain["epilogue_type"] = "exact_wide_signed_limb_export"
+    chain["residue_chain_length"] = 3
+    chain["residue_chain_final_export"] = True
+    chain["residue_output_mode"] = "host_export"
+    chain["timing_note"] = (
+        "host wall-clock timings for a final-output RNS GEMM chain; each measured repeat runs 3 resident "
+        "RNS GEMM calls with intermediate outputs kept in RNS form, then exports the final logical output "
+        "inside the measured repeat"
+    )
+    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_chain_final_host_export"
+    chain["timing_metadata"]["residue_chain_final_export"] = True
+    chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for 3 chained rns8_gemm_rns calls that keep intermediate outputs resident "
+        "in RNS form"
+    )
+    chain["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "per-repeat host timing for exporting the final chained exact-wide limb output inside the measured repeat"
+    )
+    chain["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat pack plus 3 chained rns_gemm calls plus final logical export host timing"
+    )
+    chain["raw_timings_us"]["crt_export"] = [90, 100][:repeats]
+    chain["raw_timings_us"]["end_to_end"] = [
+        p + g + e
+        for p, g, e in zip(
+            chain["raw_timings_us"]["pack"],
+            chain["raw_timings_us"]["rns_gemm"],
+            chain["raw_timings_us"]["crt_export"],
+        )
+    ]
+    chain["timing_summary_us"]["crt_export"] = summary(chain["raw_timings_us"]["crt_export"])
+    chain["timing_summary_us"]["end_to_end"] = summary(chain["raw_timings_us"]["end_to_end"])
+    chain["avg_crt_export_us"] = chain["timing_summary_us"]["crt_export"]["avg"]
+    chain["avg_end_to_end_us"] = chain["timing_summary_us"]["end_to_end"]["avg"]
+    for phase in ["exact_wide_export_status_memset", "exact_wide_export_status_d2h"]:
+        if phase in chain.get("gpu_event_timings_us", {}):
+            chain["gpu_event_timings_us"][phase] = [0.0 for _ in range(repeats)]
+        if phase in chain.get("gpu_event_timing_summary_us", {}):
+            chain["gpu_event_timing_summary_us"][phase] = zero_summary()
+    add_target_variant_fields(chain)
+    add_requested_next_op_fields(chain, resolved="final-export")
+    add_output_policy_fields(
+        chain,
+        status_handling=chain["output_policy"]["status_handling"] if "output_policy" in chain else "structurally_elided",
+        per_repeat_export=True,
+        final_checksum_export=False,
+    )
+    return chain
+
+
 def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain = copy.deepcopy(capture)
     repeats = chain["repeats"]
@@ -1877,7 +1942,10 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["schedule_metadata"]["range_bit_length"] = 41
     chain["epilogue_type"] = "residue_current_rns_output"
     chain["residue_chain_length"] = 3
+    chain["residue_chain_final_export"] = False
     chain["residue_output_mode"] = "residue_current_rns"
+    chain["benchmark_execution_mode"] = "residue_current_rns_chain"
+    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_current_rns_chain"
     chain["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
         "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
@@ -3107,6 +3175,8 @@ def main() -> int:
     validate_capture(exact_wide_unsigned_3_limb)
     exact_chain_ck = as_residue_current_chain_capture(v4_ck_i64)
     validate_capture(exact_chain_ck)
+    exact_chain_final_export = as_residue_chain_final_export_capture(v4_ck_i64)
+    validate_capture(exact_chain_final_export)
     bounded_chain_ck = as_bounded_residue_current_chain_capture(v4_ck_i64)
     validate_capture(bounded_chain_ck)
 
@@ -3173,7 +3243,20 @@ def main() -> int:
 
     bad_chain_mode = copy.deepcopy(exact_chain_ck)
     bad_chain_mode["residue_output_mode"] = "host_export"
-    expect_invalid(bad_chain_mode, "residue_output_mode=residue_current_rns")
+    expect_invalid(bad_chain_mode, "residue_chain_final_export must match residue_output_mode")
+
+    bad_final_chain_next_op = copy.deepcopy(exact_chain_final_export)
+    bad_final_chain_next_op["requested_next_op"]["resolved"] = "rns-gemm"
+    expect_invalid(bad_final_chain_next_op, "requested_next_op.resolved=final-export")
+
+    bad_final_chain_output_policy = copy.deepcopy(exact_chain_final_export)
+    bad_final_chain_output_policy["output_policy"]["per_repeat_logical_export"] = False
+    expect_invalid(bad_final_chain_output_policy, "output_policy.per_repeat_logical_export=true")
+
+    bad_final_chain_mode = copy.deepcopy(exact_chain_final_export)
+    bad_final_chain_mode["benchmark_execution_mode"] = "persistent_resident_matrices"
+    bad_final_chain_mode["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
+    expect_invalid(bad_final_chain_mode, "benchmark_execution_mode=residue_chain_final_host_export")
 
     bad_chain_shape = copy.deepcopy(exact_chain_ck)
     bad_chain_shape["n"] = 128
@@ -3187,7 +3270,7 @@ def main() -> int:
 
     bad_bounded_chain_bound_mode = copy.deepcopy(bounded_chain_ck)
     bad_bounded_chain_bound_mode["bound_mode"] = "per_tile"
-    expect_invalid(bad_bounded_chain_bound_mode, "bounded residue-current chains must use bound_mode=global")
+    expect_invalid(bad_bounded_chain_bound_mode, "bounded residue chains must use bound_mode=global")
 
     bad_reused_pack = copy.deepcopy(reused_ck_i64)
     bad_reused_pack["raw_timings_us"]["pack"][0] = 1

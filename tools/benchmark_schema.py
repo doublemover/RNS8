@@ -379,6 +379,8 @@ BENCHMARK_EXECUTION_MODES = {
     "vector_native_to_direct_rns_chain",
     "benchmark_host_api_batch",
     "hip_graph_replay_resident_rns_chain",
+    "residue_current_rns_chain",
+    "residue_chain_final_host_export",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
@@ -686,6 +688,13 @@ class _Validator:
 
     def _is_hip_graph_replay_capture(self) -> bool:
         return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
+
+    def _is_residue_chain_final_export_capture(self) -> bool:
+        return (
+            self._residue_chain_length() > 1
+            and self._residue_output_mode() == "host_export"
+            and self._benchmark_execution_mode() == "residue_chain_final_host_export"
+        )
 
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
         return (
@@ -1292,6 +1301,24 @@ class _Validator:
                     self._error(
                         "residue-current chain captures must declare "
                         "output_policy.status_handling=structurally_elided"
+                    )
+        if self._is_residue_chain_final_export_capture():
+            if not isinstance(requested_next_op, dict):
+                self._error("residue-chain final-export captures must declare requested_next_op")
+            elif requested_next_op.get("resolved") != "final-export":
+                self._error("residue-chain final-export captures must declare requested_next_op.resolved=final-export")
+            if not isinstance(output_policy, dict):
+                self._error("residue-chain final-export captures must declare output_policy")
+            else:
+                if output_policy.get("per_repeat_logical_export") is not True:
+                    self._error(
+                        "residue-chain final-export captures must declare "
+                        "output_policy.per_repeat_logical_export=true"
+                    )
+                if output_policy.get("final_checksum_export_after_repeats") is not False:
+                    self._error(
+                        "residue-chain final-export captures must declare "
+                        "output_policy.final_checksum_export_after_repeats=false"
                     )
 
         target_variant = self.data.get("target_variant")
@@ -2518,8 +2545,7 @@ class _Validator:
 
     def _is_residue_current_chain_capture(self) -> bool:
         return (
-            self._residue_chain_length() > 1
-            or self._residue_output_mode() == "residue_current_rns"
+            self._residue_output_mode() == "residue_current_rns"
             or self.data.get("epilogue_type") == "residue_current_rns_output"
         )
 
@@ -2928,10 +2954,13 @@ class _Validator:
         bound_mode = self.data.get("bound_mode", "global")
         residue_chain_length = self._residue_chain_length()
         residue_output_mode = self._residue_output_mode()
+        residue_chain_final_export = self.data.get("residue_chain_final_export")
         status_check = self.data.get("exact_wide_export_status_check")
         prefix_policy = self.data.get("contract_prefix_policy")
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
+        if residue_chain_final_export is not None and not isinstance(residue_chain_final_export, bool):
+            self._error("residue_chain_final_export must be a boolean")
         if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
             self._error("exact_wide_export_status_check must be null outside exact-wide captures")
         rns_chain_semantics = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
@@ -2941,6 +2970,10 @@ class _Validator:
             self._error("residue_output_mode=residue_current_rns requires residue_chain_length > 1")
         if residue_chain_length == 1 and residue_output_mode != "host_export":
             self._error("residue_chain_length=1 captures must use residue_output_mode=host_export")
+        if residue_chain_length > 1 and isinstance(residue_chain_final_export, bool):
+            expected_final_export = residue_output_mode == "host_export"
+            if residue_chain_final_export is not expected_final_export:
+                self._error("residue_chain_final_export must match residue_output_mode for chain captures")
         if semantics == "wrap_u64_mod_2_64":
             is_candidate = self._is_wrap64_rocwmma_candidate()
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"} and not is_candidate:
@@ -3366,15 +3399,21 @@ class _Validator:
                             "vector-to-RNS chain captures must keep timing_metadata.prepack_reuse_strategy in sync"
                         )
             if residue_chain_length > 1:
-                expected_epilogue_type = "residue_current_rns_output"
-                if residue_output_mode != "residue_current_rns":
-                    self._error("bounded residue-current chains must use residue_output_mode=residue_current_rns")
+                if residue_output_mode == "residue_current_rns":
+                    expected_epilogue_type = "residue_current_rns_output"
+                else:
+                    expected_epilogue_type = "crt_export"
+                    if self._benchmark_execution_mode() != "residue_chain_final_host_export":
+                        self._error(
+                            "bounded residue-chain final-export captures must use "
+                            "benchmark_execution_mode=residue_chain_final_host_export"
+                        )
                 if bound_mode != "global":
-                    self._error("bounded residue-current chains must use bound_mode=global")
+                    self._error("bounded residue chains must use bound_mode=global")
                 if self.data.get("backend_selected") in {"hip-vector-alu-int64"}:
-                    self._error("bounded residue-current chains must not select hip-vector-alu-int64")
+                    self._error("bounded residue chains must not select hip-vector-alu-int64")
                 if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
-                    self._error("bounded residue-current chains must use square m=n=k shapes")
+                    self._error("bounded residue chains must use square m=n=k shapes")
             else:
                 expected_epilogue_type = (
                     "direct_int64_export" if self.data.get("backend_selected") == "hip-vector-alu-int64" else "crt_export"
@@ -3468,11 +3507,21 @@ class _Validator:
             if packed_layout is not None:
                 self._error("exact-wide captures must use packed_layout_version=null")
             if residue_chain_length > 1:
-                expected_epilogue_type = "residue_current_rns_output"
-                if residue_output_mode != "residue_current_rns":
-                    self._error("exact-wide residue-current chains must use residue_output_mode=residue_current_rns")
+                if residue_output_mode == "residue_current_rns":
+                    expected_epilogue_type = "residue_current_rns_output"
+                else:
+                    expected_epilogue_type = (
+                        "exact_wide_signed_limb_export"
+                        if semantics == "exact_wide_signed"
+                        else "exact_wide_unsigned_limb_export"
+                    )
+                    if self._benchmark_execution_mode() != "residue_chain_final_host_export":
+                        self._error(
+                            "exact-wide residue-chain final-export captures must use "
+                            "benchmark_execution_mode=residue_chain_final_host_export"
+                        )
                 if self.data.get("m") != self.data.get("n") or self.data.get("n") != self.data.get("k"):
-                    self._error("exact-wide residue-current chains must use square m=n=k shapes")
+                    self._error("exact-wide residue chains must use square m=n=k shapes")
             else:
                 expected_epilogue_type = (
                     "exact_wide_signed_limb_export"
