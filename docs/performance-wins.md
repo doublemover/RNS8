@@ -429,6 +429,23 @@ median end-to-end versus 13423400 us for the CPU byte-limb reference, a 230.1x
 same-contract speedup, with required wrap64 GPU events. This is durable evidence
 for the current Direct-HIP strict wrap64 path, not an AUTO cache entry.
 
+## RNS Chain Evidence
+
+Final-output RNS-chain captures now have a dedicated same-contract report.
+`tools/rns_chain_report.py` validates `residue_chain_final_host_export`
+captures, requires CPU baselines and GPU events, and folds reusable-input setup
+cost into per-repeat medians before classifying rows. The focused Windows
+`gfx1100` set under
+`temp/perf-work-queue/rns-chain-final-output-current/` covers bounded-i64 128
+and exact-wide signed 128 with CPU, Direct HIP, and Direct-HIP reusable-B rows.
+Direct HIP wins versus CPU for the final-output chain contract: bounded-i64
+128 is 1614 us versus 15745 us, and exact-wide signed 128 is 1358 us versus
+41656 us. Reusable-B does not survive setup cost in this contract: bounded-i64
+reusable-B is 3002 us setup-inclusive versus 1614 us non-reuse, and exact-wide
+signed reusable-B is 3161 us versus 1358 us non-reuse. This is useful chain
+evidence, not an AUTO/cache entry or proof that lazy residue-current output
+beats a true independent export/repack baseline.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend
