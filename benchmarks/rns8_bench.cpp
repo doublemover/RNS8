@@ -21,6 +21,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/autotune_cache.hpp"
 #include "core/backend_common.hpp"
+#include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
@@ -158,7 +159,7 @@ bool hip_graph_replay_requested(const Args& args);
 void record_allocation_after_warmups(BenchmarkResult& result);
 struct HipGraphReplayState {
 #if RNS8_CONFIGURED_HIP_ENABLED
-  hipStream_t stream = nullptr;
+  rns8::detail::hip_unique_stream stream;
   hipGraph_t graph = nullptr;
   hipGraphExec_t executable = nullptr;
 #endif
@@ -2287,13 +2288,7 @@ void destroy_hip_graph_replay_state(HipGraphReplayState& state) {
     }
     state.graph = nullptr;
   }
-  if (state.stream) {
-    const hipError_t status = hipStreamDestroy(state.stream);
-    if (status != hipSuccess) {
-      std::cerr << hip_graph_error_text("hipStreamDestroy", static_cast<int>(status)) << "\n";
-    }
-    state.stream = nullptr;
-  }
+  state.stream.reset();
 #else
   (void)state;
 #endif
@@ -2313,23 +2308,23 @@ rns8_status capture_hip_graph_replay(
     error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(device_status));
     return RNS8_BACKEND_FAILURE;
   }
-  hipError_t status = hipStreamCreateWithFlags(&state.stream, hipStreamNonBlocking);
+  hipError_t status = state.stream.create_non_blocking();
   if (status != hipSuccess) {
     error_text = hip_graph_error_text("hipStreamCreateWithFlags", static_cast<int>(status));
     return RNS8_BACKEND_FAILURE;
   }
 
   const auto capture_start = std::chrono::steady_clock::now();
-  status = hipStreamBeginCapture(state.stream, hipStreamCaptureModeGlobal);
+  status = hipStreamBeginCapture(state.stream.get(), hipStreamCaptureModeGlobal);
   if (status != hipSuccess) {
     error_text = hip_graph_error_text("hipStreamBeginCapture", static_cast<int>(status));
     destroy_hip_graph_replay_state(state);
     return RNS8_BACKEND_FAILURE;
   }
 
-  const rns8_status body_status = capture_body(static_cast<void*>(state.stream));
+  const rns8_status body_status = capture_body(static_cast<void*>(state.stream.get()));
   hipGraph_t captured_graph = nullptr;
-  status = hipStreamEndCapture(state.stream, &captured_graph);
+  status = hipStreamEndCapture(state.stream.get(), &captured_graph);
   const auto capture_end = std::chrono::steady_clock::now();
   capture_us = elapsed_us(capture_start, capture_end);
   if (body_status != RNS8_SUCCESS) {
@@ -2380,12 +2375,12 @@ rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, s
     error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(status));
     return RNS8_BACKEND_FAILURE;
   }
-  status = hipGraphLaunch(state.executable, state.stream);
+  status = hipGraphLaunch(state.executable, state.stream.get());
   if (status != hipSuccess) {
     error_text = hip_graph_error_text("hipGraphLaunch", static_cast<int>(status));
     return RNS8_BACKEND_FAILURE;
   }
-  status = hipStreamSynchronize(state.stream);
+  status = hipStreamSynchronize(state.stream.get());
   if (status != hipSuccess) {
     error_text = hip_graph_error_text("hipStreamSynchronize", static_cast<int>(status));
     return RNS8_BACKEND_FAILURE;

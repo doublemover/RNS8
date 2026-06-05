@@ -1,6 +1,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 
 #include "core/backend_common.hpp"
+#include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>
@@ -442,20 +443,8 @@ namespace {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 struct hip_direct_pending_timing_sample {
   std::vector<std::string> labels;
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-};
-
-struct pinned_host_staging_buffer {
-  int device_id = -1;
-  void* ptr = nullptr;
-  std::size_t capacity = 0;
-
-  ~pinned_host_staging_buffer() {
-    if (ptr) {
-      (void)hipHostFree(ptr);
-    }
-  }
+  hip_unique_event start;
+  hip_unique_event stop;
 };
 #endif
 
@@ -465,7 +454,7 @@ thread_local std::vector<hip_direct_timing_sample> g_hip_direct_timing_samples;
 constexpr std::size_t kMaxPendingTimingEventsBeforeFlush = 16;
 constexpr std::size_t kPinnedExportStagingMinBytes = 64u * 1024u;
 thread_local std::vector<hip_direct_pending_timing_sample> g_hip_direct_pending_timing_samples;
-thread_local pinned_host_staging_buffer g_pinned_export_staging;
+thread_local hip_pinned_host_buffer g_pinned_export_staging;
 #endif
 std::atomic<uint64_t> g_hip_direct_allocate_calls{0};
 std::atomic<uint64_t> g_hip_direct_free_calls{0};
@@ -474,33 +463,35 @@ std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 constexpr uint32_t kKnownTileScheduleFlags =
     RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
 
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-void destroy_pending_event_pair(hipEvent_t start, hipEvent_t stop) {
-  if (stop) {
-    (void)hipEventDestroy(stop);
+void mark_device_residue_output_current(rns8_matrix* matrix) {
+  if (!matrix) {
+    return;
   }
-  if (start) {
-    (void)hipEventDestroy(start);
-  }
+  matrix->host_residues_current = false;
+  matrix->device_residues_current = true;
+  matrix->host_byte_limbs_current = false;
+  matrix->device_byte_limbs_current = false;
+  matrix->host_native_current = false;
+  matrix->device_native_current = false;
 }
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 void flush_pending_timing_events() {
   for (auto& pending : g_hip_direct_pending_timing_samples) {
     if (!pending.start || !pending.stop || pending.labels.empty()) {
-      destroy_pending_event_pair(pending.start, pending.stop);
       continue;
     }
-    hipError_t status = hipEventSynchronize(pending.stop);
+    hipError_t status = hipEventSynchronize(pending.stop.get());
     if (status != hipSuccess) {
       (void)hipDeviceSynchronize();
-      status = hipEventSynchronize(pending.stop);
+      status = hipEventSynchronize(pending.stop.get());
     }
     if (status == hipSuccess) {
       float milliseconds = 0.0f;
-      status = hipEventElapsedTime(&milliseconds, pending.start, pending.stop);
+      status = hipEventElapsedTime(&milliseconds, pending.start.get(), pending.stop.get());
       if (status != hipSuccess) {
         (void)hipDeviceSynchronize();
-        status = hipEventElapsedTime(&milliseconds, pending.start, pending.stop);
+        status = hipEventElapsedTime(&milliseconds, pending.start.get(), pending.stop.get());
       }
       if (status == hipSuccess && milliseconds >= 0.0f) {
         const double microseconds = static_cast<double>(milliseconds) * 1000.0;
@@ -511,7 +502,6 @@ void flush_pending_timing_events() {
         }
       }
     }
-    destroy_pending_event_pair(pending.start, pending.stop);
   }
   g_hip_direct_pending_timing_samples.clear();
 }
@@ -563,14 +553,17 @@ void hip_direct_timing_record_sample(const char* label, double microseconds) {
 
 void hip_direct_timing_record_pending_event(const char* label, void* start_event, void* stop_event) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  auto start = reinterpret_cast<hipEvent_t>(start_event);
-  auto stop = reinterpret_cast<hipEvent_t>(stop_event);
+  hip_unique_event start(reinterpret_cast<hipEvent_t>(start_event));
+  hip_unique_event stop(reinterpret_cast<hipEvent_t>(stop_event));
   if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
-    destroy_pending_event_pair(start, stop);
     return;
   }
   flush_pending_timing_events_if_full();
-  g_hip_direct_pending_timing_samples.push_back({{label}, start, stop});
+  hip_direct_pending_timing_sample sample;
+  sample.labels.push_back(label);
+  sample.start = std::move(start);
+  sample.stop = std::move(stop);
+  g_hip_direct_pending_timing_samples.push_back(std::move(sample));
 #else
   (void)label;
   (void)start_event;
@@ -584,10 +577,9 @@ void hip_direct_timing_record_pending_event_with_alias(
     void* start_event,
     void* stop_event) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  auto start = reinterpret_cast<hipEvent_t>(start_event);
-  auto stop = reinterpret_cast<hipEvent_t>(stop_event);
+  hip_unique_event start(reinterpret_cast<hipEvent_t>(start_event));
+  hip_unique_event stop(reinterpret_cast<hipEvent_t>(stop_event));
   if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
-    destroy_pending_event_pair(start, stop);
     return;
   }
   std::vector<std::string> labels{label};
@@ -595,7 +587,11 @@ void hip_direct_timing_record_pending_event_with_alias(
     labels.push_back(alias);
   }
   flush_pending_timing_events_if_full();
-  g_hip_direct_pending_timing_samples.push_back({std::move(labels), start, stop});
+  hip_direct_pending_timing_sample sample;
+  sample.labels = std::move(labels);
+  sample.start = std::move(start);
+  sample.stop = std::move(stop);
+  g_hip_direct_pending_timing_samples.push_back(std::move(sample));
 #else
   (void)label;
   (void)alias;
@@ -634,36 +630,20 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
     return fn();
   }
 
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  hipError_t event_status = hipEventCreate(&start);
+  hip_unique_event_pair events;
+  hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
-    return fn();
-  }
-  event_status = hipEventCreate(&stop);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(start);
-    return fn();
-  }
-
-  event_status = hipEventRecord(start, nullptr);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(stop);
-    (void)hipEventDestroy(start);
     return fn();
   }
 
   const hipError_t op_status = fn();
   if (op_status == hipSuccess) {
-    event_status = hipEventRecord(stop, nullptr);
+    event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, start, stop);
+      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
       return op_status;
     }
   }
-
-  (void)hipEventDestroy(stop);
-  (void)hipEventDestroy(start);
   return op_status;
 }
 
@@ -765,29 +745,17 @@ bool checked_matrix_elements_i32(int64_t rows, int64_t cols) {
 }
 
 void release_pinned_export_staging() {
-  if (g_pinned_export_staging.ptr) {
-    (void)hipHostFree(g_pinned_export_staging.ptr);
-  }
-  g_pinned_export_staging = {};
+  g_pinned_export_staging.reset();
 }
 
 void* ensure_pinned_export_staging(int device_id, std::size_t bytes) {
   if (bytes == 0) {
     return nullptr;
   }
-  if (g_pinned_export_staging.ptr && g_pinned_export_staging.device_id == device_id &&
-      g_pinned_export_staging.capacity >= bytes) {
-    return g_pinned_export_staging.ptr;
-  }
-  release_pinned_export_staging();
-  void* ptr = nullptr;
-  if (hipHostMalloc(&ptr, bytes, hipHostMallocDefault) != hipSuccess) {
+  if (g_pinned_export_staging.ensure(device_id, bytes) != hipSuccess) {
     return nullptr;
   }
-  g_pinned_export_staging.device_id = device_id;
-  g_pinned_export_staging.ptr = ptr;
-  g_pinned_export_staging.capacity = bytes;
-  return ptr;
+  return g_pinned_export_staging.get();
 }
 
 bool checked_output_bytes(int64_t rows, int64_t cols, std::size_t element_size) {
@@ -1822,12 +1790,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    matrix->device_residues_current = true;
-    matrix->host_residues_current = false;
-    matrix->host_byte_limbs_current = false;
-    matrix->device_byte_limbs_current = false;
-    matrix->host_native_current = false;
-    matrix->device_native_current = false;
+    mark_device_residue_output_current(matrix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -1926,12 +1889,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    matrix->device_residues_current = true;
-    matrix->host_residues_current = false;
-    matrix->host_byte_limbs_current = false;
-    matrix->device_byte_limbs_current = false;
-    matrix->host_native_current = false;
-    matrix->device_native_current = false;
+    mark_device_residue_output_current(matrix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -2337,12 +2295,7 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = c_matrices[index];
-    matrix->device_residues_current = true;
-    matrix->host_residues_current = false;
-    matrix->host_byte_limbs_current = false;
-    matrix->device_byte_limbs_current = false;
-    matrix->host_native_current = false;
-    matrix->device_native_current = false;
+    mark_device_residue_output_current(matrix);
   }
   return RNS8_SUCCESS;
 #else
@@ -2435,12 +2388,7 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = c_matrices[index];
-    matrix->device_residues_current = true;
-    matrix->host_residues_current = false;
-    matrix->host_byte_limbs_current = false;
-    matrix->device_byte_limbs_current = false;
-    matrix->host_native_current = false;
-    matrix->device_native_current = false;
+    mark_device_residue_output_current(matrix);
   }
   return RNS8_SUCCESS;
 #else
@@ -2490,12 +2438,7 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
   if (launch_status != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  C->device_residues_current = true;
-  C->host_residues_current = false;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
     C->source_version = static_cast<uint64_t>(A->source_version + B->source_version + 1u);
   }
@@ -2880,12 +2823,7 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -2923,12 +2861,7 @@ rns8_status hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3196,12 +3129,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3240,12 +3168,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3284,12 +3207,7 @@ rns8_status hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3328,12 +3246,7 @@ rns8_status hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3430,12 +3343,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3562,12 +3470,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matri
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3631,12 +3534,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matri
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3700,12 +3598,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -3913,12 +3806,7 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  C->host_residues_current = false;
-  C->device_residues_current = true;
-  C->host_byte_limbs_current = false;
-  C->device_byte_limbs_current = false;
-  C->host_native_current = false;
-  C->device_native_current = false;
+  mark_device_residue_output_current(C);
   C->finite_modulus = modulus;
   C->source_version = source_version;
   return RNS8_SUCCESS;

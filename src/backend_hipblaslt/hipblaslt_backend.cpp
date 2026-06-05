@@ -1,6 +1,7 @@
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 
 #include <algorithm>
@@ -131,35 +132,13 @@ rns8_status status_from_hipblas(hipblasStatus_t status) {
   return RNS8_BACKEND_FAILURE;
 }
 
-void destroy_timing_event_pair(hipEvent_t start, hipEvent_t stop) {
-  if (stop) {
-    (void)hipEventDestroy(stop);
-  }
-  if (start) {
-    (void)hipEventDestroy(start);
-  }
-}
-
-hipError_t create_recorded_timing_event_pair(hipEvent_t* start, hipEvent_t* stop) {
-  if (!start || !stop) {
-    return hipErrorInvalidValue;
-  }
-  *start = nullptr;
-  *stop = nullptr;
+hipError_t create_recorded_timing_event_pair(hip_unique_event_pair& events) {
   for (int attempt = 0; attempt < 2; ++attempt) {
-    hipError_t err = hipEventCreate(start);
-    if (err == hipSuccess) {
-      err = hipEventCreate(stop);
-      if (err == hipSuccess) {
-        err = hipEventRecord(*start, nullptr);
-      }
-    }
-    if (err == hipSuccess) {
+    const hipError_t status = events.create_and_record_start();
+    if (status == hipSuccess) {
       return hipSuccess;
     }
-    destroy_timing_event_pair(*start, *stop);
-    *start = nullptr;
-    *stop = nullptr;
+    events.reset();
     (void)hipDeviceSynchronize();
   }
   return hipErrorUnknown;
@@ -200,9 +179,8 @@ hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
+  hip_unique_event_pair events;
+  if (create_recorded_timing_event_pair(events) != hipSuccess) {
     const hipblasStatus_t status = fn();
     if (status == HIPBLAS_STATUS_SUCCESS) {
       record_synchronized_host_timing(label, host_start);
@@ -215,20 +193,18 @@ hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
     // default-stream stop events on small Windows RDNA3 captures. This path is
     // active only for benchmark event timing; normal runtime calls bypass it.
     (void)hipDeviceSynchronize();
-    hipError_t err = hipEventRecord(stop, nullptr);
+    hipError_t err = events.record_stop();
     if (err != hipSuccess) {
       (void)hipDeviceSynchronize();
-      err = hipEventRecord(stop, nullptr);
+      err = events.record_stop();
     }
     if (err == hipSuccess) {
-      if (record_elapsed_event_sample(label, start, stop)) {
-        destroy_timing_event_pair(start, stop);
+      if (record_elapsed_event_sample(label, events.start(), events.stop())) {
         return status;
       }
     }
     record_synchronized_host_timing(label, host_start);
   }
-  destroy_timing_event_pair(start, stop);
   return status;
 }
 
@@ -238,9 +214,8 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  if (create_recorded_timing_event_pair(&start, &stop) != hipSuccess) {
+  hip_unique_event_pair events;
+  if (create_recorded_timing_event_pair(events) != hipSuccess) {
     const hipError_t status = fn();
     if (status == hipSuccess) {
       record_synchronized_host_timing(label, host_start);
@@ -249,20 +224,18 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   }
   const hipError_t status = fn();
   if (status == hipSuccess) {
-    hipError_t err = hipEventRecord(stop, nullptr);
+    hipError_t err = events.record_stop();
     if (err != hipSuccess) {
       (void)hipDeviceSynchronize();
-      err = hipEventRecord(stop, nullptr);
+      err = events.record_stop();
     }
     if (err == hipSuccess) {
-      if (record_elapsed_event_sample(label, start, stop)) {
-        destroy_timing_event_pair(start, stop);
+      if (record_elapsed_event_sample(label, events.start(), events.stop())) {
         return status;
       }
     }
     record_synchronized_host_timing(label, host_start);
   }
-  destroy_timing_event_pair(start, stop);
   return status;
 }
 
