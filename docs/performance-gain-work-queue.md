@@ -54,15 +54,19 @@ June 4-5, 2026 updates:
   generated Python/C++ constants, metadata-registry self-tests, a repo hygiene
   reporter, a compact golden regression runner, and docs claim validation for
   target-readiness and speedup wording. Scenario families now live under
-  `benchmarks/scenarios/`; schema validation has a package seam behind the
-  compatibility CLI; benchmark support and semantic-mode helpers have been
-  split out of the bench god-file; core and Direct-HIP output currentness writes
-  are helper-routed; HIP event/stream/pinned-staging/temporary-buffer ownership
-  uses internal RAII wrappers; and Direct-HIP timing support lives in
-  `src/backend_hip_direct/hip_timing.cpp`. This is meant to reduce future
-  metadata drift, benchmark growth, resource-cleanup risk, and durable-doc claim
-  drift while preserving current public ABI, AUTO cache behavior, and reviewed
-  evidence claims.
+  `benchmarks/scenarios/` with registry-backed review-mode and
+  promotion-eligibility labels; schema validation has a package seam behind the
+  compatibility CLI plus focused GPU-event, execution-mode, and
+  contract-metadata modules/tests; benchmark support and semantic-mode helpers
+  have been split out of the bench god-file; core and Direct-HIP output
+  currentness writes are helper-routed; HIP event/stream/pinned-staging/
+  temporary-buffer ownership uses internal RAII wrappers; Direct-HIP timing
+  support lives in `src/backend_hip_direct/hip_timing.cpp`; and a portable
+  non-Windows CPU ASan/UBSan preset is documented while Windows MSVC ASan stays
+  host-local until the optional runtime is installed. This is meant to reduce
+  future metadata drift, benchmark growth, resource-cleanup risk, and durable
+  documentation claim drift while preserving current public ABI, AUTO cache
+  behavior, and reviewed evidence claims.
 - Current branch reconciliation: the active queue below is updated through the
   branch-local helper/evidence work, PR #10 infrastructure merge, adaptive
   release rerun, bounded 2048 release review, finite-u8 2048 release review,
