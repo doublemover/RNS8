@@ -288,6 +288,60 @@ def main() -> int:
             "hip-direct",
             "hip-vector-alu-int64",
         ]
+        failure_path = tmp / "starfoundry-cpu.failed.json"
+        failure_path.write_text(
+            json.dumps(
+                {
+                    "command": [
+                        "rns8-bench.exe",
+                        "--backend",
+                        "cpu",
+                        "--semantics",
+                        "bounded-i64",
+                        "--m",
+                        str(capture["m"]),
+                        "--n",
+                        str(capture["n"]),
+                        "--k",
+                        str(capture["k"]),
+                        "--warmups",
+                        "3",
+                        "--repeats",
+                        "9",
+                        "--seed",
+                        "20260605",
+                        "--release-gate",
+                        "large-release-validation-4096-budgeted",
+                    ],
+                    "returncode": None,
+                    "timed_out": True,
+                    "timeout_seconds": 60.0,
+                    "stdout": "",
+                    "stderr": "",
+                }
+            ),
+            encoding="utf-8",
+        )
+        failed_release_report = release_gate_report.build_report([capture_path, failure_path])
+        assert failed_release_report["failed_capture_count"] == 1
+        assert failed_release_report["input_count"] == 2
+        assert failed_release_report["failed_rows"][0]["backend"] == "cpu-reference"
+        assert failed_release_report["failed_rows"][0]["failure_kind"] == "timeout"
+        assert failed_release_report["blocker_counts"]["failed_required_baselines"] == 1
+        assert failed_release_report["blocker_counts"]["required_baseline_timeout"] == 1
+        failed_group = failed_release_report["groups"][0]
+        assert failed_group["failed_capture_count"] == 1
+        assert failed_group["required_baselines_attempted"] == ["cpu-reference"]
+        assert failed_group["missing_required_baselines"] == [
+            "cpu-reference",
+            "hip-direct",
+            "hip-vector-alu-int64",
+        ]
+        assert failed_group["failed_required_baselines"] == ["cpu-reference"]
+        assert failed_group["timed_out_required_baselines"] == ["cpu-reference"]
+        assert failed_group["unattempted_required_baselines"] == ["hip-direct", "hip-vector-alu-int64"]
+        assert failed_group["required_baselines_complete"] is False
+        assert failed_group["required_baseline_attempts_complete"] is False
 
     search = modulus_set_search.build_report([("test", [251, 253, 255, 256])], 32)
     assert search["candidates"][0]["pairwise_coprime"] is True

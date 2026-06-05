@@ -139,13 +139,16 @@ budget gate.
 The same budgeted 4096 gate also captured exact-wide signed 4096 GPU rows with
 required events: hipBLASLt at 172818 us, CK at 206153 us, rocWMMA at 253649 us,
 and Direct HIP at 637861 us. The CPU reference exceeded the 60-second
-per-capture timeout, so this group remains blocked by `missing_required_baselines`
-and is not a release-reviewed exact-wide 4096 claim.
+per-capture timeout. The release-gate report records this as a timed-out
+required `cpu-reference` failure, so this group remains missing a valid CPU
+baseline and is not a release-reviewed exact-wide 4096 claim.
 
 The strict wrap64 4096 budget row also captured Direct HIP at 295657 us median
 end-to-end with required wrap64 GPU events. Its required byte-limb CPU reference
-exceeded the 300-second per-capture timeout, so the group remains blocked by
-`missing_required_baselines` and is not a release-reviewed wrap64 4096 claim.
+exceeded the 300-second per-capture timeout. The release-gate report records
+this as a timed-out required `wrap64-byte-limb` failure, so the group remains
+missing a valid byte-limb reference and is not a release-reviewed wrap64 4096
+claim.
 
 ## Finite-u8 Accelerator Wins
 
