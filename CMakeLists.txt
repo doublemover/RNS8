@@ -377,7 +377,11 @@ if(RNS8_BUILD_BENCHMARKS)
       set(RNS8_GIT_COMMIT "${RNS8_GIT_OUTPUT}")
     endif()
   endif()
-  set(RNS8_BENCHMARK_SOURCES benchmarks/rns8_bench.cpp)
+  set(
+    RNS8_BENCHMARK_SOURCES
+    benchmarks/rns8_bench.cpp
+    benchmarks/rns8_bench_support.cpp
+  )
   if(RNS8_ENABLE_HIP)
     rns8_compile_hip_source(
       RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT
