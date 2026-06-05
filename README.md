@@ -120,6 +120,8 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 1.07x vs Direct HIP | installed |
 | finite field u8 mod 127 | 512 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1.10x vs Direct HIP | installed |
+| finite field u8 mod 127 | 2048 | CK <br/> `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 3424 us | 1.57x vs Direct HIP | installed |
+| finite field u8 mod 251 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1241 us | 1.05x vs Direct HIP | installed |
 | finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
 | finite field u8 mod 251 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 1.27x vs Direct HIP | installed |
 | exact-wide unsigned | 64 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4611 us | 1.67x vs Direct HIP | installed |
@@ -130,7 +132,7 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | exact-wide unsigned | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 3.04x vs Direct HIP | installed |
 | strict wrap64 u64 | 2048 | Direct HIP <br/> `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 58331 us | 230.1x vs CPU byte-limb | none |
 
-The installed reviewed cache currently covers 27 exact plan keys, including the
+The installed reviewed cache currently covers 29 exact plan keys, including the
 large 2048 bounded/finite-u8/exact-wide entries and exact-wide unsigned 64 entry
 above. Some rows are deliberately narrow local wins; Linux ROCm, Instinct,
 RDNA4, and profiler-backed production claims remain separate validation work.

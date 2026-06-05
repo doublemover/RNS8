@@ -71,18 +71,17 @@ retained as workload-contract evidence rather than AUTO cache entries because
 ## Finite-u8 Accelerator Wins
 
 The current finite-u8 v2 release review covered 64, 128, 512, 1024, the
-generic field-127 512 follow-up, generic ring 127/253 2048 follow-up, and the
-large 2048 hot-modulus validation slice for ring moduli 251, 255, and 256 plus
-field modulus 251. The 512/1024 and small-shape passes used seed `20260604`;
-the generic refreshes and large 2048 pass used seed `20260605`. All promoted
-entries used release builds, three warmups, nine repeats, CPU and Direct-HIP
-baselines, schema-valid
+generic field-127 512/2048 follow-up, generic ring 127/253 2048 follow-up, the
+field-251 512 refresh, and the large 2048 hot-modulus validation slice for ring
+moduli 251, 255, and 256 plus field modulus 251. The 512/1024 and small-shape
+passes used seed `20260604`; the generic refreshes and large 2048 pass used
+seed `20260605`. All promoted entries used release builds, three warmups, nine
+repeats, CPU and Direct-HIP baselines, schema-valid
 captures, and required GPU events for promoted accelerators.
 `tools/benchmark_sweep.py` now blocks reviewed cache promotion when an
 accelerator capture lacks required GPU event timing or loses to the CPU
-reference; the field-251 512 hipBLASLt near-tie, ring-255 64 rocWMMA result,
-and non-winning 2048 ring-256 hipBLASLt event-incomplete capture were therefore
-not installed.
+reference; the ring-255 64 rocWMMA result and non-winning 2048 ring-256
+hipBLASLt event-incomplete capture were therefore not installed.
 
 | Contract | Shape | Current winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Decision |
 |---|---:|---|---:|---:|---:|---|
@@ -98,18 +97,18 @@ not installed.
 | finite ring u8 mod 256 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 12633 us | 7.05x | Current reviewed v2 cache entry installed locally |
 | finite ring u8 mod 256 | 2048 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 5356 us | 1.07x | Current reviewed v2 cache entry installed locally |
 | finite field u8 mod 127 | 512 | CK `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1421 us | 1.10x | Current reviewed generic-modulus cache entry installed locally |
+| finite field u8 mod 127 | 2048 | CK `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 3424 us | 5388 us | 1.57x | Current reviewed generic-modulus cache entry installed locally |
+| finite field u8 mod 251 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1241 us | 1303 us | 1.05x | Current reviewed v2 cache entry installed locally |
 | finite field u8 mod 251 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 10564 us | 5.68x | Current reviewed v2 cache entry installed locally |
 | finite field u8 mod 251 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 5641 us | 1.27x | Current reviewed v2 cache entry installed locally |
 
 Non-promoted finite groups are still useful tuning signals. Ring-251 512 stayed
-on Direct HIP at 1521 us, ring-255 512 stayed on Direct HIP at 1381 us, and
-field-251 512 had a tiny hipBLASLt timing edge at 1471 us versus 1476 us for
-Direct HIP but lacked required hipBLASLt GPU events, so it is not a validated
-cache win. Ring-255 64 had a rocWMMA accelerator result at 1257 us versus
-Direct HIP at 3388 us, but CPU reference was 167 us; the CPU gate correctly
-kept it out of the reviewed runtime cache. At 2048, ring-256 hipBLASLt was
-slower than Direct HIP and also lacked required GPU events, so it remains a
-non-promoted diagnostic capture only.
+on Direct HIP at 1521 us and ring-255 512 stayed on Direct HIP at 1381 us.
+Ring-255 64 had a rocWMMA accelerator result at 1257 us versus Direct HIP at
+3388 us, but CPU reference was 167 us; the CPU gate correctly kept it out of
+the reviewed runtime cache. At 2048, ring-256 hipBLASLt was slower than Direct
+HIP and also lacked required GPU events, so it remains a non-promoted diagnostic
+capture only.
 
 The field-127 generic-modulus refresh also reran hipBLASLt with complete
 `hipblaslt_pack_transpose_centered`, `hipblaslt_int8_i32_matmul`, and
@@ -121,6 +120,11 @@ with CPU-backed release review. rocWMMA won both reviewed contracts and was
 installed locally. hipBLASLt ring-127 2048 was still event-incomplete and lost
 to Direct HIP; ring-253 hipBLASLt had required events but also lost to Direct
 HIP and rocWMMA.
+
+The field refreshes added CK for field-127 2048 and rocWMMA for field-251 512.
+The field-251 512 hipBLASLt capture now has required GPU events, including
+pack/transpose, matmul, and i32-to-residue reduction, but it is slower than
+Direct HIP and rocWMMA in the current release review.
 
 ## Exact-Wide Accelerator Wins
 
@@ -321,11 +325,10 @@ CRT export timing was lower in these captures.
 ## Promotion Boundaries
 
 - Promote now: the current local default runtime cache includes the reviewed
-  bounded-i64 1024 hipBLASLt v2 entry, the installed 2048 bounded entries, 11
-  current finite-u8 v2 entries, the refreshed generic field-127 finite-u8
-  entry, the two generic ring 127/253 finite-u8 2048 entries, and six current
-  exact-wide v2 entries. The installed reviewed cache covers 27 exact plan keys
-  overall after the June 5, 2026 generic 2048 refresh.
+  bounded-i64 1024 hipBLASLt v2 entry, the installed 2048 bounded entries, 12
+  current finite-u8 v2 entries, four generic finite-u8 entries, and six current
+  exact-wide v2 entries. The installed reviewed cache covers 29 exact plan keys
+  overall after the June 5, 2026 finite-u8 field refresh.
   There is no bounded-i64 512 accelerator entry; Direct HIP remains the current
   512 bounded-i64 winner.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and
