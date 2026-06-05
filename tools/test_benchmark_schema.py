@@ -142,6 +142,61 @@ def add_global_bound_scan_fields(capture: dict) -> dict:
     return capture
 
 
+def as_host_api_batch_capture(capture: dict) -> dict:
+    batch = copy.deepcopy(capture)
+    batch_size = 4
+    batch["benchmark"] = "rns8_host_api_batch_persistent_resident"
+    batch["benchmark_execution_mode"] = "benchmark_host_api_batch"
+    batch["command_line"] = f'{batch["command_line"]} --host-api-batch-size {batch_size}'
+    batch["timing_note"] = (
+        "host wall-clock timings for benchmark-owned host API batching; raw timings are aggregate batch totals"
+    )
+    batch["reuse_packed_inputs"] = False
+    batch["pack_mode"] = "per_repeat_repack"
+    batch["prepack_reuse_operands"] = []
+    batch["prepack_reuse_strategy"] = "none"
+    batch["prepack_setup_us"] = None
+    batch["avg_prepack_setup_us"] = None
+    batch["host_api_batch"] = {
+        "enabled": True,
+        "batch_size": batch_size,
+        "tasks_per_measured_repeat": batch_size,
+        "total_measured_tasks": batch_size * batch["repeats"],
+        "setup_scope": "one_shared_plan_per_capture_one_resident_matrix_workspace_triplet_per_task",
+        "timing_policy": "aggregate_batch_totals_per_measured_repeat",
+        "checksum_policy": "fnv1a_over_final_task_output_checksums",
+    }
+    batch["per_modulus_gemm_estimate_applicable"] = False
+    batch["avg_per_modulus_gemm_estimate_us"] = batch["avg_rns_gemm_us"]
+    for field, source in [
+        ("avg_pack_per_task_us", "avg_pack_us"),
+        ("avg_rns_gemm_per_task_us", "avg_rns_gemm_us"),
+        ("avg_crt_export_per_task_us", "avg_crt_export_us"),
+        ("avg_end_to_end_per_task_us", "avg_end_to_end_us"),
+    ]:
+        batch[field] = batch[source] / float(batch_size)
+    metadata = batch["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "benchmark_host_api_batch"
+    metadata["pack_mode"] = "per_repeat_repack"
+    metadata["prepack_reuse_operands"] = []
+    metadata["prepack_reuse_strategy"] = "none"
+    metadata["host_api_batch_enabled"] = True
+    metadata["host_api_batch_size"] = batch_size
+    metadata["phase_notes"]["pack"] = (
+        "per-repeat aggregate host timing for packing A and B for independent resident tasks"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "per-repeat aggregate host timing for independent resident rns8_gemm calls"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "per-repeat aggregate host timing for CRT export/reconstruction of every batch task"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "per-repeat aggregate pack plus rns_gemm plus crt_export host timing for independent batch tasks"
+    )
+    return batch
+
+
 def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dict:
     bridge = copy.deepcopy(capture)
     bridge["benchmark"] = "rns8_bounded_gemm_native_to_rns_bridge"
@@ -2109,6 +2164,24 @@ def main() -> int:
 
     helper_lane_ck = add_helper_lane_fields(copy.deepcopy(v4_ck_i64))
     validate_capture(helper_lane_ck)
+
+    host_api_batch = as_host_api_batch_capture(v4_ck_i64)
+    validate_capture(host_api_batch)
+
+    missing_host_batch = copy.deepcopy(host_api_batch)
+    del missing_host_batch["host_api_batch"]
+    expect_invalid(missing_host_batch, "benchmark_host_api_batch captures must include host_api_batch metadata")
+
+    bad_host_batch_size = copy.deepcopy(host_api_batch)
+    bad_host_batch_size["host_api_batch"]["batch_size"] = 1
+    bad_host_batch_size["timing_metadata"]["host_api_batch_size"] = 1
+    expect_invalid(bad_host_batch_size, "benchmark_host_api_batch captures must use host_api_batch.batch_size > 1")
+
+    stale_host_batch_note = copy.deepcopy(host_api_batch)
+    stale_host_batch_note["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat pack plus rns_gemm plus crt_export host timing"
+    )
+    expect_invalid(stale_host_batch_note, "benchmark_host_api_batch phase note end_to_end")
 
     helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))
     add_timing_helper_fields(

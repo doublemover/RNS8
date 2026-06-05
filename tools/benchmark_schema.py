@@ -342,6 +342,7 @@ BENCHMARK_EXECUTION_MODES = {
     "public_runtime_vector_alu_native_buffers",
     "auto_native_to_rns_bridge",
     "vector_native_to_direct_rns_chain",
+    "benchmark_host_api_batch",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
@@ -637,6 +638,9 @@ class _Validator:
             and self.data.get("prepack_reuse_strategy") == "none"
         )
 
+    def _is_host_api_batch_capture(self) -> bool:
+        return self._benchmark_execution_mode() == "benchmark_host_api_batch"
+
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
@@ -732,6 +736,7 @@ class _Validator:
         self._validate_nested_metadata()
         self._validate_backend_metadata()
         self._validate_helper_lane_metadata()
+        self._validate_host_api_batch_metadata()
         self._validate_comparison_baseline()
         self._validate_schedule_metadata()
         self._validate_bound_discovery_metadata()
@@ -1116,6 +1121,13 @@ class _Validator:
                 if residue_width != 3:
                     self._error("residue-channel fusion captures must use residue_group_width=3")
 
+            batch_enabled = metadata.get("host_api_batch_enabled")
+            batch_size = metadata.get("host_api_batch_size")
+            if batch_enabled is not None and not isinstance(batch_enabled, bool):
+                self._error("timing_metadata.host_api_batch_enabled must be a boolean")
+            if batch_size is not None and (not _is_int(batch_size) or batch_size <= 0):
+                self._error("timing_metadata.host_api_batch_size must be a positive integer")
+
         plan_packing = self.data.get("plan_packing")
         if plan_packing is not None:
             if not isinstance(plan_packing, dict):
@@ -1318,6 +1330,117 @@ class _Validator:
                         "device_allocation.measured_repeat_delta",
                         device_allocation.get("measured_repeat_delta"),
                     )
+
+    def _validate_host_api_batch_metadata(self) -> None:
+        batch = self.data.get("host_api_batch")
+        is_batch = self._is_host_api_batch_capture()
+        if batch is None:
+            if is_batch:
+                self._error("benchmark_host_api_batch captures must include host_api_batch metadata")
+            return
+        if not isinstance(batch, dict):
+            self._error("host_api_batch must be an object")
+            return
+
+        enabled = batch.get("enabled")
+        if not isinstance(enabled, bool):
+            self._error("host_api_batch.enabled must be a boolean")
+            return
+        if enabled != is_batch:
+            expected = "true" if is_batch else "false"
+            self._error(f"host_api_batch.enabled must be {expected} for this benchmark_execution_mode")
+
+        batch_size = batch.get("batch_size")
+        tasks_per_repeat = batch.get("tasks_per_measured_repeat")
+        total_tasks = batch.get("total_measured_tasks")
+        repeats = self.data.get("repeats")
+        for key, value in [
+            ("batch_size", batch_size),
+            ("tasks_per_measured_repeat", tasks_per_repeat),
+            ("total_measured_tasks", total_tasks),
+        ]:
+            if not _is_int(value) or value <= 0:
+                self._error(f"host_api_batch.{key} must be a positive integer")
+        if _is_int(batch_size) and _is_int(tasks_per_repeat) and tasks_per_repeat != batch_size:
+            self._error("host_api_batch.tasks_per_measured_repeat must equal host_api_batch.batch_size")
+        if _is_int(batch_size) and _is_int(repeats) and _is_int(total_tasks) and total_tasks != batch_size * repeats:
+            self._error("host_api_batch.total_measured_tasks must equal batch_size * repeats")
+
+        expected_batch_size = 1 if not is_batch else None
+        if expected_batch_size is not None and batch_size != expected_batch_size:
+            self._error("non-batch captures must use host_api_batch.batch_size=1")
+        if is_batch and _is_int(batch_size) and batch_size <= 1:
+            self._error("benchmark_host_api_batch captures must use host_api_batch.batch_size > 1")
+
+        expected_setup = (
+            "one_shared_plan_per_capture_one_resident_matrix_workspace_triplet_per_task"
+            if is_batch
+            else "single_task_default_benchmark_mode"
+        )
+        expected_timing = (
+            "aggregate_batch_totals_per_measured_repeat" if is_batch else "single_call_totals_per_measured_repeat"
+        )
+        expected_checksum = (
+            "fnv1a_over_final_task_output_checksums" if is_batch else "single_final_output_checksum"
+        )
+        for key, expected in [
+            ("setup_scope", expected_setup),
+            ("timing_policy", expected_timing),
+            ("checksum_policy", expected_checksum),
+        ]:
+            if batch.get(key) != expected:
+                self._error(f"host_api_batch.{key} must be {expected}")
+
+        metadata = self.data.get("timing_metadata")
+        if isinstance(metadata, dict):
+            if metadata.get("host_api_batch_enabled") is not enabled:
+                self._error("timing_metadata.host_api_batch_enabled must match host_api_batch.enabled")
+            if metadata.get("host_api_batch_size") != batch_size:
+                self._error("timing_metadata.host_api_batch_size must match host_api_batch.batch_size")
+
+        if is_batch:
+            if self.data.get("benchmark") != "rns8_host_api_batch_persistent_resident":
+                self._error("benchmark_host_api_batch captures must use benchmark=rns8_host_api_batch_persistent_resident")
+            if self.data.get("semantics") == "wrap_u64_mod_2_64":
+                self._error("benchmark_host_api_batch captures must not use wrap_u64_mod_2_64")
+            if self.data.get("reuse_packed_inputs") is not False:
+                self._error("benchmark_host_api_batch captures must not use packed-input reuse")
+            if self.data.get("pack_mode") != "per_repeat_repack":
+                self._error("benchmark_host_api_batch captures must use pack_mode=per_repeat_repack")
+            if self._residue_chain_length() != 1 or self._residue_output_mode() != "host_export":
+                self._error("benchmark_host_api_batch captures must use host_export residue_chain_length=1")
+            if self.data.get("bound_mode") != "global":
+                self._error("benchmark_host_api_batch captures must use bound_mode=global")
+            if self.data.get("bound_source") not in {None, "static_profile"}:
+                self._error("benchmark_host_api_batch captures must use bound_source=static_profile")
+            metadata = self.data.get("timing_metadata")
+            if isinstance(metadata, dict):
+                notes = metadata.get("phase_notes")
+                if not isinstance(notes, dict):
+                    self._error("benchmark_host_api_batch captures must include timing_metadata.phase_notes")
+                else:
+                    for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
+                        note = notes.get(phase)
+                        if not isinstance(note, str) or "aggregate" not in note:
+                            self._error(f"benchmark_host_api_batch phase note {phase} must describe aggregate batch timing")
+
+        for field, source in [
+            ("avg_pack_per_task_us", "avg_pack_us"),
+            ("avg_rns_gemm_per_task_us", "avg_rns_gemm_us"),
+            ("avg_crt_export_per_task_us", "avg_crt_export_us"),
+            ("avg_end_to_end_per_task_us", "avg_end_to_end_us"),
+        ]:
+            value = self.data.get(field)
+            source_value = self.data.get(source)
+            if value is None:
+                continue
+            if not _is_number(value):
+                self._error(f"{field} must be a finite number")
+                continue
+            if _is_number(source_value) and _is_int(batch_size):
+                expected = float(source_value) / float(batch_size)
+                if not _close(float(value), expected):
+                    self._error(f"{field} must equal {source} / host_api_batch.batch_size")
 
     def _validate_backend_metadata(self) -> None:
         metadata = self._require("backend_metadata", "dict")
@@ -2976,6 +3099,7 @@ class _Validator:
                 and not self._is_public_oneshot_capture()
                 and not (semantics in {"bounded_i64", "bounded_u64"} and bound_mode == "per_tile")
                 and not self._is_direct_hip_vector_to_rns_chain_capture()
+                and not self._is_host_api_batch_capture()
                 and self.data.get("backend_selected") != "hip-vector-alu-int64"
             )
             if applicable != expected_applicable:

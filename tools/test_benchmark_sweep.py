@@ -687,23 +687,32 @@ def main() -> int:
     many_small_args.backends = ["hip-direct"]
     many_small_args.scenario = ["many-small"]
     many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-    assert len(many_small_entries) == 8
+    assert len(many_small_entries) == 12
     assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
     assert {entry.scenario["name"] for entry in many_small_entries} == {
         "bounded-i64-32-proxy",
+        "bounded-i64-32-host-batch64",
         "bounded-i64-32-oneshot-proxy",
         "bounded-i64-128-proxy",
         "bounded-u64-64-proxy",
+        "bounded-u64-skinny-n1-host-batch128",
         "bounded-u64-skinny-n1-proxy",
         "exact-wide-signed-64-proxy",
+        "exact-wide-signed-64-host-batch32",
+        "finite-ring-64-host-batch32",
         "finite-ring-64-proxy",
     }
     assert any("--oneshot" in entry.command for entry in many_small_entries)
+    assert any("--host-api-batch-size" in entry.command for entry in many_small_entries)
     assert sorted(
         entry.scenario["modulus"] for entry in many_small_entries if entry.scenario["semantics"] == "finite-u8-ring"
-    ) == [251, 255]
-    assert all(entry.scenario.get("metadata", {}).get("evidence_role") == "proxy_single_shape_repeat" for entry in many_small_entries)
+    ) == [251, 251, 255]
+    assert any(
+        entry.scenario.get("metadata", {}).get("evidence_role") == "host_api_batch_candidate"
+        for entry in many_small_entries
+    )
     assert any(entry.scenario.get("metadata", {}).get("grouping_role") == "pre_grouped_baseline" for entry in many_small_entries)
+    assert any(entry.scenario.get("metadata", {}).get("grouping_role") == "host_api_batch_candidate" for entry in many_small_entries)
     assert any(
         entry.scenario.get("metadata", {}).get("bridge_role") == "native_vector_to_rns_candidate"
         for entry in many_small_entries
@@ -713,6 +722,11 @@ def main() -> int:
         for entry in many_small_entries
     )
     assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in many_small_entries)
+    assert all(
+        "hip-vector-alu-int64" not in entry.command
+        for entry in many_small_entries
+        if entry.scenario.get("host_api_batch_size", 1) > 1
+    )
 
     rns_chain_args = copy.copy(scenario_args)
     rns_chain_args.backends = ["hip-direct"]

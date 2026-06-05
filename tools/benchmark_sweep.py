@@ -17,6 +17,7 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
+HOST_API_BATCH_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
@@ -77,6 +78,7 @@ class ScenarioItem:
     exact_wide_limb_counts: tuple[int | None, ...] = (None,)
     residue_chain_length: int = 1
     output_ld_padding: int = 0
+    host_api_batch_size: int = 1
     oneshot: bool = False
     native_to_rns_bridge: bool = False
     vector_to_rns_chain: bool = False
@@ -658,6 +660,7 @@ def promotion_blockers(
     internal_candidate: bool,
     prepacked_reuse: bool,
     oneshot_capture: bool,
+    host_api_batch_capture: bool,
     gpu_events_available: bool,
     end_to_end: float | None,
     cpu: float | None,
@@ -715,6 +718,8 @@ def promotion_blockers(
         blockers.append("prepacked_reuse_not_autotune_promotable")
     if oneshot_capture:
         blockers.append("oneshot_api_capture_not_autotune_promotable")
+    if host_api_batch_capture:
+        blockers.append("host_api_batch_not_autotune_promotable")
     if accelerator and not gpu_events_available:
         blockers.append("missing_required_gpu_events")
     if end_to_end is None:
@@ -891,7 +896,9 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
             internal_candidate = backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
-            oneshot_capture = capture_execution_mode(item) == "public_oneshot_transient_native_inputs"
+            execution_mode = capture_execution_mode(item)
+            oneshot_capture = execution_mode == "public_oneshot_transient_native_inputs"
+            host_api_batch_capture = execution_mode == "benchmark_host_api_batch"
             end_to_end = median_phase(item, "end_to_end")
             cpu = median_phase(cpu_capture, "end_to_end") if cpu_capture else None
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
@@ -923,6 +930,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 internal_candidate=internal_candidate,
                 prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
                 oneshot_capture=oneshot_capture,
+                host_api_batch_capture=host_api_batch_capture,
                 gpu_events_available=capture_gpu_events_available(item),
                 end_to_end=end_to_end,
                 cpu=cpu,
@@ -2386,6 +2394,27 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "many-small",
+                "bounded-i64-32-host-batch64",
+                "bounded-i64",
+                many_small_32,
+                "many-small host API batch bounded i64 candidate",
+                "host_export",
+                "measures an actual benchmark-owned host batch of independent resident RNS tasks against the pre-grouped baseline surface",
+                backends=HOST_API_BATCH_BACKENDS,
+                host_api_batch_size=64,
+                metadata={
+                    "evidence_role": "host_api_batch_candidate",
+                    "workflow_name": "many_small_independent_gemms",
+                    "phase_label": "host_api_batch",
+                    "shape_signature": "tiny_square",
+                    "batch_count_model": 64,
+                    "reuse_profile": "independent_inputs",
+                    "grouping_role": "host_api_batch_candidate",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
                 "finite-ring-64-proxy",
                 "finite-u8-ring",
                 many_small_64,
@@ -2402,6 +2431,29 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                     "shape_signature": "small_square",
                     "batch_count_model": 32,
                     "reuse_profile": "independent_inputs",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
+                "finite-ring-64-host-batch32",
+                "finite-u8-ring",
+                many_small_64,
+                "many-small host API batch finite-ring u8 candidate",
+                "finite_u8_canonical_host_export",
+                "tests whether explicit host batching changes the setup/launch balance for small finite-ring tasks",
+                backends=FINITE_BACKENDS,
+                finite_moduli=(251,),
+                host_api_batch_size=32,
+                metadata={
+                    "evidence_role": "host_api_batch_candidate",
+                    "workflow_name": "many_small_finite_ring_gemms",
+                    "domain_family": "finite_ring_u8",
+                    "phase_label": "host_api_batch",
+                    "shape_signature": "small_square",
+                    "batch_count_model": 32,
+                    "reuse_profile": "independent_inputs",
+                    "grouping_role": "host_api_batch_candidate",
                     "dense_kernel_extracted": True,
                 },
             ),
@@ -2469,6 +2521,28 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "many-small",
+                "bounded-u64-skinny-n1-host-batch128",
+                "bounded-u64",
+                many_small_skinny,
+                "many-small host API batch skinny bounded u64 candidate",
+                "host_export",
+                "tests whether batching long-K N=1 exact jobs can beat independent resident calls before a device grouped scheduler exists",
+                backends=HOST_API_BATCH_BACKENDS,
+                host_api_batch_size=128,
+                metadata={
+                    "evidence_role": "host_api_batch_candidate",
+                    "workflow_name": "many_small_independent_gemms",
+                    "phase_label": "host_api_batch",
+                    "shape_signature": "skinny_n1_long_k",
+                    "batch_count_model": 128,
+                    "reuse_profile": "single_rhs_column",
+                    "grouping_role": "host_api_batch_candidate",
+                    "bridge_role": "native_vector_to_rns_candidate",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
                 "exact-wide-signed-64-proxy",
                 "exact-wide-signed",
                 many_small_64,
@@ -2485,6 +2559,28 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                     "batch_count_model": 32,
                     "reuse_profile": "independent_inputs",
                     "grouping_role": "pre_grouped_baseline",
+                    "dense_kernel_extracted": True,
+                },
+            ),
+            ScenarioItem(
+                "many-small",
+                "exact-wide-signed-64-host-batch32",
+                "exact-wide-signed",
+                many_small_64,
+                "many-small host API batch exact-wide signed candidate",
+                "exact_wide_signed_limbs",
+                "measures explicit independent exact-wide task batching with fixed-limb export and per-task checksum coverage",
+                backends=EXACT_WIDE_BACKENDS,
+                exact_wide_limb_counts=(4,),
+                host_api_batch_size=32,
+                metadata={
+                    "evidence_role": "host_api_batch_candidate",
+                    "workflow_name": "many_small_exact_wide_gemms",
+                    "phase_label": "host_api_batch",
+                    "shape_signature": "small_square",
+                    "batch_count_model": 32,
+                    "reuse_profile": "independent_inputs",
+                    "grouping_role": "host_api_batch_candidate",
                     "dense_kernel_extracted": True,
                 },
             ),
@@ -3184,6 +3280,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
     scenario_args.residue_chain_length = item.residue_chain_length
     scenario_args.output_ld_padding = item.output_ld_padding
+    scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
@@ -3196,6 +3293,8 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
 
 def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> list[str]:
     backends = list(item.backends or default_backends_for(item.semantics, item.case))
+    if item.host_api_batch_size > 1:
+        backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
     if item.semantics == "wrap-u64" and item.include_wrap64_candidate and args.include_wrap64_rocwmma_candidate:
         backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
     if args.backends:
@@ -3228,6 +3327,7 @@ def scenario_metadata(
         "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
         "residue_chain_length": item.residue_chain_length,
         "output_ld_padding": item.output_ld_padding,
+        "host_api_batch_size": item.host_api_batch_size,
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "next_op_hint": item.next_op_hint,
@@ -3279,6 +3379,7 @@ def capture_name(
     exact_wide_limb_count: int | None = None,
     residue_chain_length: int = 1,
     output_ld_padding: int = 0,
+    host_api_batch_size: int = 1,
     oneshot: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
@@ -3290,6 +3391,8 @@ def capture_name(
         parts.append(f"chain{residue_chain_length}")
     if output_ld_padding > 0:
         parts.append(f"outpad{output_ld_padding}")
+    if host_api_batch_size > 1:
+        parts.append(f"hostbatch{host_api_batch_size}")
     if oneshot:
         parts.append("oneshot")
     if pack_mode == "prepacked_reuse":
@@ -3362,6 +3465,9 @@ def command_for(
         command.extend(["--max-prefix", str(max_prefix)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
+    host_api_batch_size = int(getattr(args, "host_api_batch_size", 1) or 1)
+    if host_api_batch_size > 1:
+        command.extend(["--host-api-batch-size", str(host_api_batch_size)])
     output_ld_padding = int(getattr(args, "output_ld_padding", 0) or 0)
     if output_ld_padding > 0:
         command.extend(["--output-ld-padding", str(output_ld_padding)])
@@ -3386,6 +3492,30 @@ def command_for(
 def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
     backend_benches = parse_backend_bench(args.bench_for)
     commands: list[SweepCommand] = []
+    host_api_batch_size = int(getattr(args, "host_api_batch_size", 1) or 1)
+    if host_api_batch_size <= 0:
+        raise SystemExit("--host-api-batch-size must be positive")
+    if host_api_batch_size > 1:
+        if any(
+            [
+                getattr(args, "include_oneshot", False),
+                getattr(args, "oneshot_only", False),
+                getattr(args, "reuse_packed_inputs", False),
+                getattr(args, "reuse_packed_a", False),
+                getattr(args, "reuse_packed_b", False),
+                getattr(args, "native_to_rns_bridge", False),
+                getattr(args, "vector_to_rns_chain", False),
+                getattr(args, "residue_channel_fusion", False),
+                int(getattr(args, "residue_chain_length", 1) or 1) != 1,
+                getattr(args, "bound_source", None) == "input-scan",
+            ]
+        ):
+            raise SystemExit(
+                "--host-api-batch-size > 1 cannot be combined with one-shot, reuse, bridge, chain, "
+                "residue-fusion, residue-chain, or input-scan modes"
+            )
+        if args.backends:
+            args.backends = [backend for backend in args.backends if backend in HOST_API_BATCH_BACKENDS]
     semantics_values = [normalize_semantics(item) for item in (args.semantics or ["bounded-i64", "bounded-u64"])]
     cases = [*([] if args.adaptive_only else default_cases(args)), *adaptive_cases(args)]
     if args.adaptive_only and not cases:
@@ -3446,6 +3576,8 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             backends = args.backends or (
                 wrap64_backends_for(args) if semantics == "wrap-u64" else default_backends_for(semantics, case)
             )
+            if host_api_batch_size > 1:
+                backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
             if getattr(args, "residue_channel_fusion", False):
                 backends = [backend for backend in backends if backend == "hip-direct"]
             for modulus in finite_moduli_for(semantics, args):
@@ -3472,6 +3604,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
                                 int(getattr(args, "output_ld_padding", 0) or 0),
+                                int(getattr(args, "host_api_batch_size", 1) or 1),
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                             commands.append(SweepCommand(name, command, args.out_root / name))
@@ -3497,6 +3630,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 exact_wide_limb_count,
                                 args.residue_chain_length,
                                 int(getattr(args, "output_ld_padding", 0) or 0),
+                                int(getattr(args, "host_api_batch_size", 1) or 1),
                                 oneshot=True,
                             )
                             command = command_for(
@@ -3538,6 +3672,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "residue_channel_fusion", False),
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
+            int(getattr(args, "host_api_batch_size", 1) or 1) != 1,
         ]
     ):
         raise SystemExit("--scenario cannot be combined with manual sweep shape/reuse/include flags")
@@ -3588,6 +3723,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         exact_wide_limb_count,
                         item.residue_chain_length,
                         item.output_ld_padding,
+                        item.host_api_batch_size,
                         oneshot=item.oneshot,
                     )
                     name = f"{item.family}-{item.name}-{base_name}"
@@ -3858,6 +3994,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="exact-wide residue-current GEMM chain length; values above 1 skip timed host export",
+    )
+    parser.add_argument(
+        "--host-api-batch-size",
+        type=int,
+        default=1,
+        help="benchmark-owned host API batch size for persistent resident matrix captures",
     )
     parser.add_argument(
         "--output-ld-padding",
