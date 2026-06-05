@@ -57,9 +57,9 @@ June 4-5, 2026 updates:
   `benchmarks/scenarios/` with registry-backed review-mode and
   promotion-eligibility labels; schema validation has a package seam behind the
   compatibility CLI plus focused GPU-event, execution-mode, and
-  contract-metadata modules/tests plus helper/output-policy metadata splitting;
-  benchmark support and semantic-mode helpers have been split out of the bench
-  god-file; core output setup, benchmark exact-wide pack materialization,
+  contract-metadata modules/tests plus helper/output-policy and backend metadata
+  splitting; benchmark support and semantic-mode helpers have been split out of
+  the bench god-file; core output setup, benchmark exact-wide pack materialization,
   Direct-HIP output stamping, and native-to-RNS bridge currentness transitions
   are helper-routed; HIP event/stream/pinned-staging/temporary-buffer ownership
   uses internal RAII wrappers; Direct-HIP timing support lives in

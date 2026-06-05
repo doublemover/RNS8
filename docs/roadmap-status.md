@@ -68,9 +68,9 @@ families now live in data under `benchmarks/scenarios/` with explicit
 review-mode and promotion-eligibility contracts backed by the metadata
 registry. Benchmark schema validation has a compatibility wrapper over a
 package entrypoint, with GPU event, execution-mode, and contract-metadata
-validators plus helper/output-policy metadata split into focused modules and
-CTest-backed self-tests. Shared benchmark support and semantic-mode helpers
-have been split out of
+validators plus helper/output-policy and backend metadata split into focused
+modules and CTest-backed self-tests. Shared benchmark support and semantic-mode
+helpers have been split out of
 `benchmarks/rns8_bench.cpp`; core output setup, benchmark exact-wide pack
 materialization, Direct-HIP output stamping, and native-to-RNS bridge
 currentness transitions are helper-routed; HIP event/stream/pinned-staging/
@@ -82,8 +82,8 @@ runtime installed. The hygiene report now filters intentional helper/RAII
 implementation sites so remaining findings point at scattered cleanup debt.
 
 Remaining cleanup work is intentionally incremental: deeper benchmark semantic
-lane splitting, residual schema package decomposition for base and semantic
-contract validators, workspace identity/schedule/resource decomposition, broader
+lane splitting, residual schema package decomposition for semantic contract
+validators, workspace identity/schedule/resource decomposition, broader
 Direct-HIP source splitting, narrower currentness helpers for failure-path and
 test-owned mutations, grouped descriptor enforcement, and export/reconstruction
 planning. These changes must preserve public ABI, reviewed cache behavior,
