@@ -365,7 +365,7 @@ GPU events, and checksum parity with the earlier grouped capture. It reports
 faster than the 1902.97 us Direct-HIP hostbatch32 row. The export-slab path
 queues all grouped exact-wide export kernels without per-task synchronization,
 copies one compact device output slab back to host, and materializes per-task
-checksum buffers outside the measured repeat for contiguous output. A later
+checksum buffers outside the measured repeat for contiguous output. The later
 one-kernel grouped export follow-up under
 `temp/perf-work-queue/many-small-grouped-dispatch-kernel-current/` keeps the
 same checksum and required events, changes the strategy metadata to
@@ -373,11 +373,21 @@ same checksum and required events, changes the strategy metadata to
 aggregate export phase from 5670 us average in the async slab capture to
 1212 us average. Its signed end-to-end median is 795.19 us per task, effectively
 flat versus the 792.66 us slab median but still 4.88x faster than independent
-Direct HIP and 2.39x faster than hostbatch32. The unsigned exact-wide 64
-group32 twin is schema/event-valid at 703.34 us per task, but the current
-many-small corpus lacks the matching independent unsigned baseline, so it is
-only a smoke. This remains benchmark-owned persistent-task evidence, not a
-device queue, public grouped API, AUTO cache entry, or Linux/Instinct claim.
+Direct HIP and 2.39x faster than hostbatch32. The current grouped pack+export
+follow-up under `temp/perf-work-queue/many-small-grouped-pack-current/` keeps
+the same exact-wide signed 64 group32 contract and changes the strategy metadata
+to `device_grouped_pack_and_exact_wide_export_kernels_batched_d2h`. It copies
+compact A and B slabs once per measured repeat, launches one grouped pack kernel
+per operand, keeps GEMM in the existing per-task resident loop, and uses the
+one-kernel grouped export path. The signed median falls to 228.06 us per task,
+or 17.01x faster than independent Direct HIP, 8.34x faster than hostbatch32,
+and 3.49x faster than the previous one-kernel grouped-export capture; host
+aggregate pack average falls from 16873 us to 778 us, and GPU event pack average
+falls from 12815 us to 461 us. The unsigned exact-wide 64 group32 twin is
+schema/event-valid at 249.63 us per task, but the current many-small corpus
+lacks the matching independent unsigned baseline, so it remains a smoke. This
+remains benchmark-owned persistent-task evidence, not a device queue, public
+grouped API, AUTO cache entry, or Linux/Instinct claim.
 
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32

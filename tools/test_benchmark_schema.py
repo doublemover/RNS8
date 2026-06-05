@@ -3198,6 +3198,14 @@ def main() -> int:
     grouped_exact_wide_device_export["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
     grouped_exact_wide_device_export["timing_metadata"]["grouped_dispatch_device_output_slab_bytes"] = 786432
     validate_capture(grouped_exact_wide_device_export)
+    grouped_exact_wide_device_pack_export = copy.deepcopy(grouped_exact_wide_device_export)
+    grouped_exact_wide_device_pack_export["grouped_dispatch"][
+        "execution_strategy"
+    ] = "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h"
+    grouped_exact_wide_device_pack_export["timing_metadata"][
+        "grouped_dispatch_execution_strategy"
+    ] = "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h"
+    validate_capture(grouped_exact_wide_device_pack_export)
     grouped_exact_wide_missing_batched_flag = copy.deepcopy(grouped_exact_wide_device_export)
     grouped_exact_wide_missing_batched_flag["grouped_dispatch"]["batched_export_enabled"] = False
     grouped_exact_wide_missing_batched_flag["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = False

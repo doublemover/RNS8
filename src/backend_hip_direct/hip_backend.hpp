@@ -73,6 +73,32 @@ rns8_status hip_direct_pack_u64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix);
+rns8_status hip_direct_pack_i64_grouped_matrices_device(
+    int device_id,
+    const int64_t* src_slab,
+    void* device_src_slab,
+    std::size_t device_src_slab_bytes,
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix,
+    uint64_t first_source_version);
+rns8_status hip_direct_pack_u64_grouped_matrices_device(
+    int device_id,
+    const uint64_t* src_slab,
+    void* device_src_slab,
+    std::size_t device_src_slab_bytes,
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix,
+    uint64_t first_source_version);
 rns8_status hip_direct_native_i64_to_rns_device(
     int device_id,
     const void* device_native,

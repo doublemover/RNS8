@@ -700,6 +700,122 @@ __global__ void rns8_pack_u64_fixed_prefix_kernel(
   }
 }
 
+template <int Prefix>
+__global__ void rns8_pack_i64_grouped_fixed_prefix_kernel(
+    const int64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  const int64_t value =
+      src[static_cast<int64_t>(task) * src_task_stride + static_cast<int64_t>(row) * ld + col];
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] =
+        rns8_center_i64_default_modulus_fixed_device(value, modulus_index, modulus);
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(
+    const uint64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= elements) {
+    return;
+  }
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  const uint64_t value =
+      src[static_cast<int64_t>(task) * src_task_stride + static_cast<int64_t>(row) * ld + col];
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    residues[static_cast<int64_t>(modulus_index) * elements + cell] =
+        rns8_center_u64_default_modulus_fixed_device(value, modulus_index, modulus);
+  }
+}
+
+__global__ void rns8_pack_i64_grouped_kernel(
+    const int64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int task = blockIdx.y;
+  if (task >= task_count || idx >= per_task_total) {
+    return;
+  }
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t element = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(element / cols);
+  const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  const int64_t value =
+      src[static_cast<int64_t>(task) * src_task_stride + static_cast<int64_t>(row) * ld + col];
+  int8_t* residues = residue_ptrs[task];
+  residues[idx] = rns8_center_i64_device(value, modulus);
+}
+
+__global__ void rns8_pack_u64_grouped_kernel(
+    const uint64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t per_task_total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int task = blockIdx.y;
+  if (task >= task_count || idx >= per_task_total) {
+    return;
+  }
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t element = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(element / cols);
+  const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  const uint64_t value =
+      src[static_cast<int64_t>(task) * src_task_stride + static_cast<int64_t>(row) * ld + col];
+  int8_t* residues = residue_ptrs[task];
+  residues[idx] = rns8_center_u64_device(value, modulus);
+}
+
 __global__ void rns8_pack_u8_modulus_kernel(
     const uint8_t* src,
     int8_t* residues,
@@ -2855,6 +2971,138 @@ extern "C" int rns8_hip_direct_pack_u64_device(
           nullptr,
           d_src,
           d_residues,
+          rows,
+          cols,
+          ld,
+          prefix);
+      break;
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_i64_grouped_device(
+    const int64_t* d_src,
+    int8_t* const* d_residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 ||
+      rows <= 0 || cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
+  const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
+  const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  switch (prefix) {
+#define RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(PrefixValue) \
+    case PrefixValue:                                          \
+      hipLaunchKernelGGL(                                      \
+          HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_kernel<PrefixValue>), \
+          dim3(fixed_blocks, task_count),                      \
+          dim3(threads),                                       \
+          0,                                                   \
+          nullptr,                                             \
+          d_src,                                               \
+          d_residue_ptrs,                                      \
+          task_count,                                          \
+          src_task_stride,                                     \
+          rows,                                                \
+          cols,                                                \
+          ld);                                                 \
+      break
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(1);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(2);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(3);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(4);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(5);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(6);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(7);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(8);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(kRns8DefaultBoundedPrefix);
+    RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
+#undef RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX
+    default:
+      hipLaunchKernelGGL(
+          rns8_pack_i64_grouped_kernel,
+          dim3(blocks, task_count),
+          dim3(threads),
+          0,
+          nullptr,
+          d_src,
+          d_residue_ptrs,
+          task_count,
+          src_task_stride,
+          rows,
+          cols,
+          ld,
+          prefix);
+      break;
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_u64_grouped_device(
+    const uint64_t* d_src,
+    int8_t* const* d_residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  if (!d_src || !d_residue_ptrs || task_count <= 0 || src_task_stride <= 0 ||
+      rows <= 0 || cols <= 0 || ld < cols || prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
+  const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
+  const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  switch (prefix) {
+#define RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(PrefixValue) \
+    case PrefixValue:                                          \
+      hipLaunchKernelGGL(                                      \
+          HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_kernel<PrefixValue>), \
+          dim3(fixed_blocks, task_count),                      \
+          dim3(threads),                                       \
+          0,                                                   \
+          nullptr,                                             \
+          d_src,                                               \
+          d_residue_ptrs,                                      \
+          task_count,                                          \
+          src_task_stride,                                     \
+          rows,                                                \
+          cols,                                                \
+          ld);                                                 \
+      break
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(1);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(2);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(3);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(4);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(5);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(6);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(7);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(8);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(kRns8DefaultBoundedPrefix);
+    RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
+#undef RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX
+    default:
+      hipLaunchKernelGGL(
+          rns8_pack_u64_grouped_kernel,
+          dim3(blocks, task_count),
+          dim3(threads),
+          0,
+          nullptr,
+          d_src,
+          d_residue_ptrs,
+          task_count,
+          src_task_stride,
           rows,
           cols,
           ld,
