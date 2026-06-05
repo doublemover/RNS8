@@ -43,7 +43,7 @@ architecture and roadmap source of truth when details disagree.
 |---|---|---|
 | CPU reference | Required reference backend | Baseline only |
 | Direct HIP | Required Windows GPU correctness path | Production correctness baseline; not a matrix-engine speed claim |
-| Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and current long-K `n == 1` shape-specialized win; not a current AUTO cache winner |
+| Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and long-K `n == 1` microkernel evidence, but the current skinny-GEMV release review keeps reviewed N=1 scenario routing on Direct HIP; not a current AUTO cache winner |
 | hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including finite-u8 hot-modulus 2048 and exact-wide 2048 entries |
 | CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048 and generic finite-field 2048 |
 | rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, finite-u8 2048 hot-modulus entries, generic finite-ring 2048 entries, and finite-field 512 entries |

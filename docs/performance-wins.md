@@ -205,6 +205,15 @@ the stale generic vector kernel. A broader 1024x1x1024 smoke stayed on
 `hip_vector_alu_*_exact_192b_v1` after gating because that shape was
 pack-dominated and did not produce a setup-inclusive GEMV win.
 
+The current `skinny-gemv` release review used seed `20260605`, three warmups,
+nine repeats, CPU and Direct-HIP baselines, all optional accelerator backends,
+schema-valid captures, and required GPU events. Direct HIP won every reviewed
+N=1 scenario shape: bounded-i64 512x1x512 at 1689 us, bounded-i64
+256x1x4096 at 2712 us, and bounded-u64 1024x1x1024 at 2307 us. The vector
+GEMV kernels remain useful explicit-backend microkernel evidence, but they do
+not currently justify AUTO/cache promotion for these setup-inclusive scenario
+contracts.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized

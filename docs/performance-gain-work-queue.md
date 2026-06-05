@@ -50,8 +50,8 @@ June 4-5, 2026 updates:
   and field refreshes, and exact-wide 64/128 refresh.
   Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
   35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
-  and the 2048 hot-modulus portion of rank 14. Partially advanced lanes remain
-  ranks 3, 6, 9, 12, 13, 15, 18, and 20; they have benchmark/schema surfaces
+  17, and the 2048 hot-modulus portion of rank 14. Partially advanced lanes
+  remain ranks 3, 6, 9, 12, 13, 15, 18, and 20; they have benchmark/schema surfaces
   or partial release evidence, but not enough proof for broader routing or
   public performance claims.
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
@@ -65,6 +65,15 @@ June 4-5, 2026 updates:
   vector-leadership assumption. The promoted local AUTO keys are now the
   measured CK 512 square winner and the measured hipBLASLt 256x1x4096 skinny
   winner; smaller square cases still prefer CPU or Direct HIP.
+- The current skinny-GEMV release scenario also closes rank 17's selector-policy
+  refresh for current claims. The 18 captures under
+  `temp/perf-work-queue/skinny-gemv-current-release/` cover bounded-i64
+  512x1x512, bounded-i64 256x1x4096, and bounded-u64 1024x1x1024 across CPU,
+  Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA. All three groups
+  passed release review with required GPU events and no missing baselines, but
+  Direct HIP won every reviewed shape, so no additional skinny-GEMV scenario
+  cache entry is promoted. Keep the older vector GEMV microkernel win as
+  explicit-backend evidence only, not AUTO selector policy.
 - Finite-u8 generic prime/composite 512 was promoted for three local AUTO keys:
   ring 127 through rocWMMA, field 127 through CK, and ring 253 through
   hipBLASLt. A June 5 focused field-127 release rerun refreshed the CK field
@@ -260,7 +269,7 @@ June 4-5, 2026 updates:
 | 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, generic ring 127/253 2048 has CPU-backed rocWMMA cache entries, and generic field-127 2048 has a CPU-backed CK cache entry; broader modulus-family and 4096 coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
-| 17 | Reframe Vector N=1 GEMV selector and cache policy | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds where vector beats CPU, Direct HIP, and accelerator alternatives end-to-end |
+| 17 | Completed current skinny-GEMV selector refresh | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | `skinny-gemv` release review covered bounded-i64 512x1x512, bounded-i64 256x1x4096, and bounded-u64 1024x1x1024 with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA; Direct HIP won all three groups and no cache entry was written | Closed for current claim refresh; reopen only for a cheaper native-input/reuse path that beats Direct HIP setup-inclusively |
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, and large-shape reusable-B scenarios; the contract still needs repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, stale-source rejection, and chain consumer identity | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
 | 19 | hipBLASLt A/B reuse conversion from benchmark win to explicit workload contract | hipBLASLt A/B reuse is the strongest event-valid reuse signal | Public or benchmark-contract design plus release evidence including setup amortization | Promote only when one-time setup and repeated-call semantics are visible and correct |
 | 20 | Advanced Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse now has reusable-B chain, reusable consumer-B, and large bounded scenario coverage, but reuse-A and non-bounded profiles remain thin | Release evidence for adaptive, finite, exact-wide, non-uniform inputs, and RNS-chain consumers | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
