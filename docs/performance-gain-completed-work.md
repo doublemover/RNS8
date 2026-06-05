@@ -14,7 +14,7 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 24 closed/completed ranks.
+Current count: 25 closed/completed ranks.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
@@ -42,3 +42,4 @@ Current count: 24 closed/completed ranks.
 | 40 | Closed helper lane: hardware-counter/RGA ingestion into evidence reports | PR #10 adds counter report tooling and ISA/capture cross-links | Optional counter/ISA summaries can now attach to reviewed captures | Closed as tooling; use as explanation evidence only, never as a replacement for timing and correctness gates |
 | 41 | Closed helper lane: architecture-specific kernel namespaces and target-keyed variants | PR #10 adds target-id, namespace, configured target, runtime version, and review grouping metadata | Target-specific cache entries still need real host evidence | Closed as schema/tooling; promote non-`gfx1100` only after evidence on that target |
 | 42 | Folded duplicate: Linux/Instinct/toolchain matrix gates | The active queue had two non-Windows platform validation rows | Active rank 62 owns the broader Linux/RDNA/CDNA validation matrix and target-report gate, including `tools/target_validation_report.py` and real-host release evidence requirements | Closed as a duplicate control-panel row; Windows `gfx1100` evidence remains local |
+| 49 | Completed budgeted 4096 release-reference gate | 4096 throughput classification needed required CPU/reference baselines without pretending GPU-only rows were promotional | `large-release-validation-4096-budgeted` now has bounded i64/u64 CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA rows; finite hot CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; exact-wide signed CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; and strict wrap64 byte-limb plus Direct HIP rows. The final release-reference rerun completed exact-wide signed `cpu-reference` at 113755000 us median with checksum `5508849193854467465` and strict wrap64 `wrap64-byte-limb` at 102905000 us median with checksum `13518998852724169131`; required GPU events and pairwise result comparisons are available under `temp/perf-work-queue/large-4096-release-reference-current/` | Closed as validation evidence: historical timeout rows remain visible but are superseded by completed release-reference rows; no 4096 cache entry is installed until reviewed-summary/margin policy and cache eligibility are explicit |

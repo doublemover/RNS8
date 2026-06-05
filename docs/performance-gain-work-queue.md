@@ -41,7 +41,7 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 49 ranks. Folded duplicate rows, completed
+active table below now contains 48 ranks. Folded duplicate rows, completed
 tooling surfaces, and no-promotion validation lanes live in the completed-work
 archive so this table can stay execution-focused.
 
@@ -61,13 +61,14 @@ June 4-5, 2026 updates:
   release matrix.
   Completed and closed ranks have been moved to
   [performance-gain-completed-work.md](performance-gain-completed-work.md) so
-  this active queue stays focused on execution. The archive currently holds 24
+  this active queue stays focused on execution. The archive currently holds 25
   ranks: infrastructure lanes 1, 2, 16, 23, 25, 26, 27, 28, 32, 34, 35, 37,
   40, and 41; current-claim validation lanes 4, 5, 17, 19, and 21; finite-u8
   hot-modulus 2048 rank 14; host API batching rank 31; and folded duplicate
-  control-panel rows 7, 29, and 42. Partially advanced lanes remain in the
-  active table when they still own implementation, promotion, release-size
-  validation, or public-contract work.
+  control-panel rows 7, 29, and 42. Rank 49 is now closed for the budgeted
+  4096 release-reference gate. Partially advanced lanes remain in the active
+  table when they still own implementation, promotion, release-size validation,
+  or public-contract work.
 - HIP Graph replay work has moved from a generic queue item to a branch-local
   benchmark implementation lane. The first surface is intentionally narrow:
   Direct-HIP resident RNS GEMM chains with `--reuse-packed-inputs`,
@@ -281,26 +282,26 @@ June 4-5, 2026 updates:
   u64. Finite hot-modulus 4096 also completed CPU, Direct HIP, hipBLASLt, CK,
   and rocWMMA groups for field-251 and ring 251/255/256; hipBLASLt wins
   field-251, ring-251, and ring-256, while CK wins ring-255. The exact-wide
-  signed 4096 GPU rows also ran
-  with required events, with hipBLASLt fastest among valid GPU captures at
-  172818 us versus Direct HIP at 637861 us, but the CPU reference timed out
-  under the new `--capture-timeout-seconds 60` budget. Strict wrap64 4096 now
-  has an event-valid Direct-HIP row at 295657 us, but its byte-limb reference
-  timed out under a 300-second budget. The regenerated release-gate report now
-  ingests both `.failed.json` timeout records alongside the 37 completed
-  captures; its blocker counts distinguish `required_baseline_timeout` from
-  unattempted work. A follow-up one-pass reference run under
+  signed 4096 GPU rows also ran with required events, with hipBLASLt fastest at
+  172818 us versus Direct HIP at 637861 us. Strict wrap64 4096 has an
+  event-valid Direct-HIP row at 295657 us. The regenerated release-gate report
+  ingests both `.failed.json` timeout records alongside the 37 original
+  completed captures and the 2 completed release-reference captures; historical
+  timeout rows remain visible but no longer count as active blockers once the
+  required backend has a valid release capture. Its blocker counts distinguish
+  historical `required_baseline_timeout` from current unattempted work. A
+  follow-up one-pass reference run under
   `temp/perf-work-queue/large-4096-reference-onepass-current/` completed full
   exact-wide signed `cpu-reference` and strict wrap64 `wrap64-byte-limb`
-  captures with `warmups=0` and `repeats=1`. The exact-wide reference recorded
-  112888000 us median end-to-end with checksum `5508849193854467465`; the
-  wrap64 byte-limb reference recorded 106858000 us with checksum
-  `13518998852724169131`. The combined one-pass report has 39 completed
-  captures, 2 historical timeout rows, 41 total inputs, no unattempted required
-  baselines, and no missing valid required baselines for exact-wide or wrap64,
-  but both groups still miss release-review required baselines because the
-  reference rows are not 3-warmup/9-repeat captures. No 4096 cache entry was
-  installed.
+  captures with `warmups=0` and `repeats=1`; a later release-reference run
+  completed the same two required references with `warmups=3` and `repeats=9`.
+  The exact-wide release reference recorded 113755000 us median end-to-end with
+  checksum `5508849193854467465`; the wrap64 byte-limb release reference
+  recorded 102905000 us with checksum `13518998852724169131`. The combined
+  release-reference report has 39 completed captures, 2 historical timeout
+  rows, 41 total inputs, no unattempted required baselines, no missing valid
+  required baselines, and no missing release-review required baselines for
+  exact-wide or wrap64. No 4096 cache entry was installed.
 - The non-bounded 4096 large-shape lane now also has same-commit GPU-only
   exploratory classification under
   `temp/perf-work-queue/large-4096-nonbounded-exploratory/`. The 50
@@ -458,14 +459,14 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; exact-wide signed/unsigned 2048 is captured and release-reviewed; strict wrap64 2048 is captured and release-reviewed with CPU byte-limb and Direct HIP v4; bounded i64/u64 4096 has GPU-only same-commit exploratory non-reuse/repeated-B classification with required GPU events; finite/exact-wide/wrap64 4096 has GPU-only exploratory classification and focused finite hipBLASLt event-complete reruns; bounded i64/u64 and finite hot 4096 now also have budgeted release-gate groups with required CPU/direct baselines and GPU events; exact-wide signed 4096 and strict wrap64 4096 have event-valid GPU rows plus one-pass full reference checksum captures, but still lack 3-warmup/9-repeat release-review reference rows | Keep repeated-B as explicit workload-contract evidence, keep wrap64 as Direct-HIP correctness-path evidence rather than cache promotion, keep bounded and finite 4096 as release-gate evidence until reviewed-summary/margin closure is explicit, keep exact-wide and wrap64 4096 blocked until release-review CPU/reference baselines complete, and do not install 4096 cache entries from GPU-only or partial-gate evidence |
+| 3 | Partially completed 2048/4096 large-shape matrix | Current evidence is heavy on 512/1024, and larger shapes show whether RNS8 is launch/export-bound or throughput-bound | Bounded i64/u64 2048 baseline plus repeated-B slices are captured and release-reviewed with CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA; finite-u8 2048 hot-modulus is captured and release-reviewed; exact-wide signed/unsigned 2048 is captured and release-reviewed; strict wrap64 2048 is captured and release-reviewed with CPU byte-limb and Direct HIP v4; bounded i64/u64 4096 has GPU-only same-commit exploratory non-reuse/repeated-B classification with required GPU events; finite/exact-wide/wrap64 4096 has GPU-only exploratory classification and focused finite hipBLASLt event-complete reruns; bounded i64/u64, finite hot, exact-wide signed, and strict wrap64 4096 now have budgeted release-gate groups with required CPU/reference/direct baselines and required GPU events | Keep repeated-B as explicit workload-contract evidence, keep wrap64 as Direct-HIP correctness-path evidence rather than cache promotion, keep 4096 as release-gate evidence until reviewed-summary/margin closure and cache policy are explicit, and do not install 4096 cache entries from GPU-only or partial-gate evidence |
 | 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident selected-prefix colpair was measured under `temp/perf-work-queue/direct-hip-resident-colpair-current/` and not promoted because rerun end-to-end timing lost 4010 us versus 2434 us for the existing tiled active-prefix path despite a narrower GEMM-median signal | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
 | 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline, while the other 19 host-batch candidates lose to same-backend or fastest independent baselines; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed | Keep open for a real device grouped/persistent dispatcher and broader host-batch proof: current evidence says batching helps one exact-wide proxy but not bounded or finite proxies, so route only explicit benchmark workloads until grouping beats independent calls across a durable workload family |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
 | 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
-| 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 signed/unsigned has event-valid GPU-only classification, and the budgeted signed 4096 gate now has event-valid Direct/hipBLASLt/CK/rocWMMA rows with hipBLASLt fastest, but the CPU reference timed out after 60 seconds | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound, keep 4096 exploratory until CPU/reference release review is complete, and route follow-up work toward fixed-width export, lazy residue-current workflows, and a chunked exact-wide CPU gate |
+| 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 signed has a CPU-backed budgeted release-gate group with Direct HIP, hipBLASLt, CK, and rocWMMA rows, matching checksum, required GPU events, and hipBLASLt fastest at 172818 us | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound, keep 4096 as release-gate evidence until reviewed-summary/margin closure and cache eligibility are explicit, and route follow-up work toward fixed-width export and lazy residue-current workflows |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, generic ring 127/253 2048 has CPU-backed rocWMMA cache entries, and generic field-127 2048 has a CPU-backed CK cache entry; broader modulus-family and 4096 coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, large-shape reusable-B scenarios, and a full bounded A/B/A+B release-contract matrix | `tools/reuse_contract_report.py` computes setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, and prepack source-identity metadata. Current reports classify 4/12 CPU-backed 2048 repeated-B captures, 3/16 bounded 4096 exploratory repeated-B captures, and 17/72 bounded reuse-contract A/B/A+B captures as workload candidates | Keep reuse out of AUTO until public workload lifetime, stale-source rejection, and chain-consumer identity are explicit; use the report as the promotion gate for explicit reuse workloads |
 | 20 | Advanced Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse now has reusable-B chain, reusable consumer-B, large bounded scenario coverage, and A/B/A+B release-contract comparisons, but non-bounded profiles remain thin | Existing Direct-HIP reuse captures can now be classified by the setup gate; the reuse-contract matrix finds Direct-HIP candidate wins for bounded-i64 1024 stable-A and stable-B, bounded-u64 1024 stable-A/B/A+B, and bounded-u64 2048 stable-A+B, while large repeated-B reports still deprioritize other Direct-HIP bounded reuse-B rows against fastest non-reuse baselines | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
@@ -482,7 +483,6 @@ June 4-5, 2026 updates:
 | 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy residue-current chains can avoid per-repeat CRT, but same-output proof is incomplete | Release matrix comparing independent final-output calls, residue-current chains, final export, reusable-B setup, and an API design draft for residue-current outputs | Keep benchmark-only until exact final CPU comparison and public lifetime semantics are explicit |
 | 47 | Export-bound exact-wide optimization and limb variants | Large exact-wide accelerator wins are export-bound after GEMM acceleration | Limb-count, compact D2H, status-elision, prefix-20 constants, tree/CRT, and final-output A/B captures for signed/unsigned 64/128/512/1024/2048 | Promote only for the caller-requested limb contract; never substitute a narrower output claim |
 | 48 | CRT/reconstruction fusion and GPU export kernel zoo | CRT/export now drives many exact-wide and bounded timings | Named reconstruction controllers for fixed-prefix Garner, mixed-radix, product-tree CRT, status fused/export fused, compact scatter, and residue-current no-export | Keep every variant selected-kernel visible with stale schema/cache rejection and setup-inclusive proof |
-| 49 | Budgeted 4096 release gate | 4096 is useful throughput classification but CPU/reference costs are high | The 4096 budget scenario has run bounded i64/u64 CPU/Direct/vector/accelerator rows, finite hot CPU/Direct/accelerator rows, exact-wide signed Direct/accelerator rows, strict wrap64 Direct-HIP rows, and one-pass full reference checksum rows for exact-wide signed `cpu-reference` and strict wrap64 `wrap64-byte-limb`; `tools/release_gate_report.py` schema v2 now reports completed captures, failed timeout rows, grouped baseline readiness, timed-out required baselines, unattempted required baselines, and release-review-missing required baselines separately; `benchmark_sweep.py --capture-timeout-seconds` records timed-out captures as explicit `.failed.json` rows. Remaining work is release-review-grade chunked exact-wide CPU reference and chunked wrap64 byte-limb reference | Keep 4096 exploratory unless the budgeted release gate completes with required CPU/direct/vector baselines where applicable, required GPU events, and release-ready metadata |
 | 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | Compare current v2, scratch/reducer variants, reuse variants, export variants, and setup-inclusive Direct-HIP baselines | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |
 | 51 | Direct-HIP resident matrix redesign after colpair rejection | Resident selected-prefix colpair lost end-to-end despite a narrower GEMM signal | Redesign resident kernels around data layout, tile shape, export interaction, schedule upload, and register/LDS pressure instead of retrying the rejected route | Route only if median end-to-end improves with stable events across fixed-prefix and selected-prefix cases |
 | 52 | Finite generic modulus family map | Generic finite-u8 wins now exist, but the modulus family is sparse | Release map for prime/composite/hot/non-hot moduli, field/ring semantics, 128/512/1024/2048, and backend-specific reducer identities | Promote only exact modulus/semantic/shape keys with CPU/direct baselines and required accelerator events |
@@ -515,7 +515,7 @@ June 4-5, 2026 updates:
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
 | Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof: only Direct-HIP exact-wide signed 64 hostbatch32 beats the fastest independent baseline, while bounded and finite host-batch candidates lose; there is still no device grouped/persistent dispatcher or public batching contract | Implement grouped/persistent execution if host-side batching is insufficient, expand exact-wide host-batch proof only where it survives the fastest-independent gate, and require complete GPU events for any promoted grouped or batched GPU candidate |
 | HIP Graph replay is implemented as a narrow benchmark lane, not a promoted workload contract | The branch-local graph path is deliberately scoped to Direct-HIP resident RNS chains and records wall-clock graph launch timing instead of normal per-kernel GPU event timing; schema/sweep/build/tiny smoke evidence now exists | Run release-size captures against the same non-graph chain, include capture/instantiate setup cost, and keep the result experimental unless it beats the same-contract non-graph path end-to-end |
-| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, with finite hot 2048 refreshed after the hipBLASLt event fix; repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion; bounded plus finite/exact-wide/wrap64 4096 now have GPU-only throughput classification, and focused reruns clear the known stale finite hipBLASLt reducer-event gaps | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass and runtime vector comparison are intentionally budgeted |
+| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, strict wrap64 2048, bounded i64/u64 4096, finite hot 4096, exact-wide signed 4096, and strict wrap64 4096 now have CPU/reference-backed release evidence where required; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, with finite hot 2048 refreshed after the hipBLASLt event fix; repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 rows as release-gate evidence unless reviewed-summary/margin policy and cache eligibility are explicitly closed |
 | Reuse/prepack wins use explicit reuse contracts | The branch now has a release-contract A/B/A+B matrix, but those captures intentionally change input lifetime and setup semantics versus one-shot calls | Convert only explicit reusable-input workloads with setup-inclusive break-even, source identity, stale-input rejection, and caller-visible lifetime metadata; do not install AUTO cache entries from reuse captures |
 
 ## Do Not Chase Next
@@ -3233,6 +3233,11 @@ Promotion gate:
 
 ### 49. Budgeted 4096 Release Gate
 
+Status: completed as a validation lane and archived in
+[performance-gain-completed-work.md](performance-gain-completed-work.md). The
+4096 rows remain release-gate evidence only; no 4096 cache entries are
+installed from this lane.
+
 4096 shapes are useful for throughput classification, but they can consume a
 lot of local time and CPU reference budget.
 
@@ -3254,14 +3259,19 @@ Likely first slices:
   Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA release captures;
   finite hot 4096 now has CPU, Direct HIP, hipBLASLt, CK, and rocWMMA release
   captures for ring 251/255/256 and field 251; exact-wide signed 4096 has
-  Direct HIP, hipBLASLt, CK, and rocWMMA captures, while the CPU reference
-  timed out under a 60-second capture budget; strict wrap64 4096 has a
-  Direct-HIP capture, while the byte-limb reference timed out under a
-  300-second capture budget. Follow-up one-pass reference captures completed
+  CPU, Direct HIP, hipBLASLt, CK, and rocWMMA release captures; strict wrap64
+  4096 has byte-limb and Direct-HIP release captures. Follow-up one-pass
+  reference captures first completed
   exact-wide signed `cpu-reference` and strict wrap64 `wrap64-byte-limb` with
-  full-output checksums, but they are not release-review timing baselines.
+  full-output checksums, then release-reference reruns completed both required
+  rows with 3 warmups and 9 measured repeats. Exact-wide signed `cpu-reference`
+  recorded 113755000 us median end-to-end with checksum
+  `5508849193854467465`; strict wrap64 `wrap64-byte-limb` recorded
+  102905000 us with checksum `13518998852724169131`.
 - CPU reference chunking report that records chunk size, seed, checksum, and
-  wall time.
+  wall time. Superseded by the completed long-timeout 3/9 release-reference
+  rows for the current 4096 gate; keep chunking as a future cost-reduction
+  tool, not as a remaining blocker for this validation lane.
 - Per-capture timeout enforcement. Implemented as
   `benchmark_sweep.py --capture-timeout-seconds`, which records timed-out
   captures as `.failed.json` with explicit timeout metadata.
@@ -3269,10 +3279,11 @@ Likely first slices:
   `tools/release_gate_report.py` schema v2 as grouped release-gate readiness
   output with required baselines, missing valid baselines, failed timeout
   records, unattempted baselines, release-capture readiness, and blocker
-  counts. The current combined one-pass 4096 report has 39 completed captures
-  plus 2 failed timeout rows; exact-wide signed is still blocked by
-  release-review-missing `cpu-reference`, and strict wrap64 is still blocked by
-  release-review-missing `wrap64-byte-limb`.
+  counts. The current combined release-reference 4096 report has 39 completed
+  captures plus 2 historical failed timeout rows; exact-wide signed and strict
+  wrap64 now have complete required release-review baselines. Historical
+  timeout rows remain visible but no longer count as active group blockers once
+  the required backend has a valid capture.
 
 Promotion gate:
 

@@ -240,18 +240,20 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         required = required_baselines(semantics)
         missing = [backend for backend in required if backend not in backends]
         missing_release_review = [backend for backend in required if backend not in release_review_backends]
-        failed_required_backends = sorted(
+        failed_required_history = sorted(
             {str(failure.get("backend")) for failure in failures if failure.get("backend") in required}
         )
-        timed_out_required_backends = sorted(
+        timed_out_required_history = sorted(
             {
                 str(failure.get("backend"))
                 for failure in failures
                 if failure.get("backend") in required and failure.get("timed_out") is True
             }
         )
+        failed_required_backends = [backend for backend in failed_required_history if backend not in backends]
+        timed_out_required_backends = [backend for backend in timed_out_required_history if backend not in backends]
         unattempted_required = [
-            backend for backend in required if backend not in backends and backend not in failed_required_backends
+            backend for backend in required if backend not in backends and backend not in failed_required_history
         ]
         required_attempted = sorted(
             {backend for backend in required if backend in backends or backend in failed_required_backends}
@@ -314,9 +316,16 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "missing_release_review_required_baselines": missing_release_review,
                 "failed_required_baselines": failed_required_backends,
                 "timed_out_required_baselines": timed_out_required_backends,
+                "historical_failed_required_baselines": failed_required_history,
+                "historical_timed_out_required_baselines": timed_out_required_history,
                 "unattempted_required_baselines": unattempted_required,
                 "required_baseline_failures": [
                     _failure_summary(failure) for failure in failures if failure.get("backend") in required
+                ],
+                "superseded_required_baseline_failures": [
+                    _failure_summary(failure)
+                    for failure in failures
+                    if failure.get("backend") in required and failure.get("backend") in backends
                 ],
                 "required_baselines_complete": not missing,
                 "required_baselines_release_review_complete": not missing_release_review,

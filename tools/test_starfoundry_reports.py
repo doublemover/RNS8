@@ -351,10 +351,40 @@ def main() -> int:
         ]
         assert failed_group["failed_required_baselines"] == ["cpu-reference"]
         assert failed_group["timed_out_required_baselines"] == ["cpu-reference"]
+        assert failed_group["historical_failed_required_baselines"] == ["cpu-reference"]
+        assert failed_group["historical_timed_out_required_baselines"] == ["cpu-reference"]
+        assert failed_group["superseded_required_baseline_failures"] == []
         assert failed_group["unattempted_required_baselines"] == ["hip-direct", "hip-vector-alu-int64"]
         assert failed_group["required_baselines_complete"] is False
         assert failed_group["required_baselines_release_review_complete"] is False
         assert failed_group["required_baseline_attempts_complete"] is False
+
+        original_load = release_gate_report._load
+        try:
+            completed_required_path = tmp / "completed-cpu.json"
+            completed_required_path.write_text("{}", encoding="utf-8")
+
+            def fake_load(path: Path) -> dict:
+                loaded = original_load(capture_path)
+                loaded["_path"] = str(path)
+                loaded["backend_selected"] = "cpu-reference"
+                loaded["backend_requested"] = "cpu-reference"
+                return loaded
+
+            release_gate_report._load = fake_load
+            superseded_report = release_gate_report.build_report([completed_required_path, failure_path])
+        finally:
+            release_gate_report._load = original_load
+
+        superseded_group = superseded_report["groups"][0]
+        assert superseded_group["required_baselines_attempted"] == ["cpu-reference"]
+        assert superseded_group["failed_required_baselines"] == []
+        assert superseded_group["timed_out_required_baselines"] == []
+        assert superseded_group["historical_failed_required_baselines"] == ["cpu-reference"]
+        assert superseded_group["historical_timed_out_required_baselines"] == ["cpu-reference"]
+        assert superseded_group["superseded_required_baseline_failures"][0]["backend"] == "cpu-reference"
+        assert "failed_required_baselines" not in superseded_group["blockers"]
+        assert "required_baseline_timeout" not in superseded_group["blockers"]
 
     search = modulus_set_search.build_report([("test", [251, 253, 255, 256])], 32)
     assert search["candidates"][0]["pairwise_coprime"] is True
