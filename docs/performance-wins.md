@@ -432,19 +432,26 @@ for the current Direct-HIP strict wrap64 path, not an AUTO cache entry.
 ## RNS Chain Evidence
 
 Final-output RNS-chain captures now have a dedicated same-contract report.
-`tools/rns_chain_report.py` validates `residue_chain_final_host_export`
-captures, requires CPU baselines and GPU events, and folds reusable-input setup
-cost into per-repeat medians before classifying rows. The focused Windows
-`gfx1100` set under
+`tools/rns_chain_report.py` validates `residue_chain_final_host_export` and
+bounded `residue_chain_independent_final_host_export` captures, requires CPU
+baselines and GPU events, and folds reusable-input setup cost into per-repeat
+medians before classifying rows. The focused Windows `gfx1100` set under
 `temp/perf-work-queue/rns-chain-final-output-current/` covers bounded-i64 128
 and exact-wide signed 128 with CPU, Direct HIP, and Direct-HIP reusable-B rows.
 Direct HIP wins versus CPU for the final-output chain contract: bounded-i64
 128 is 1614 us versus 15745 us, and exact-wide signed 128 is 1358 us versus
 41656 us. Reusable-B does not survive setup cost in this contract: bounded-i64
 reusable-B is 3002 us setup-inclusive versus 1614 us non-reuse, and exact-wide
-signed reusable-B is 3161 us versus 1358 us non-reuse. This is useful chain
-evidence, not an AUTO/cache entry or proof that lazy residue-current output
-beats a true independent export/repack baseline.
+signed reusable-B is 3161 us versus 1358 us non-reuse.
+
+Bounded independent export/repack controls are now measured separately under
+`temp/perf-work-queue/rns-chain-independent-final-output-current/`. The
+schema/event-valid report classifies two Direct-HIP resident final-output chain
+candidate wins against same-backend independent controls: bounded-i64 128
+chain3 is 1805 us versus 3324 us, 1.84x faster, and bounded-u64 256 chain3 is
+2240 us versus 4387 us, 1.96x faster. This is useful bounded chain evidence,
+not an AUTO/cache entry, and it does not close exact-wide lazy-output proof
+until exact-wide has an explicit limb import/repack baseline.
 
 ## Reuse And Prepack Wins
 

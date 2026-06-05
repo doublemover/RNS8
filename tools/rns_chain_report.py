@@ -70,11 +70,23 @@ def benchmark_execution_mode(capture: dict[str, Any]) -> str:
 
 def is_final_output_chain(capture: dict[str, Any]) -> bool:
     return (
-        benchmark_execution_mode(capture) == "residue_chain_final_host_export"
+        benchmark_execution_mode(capture)
+        in {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"}
         and capture.get("residue_chain_final_export") is True
         and isinstance(capture.get("residue_chain_length"), int)
         and capture["residue_chain_length"] > 1
     )
+
+
+def is_independent_export_repack_chain(capture: dict[str, Any]) -> bool:
+    return (
+        benchmark_execution_mode(capture) == "residue_chain_independent_final_host_export"
+        or capture.get("residue_chain_independent_final_export") is True
+    )
+
+
+def chain_mode(capture: dict[str, Any]) -> str:
+    return "independent_export_repack" if is_independent_export_repack_chain(capture) else "resident_final_output"
 
 
 def pack_mode(capture: dict[str, Any]) -> str:
@@ -201,7 +213,6 @@ def normalized_contract_key(capture: dict[str, Any]) -> str:
             continue
         parts.append(f"{key}={_normalized_contract_value(capture, key)}")
     extra_fields = [
-        "benchmark_execution_mode",
         "residue_chain_length",
         "residue_chain_final_export",
         "requested_next_op.resolved",
@@ -220,6 +231,7 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
         "path": capture.get("_path"),
         "backend": backend_id(capture),
         "pack_mode": pack_mode(capture),
+        "chain_mode": chain_mode(capture),
         "reuse": is_reuse_capture(capture),
         "median_end_to_end_us": median_end_to_end_us(capture),
         "setup_inclusive_median_per_repeat_us": setup_inclusive_median_per_repeat_us(capture),
@@ -262,18 +274,32 @@ def decision_for(
     cpu_baseline: dict[str, Any] | None,
     same_backend_nonreuse: dict[str, Any] | None,
     best_nonreuse: dict[str, Any] | None,
+    independent_baseline: dict[str, Any] | None,
 ) -> tuple[str, list[str]]:
     blockers: list[str] = []
     reuse = is_reuse_capture(candidate)
+    independent = is_independent_export_repack_chain(candidate)
     if backend_id(candidate) in REFERENCE_BACKENDS:
-        return "cpu_final_output_baseline", []
+        return "cpu_independent_export_repack_baseline" if independent else "cpu_final_output_baseline", []
+    if independent:
+        if not release_satisfied(candidate):
+            blockers.append("not_release_review")
+        if gpu_events_available(candidate) is False:
+            blockers.append("missing_candidate_gpu_events")
+        if setup_inclusive_median_per_repeat_us(candidate) is None:
+            blockers.append("missing_candidate_setup_inclusive_timing")
+        if blockers:
+            return "keep_experimental", blockers
+        return "independent_export_repack_baseline", []
     if cpu_baseline is None:
         return "missing_baseline", ["missing_cpu_final_output_baseline"]
     if best_nonreuse is None:
         return "missing_baseline", ["missing_nonreuse_final_output_baseline"]
+    if independent_baseline is None:
+        return "keep_experimental", ["missing_same_backend_independent_export_repack_baseline"]
     if reuse and same_backend_nonreuse is None:
         return "missing_baseline", ["missing_same_backend_nonreuse_chain_baseline"]
-    inputs = [candidate, cpu_baseline, best_nonreuse, same_backend_nonreuse]
+    inputs = [candidate, cpu_baseline, best_nonreuse, same_backend_nonreuse, independent_baseline]
     if any(capture is not None and not release_satisfied(capture) for capture in inputs):
         blockers.append("not_release_review")
     for label, capture in [
@@ -288,6 +314,8 @@ def decision_for(
         blockers.append("missing_candidate_setup_inclusive_timing")
     if speedup(cpu_baseline, candidate) is None:
         blockers.append("missing_cpu_speedup_timing")
+    if speedup(independent_baseline, candidate) is None:
+        blockers.append("missing_independent_export_repack_speedup_timing")
     if reuse:
         if avg_prepack_setup_us(candidate) is None:
             blockers.append("missing_prepack_setup_timing")
@@ -300,6 +328,9 @@ def decision_for(
         return "keep_experimental", blockers
     if speedup(cpu_baseline, candidate) is not None and speedup(cpu_baseline, candidate) <= 1.0:
         return "deprioritize", ["chain_not_faster_than_cpu_final_output"]
+    independent_speedup = speedup(independent_baseline, candidate)
+    if independent_speedup is not None and independent_speedup <= 1.0:
+        return "deprioritize", ["chain_not_faster_than_independent_export_repack"]
     if reuse:
         same_backend_speedup = speedup(same_backend_nonreuse, candidate)
         if same_backend_speedup is not None and same_backend_speedup <= 1.0:
@@ -325,8 +356,9 @@ def row_for_capture(
     cpu_baseline: dict[str, Any] | None,
     same_backend_nonreuse: dict[str, Any] | None,
     best_nonreuse: dict[str, Any] | None,
+    independent_baseline: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    decision, blockers = decision_for(capture, cpu_baseline, same_backend_nonreuse, best_nonreuse)
+    decision, blockers = decision_for(capture, cpu_baseline, same_backend_nonreuse, best_nonreuse, independent_baseline)
     same_backend_break_even = (
         break_even_repeats(
             median_end_to_end_us(same_backend_nonreuse),
@@ -342,6 +374,7 @@ def row_for_capture(
         "semantics": capture.get("semantics"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "chain_length": capture.get("residue_chain_length"),
+        "chain_mode": chain_mode(capture),
         "pack_mode": pack_mode(capture),
         "reuse": is_reuse_capture(capture),
         "prepack_reuse_operands": capture.get("prepack_reuse_operands"),
@@ -354,9 +387,11 @@ def row_for_capture(
         "cpu_baseline": capture_summary(cpu_baseline),
         "same_backend_nonreuse": capture_summary(same_backend_nonreuse),
         "best_nonreuse": capture_summary(best_nonreuse),
+        "independent_export_repack_baseline": capture_summary(independent_baseline),
         "speedup_vs_cpu": speedup(cpu_baseline, capture),
         "speedup_vs_same_backend_nonreuse": speedup(same_backend_nonreuse, capture),
         "speedup_vs_best_nonreuse": speedup(best_nonreuse, capture),
+        "speedup_vs_independent_export_repack": speedup(independent_baseline, capture),
         "break_even_repeats_same_backend": same_backend_break_even,
         "source_identity": source_identity_metadata(capture),
         "decision": decision,
@@ -373,18 +408,38 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
     groups = []
     for key, items in sorted(by_contract.items(), key=lambda item: item[0]):
         cpu_baseline = fastest([capture for capture in items if backend_id(capture) in REFERENCE_BACKENDS])
-        nonreuse = [capture for capture in items if not is_reuse_capture(capture)]
-        best_nonreuse = fastest([capture for capture in nonreuse if backend_id(capture) not in REFERENCE_BACKENDS])
+        resident_nonreuse = [
+            capture
+            for capture in items
+            if not is_reuse_capture(capture) and not is_independent_export_repack_chain(capture)
+        ]
+        independent_nonreuse = [
+            capture
+            for capture in items
+            if not is_reuse_capture(capture) and is_independent_export_repack_chain(capture)
+        ]
+        best_nonreuse = fastest([capture for capture in resident_nonreuse if backend_id(capture) not in REFERENCE_BACKENDS])
+        best_independent = fastest(
+            [capture for capture in independent_nonreuse if backend_id(capture) not in REFERENCE_BACKENDS]
+        )
         rows = []
-        for capture in sorted(items, key=lambda item: (backend_id(item), pack_mode(item), str(item.get("_path")))):
+        for capture in sorted(
+            items,
+            key=lambda item: (backend_id(item), chain_mode(item), pack_mode(item), str(item.get("_path"))),
+        ):
             same_backend_nonreuse = fastest(
                 [
                     item
-                    for item in nonreuse
+                    for item in resident_nonreuse
                     if backend_id(item) == backend_id(capture) and item is not capture
                 ]
             )
-            rows.append(row_for_capture(capture, cpu_baseline, same_backend_nonreuse, best_nonreuse))
+            same_backend_independent = fastest(
+                [item for item in independent_nonreuse if backend_id(item) == backend_id(capture)]
+            )
+            rows.append(
+                row_for_capture(capture, cpu_baseline, same_backend_nonreuse, best_nonreuse, same_backend_independent)
+            )
         groups.append(
             {
                 "contract_key": key,
@@ -392,6 +447,7 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
                     "capture_count": len(items),
                     "cpu_baseline": capture_summary(cpu_baseline),
                     "best_nonreuse": capture_summary(best_nonreuse),
+                    "best_independent_export_repack": capture_summary(best_independent),
                 },
                 "rows": sorted(rows, key=lambda row: row.get("setup_inclusive_median_per_repeat_us") or float("inf")),
             }
@@ -408,6 +464,13 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
         for group in groups
         for row in group["rows"]
         if row["backend"] not in REFERENCE_BACKENDS
+        and row["decision"] != "independent_export_repack_baseline"
+    ]
+    independent_rows = [
+        row
+        for group in groups
+        for row in group["rows"]
+        if row["decision"] == "independent_export_repack_baseline"
     ]
     return {
         "schema_version": 1,
@@ -419,6 +482,7 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
             "gpu_or_reuse_comparisons": len(comparison_rows),
             "candidate_wins": len(candidate_rows),
             "reuse_candidate_wins": sum(1 for row in candidate_rows if row["decision"] == "candidate_reuse_chain_win"),
+            "independent_export_repack_baselines": len(independent_rows),
             "deprioritized": sum(1 for row in comparison_rows if row["decision"] == "deprioritize"),
             "experimental": sum(1 for row in comparison_rows if row["decision"] == "keep_experimental"),
             "missing_baselines": sum(1 for row in comparison_rows if row["decision"] == "missing_baseline"),
@@ -452,8 +516,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | chain | mode | setup-inclusive us | CPU us | best non-reuse | same-backend speedup | CPU speedup | break-even repeats | decision | blockers |",
-            "|---|---|---|---:|---|---:|---:|---|---:|---:|---:|---|---|",
+            "| backend | semantics | shape | chain | chain mode | pack mode | setup-inclusive us | CPU us | independent us | independent speedup | same-backend speedup | CPU speedup | break-even repeats | decision | blockers |",
+            "|---|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
     for group in report["groups"]:
@@ -462,25 +526,22 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 continue
             shape = row["shape"]
             cpu = row.get("cpu_baseline") or {}
-            best = row.get("best_nonreuse") or {}
-            best_text = (
-                f"{best.get('backend')} {fmt(best.get('setup_inclusive_median_per_repeat_us'))}"
-                if best
-                else "none"
-            )
+            independent = row.get("independent_export_repack_baseline") or {}
             blockers = ",".join(row.get("blockers") or []) or "none"
             lines.append(
-                "| {backend} | {semantics} | {m}x{n}x{k} | {chain} | {mode} | {setup} | {cpu} | {best} | {same_speedup} | {cpu_speedup} | {break_even} | {decision} | {blockers} |".format(
+                "| {backend} | {semantics} | {m}x{n}x{k} | {chain} | {chain_mode} | {mode} | {setup} | {cpu} | {independent} | {independent_speedup} | {same_speedup} | {cpu_speedup} | {break_even} | {decision} | {blockers} |".format(
                     backend=row.get("backend"),
                     semantics=row.get("semantics"),
                     m=shape.get("m"),
                     n=shape.get("n"),
                     k=shape.get("k"),
                     chain=row.get("chain_length"),
+                    chain_mode=row.get("chain_mode"),
                     mode=row.get("pack_mode"),
                     setup=fmt(row.get("setup_inclusive_median_per_repeat_us")),
                     cpu=fmt(cpu.get("setup_inclusive_median_per_repeat_us")),
-                    best=best_text,
+                    independent=fmt(independent.get("setup_inclusive_median_per_repeat_us")),
+                    independent_speedup=fmt(row.get("speedup_vs_independent_export_repack")),
                     same_speedup=fmt(row.get("speedup_vs_same_backend_nonreuse")),
                     cpu_speedup=fmt(row.get("speedup_vs_cpu")),
                     break_even=fmt(row.get("break_even_repeats_same_backend")),

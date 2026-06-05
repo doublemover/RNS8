@@ -135,6 +135,7 @@ struct Args {
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
   uint32_t residue_chain_length = 1;
   bool residue_chain_final_export = false;
+  bool residue_chain_independent_final_export = false;
   uint32_t host_api_batch_size = 1;
   bool require_adaptive_execution = false;
   bool write_autotune_cache = false;
@@ -317,6 +318,7 @@ rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, s
       << "                  [--exact-wide-limbs 1..32]\n"
       << "                  [--residue-chain-length N]\n"
       << "                  [--residue-chain-final-export]\n"
+      << "                  [--residue-chain-independent-final-export]\n"
       << "                  [--host-api-batch-size N]\n"
       << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
       << "                  [--modulus-set default|experimental:NAME]\n"
@@ -394,11 +396,17 @@ bool rns_residue_chain_requested(const Args& args) {
 }
 
 bool residue_current_output_mode(const Args& args) {
-  return rns_residue_chain_requested(args) && !args.residue_chain_final_export;
+  return rns_residue_chain_requested(args) &&
+         !(args.residue_chain_final_export || args.residue_chain_independent_final_export);
 }
 
 bool residue_chain_final_export_requested(const Args& args) {
-  return rns_residue_chain_requested(args) && args.residue_chain_final_export;
+  return rns_residue_chain_requested(args) &&
+         (args.residue_chain_final_export || args.residue_chain_independent_final_export);
+}
+
+bool residue_chain_independent_final_export_requested(const Args& args) {
+  return rns_residue_chain_requested(args) && args.residue_chain_independent_final_export;
 }
 
 bool exact_wide_export_status_check_required(const Args& args) {
@@ -610,6 +618,9 @@ Args parse_args(int argc, char** argv) {
       args.residue_chain_length = parse_u32(argv[++i], "--residue-chain-length");
     } else if (arg == "--residue-chain-final-export") {
       args.residue_chain_final_export = true;
+    } else if (arg == "--residue-chain-independent-final-export") {
+      args.residue_chain_independent_final_export = true;
+      args.residue_chain_final_export = true;
     } else if (arg == "--host-api-batch-size" && i + 1 < argc) {
       args.host_api_batch_size = parse_u32(argv[++i], "--host-api-batch-size");
     } else if (arg == "--next-op-hint" && i + 1 < argc) {
@@ -680,6 +691,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--residue-chain-final-export]\n"
+          << "                  [--residue-chain-independent-final-export]\n"
           << "                  [--host-api-batch-size N]\n"
           << "                  [--next-op-hint final-export|rns-gemm|native-gemm|native-to-rns|reuse-b]\n"
           << "                  [--modulus-set default|experimental:NAME]\n"
@@ -893,8 +905,12 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_length == 0) {
     usage_error("--residue-chain-length must be positive");
   }
-  if (args.residue_chain_final_export && args.residue_chain_length <= 1) {
+  if (args.residue_chain_final_export && !args.residue_chain_independent_final_export &&
+      args.residue_chain_length <= 1) {
     usage_error("--residue-chain-final-export requires --residue-chain-length > 1");
+  }
+  if (args.residue_chain_independent_final_export && args.residue_chain_length <= 1) {
+    usage_error("--residue-chain-independent-final-export requires --residue-chain-length > 1");
   }
   if (args.host_api_batch_size == 0) {
     usage_error("--host-api-batch-size must be positive");
@@ -981,8 +997,8 @@ Args parse_args(int argc, char** argv) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
     usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
 #endif
-    if (args.residue_chain_final_export) {
-      usage_error("--hip-graph-replay cannot be combined with --residue-chain-final-export");
+    if (residue_chain_final_export_requested(args)) {
+      usage_error("--hip-graph-replay cannot be combined with residue-chain final-export modes");
     }
     if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
       usage_error("--hip-graph-replay requires --backend hip-direct");
@@ -1015,8 +1031,20 @@ Args parse_args(int argc, char** argv) {
     if (!rns_chain_benchmark_semantics(args.semantics)) {
       usage_error("--residue-chain-length > 1 is only valid for bounded or exact-wide RNS semantics");
     }
-    if (args.residue_chain_final_export && args.next_op_hint == NextOpHint::RnsGemm) {
-      usage_error("--residue-chain-final-export cannot use --next-op-hint rns-gemm");
+    if (residue_chain_final_export_requested(args) && args.next_op_hint == NextOpHint::RnsGemm) {
+      usage_error("residue-chain final-export modes cannot use --next-op-hint rns-gemm");
+    }
+    if (args.residue_chain_independent_final_export) {
+      if (!bounded_benchmark_semantics(args.semantics)) {
+        usage_error("--residue-chain-independent-final-export currently supports bounded-i64 and bounded-u64 only");
+      }
+      if (args.reuse_packed_inputs || args.oneshot || grouped_task_executor_requested(args) ||
+          args.transient_uniform_small_inputs || args.native_to_rns_bridge || args.vector_to_rns_chain ||
+          args.hip_graph_replay || args.residue_channel_fusion) {
+        usage_error(
+            "--residue-chain-independent-final-export cannot be combined with reuse, one-shot, grouped/host batch, "
+            "transient, bridge, graph, or residue-fusion modes");
+      }
     }
     if (args.m != args.n || args.n != args.k) {
       usage_error("--residue-chain-length > 1 currently requires square m=n=k RNS shapes");
@@ -1335,6 +1363,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (hip_graph_replay_requested(args)) {
     return "hip_graph_replay_resident_rns_chain";
+  }
+  if (residue_chain_independent_final_export_requested(args)) {
+    return "residue_chain_independent_final_host_export";
   }
   if (residue_chain_final_export_requested(args)) {
     return "residue_chain_final_host_export";
@@ -6267,6 +6298,57 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
+    if (residue_chain_independent_final_export_requested(args)) {
+      uint64_t pack_total_us = 0;
+      uint64_t gemm_total_us = 0;
+      uint64_t export_total_us = 0;
+      begin_gpu_event_phase(collect_gpu_events);
+
+      auto phase_start = std::chrono::steady_clock::now();
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
+      auto phase_end = std::chrono::steady_clock::now();
+      pack_total_us += elapsed_us(phase_start, phase_end);
+
+      for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+        phase_start = std::chrono::steady_clock::now();
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_gemm_rns(independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        gemm_total_us += elapsed_us(phase_start, phase_end);
+
+        phase_start = std::chrono::steady_clock::now();
+        status = rns8_export_i64(ctx, plan, c_matrix, C.data(), ldc);
+        if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(independent final-output chain)", status);
+        phase_end = std::chrono::steady_clock::now();
+        export_total_us += elapsed_us(phase_start, phase_end);
+
+        if (chain_index + 1 < args.residue_chain_length) {
+          phase_start = std::chrono::steady_clock::now();
+          status = rns8_pack_i64(ctx, a_matrix, C.data(), ldc, source_version + chain_index + 2);
+          if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(intermediate chain output)", status);
+          phase_end = std::chrono::steady_clock::now();
+          pack_total_us += elapsed_us(phase_start, phase_end);
+        }
+      }
+      latest_output_matrix = c_matrix;
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, selected_backend, result.gpu_events);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      const auto repeat_end = std::chrono::steady_clock::now();
+      if (samples) {
+        samples->pack_us.push_back(pack_total_us);
+        samples->gemm_us.push_back(gemm_total_us);
+        samples->export_us.push_back(export_total_us);
+        samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
+      }
+      return;
+    }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
     if (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) {
@@ -6643,6 +6725,57 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
+    if (residue_chain_independent_final_export_requested(args)) {
+      uint64_t pack_total_us = 0;
+      uint64_t gemm_total_us = 0;
+      uint64_t export_total_us = 0;
+      begin_gpu_event_phase(collect_gpu_events);
+
+      auto phase_start = std::chrono::steady_clock::now();
+      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
+      auto phase_end = std::chrono::steady_clock::now();
+      pack_total_us += elapsed_us(phase_start, phase_end);
+
+      for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+        phase_start = std::chrono::steady_clock::now();
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        if (status != RNS8_SUCCESS) {
+          fail_status("rns8_gemm_rns(independent final-output chain)", status);
+        }
+        phase_end = std::chrono::steady_clock::now();
+        gemm_total_us += elapsed_us(phase_start, phase_end);
+
+        phase_start = std::chrono::steady_clock::now();
+        status = rns8_export_u64(ctx, plan, c_matrix, C.data(), ldc);
+        if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(independent final-output chain)", status);
+        phase_end = std::chrono::steady_clock::now();
+        export_total_us += elapsed_us(phase_start, phase_end);
+
+        if (chain_index + 1 < args.residue_chain_length) {
+          phase_start = std::chrono::steady_clock::now();
+          status = rns8_pack_u64(ctx, a_matrix, C.data(), ldc, source_version + chain_index + 2);
+          if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(intermediate chain output)", status);
+          phase_end = std::chrono::steady_clock::now();
+          pack_total_us += elapsed_us(phase_start, phase_end);
+        }
+      }
+      latest_output_matrix = c_matrix;
+      if (collect_gpu_events) {
+        collect_pack_gpu_events(args, selected_backend, result.gpu_events);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
+      }
+      end_gpu_event_phase(collect_gpu_events);
+      const auto repeat_end = std::chrono::steady_clock::now();
+      if (samples) {
+        samples->pack_us.push_back(pack_total_us);
+        samples->gemm_us.push_back(gemm_total_us);
+        samples->export_us.push_back(export_total_us);
+        samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
+      }
+      return;
+    }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
     if (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) {
@@ -8332,6 +8465,9 @@ const char* benchmark_name(const Args& args) {
   if (hip_graph_replay_requested(args)) {
     return "rns8_hip_graph_replay_resident_rns_chain";
   }
+  if (residue_chain_independent_final_export_requested(args)) {
+    return "rns8_residue_chain_independent_final_host_export";
+  }
   if (residue_chain_final_export_requested(args)) {
     return "rns8_residue_chain_final_host_export";
   }
@@ -9357,6 +9493,7 @@ void print_json(
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const bool chain_residue_output = residue_current_output_mode(args);
   const bool chain_final_export = residue_chain_final_export_requested(args);
+  const bool chain_independent_final_export = residue_chain_independent_final_export_requested(args);
   const bool host_batch = host_api_batch_requested(args);
   const bool grouped_dispatch = grouped_dispatch_requested(args);
   const uint32_t task_count = measured_task_count(args);
@@ -9797,6 +9934,8 @@ void print_json(
   std::cout << ",\n";
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
   std::cout << "  \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
+  std::cout << "  \"residue_chain_independent_final_export\": "
+            << (chain_independent_final_export ? "true" : "false") << ",\n";
   std::cout << "  \"residue_output_mode\": \"" << residue_output_mode_name(args) << "\",\n";
   std::cout << "  \"host_api_batch\": {\n";
   std::cout << "    \"enabled\": " << (host_batch ? "true" : "false") << ",\n";
@@ -9934,6 +10073,12 @@ void print_json(
               << "each measured repeat runs " << args.residue_chain_length
               << " resident RNS GEMM calls before host export, raw_timings_us.crt_export is intentionally zero, and "
                  "one final logical export runs after measured repeats only to produce checksum_u64\",\n";
+  } else if (chain_independent_final_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for an independent final-output RNS GEMM chain; "
+              << "each measured repeat performs " << args.residue_chain_length
+              << " GEMM calls, exports every intermediate host output, repacks non-final intermediates as the next "
+                 "native input, and includes all materialization work in raw_timings_us.pack, raw_timings_us."
+                 "crt_export, and end_to_end\",\n";
   } else if (chain_final_export) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for a final-output RNS GEMM chain; each measured "
               << "repeat runs " << args.residue_chain_length
@@ -10120,6 +10265,8 @@ void print_json(
   }
   std::cout << ",\n";
   std::cout << "    \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
+  std::cout << "    \"residue_chain_independent_final_export\": "
+            << (chain_independent_final_export ? "true" : "false") << ",\n";
   std::cout << "    \"pack_layout\": \"" << json_escape(benchmark_pack_layout(args, result)) << "\",\n";
   std::cout << "    \"fusion_mode\": \"" << benchmark_fusion_mode(args) << "\",\n";
   std::cout << "    \"residue_group_width\": " << benchmark_residue_group_width(args) << ",\n";
@@ -10227,6 +10374,11 @@ void print_json(
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
               << " chained rns8_gemm_rns calls that keep the intermediate output resident in RNS form\",\n";
     std::cout << "      \"crt_export\": \"zero-valued per-repeat phase; residue-current chain mode defers host logical export until one final checksum export after measured repeats\",\n";
+  } else if (chain_independent_final_export) {
+    std::cout << "      \"pack\": \"per-repeat host timing for packing original A/B plus repacking each non-final host intermediate output into the next RNS input\",\n";
+    std::cout << "      \"rns_gemm\": \"per-repeat host timing for " << args.residue_chain_length
+              << " independent rns8_gemm_rns calls separated by host export and repack materialization\",\n";
+    std::cout << "      \"crt_export\": \"per-repeat host timing for exporting/reconstructing every intermediate and final chained logical output inside the measured repeat\",\n";
   } else if (chain_final_export) {
     if (args.reuse_packed_inputs) {
       if (reuses_all_packed_inputs(args)) {
@@ -10371,6 +10523,10 @@ void print_json(
       std::cout << " and one-time prepack_setup_us";
     }
     std::cout << "\"\n";
+  } else if (chain_independent_final_export) {
+    std::cout << "      \"end_to_end\": \"per-repeat pack of original inputs plus intermediate repacks, "
+              << args.residue_chain_length
+              << " independent rns_gemm calls, and every intermediate/final logical export host timing\"\n";
   } else if (chain_final_export) {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus " << args.residue_chain_length
               << " chained rns_gemm calls plus final logical export host timing";

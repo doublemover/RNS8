@@ -932,8 +932,10 @@ def main() -> int:
     rns_chain_final_entries = benchmark_sweep.sweep_command_entries(rns_chain_final_args)
     assert [entry.scenario["name"] for entry in rns_chain_final_entries] == [
         "bounded-i64-chain3-final-export",
+        "bounded-i64-chain3-independent-final-export",
         "bounded-i64-chain3-final-export-reuse-b",
         "bounded-u64-chain3-final-export-256",
+        "bounded-u64-chain3-independent-final-export-256",
         "exact-wide-signed-chain3-final-export",
         "exact-wide-signed-chain3-final-export-reuse-b",
         "exact-wide-unsigned-chain3-final-export-256",
@@ -947,7 +949,20 @@ def main() -> int:
         entry.scenario.get("metadata", {}).get("output_domain_requirement") == "same_final_output"
         for entry in rns_chain_final_entries
     )
-    assert all("--residue-chain-final-export" in entry.command for entry in rns_chain_final_entries)
+    independent_chain_final_entries = [
+        entry for entry in rns_chain_final_entries if entry.scenario["residue_chain_independent_final_export"] is True
+    ]
+    assert [entry.scenario["name"] for entry in independent_chain_final_entries] == [
+        "bounded-i64-chain3-independent-final-export",
+        "bounded-u64-chain3-independent-final-export-256",
+    ]
+    assert all("--residue-chain-independent-final-export" in entry.command for entry in independent_chain_final_entries)
+    assert all("--residue-chain-final-export" not in entry.command for entry in independent_chain_final_entries)
+    assert all(
+        "--residue-chain-final-export" in entry.command
+        for entry in rns_chain_final_entries
+        if entry.scenario["residue_chain_independent_final_export"] is False
+    )
     assert all("--next-op-hint" in entry.command and "final-export" in entry.command for entry in rns_chain_final_entries)
     assert all("finalexport" in entry.name for entry in rns_chain_final_entries)
     assert any(entry.scenario["shape"]["m"] == 512 for entry in rns_chain_final_entries)
@@ -1440,6 +1455,30 @@ def main() -> int:
     assert "--residue-chain-final-export" in exact_chain_final_command
     assert "--next-op-hint" in exact_chain_final_command
     assert exact_chain_final_command[exact_chain_final_command.index("--next-op-hint") + 1] == "final-export"
+
+    bounded_independent_chain_args = copy.copy(exact_args)
+    bounded_independent_chain_args.backends = ["cpu"]
+    bounded_independent_chain_args.semantics = ["bounded-i64"]
+    bounded_independent_chain_args.residue_chain_length = 3
+    bounded_independent_chain_args.residue_chain_independent_final_export = True
+    bounded_independent_chain_args.next_op_hint = "final-export"
+    bounded_independent_chain_commands = benchmark_sweep.sweep_commands(bounded_independent_chain_args)
+    assert [name for name, _command, _output in bounded_independent_chain_commands] == [
+        "bounded-i64-small-16x16x16-chain3-indepfinalexport-cpu.json",
+    ]
+    bounded_independent_chain_command = bounded_independent_chain_commands[0][1]
+    assert "--residue-chain-independent-final-export" in bounded_independent_chain_command
+    assert "--residue-chain-final-export" not in bounded_independent_chain_command
+
+    exact_independent_chain_args = copy.copy(exact_chain_args)
+    exact_independent_chain_args.residue_chain_independent_final_export = True
+    exact_independent_chain_args.next_op_hint = "final-export"
+    try:
+        benchmark_sweep.sweep_commands(exact_independent_chain_args)
+    except SystemExit as exc:
+        assert "currently supports bounded semantics only" in str(exc)
+    else:
+        raise AssertionError("exact-wide independent final-output chain should be rejected")
 
     vector_args = copy.copy(exact_args)
     vector_args.out_root = Path("temp") / "vector-runtime"

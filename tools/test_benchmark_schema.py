@@ -1924,6 +1924,94 @@ def as_residue_chain_final_export_capture(capture: dict) -> dict:
     return chain
 
 
+def as_bounded_residue_chain_independent_final_export_capture(capture: dict) -> dict:
+    chain = as_bounded_residue_current_chain_capture(capture)
+    repeats = chain["repeats"]
+    chain["benchmark"] = "rns8_residue_chain_independent_final_host_export"
+    chain["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["command_line"] = (
+        "rns8-bench --backend ck --semantics bounded-i64 --m 64 --n 64 --k 64 "
+        "--residue-chain-length 3 --residue-chain-independent-final-export --warmups 1 --repeats 2 --seed 7"
+    )
+    chain["epilogue_type"] = "crt_export"
+    chain["residue_chain_final_export"] = True
+    chain["residue_chain_independent_final_export"] = True
+    chain["residue_output_mode"] = "host_export"
+    chain["pack_mode"] = "per_repeat_repack"
+    chain["reuse_packed_inputs"] = False
+    chain["prepack_reuse_operands"] = []
+    chain["prepack_reuse_strategy"] = "none"
+    chain["prepack_setup_us"] = None
+    chain["avg_prepack_setup_us"] = None
+    chain["timing_note"] = (
+        "host wall-clock timings for an independent final-output RNS GEMM chain; each measured repeat performs "
+        "3 GEMM calls, exports every intermediate host output, repacks non-final intermediates as the next native "
+        "input, and includes all materialization work"
+    )
+    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["timing_metadata"]["residue_chain_final_export"] = True
+    chain["timing_metadata"]["residue_chain_independent_final_export"] = True
+    chain["timing_metadata"]["pack_mode"] = "per_repeat_repack"
+    chain["timing_metadata"]["prepack_reuse_operands"] = []
+    chain["timing_metadata"]["prepack_reuse_strategy"] = "none"
+    chain["timing_metadata"]["phase_notes"]["pack"] = (
+        "per-repeat host timing for packing original A/B plus repacking each non-final host intermediate output"
+    )
+    chain["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "per-repeat host timing for 3 independent rns8_gemm_rns calls separated by host export and repack"
+    )
+    chain["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "per-repeat host timing for exporting every intermediate and final chained logical output"
+    )
+    chain["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "per-repeat original input pack plus intermediate repacks, 3 rns_gemm calls, and every logical export"
+    )
+    chain["raw_timings_us"]["pack"] = [40, 45][:repeats]
+    chain["raw_timings_us"]["rns_gemm"] = [70, 75][:repeats]
+    chain["raw_timings_us"]["per_modulus_gemm_estimate"] = [
+        value / 9.0 for value in chain["raw_timings_us"]["rns_gemm"]
+    ]
+    chain["raw_timings_us"]["crt_export"] = [55, 60][:repeats]
+    chain["raw_timings_us"]["end_to_end"] = [
+        p + g + e
+        for p, g, e in zip(
+            chain["raw_timings_us"]["pack"],
+            chain["raw_timings_us"]["rns_gemm"],
+            chain["raw_timings_us"]["crt_export"],
+        )
+    ]
+    for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
+        chain["timing_summary_us"][phase] = summary(chain["raw_timings_us"][phase])
+    chain["timing_summary_us"]["per_modulus_gemm_estimate"] = summary(
+        chain["raw_timings_us"]["per_modulus_gemm_estimate"]
+    )
+    chain["avg_pack_us"] = chain["timing_summary_us"]["pack"]["avg"]
+    chain["avg_rns_gemm_us"] = chain["timing_summary_us"]["rns_gemm"]["avg"]
+    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"]["per_modulus_gemm_estimate"]["avg"]
+    chain["avg_crt_export_us"] = chain["timing_summary_us"]["crt_export"]["avg"]
+    chain["avg_end_to_end_us"] = chain["timing_summary_us"]["end_to_end"]["avg"]
+    export_phases = [
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export",
+    ]
+    for phase in export_phases:
+        if phase not in chain["timing_metadata"]["gpu_event_phase_order"]:
+            chain["timing_metadata"]["gpu_event_phase_order"].append(phase)
+        chain["gpu_event_timings_us"][phase] = [1.0 for _ in range(repeats)]
+        chain["gpu_event_timing_summary_us"][phase] = summary(chain["gpu_event_timings_us"][phase])
+    add_requested_next_op_fields(chain, resolved="final-export")
+    add_output_policy_fields(
+        chain,
+        status_handling="required",
+        per_repeat_export=True,
+        final_checksum_export=False,
+    )
+    return chain
+
+
 def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain = copy.deepcopy(capture)
     repeats = chain["repeats"]
@@ -3236,6 +3324,8 @@ def main() -> int:
     validate_capture(exact_chain_final_export)
     bounded_chain_ck = as_bounded_residue_current_chain_capture(v4_ck_i64)
     validate_capture(bounded_chain_ck)
+    bounded_chain_independent_final_export = as_bounded_residue_chain_independent_final_export_capture(v4_ck_i64)
+    validate_capture(bounded_chain_independent_final_export)
 
     bad_chain_missing_next_op = copy.deepcopy(exact_chain_ck)
     del bad_chain_missing_next_op["requested_next_op"]
@@ -3314,6 +3404,31 @@ def main() -> int:
     bad_final_chain_mode["benchmark_execution_mode"] = "persistent_resident_matrices"
     bad_final_chain_mode["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
     expect_invalid(bad_final_chain_mode, "benchmark_execution_mode=residue_chain_final_host_export")
+
+    bad_independent_chain_exact = copy.deepcopy(exact_chain_final_export)
+    bad_independent_chain_exact["benchmark"] = "rns8_residue_chain_independent_final_host_export"
+    bad_independent_chain_exact["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    bad_independent_chain_exact["residue_chain_independent_final_export"] = True
+    bad_independent_chain_exact["timing_metadata"]["benchmark_execution_mode"] = (
+        "residue_chain_independent_final_host_export"
+    )
+    bad_independent_chain_exact["timing_metadata"]["residue_chain_independent_final_export"] = True
+    expect_invalid(bad_independent_chain_exact, "currently require bounded semantics")
+
+    bad_independent_chain_stale_mode = copy.deepcopy(bounded_chain_independent_final_export)
+    bad_independent_chain_stale_mode["residue_chain_independent_final_export"] = False
+    bad_independent_chain_stale_mode["timing_metadata"]["residue_chain_independent_final_export"] = False
+    expect_invalid(
+        bad_independent_chain_stale_mode,
+        "benchmark_execution_mode=residue_chain_independent_final_host_export requires",
+    )
+
+    bad_independent_chain_reuse = copy.deepcopy(bounded_chain_independent_final_export)
+    bad_independent_chain_reuse["reuse_packed_inputs"] = True
+    bad_independent_chain_reuse["pack_mode"] = "prepacked_reuse_b"
+    bad_independent_chain_reuse["prepack_reuse_operands"] = ["B"]
+    bad_independent_chain_reuse["prepack_reuse_strategy"] = "persistent_matrix_residency"
+    expect_invalid(bad_independent_chain_reuse, "must use pack_mode=per_repeat_repack")
 
     bad_chain_shape = copy.deepcopy(exact_chain_ck)
     bad_chain_shape["n"] = 128

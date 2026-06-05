@@ -78,6 +78,7 @@ class ScenarioItem:
     exact_wide_limb_counts: tuple[int | None, ...] = (None,)
     residue_chain_length: int = 1
     residue_chain_final_export: bool = False
+    residue_chain_independent_final_export: bool = False
     output_ld_padding: int = 0
     host_api_batch_size: int = 1
     oneshot: bool = False
@@ -2958,6 +2959,28 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
             ),
             ScenarioItem(
                 "rns-chain-final-output",
+                "bounded-i64-chain3-independent-final-export",
+                "bounded-i64",
+                chain_128,
+                "three independent bounded i64 RNS GEMMs with host export and repack between chain steps",
+                "host_export",
+                "same-output control for measuring what lazy intermediate residency removes",
+                backends=("cpu", "hip-direct"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                residue_chain_independent_final_export=True,
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "rns_chain_final_output",
+                    "phase_label": "chain_independent_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+                    "promotion_scope": "independent_export_repack_control_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
                 "bounded-i64-chain3-final-export-reuse-b",
                 "bounded-i64",
                 chain_128,
@@ -2999,6 +3022,28 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                     "chain_depth": 3,
                     "validation_contract": "independent_calls_vs_chain_plus_final_export",
                     "promotion_scope": "final_output_chain_evidence_only",
+                },
+            ),
+            ScenarioItem(
+                "rns-chain-final-output",
+                "bounded-u64-chain3-independent-final-export-256",
+                "bounded-u64",
+                chain_256,
+                "three independent bounded u64 RNS GEMMs with host export and repack between chain steps",
+                "host_export",
+                "unsigned same-output control for measuring what lazy intermediate residency removes",
+                backends=("cpu", "hip-direct"),
+                residue_chain_length=3,
+                residue_chain_final_export=True,
+                residue_chain_independent_final_export=True,
+                next_op_hint="final-export",
+                metadata={
+                    "workflow_name": "rns_chain_final_output",
+                    "phase_label": "chain_independent_final_export",
+                    "output_domain_requirement": "same_final_output",
+                    "chain_depth": 3,
+                    "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+                    "promotion_scope": "independent_export_repack_control_only",
                 },
             ),
             ScenarioItem(
@@ -4810,6 +4855,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.reuse_packed_b = item.pack_mode == "prepacked_reuse_b"
     scenario_args.residue_chain_length = item.residue_chain_length
     scenario_args.residue_chain_final_export = item.residue_chain_final_export
+    scenario_args.residue_chain_independent_final_export = item.residue_chain_independent_final_export
     scenario_args.output_ld_padding = item.output_ld_padding
     scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
@@ -4879,6 +4925,7 @@ def scenario_metadata(
         "reuse_packed_inputs": requested_pack_mode(scenario_args) != "per_repeat_repack",
         "residue_chain_length": item.residue_chain_length,
         "residue_chain_final_export": item.residue_chain_final_export,
+        "residue_chain_independent_final_export": item.residue_chain_independent_final_export,
         "output_ld_padding": item.output_ld_padding,
         "host_api_batch_size": item.host_api_batch_size,
         "native_to_rns_bridge": item.native_to_rns_bridge,
@@ -4949,6 +4996,7 @@ def capture_name(
     host_api_batch_size: int = 1,
     hip_graph_replay: bool = False,
     oneshot: bool = False,
+    residue_chain_independent_final_export: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
@@ -4957,7 +5005,9 @@ def capture_name(
         parts.append(f"limbs{exact_wide_limb_count}")
     if semantics in RNS_CHAIN_SEMANTICS and residue_chain_length > 1:
         parts.append(f"chain{residue_chain_length}")
-        if residue_chain_final_export:
+        if residue_chain_independent_final_export:
+            parts.append("indepfinalexport")
+        elif residue_chain_final_export:
             parts.append("finalexport")
     if output_ld_padding > 0:
         parts.append(f"outpad{output_ld_padding}")
@@ -5037,7 +5087,9 @@ def command_for(
         command.extend(["--max-prefix", str(max_prefix)])
     if args.residue_chain_length > 1:
         command.extend(["--residue-chain-length", str(args.residue_chain_length)])
-    if getattr(args, "residue_chain_final_export", False):
+    if getattr(args, "residue_chain_independent_final_export", False):
+        command.append("--residue-chain-independent-final-export")
+    elif getattr(args, "residue_chain_final_export", False):
         command.append("--residue-chain-final-export")
     host_api_batch_size = int(getattr(args, "host_api_batch_size", 1) or 1)
     if host_api_batch_size > 1:
@@ -5114,6 +5166,7 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                 getattr(args, "native_to_rns_bridge", False),
                 getattr(args, "vector_to_rns_chain", False),
                 getattr(args, "residue_channel_fusion", False),
+                getattr(args, "residue_chain_independent_final_export", False),
                 int(getattr(args, "residue_chain_length", 1) or 1) != 1,
                 getattr(args, "bound_source", None) == "input-scan",
             ]
@@ -5155,8 +5208,10 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
         if any(semantics not in BOUNDED_SEMANTICS for semantics in semantics_values):
             raise SystemExit("--residue-channel-fusion is only valid for bounded semantics")
     if getattr(args, "hip_graph_replay", False):
-        if getattr(args, "residue_chain_final_export", False):
-            raise SystemExit("--hip-graph-replay cannot be combined with --residue-chain-final-export")
+        if getattr(args, "residue_chain_final_export", False) or getattr(
+            args, "residue_chain_independent_final_export", False
+        ):
+            raise SystemExit("--hip-graph-replay cannot be combined with residue-chain final-export modes")
         if requested_pack_mode(args) != "prepacked_reuse":
             raise SystemExit("--hip-graph-replay requires --reuse-packed-inputs")
         if args.residue_chain_length <= 1:
@@ -5175,14 +5230,39 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             raise SystemExit("--hip-graph-replay is only valid for bounded or exact-wide RNS sweeps")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
+    if getattr(args, "residue_chain_independent_final_export", False) and args.residue_chain_length <= 1:
+        raise SystemExit("--residue-chain-independent-final-export requires --residue-chain-length > 1")
     if getattr(args, "residue_chain_final_export", False) and args.residue_chain_length <= 1:
         raise SystemExit("--residue-chain-final-export requires --residue-chain-length > 1")
-    if getattr(args, "residue_chain_final_export", False) and getattr(args, "next_op_hint", None) == "rns-gemm":
-        raise SystemExit("--residue-chain-final-export cannot use --next-op-hint rns-gemm")
+    if (
+        getattr(args, "residue_chain_final_export", False)
+        or getattr(args, "residue_chain_independent_final_export", False)
+    ) and getattr(args, "next_op_hint", None) == "rns-gemm":
+        raise SystemExit("residue-chain final-export modes cannot use --next-op-hint rns-gemm")
     if args.residue_chain_length > 1:
         non_rns_chain = [semantics for semantics in semantics_values if semantics not in RNS_CHAIN_SEMANTICS]
         if non_rns_chain:
             raise SystemExit("--residue-chain-length > 1 currently requires bounded or exact-wide RNS semantics")
+    if getattr(args, "residue_chain_independent_final_export", False):
+        non_bounded_chain = [semantics for semantics in semantics_values if semantics not in BOUNDED_SEMANTICS]
+        if non_bounded_chain:
+            raise SystemExit("--residue-chain-independent-final-export currently supports bounded semantics only")
+        if requested_pack_mode(args) != "per_repeat_repack":
+            raise SystemExit("--residue-chain-independent-final-export cannot be combined with packed-input reuse")
+        if any(
+            [
+                getattr(args, "include_oneshot", False),
+                getattr(args, "oneshot_only", False),
+                getattr(args, "native_to_rns_bridge", False),
+                getattr(args, "vector_to_rns_chain", False),
+                getattr(args, "residue_channel_fusion", False),
+                host_api_batch_size > 1,
+            ]
+        ):
+            raise SystemExit(
+                "--residue-chain-independent-final-export cannot be combined with one-shot, bridge, "
+                "vector-to-RNS chain, residue-fusion, or host batching"
+            )
     include_oneshot = bool(getattr(args, "include_oneshot", False))
     oneshot_only = bool(getattr(args, "oneshot_only", False))
     if include_oneshot or oneshot_only:
@@ -5240,6 +5320,9 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
                                 int(getattr(args, "output_ld_padding", 0) or 0),
                                 int(getattr(args, "host_api_batch_size", 1) or 1),
                                 bool(getattr(args, "hip_graph_replay", False)),
+                                residue_chain_independent_final_export=bool(
+                                    getattr(args, "residue_chain_independent_final_export", False)
+                                ),
                             )
                             command = command_for(bench, backend, semantics, case, modulus, exact_wide_limb_count, args)
                             commands.append(SweepCommand(name, command, args.out_root / name))
@@ -5314,6 +5397,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             int(getattr(args, "grouped_dispatch_tasks", 1) or 1) != 1,
             getattr(args, "hip_graph_replay", False),
             getattr(args, "residue_chain_final_export", False),
+            getattr(args, "residue_chain_independent_final_export", False),
             getattr(args, "workload_proxy", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
@@ -5372,6 +5456,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         item.host_api_batch_size,
                         item.hip_graph_replay,
                         oneshot=item.oneshot,
+                        residue_chain_independent_final_export=item.residue_chain_independent_final_export,
                     )
                     name = f"{item.family}-{item.name}-{base_name}"
                     command = command_for(
@@ -5651,6 +5736,11 @@ def parse_args() -> argparse.Namespace:
         "--residue-chain-final-export",
         action="store_true",
         help="measure one final host export inside each residue-chain repeat instead of leaving output residue-current",
+    )
+    parser.add_argument(
+        "--residue-chain-independent-final-export",
+        action="store_true",
+        help="measure a bounded residue chain as independent GEMMs with host export and repack between steps",
     )
     parser.add_argument(
         "--host-api-batch-size",

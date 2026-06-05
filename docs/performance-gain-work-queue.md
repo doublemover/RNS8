@@ -56,9 +56,10 @@ June 4-5, 2026 updates:
   refreshes, exact-wide chain/export specialization, Direct-HIP one-shot
   colpair routing, many-small baseline review, focused diagnostic event
   cleanup, benchmark-owned host API batching, bound-discovery no-promotion
-  validation, bounded 4096 exploratory classification, and non-bounded 4096
-  exploratory classification, plus the full bounded A/B/A+B reuse-contract
-  release matrix.
+  validation, bounded 4096 exploratory classification, non-bounded 4096
+  exploratory classification, the full bounded A/B/A+B reuse-contract release
+  matrix, and bounded RNS-chain independent final-output/export-repack
+  controls.
   Completed and closed ranks have been moved to
   [performance-gain-completed-work.md](performance-gain-completed-work.md) so
   this active queue stays focused on execution. The archive currently holds 26
@@ -479,21 +480,31 @@ June 4-5, 2026 updates:
   `temp/residue-chain-final-output/` are schema-valid and have required GPU
   events for bounded-i64 CRT export and exact-wide signed limb export. This is
   contract/tooling proof, not a release-size performance promotion.
-- The first release-style final-output chain control report now exists.
-  `tools/rns_chain_report.py` validates `residue_chain_final_host_export`
-  captures, groups the same requested final-output contract, requires CPU
-  baseline and GPU events, adds reusable-input setup cost back into per-repeat
-  medians, and reports break-even/deprioritization decisions. Focused Windows
-  `gfx1100` captures under
-  `temp/perf-work-queue/rns-chain-final-output-current/` cover bounded-i64
-  128 and exact-wide signed 128 with CPU, Direct HIP, and Direct-HIP reusable
-  B. Direct HIP wins the same final-output chain contract versus CPU at
-  1614 us versus 15745 us for bounded-i64 and 1358 us versus 41656 us for
-  exact-wide signed, with required GPU events. Reusable-B loses the
-  setup-inclusive same-backend gate for both rows: 3002 us versus 1614 us for
-  bounded-i64 and 3161 us versus 1358 us for exact-wide signed. This improves
-  the final-output proof surface, but it still does not supply a true
-  independent-call export/repack A/B baseline for exact-wide intermediates.
+- The release-style final-output chain control report now validates both
+  resident final-output chains and bounded independent export/repack controls.
+  `tools/rns_chain_report.py` accepts `residue_chain_final_host_export` and
+  `residue_chain_independent_final_host_export`, groups the same requested
+  final-output contract, requires CPU baseline and GPU events, adds
+  reusable-input setup cost back into per-repeat medians, and reports
+  break-even/deprioritization decisions. Focused Windows `gfx1100` captures
+  under `temp/perf-work-queue/rns-chain-final-output-current/` cover
+  bounded-i64 128 and exact-wide signed 128 with CPU, Direct HIP, and
+  Direct-HIP reusable B. Direct HIP wins the same final-output chain contract
+  versus CPU at 1614 us versus 15745 us for bounded-i64 and 1358 us versus
+  41656 us for exact-wide signed, with required GPU events. Reusable-B loses
+  the setup-inclusive same-backend gate for both rows: 3002 us versus 1614 us
+  for bounded-i64 and 3161 us versus 1358 us for exact-wide signed.
+- Bounded same-output export/repack controls now exist for the RNS-chain path.
+  The focused release-style captures under
+  `temp/perf-work-queue/rns-chain-independent-final-output-current/` add
+  schema/event-valid CPU and Direct-HIP resident and independent controls for
+  bounded-i64 128 chain3 and bounded-u64 256 chain3. The same report classifies
+  Direct-HIP resident final-output chains as candidate wins against their
+  same-backend independent export/repack controls: bounded-i64 128 is 1805 us
+  versus 3324 us, 1.84x faster, and bounded-u64 256 is 2240 us versus 4387 us,
+  1.96x faster. Exact-wide independent export/repack remains open because it
+  needs an explicit limb-output import/repack contract before the comparison is
+  fair.
 - Direct-HIP public bounded-i64 one-shot large shapes now use the existing
   prefix-9 colpair native-input kernel. The focused before/after captures under
   `temp/perf-work-queue/direct-hip-i64-oneshot-colpair/` compare the prior v1
@@ -570,10 +581,10 @@ June 4-5, 2026 updates:
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 8 | Advanced many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline; branch-local `--grouped-dispatch N` now executes same-shape benchmark-owned persistent task groups; grouped export-only follow-ups reached 792.66-795.19 us per task; grouped pack+export reached 228.06 us per task; the current grouped pack+GEMM+export follow-up under `temp/perf-work-queue/many-small-grouped-gemm-current/` is schema/event-valid at 66.47 us per task for exact-wide signed 64 group32, 58.37x faster than independent Direct HIP, 28.63x faster than hostbatch32, and 3.43x faster than grouped pack+export, with event median `rns_gemm` reduced from 4701.94 us to 168.70 us; the unsigned twin is schema/event-valid at 63.56 us per task but smoke-only until the matching independent unsigned baseline exists | Keep open for a public or generic grouped/persistent dispatcher and broader durable workload-family proof: the current grouped path batches pack, same-shape Direct-HIP RNS GEMM, and contiguous exact-wide export only for explicit benchmark workloads, so route only explicit grouped workloads until grouping wins beyond exact-wide 64 group32 and the descriptor/lifetime/output contract is durable |
-| 9 | Partially completed RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, reusable-B RNS-chain scenarios, and `--residue-chain-final-export` captures with `residue_chain_final_host_export` schema mode; exact-wide signed 128 Direct-HIP residue-current captures are release-mode and event-valid, and `tools/rns_chain_report.py` now classifies focused final-output chain captures under `temp/perf-work-queue/rns-chain-final-output-current/`: Direct HIP beats CPU at bounded-i64 128 and exact-wide signed 128 with required GPU events, while Direct-HIP reusable-B is deprioritized after setup cost | Keep active until skipped intermediate export is semantically visible against an independent final-output/export-repack baseline, setup/reuse policy is explicit, and public or benchmark lifetime/currentness semantics prevent accidental cross-workload reuse |
+| 9 | Partially completed RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, reusable-B RNS-chain scenarios, `--residue-chain-final-export` captures with `residue_chain_final_host_export`, and bounded `--residue-chain-independent-final-export` controls with `residue_chain_independent_final_host_export`; exact-wide signed 128 Direct-HIP residue-current captures are release-mode and event-valid; final-output reports now show Direct HIP beating CPU at bounded-i64 128 and exact-wide signed 128, reusable-B losing after setup cost, and bounded resident chains beating same-backend independent export/repack controls at bounded-i64 128 by 1.84x and bounded-u64 256 by 1.96x | Keep active for exact-wide independent export/repack, setup/reuse policy, and public or benchmark lifetime/currentness semantics that prevent accidental cross-workload reuse |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
-| 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; final-output exact-wide signed 128 now has release-style CPU and Direct-HIP captures plus a same-contract `rns_chain_report.py` row at 1358 us Direct HIP versus 41656 us CPU, with reusable-B deprioritized at 3161 us setup-inclusive. Release-size shape/semantic comparators and independent-call export/repack A/B reports are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines; exact-wide independent-call proof likely needs an explicit limb-import/repack contract before it can be fair |
+| 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; final-output exact-wide signed 128 now has release-style CPU and Direct-HIP captures plus a same-contract `rns_chain_report.py` row at 1358 us Direct HIP versus 41656 us CPU, with reusable-B deprioritized at 3161 us setup-inclusive. Bounded independent export/repack controls are now proven separately, but exact-wide release-size shape/semantic comparators and exact-wide independent export/repack A/B reports are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines; exact-wide independent-call proof likely needs an explicit limb-import/repack contract before it can be fair |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 signed and unsigned now have CPU-backed release-reviewed groups with Direct HIP, hipBLASLt, CK, and rocWMMA rows, matching checksums, required GPU events, and installed hipBLASLt cache entries at 176943 us signed and 162382 us unsigned | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048/4096 evidence as export-bound, keep broader limb-count variants open, and route follow-up work toward fixed-width export and lazy residue-current workflows |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, generic ring 127/253 2048 has CPU-backed rocWMMA cache entries, and generic field-127 2048 has a CPU-backed CK cache entry; broader modulus-family and 4096 coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, large-shape reusable-B scenarios, and a full bounded A/B/A+B release-contract matrix | `tools/reuse_contract_report.py` computes setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, and prepack source-identity metadata. Current reports classify 4/12 CPU-backed 2048 repeated-B captures, 3/16 bounded 4096 exploratory repeated-B captures, and 17/72 bounded reuse-contract A/B/A+B captures as workload candidates | Keep reuse out of AUTO until public workload lifetime, stale-source rejection, and chain-consumer identity are explicit; use the report as the promotion gate for explicit reuse workloads |
@@ -588,7 +599,7 @@ June 4-5, 2026 updates:
 | 43 | Advanced reuse contract ledger and persistent matrix policy | Reuse/prepack wins are correct but compare different workload contracts | `tools/reuse_contract_report.py` now computes setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, and prepack source-identity metadata; remaining work is public reusable-input lifetime policy, stale-source rejection, and selector eligibility | Keep reuse out of AUTO until the ledger proves a same workload family and stale-source rejection |
 | 44 | Persistent resident matrix lifetime implementation | Persistent RNS/native matrices are the core representation, but benchmark-owned lifetimes still hide useful routing semantics | Public/benchmark contract for resident A/B/C lifetimes, source versions, workspace binding, and output currentness across repeated calls | Promote only when lifetime identity prevents accidental reuse across changed descriptors, data, semantics, target, or plan |
 | 45 | Device grouped dispatcher for many-small workloads | The benchmark now has a same-shape grouped task-prefix GEMM win, but it is still not a public grouped API or generic descriptor queue | Same-shape exact-wide grouped pack+GEMM+export is schema/event-valid at 66.47 us per task for signed 64 group32; remaining proof needs descriptor-backed task queues, broader semantics/shapes, exact per-task checksums, GPU events, and fastest-independent baselines | Route only explicit grouped workloads until it beats independent calls across a durable family and the task descriptor/lifetime/output contract is public or mechanically enforced |
-| 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy residue-current chains can avoid per-repeat CRT, but same-output proof is incomplete | Final-output chain benchmark/schema/sweep surface exists with `rns-chain-final-output` scenarios, tiny `gfx1100` event-valid Direct-HIP smokes, and a focused release-style report for bounded-i64 128 plus exact-wide signed 128. The report provides exact CPU final-output comparison and setup-inclusive reusable-B classification, but the matrix still lacks independent final-output/export-repack chain baselines, larger exact-wide shapes, residue-current-versus-final-output pairing, and an API design draft for residue-current outputs | Keep benchmark-only until exact final CPU comparison, release-size speedup, independent-call/export-repack comparison, and public lifetime semantics are explicit |
+| 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy residue-current chains can avoid per-repeat CRT, but same-output proof is incomplete | Final-output chain benchmark/schema/sweep surface exists with `rns-chain-final-output` scenarios, tiny `gfx1100` event-valid Direct-HIP smokes, a focused release-style report for bounded-i64 128 plus exact-wide signed 128, and bounded independent export/repack controls for bounded-i64 128 and bounded-u64 256. The bounded controls show resident final-output chains beating same-backend independent export/repack by 1.84x and 1.96x respectively, but the matrix still lacks exact-wide independent final-output/export-repack baselines, larger exact-wide shapes, residue-current-versus-final-output pairing, and an API design draft for residue-current outputs | Keep benchmark-only until exact final CPU comparison, release-size speedup, exact-wide independent-call/export-repack comparison, and public lifetime semantics are explicit |
 | 47 | Export-bound exact-wide optimization and limb variants | Large exact-wide accelerator wins are export-bound after GEMM acceleration | Limb-count, compact D2H, status-elision, prefix-20 constants, tree/CRT, and final-output A/B captures for signed/unsigned 64/128/512/1024/2048 | Promote only for the caller-requested limb contract; never substitute a narrower output claim |
 | 48 | CRT/reconstruction fusion and GPU export kernel zoo | CRT/export now drives many exact-wide and bounded timings | Named reconstruction controllers for fixed-prefix Garner, mixed-radix, product-tree CRT, status fused/export fused, compact scatter, and residue-current no-export | Keep every variant selected-kernel visible with stale schema/cache rejection and setup-inclusive proof |
 | 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | Compare current v2, scratch/reducer variants, reuse variants, export variants, and setup-inclusive Direct-HIP baselines | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |
@@ -3329,8 +3340,13 @@ Technical direction:
   `rns8-bench --residue-chain-final-export` measures the final logical export
   inside each repeat, schema v4 records `residue_chain_final_host_export`, and
   the `rns-chain-final-output` scenario family emits bounded and exact-wide
-  candidates. The next work is release-size independent-call comparison, not
-  basic capture plumbing.
+  candidates. Bounded independent export/repack controls now also exist through
+  `--residue-chain-independent-final-export` and
+  `residue_chain_independent_final_host_export`; focused bounded-i64 128 and
+  bounded-u64 256 reports show resident chains beating same-backend independent
+  export/repack by 1.84x and 1.96x respectively. The next work is exact-wide
+  independent export/repack and API lifetime semantics, not basic capture
+  plumbing.
 - Draft a public API model for residue-current output handles: explicit output
   domain, semantic contract, prefix/modulus schedule, currentness, and allowed
   consumers.
@@ -3340,8 +3356,8 @@ Technical direction:
 Likely first slices:
 
 - Exact-wide signed/unsigned 128 and 512 chain-length 2/3/5 release matrix.
-- Same-output report: independent final-output calls versus chain plus final
-  export.
+- Exact-wide same-output report: independent final-output calls with explicit
+  limb import/repack versus chain plus final export.
 - ABI-neutral design doc for future residue-current output and lazy export.
 
 Promotion gate:

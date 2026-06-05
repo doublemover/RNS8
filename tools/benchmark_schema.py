@@ -395,6 +395,7 @@ BENCHMARK_EXECUTION_MODES = {
     "hip_graph_replay_resident_rns_chain",
     "residue_current_rns_chain",
     "residue_chain_final_host_export",
+    "residue_chain_independent_final_host_export",
     "transient_native_a_resident_b_reuse",
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
@@ -707,7 +708,18 @@ class _Validator:
         return (
             self._residue_chain_length() > 1
             and self._residue_output_mode() == "host_export"
-            and self._benchmark_execution_mode() == "residue_chain_final_host_export"
+            and self.data.get("residue_chain_final_export") is True
+            and self._benchmark_execution_mode()
+            in {"residue_chain_final_host_export", "residue_chain_independent_final_host_export"}
+        )
+
+    def _is_residue_chain_independent_final_export_capture(self) -> bool:
+        return (
+            self._residue_chain_length() > 1
+            and self._residue_output_mode() == "host_export"
+            and self.data.get("residue_chain_final_export") is True
+            and self.data.get("residue_chain_independent_final_export") is True
+            and self._benchmark_execution_mode() == "residue_chain_independent_final_host_export"
         )
 
     def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
@@ -3011,12 +3023,18 @@ class _Validator:
         residue_chain_length = self._residue_chain_length()
         residue_output_mode = self._residue_output_mode()
         residue_chain_final_export = self.data.get("residue_chain_final_export")
+        residue_chain_independent_final_export = self.data.get("residue_chain_independent_final_export")
         status_check = self.data.get("exact_wide_export_status_check")
         prefix_policy = self.data.get("contract_prefix_policy")
+        metadata = self.data.get("timing_metadata")
         if bound_mode not in {"global", "per_tile"}:
             self._error("bound_mode must be global or per_tile")
         if residue_chain_final_export is not None and not isinstance(residue_chain_final_export, bool):
             self._error("residue_chain_final_export must be a boolean")
+        if residue_chain_independent_final_export is not None and not isinstance(
+            residue_chain_independent_final_export, bool
+        ):
+            self._error("residue_chain_independent_final_export must be a boolean")
         if status_check is not None and semantics not in {"exact_wide_signed", "exact_wide_unsigned"}:
             self._error("exact_wide_export_status_check must be null outside exact-wide captures")
         rns_chain_semantics = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
@@ -3030,6 +3048,42 @@ class _Validator:
             expected_final_export = residue_output_mode == "host_export"
             if residue_chain_final_export is not expected_final_export:
                 self._error("residue_chain_final_export must match residue_output_mode for chain captures")
+        if residue_chain_independent_final_export is True:
+            if semantics not in {"bounded_i64", "bounded_u64"}:
+                self._error("independent final-output residue-chain captures currently require bounded semantics")
+            if residue_chain_length <= 1 or residue_output_mode != "host_export":
+                self._error("independent final-output residue-chain captures must use host_export residue_chain_length > 1")
+            if residue_chain_final_export is not True:
+                self._error("independent final-output residue-chain captures must set residue_chain_final_export=true")
+            if self._benchmark_execution_mode() != "residue_chain_independent_final_host_export":
+                self._error(
+                    "independent final-output residue-chain captures must use "
+                    "benchmark_execution_mode=residue_chain_independent_final_host_export"
+                )
+            if self.data.get("pack_mode") != "per_repeat_repack":
+                self._error("independent final-output residue-chain captures must use pack_mode=per_repeat_repack")
+            if self.data.get("reuse_packed_inputs") is not False:
+                self._error("independent final-output residue-chain captures must not use packed-input reuse")
+            if self.data.get("prepack_reuse_operands") not in (None, []):
+                self._error("independent final-output residue-chain captures must not declare reused operands")
+            if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
+                self._error("independent final-output residue-chain captures must use prepack_reuse_strategy=none")
+            if isinstance(metadata, dict):
+                if metadata.get("residue_chain_independent_final_export") is not True:
+                    self._error(
+                        "independent final-output residue-chain captures must set "
+                        "timing_metadata.residue_chain_independent_final_export=true"
+                    )
+                if metadata.get("residue_chain_final_export") is not True:
+                    self._error(
+                        "independent final-output residue-chain captures must set "
+                        "timing_metadata.residue_chain_final_export=true"
+                    )
+        elif self._benchmark_execution_mode() == "residue_chain_independent_final_host_export":
+            self._error(
+                "benchmark_execution_mode=residue_chain_independent_final_host_export requires "
+                "residue_chain_independent_final_export=true"
+            )
         if semantics == "wrap_u64_mod_2_64":
             is_candidate = self._is_wrap64_rocwmma_candidate()
             if self.data.get("backend_selected") not in {"wrap64-byte-limb", "hip-direct"} and not is_candidate:
@@ -3459,10 +3513,14 @@ class _Validator:
                     expected_epilogue_type = "residue_current_rns_output"
                 else:
                     expected_epilogue_type = "crt_export"
-                    if self._benchmark_execution_mode() != "residue_chain_final_host_export":
+                    if self._benchmark_execution_mode() not in {
+                        "residue_chain_final_host_export",
+                        "residue_chain_independent_final_host_export",
+                    }:
                         self._error(
                             "bounded residue-chain final-export captures must use "
-                            "benchmark_execution_mode=residue_chain_final_host_export"
+                            "benchmark_execution_mode=residue_chain_final_host_export or "
+                            "residue_chain_independent_final_host_export"
                         )
                 if bound_mode != "global":
                     self._error("bounded residue chains must use bound_mode=global")
