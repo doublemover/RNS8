@@ -46,7 +46,8 @@ June 4-5, 2026 updates:
 
 - Current branch reconciliation: the active queue below is updated through the
   branch-local helper/evidence work, adaptive release rerun, bounded 2048
-  release review, finite-u8 2048 release review, and exact-wide 64/128 refresh.
+  release review, finite-u8 2048 release review, generic finite-u8 2048 ring
+  refresh, and exact-wide 64/128 refresh.
   Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
   35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
   and the 2048 hot-modulus portion of rank 14. Partially advanced lanes remain
@@ -69,6 +70,13 @@ June 4-5, 2026 updates:
   hipBLASLt. A June 5 focused field-127 release rerun refreshed the CK field
   127 entry at 1289 us median end-to-end and confirmed hipBLASLt now has
   required GPU events for that contract, but loses to Direct HIP and CK.
+- Finite-u8 generic ring 2048 now has CPU-backed release review instead of the
+  previous GPU-only diagnostic captures. The June 5 current rerun installed two
+  local rocWMMA cache entries: ring 127 at 3427 us median end-to-end, 1.59x
+  faster than Direct HIP with CPU reference at 764044 us, and ring 253 at
+  4856 us median end-to-end, 1.12x faster than Direct HIP with CPU reference at
+  864589 us. The mod-127 hipBLASLt capture remains event-incomplete and loses to
+  Direct HIP, so it stays diagnostic only.
 - Finite-u8 2048 hot-modulus work is now CPU-backed and release-reviewed for
   ring 251/255/256 plus field 251. Four local cache entries were installed:
   rocWMMA ring 251, hipBLASLt ring 255, rocWMMA ring 256, and hipBLASLt field
@@ -243,7 +251,7 @@ June 4-5, 2026 updates:
 | 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 and broader fixed limb-count variants still need release review | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound and route follow-up work toward fixed-width export and lazy residue-current workflows |
 | 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
-| 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 now has promoted local keys, including a refreshed event-complete field-127 CK cache entry, but broader sizes remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
+| 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, and generic ring 127/253 2048 now has CPU-backed rocWMMA cache entries; field 2048 and broader modulus coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
 | 17 | Reframe Vector N=1 GEMV selector and cache policy | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | Release matrix for N=1 families plus selector explanation output | Route only for gated N=1/K thresholds where vector beats CPU, Direct HIP, and accelerator alternatives end-to-end |
 | 18 | Advanced reuse/prepack workload contract promotion | Repeated-A/B wins are real, and this branch now exposes reusable-B chain, reusable consumer-B, and large-shape reusable-B scenarios; the contract still needs repeat count, setup amortization, source identity, and lifetime semantics | Define review keys for setup cost, repeat count, operand identity, cache lifetime, stale-source rejection, and chain consumer identity | Keep reuse out of AUTO until workload contract and break-even policy are explicit |
@@ -595,10 +603,13 @@ Remaining high-value imported work goes at the front of the queue:
   entry is promoted. The older 1024 bounded-i64 rocWMMA
   `rocwmma_i8_i32_signed_tiled_hot_residue_v1` result remains historical only.
 - Finite-u8 has current Windows `gfx1100` v2 release-review winners for 64, 128,
-  512, 1024, and hot-modulus 2048 across ring 251/255/256 and field 251.
+  512, 1024, hot-modulus 2048 across ring 251/255/256 and field 251, and
+  generic ring 127/253 at 2048.
   Current installed local entries include ring-251 128/1024/2048 rocWMMA,
+  generic ring-127 2048 rocWMMA, generic ring-253 2048 rocWMMA,
   ring-255 1024 CK, ring-255 2048 hipBLASLt, ring-256 128/512/2048 rocWMMA,
-  ring-256 1024 hipBLASLt, and field-251 1024 CK plus 2048 hipBLASLt. The
+  ring-256 1024 hipBLASLt, field-127 512 CK, and field-251 1024 CK plus 2048
+  hipBLASLt. The
   field-251 512 hipBLASLt near-tie is deliberately not promoted because its GPU
   event capture was incomplete; ring-255 64 is deliberately not promoted because
   CPU reference is faster; ring-256 2048 hipBLASLt is not promoted because it
@@ -1999,9 +2010,11 @@ Likely first slices:
   tuning.
 - Add generic finite-u8 modulus coverage without overstating accelerator
   support. Implemented in `finite-generic-moduli`: non-hot prime 127 and
-  composite 253 ring cases, field-prime 127, and 2048 exploratory ring probes
-  are pinned to CPU/Direct-HIP evidence so arbitrary-modulus behavior cannot be
-  confused with the specialized 251/255/256 accelerator paths.
+  composite 253 ring cases, field-prime 127, and 2048 generic ring probes are
+  separated from the specialized 251/255/256 accelerator paths. The June 5,
+  2026 generic ring 2048 release refresh added CPU-backed rocWMMA cache entries
+  for ring 127 and ring 253; broader generic field and modulus-family coverage
+  remains intentionally narrow.
 - Expand many-small scenario coverage beyond the first tiny proxy. Implemented
   in `many-small`: bounded i64/u64 square jobs, skinny N=1 bounded-u64 jobs,
   exact-wide signed jobs, finite-u8 ring jobs, and public one-shot baselines now
@@ -2296,9 +2309,11 @@ Status: direct HIP has fixed-modulus pack, GEMM reduction, and export kernels
 for 251/255/256. CK and rocWMMA expose common-modulus 251/255/256 selected
 kernel identities backed by shared reducer helpers. The June 4-5, 2026
 current-v2 release reviews closed the 64/128/512/1024 and hot-modulus 2048
-promotion questions for ring 251, ring 255, ring 256, and field 251: eleven
-event-valid accelerator entries beat both CPU and Direct HIP where required and
-were installed in the local default cache. Field-251 512 was not promoted
+promotion questions for ring 251, ring 255, ring 256, and field 251, and the
+June 5 generic ring 2048 refresh added CPU-backed rocWMMA entries for ring 127
+and ring 253. Fourteen event-valid accelerator entries beat both CPU and Direct
+HIP where required and were installed in the local default cache. Field-251 512
+was not promoted
 because hipBLASLt event timing was incomplete, ring-255 64 was not promoted
 because CPU reference was faster than the accelerator path, and ring-256 2048
 hipBLASLt was not promoted because it lost to Direct HIP and lacked required

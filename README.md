@@ -111,6 +111,8 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
 | finite ring u8 mod 251 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 4216 us | 2.23x vs Direct HIP | installed |
+| finite ring u8 mod 127 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 3427 us | 1.59x vs Direct HIP | installed |
+| finite ring u8 mod 253 | 2048 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 4856 us | 1.12x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
 | finite ring u8 mod 255 | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2845 us | 4.04x vs Direct HIP | installed |
 | finite ring u8 mod 256 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
@@ -128,7 +130,7 @@ Current local Windows `gfx1100` release-reviewed snapshot:
 | exact-wide unsigned | 2048 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 3.04x vs Direct HIP | installed |
 | strict wrap64 u64 | 2048 | Direct HIP <br/> `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 58331 us | 230.1x vs CPU byte-limb | none |
 
-The installed reviewed cache currently covers 25 exact plan keys, including the
+The installed reviewed cache currently covers 27 exact plan keys, including the
 large 2048 bounded/finite-u8/exact-wide entries and exact-wide unsigned 64 entry
 above. Some rows are deliberately narrow local wins; Linux ROCm, Instinct,
 RDNA4, and profiler-backed production claims remain separate validation work.

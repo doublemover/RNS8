@@ -46,7 +46,7 @@ architecture and roadmap source of truth when details disagree.
 | Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and current long-K `n == 1` shape-specialized win; not a current AUTO cache winner |
 | hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including finite-u8 hot-modulus 2048 and exact-wide 2048 entries |
 | CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048 |
-| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048 and finite-u8 2048 hot-modulus entries |
+| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, finite-u8 2048 hot-modulus entries, and generic finite-ring 2048 entries |
 | AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
@@ -63,8 +63,8 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
 - Public optimized matrix-engine strict wrap64 backend.
 - AMDGPU builtin hot kernels.
 - Durable packed-layout/prepack-cache production paths.
-- Optimized finite-field algorithms beyond current explicit-modulus CPU and
-  direct-HIP correctness paths.
+- Optimized finite-field algorithms beyond current explicit-modulus CPU,
+  direct-HIP correctness, and narrow reviewed accelerator-cache paths.
 - Broader production performance gates beyond reviewed Windows `gfx1100`
   shape-scoped evidence.
 - 4096 large-shape matrices and Linux/Instinct promotion gates remain
