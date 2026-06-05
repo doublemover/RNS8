@@ -23,6 +23,141 @@ BENCHMARK_EXECUTION_MODES = {
     'transient_uniform_small_i8_b_resident_i8_a_reuse',
     'vector_native_to_direct_rns_chain',
 }
+BOUND_SOURCES = {
+    'input_scan',
+    'static_profile',
+}
+BOUND_DISCOVERY_SOURCES = {
+    'input_exact_tile_bounds',
+    'input_row_column_abs_summary',
+    'static_profile_contract',
+}
+BOUND_KINDS = {
+    'global_max_abs',
+    'global_max_unsigned',
+    'input_range_and_k',
+    'none',
+    'per_tile_max_abs',
+    'per_tile_max_unsigned',
+}
+PACK_MODES = {
+    'per_repeat_repack',
+    'prepacked_reuse',
+    'prepacked_reuse_a',
+    'prepacked_reuse_b',
+}
+NEXT_OP_HINTS = {
+    'auto',
+    'final-export',
+    'native-gemm',
+    'native-to-rns',
+    'reuse-b',
+    'rns-gemm',
+}
+FUSION_MODES = {
+    'none',
+    'residue_channel_width3_experimental_benchmark_only',
+}
+REUSE_OPERAND_ROLES = {
+    'A',
+    'A+B',
+    'B',
+    'none',
+}
+GRAPH_REPLAY_STATUSES = {
+    'captured',
+    'not_requested',
+    'replayed',
+    'unsupported_stream_capture_not_executed',
+}
+STREAMING_OVERLAP_STATUSES = {
+    'executed',
+    'metadata_only_unsupported_for_execution_path',
+    'not_requested',
+}
+WORKLOAD_PROXY_FAMILIES = {
+    'dense_exact_arithmetic_proxy',
+    'fhe_lattice_proxy',
+    'not_requested',
+}
+SELECTOR_REJECTION_REASONS = {
+    'backend not compiled',
+    'identity/runtime mismatch',
+    'no exact entry',
+    'per-tile unsupported',
+    'probe failed',
+    'slower than selected',
+    'unsupported semantics',
+    'unvalidated entry',
+    'workspace mismatch',
+}
+PREPACK_REUSE_STRATEGIES = {
+    'none',
+    'persistent_matrix_residency',
+    'rocwmma_reusable_b_cache',
+}
+CONTRACT_PREFIX_POLICIES = {
+    'fixed_requested',
+    'fixed_requested_residue_chain',
+    'minimum_proven',
+    'per_tile_minimum',
+    'semantic_specific_no_rns_prefix',
+}
+BOUNDED_SEMANTICS = {
+    'bounded_i64',
+    'bounded_u64',
+}
+EXACT_WIDE_SEMANTICS = {
+    'exact_wide_signed',
+    'exact_wide_unsigned',
+}
+FINITE_U8_SEMANTICS = {
+    'finite_field_u8',
+    'finite_ring_u8',
+}
+RNS_PREFIX_SEMANTICS = {
+    'bounded_i64',
+    'bounded_u64',
+    'exact_wide_signed',
+    'exact_wide_unsigned',
+}
+NON_RNS_PREFIX_SEMANTICS = {
+    'finite_field_u8',
+    'finite_ring_u8',
+    'wrap_u64_mod_2_64',
+}
+HIP_RESIDENT_BACKENDS = {
+    'ck',
+    'hip-direct',
+    'hip-vector-alu-int64',
+    'hipblaslt',
+    'rocwmma',
+}
+CURRENT_CORRECTNESS_BACKENDS = {
+    'cpu-reference',
+    'hip-direct',
+    'wrap64-byte-limb',
+}
+BACKEND_REQUESTED_VALUES = {
+    'auto',
+    'ck',
+    'cpu-reference',
+    'hip-direct',
+    'hip-vector-alu-int64',
+    'hipblaslt',
+    'rocwmma',
+    'rocwmma-wrap64-candidate',
+    'wrap64-byte-limb',
+}
+BACKEND_SELECTED_VALUES = {
+    'ck',
+    'cpu-reference',
+    'hip-direct',
+    'hip-vector-alu-int64',
+    'hipblaslt',
+    'rocwmma',
+    'wrap64-byte-limb',
+}
 GROUPED_DISPATCH_STATUSES = {
     'executed',
     'metadata_only_unsupported_for_execution_path',
@@ -104,6 +239,246 @@ DIRECT_HIP_EXPORT_STAGING_POLICIES = {
     'large_padded_outputs_only_default',
     'not_applicable',
     'wrap64_forced_only_pending_padded_staging_evidence',
+}
+PACK_LAYOUTS = {
+    'finite_u8_centered_residue',
+    'matrix_engine_transient_pack_layout',
+    'native_i64_row_major',
+    'native_i8_row_major_residue_channel_width3',
+    'native_i8_row_major_uniform_small',
+    'native_u64_row_major',
+    'resident_rns_residue_planes',
+    'transient_backend_pack_layout',
+    'wrap64_byte_limb_planes',
+}
+RESIDUE_GROUP_LAYOUTS = {
+    'first_prefix9_moduli_contiguous_width3_groups',
+    'one_modulus_per_residue_plane',
+}
+TARGET_NAMESPACES = {
+    'cpu',
+    'gfx1100',
+    'gfx11xx',
+    'gfx12xx',
+    'gfx9xx_gfx94x',
+    'unknown',
+}
+PLACEHOLDER_GPU_TARGET_IDS = {
+    '',
+    'cpu',
+    'n/a',
+    'none',
+    'not_applicable',
+    'null',
+    'unknown',
+}
+TIMING_PHASES = {
+    'crt_export',
+    'end_to_end',
+    'matrix_alloc',
+    'pack',
+    'planning',
+    'rns_gemm',
+    'scheduling',
+}
+DIRECT_HIP_CORE_EVENTS = {
+    'crt_export',
+    'crt_export_d2h',
+    'crt_export_kernel',
+    'crt_export_status_d2h',
+    'crt_export_status_memset',
+    'pack',
+    'pack_h2d',
+    'pack_kernel',
+    'rns_gemm',
+    'rns_gemm_kernel_group',
+}
+GROUPED_DISPATCH_EVENTS = {
+    'exact_wide_export_compact_to_host',
+    'exact_wide_export_d2h',
+    'exact_wide_export_kernel',
+    'grouped_residue_pointer_table_h2d',
+    'rns_gemm_kernel_group',
+}
+VECTOR_ALU_GPU_EVENT_LABELS = {
+    'vector_alu_i64_kernel',
+    'vector_alu_output_d2h',
+    'vector_alu_pack_a_h2d',
+    'vector_alu_pack_b_h2d',
+    'vector_alu_status_d2h',
+    'vector_alu_status_memset',
+    'vector_alu_u64_kernel',
+}
+HIPBLASLT_GPU_EVENT_LABELS = {
+    'hipblaslt_i32_to_residue_reduce',
+    'hipblaslt_int8_i32_matmul',
+    'hipblaslt_pack_transpose_centered',
+}
+ACCELERATOR_GPU_EVENT_LABELS = {
+    'ck_int8_matmul_kernel',
+    'rocwmma_matmul_kernel',
+    'rocwmma_matmul_prepacked_b_kernel',
+    'rocwmma_pack_a_kernel',
+    'rocwmma_pack_a_prepacked_b_kernel',
+    'rocwmma_pack_b_kernel',
+    'rocwmma_zero_output_tile_memset',
+}
+GPU_EVENT_SOURCE_SCOPES = {
+    'accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export',
+    'accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export',
+    'direct_hip_bounded_adaptive_default_stream_backend_operation_groups',
+    'direct_hip_default_stream_backend_operation_groups',
+    'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
+    'direct_hip_oneshot_default_stream_operation_groups',
+    'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
+    'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
+    'hipblaslt_baseline_default_stream_backend_operation_groups',
+    'rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups',
+    'vector_alu_default_stream_native_int64_operation_groups',
+}
+DIRECT_HIP_GPU_EVENT_SCOPES = {
+    'direct_hip_bounded_adaptive_default_stream_backend_operation_groups',
+    'direct_hip_default_stream_backend_operation_groups',
+    'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
+    'direct_hip_oneshot_default_stream_operation_groups',
+    'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
+    'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
+}
+HIPBLASLT_GPU_EVENT_SCOPES = {
+    'hipblaslt_baseline_default_stream_backend_operation_groups',
+}
+ACCELERATOR_GPU_EVENT_SCOPES = {
+    'accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export',
+    'accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export',
+    'rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups',
+}
+VECTOR_ALU_GPU_EVENT_SCOPES = {
+    'vector_alu_default_stream_native_int64_operation_groups',
+}
+CK_DEEP_GPU_EVENT_LABELS = {
+    'ck_add_centered_kernel',
+    'ck_copy_centered_kernel',
+    'ck_pack_a_kernel',
+    'ck_pack_b_kernel',
+    'ck_wmma_cshuffle_matmul',
+    'ck_zero_output_tile_memset',
+}
+ROCWMMA_DEEP_GPU_EVENT_LABELS = {
+    'rocwmma_matmul_kernel',
+    'rocwmma_matmul_prepacked_b_kernel',
+    'rocwmma_pack_a_kernel',
+    'rocwmma_pack_a_prepacked_b_kernel',
+    'rocwmma_pack_b_kernel',
+    'rocwmma_zero_output_tile_memset',
+}
+SELECTED_KERNELS = {
+    'ck_wmma_cshuffle_finite_u8_centered_epilogue_v1',
+    'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',
+    'ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2',
+    'ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2',
+    'ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2',
+    'ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2',
+    'cpu_reference',
+    'direct_hip_native_a_finite_u8_gemm_mod251_v1',
+    'direct_hip_native_a_finite_u8_gemm_mod255_v1',
+    'direct_hip_native_a_finite_u8_gemm_mod256_v1',
+    'direct_hip_native_a_finite_u8_gemm_v1',
+    'direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1',
+    'direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2',
+    'direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1',
+    'direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1',
+    'direct_hip_native_finite_u8_gemm_mod251_v1',
+    'direct_hip_native_finite_u8_gemm_mod255_v1',
+    'direct_hip_native_finite_u8_gemm_mod256_v1',
+    'direct_hip_native_finite_u8_gemm_v1',
+    'direct_hip_prefix20_grouped_rns_gemm_v1',
+    'direct_hip_prefix9_grouped_rns_gemm_v1',
+    'direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2',
+    'direct_hip_prefix9_native_input_grouped_rns_gemm_v1',
+    'direct_hip_tiled_active_prefix_rns_gemm_v2',
+    'direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1',
+    'direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3',
+    'direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1',
+    'direct_hip_tiled_finite_u8_gemm_mod251_v1',
+    'direct_hip_tiled_finite_u8_gemm_mod255_v1',
+    'direct_hip_tiled_finite_u8_gemm_mod256_v1',
+    'direct_hip_tiled_finite_u8_gemm_v1',
+    'direct_hip_tiled_rns_gemm_v1',
+    'direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0',
+    'direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_a_grouped_rns_gemm_v1',
+    'direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2',
+    'direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1',
+    'direct_hip_wrap64_byte_gemm36_u32acc_colpair_2d_v5',
+    'direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4',
+    'direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4',
+    'hip_vector_alu_i64_exact_192b_v1',
+    'hip_vector_alu_i64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_u64_exact_192b_v1',
+    'hip_vector_alu_u64_gemv_n1_exact_192b_v1',
+    'hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2',
+    'rocwmma_i8_i32_signed_finite_u8_hot_residue_v1',
+    'rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2',
+    'rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2',
+    'rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2',
+    'rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2',
+    'rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2',
+    'rocwmma_wrap64_byte_gemm36_candidate_v0',
+}
+VECTOR_ALU_SELECTED_KERNELS = {
+    'hip_vector_alu_i64_exact_192b_v1',
+    'hip_vector_alu_i64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_u64_exact_192b_v1',
+    'hip_vector_alu_u64_gemv_n1_exact_192b_v1',
+}
+CK_SELECTED_KERNELS = {
+    'ck_wmma_cshuffle_finite_u8_centered_epilogue_v1',
+    'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',
+    'ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2',
+    'ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2',
+    'ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2',
+    'ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2',
+}
+ROCWMMA_SELECTED_KERNELS = {
+    'rocwmma_i8_i32_signed_finite_u8_hot_residue_v1',
+    'rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2',
+    'rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2',
+    'rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2',
+    'rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2',
+    'rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2',
+}
+COMPARISON_BASELINE_STATUSES = {
+    'missing_reviewed_same_contract_baseline',
+    'required_not_recorded',
+    'reviewed_release_same_contract_baseline',
+    'reviewed_same_contract_baseline',
+}
+RELEASE_GATE_REVIEW_STATUSES = {
+    'not_requested',
+    'pending_reviewed_summary',
+    'reviewed_blocked',
+    'reviewed_passed',
+}
+PROMOTION_SCOPES = {
+    'autotune_cache_candidate',
+    'grouped_dispatch_evidence_only',
+    'layout_metadata_evidence_only',
+    'reconstruction_variant_evidence_only',
+    'reuse_contract_evidence_only',
+    'scenario_surface_only',
+}
+TARGET_CLAIM_LABELS = {
+    'cache_installed',
+    'cpu_backed',
+    'exploratory',
+    'gpu_event_valid',
+    'instinct_required',
+    'linux_rocm_required',
+    'rdna4_required',
+    'same_commit',
+    'same_contract',
+    'windows_gfx1100_local',
 }
 
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_EXACT_WIDE_EXPORT_KERNEL_BATCHED_D2H = 'device_grouped_exact_wide_export_kernel_batched_d2h'

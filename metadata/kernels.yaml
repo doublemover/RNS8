@@ -37,7 +37,45 @@
     "hip_vector_alu_i64_exact_192b_v1",
     "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
-    "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+    "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
+    "direct_hip_tiled_rns_gemm_v1",
+    "direct_hip_prefix9_grouped_rns_gemm_v1",
+    "direct_hip_prefix20_grouped_rns_gemm_v1",
+    "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3",
+    "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
+    "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
+    "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
+    "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
+    "direct_hip_uniform_small_i8_ab_colpair_prefix9_transient_grouped_rns_gemm_v1",
+    "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0",
+    "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
+    "rocwmma_wrap64_byte_gemm36_candidate_v0"
   ],
-  "generated_reducer_pattern": "direct_hip_fixed_prefix_{1..9,20}_generated_reducer_v1 or direct_hip_finite_modulus_N_fixed_reducer_v1"
+  "generated_reducer_pattern": "direct_hip_fixed_prefix_{1..9,20}_generated_reducer_v1 or direct_hip_finite_modulus_N_fixed_reducer_v1",
+  "selected_kernel_groups": {
+    "vector_alu": [
+      "hip_vector_alu_i64_exact_192b_v1",
+      "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
+      "hip_vector_alu_u64_exact_192b_v1",
+      "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+    ],
+    "ck": [
+      "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+      "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+      "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+      "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
+      "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
+      "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2"
+    ],
+    "rocwmma": [
+      "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
+      "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
+      "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
+      "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+      "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
+      "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2"
+    ]
+  }
 }

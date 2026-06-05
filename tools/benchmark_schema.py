@@ -11,8 +11,22 @@ from pathlib import Path
 from typing import Any
 
 from metadata_registry_constants import (
+    ACCELERATOR_GPU_EVENT_SCOPES,
+    BACKEND_REQUESTED_VALUES,
+    BACKEND_SELECTED_VALUES,
     BENCHMARK_EXECUTION_MODES,
+    BOUND_DISCOVERY_SOURCES,
+    BOUND_KINDS,
+    BOUND_SOURCES,
+    CK_DEEP_GPU_EVENT_LABELS,
+    CK_SELECTED_KERNELS,
+    COMPARISON_BASELINE_STATUSES,
+    CONTRACT_PREFIX_POLICIES,
+    CURRENT_CORRECTNESS_BACKENDS,
+    DIRECT_HIP_GPU_EVENT_SCOPES,
     DIRECT_HIP_EXPORT_STAGING_POLICIES,
+    FUSION_MODES,
+    GRAPH_REPLAY_STATUSES,
     GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES,
     GROUPED_DISPATCH_EXECUTION_STRATEGIES,
     GROUPED_DISPATCH_STATUSES,
@@ -24,9 +38,30 @@ from metadata_registry_constants import (
     GROUPED_TASK_SOURCE_VERSION_POLICIES,
     GROUPED_TASK_STATUS_POLICIES,
     GROUPED_TASK_WORKSPACE_POLICIES,
+    HIPBLASLT_GPU_EVENT_SCOPES,
+    HIP_RESIDENT_BACKENDS,
+    NEXT_OP_HINTS,
+    NON_RNS_PREFIX_SEMANTICS,
     OUTPUT_CONTRACT_DOMAINS,
     OUTPUT_DESTINATION_LAYOUTS,
+    PACK_LAYOUTS,
+    PACK_MODES,
+    PLACEHOLDER_GPU_TARGET_IDS,
+    PREPACK_REUSE_STRATEGIES,
+    RELEASE_GATE_REVIEW_STATUSES,
+    RESIDUE_GROUP_LAYOUTS,
+    REUSE_OPERAND_ROLES,
+    ROCWMMA_DEEP_GPU_EVENT_LABELS,
+    ROCWMMA_SELECTED_KERNELS,
+    RNS_PREFIX_SEMANTICS,
+    SELECTOR_REJECTION_REASONS,
     STATUS_HANDLING,
+    STREAMING_OVERLAP_STATUSES,
+    TARGET_NAMESPACES,
+    VECTOR_ALU_GPU_EVENT_LABELS,
+    VECTOR_ALU_GPU_EVENT_SCOPES,
+    VECTOR_ALU_SELECTED_KERNELS,
+    WORKLOAD_PROXY_FAMILIES,
 )
 
 
@@ -41,16 +76,7 @@ BASELINE_STATUS_REQUIRED_NOT_RECORDED = "required_not_recorded"
 BASELINE_STATUS_REVIEWED = "reviewed_same_contract_baseline"
 BASELINE_STATUS_RELEASE_REVIEWED = "reviewed_release_same_contract_baseline"
 BASELINE_STATUS_MISSING_REVIEWED = "missing_reviewed_same_contract_baseline"
-REVIEWED_BASELINE_STATUSES = {
-    BASELINE_STATUS_REVIEWED,
-    BASELINE_STATUS_RELEASE_REVIEWED,
-}
-COMPARISON_BASELINE_STATUSES = {
-    BASELINE_STATUS_REQUIRED_NOT_RECORDED,
-    BASELINE_STATUS_REVIEWED,
-    BASELINE_STATUS_RELEASE_REVIEWED,
-    BASELINE_STATUS_MISSING_REVIEWED,
-}
+REVIEWED_BASELINE_STATUSES = {BASELINE_STATUS_REVIEWED, BASELINE_STATUS_RELEASE_REVIEWED}
 TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
 GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
@@ -58,12 +84,6 @@ REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
 TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
 TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT = 0x00000002
 TILE_SCHEDULE_KNOWN_FLAGS = TILE_SCHEDULE_ZERO_OUTPUT | TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT
-BOUND_SOURCES = {"static_profile", "input_scan"}
-BOUND_DISCOVERY_SOURCES = {
-    "static_profile_contract",
-    "input_row_column_abs_summary",
-    "input_exact_tile_bounds",
-}
 
 
 def wrap64_hip_shape_supports_colpair_kernel(m_value: int, n_value: int, k_value: int) -> bool:
@@ -98,72 +118,10 @@ def output_destination_layout(padding: Any) -> str:
     return "contiguous_row_major" if padding == 0 else "padded_row_major"
 
 
-BOUND_KINDS = {
-    "none",
-    "global_max_abs",
-    "global_max_unsigned",
-    "per_tile_max_abs",
-    "per_tile_max_unsigned",
-    "input_range_and_k",
-}
-PACK_MODES = {"per_repeat_repack", "prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
-NEXT_OP_HINTS = {"auto", "final-export", "rns-gemm", "native-gemm", "native-to-rns", "reuse-b"}
-PACK_LAYOUTS = {
-    "resident_rns_residue_planes",
-    "wrap64_byte_limb_planes",
-    "finite_u8_centered_residue",
-    "native_i64_row_major",
-    "native_u64_row_major",
-    "native_i8_row_major_uniform_small",
-    "native_i8_row_major_residue_channel_width3",
-    "matrix_engine_transient_pack_layout",
-    "transient_backend_pack_layout",
-}
-FUSION_MODES = {"none", "residue_channel_width3_experimental_benchmark_only"}
-RESIDUE_GROUP_LAYOUTS = {
-    "one_modulus_per_residue_plane",
-    "first_prefix9_moduli_contiguous_width3_groups",
-}
-TARGET_NAMESPACES = {"cpu", "gfx1100", "gfx11xx", "gfx12xx", "gfx9xx_gfx94x", "unknown"}
-REUSE_OPERAND_ROLES = {"none", "A", "B", "A+B"}
-GRAPH_REPLAY_STATUSES = {
-    "not_requested",
-    "unsupported_stream_capture_not_executed",
-    "captured",
-    "replayed",
-}
-STREAMING_OVERLAP_STATUSES = {
-    "not_requested",
-    "metadata_only_unsupported_for_execution_path",
-    "executed",
-}
-RELEASE_GATE_REVIEW_STATUSES = {
-    "not_requested",
-    "pending_reviewed_summary",
-    "reviewed_blocked",
-    "reviewed_passed",
-}
-WORKLOAD_PROXY_FAMILIES = {
-    "not_requested",
-    "fhe_lattice_proxy",
-    "dense_exact_arithmetic_proxy",
-}
-SELECTOR_REJECTION_REASONS = {
-    "unsupported semantics",
-    "per-tile unsupported",
-    "backend not compiled",
-    "probe failed",
-    "no exact entry",
-    "unvalidated entry",
-    "identity/runtime mismatch",
-    "workspace mismatch",
-    "slower than selected",
-}
 GENERATED_REDUCER_RE = re.compile(
     r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
     r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
 )
-PREPACK_REUSE_STRATEGIES = {"none", "persistent_matrix_residency", "rocwmma_reusable_b_cache"}
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
     "prepacked_reuse": ["A", "B"],
@@ -179,67 +137,11 @@ PREFIX_POLICY_FIELDS = {
     "residue_planes_skipped",
     "residue_plane_skip_fraction",
 }
-CONTRACT_PREFIX_POLICIES = {
-    "minimum_proven",
-    "fixed_requested",
-    "fixed_requested_residue_chain",
-    "per_tile_minimum",
-    "semantic_specific_no_rns_prefix",
-}
-RNS_PREFIX_SEMANTICS = {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}
-NON_RNS_PREFIX_SEMANTICS = {"finite_ring_u8", "finite_field_u8", "wrap_u64_mod_2_64"}
-DIRECT_HIP_GPU_EVENT_SCOPES = {
-    "direct_hip_default_stream_backend_operation_groups",
-    "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
-    "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
-    "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
-    "direct_hip_oneshot_default_stream_operation_groups",
-    "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
-    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
-}
-HIPBLASLT_GPU_EVENT_SCOPES = {
-    "hipblaslt_baseline_default_stream_backend_operation_groups",
-}
-ACCELERATOR_GPU_EVENT_SCOPES = {
-    "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
-    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
-    "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups",
-}
-VECTOR_ALU_GPU_EVENT_SCOPES = {
-    "vector_alu_default_stream_native_int64_operation_groups",
-}
 OLD_ACCELERATOR_GPU_EVENT_SCOPE = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
 DEEP_ACCELERATOR_GPU_EVENT_SCOPE = (
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
 )
 VECTOR_ALU_GPU_EVENT_SCOPE = "vector_alu_default_stream_native_int64_operation_groups"
-HIP_RESIDENT_BACKENDS = {"hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"}
-CURRENT_CORRECTNESS_BACKENDS = {"cpu-reference", "hip-direct", "wrap64-byte-limb"}
-BACKEND_SELECTED_VALUES = HIP_RESIDENT_BACKENDS | {"cpu-reference", "wrap64-byte-limb"}
-BACKEND_REQUESTED_VALUES = BACKEND_SELECTED_VALUES | {"auto", "rocwmma-wrap64-candidate"}
-PLACEHOLDER_GPU_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
-VECTOR_ALU_SELECTED_KERNELS = {
-    "hip_vector_alu_i64_exact_192b_v1",
-    "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
-    "hip_vector_alu_u64_exact_192b_v1",
-    "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
-}
-CK_SELECTED_KERNELS = {
-    "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
-    "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
-    "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
-    "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
-    "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
-    "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
-}
-ROCWMMA_SELECTED_KERNELS = {
-    "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
-    "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
-    "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
-    "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
-    "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
-    "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
-}
 DIRECT_HIP_FINITE_GENERIC_KERNEL = "direct_hip_tiled_finite_u8_gemm_v1"
 DIRECT_HIP_FINITE_SPECIALIZED_KERNELS = {
     251: "direct_hip_tiled_finite_u8_gemm_mod251_v1",

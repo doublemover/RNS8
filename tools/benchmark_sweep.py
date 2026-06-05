@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
-from metadata_registry_constants import GROUPED_DISPATCH_EXECUTION_STRATEGIES
+from metadata_registry_constants import GROUPED_DISPATCH_EXECUTION_STRATEGIES, PLACEHOLDER_GPU_TARGET_IDS
 
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
@@ -29,7 +29,7 @@ EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 RNS_CHAIN_SEMANTICS = BOUNDED_SEMANTICS + EXACT_WIDE_SEMANTICS
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 REVIEW_SCHEMA_VERSION = 3
-PLACEHOLDER_TARGET_IDS = {"", "none", "cpu", "unknown", "not_applicable", "n/a", "null"}
+PLACEHOLDER_TARGET_IDS = PLACEHOLDER_GPU_TARGET_IDS
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 PROMOTABLE_RELEASE_SHAPES = [64, 128, 512, 1024]
