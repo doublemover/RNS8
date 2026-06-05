@@ -52,11 +52,12 @@ June 4-5, 2026 updates:
   colpair routing, many-small baseline review, focused diagnostic event
   cleanup, benchmark-owned host API batching, bound-discovery no-promotion
   validation, bounded 4096 exploratory classification, and non-bounded 4096
-  exploratory classification.
+  exploratory classification, plus the full bounded A/B/A+B reuse-contract
+  release matrix.
   Closed infrastructure lanes are ranks 1, 2, 16, 23, 25, 26, 27, 28, 32, 34,
   35, 37, 40, and 41. Completed current-claim validation lanes are ranks 4, 5,
-  17, 21, and the 2048 hot-modulus portion of rank 14. Partially advanced lanes
-  remain ranks 3, 6, 8, 9, 10, 11, 12, 13, 15, 18, and 20; they have
+  17, 19, 21, and the 2048 hot-modulus portion of rank 14. Partially advanced
+  lanes remain ranks 3, 6, 8, 9, 10, 11, 12, 13, 15, 18, and 20; they have
   benchmark/schema surfaces, focused event cleanup, or partial release evidence,
   but not enough proof for broader routing or public performance claims. Rank
   31 is now closed as a benchmark/evidence surface: one exact-wide Direct-HIP
