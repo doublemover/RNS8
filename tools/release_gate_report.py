@@ -230,12 +230,16 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         failures = failed_grouped.get(key, [])
         gate, semantics, finite_modulus, m, n, k = key
         backends = sorted({backend_id(capture) for capture in captures})
+        release_review_backends = sorted(
+            {backend_id(capture) for capture in captures if release_review_capture(capture)}
+        )
         failed_backends = sorted({str(failure.get("backend")) for failure in failures})
         timeout_backends = sorted(
             {str(failure.get("backend")) for failure in failures if failure.get("timed_out") is True}
         )
         required = required_baselines(semantics)
         missing = [backend for backend in required if backend not in backends]
+        missing_release_review = [backend for backend in required if backend not in release_review_backends]
         failed_required_backends = sorted(
             {str(failure.get("backend")) for failure in failures if failure.get("backend") in required}
         )
@@ -271,6 +275,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         )
         if missing:
             blockers["missing_required_baselines"] = blockers.get("missing_required_baselines", 0) + 1
+        if missing_release_review:
+            blockers["required_baseline_release_review_missing"] = (
+                blockers.get("required_baseline_release_review_missing", 0) + 1
+            )
         if failed_required_backends:
             blockers["failed_required_baselines"] = blockers.get("failed_required_baselines", 0) + 1
         if timed_out_required_backends:
@@ -280,6 +288,8 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         group_blockers = list(gate_blockers)
         if missing:
             group_blockers.append("missing_required_baselines")
+        if missing_release_review:
+            group_blockers.append("required_baseline_release_review_missing")
         if failed_required_backends:
             group_blockers.append("failed_required_baselines")
         if timed_out_required_backends:
@@ -295,11 +305,13 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "capture_count": len(captures),
                 "failed_capture_count": len(failures),
                 "backends": backends,
+                "release_review_backends": release_review_backends,
                 "failed_backends": failed_backends,
                 "timeout_backends": timeout_backends,
                 "required_baselines": required,
                 "required_baselines_attempted": required_attempted,
                 "missing_required_baselines": missing,
+                "missing_release_review_required_baselines": missing_release_review,
                 "failed_required_baselines": failed_required_backends,
                 "timed_out_required_baselines": timed_out_required_backends,
                 "unattempted_required_baselines": unattempted_required,
@@ -307,6 +319,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                     _failure_summary(failure) for failure in failures if failure.get("backend") in required
                 ],
                 "required_baselines_complete": not missing,
+                "required_baselines_release_review_complete": not missing_release_review,
                 "required_baseline_attempts_complete": not unattempted_required,
                 "release_review_captures_complete": bool(captures)
                 and all(release_review_capture(capture) for capture in captures),

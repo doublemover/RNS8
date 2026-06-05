@@ -283,7 +283,13 @@ def main() -> int:
         assert release_report["schema"] == "rns8_release_gate_report_v2"
         assert release_report["blocker_counts"]["reviewed_summary_missing"] == 1
         assert release_report["blocker_counts"]["missing_required_baselines"] == 1
+        assert release_report["blocker_counts"]["required_baseline_release_review_missing"] == 1
         assert release_report["groups"][0]["missing_required_baselines"] == [
+            "cpu-reference",
+            "hip-direct",
+            "hip-vector-alu-int64",
+        ]
+        assert release_report["groups"][0]["missing_release_review_required_baselines"] == [
             "cpu-reference",
             "hip-direct",
             "hip-vector-alu-int64",
@@ -328,6 +334,7 @@ def main() -> int:
         assert failed_release_report["failed_rows"][0]["backend"] == "cpu-reference"
         assert failed_release_report["failed_rows"][0]["failure_kind"] == "timeout"
         assert failed_release_report["blocker_counts"]["failed_required_baselines"] == 1
+        assert failed_release_report["blocker_counts"]["required_baseline_release_review_missing"] == 1
         assert failed_release_report["blocker_counts"]["required_baseline_timeout"] == 1
         failed_group = failed_release_report["groups"][0]
         assert failed_group["failed_capture_count"] == 1
@@ -337,10 +344,16 @@ def main() -> int:
             "hip-direct",
             "hip-vector-alu-int64",
         ]
+        assert failed_group["missing_release_review_required_baselines"] == [
+            "cpu-reference",
+            "hip-direct",
+            "hip-vector-alu-int64",
+        ]
         assert failed_group["failed_required_baselines"] == ["cpu-reference"]
         assert failed_group["timed_out_required_baselines"] == ["cpu-reference"]
         assert failed_group["unattempted_required_baselines"] == ["hip-direct", "hip-vector-alu-int64"]
         assert failed_group["required_baselines_complete"] is False
+        assert failed_group["required_baselines_release_review_complete"] is False
         assert failed_group["required_baseline_attempts_complete"] is False
 
     search = modulus_set_search.build_report([("test", [251, 253, 255, 256])], 32)
