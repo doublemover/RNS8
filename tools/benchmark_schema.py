@@ -141,6 +141,35 @@ GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
     "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
 }
+GROUPED_TASK_DESCRIPTOR_LAYOUTS = {
+    "not_requested",
+    "same_shape_resident_task_triplets_v1",
+}
+GROUPED_TASK_BUCKET_POLICIES = {
+    "not_requested",
+    "single_same_shape_bucket",
+}
+GROUPED_TASK_SOURCE_VERSION_POLICIES = {
+    "not_requested",
+    "per_task_monotonic_source_version_repack",
+}
+GROUPED_TASK_WORKSPACE_POLICIES = {
+    "not_requested",
+    "one_workspace_per_task_shared_plan",
+}
+GROUPED_TASK_CHECKSUM_POLICIES = {
+    "not_requested",
+    "combined_per_task_checksum_u64",
+}
+GROUPED_TASK_STATUS_POLICIES = {
+    "not_requested",
+    "fail_fast_per_task_operation_status",
+}
+GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES = {
+    "not_requested",
+    "host_resident_task_loop",
+    "device_pointer_tables_and_compact_slabs",
+}
 STREAMING_OVERLAP_STATUSES = {
     "not_requested",
     "metadata_only_unsupported_for_execution_path",
@@ -1654,6 +1683,44 @@ class _Validator:
                     self._error("grouped_dispatch.requested must be true when task_count > 1")
                 if task_count and task_count > 1 and grouped.get("promotion_eligible") is not False:
                     self._error("grouped_dispatch task_count > 1 must set promotion_eligible=false")
+                task_descriptor = grouped.get("task_descriptor_contract")
+                if task_descriptor is not None:
+                    if not isinstance(task_descriptor, dict):
+                        self._error("grouped_dispatch.task_descriptor_contract must be an object")
+                    else:
+                        if task_descriptor.get("schema_version") != 1:
+                            self._error("grouped_dispatch.task_descriptor_contract.schema_version must be 1")
+                        descriptor_layout = task_descriptor.get("descriptor_layout")
+                        if descriptor_layout not in GROUPED_TASK_DESCRIPTOR_LAYOUTS:
+                            self._error("grouped_dispatch.task_descriptor_contract.descriptor_layout must be known")
+                        bucket_policy = task_descriptor.get("bucket_policy")
+                        if bucket_policy not in GROUPED_TASK_BUCKET_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.bucket_policy must be known")
+                        bucket_count = task_descriptor.get("bucket_count")
+                        if not _is_int(bucket_count) or bucket_count < 0:
+                            self._error("grouped_dispatch.task_descriptor_contract.bucket_count must be nonnegative")
+                        descriptor_task_count = task_descriptor.get("task_count")
+                        if not _is_int(descriptor_task_count) or descriptor_task_count <= 0:
+                            self._error("grouped_dispatch.task_descriptor_contract.task_count must be positive")
+                        if not isinstance(task_descriptor.get("same_shape_required"), bool):
+                            self._error("grouped_dispatch.task_descriptor_contract.same_shape_required must be a boolean")
+                        for key in ["shape_key", "semantics"]:
+                            if not isinstance(task_descriptor.get(key), str):
+                                self._error(f"grouped_dispatch.task_descriptor_contract.{key} must be a string")
+                        if task_descriptor.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                            self._error("grouped_dispatch.task_descriptor_contract.output_domain must be a known output domain")
+                        if task_descriptor.get("source_version_policy") not in GROUPED_TASK_SOURCE_VERSION_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.source_version_policy must be known")
+                        if task_descriptor.get("workspace_policy") not in GROUPED_TASK_WORKSPACE_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.workspace_policy must be known")
+                        if task_descriptor.get("checksum_policy") not in GROUPED_TASK_CHECKSUM_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.checksum_policy must be known")
+                        if task_descriptor.get("status_policy") not in GROUPED_TASK_STATUS_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.status_policy must be known")
+                        if task_descriptor.get("device_descriptor_policy") not in GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES:
+                            self._error("grouped_dispatch.task_descriptor_contract.device_descriptor_policy must be known")
+                        if task_descriptor.get("promotion_eligible") is not False:
+                            self._error("grouped_dispatch.task_descriptor_contract.promotion_eligible must be false")
 
         graph = self.data.get("hip_graph_replay")
         if graph is not None:
@@ -1862,6 +1929,54 @@ class _Validator:
                 self._error("benchmark_grouped_dispatch_evidence captures must include disabled host_api_batch metadata")
             elif batch.get("enabled") is not False or batch.get("batch_size") != 1:
                 self._error("benchmark_grouped_dispatch_evidence captures must keep host_api_batch disabled")
+
+            task_descriptor = grouped.get("task_descriptor_contract")
+            if not isinstance(task_descriptor, dict):
+                self._error("benchmark_grouped_dispatch_evidence captures must include task_descriptor_contract")
+            else:
+                semantics = self.data.get("semantics")
+                if task_descriptor.get("descriptor_layout") != "same_shape_resident_task_triplets_v1":
+                    self._error("grouped task descriptor must use same_shape_resident_task_triplets_v1")
+                if task_descriptor.get("bucket_policy") != "single_same_shape_bucket":
+                    self._error("grouped task descriptor must use single_same_shape_bucket")
+                if task_descriptor.get("bucket_count") != 1:
+                    self._error("grouped task descriptor bucket_count must be 1")
+                if _is_int(task_count) and task_descriptor.get("task_count") != task_count:
+                    self._error("grouped task descriptor task_count must match grouped_dispatch.task_count")
+                if task_descriptor.get("same_shape_required") is not True:
+                    self._error("grouped task descriptor must require same_shape")
+                selected_prefix = self.data.get("selected_prefix", self.data.get("prefix"))
+                expected_shape_key = (
+                    f"m={self.data.get('m')};n={self.data.get('n')};k={self.data.get('k')};"
+                    f"tile_m={self.data.get('tile_m')};tile_n={self.data.get('tile_n')};"
+                    f"prefix={selected_prefix}"
+                )
+                if task_descriptor.get("shape_key") != expected_shape_key:
+                    self._error("grouped task descriptor shape_key must match capture shape/tile/prefix")
+                if task_descriptor.get("semantics") != semantics:
+                    self._error("grouped task descriptor semantics must match capture semantics")
+                expected_output_domain = "native_i64_u64_host"
+                if semantics in {"finite_ring_u8", "finite_field_u8"}:
+                    expected_output_domain = "finite_u8_host"
+                elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+                    expected_output_domain = "exact_wide_limb_host"
+                if task_descriptor.get("output_domain") != expected_output_domain:
+                    self._error("grouped task descriptor output_domain must match capture output contract")
+                if task_descriptor.get("source_version_policy") != "per_task_monotonic_source_version_repack":
+                    self._error("grouped task descriptor source_version_policy must require per-task repack versions")
+                if task_descriptor.get("workspace_policy") != "one_workspace_per_task_shared_plan":
+                    self._error("grouped task descriptor workspace_policy must be one workspace per task")
+                if task_descriptor.get("checksum_policy") != "combined_per_task_checksum_u64":
+                    self._error("grouped task descriptor checksum_policy must combine per-task checksums")
+                if task_descriptor.get("status_policy") != "fail_fast_per_task_operation_status":
+                    self._error("grouped task descriptor status_policy must fail fast on per-task operation status")
+                expected_device_policy = (
+                    "device_pointer_tables_and_compact_slabs"
+                    if isinstance(strategy, str) and strategy.startswith("device_grouped_")
+                    else "host_resident_task_loop"
+                )
+                if task_descriptor.get("device_descriptor_policy") != expected_device_policy:
+                    self._error("grouped task descriptor device_descriptor_policy must match execution strategy")
 
             metadata = self.data.get("timing_metadata")
             if isinstance(metadata, dict):

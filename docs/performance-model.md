@@ -913,9 +913,13 @@ without changing the public C/C++ ABI or AUTO promotion policy:
   identity so tile sweeps cannot be compared against the wrong kernel.
 - `grouped_dispatch`, `adaptive_grouped_scheduler`, and `hip_graph_replay`
   record fixed descriptor identity, task or group count, setup scope,
-  replay/capture status, unsupported reason, and non-promoting status. Current
-  captures may report deterministic unsupported metadata instead of pretending
-  a graph or grouped path ran.
+  replay/capture status, unsupported reason, and non-promoting status. Grouped
+  dispatch captures also carry `task_descriptor_contract`, which schema-validates
+  the same-shape bucket, task count, source-version policy, workspace ownership,
+  output domain, checksum/status behavior, and whether the path used a host task
+  loop or device-readable pointer/slab descriptors. Current captures may report
+  deterministic unsupported metadata instead of pretending a graph or grouped
+  path ran.
 - `resident_lifetime` and `workspace_arena` make resident A/B/C currentness,
   source-version policy, workspace identity, arena high-water mark,
   suballocation count, stream-safety contract, and allocation-free repeat proof

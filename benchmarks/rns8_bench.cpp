@@ -9538,7 +9538,37 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
   std::cout << "    \"unsupported_reason\": ";
   print_nullable_std_string(std::string());
   std::cout << ",\n";
-  std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "    \"promotion_eligible\": false,\n";
+  const bool grouped_device_descriptors =
+      grouped && grouped_strategy.rfind("device_grouped_", 0) == 0;
+  std::cout << "    \"task_descriptor_contract\": {\n";
+  std::cout << "      \"schema_version\": 1,\n";
+  std::cout << "      \"descriptor_layout\": \""
+            << (grouped ? "same_shape_resident_task_triplets_v1" : "not_requested") << "\",\n";
+  std::cout << "      \"bucket_policy\": \""
+            << (grouped ? "single_same_shape_bucket" : "not_requested") << "\",\n";
+  std::cout << "      \"bucket_count\": " << (grouped ? 1 : 0) << ",\n";
+  std::cout << "      \"task_count\": " << args.grouped_dispatch_tasks << ",\n";
+  std::cout << "      \"same_shape_required\": " << (grouped ? "true" : "false") << ",\n";
+  std::cout << "      \"shape_key\": \"m=" << args.m << ";n=" << args.n << ";k=" << args.k
+            << ";tile_m=" << args.tile_m << ";tile_n=" << args.tile_n
+            << ";prefix=" << selected_execution_prefix(args, result) << "\",\n";
+  std::cout << "      \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
+  std::cout << "      \"output_domain\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
+  std::cout << "      \"source_version_policy\": \""
+            << (grouped ? "per_task_monotonic_source_version_repack" : "not_requested") << "\",\n";
+  std::cout << "      \"workspace_policy\": \""
+            << (grouped ? "one_workspace_per_task_shared_plan" : "not_requested") << "\",\n";
+  std::cout << "      \"checksum_policy\": \""
+            << (grouped ? "combined_per_task_checksum_u64" : "not_requested") << "\",\n";
+  std::cout << "      \"status_policy\": \""
+            << (grouped ? "fail_fast_per_task_operation_status" : "not_requested") << "\",\n";
+  std::cout << "      \"device_descriptor_policy\": \""
+            << (grouped_device_descriptors ? "device_pointer_tables_and_compact_slabs"
+                                           : (grouped ? "host_resident_task_loop" : "not_requested"))
+            << "\",\n";
+  std::cout << "      \"promotion_eligible\": false\n";
+  std::cout << "    }\n";
   std::cout << "  },\n";
   std::cout << "  \"adaptive_grouped_scheduler\": {\n";
   std::cout << "    \"requested\": " << (adaptive_grouped ? "true" : "false") << ",\n";

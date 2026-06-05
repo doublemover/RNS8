@@ -88,6 +88,61 @@ def task_count_for_capture(capture: dict[str, Any]) -> int:
     return 1
 
 
+def grouped_task_descriptor_contract(capture: dict[str, Any] | None) -> dict[str, Any]:
+    if capture is None:
+        return {}
+    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    contract = grouped.get("task_descriptor_contract") if isinstance(grouped, dict) else None
+    return contract if isinstance(contract, dict) else {}
+
+
+def expected_grouped_output_domain(capture: dict[str, Any]) -> str:
+    semantics = capture.get("semantics")
+    if semantics in {"finite_ring_u8", "finite_field_u8"}:
+        return "finite_u8_host"
+    if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+        return "exact_wide_limb_host"
+    return "native_i64_u64_host"
+
+
+def expected_grouped_shape_key(capture: dict[str, Any]) -> str:
+    selected_prefix = capture.get("selected_prefix", capture.get("prefix"))
+    return (
+        f"m={capture.get('m')};n={capture.get('n')};k={capture.get('k')};"
+        f"tile_m={capture.get('tile_m')};tile_n={capture.get('tile_n')};"
+        f"prefix={selected_prefix}"
+    )
+
+
+def expected_grouped_device_descriptor_policy(capture: dict[str, Any]) -> str:
+    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    strategy = grouped.get("execution_strategy")
+    if isinstance(strategy, str) and strategy.startswith("device_grouped_"):
+        return "device_pointer_tables_and_compact_slabs"
+    return "host_resident_task_loop"
+
+
+def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
+    contract = grouped_task_descriptor_contract(capture)
+    return (
+        contract.get("schema_version") == 1
+        and contract.get("descriptor_layout") == "same_shape_resident_task_triplets_v1"
+        and contract.get("bucket_policy") == "single_same_shape_bucket"
+        and contract.get("bucket_count") == 1
+        and contract.get("task_count") == task_count_for_capture(capture)
+        and contract.get("same_shape_required") is True
+        and contract.get("shape_key") == expected_grouped_shape_key(capture)
+        and contract.get("semantics") == capture.get("semantics")
+        and contract.get("output_domain") == expected_grouped_output_domain(capture)
+        and contract.get("source_version_policy") == "per_task_monotonic_source_version_repack"
+        and contract.get("workspace_policy") == "one_workspace_per_task_shared_plan"
+        and contract.get("checksum_policy") == "combined_per_task_checksum_u64"
+        and contract.get("status_policy") == "fail_fast_per_task_operation_status"
+        and contract.get("device_descriptor_policy") == expected_grouped_device_descriptor_policy(capture)
+        and contract.get("promotion_eligible") is False
+    )
+
+
 def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
@@ -252,6 +307,7 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
     if capture is None:
         return None
     grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    descriptor = grouped_task_descriptor_contract(capture)
     return {
         "path": capture.get("_path"),
         "mode": mode_for_capture(capture),
@@ -263,6 +319,10 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
         "gpu_events_available": gpu_events_available(capture),
         "grouped_dispatch_execution_strategy": grouped.get("execution_strategy"),
         "grouped_dispatch_batched_export_enabled": grouped.get("batched_export_enabled"),
+        "grouped_task_descriptor_layout": descriptor.get("descriptor_layout"),
+        "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
+        "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
+        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if is_grouped_dispatch(capture) else None,
     }
 
 
@@ -301,6 +361,8 @@ def decision_for(
         blockers.append("missing_same_backend_host_batch_checksum")
     elif host_batch_checksum_match is False:
         blockers.append("checksum_mismatch_same_backend_host_batch")
+    if not grouped_task_descriptor_valid(candidate):
+        blockers.append("invalid_grouped_task_descriptor_contract")
     release_inputs = [candidate, best_independent, same_backend_independent, same_backend_host_batch]
     if any(capture is not None and not release_satisfied(capture) for capture in release_inputs):
         blockers.append("not_release_review")
@@ -335,6 +397,7 @@ def row_for_capture(
     same_backend_host_batch: dict[str, Any] | None,
 ) -> dict[str, Any]:
     mode = mode_for_capture(capture)
+    descriptor = grouped_task_descriptor_contract(capture)
     if mode == "grouped_dispatch":
         decision, blockers = decision_for(capture, same_backend_independent, best_independent, same_backend_host_batch)
     elif mode == "host_api_batch":
@@ -368,6 +431,10 @@ def row_for_capture(
             if isinstance(capture.get("grouped_dispatch"), dict)
             else None
         ),
+        "grouped_task_descriptor_layout": descriptor.get("descriptor_layout"),
+        "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
+        "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
+        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if mode == "grouped_dispatch" else None,
         "same_backend_independent": capture_summary(same_backend_independent),
         "best_independent": capture_summary(best_independent),
         "same_backend_host_batch": capture_summary(same_backend_host_batch),
@@ -453,8 +520,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | tasks | strategy | grouped per-task us | best independent | same-backend host-batch us | host-batch task count match | host-batch checksum match | speedup vs best independent | speedup vs host-batch | decision | blockers |",
-            "|---|---|---|---:|---|---:|---|---:|---|---|---:|---:|---|---|",
+            "| backend | semantics | shape | tasks | strategy | descriptor | grouped per-task us | best independent | same-backend host-batch us | host-batch task count match | host-batch checksum match | speedup vs best independent | speedup vs host-batch | decision | blockers |",
+            "|---|---|---|---:|---|---|---:|---|---:|---|---|---:|---:|---|---|",
         ]
     )
     for group in report["groups"]:
@@ -471,7 +538,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
             )
             blockers = ",".join(row.get("blockers") or []) or "none"
             lines.append(
-                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {strategy} | {per_task} | {best} | {host_batch} | {task_count_match} | {checksum_match} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
+                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {strategy} | {descriptor} | {per_task} | {best} | {host_batch} | {task_count_match} | {checksum_match} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
                     backend=row.get("backend"),
                     semantics=row.get("semantics"),
                     m=shape.get("m"),
@@ -479,6 +546,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                     k=shape.get("k"),
                     tasks=row.get("task_count"),
                     strategy=row.get("grouped_dispatch_execution_strategy"),
+                    descriptor=row.get("grouped_task_descriptor_device_policy"),
                     per_task=row.get("median_per_task_end_to_end_us"),
                     best=best_text,
                     host_batch=host_batch.get("median_per_task_end_to_end_us"),

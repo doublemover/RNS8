@@ -251,6 +251,12 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
         "timing_policy": "single_call_totals_per_measured_repeat",
         "checksum_policy": "single_final_output_checksum",
     }
+    grouped_output_domain = "native_i64_u64_host"
+    if grouped["semantics"] in {"finite_ring_u8", "finite_field_u8"}:
+        grouped_output_domain = "finite_u8_host"
+    elif grouped["semantics"] in {"exact_wide_signed", "exact_wide_unsigned"}:
+        grouped_output_domain = "exact_wide_limb_host"
+    grouped_selected_prefix = grouped.get("selected_prefix", grouped["prefix"])
     grouped["grouped_dispatch"] = {
         "requested": True,
         "task_count": task_count,
@@ -267,6 +273,27 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
         "capture_status": "executed",
         "unsupported_reason": None,
         "promotion_eligible": False,
+        "task_descriptor_contract": {
+            "schema_version": 1,
+            "descriptor_layout": "same_shape_resident_task_triplets_v1",
+            "bucket_policy": "single_same_shape_bucket",
+            "bucket_count": 1,
+            "task_count": task_count,
+            "same_shape_required": True,
+            "shape_key": (
+                f"m={grouped['m']};n={grouped['n']};k={grouped['k']};"
+                f"tile_m={grouped['tile_m']};tile_n={grouped['tile_n']};"
+                f"prefix={grouped_selected_prefix}"
+            ),
+            "semantics": grouped["semantics"],
+            "output_domain": grouped_output_domain,
+            "source_version_policy": "per_task_monotonic_source_version_repack",
+            "workspace_policy": "one_workspace_per_task_shared_plan",
+            "checksum_policy": "combined_per_task_checksum_u64",
+            "status_policy": "fail_fast_per_task_operation_status",
+            "device_descriptor_policy": "host_resident_task_loop",
+            "promotion_eligible": False,
+        },
     }
     grouped["per_modulus_gemm_estimate_applicable"] = False
     grouped["avg_per_modulus_gemm_estimate_us"] = grouped["avg_rns_gemm_us"]
@@ -2675,6 +2702,29 @@ def main() -> int:
         "benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy",
     )
 
+    grouped_missing_descriptor = copy.deepcopy(grouped_dispatch)
+    del grouped_missing_descriptor["grouped_dispatch"]["task_descriptor_contract"]
+    expect_invalid(
+        grouped_missing_descriptor,
+        "benchmark_grouped_dispatch_evidence captures must include task_descriptor_contract",
+    )
+
+    grouped_bad_descriptor_task_count = copy.deepcopy(grouped_dispatch)
+    grouped_bad_descriptor_task_count["grouped_dispatch"]["task_descriptor_contract"]["task_count"] += 1
+    expect_invalid(
+        grouped_bad_descriptor_task_count,
+        "grouped task descriptor task_count must match grouped_dispatch.task_count",
+    )
+
+    grouped_bad_descriptor_policy = copy.deepcopy(grouped_dispatch)
+    grouped_bad_descriptor_policy["grouped_dispatch"]["task_descriptor_contract"][
+        "device_descriptor_policy"
+    ] = "device_pointer_tables_and_compact_slabs"
+    expect_invalid(
+        grouped_bad_descriptor_policy,
+        "grouped task descriptor device_descriptor_policy must match execution strategy",
+    )
+
     grouped_bad_batched_strategy = copy.deepcopy(grouped_dispatch)
     grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = True
     grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
@@ -3346,6 +3396,9 @@ def main() -> int:
     grouped_exact_wide_device_export["grouped_dispatch"][
         "execution_strategy"
     ] = "device_grouped_exact_wide_export_kernel_batched_d2h"
+    grouped_exact_wide_device_export["grouped_dispatch"]["task_descriptor_contract"][
+        "device_descriptor_policy"
+    ] = "device_pointer_tables_and_compact_slabs"
     grouped_exact_wide_device_export["grouped_dispatch"]["batched_export_enabled"] = True
     grouped_exact_wide_device_export["grouped_dispatch"]["device_output_slab_bytes"] = 786432
     grouped_exact_wide_device_export["timing_metadata"][

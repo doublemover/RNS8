@@ -93,6 +93,7 @@ def build_grouped_case(
     grouped = as_grouped_dispatch_capture(same_backend)
     grouped = set_backend(grouped, "hip-direct")
     grouped["grouped_dispatch"]["task_count"] = grouped_task_count
+    grouped["grouped_dispatch"]["task_descriptor_contract"]["task_count"] = grouped_task_count
     grouped = set_e2e_median(grouped, grouped_per_task_us * grouped["grouped_dispatch"]["task_count"])
     captures.append(with_path(grouped, "grouped-hip-direct.json"))
     return captures
@@ -108,6 +109,8 @@ def main() -> int:
     assert round(row["speedup_vs_same_backend_host_batch"], 4) == round(70.0 / 60.0, 4)
     assert row["checksum_matches_same_backend_host_batch"] is True
     assert row["same_backend_host_batch_task_count_matches"] is True
+    assert row["grouped_task_descriptor_valid"] is True
+    assert row["grouped_task_descriptor_device_policy"] == "host_resident_task_loop"
 
     loss_report = many_small_grouped_report.build_report_from_captures(build_grouped_case(90.0))
     loss_row = next(
@@ -152,6 +155,36 @@ def main() -> int:
     assert task_count_mismatch_report["summary"]["experimental"] == 1
     assert task_count_mismatch_row["decision"] == "keep_experimental"
     assert "host_batch_task_count_mismatch" in task_count_mismatch_row["blockers"]
+
+    invalid_descriptor_captures = build_grouped_case(60.0)
+    invalid_descriptor_captures[-1]["grouped_dispatch"]["task_descriptor_contract"]["task_count"] += 1
+    invalid_descriptor_report = many_small_grouped_report.build_report_from_captures(invalid_descriptor_captures)
+    invalid_descriptor_row = next(
+        row
+        for group in invalid_descriptor_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
+    assert invalid_descriptor_report["summary"]["experimental"] == 1
+    assert invalid_descriptor_row["decision"] == "keep_experimental"
+    assert "invalid_grouped_task_descriptor_contract" in invalid_descriptor_row["blockers"]
+
+    invalid_descriptor_policy_captures = build_grouped_case(60.0)
+    invalid_descriptor_policy_captures[-1]["grouped_dispatch"]["task_descriptor_contract"][
+        "device_descriptor_policy"
+    ] = "device_pointer_tables_and_compact_slabs"
+    invalid_descriptor_policy_report = many_small_grouped_report.build_report_from_captures(
+        invalid_descriptor_policy_captures
+    )
+    invalid_descriptor_policy_row = next(
+        row
+        for group in invalid_descriptor_policy_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
+    assert invalid_descriptor_policy_report["summary"]["experimental"] == 1
+    assert invalid_descriptor_policy_row["decision"] == "keep_experimental"
+    assert "invalid_grouped_task_descriptor_contract" in invalid_descriptor_policy_row["blockers"]
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
