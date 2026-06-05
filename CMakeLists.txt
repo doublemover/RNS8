@@ -465,6 +465,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(benchmark_schema_contract_metadata_self_test PROPERTIES LABELS "benchmark;schema")
 
   add_test(
+    NAME benchmark_schema_helper_metadata_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema_helper_metadata.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_schema_helper_metadata_self_test PROPERTIES LABELS "benchmark;schema")
+
+  add_test(
     NAME metadata_registry_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_metadata_registry.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
