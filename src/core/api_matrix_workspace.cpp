@@ -248,6 +248,31 @@ void mark_device_byte_limbs_current(rns8_matrix& matrix) {
   clear_native_current(matrix);
 }
 
+void mark_output_host_residues_current(rns8_matrix& matrix) {
+  mark_host_residues_current(matrix);
+  clear_native_current(matrix);
+}
+
+void mark_output_device_residues_current(rns8_matrix& matrix) {
+  mark_device_residues_current(matrix);
+  clear_native_current(matrix);
+}
+
+void mark_output_host_byte_limbs_current(rns8_matrix& matrix) {
+  mark_host_byte_limbs_current(matrix);
+}
+
+void mark_output_device_byte_limbs_current(rns8_matrix& matrix) {
+  mark_device_byte_limbs_current(matrix);
+}
+
+void mark_output_device_native_current(rns8_matrix& matrix) {
+  clear_residue_current(matrix);
+  clear_byte_limb_current(matrix);
+  matrix.host_native_current = false;
+  matrix.device_native_current = true;
+}
+
 bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t& residues) {
   std::size_t cells = 0;
   if (prefix == 0 || !matrix_cell_count(rows, cols, cells)) {

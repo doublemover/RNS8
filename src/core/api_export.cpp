@@ -280,6 +280,11 @@ bool schedule_all_zero_output_tiles(const rns8_plan& plan) {
   return true;
 }
 
+rns8_matrix& mutable_export_cache(const rns8_matrix& matrix) {
+  // Export APIs are logically const. HIP export/staging buffers are an internal mutable cache.
+  return *const_cast<rns8_matrix*>(&matrix);
+}
+
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
@@ -302,10 +307,10 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
         }
-        auto* mutable_c = const_cast<rns8_matrix*>(C);
+        rns8_matrix& mutable_c = mutable_export_cache(*C);
         const bool all_zero_output_tiles = schedule_all_zero_output_tiles(*plan);
         if (!all_zero_output_tiles) {
-          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, mutable_c);
           if (metadata_status != RNS8_SUCCESS) {
             return metadata_status;
           }
@@ -313,29 +318,30 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
         return rns8::detail::hip_direct_export_i64_tiled_device(
             ctx->device_id,
             C->hip_residues,
-            &mutable_c->hip_export_buffer,
-            &mutable_c->hip_export_bytes,
-            &mutable_c->hip_status_buffer,
-            &mutable_c->hip_status_bytes,
+            &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes,
+            &mutable_c.hip_status_buffer,
+            &mutable_c.hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_schedule,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_bounds,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_zero_a_rows,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_zero_b_cols,
-            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_schedule_count,
-            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_max_elements,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_tile_schedule,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_tile_bounds,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_zero_a_rows,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_zero_b_cols,
+            all_zero_output_tiles ? 0 : mutable_c.hip_export_tile_schedule_count,
+            all_zero_output_tiles ? 0 : mutable_c.hip_export_tile_max_elements,
             all_zero_output_tiles,
             dst,
             ld);
       }
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::hip_direct_export_i64_device(
           ctx->device_id,
           C->hip_residues,
-          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
+          &mutable_c.hip_status_buffer,
+          &mutable_c.hip_status_bytes,
           plan->desc.m,
           plan->desc.n,
           plan->prefix,
@@ -394,10 +400,10 @@ rns8_status rns8_export_u64(
         if (plan->tile_bounds.size() != plan->tile_schedule.size()) {
           return RNS8_INTERNAL_ERROR;
         }
-        auto* mutable_c = const_cast<rns8_matrix*>(C);
+        rns8_matrix& mutable_c = mutable_export_cache(*C);
         const bool all_zero_output_tiles = schedule_all_zero_output_tiles(*plan);
         if (!all_zero_output_tiles) {
-          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, *mutable_c);
+          const rns8_status metadata_status = ensure_hip_export_tile_metadata(*ctx, *plan, mutable_c);
           if (metadata_status != RNS8_SUCCESS) {
             return metadata_status;
           }
@@ -405,29 +411,30 @@ rns8_status rns8_export_u64(
         return rns8::detail::hip_direct_export_u64_tiled_device(
             ctx->device_id,
             C->hip_residues,
-            &mutable_c->hip_export_buffer,
-            &mutable_c->hip_export_bytes,
-            &mutable_c->hip_status_buffer,
-            &mutable_c->hip_status_bytes,
+            &mutable_c.hip_export_buffer,
+            &mutable_c.hip_export_bytes,
+            &mutable_c.hip_status_buffer,
+            &mutable_c.hip_status_bytes,
             plan->desc.m,
             plan->desc.n,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_schedule,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_tile_bounds,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_zero_a_rows,
-            all_zero_output_tiles ? nullptr : mutable_c->hip_export_zero_b_cols,
-            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_schedule_count,
-            all_zero_output_tiles ? 0 : mutable_c->hip_export_tile_max_elements,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_tile_schedule,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_tile_bounds,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_zero_a_rows,
+            all_zero_output_tiles ? nullptr : mutable_c.hip_export_zero_b_cols,
+            all_zero_output_tiles ? 0 : mutable_c.hip_export_tile_schedule_count,
+            all_zero_output_tiles ? 0 : mutable_c.hip_export_tile_max_elements,
             all_zero_output_tiles,
             dst,
             ld);
       }
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::hip_direct_export_u64_device(
           ctx->device_id,
           C->hip_residues,
-          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
+          &mutable_c.hip_status_buffer,
+          &mutable_c.hip_status_bytes,
           plan->desc.m,
           plan->desc.n,
           plan->prefix,
@@ -493,11 +500,12 @@ rns8_status rns8_export_wrap_u64(
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::wrap64_hip_export_u64_device(
           ctx->device_id,
           C->hip_byte_limbs,
-          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
           plan->desc.m,
           plan->desc.n,
           dst,
@@ -523,12 +531,12 @@ rns8_status rns8_export_finite_u8(
       return export_status;
     }
     if (hip_resident_rns_backend(plan->backend)) {
-      auto* mutable_c = const_cast<rns8_matrix*>(C);
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::hip_direct_export_finite_u8_device(
           ctx->device_id,
           C->hip_residues,
-          &mutable_c->hip_export_buffer,
-          &mutable_c->hip_export_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
           plan->desc.m,
           plan->desc.n,
           modulus,
@@ -563,13 +571,14 @@ rns8_status rns8_export_exact_wide_signed_limbs(
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
       }
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::hip_direct_export_exact_wide_signed_limbs_device(
           ctx->device_id,
           C->hip_residues,
-          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
+          &mutable_c.hip_status_buffer,
+          &mutable_c.hip_status_bytes,
           plan->desc.m,
           plan->desc.n,
           plan->prefix,
@@ -625,13 +634,14 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
       if (!C->device_residues_current) {
         return RNS8_INVALID_ARGUMENT;
       }
+      rns8_matrix& mutable_c = mutable_export_cache(*C);
       return rns8::detail::hip_direct_export_exact_wide_unsigned_limbs_device(
           ctx->device_id,
           C->hip_residues,
-          &const_cast<rns8_matrix*>(C)->hip_export_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_export_bytes,
-          &const_cast<rns8_matrix*>(C)->hip_status_buffer,
-          &const_cast<rns8_matrix*>(C)->hip_status_bytes,
+          &mutable_c.hip_export_buffer,
+          &mutable_c.hip_export_bytes,
+          &mutable_c.hip_status_buffer,
+          &mutable_c.hip_status_bytes,
           plan->desc.m,
           plan->desc.n,
           plan->prefix,

@@ -287,12 +287,7 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    state.C->host_residues_current = false;
-    state.C->device_residues_current = true;
-    state.C->host_byte_limbs_current = false;
-    state.C->device_byte_limbs_current = false;
-    state.C->host_native_current = false;
-    state.C->device_native_current = false;
+    mark_output_device_residues_current(*state.C);
     status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -356,12 +351,7 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    state.C->host_residues_current = false;
-    state.C->device_residues_current = true;
-    state.C->host_byte_limbs_current = false;
-    state.C->device_byte_limbs_current = false;
-    state.C->host_native_current = false;
-    state.C->device_native_current = false;
+    mark_output_device_residues_current(*state.C);
     status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -414,12 +404,7 @@ rns8_status direct_hip_finite_u8_native_oneshot(
         modulus);
   }
   if (status == RNS8_SUCCESS) {
-    state.C->host_residues_current = false;
-    state.C->device_residues_current = true;
-    state.C->host_byte_limbs_current = false;
-    state.C->device_byte_limbs_current = false;
-    state.C->host_native_current = false;
-    state.C->device_native_current = false;
+    mark_output_device_residues_current(*state.C);
     state.C->finite_modulus = modulus;
     status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   }
