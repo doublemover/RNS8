@@ -279,7 +279,15 @@ def main() -> int:
         assert fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"] == "fhe_lattice_proxy"
         assert resident_workspace_report.build_report([capture_path])["rows"][0]["arena_enabled"] is True
         assert scheduler_overlap_report.build_report([capture_path])["rows"][0]["overlap_requested"] is True
-        assert release_gate_report.build_report([capture_path])["blocker_counts"]["reviewed_summary_missing"] == 1
+        release_report = release_gate_report.build_report([capture_path])
+        assert release_report["schema"] == "rns8_release_gate_report_v2"
+        assert release_report["blocker_counts"]["reviewed_summary_missing"] == 1
+        assert release_report["blocker_counts"]["missing_required_baselines"] == 1
+        assert release_report["groups"][0]["missing_required_baselines"] == [
+            "cpu-reference",
+            "hip-direct",
+            "hip-vector-alu-int64",
+        ]
 
     search = modulus_set_search.build_report([("test", [251, 253, 255, 256])], 32)
     assert search["candidates"][0]["pairwise_coprime"] is True

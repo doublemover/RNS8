@@ -3753,7 +3753,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "budgeted 4096 bounded i64 release-validation dry-run/resume workload",
                 "host_export",
                 "keeps 4096 proof collection resumable and memory-capped before any release claim",
-                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                backends=tuple(BOUNDED_BACKENDS),
                 metadata={
                     "large_shape_role": "budgeted_release_validation_probe",
                     "promotion_scope": "non_promoting_budgeted_dry_run",
@@ -3771,7 +3771,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "budgeted 4096 exact-wide signed export-heavy release-validation dry-run",
                 "exact_wide_signed_limbs",
                 "separates exact-wide export pressure from bounded throughput before optimization starts",
-                backends=("cpu", "hip-direct", "ck", "rocwmma"),
+                backends=tuple(EXACT_WIDE_BACKENDS),
                 exact_wide_limb_counts=(4,),
                 metadata={
                     "large_shape_role": "budgeted_exact_wide_export_probe",

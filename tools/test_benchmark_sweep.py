@@ -1114,6 +1114,26 @@ def main() -> int:
         for entry in large_validation_entries
     )
 
+    large_4096_budgeted_args = copy.copy(scenario_args)
+    large_4096_budgeted_args.backends = None
+    large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
+    large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
+    assert len(large_4096_budgeted_entries) == 11
+    assert {
+        entry.scenario["backend"]
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "bounded-i64-4096-budgeted-baselines"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+    assert {
+        entry.scenario["backend"]
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "exact-wide-signed-4096-budgeted-export"
+    } == {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"}
+    assert all(
+        entry.scenario.get("metadata", {}).get("promotion_scope") == "non_promoting_budgeted_dry_run"
+        for entry in large_4096_budgeted_entries
+    )
+
     finite_generic_args = copy.copy(scenario_args)
     finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
     finite_generic_args.scenario = ["finite-generic-moduli"]
