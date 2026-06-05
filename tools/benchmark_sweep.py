@@ -553,13 +553,40 @@ def autotune_cache_path() -> Path:
     return Path("rns8-gemm") / "autotune.json"
 
 
-def run_command(command: list[str], output: Path) -> bool:
+def _timeout_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
+def run_command(command: list[str], output: Path, timeout_seconds: float | None = None) -> bool:
     output.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        failure = {
+            "command": command,
+            "returncode": None,
+            "timed_out": True,
+            "timeout_seconds": timeout_seconds,
+            "stdout": _timeout_text(exc.stdout),
+            "stderr": _timeout_text(exc.stderr),
+        }
+        output.with_suffix(".failed.json").write_text(json.dumps(failure, indent=2), encoding="utf-8")
+        return False
     if completed.returncode != 0:
         failure = {
             "command": command,
             "returncode": completed.returncode,
+            "timed_out": False,
             "stdout": completed.stdout,
             "stderr": completed.stderr,
         }
@@ -606,6 +633,7 @@ def execute_sweep_entries(
         "deferred_captures": 0,
     }
     max_new = getattr(args, "max_new_captures", None)
+    timeout_seconds = getattr(args, "capture_timeout_seconds", None)
     for entry in entries:
         if getattr(args, "skip_existing", False) and existing_capture_valid(entry.output):
             capture_paths.append(entry.output)
@@ -615,7 +643,7 @@ def execute_sweep_entries(
             stats["deferred_captures"] += 1
             continue
         stats["new_captures_attempted"] += 1
-        if run_command(entry.command, entry.output):
+        if run_command(entry.command, entry.output, timeout_seconds=timeout_seconds):
             capture_paths.append(entry.output)
             stats["new_captures_completed"] += 1
     return stats
@@ -3754,6 +3782,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "host_export",
                 "keeps 4096 proof collection resumable and memory-capped before any release claim",
                 backends=tuple(BOUNDED_BACKENDS),
+                release_gate="large-release-validation-4096-budgeted",
                 metadata={
                     "large_shape_role": "budgeted_release_validation_probe",
                     "promotion_scope": "non_promoting_budgeted_dry_run",
@@ -3773,6 +3802,7 @@ def scenario_catalog() -> dict[str, list[ScenarioItem]]:
                 "separates exact-wide export pressure from bounded throughput before optimization starts",
                 backends=tuple(EXACT_WIDE_BACKENDS),
                 exact_wide_limb_counts=(4,),
+                release_gate="large-release-validation-4096-budgeted",
                 metadata={
                     "large_shape_role": "budgeted_exact_wide_export_probe",
                     "promotion_scope": "non_promoting_budgeted_dry_run",
@@ -4523,7 +4553,9 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
         args, "adaptive_grouped_scheduler", False
     )
     scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
-    scenario_args.release_gate = item.release_gate or getattr(args, "release_gate", "none")
+    scenario_args.release_gate = (
+        item.release_gate if item.release_gate and item.release_gate != "none" else getattr(args, "release_gate", "none")
+    )
     scenario_args.verification_amortization = item.verification_amortization or getattr(
         args, "verification_amortization", "none"
     )
@@ -5273,6 +5305,11 @@ def parse_args() -> argparse.Namespace:
         help="limit the number of newly executed captures while still reviewing existing/skipped captures",
     )
     parser.add_argument(
+        "--capture-timeout-seconds",
+        type=float,
+        help="optional wall-clock timeout for each benchmark capture command; timed-out captures are recorded as .failed.json",
+    )
+    parser.add_argument(
         "--scenario",
         action="append",
         choices=[*scenario_names(), "all"],
@@ -5467,6 +5504,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
+    if args.capture_timeout_seconds is not None and args.capture_timeout_seconds <= 0:
+        parser.error("--capture-timeout-seconds must be positive")
     if args.grouped_dispatch_tasks <= 0:
         parser.error("--grouped-dispatch-tasks must be positive")
     if args.modulus_set != "default" and not args.modulus_set.startswith("experimental:"):

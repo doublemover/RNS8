@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import argparse
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -1133,6 +1134,10 @@ def main() -> int:
         entry.scenario.get("metadata", {}).get("promotion_scope") == "non_promoting_budgeted_dry_run"
         for entry in large_4096_budgeted_entries
     )
+    assert all(
+        "--release-gate" in entry.command and "large-release-validation-4096-budgeted" in entry.command
+        for entry in large_4096_budgeted_entries
+    )
 
     finite_generic_args = copy.copy(scenario_args)
     finite_generic_args.backends = ["hip-direct", "ck", "rocwmma"]
@@ -1296,6 +1301,20 @@ def main() -> int:
             "new_captures_completed": 0,
             "deferred_captures": 1,
         }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        timeout_output = Path(tmp) / "timeout.json"
+        ok = benchmark_sweep.run_command(
+            [sys.executable, "-c", "import time; time.sleep(5)"],
+            timeout_output,
+            timeout_seconds=0.01,
+        )
+        failure = json.loads(timeout_output.with_suffix(".failed.json").read_text(encoding="utf-8"))
+        assert ok is False
+        assert timeout_output.exists() is False
+        assert failure["timed_out"] is True
+        assert failure["timeout_seconds"] == 0.01
+        assert failure["returncode"] is None
 
     bad_scenario_args = copy.copy(scenario_args)
     bad_scenario_args.include_oneshot = True

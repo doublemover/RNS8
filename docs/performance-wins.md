@@ -85,8 +85,17 @@ driver state.
 The exploratory 4096 results indicate that the bounded large-shape matrix is no
 longer launch-bound in the same way as 512/1024. Pack and export are still large
 shares of hipBLASLt time, while Direct HIP is dominated by RNS GEMM at 4096.
-Do not use these rows as AUTO cache entries until a deliberately budgeted
-4096 review includes the required CPU/reference and vector baselines.
+Do not use the GPU-only rows above as AUTO cache entries.
+
+A later budgeted 4096 gate under
+`temp/perf-work-queue/large-4096-budgeted-release-current-v2/` reran bounded i64
+with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA. That group
+has required baselines and GPU events, but the budget gate still blocks cache
+promotion while reviewed-summary/margin closure remains explicit.
+
+| Contract | Shape | Budgeted-gate winner | Winner median end-to-end | Direct HIP median | Runtime vector median | CPU reference median | Decision |
+|---|---:|---|---:|---:|---:|---:|---|
+| bounded i64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 128995 us | 853232 us | 21244300 us | Release-gate evidence only; no 4096 cache entry installed |
 
 A follow-up non-bounded 4096 exploratory pass used the same seed and release
 settings for exact-wide, finite-u8, and strict wrap64. It is also GPU-only
@@ -112,6 +121,12 @@ These rows are useful for deciding whether the next large-shape work should
 target GEMM throughput or export specialization. They are not reviewed cache
 entries and should not appear in public snapshot tables until the missing
 CPU/reference and vector baselines are run.
+
+The same budgeted 4096 gate also captured exact-wide signed 4096 GPU rows with
+required events: hipBLASLt at 172818 us, CK at 206153 us, rocWMMA at 253649 us,
+and Direct HIP at 637861 us. The CPU reference exceeded the 60-second
+per-capture timeout, so this group remains blocked by `missing_required_baselines`
+and is not a release-reviewed exact-wide 4096 claim.
 
 ## Finite-u8 Accelerator Wins
 
