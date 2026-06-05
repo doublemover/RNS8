@@ -16,13 +16,14 @@ DEFAULT_OUT_DIR = Path("temp") / "many-small-grouped-reports"
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
+REPORT_OUTPUT_NAMES = {"many-small-grouped-report.json"}
 
 
 def expand_inputs(paths: list[Path]) -> list[Path]:
     expanded: list[Path] = []
     for path in paths:
         if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
+            expanded.extend(candidate for candidate in sorted(path.rglob("*.json")) if candidate.name not in REPORT_OUTPUT_NAMES)
         else:
             expanded.append(path)
     return expanded
@@ -233,6 +234,7 @@ def normalized_contract_key(capture: dict[str, Any]) -> str:
 def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
     if capture is None:
         return None
+    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
     return {
         "path": capture.get("_path"),
         "mode": mode_for_capture(capture),
@@ -242,6 +244,8 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
         "median_per_task_end_to_end_us": median_per_task_end_to_end_us(capture),
         "release_review": release_satisfied(capture),
         "gpu_events_available": gpu_events_available(capture),
+        "grouped_dispatch_execution_strategy": grouped.get("execution_strategy"),
+        "grouped_dispatch_batched_export_enabled": grouped.get("batched_export_enabled"),
     }
 
 
@@ -330,6 +334,16 @@ def row_for_capture(
             if isinstance(capture.get("grouped_dispatch"), dict)
             else None
         ),
+        "grouped_dispatch_execution_strategy": (
+            capture.get("grouped_dispatch", {}).get("execution_strategy")
+            if isinstance(capture.get("grouped_dispatch"), dict)
+            else None
+        ),
+        "grouped_dispatch_batched_export_enabled": (
+            capture.get("grouped_dispatch", {}).get("batched_export_enabled")
+            if isinstance(capture.get("grouped_dispatch"), dict)
+            else None
+        ),
         "same_backend_independent": capture_summary(same_backend_independent),
         "best_independent": capture_summary(best_independent),
         "same_backend_host_batch": capture_summary(same_backend_host_batch),
@@ -408,8 +422,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | tasks | grouped per-task us | best independent | same-backend host-batch us | speedup vs best independent | speedup vs host-batch | decision | blockers |",
-            "|---|---|---|---:|---:|---|---:|---:|---:|---|---|",
+            "| backend | semantics | shape | tasks | strategy | grouped per-task us | best independent | same-backend host-batch us | speedup vs best independent | speedup vs host-batch | decision | blockers |",
+            "|---|---|---|---:|---|---:|---|---:|---:|---:|---|---|",
         ]
     )
     for group in report["groups"]:
@@ -426,13 +440,14 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
             )
             blockers = ",".join(row.get("blockers") or []) or "none"
             lines.append(
-                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {per_task} | {best} | {host_batch} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
+                "| {backend} | {semantics} | {m}x{n}x{k} | {tasks} | {strategy} | {per_task} | {best} | {host_batch} | {speed_best} | {speed_batch} | {decision} | {blockers} |".format(
                     backend=row.get("backend"),
                     semantics=row.get("semantics"),
                     m=shape.get("m"),
                     n=shape.get("n"),
                     k=shape.get("k"),
                     tasks=row.get("task_count"),
+                    strategy=row.get("grouped_dispatch_execution_strategy"),
                     per_task=row.get("median_per_task_end_to_end_us"),
                     best=best_text,
                     host_batch=host_batch.get("median_per_task_end_to_end_us"),

@@ -127,6 +127,11 @@ GROUPED_DISPATCH_STATUSES = {
     "metadata_only_unsupported_for_execution_path",
     "executed",
 }
+GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
+    "not_requested",
+    "host_phase_loop_per_task_export",
+    "host_phase_loop_batched_exact_wide_export_d2h",
+}
 STREAMING_OVERLAP_STATUSES = {
     "not_requested",
     "metadata_only_unsupported_for_execution_path",
@@ -1185,6 +1190,17 @@ class _Validator:
                 self._error("timing_metadata.host_api_batch_enabled must be a boolean")
             if batch_size is not None and (not _is_int(batch_size) or batch_size <= 0):
                 self._error("timing_metadata.host_api_batch_size must be a positive integer")
+            grouped_strategy = metadata.get("grouped_dispatch_execution_strategy")
+            if grouped_strategy is not None and grouped_strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+                self._error(
+                    "timing_metadata.grouped_dispatch_execution_strategy must be a known grouped strategy"
+                )
+            grouped_batched_export = metadata.get("grouped_dispatch_batched_export_enabled")
+            if grouped_batched_export is not None and not isinstance(grouped_batched_export, bool):
+                self._error("timing_metadata.grouped_dispatch_batched_export_enabled must be a boolean")
+            grouped_slab_bytes = metadata.get("grouped_dispatch_device_output_slab_bytes")
+            if grouped_slab_bytes is not None and (not _is_int(grouped_slab_bytes) or grouped_slab_bytes < 0):
+                self._error("timing_metadata.grouped_dispatch_device_output_slab_bytes must be a nonnegative integer")
 
         plan_packing = self.data.get("plan_packing")
         if plan_packing is not None:
@@ -1602,6 +1618,15 @@ class _Validator:
                 for key in ["descriptor_identity", "source_hash", "output_hash", "setup_scope"]:
                     if not isinstance(grouped.get(key), str):
                         self._error(f"grouped_dispatch.{key} must be a string")
+                strategy = grouped.get("execution_strategy")
+                if strategy is not None and strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+                    self._error("grouped_dispatch.execution_strategy must be a known grouped strategy")
+                batched_export = grouped.get("batched_export_enabled")
+                if batched_export is not None and not isinstance(batched_export, bool):
+                    self._error("grouped_dispatch.batched_export_enabled must be a boolean")
+                slab_bytes = grouped.get("device_output_slab_bytes")
+                if slab_bytes is not None and (not _is_int(slab_bytes) or slab_bytes < 0):
+                    self._error("grouped_dispatch.device_output_slab_bytes must be a nonnegative integer")
                 if grouped.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
                     self._error(f"grouped_dispatch.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}")
                 if task_count and task_count > 1 and grouped.get("requested") is not True:
@@ -1782,6 +1807,22 @@ class _Validator:
                 self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.unsupported_reason=null")
             if grouped.get("promotion_eligible") is not False:
                 self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.promotion_eligible=false")
+            strategy = grouped.get("execution_strategy")
+            batched_export = grouped.get("batched_export_enabled")
+            slab_bytes = grouped.get("device_output_slab_bytes")
+            if strategy is not None and strategy == "not_requested":
+                self._error("benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy")
+            if batched_export is True:
+                if strategy != "host_phase_loop_batched_exact_wide_export_d2h":
+                    self._error("grouped_dispatch batched export requires the batched exact-wide export strategy")
+                if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
+                    self._error("grouped_dispatch batched export is only valid for exact-wide semantics")
+                if self.data.get("exact_wide_export_status_check") != "elided_full_width_device_reconstruction":
+                    self._error("grouped_dispatch batched export requires structurally elided exact-wide status")
+                if not _is_int(slab_bytes) or slab_bytes <= 0:
+                    self._error("grouped_dispatch batched export requires a positive device_output_slab_bytes")
+            elif strategy == "host_phase_loop_batched_exact_wide_export_d2h":
+                self._error("grouped_dispatch batched export strategy requires batched_export_enabled=true")
             if self.data.get("semantics") == "wrap_u64_mod_2_64":
                 self._error("benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64")
             if self.data.get("reuse_packed_inputs") is not False:
@@ -1809,6 +1850,12 @@ class _Validator:
                     self._error(
                         "timing_metadata.grouped_dispatch_task_count must match grouped_dispatch.task_count"
                     )
+                if strategy is not None and metadata.get("grouped_dispatch_execution_strategy") not in {None, strategy}:
+                    self._error("timing_metadata.grouped_dispatch_execution_strategy must match grouped_dispatch")
+                if batched_export is not None and metadata.get("grouped_dispatch_batched_export_enabled") not in {None, batched_export}:
+                    self._error("timing_metadata.grouped_dispatch_batched_export_enabled must match grouped_dispatch")
+                if _is_int(slab_bytes) and metadata.get("grouped_dispatch_device_output_slab_bytes") not in {None, slab_bytes}:
+                    self._error("timing_metadata.grouped_dispatch_device_output_slab_bytes must match grouped_dispatch")
                 notes = metadata.get("phase_notes")
                 if not isinstance(notes, dict):
                     self._error("benchmark_grouped_dispatch_evidence captures must include timing_metadata.phase_notes")

@@ -354,15 +354,20 @@ diagnostic remain focused event-cleanup evidence only.
 
 A follow-up grouped-dispatch capture on the same exact-wide signed 64
 contract now beats both the independent Direct-HIP baseline and the earlier
-hostbatch32 candidate. The current branch `rns8-bench --grouped-dispatch 32`
-capture under
-`temp/perf-work-queue/many-small-grouped-dispatch-current/` uses three
-warmups, nine repeats, seed `20260605`, schema v4, and required Direct-HIP GPU
-events. `tools/many_small_grouped_report.py` reports 991.94 us per task for
-the grouped path versus 3880 us for independent Direct HIP and 1902.97 us for
-Direct-HIP hostbatch32, or 3.91x and 1.92x faster respectively. This remains
-benchmark-owned persistent-task evidence, not a device queue, public grouped
-API, AUTO cache entry, or Linux/Instinct claim.
+hostbatch32 candidate. The first branch-local `rns8-bench --grouped-dispatch
+32` capture under `temp/perf-work-queue/many-small-grouped-dispatch-current/`
+reported 991.94 us per task. The current async exact-wide export-slab capture
+under `temp/perf-work-queue/many-small-grouped-dispatch-slab-current/` uses
+three warmups, nine repeats, seed `20260605`, schema v4, required Direct-HIP
+GPU events, and checksum parity with the earlier grouped capture. It reports
+792.66 us per task, or 1.25x faster than the earlier grouped-dispatch path,
+4.89x faster than the 3880 us independent Direct-HIP baseline, and 2.40x
+faster than the 1902.97 us Direct-HIP hostbatch32 row. The export-slab path
+queues all grouped exact-wide export kernels without per-task synchronization,
+copies one compact device output slab back to host, and materializes per-task
+checksum buffers outside the measured repeat for contiguous output. This
+remains benchmark-owned persistent-task evidence, not a device queue, public
+grouped API, AUTO cache entry, or Linux/Instinct claim.
 
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import tempfile
 from pathlib import Path
 
 import many_small_grouped_report
@@ -103,6 +104,16 @@ def main() -> int:
     assert missing_report["summary"]["experimental"] == 1
     assert missing_row["decision"] == "keep_experimental"
     assert "missing_same_backend_host_batch_baseline" in missing_row["blockers"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        report_path = tmp_path / "many-small-grouped-report.json"
+        capture_path = tmp_path / "capture.json"
+        report_path.write_text("{}", encoding="utf-8")
+        capture_path.write_text("{}", encoding="utf-8")
+        expanded = many_small_grouped_report.expand_inputs([tmp_path])
+        assert capture_path in expanded
+        assert report_path not in expanded
 
     print("many-small grouped report self-test: PASS")
     return 0

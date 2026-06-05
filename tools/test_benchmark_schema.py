@@ -261,6 +261,9 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
         "source_hash": str(grouped["seed"]),
         "output_hash": "final_checksum_u64",
         "setup_scope": "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks",
+        "execution_strategy": "host_phase_loop_per_task_export",
+        "batched_export_enabled": False,
+        "device_output_slab_bytes": 0,
         "capture_status": "executed",
         "unsupported_reason": None,
         "promotion_eligible": False,
@@ -284,6 +287,9 @@ def as_grouped_dispatch_capture(capture: dict) -> dict:
     metadata["host_api_batch_size"] = 1
     metadata["grouped_dispatch_enabled"] = True
     metadata["grouped_dispatch_task_count"] = task_count
+    metadata["grouped_dispatch_execution_strategy"] = "host_phase_loop_per_task_export"
+    metadata["grouped_dispatch_batched_export_enabled"] = False
+    metadata["grouped_dispatch_device_output_slab_bytes"] = 0
     metadata["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
     metadata["generated_reducer_identity"] = "direct_hip_fixed_prefix_9_generated_reducer_v1"
     metadata["phase_notes"]["pack"] = (
@@ -2503,6 +2509,22 @@ def main() -> int:
     expect_invalid(
         grouped_bad_per_task_average,
         "avg_end_to_end_per_task_us must equal avg_end_to_end_us / grouped_dispatch.task_count",
+    )
+
+    grouped_missing_strategy = copy.deepcopy(grouped_dispatch)
+    grouped_missing_strategy["grouped_dispatch"]["execution_strategy"] = "not_requested"
+    grouped_missing_strategy["timing_metadata"]["grouped_dispatch_execution_strategy"] = "not_requested"
+    expect_invalid(
+        grouped_missing_strategy,
+        "benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy",
+    )
+
+    grouped_bad_batched_strategy = copy.deepcopy(grouped_dispatch)
+    grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = True
+    grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
+    expect_invalid(
+        grouped_bad_batched_strategy,
+        "grouped_dispatch batched export requires the batched exact-wide export strategy",
     )
 
     helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))
