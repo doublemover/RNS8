@@ -142,6 +142,11 @@ and Direct HIP at 637861 us. The CPU reference exceeded the 60-second
 per-capture timeout, so this group remains blocked by `missing_required_baselines`
 and is not a release-reviewed exact-wide 4096 claim.
 
+The strict wrap64 4096 budget row also captured Direct HIP at 295657 us median
+end-to-end with required wrap64 GPU events. Its required byte-limb CPU reference
+exceeded the 300-second per-capture timeout, so the group remains blocked by
+`missing_required_baselines` and is not a release-reviewed wrap64 4096 claim.
+
 ## Finite-u8 Accelerator Wins
 
 The current finite-u8 v2 release review covered 64, 128, 512, 1024, the
