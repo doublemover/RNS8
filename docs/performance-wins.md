@@ -125,38 +125,38 @@ repeats, CPU and Direct-HIP baselines, schema-valid
 captures, and required GPU events for promoted accelerators.
 `tools/benchmark_sweep.py` now blocks reviewed cache promotion when an
 accelerator capture lacks required GPU event timing or loses to the CPU
-reference; the ring-255 64 rocWMMA result and non-winning 2048 ring-256
-stale hipBLASLt event-incomplete capture were therefore not installed. The
-hipBLASLt finite timing fallback now clears that reducer-event label blocker in
-focused reruns, but cache decisions still require a fresh same-contract release
-review before any winner changes.
+reference; the ring-255 64 rocWMMA result was therefore not installed. The
+hipBLASLt finite timing fallback cleared the stale reducer-event label blocker,
+and the post-fix finite 2048 rerun refreshed the local cache entries for the
+hot 2048 contracts.
 
 | Contract | Shape | Current winner | Winner median end-to-end | Direct HIP median | Speedup vs Direct HIP | Decision |
 |---|---:|---|---:|---:|---:|---|
 | finite ring u8 mod 251 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1261 us | 1.11x | Current reviewed v2 cache entry installed locally |
 | finite ring u8 mod 251 | 1024 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 4682 us | 2.74x | Current reviewed v2 cache entry installed locally |
-| finite ring u8 mod 251 | 2048 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 4216 us | 9391 us | 2.23x | Current reviewed v2 cache entry installed locally |
+| finite ring u8 mod 251 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3244 us | 11259 us | 3.47x | Current reviewed v2 cache entry refreshed locally |
 | finite ring u8 mod 127 | 2048 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 3427 us | 5445 us | 1.59x | Current reviewed generic-modulus cache entry installed locally |
 | finite ring u8 mod 253 | 2048 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_hot_residue_v1` | 4856 us | 5460 us | 1.12x | Current reviewed generic-modulus cache entry installed locally |
 | finite ring u8 mod 255 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 5814 us | 3.00x | Current reviewed v2 cache entry installed locally |
-| finite ring u8 mod 255 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2845 us | 11501 us | 4.04x | Current reviewed v2 cache entry installed locally |
+| finite ring u8 mod 255 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 2425 us | 7395 us | 3.05x | Current reviewed v2 cache entry refreshed locally |
 | finite ring u8 mod 256 | 128 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1149 us | 1.02x | Current reviewed v2 cache entry installed locally |
 | finite ring u8 mod 256 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 5569 us | 4.08x | Current reviewed v2 cache entry installed locally |
 | finite ring u8 mod 256 | 1024 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 12633 us | 7.05x | Current reviewed v2 cache entry installed locally |
-| finite ring u8 mod 256 | 2048 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 5011 us | 5356 us | 1.07x | Current reviewed v2 cache entry installed locally |
+| finite ring u8 mod 256 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3017 us | 5778 us | 1.92x | Current reviewed v2 cache entry refreshed locally |
 | finite field u8 mod 127 | 512 | CK `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 1289 us | 1421 us | 1.10x | Current reviewed generic-modulus cache entry installed locally |
 | finite field u8 mod 127 | 2048 | CK `ck_wmma_cshuffle_finite_u8_centered_epilogue_v1` | 3424 us | 5388 us | 1.57x | Current reviewed generic-modulus cache entry installed locally |
 | finite field u8 mod 251 | 512 | rocWMMA `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1241 us | 1303 us | 1.05x | Current reviewed v2 cache entry installed locally |
 | finite field u8 mod 251 | 1024 | CK `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 10564 us | 5.68x | Current reviewed v2 cache entry installed locally |
-| finite field u8 mod 251 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4432 us | 5641 us | 1.27x | Current reviewed v2 cache entry installed locally |
+| finite field u8 mod 251 | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 3079 us | 9154 us | 2.97x | Current reviewed v2 cache entry refreshed locally |
 
 Non-promoted finite groups are still useful tuning signals. Ring-251 512 stayed
 on Direct HIP at 1521 us and ring-255 512 stayed on Direct HIP at 1381 us.
 Ring-255 64 had a rocWMMA accelerator result at 1257 us versus Direct HIP at
 3388 us, but CPU reference was 167 us; the CPU gate correctly kept it out of
-the reviewed runtime cache. At 2048, ring-256 hipBLASLt was slower than Direct
-HIP and also lacked required GPU events, so it remains a non-promoted diagnostic
-capture only.
+the reviewed runtime cache. The earlier same-day finite 2048 run is superseded
+for hot 2048 cache decisions: the post-fix rerun makes hipBLASLt the reviewed
+winner for ring 251, ring 255, ring 256, and field 251 with required GPU events
+and CPU-backed release review.
 
 The field-127 generic-modulus refresh also reran hipBLASLt with complete
 `hipblaslt_pack_transpose_centered`, `hipblaslt_int8_i32_matmul`, and
@@ -440,10 +440,11 @@ CRT export timing was lower in these captures.
 ## Promotion Boundaries
 
 - Promote now: the current local default runtime cache includes the reviewed
-  bounded-i64 1024 hipBLASLt v2 entry, the installed 2048 bounded entries, 12
-  current finite-u8 v2 entries, four generic finite-u8 entries, and six current
-  exact-wide v2 entries. The installed reviewed cache covers 29 exact plan keys
-  overall after the June 5, 2026 finite-u8 field refresh.
+  bounded-i64 1024 hipBLASLt v2 entry, the installed 2048 bounded entries,
+  current finite-u8 v2 entries, four generic finite-u8 entries, post-fix
+  finite-u8 hot 2048 entries, and six current exact-wide v2 entries. The
+  installed reviewed cache contains 31 validated entries overall after the
+  June 5, 2026 finite-u8 2048 post-fix refresh.
   There is no bounded-i64 512 accelerator entry; Direct HIP remains the current
   512 bounded-i64 winner.
 - Keep experimental for AUTO selection: Direct-HIP, hipBLASLt, vector ALU, and

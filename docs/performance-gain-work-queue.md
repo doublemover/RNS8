@@ -105,10 +105,14 @@ June 4-5, 2026 updates:
   field-251 hipBLASLt capture has required GPU events but loses to Direct HIP
   and rocWMMA.
 - Finite-u8 2048 hot-modulus work is now CPU-backed and release-reviewed for
-  ring 251/255/256 plus field 251. Four local cache entries were installed:
-  rocWMMA ring 251, hipBLASLt ring 255, rocWMMA ring 256, and hipBLASLt field
-  251. The non-winning hipBLASLt ring-256 capture lacked required GPU events
-  and remains diagnostic only.
+  ring 251/255/256 plus field 251 after the finite hipBLASLt timing fallback.
+  The post-fix rerun under
+  `temp/perf-work-queue/finite-u8-2048-post-hipblaslt-event-release/` promotes
+  hipBLASLt for all four hot 2048 contracts: ring 251 at 3244 us, ring 255 at
+  2425 us, ring 256 at 3017 us, and field 251 at 3079 us. The reviewed temp
+  cache wrote four entries, and `tools/install_autotune_cache.py` refreshed the
+  default local cache by replacing two entries and adding two backend-keyed
+  entries; the cache now contains 31 validated entries.
 - Branch-local native-to-RNS and vector-to-RNS work closes the bridge exposure
   lane: native bounded device output can now be materialized into RNS device
   residues for Direct-HIP consumers, and benchmark/schema/sweep coverage exists
@@ -268,14 +272,15 @@ June 4-5, 2026 updates:
   byte-limb reference. This is current Direct-HIP correctness-path evidence, not
   an AUTO cache entry.
 - The finite-u8 2048 hot-modulus slice of `large-release-validation` is also
-  complete. The 20 captures under
-  `temp/perf-work-queue/large-release-validation-2048-finite-current/` cover
+  complete. The original 20 captures under
+  `temp/perf-work-queue/large-release-validation-2048-finite-current/` covered
   CPU, Direct HIP, hipBLASLt, CK, and rocWMMA for ring 251/255/256 and field
-  251, with four installed local cache winners: rocWMMA ring 251 at 4216 us,
-  hipBLASLt ring 255 at 2845 us, rocWMMA ring 256 at 5011 us, and hipBLASLt
-  field 251 at 4432 us. All promoted winners have required GPU events; the
-  non-winning hipBLASLt ring-256 capture is blocked by missing events and by
-  losing to Direct HIP.
+  251. After the hipBLASLt finite event-timing fallback, the post-fix rerun
+  under `temp/perf-work-queue/finite-u8-2048-post-hipblaslt-event-release/`
+  supersedes those hot 2048 cache decisions: hipBLASLt wins ring 251 at
+  3244 us, ring 255 at 2425 us, ring 256 at 3017 us, and field 251 at 3079 us,
+  with required GPU events, CPU reference baselines, and refreshed local cache
+  entries.
 - The exact-wide 64/128 current-v2 refresh is complete. The 20 captures under
   `temp/perf-work-queue/exact-wide-small-v2-release/` cover signed/unsigned
   exact-wide 64 and 128 across CPU, Direct HIP, hipBLASLt, CK, and rocWMMA.
@@ -378,7 +383,7 @@ June 4-5, 2026 updates:
 | 11 | Partially completed exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT are likely practical wins | Direct-HIP prefix-20 fixed-limb export exists; signed three-limb and unsigned three-limb full-width exports now elide status traffic; focused 2048 signed three-limb versus four-limb Direct-HIP captures are schema/event-valid but output-contract-specific | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements or narrower-output substitutions |
 | 12 | Partially completed exact-wide lazy-export scenarios | Exact-wide chains may win by delaying reconstruction rather than accelerating a single GEMM | Direct-HIP exact-wide signed 128 chain-length-3 release captures prove residue-current timing is event-visible and avoids per-repeat `crt_export`; the current evidence is strongest for explicit reusable-B chains, but final-output and broader shape/semantic comparators are still missing | Promote lazy/export changes only when output-domain metadata proves the same contract and the final export/check path is measured against independent-call baselines |
 | 13 | Partially completed exact-wide 64/128/2048/4096 and limb-count release matrix | Exact-wide small evidence was historical and larger exact-wide shapes still need current proof | Current-v2 64/128 is release-reviewed: unsigned 64 installs a hipBLASLt cache entry while signed 64, signed 128, and unsigned 128 stay on Direct HIP; 2048 signed and unsigned are release-reviewed with CPU, Direct HIP, hipBLASLt, CK, rocWMMA, required GPU events, and installed hipBLASLt cache entries; 4096 signed/unsigned now has event-valid GPU-only classification with CK best in both groups, but no CPU or runtime vector baselines | Install cache entries only for exact shape/semantic/limb keys with required events; treat 2048 evidence as export-bound, keep 4096 exploratory until release review is complete, and route follow-up work toward fixed-width export and lazy residue-current workflows |
-| 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; four winners were installed locally and all promoted winners have required GPU events; the hipBLASLt finite reducer-label timing fallback has focused event-complete reruns for every stale finite hipBLASLt miss, including the 4096 ring-255 blocker | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
+| 14 | Completed finite-u8 2048 hot-modulus release matrix; 4096 remains exploratory | 2048 GPU-only evidence needed CPU-backed release proof before any local AUTO claims | `large-release-validation` release-reviewed ring 251/255/256 and field 251 at 2048 with CPU, Direct HIP, hipBLASLt, CK, and rocWMMA comparators; the post-fix rerun after the hipBLASLt finite reducer-event fallback promotes hipBLASLt for all four hot 2048 contracts and refreshes the local cache with event-complete entries | Closed for 2048 hot-modulus promotion; keep 4096 exploratory until a CPU/reference release baseline is intentionally budgeted |
 | 15 | Partially completed finite-u8 generic prime/composite coverage | Generic 512 has promoted local keys, generic ring 127/253 2048 has CPU-backed rocWMMA cache entries, and generic field-127 2048 has a CPU-backed CK cache entry; broader modulus-family and 4096 coverage remain thin | Minimal generic prime/composite correctness and timing evidence with selector explanations | Keep non-promoted generic paths experimental until they prove feature value or fill unsupported contracts |
 | 16 | Closed helper lane: vector/native-to-RNS bridge | Native bounded output can now feed Direct-HIP RNS consumers instead of becoming a dead end | Device-to-device native-to-RNS kernels plus native-to-RNS and vector-to-RNS benchmark/schema/sweep coverage exist; release A/B and selector policy still need proof | Closed as bridge exposure; route only explicit conversion paths with stale-kernel schema rejection |
 | 17 | Completed current skinny-GEMV selector refresh | Current-v2 bounded-u64 skinny evidence did not preserve the old vector-leading assumption | `skinny-gemv` release review covered bounded-i64 512x1x512, bounded-i64 256x1x4096, and bounded-u64 1024x1x1024 with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA; Direct HIP won all three groups and no cache entry was written | Closed for current claim refresh; reopen only for a cheaper native-input/reuse path that beats Direct HIP setup-inclusively |
@@ -414,7 +419,7 @@ June 4-5, 2026 updates:
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
 | Many-small grouped execution remains incomplete | The same-commit matrix now includes release-reviewed host-batch proof: only Direct-HIP exact-wide signed 64 hostbatch32 beats the fastest independent baseline, while bounded and finite host-batch candidates lose; there is still no device grouped/persistent dispatcher or public batching contract | Implement grouped/persistent execution if host-side batching is insufficient, expand exact-wide host-batch proof only where it survives the fastest-independent gate, and require complete GPU events for any promoted grouped or batched GPU candidate |
-| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion; bounded plus finite/exact-wide/wrap64 4096 now have GPU-only throughput classification, and focused reruns clear the known stale finite hipBLASLt reducer-event gaps | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass and runtime vector comparison are intentionally budgeted |
+| Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, with finite hot 2048 refreshed after the hipBLASLt event fix; repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion; bounded plus finite/exact-wide/wrap64 4096 now have GPU-only throughput classification, and focused reruns clear the known stale finite hipBLASLt reducer-event gaps | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass and runtime vector comparison are intentionally budgeted |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
 
 ## Do Not Chase Next

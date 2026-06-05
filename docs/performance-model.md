@@ -760,9 +760,10 @@ Current Windows release sweep status:
   reports with complete baselines;
 - finite-u8 ring moduli 251, 255, and 256 plus finite-u8 field modulus 251 have
   current local v2 release-reviewed matrices at 64/128/512/1024 plus
-  hot-modulus 2048; 11 event-valid entries are installed in the local default
-  cache, and accelerator cache promotion now requires beating CPU as well as
-  Direct HIP;
+  hot-modulus 2048; 20 finite-u8 entries are installed in the local default
+  cache, including post-fix hipBLASLt hot 2048 winners and older same-shape
+  rocWMMA entries that lose the AUTO median comparison, and accelerator cache
+  promotion now requires beating CPU as well as Direct HIP;
 - exact-wide signed/unsigned 64, 128, 512, 1024, and 2048 have current local v2
   release-reviewed matrices with complete CPU/direct-HIP baselines; six
   event-valid exact-wide entries are installed: unsigned 64 hipBLASLt, signed
