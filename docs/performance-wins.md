@@ -331,6 +331,30 @@ setup_inclusive_speedup =
 Steady-state speedup is the per-repeat limit after setup has already been paid,
 computed as `1 / end_to_end_ratio` from `tools\result_compare.py`.
 
+Current reuse promotion work should use `tools\reuse_contract_report.py`, not
+one-off spreadsheet math. The report normalizes reuse captures against their
+non-reuse workload contract, adds setup cost back into the per-repeat median,
+computes break-even repeats, requires GPU events for GPU captures, and records
+whether source-version/setup-scope metadata is strong enough for a workload
+claim. The latest large-shape reports produced these explicit workload
+candidate rows:
+
+| Capture family | Candidate | Setup-inclusive per-repeat | Same-backend speedup | Fastest non-reuse baseline | Workload speedup | Break-even repeats | Decision |
+|---|---|---:|---:|---|---:|---:|---|
+| CPU-backed 2048 large-release | hipBLASLt bounded-i64 repeated-B | 11048 us | 1.32x | CK | 1.29x | 3 | explicit workload candidate |
+| CPU-backed 2048 large-release | CK bounded-u64 repeated-B | 12930 us | 1.82x | rocWMMA | 1.17x | 2 | explicit workload candidate |
+| CPU-backed 2048 large-release | hipBLASLt bounded-u64 repeated-B | 10683 us | 2.28x | rocWMMA | 1.42x | 2 | explicit workload candidate |
+| CPU-backed 2048 large-release | rocWMMA bounded-u64 repeated-B | 13106 us | 1.15x | rocWMMA | 1.15x | 5 | explicit workload candidate |
+| bounded 4096 exploratory | CK bounded-i64 2048 repeated-B | 12357 us | 4.27x | hipBLASLt | 1.03x | 1 | exploratory workload candidate |
+| bounded 4096 exploratory | hipBLASLt bounded-i64 2048 repeated-B | 11096 us | 1.15x | hipBLASLt | 1.15x | 5 | exploratory workload candidate |
+| bounded 4096 exploratory | hipBLASLt bounded-i64 4096 repeated-B | 43842 us | 1.19x | hipBLASLt | 1.19x | 3 | exploratory workload candidate |
+
+The same reports also deprioritize most repeated-B candidates after setup or
+against the fastest non-reuse backend. Direct HIP bounded repeated-B does not
+currently clear the large-shape fastest-baseline gate, and runtime vector
+reuse-B is downgraded where source-identity metadata is incomplete. These rows
+remain workload-contract evidence only; they are not AUTO cache entries.
+
 | Backend | Shape | Reuse mode | Setup-inclusive speedup over 9 repeats | Steady-state per-repeat speedup | Saved per repeat | Setup | Break-even repeats | Status |
 |---|---:|---|---:|---:|---:|---:|---:|---|
 | hipBLASLt | 512 | A | 1.47x | 1.55x | 8029.9 us | 7104 us | 1 | Event-valid experimental reuse win |
