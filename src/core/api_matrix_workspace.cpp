@@ -1198,10 +1198,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
       (void)free_hip_matrix_storage(matrix);
       return status;
     }
-    matrix.host_residues_current = false;
-    matrix.device_residues_current = false;
-    matrix.host_byte_limbs_current = false;
-    matrix.device_byte_limbs_current = false;
+    clear_residue_current(matrix);
+    clear_byte_limb_current(matrix);
     return RNS8_SUCCESS;
   }
   if (matrix.residues.empty()) {
@@ -1217,10 +1215,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
     (void)free_hip_matrix_storage(matrix);
     return status;
   }
-  matrix.host_residues_current = false;
-  matrix.device_residues_current = false;
-  matrix.host_byte_limbs_current = false;
-  matrix.device_byte_limbs_current = false;
+  clear_residue_current(matrix);
+  clear_byte_limb_current(matrix);
   return RNS8_SUCCESS;
 }
 
@@ -1379,10 +1375,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
     matrix.device_residues_current = false;
     return status;
   }
-  matrix.host_residues_current = false;
-  matrix.device_residues_current = true;
-  matrix.host_byte_limbs_current = false;
-  matrix.device_byte_limbs_current = false;
+  mark_device_residues_current(matrix);
   return RNS8_SUCCESS;
 }
 
@@ -1459,12 +1452,7 @@ rns8_status materialize_native_matrix_as_direct_rns(
       target->device_residues_current = false;
       return status;
     }
-    target->host_residues_current = false;
-    target->device_residues_current = true;
-    target->host_byte_limbs_current = false;
-    target->device_byte_limbs_current = false;
-    target->host_native_current = false;
-    target->device_native_current = false;
+    api::mark_output_device_residues_current(*target);
     target->source_version = source->source_version;
     return RNS8_SUCCESS;
   });
@@ -1482,10 +1470,8 @@ rns8_status force_native_to_rns_bridge_inputs(rns8_matrix* a_matrix, rns8_matrix
           !api::bounded_native_state_current(matrix)) {
         return false;
       }
-      matrix.host_residues_current = false;
-      matrix.device_residues_current = false;
-      matrix.host_byte_limbs_current = false;
-      matrix.device_byte_limbs_current = false;
+      api::clear_residue_current(matrix);
+      api::clear_byte_limb_current(matrix);
       return true;
     };
     if (a_matrix->desc.semantics != b_matrix->desc.semantics ||
@@ -1887,12 +1873,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         delete matrix;
         return RNS8_UNSUPPORTED_BACKEND;
       }
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = false;
-      matrix->host_byte_limbs_current = false;
-      matrix->device_byte_limbs_current = false;
-      matrix->host_native_current = false;
-      matrix->device_native_current = false;
+      invalidate_output_currentness(*matrix);
       const rns8_status status = ensure_hip_native_storage(*ctx, *matrix);
       if (status != RNS8_SUCCESS) {
         (void)free_hip_matrix_storage(*matrix);
@@ -1906,10 +1887,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         return RNS8_RANGE_ERROR;
       }
       matrix->byte_limbs.assign(bytes, 0);
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = false;
-      matrix->host_byte_limbs_current = true;
-      matrix->device_byte_limbs_current = false;
+      mark_host_byte_limbs_current(*matrix);
     } else if (uses_finite_storage(matrix->desc.semantics)) {
       std::size_t cells = 0;
       if (!matrix_cell_count(desc->rows, desc->cols, cells)) {
@@ -1918,10 +1896,8 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       }
       matrix->residues.assign(cells, 0);
       matrix->finite_modulus = 0;
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = false;
-      matrix->host_byte_limbs_current = false;
-      matrix->device_byte_limbs_current = false;
+      clear_residue_current(*matrix);
+      clear_byte_limb_current(*matrix);
     } else {
       std::size_t elements = 0;
       if (!rns_residue_count(desc->rows, desc->cols, prefix, elements)) {
@@ -1929,8 +1905,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         return RNS8_RANGE_ERROR;
       }
       matrix->residues.assign(elements, 0);
-      matrix->host_byte_limbs_current = false;
-      matrix->device_byte_limbs_current = false;
+      clear_byte_limb_current(*matrix);
     }
     if (hip_resident_rns_backend(ctx->backend)) {
       const rns8_status status = allocate_hip_matrix_storage(*ctx, *matrix);

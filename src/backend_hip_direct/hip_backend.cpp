@@ -1,5 +1,6 @@
 #include "backend_hip_direct/hip_backend.hpp"
 
+#include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
@@ -455,12 +456,7 @@ void mark_device_residue_output_current(rns8_matrix* matrix) {
   if (!matrix) {
     return;
   }
-  matrix->host_residues_current = false;
-  matrix->device_residues_current = true;
-  matrix->host_byte_limbs_current = false;
-  matrix->device_byte_limbs_current = false;
-  matrix->host_native_current = false;
-  matrix->device_native_current = false;
+  api::mark_output_device_residues_current(*matrix);
 }
 
 }  // namespace

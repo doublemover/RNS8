@@ -20,6 +20,7 @@
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/autotune_cache.hpp"
+#include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
@@ -269,10 +270,8 @@ rns8_status pack_exact_wide_limbs_as_rns(
   }
 
   matrix->source_version = source_version;
-  matrix->host_byte_limbs_current = false;
-  matrix->device_byte_limbs_current = false;
-  matrix->host_native_current = false;
-  matrix->device_native_current = false;
+  rns8::detail::api::clear_byte_limb_current(*matrix);
+  rns8::detail::api::clear_native_current(*matrix);
 
   if (matrix->hip_residues != nullptr) {
     if (matrix->hip_device_id != ctx->device_id ||
@@ -287,11 +286,9 @@ rns8_status pack_exact_wide_limbs_as_rns(
       matrix->device_residues_current = false;
       return status;
     }
-    matrix->host_residues_current = false;
-    matrix->device_residues_current = true;
+    rns8::detail::api::mark_device_residues_current(*matrix);
   } else {
-    matrix->host_residues_current = true;
-    matrix->device_residues_current = false;
+    rns8::detail::api::mark_host_residues_current(*matrix);
   }
   return RNS8_SUCCESS;
 }

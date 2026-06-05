@@ -21,6 +21,20 @@ SOURCE_PREFIXES = ("src/", "include/", "benchmarks/", "tools/", "tests/", "cmake
 IGNORED_TRACKED_PATHS = {
     "tools/metadata_registry_constants.py",
 }
+CURRENTNESS_HELPER_FUNCTIONS = {
+    "clear_native_current",
+    "clear_residue_current",
+    "clear_byte_limb_current",
+    "mark_host_residues_current",
+    "mark_device_residues_current",
+    "mark_host_byte_limbs_current",
+    "mark_device_byte_limbs_current",
+    "mark_output_device_native_current",
+}
+RAW_HIP_RESOURCE_WRAPPER_PATHS = {
+    "src/core/hip_resources.hpp",
+    "tools/repo_hygiene_report.py",
+}
 CURRENTNESS_WRITE_RE = re.compile(
     r"(?:->|\.)"
     r"(host_residues_current|device_residues_current|host_byte_limbs_current|device_byte_limbs_current|"
@@ -109,15 +123,39 @@ def duplicate_metadata_strings(files: list[Path], limit: int) -> list[dict[str, 
     return rows[:limit]
 
 
-def line_findings(files: list[Path], pattern: re.Pattern[str], limit: int) -> list[dict[str, Any]]:
+def currentness_helper_write(rel: str, lines: list[str], index: int) -> bool:
+    if rel != "src/core/api_matrix_workspace.cpp":
+        return False
+    for line in reversed(lines[max(0, index - 16):index]):
+        match = re.match(r"\s*void\s+([A-Za-z0-9_]+)\s*\(", line)
+        if match:
+            return match.group(1) in CURRENTNESS_HELPER_FUNCTIONS
+    return False
+
+
+def raw_hip_wrapper_call(rel: str, _lines: list[str], _index: int) -> bool:
+    return rel in RAW_HIP_RESOURCE_WRAPPER_PATHS
+
+
+def line_findings(
+    files: list[Path],
+    pattern: re.Pattern[str],
+    limit: int,
+    skip_match: Any | None = None,
+) -> list[dict[str, Any]]:
     rows = []
     for path in files:
         rel = repo_relative(path)
         if not rel.startswith(SOURCE_PREFIXES) or path.suffix not in CODE_SUFFIXES:
             continue
-        for index, line in enumerate(source_text(path).splitlines(), start=1):
+        lines = source_text(path).splitlines()
+        for index, line in enumerate(lines, start=1):
             match = pattern.search(line)
             if match:
+                if pattern is CURRENTNESS_WRITE_RE and line.strip().startswith("out->"):
+                    continue
+                if skip_match is not None and skip_match(rel, lines, index - 1):
+                    continue
                 rows.append({"path": rel, "line": index, "match": match.group(1), "text": line.strip()})
                 if len(rows) >= limit:
                     return rows
@@ -128,8 +166,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     files = tracked_files()
     large = large_files(files, args.large_file_bytes)
     duplicated = duplicate_metadata_strings(files, args.limit)
-    currentness = line_findings(files, CURRENTNESS_WRITE_RE, args.limit)
-    raw_hip = line_findings(files, RAW_HIP_RESOURCE_RE, args.limit)
+    currentness = line_findings(files, CURRENTNESS_WRITE_RE, args.limit, skip_match=currentness_helper_write)
+    raw_hip = line_findings(files, RAW_HIP_RESOURCE_RE, args.limit, skip_match=raw_hip_wrapper_call)
     return {
         "large_file_threshold_bytes": args.large_file_bytes,
         "large_files": large,
