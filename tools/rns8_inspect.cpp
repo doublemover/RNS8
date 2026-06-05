@@ -51,7 +51,7 @@ bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
 
 void print_usage(std::ostream& out) {
   out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
-      << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache]\n";
+      << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache] [--selector-shadow]\n";
 }
 
 const char* backend_name(rns8_backend_kind backend) {
@@ -583,6 +583,85 @@ void print_autotune_json(
   std::cout << "  }\n";
 }
 
+const char* selector_family_for_backend(rns8_backend_kind backend) {
+  switch (backend) {
+    case RNS8_BACKEND_HIP_DIRECT:
+      return "direct_hip_correctness_family";
+    case RNS8_BACKEND_HIPBLASLT:
+    case RNS8_BACKEND_CK:
+    case RNS8_BACKEND_ROCWMMA:
+      return "matrix_engine_accelerator_family";
+    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+      return "native_vector_alu_family";
+    case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+      return "wrap64_byte_limb_family";
+    case RNS8_BACKEND_CPU_REFERENCE:
+      return "cpu_reference_family";
+    case RNS8_BACKEND_AUTO:
+      return "auto_exact_cache_family";
+  }
+  return "unknown_family";
+}
+
+std::string selector_shadow_recommendation(
+    rns8_backend_kind backend,
+    const rns8_backend_capability_info& capability,
+    const rns8::detail::AutotuneCacheSnapshot* snapshot) {
+  if (backend == RNS8_BACKEND_AUTO) {
+    return "exact_cache_only";
+  }
+  if (!capability.compiled_kernel_available) {
+    return "blocked_backend_not_compiled";
+  }
+  if (capability.candidate_evidence_only && (!snapshot || !snapshot->loaded)) {
+    return "blocked_unvalidated_entry";
+  }
+  if (capability.is_accelerator) {
+    return "recommend_only_with_reviewed_same_contract_margin";
+  }
+  return "conservative_supported_family";
+}
+
+void print_selector_shadow_text(
+    const rns8_device_info& info,
+    const rns8_backend_capability_info& capability,
+    const rns8::detail::AutotuneCacheSnapshot* snapshot) {
+  std::cout << "selector_shadow_source: private_inspect_selector_shadow\n";
+  std::cout << "selector_shadow_family: " << selector_family_for_backend(info.backend) << "\n";
+  std::cout << "selector_shadow_boundary: exact_cache_selection_unchanged_family_advisory_only\n";
+  std::cout << "selector_shadow_recommendation: "
+            << selector_shadow_recommendation(info.backend, capability, snapshot) << "\n";
+  std::cout << "selector_shadow_cache_loaded: " << (snapshot && snapshot->loaded ? 1 : 0) << "\n";
+  std::cout << "selector_shadow_blockers: unsupported semantics; per-tile unsupported; backend not compiled; "
+               "probe failed; no exact entry; unvalidated entry; identity/runtime mismatch; workspace mismatch; "
+               "slower than selected\n";
+}
+
+void print_selector_shadow_json(
+    const rns8_device_info& info,
+    const rns8_backend_capability_info& capability,
+    const rns8::detail::AutotuneCacheSnapshot* snapshot,
+    bool trailing_comma) {
+  std::cout << "  \"selector_shadow\": {\n";
+  std::cout << "    \"source\": \"private_inspect_selector_shadow\",\n";
+  std::cout << "    \"family_recommendation\": \""
+            << json_escape(selector_shadow_recommendation(info.backend, capability, snapshot)) << "\",\n";
+  std::cout << "    \"selected_family\": \"" << selector_family_for_backend(info.backend) << "\",\n";
+  std::cout << "    \"conservative_family_boundary\": \"exact_cache_selection_unchanged_family_advisory_only\",\n";
+  std::cout << "    \"cache_loaded\": " << (snapshot && snapshot->loaded ? "true" : "false") << ",\n";
+  std::cout << "    \"blocker_vocabulary\": ["
+            << "\"unsupported semantics\", "
+            << "\"per-tile unsupported\", "
+            << "\"backend not compiled\", "
+            << "\"probe failed\", "
+            << "\"no exact entry\", "
+            << "\"unvalidated entry\", "
+            << "\"identity/runtime mismatch\", "
+            << "\"workspace mismatch\", "
+            << "\"slower than selected\"]\n";
+  std::cout << "  }" << (trailing_comma ? "," : "") << "\n";
+}
+
 void print_text(
     const rns8_device_info& info,
     const rns8_backend_capability_info& capability,
@@ -591,7 +670,8 @@ void print_text(
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
     const rns8::detail::PlanLoweringDescription* plan_lowering,
-    bool show_autotune_cache) {
+    bool show_autotune_cache,
+    bool selector_shadow) {
   std::cout << "RNS8 inspect\n";
   std::cout << "backend:       " << backend_name(info.backend) << "\n";
   std::cout << "device_id:     " << info.device_id << "\n";
@@ -613,6 +693,9 @@ void print_text(
         plan_lowering,
         show_autotune_cache);
   }
+  if (selector_shadow) {
+    print_selector_shadow_text(info, capability, snapshot);
+  }
 }
 
 void print_json(
@@ -623,7 +706,8 @@ void print_json(
     const rns8::detail::AutotuneRuntimeIdentity& runtime,
     const rns8_plan_packing_info* plan_packing,
     const rns8::detail::PlanLoweringDescription* plan_lowering,
-    bool show_autotune_cache) {
+    bool show_autotune_cache,
+    bool selector_shadow) {
   std::cout << "{\n";
   std::cout << "  \"backend\": \"" << backend_name(info.backend) << "\",\n";
   std::cout << "  \"device_id\": " << info.device_id << ",\n";
@@ -634,7 +718,7 @@ void print_json(
   std::cout << "  \"hip_driver_version\": " << info.hip_driver_version << ",\n";
   std::cout << "  \"global_mem_bytes\": " << info.global_mem_bytes << ",\n";
   std::cout << "  \"detail\": \"" << json_escape(info.detail) << "\",\n";
-  print_capability_json(capability, snapshot != nullptr);
+  print_capability_json(capability, snapshot != nullptr || selector_shadow);
   if (snapshot) {
     print_autotune_json(
         *snapshot,
@@ -644,6 +728,12 @@ void print_json(
         plan_packing,
         plan_lowering,
         show_autotune_cache);
+    if (selector_shadow) {
+      std::cout << ",\n";
+    }
+  }
+  if (selector_shadow) {
+    print_selector_shadow_json(info, capability, snapshot, false);
   }
   std::cout << "}\n";
 }
@@ -653,6 +743,7 @@ void print_json(
 int main(int argc, char** argv) {
   bool json = false;
   bool show_autotune_cache = false;
+  bool selector_shadow = false;
   int device_id = -1;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   std::string autotune_key;
@@ -663,6 +754,8 @@ int main(int argc, char** argv) {
       json = true;
     } else if (arg == "--show-autotune-cache") {
       show_autotune_cache = true;
+    } else if (arg == "--selector-shadow") {
+      selector_shadow = true;
     } else if (arg == "--autotune-key" && i + 1 < argc) {
       autotune_key = argv[++i];
     } else if (arg == "--backend" && i + 1 < argc) {
@@ -741,7 +834,7 @@ int main(int argc, char** argv) {
   }
 
   rns8::detail::AutotuneCacheSnapshot snapshot{};
-  const bool inspect_autotune = show_autotune_cache || !autotune_key.empty();
+  const bool inspect_autotune = show_autotune_cache || !autotune_key.empty() || selector_shadow;
   if (inspect_autotune) {
     snapshot = rns8::detail::read_autotune_cache();
   }
@@ -777,7 +870,8 @@ int main(int argc, char** argv) {
         runtime,
         plan_packing,
         plan_lowering,
-        show_autotune_cache);
+        show_autotune_cache,
+        selector_shadow);
   } else {
     print_text(
         info,
@@ -787,7 +881,8 @@ int main(int argc, char** argv) {
         runtime,
         plan_packing,
         plan_lowering,
-        show_autotune_cache);
+        show_autotune_cache,
+        selector_shadow);
   }
   rns8_destroy_context(ctx);
   return 0;

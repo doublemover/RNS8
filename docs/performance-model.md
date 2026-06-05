@@ -895,6 +895,42 @@ without changing the public C/C++ ABI or AUTO promotion policy:
 - `device_allocation` snapshots HIP allocation counters before warmup, after
   warmup, and after measured repeats so persistent-plan captures can prove
   whether repeats allocate after warmup.
+- `reuse_contract` records operand role, source-version policy, setup scope and
+  cost, repeat count, break-even repeat count when a baseline exists, output
+  domain, next operation, and target/backend/kernel/workspace fingerprints.
+  Reuse captures remain workload-contract evidence unless a same-family ledger
+  proves setup-inclusive value and stale-source invalidation.
+- `exact_output_contract`, `export_variant`, and `reconstruction_variant` name
+  final-output domain, exact-wide limb count, status policy, kernel identity,
+  constants placement, and promotion eligibility. Experimental export or CRT
+  variants are schema-valid evidence only and must be non-promoting.
+- `modulus_set` and `residue_count_policy` describe default versus
+  experimental ladders, product-bit estimates, prefix count, coprime proof
+  source, reducer cost hints, and cache-promotion blockers. They do not change
+  public exact semantics or the default modulus ladder.
+- `tile_shape_variant` records tile M/N/K, selected-kernel identity, resource
+  report key, and shape-family bucket. Schema validation rejects stale kernel
+  identity so tile sweeps cannot be compared against the wrong kernel.
+- `grouped_dispatch`, `adaptive_grouped_scheduler`, and `hip_graph_replay`
+  record fixed descriptor identity, task or group count, setup scope,
+  replay/capture status, unsupported reason, and non-promoting status. Current
+  captures may report deterministic unsupported metadata instead of pretending
+  a graph or grouped path ran.
+- `resident_lifetime` and `workspace_arena` make resident A/B/C currentness,
+  source-version policy, workspace identity, arena high-water mark,
+  suballocation count, stream-safety contract, and allocation-free repeat proof
+  reviewable without changing public handle ABI.
+- `streaming_overlap` records the benchmark-only pack-next/GEMM-current/export
+  previous pipeline contract, dependency chain, buffering policy, and
+  deterministic unsupported status when the current path stays serial.
+- `release_gate` and `verification_amortization` annotate budgeted 4096,
+  narrow-margin A/B, finite-map, and proxy-workload captures with review tier,
+  resume/memory/CPU-reference policy, blockers, and the exact final comparison
+  requirement. They are release-review inputs, not cache promotion by
+  themselves.
+- `workload_proxy` labels FHE/lattice-inspired dense GEMM proxies with tower,
+  reuse, transform, and output-domain metadata. It explicitly carries no
+  cryptographic correctness or library-compatibility claim.
 - `timing_metadata.pack_layout`, `fusion_mode`, `residue_group_width`,
   `residue_group_layout`, and `generated_reducer_identity` become
   same-contract comparison inputs when they change the measured work.
@@ -915,3 +951,13 @@ profiler counter exports and ISA summaries, and writes JSON/Markdown reports
 under `temp/gpu-counter-reports/`. Counter and ISA reports explain bottlenecks
 and next experiments only; they do not replace exact correctness checks, host
 timings, HIP event timings, or release baseline gates.
+
+Additional Starfoundry report tools are temp-output only: `tools/reuse_contract_report.py`,
+`tools/promotion_ledger.py`, `tools/target_validation_report.py`,
+`tools/tile_shape_report.py`, `tools/modulus_set_search.py`,
+`tools/fhe_workload_report.py`, `tools/many_small_grouped_report.py`,
+`tools/resident_workspace_report.py`, `tools/scheduler_overlap_report.py`, and
+`tools/release_gate_report.py`.
+They validate captures before grouping evidence and should be used to decide
+which optimizer experiment to run next, not to install cache entries or make
+release claims by themselves.

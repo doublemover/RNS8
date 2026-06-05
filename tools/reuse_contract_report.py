@@ -25,6 +25,7 @@ NORMALIZED_CONTRACT_EXCLUDE = {
     "prepack_reuse_strategy",
 }
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
+DEFAULT_OUT_DIR = Path("temp") / "reuse-contract-reports"
 
 
 def expand_inputs(paths: list[Path]) -> list[Path]:
@@ -360,6 +361,17 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
     return {"summary": summary, "comparisons": comparisons}
 
 
+def build_report(paths: list[Path]) -> dict[str, Any]:
+    captures = [load_validated_capture(path) for path in expand_inputs(paths)]
+    report = compare_reuse_contracts(captures)
+    return {
+        "schema_version": 1,
+        "policy": "reuse_contract_setup_inclusive_evidence_only_not_autotune_promotion",
+        "capture_count": len(captures),
+        **report,
+    }
+
+
 def fmt(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4g}"
@@ -415,15 +427,26 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "reuse-contract-report.json"
+    md_path = out_dir / "reuse-contract-report.md"
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_markdown(report, md_path)
+    return {"json": str(json_path), "markdown": str(md_path)}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures")
     parser.add_argument(
         "--capture",
         type=Path,
         action="append",
-        required=True,
         help="capture file or directory; directories are searched recursively for JSON",
     )
+    parser.add_argument("--out-dir", type=Path, help="write JSON and Markdown reports under this directory")
+    parser.add_argument("--json", action="store_true", help="print report JSON")
     parser.add_argument("--out-json", type=Path, help="write JSON report")
     parser.add_argument("--out-md", type=Path, help="write Markdown report")
     return parser.parse_args()
@@ -431,12 +454,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    captures = [load_validated_capture(path) for path in expand_inputs(args.capture)]
-    report = compare_reuse_contracts(captures)
+    input_paths = [*(args.capture or []), *args.captures]
+    if not input_paths:
+        raise SystemExit("reuse_contract_report requires at least one capture path")
+    report = build_report(input_paths)
+    if args.out_dir:
+        outputs = write_outputs(report, args.out_dir)
+        if not args.json:
+            for label, path in outputs.items():
+                print(f"{label}: {path}")
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
         args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    else:
+    if args.json or (not args.out_dir and not args.out_json):
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_md:
         args.out_md.parent.mkdir(parents=True, exist_ok=True)

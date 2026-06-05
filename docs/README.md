@@ -24,6 +24,8 @@ Start here when evaluating the repository.
   of reviewed local benchmark claims and reproduction command families.
 - [performance-model.md](performance-model.md): benchmark schema, review
   requirements, release evidence summaries, and performance-promotion policy.
+- [resident-output-api-draft.md](resident-output-api-draft.md): ABI-neutral
+  draft for future resident matrix and residue-current output handles.
 - [platform-windows.md](platform-windows.md): Windows HIP SDK setup and local
   `gfx1100` validation path.
 - [platform-linux.md](platform-linux.md): Linux ROCm and Instinct validation

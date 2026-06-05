@@ -65,11 +65,26 @@ domain transition, schedule, packing, reuse, conversion strategy, and final
 lowering path without adding a new public algebra API.
 
 `rns8-bench` adds evidence-only metadata around that public inspection surface:
-`requested_next_op`, `output_policy`, `target_variant`, `auto_selector`, and
-`device_allocation`. These objects explain benchmark intent, padded versus
-contiguous export layout, status-event expectations, target namespace, AUTO
-cache fallback/rejection reasons, and HIP allocation counters before warmup and
-after repeats. They do not change backend selection or public API semantics.
+`requested_next_op`, `output_policy`, `target_variant`, `auto_selector`,
+`device_allocation`, `reuse_contract`, `exact_output_contract`,
+`export_variant`, `reconstruction_variant`, `modulus_set`,
+`residue_count_policy`, `tile_shape_variant`, `grouped_dispatch`,
+`adaptive_grouped_scheduler`, `hip_graph_replay`, `resident_lifetime`,
+`workspace_arena`, `streaming_overlap`, `release_gate`,
+`verification_amortization`, and `workload_proxy`. These objects explain
+benchmark intent, padded versus contiguous export layout, status-event
+expectations, target namespace, AUTO cache fallback/rejection reasons, HIP
+allocation counters before warmup and after repeats, experimental
+modulus/tile/export/CRT metadata, graph/grouped/adaptive descriptor identity,
+resident currentness and arena identity, stream-overlap contracts, release
+gate blockers, and FHE/lattice-inspired proxy workload shape. They do not
+change backend selection or public API semantics.
+
+`rns8-inspect --selector-shadow` reports a non-routing family recommendation
+and fixed blocker vocabulary beside the exact-cache selector state. The
+recommendation is advisory only: AUTO still requires an exact reviewed cache key
+for the concrete semantic contract, shape, target, workspace, and selected
+kernel identity.
 
 ## Benchmark Promotion
 

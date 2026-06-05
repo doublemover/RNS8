@@ -488,6 +488,21 @@ def main() -> int:
         "multi-modulus-pack",
         "residue-channel-fusion",
         "fused-pack-gemm-small",
+        "large-release-validation-4096-budgeted",
+        "hipblaslt-bounded-i64-1024-ab",
+        "finite-modulus-map",
+        "modulus-set-autotune",
+        "tile-shape-sweeps",
+        "exact-wide-output-chain",
+        "export-bound-limb-variants",
+        "reconstruction-zoo",
+        "hip-graph-replay",
+        "grouped-dispatch",
+        "resident-lifetime-arena",
+        "adaptive-grouped-scheduler",
+        "streaming-overlap",
+        "release-gate-closeout",
+        "fhe-lattice-proxy-starfoundry",
     ]:
         assert scenario_name in catalog
         assert catalog[scenario_name]
@@ -523,6 +538,103 @@ def main() -> int:
     assert "--next-op-hint" in fusion_command and "final-export" in fusion_command
     assert "--prefix-policy" in fusion_command and "fixed-requested" in fusion_command
     assert "--max-prefix" in fusion_command and "9" in fusion_command
+    modulus_item = catalog["modulus-set-autotune"][0]
+    modulus_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, modulus_item)
+    modulus_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        modulus_item.semantics,
+        modulus_item.case,
+        None,
+        None,
+        modulus_args,
+    )
+    assert "--modulus-set" in modulus_command and "experimental:prefix5-byte-ladder-search" in modulus_command
+    tile_item = catalog["tile-shape-sweeps"][0]
+    tile_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, tile_item)
+    tile_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        tile_item.semantics,
+        tile_item.case,
+        None,
+        None,
+        tile_args,
+    )
+    assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
+    graph_item = catalog["hip-graph-replay"][0]
+    graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
+    graph_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        graph_item.semantics,
+        graph_item.case,
+        None,
+        None,
+        graph_args,
+    )
+    assert "--hip-graph-replay" in graph_command
+    grouped_item = catalog["grouped-dispatch"][0]
+    grouped_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, grouped_item)
+    grouped_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        grouped_item.semantics,
+        grouped_item.case,
+        None,
+        None,
+        grouped_args,
+    )
+    assert "--grouped-dispatch" in grouped_command and "32" in grouped_command
+    resident_item = catalog["resident-lifetime-arena"][0]
+    resident_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_item)
+    resident_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        resident_item.semantics,
+        resident_item.case,
+        None,
+        None,
+        resident_args,
+    )
+    assert "--resident-lifetime" in resident_command
+    assert "--workspace-arena" in resident_command
+    adaptive_group_item = catalog["adaptive-grouped-scheduler"][0]
+    adaptive_group_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, adaptive_group_item)
+    adaptive_group_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        adaptive_group_item.semantics,
+        adaptive_group_item.case,
+        None,
+        None,
+        adaptive_group_args,
+    )
+    assert "--adaptive-grouped-scheduler" in adaptive_group_command
+    overlap_item = catalog["streaming-overlap"][0]
+    overlap_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, overlap_item)
+    overlap_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        overlap_item.semantics,
+        overlap_item.case,
+        None,
+        None,
+        overlap_args,
+    )
+    assert "--streaming-overlap" in overlap_command
+    release_item = catalog["release-gate-closeout"][0]
+    release_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, release_item)
+    release_command = benchmark_sweep.command_for(
+        Path("rns8-bench"),
+        "hip-direct",
+        release_item.semantics,
+        release_item.case,
+        None,
+        None,
+        release_args,
+    )
+    assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
 
     wrap64_args = argparse.Namespace(
         bench=Path("rns8-bench"),
