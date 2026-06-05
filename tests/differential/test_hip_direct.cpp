@@ -7140,7 +7140,10 @@ TEST_CASE("direct HIP bounded prefix-9 oneshot skips global RNS pack kernels") {
     CHECK(hip_c == cpu_c);
     CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
     CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
+    CHECK(has_timing_label(hip_events, "crt_export_status_memset"));
     CHECK(has_timing_label(hip_events, "crt_export_kernel"));
+    CHECK(has_timing_label(hip_events, "crt_export_status_d2h"));
+    CHECK(has_timing_label(hip_events, "crt_export_d2h"));
     CHECK_FALSE(has_timing_label(hip_events, "pack_kernel"));
   }
 
@@ -7180,7 +7183,10 @@ TEST_CASE("direct HIP bounded prefix-9 oneshot skips global RNS pack kernels") {
     CHECK(hip_c == cpu_c);
     CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
     CHECK(has_timing_label(hip_events, "rns_gemm_kernel_group"));
+    CHECK(has_timing_label(hip_events, "crt_export_status_memset"));
     CHECK(has_timing_label(hip_events, "crt_export_kernel"));
+    CHECK(has_timing_label(hip_events, "crt_export_status_d2h"));
+    CHECK(has_timing_label(hip_events, "crt_export_d2h"));
     CHECK_FALSE(has_timing_label(hip_events, "pack_kernel"));
   }
 

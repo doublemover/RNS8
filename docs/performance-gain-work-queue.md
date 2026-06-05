@@ -438,6 +438,18 @@ June 4-5, 2026 updates:
   1024 captures were kept on their existing kernels. Treat resident colpair as
   deprioritized until a different design wins end-to-end, not as completed rank
   6 or rank 10 routing work.
+- The bounded-i64 Direct-HIP 512 tuning pass is closed as no-new-route
+  evidence. The selected-prefix grouped launcher experiment under
+  `temp/perf-work-queue/direct-hip-512-rank6-selected-prefix-grouped/` was
+  schema/event-valid but did not pass the end-to-end gate. A paired export-sync
+  A/B under `temp/perf-work-queue/direct-hip-512-rank6-paired-export-sync-baseline/`
+  and `temp/perf-work-queue/direct-hip-512-rank6-paired-export-nosync-candidate/`
+  also rejected removing the bounded export kernel synchronization: the no-sync
+  candidate lost 2321 us versus 1655 us median end-to-end and 467.55 us versus
+  234.48 us `crt_export` event median. The older reviewed 1851 us 512
+  front-page snapshot remains the durable claim. Future 512 work should move to
+  active resident-layout, pack/export, and reconstruction ranks with paired A/B
+  proof, not another isolated retry of these rejected routes.
 - `tools/benchmark_sweep.py` now has chunk/resume controls for expensive
   matrices: `--skip-existing` reuses schema-valid existing captures and
   `--max-new-captures` caps how many new captures a pass may execute before
@@ -479,7 +491,6 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 6 | Partially completed bounded-i64 Direct-HIP 512 tuning | Current reviewed 512 winner is Direct HIP, so local gains come from the correctness baseline | Public one-shot 512 now routes to the prefix-9 colpair native-input kernel with a 3.07x median same-contract one-shot win versus the prior v1 route; resident selected-prefix colpair was measured under `temp/perf-work-queue/direct-hip-resident-colpair-current/` and not promoted because rerun end-to-end timing lost 4010 us versus 2434 us for the existing tiled active-prefix path despite a narrower GEMM-median signal | Route only if end-to-end median improves and events explain the win; keep one-shot and resident-matrix contracts separate |
 | 8 | Partially completed many-small persistent/grouped workload path | Batching many 64/128/skinny exact jobs into one grouped path is likely more valuable than more isolated single-GEMM tuning | `many-small` now has a same-commit release matrix with 41 independent-call baselines and 20 host-batch captures, no missing required baselines, no duplicate backend records, compatible git/target metadata, required GPU events for host-batch GPU captures, and no cache entries promoted; `host_api_batch_report.py` finds one workload win, Direct-HIP exact-wide signed 64 hostbatch32 at 1903 us per task versus the 3880 us independent Direct-HIP baseline, while the other 19 host-batch candidates lose to same-backend or fastest independent baselines; the focused Direct-HIP one-shot fallback and hipBLASLt finite diagnostic event blockers are closed | Keep open for a real device grouped/persistent dispatcher and broader host-batch proof: current evidence says batching helps one exact-wide proxy but not bounded or finite proxies, so route only explicit benchmark workloads until grouping beats independent calls across a durable workload family |
 | 9 | Partially completed RNS-chain internal path with residue-current outputs | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is one of the cleanest structural wins | Current branch exposes native-to-RNS conversion, vector-to-RNS consumers, reusable consumer-B chains, and reusable-B RNS-chain scenarios; exact-wide signed 128 Direct-HIP chain-length-3 captures now provide schema/event-valid release-mode residue-current timing, including reusable-B setup cost | Promote only when skipped export is semantically visible, setup/reuse policy is explicit, and CPU/reference comparison covers the final requested output contract |
 | 10 | Advanced Direct-HIP prefix-9/prefix-20 fusion | Doing fewer launches and materializations in the correctness baseline is higher leverage than chasing more accelerator variants | Prefix-9 bounded public one-shot now routes large signed and unsigned shapes to the colpair native-input kernel; prefix-20 exact-wide fixed-limb/status-elided export evidence exists; resident selected-prefix colpair was attempted and rejected for default routing after failing the end-to-end gate | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
