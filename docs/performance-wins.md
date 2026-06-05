@@ -222,11 +222,12 @@ HIP wins bounded-i64 128, bounded-u64 128x1x1024, and exact-wide signed 64, and
 the vector runtime wins bounded-u64 64 but remains non-cache-promotable. The
 small Direct-HIP one-shot resident-fallback diagnostic now has a focused
 schema-valid required-event capture under
-`temp/perf-work-queue/many-small-resident-oneshot-events/`; the hipBLASLt
-finite ring-251 64 diagnostic still lacks required GPU events. Neither
-diagnostic is promoted evidence. This review points the next many-small work at
-grouped/persistent execution rather than more single-call accelerator tuning for
-32/64 proxies.
+`temp/perf-work-queue/many-small-resident-oneshot-events/`, and the hipBLASLt
+finite ring-251 64 diagnostic now has a focused schema-valid required-event
+capture under `temp/perf-work-queue/many-small-hipblaslt-finite-events/`.
+Neither diagnostic is promoted evidence. This review points the next many-small
+work at grouped/persistent execution rather than more single-call accelerator
+tuning for 32/64 proxies.
 
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32

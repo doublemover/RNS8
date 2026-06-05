@@ -176,6 +176,10 @@ hipblasStatus_t timed_hipblaslt_operation(const char* label, Fn&& fn) {
   }
   const hipblasStatus_t status = fn();
   if (status == HIPBLAS_STATUS_SUCCESS) {
+    // hipBLASLt may enqueue work in a way that is not reliably delimited by
+    // default-stream stop events on small Windows RDNA3 captures. This path is
+    // active only for benchmark event timing; normal runtime calls bypass it.
+    (void)hipDeviceSynchronize();
     hipError_t err = hipEventRecord(stop, nullptr);
     if (err != hipSuccess) {
       (void)hipDeviceSynchronize();

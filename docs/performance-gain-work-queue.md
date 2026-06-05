@@ -136,15 +136,17 @@ June 4-5, 2026 updates:
   wins bounded-u64 64 but remains non-cache-promotable. Rank 8 stays open for
   the real grouped/persistent dispatcher and setup-inclusive independent-call
   comparison, not for the baseline scenario plumbing.
-- The Direct-HIP bounded one-shot resident fallback event hole is now closed
-  for the small many-small proxy. A focused release capture under
+- The many-small diagnostic event holes are now closed at the focused-capture
+  level. A Direct-HIP release capture under
   `temp/perf-work-queue/many-small-resident-oneshot-events/` validates the
-  32x32x32 bounded-i64 selected-prefix fallback with schema v4 and required GPU
-  events. The capture now uses the explicit
-  `direct_hip_oneshot_resident_fallback_default_stream_operation_groups` scope
-  and reports resident pack, GEMM, and CRT export phases separately. This is
-  event/tooling cleanup for a non-promoted diagnostic, not a grouped execution
-  implementation or speedup claim.
+  32x32x32 bounded-i64 selected-prefix one-shot fallback with schema v4 and
+  required GPU events under the explicit
+  `direct_hip_oneshot_resident_fallback_default_stream_operation_groups` scope.
+  A hipBLASLt release capture under
+  `temp/perf-work-queue/many-small-hipblaslt-finite-events/` validates the
+  finite ring-251 64x64x64 diagnostic with required pack, matmul, reduce, and
+  export events. This is event/tooling cleanup for non-promoted diagnostics,
+  not a grouped execution implementation or speedup claim.
 - Large-shape validation now has a dedicated `large-release-validation`
   scenario family. It emits the missing CPU/direct/vector/accelerator
   comparator matrix for 2048 bounded i64/u64, setup-contract reuse-B 2048,
@@ -322,7 +324,6 @@ June 4-5, 2026 updates:
 |---|---|---|
 | Native-to-RNS, vector-to-RNS, and exact-wide residue-chain captures are helper/workload surfaces, not routing proof | The branch can expose and validate bridge/chain scenarios, and exact-wide Direct-HIP chain captures now have release-mode event timing, but AUTO/public routing still needs same-output contract wins | Release review for bridge and chain scenarios with explicit conversion timing, reuse setup cost, final export timing, and exact CPU comparison for the requested output |
 | Many-small grouped execution is still missing | The pre-grouped baseline matrix is now release-reviewed, but it is not a grouped dispatcher and does not prove batching wins | Implement grouped/persistent execution, compare against the reviewed independent-call baselines, and require complete GPU events for any promoted grouped GPU candidate |
-| Many-small event debt remains on a non-promoted hipBLASLt diagnostic | The small Direct-HIP one-shot resident fallback now has schema-valid required events, but the hipBLASLt finite ring-251 64 diagnostic still lacks required events and is not a promoted candidate | Rerun or fix hipBLASLt finite ring-251 64 events only if that path becomes a promotion candidate |
 | Large 2048/4096 captures are mixed validation evidence, not broad promotion evidence | Bounded i64/u64 2048, finite-u8 hot-modulus 2048, exact-wide signed/unsigned 2048, and strict wrap64 2048 now have CPU-backed release review; bounded/finite/exact-wide non-reuse winners are installed where AUTO cache promotion is valid, but repeated-B is still contract-limited and wrap64 is a Direct-HIP correctness path rather than cache promotion | Keep repeated-B as workload-contract evidence until setup identity/lifetime policy is explicit; keep 4096 claims exploratory unless a full CPU/reference release pass is intentionally budgeted |
 | Reuse/prepack wins use explicit reuse contracts | They are not same-contract AUTO replacements for one-shot calls | Workload-level promotion policy with setup-inclusive break-even and source identity |
 

@@ -7345,10 +7345,19 @@ void print_json(
       } else {
         gpu_event_scope = "\"direct_hip_default_stream_backend_operation_groups\"";
       }
-      gpu_event_caveat =
-          "\"HIP event timings record per-repeat pack operation groups and the chained rns_gemm backend operation "
-          "groups that keep intermediate outputs resident in RNS form; the final checksum-only logical export runs "
-          "after measured repeats and is intentionally absent from gpu_event_phase_order\"";
+      if (hipblaslt_events) {
+        gpu_event_caveat =
+            "\"HIP event timings record per-repeat pack operation groups and the chained hipBLASLt rns_gemm "
+            "operation groups that keep intermediate outputs resident in RNS form; hipBLASLt library operations use "
+            "a benchmark-only synchronization before stop-event recording to make library work event-visible; the "
+            "final checksum-only logical export runs after measured repeats and is intentionally absent from "
+            "gpu_event_phase_order\"";
+      } else {
+        gpu_event_caveat =
+            "\"HIP event timings record per-repeat pack operation groups and the chained rns_gemm backend operation "
+            "groups that keep intermediate outputs resident in RNS form; the final checksum-only logical export runs "
+            "after measured repeats and is intentionally absent from gpu_event_phase_order\"";
+      }
     } else if (oneshot_hip_events) {
       if (oneshot_resident_fallback_events) {
         gpu_event_reason = "captured_by_direct_hip_oneshot_resident_fallback_api_hooks";
@@ -7386,9 +7395,10 @@ void print_json(
       gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
       gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
       gpu_event_caveat =
-          "\"HIP event timings record hipBLASLt baseline default-stream operation groups only; host wall-clock "
-          "timings remain required for API dispatch, descriptor setup, allocations, and synchronous host-side "
-          "overhead not represented on the HIP stream\"";
+          "\"HIP event timings record hipBLASLt baseline operation groups; hipBLASLt library operations use a "
+          "benchmark-only synchronization before stop-event recording to make library work event-visible. Host "
+          "wall-clock timings remain required for API dispatch, descriptor setup, allocations, and synchronous "
+          "host-side overhead not represented on the HIP stream\"";
     } else if (wrap64_rocwmma_candidate_events) {
       gpu_event_reason = "captured_by_internal_rocwmma_wrap64_candidate_hooks";
       gpu_event_scope = "\"rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups\"";
