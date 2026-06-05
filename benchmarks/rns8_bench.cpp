@@ -5290,7 +5290,7 @@ void prepare_grouped_matrix_residue_pointer_table(
     const char* metadata_label) {
   int pointer_device_id = -1;
   uint32_t pointer_prefix = 0;
-  const rns8_status status = rns8::detail::hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
+  const rns8_status status = rns8::detail::hip_direct_prepare_grouped_matrix_residue_pointers(
       matrices.data(),
       static_cast<uint32_t>(matrices.size()),
       expected_semantics,
@@ -5304,6 +5304,142 @@ void prepare_grouped_matrix_residue_pointer_table(
   if (pointer_device_id != device_residue_ptrs.device_id || pointer_prefix != expected_prefix) {
     usage_error(std::string(metadata_label) + " metadata does not match benchmark storage");
   }
+}
+
+template <typename NativeT>
+struct GroupedNativeRnsBatch {
+  DeviceBuffer a_device_slab;
+  DeviceBuffer b_device_slab;
+  DeviceBuffer a_residue_ptrs;
+  DeviceBuffer b_residue_ptrs;
+  DeviceBuffer c_residue_ptrs;
+  std::vector<NativeT> a_host_slab;
+  std::vector<NativeT> b_host_slab;
+  std::vector<rns8_matrix*> a_matrices;
+  std::vector<rns8_matrix*> b_matrices;
+  std::vector<rns8_matrix*> c_matrices;
+};
+
+template <typename NativeT>
+rns8_status hip_direct_pack_grouped_native_matrices_device(
+    int device_id,
+    const NativeT* src_slab,
+    void* device_src_slab,
+    std::size_t device_src_slab_bytes,
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_residue_ptrs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t prefix,
+    uint64_t first_source_version) {
+  if constexpr (std::is_same_v<NativeT, int64_t>) {
+    return rns8::detail::hip_direct_pack_i64_grouped_matrices_device(
+        device_id,
+        src_slab,
+        device_src_slab,
+        device_src_slab_bytes,
+        matrices,
+        task_count,
+        expected_semantics,
+        device_residue_ptrs,
+        rows,
+        cols,
+        ld,
+        prefix,
+        first_source_version);
+  } else {
+    return rns8::detail::hip_direct_pack_u64_grouped_matrices_device(
+        device_id,
+        src_slab,
+        device_src_slab,
+        device_src_slab_bytes,
+        matrices,
+        task_count,
+        expected_semantics,
+        device_residue_ptrs,
+        rows,
+        cols,
+        ld,
+        prefix,
+        first_source_version);
+  }
+}
+
+template <typename NativeT>
+void initialize_grouped_native_rns_batch(
+    const Args& args,
+    rns8_semantics semantics,
+    uint32_t matrix_prefix,
+    const std::vector<HostApiBatchTask>& tasks,
+    const std::vector<std::vector<NativeT>>& batch_a,
+    const std::vector<std::vector<NativeT>>& batch_b,
+    std::size_t a_elements,
+    std::size_t b_elements,
+    GroupedNativeRnsBatch<NativeT>& grouped,
+    const char* label) {
+  const uint32_t task_count = measured_task_count(args);
+  if (tasks.size() != task_count || batch_a.size() != task_count || batch_b.size() != task_count) {
+    usage_error(std::string(label) + " grouped batch task count mismatch");
+  }
+  const std::size_t total_a_elements = checked_task_slab_elements(task_count, a_elements, label);
+  const std::size_t total_b_elements = checked_task_slab_elements(task_count, b_elements, label);
+  const std::size_t a_slab_bytes = checked_bytes(total_a_elements, sizeof(NativeT), label);
+  const std::size_t b_slab_bytes = checked_bytes(total_b_elements, sizeof(NativeT), label);
+  const std::size_t pointer_bytes = checked_bytes(task_count, sizeof(const void*), label);
+  const int device_id = args.device_id < 0 ? 0 : args.device_id;
+
+  const std::string a_slab_label = std::string("hip_direct_allocate(") + label + " A slab)";
+  const std::string b_slab_label = std::string("hip_direct_allocate(") + label + " B slab)";
+  const std::string a_ptr_label = std::string("hip_direct_allocate(") + label + " A ptrs)";
+  const std::string b_ptr_label = std::string("hip_direct_allocate(") + label + " B ptrs)";
+  const std::string c_ptr_label = std::string("hip_direct_allocate(") + label + " C ptrs)";
+  grouped.a_device_slab.allocate(device_id, a_slab_bytes, a_slab_label.c_str());
+  grouped.b_device_slab.allocate(device_id, b_slab_bytes, b_slab_label.c_str());
+  grouped.a_residue_ptrs.allocate(device_id, pointer_bytes, a_ptr_label.c_str());
+  grouped.b_residue_ptrs.allocate(device_id, pointer_bytes, b_ptr_label.c_str());
+  grouped.c_residue_ptrs.allocate(device_id, pointer_bytes, c_ptr_label.c_str());
+
+  grouped.a_matrices.reserve(task_count);
+  grouped.b_matrices.reserve(task_count);
+  grouped.c_matrices.reserve(task_count);
+  for (const auto& task : tasks) {
+    grouped.a_matrices.push_back(task.a);
+    grouped.b_matrices.push_back(task.b);
+    grouped.c_matrices.push_back(task.c);
+  }
+  const std::string a_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " A)";
+  const std::string b_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " B)";
+  const std::string c_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " C)";
+  const std::string a_metadata_label = std::string(label) + " A residue pointer table";
+  const std::string b_metadata_label = std::string(label) + " B residue pointer table";
+  const std::string c_metadata_label = std::string(label) + " C residue pointer table";
+  prepare_grouped_matrix_residue_pointer_table(
+      grouped.a_matrices,
+      semantics,
+      grouped.a_residue_ptrs,
+      matrix_prefix,
+      a_prepare_label.c_str(),
+      a_metadata_label.c_str());
+  prepare_grouped_matrix_residue_pointer_table(
+      grouped.b_matrices,
+      semantics,
+      grouped.b_residue_ptrs,
+      matrix_prefix,
+      b_prepare_label.c_str(),
+      b_metadata_label.c_str());
+  prepare_grouped_matrix_residue_pointer_table(
+      grouped.c_matrices,
+      semantics,
+      grouped.c_residue_ptrs,
+      matrix_prefix,
+      c_prepare_label.c_str(),
+      c_metadata_label.c_str());
+
+  grouped.a_host_slab = flatten_grouped_pack_slab(batch_a, a_elements, label);
+  grouped.b_host_slab = flatten_grouped_pack_slab(batch_b, b_elements, label);
 }
 
 void scatter_compact_limb_output(
@@ -6088,6 +6224,12 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
+  const bool grouped_pack_gemm_enabled =
+      grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
+  if (grouped_dispatch_requested(args)) {
+    result.grouped_dispatch_execution_strategy =
+        grouped_pack_gemm_enabled ? "device_grouped_pack_gemm_host_exports" : "host_phase_loop_per_task_export";
+  }
 
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -6096,16 +6238,89 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  GroupedNativeRnsBatch<int64_t> grouped_batch;
+  if (grouped_pack_gemm_enabled) {
+    initialize_grouped_native_rns_batch(
+        args,
+        RNS8_BOUNDED_I64,
+        matrix_prefix,
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        "grouped bounded i64");
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
+    if (grouped_pack_gemm_enabled) {
+      if (task_index == 0) {
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.a_device_slab.ptr,
+            grouped_batch.a_device_slab.bytes,
+            grouped_batch.a_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_I64,
+            grouped_batch.a_residue_ptrs.ptr,
+            args.m,
+            args.k,
+            args.k,
+            matrix_prefix,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_i64_grouped_matrices_device(grouped bounded A)", status);
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.b_device_slab.device_id,
+            grouped_batch.b_host_slab.data(),
+            grouped_batch.b_device_slab.ptr,
+            grouped_batch.b_device_slab.bytes,
+            grouped_batch.b_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_I64,
+            grouped_batch.b_residue_ptrs.ptr,
+            args.k,
+            args.n,
+            args.n,
+            matrix_prefix,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_i64_grouped_matrices_device(grouped bounded B)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_pack_i64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch A)", status);
     status = rns8_pack_i64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_rns_grouped_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_matrices.data(),
+            grouped_batch.b_matrices.data(),
+            grouped_batch.c_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_I64,
+            grouped_batch.a_residue_ptrs.ptr,
+            grouped_batch.b_residue_ptrs.ptr,
+            grouped_batch.c_residue_ptrs.ptr,
+            args.m,
+            args.n,
+            args.k,
+            matrix_prefix);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_rns_grouped_matrices_device(grouped bounded i64)", status);
+        }
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch i64)", status);
   };
@@ -6171,6 +6386,12 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
+  const bool grouped_pack_gemm_enabled =
+      grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
+  if (grouped_dispatch_requested(args)) {
+    result.grouped_dispatch_execution_strategy =
+        grouped_pack_gemm_enabled ? "device_grouped_pack_gemm_host_exports" : "host_phase_loop_per_task_export";
+  }
 
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -6179,16 +6400,89 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  GroupedNativeRnsBatch<uint64_t> grouped_batch;
+  if (grouped_pack_gemm_enabled) {
+    initialize_grouped_native_rns_batch(
+        args,
+        RNS8_BOUNDED_U64,
+        matrix_prefix,
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        "grouped bounded u64");
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
+    if (grouped_pack_gemm_enabled) {
+      if (task_index == 0) {
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.a_device_slab.ptr,
+            grouped_batch.a_device_slab.bytes,
+            grouped_batch.a_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_U64,
+            grouped_batch.a_residue_ptrs.ptr,
+            args.m,
+            args.k,
+            args.k,
+            matrix_prefix,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_u64_grouped_matrices_device(grouped bounded A)", status);
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.b_device_slab.device_id,
+            grouped_batch.b_host_slab.data(),
+            grouped_batch.b_device_slab.ptr,
+            grouped_batch.b_device_slab.bytes,
+            grouped_batch.b_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_U64,
+            grouped_batch.b_residue_ptrs.ptr,
+            args.k,
+            args.n,
+            args.n,
+            matrix_prefix,
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_u64_grouped_matrices_device(grouped bounded B)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_pack_u64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch A)", status);
     status = rns8_pack_u64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_rns_grouped_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_matrices.data(),
+            grouped_batch.b_matrices.data(),
+            grouped_batch.c_matrices.data(),
+            task_count,
+            RNS8_BOUNDED_U64,
+            grouped_batch.a_residue_ptrs.ptr,
+            grouped_batch.b_residue_ptrs.ptr,
+            grouped_batch.c_residue_ptrs.ptr,
+            args.m,
+            args.n,
+            args.k,
+            matrix_prefix);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_rns_grouped_matrices_device(grouped bounded u64)", status);
+        }
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch u64)", status);
   };
@@ -7250,6 +7544,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
             grouped_pack_a_device_slab.bytes,
             grouped_pack_a_matrices.data(),
             task_count,
+            RNS8_EXACT_WIDE_SIGNED,
             grouped_pack_a_residue_ptrs.ptr,
             args.m,
             args.k,
@@ -7264,6 +7559,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
             grouped_pack_b_device_slab.bytes,
             grouped_pack_b_matrices.data(),
             task_count,
+            RNS8_EXACT_WIDE_SIGNED,
             grouped_pack_b_residue_ptrs.ptr,
             args.k,
             args.n,
@@ -7495,6 +7791,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
             grouped_pack_a_device_slab.bytes,
             grouped_pack_a_matrices.data(),
             task_count,
+            RNS8_EXACT_WIDE_UNSIGNED,
             grouped_pack_a_residue_ptrs.ptr,
             args.m,
             args.k,
@@ -7509,6 +7806,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
             grouped_pack_b_device_slab.bytes,
             grouped_pack_b_matrices.data(),
             task_count,
+            RNS8_EXACT_WIDE_UNSIGNED,
             grouped_pack_b_residue_ptrs.ptr,
             args.k,
             args.n,

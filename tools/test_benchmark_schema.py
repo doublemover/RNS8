@@ -2670,6 +2670,16 @@ def main() -> int:
     grouped_dispatch = as_grouped_dispatch_capture(v4_ck_i64)
     validate_capture(grouped_dispatch)
 
+    grouped_device_pack_gemm = copy.deepcopy(grouped_dispatch)
+    grouped_device_pack_gemm["grouped_dispatch"]["execution_strategy"] = "device_grouped_pack_gemm_host_exports"
+    grouped_device_pack_gemm["timing_metadata"][
+        "grouped_dispatch_execution_strategy"
+    ] = "device_grouped_pack_gemm_host_exports"
+    grouped_device_pack_gemm["grouped_dispatch"]["task_descriptor_contract"][
+        "device_descriptor_policy"
+    ] = "device_pointer_tables_and_compact_slabs"
+    validate_capture(grouped_device_pack_gemm)
+
     stale_grouped_status = copy.deepcopy(grouped_dispatch)
     stale_grouped_status["grouped_dispatch"]["capture_status"] = "metadata_only_unsupported_for_execution_path"
     stale_grouped_status["grouped_dispatch"][

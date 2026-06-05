@@ -80,6 +80,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     std::size_t device_src_slab_bytes,
     rns8_matrix* const* matrices,
     uint32_t task_count,
+    rns8_semantics expected_semantics,
     const void* device_residue_ptrs,
     int64_t rows,
     int64_t cols,
@@ -93,6 +94,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     std::size_t device_src_slab_bytes,
     rns8_matrix* const* matrices,
     uint32_t task_count,
+    rns8_semantics expected_semantics,
     const void* device_residue_ptrs,
     int64_t rows,
     int64_t cols,
@@ -150,6 +152,20 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix);
 rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
+    int device_id,
+    rns8_matrix* const* a_matrices,
+    rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs,
+    const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint32_t prefix);
+rns8_status hip_direct_gemm_rns_grouped_matrices_device(
     int device_id,
     rns8_matrix* const* a_matrices,
     rns8_matrix* const* b_matrices,
@@ -609,6 +625,14 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(
     int64_t cols,
     uint32_t limb_count);
 rns8_status hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    void* device_residue_ptrs,
+    std::size_t device_residue_ptr_bytes,
+    int* out_device_id,
+    uint32_t* out_prefix);
+rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
     rns8_matrix* const* matrices,
     uint32_t task_count,
     rns8_semantics expected_semantics,

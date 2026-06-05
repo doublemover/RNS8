@@ -131,6 +131,7 @@ GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
     "not_requested",
     "host_phase_loop_per_task_export",
     "host_phase_loop_batched_exact_wide_export_d2h",
+    "device_grouped_pack_gemm_host_exports",
     "device_grouped_exact_wide_export_kernel_batched_d2h",
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
     "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",

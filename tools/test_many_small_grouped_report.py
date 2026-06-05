@@ -112,6 +112,22 @@ def main() -> int:
     assert row["grouped_task_descriptor_valid"] is True
     assert row["grouped_task_descriptor_device_policy"] == "host_resident_task_loop"
 
+    device_grouped_captures = build_grouped_case(60.0)
+    device_grouped_captures[-1]["grouped_dispatch"]["execution_strategy"] = "device_grouped_pack_gemm_host_exports"
+    device_grouped_captures[-1]["grouped_dispatch"]["task_descriptor_contract"][
+        "device_descriptor_policy"
+    ] = "device_pointer_tables_and_compact_slabs"
+    device_grouped_report = many_small_grouped_report.build_report_from_captures(device_grouped_captures)
+    device_grouped_row = next(
+        row
+        for group in device_grouped_report["groups"]
+        for row in group["rows"]
+        if row["mode"] == "grouped_dispatch"
+    )
+    assert device_grouped_row["decision"] == "candidate_win"
+    assert device_grouped_row["grouped_task_descriptor_valid"] is True
+    assert device_grouped_row["grouped_task_descriptor_device_policy"] == "device_pointer_tables_and_compact_slabs"
+
     loss_report = many_small_grouped_report.build_report_from_captures(build_grouped_case(90.0))
     loss_row = next(
         row for group in loss_report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch"

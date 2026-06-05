@@ -885,6 +885,7 @@ def main() -> int:
     grouped_dispatch_entries = benchmark_sweep.sweep_command_entries(grouped_dispatch_args)
     assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
         "bounded-i64-64-group32",
+        "bounded-u64-64-group32",
         "finite-ring-64-group32",
         "exact-wide-signed-64-group32",
         "exact-wide-unsigned-64-group32",
@@ -893,6 +894,12 @@ def main() -> int:
     assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
     assert all("--grouped-dispatch" in entry.command and "32" in entry.command for entry in grouped_dispatch_entries)
     assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
+    assert any(
+        entry.scenario["semantics"] == "bounded-u64"
+        and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
+        == "device_grouped_pack_gemm_host_exports"
+        for entry in grouped_dispatch_entries
+    )
     assert any(
         entry.scenario.get("metadata", {}).get("prior_host_batch_signal")
         == "direct_hip_exact_wide_signed_64_hostbatch32"
