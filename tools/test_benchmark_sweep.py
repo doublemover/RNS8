@@ -1119,11 +1119,16 @@ def main() -> int:
     large_4096_budgeted_args.backends = None
     large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
     large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
-    assert len(large_4096_budgeted_entries) == 11
+    assert len(large_4096_budgeted_entries) == 17
     assert {
         entry.scenario["backend"]
         for entry in large_4096_budgeted_entries
         if entry.scenario["name"] == "bounded-i64-4096-budgeted-baselines"
+    } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+    assert {
+        entry.scenario["backend"]
+        for entry in large_4096_budgeted_entries
+        if entry.scenario["name"] == "bounded-u64-4096-budgeted-baselines"
     } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
     assert {
         entry.scenario["backend"]

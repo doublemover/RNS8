@@ -89,13 +89,15 @@ Do not use the GPU-only rows above as AUTO cache entries.
 
 A later budgeted 4096 gate under
 `temp/perf-work-queue/large-4096-budgeted-release-current-v2/` reran bounded i64
-with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and rocWMMA. That group
-has required baselines and GPU events, but the budget gate still blocks cache
-promotion while reviewed-summary/margin closure remains explicit.
+and bounded u64 with CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK, and
+rocWMMA. Both groups have required baselines and GPU events, but the budget gate
+still blocks cache promotion while reviewed-summary/margin closure remains
+explicit.
 
 | Contract | Shape | Budgeted-gate winner | Winner median end-to-end | Direct HIP median | Runtime vector median | CPU reference median | Decision |
 |---|---:|---|---:|---:|---:|---:|---|
 | bounded i64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 35303 us | 128995 us | 853232 us | 21244300 us | Release-gate evidence only; no 4096 cache entry installed |
+| bounded u64 | 4096 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 37543 us | 118674 us | 416960 us | 16592600 us | Release-gate evidence only; no 4096 cache entry installed |
 
 A follow-up non-bounded 4096 exploratory pass used the same seed and release
 settings for exact-wide, finite-u8, and strict wrap64. It is also GPU-only
