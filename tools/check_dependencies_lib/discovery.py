@@ -118,7 +118,7 @@ def repo_local_dependency_report(name: str) -> dict[str, object]:
     actual_sha = ""
     actual_branch = ""
     actual_url = ""
-    if path.exists():
+    if (path / ".git").exists():
         code, actual_sha = git_text(["rev-parse", "HEAD"], cwd=path)
         if code != 0:
             actual_sha = ""

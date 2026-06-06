@@ -490,9 +490,9 @@ RNS8_API rns8_status rns8_get_plan_packing_info(
 
 /*
  * Report the current grouped-dispatch descriptor and lifetime contract for a
- * created plan. This is read-only introspection: current public GEMM entry
- * points do not execute grouped dispatch directly, and public_execution_available
- * remains zero until a real public grouped executor is exposed.
+ * created plan. This is read-only introspection. public_execution_available is
+ * set only for the narrow same-shape Direct-HIP resident grouped GEMM contracts
+ * currently exposed by rns8_gemm_rns_grouped and rns8_gemm_finite_u8_grouped.
  */
 RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
     const rns8_plan* plan,

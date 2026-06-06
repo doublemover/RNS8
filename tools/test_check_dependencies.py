@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import check_dependencies as deps
+import check_dependencies_lib.discovery as discovery_mod
 
 
 def expect(condition: bool, message: str) -> None:
@@ -39,6 +40,21 @@ def main() -> int:
         all("windows-gfx1100" not in path for path in linux_ck_roots + linux_rocwmma_roots),
         "Linux dependency discovery must not inspect Windows-gfx1100 generated accelerator roots",
     )
+    with tempfile.TemporaryDirectory() as temp:
+        temp_root = Path(temp)
+        placeholder = temp_root / "third_party" / "rocm" / "composable_kernel"
+        placeholder.mkdir(parents=True)
+        (temp_root / ".gitmodules").write_text(
+            "[submodule \"third_party/rocm/composable_kernel\"]\n"
+            "\tpath = third_party/rocm/composable_kernel\n"
+            "\turl = https://github.com/ROCm/composable_kernel.git\n"
+            "\tbranch = release/rocm-rel-7.1\n",
+            encoding="utf-8",
+        )
+        with patch.object(discovery_mod, "repo_root", return_value=temp_root):
+            placeholder_ck = deps.repo_local_dependency_report("ck")
+        expect(placeholder_ck["status"] == "missing", "uninitialized CK submodule placeholder must be missing")
+        expect(placeholder_ck["actual_sha"] == "", "uninitialized CK submodule must not inherit superproject SHA")
 
     ck = deps.repo_local_dependency_report("ck")
     expect(ck["relative_path"] == "third_party/rocm/composable_kernel", "CK submodule path changed")
