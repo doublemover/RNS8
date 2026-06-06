@@ -17,6 +17,25 @@ import target_validation_report
 DEFAULT_OUT_DIR = Path("temp") / "bounded-i64-1024-review"
 DEFAULT_MARGIN = 1.02
 POLICY = "setup_inclusive_bounded_i64_1024_same_target_disposition_only"
+REQUIRED_COMPARATOR_BACKENDS = {
+    "cpu-reference",
+    "hip-direct",
+    "hip-vector-alu-int64",
+    "ck",
+    "rocwmma",
+}
+REQUIRED_HIPBLASLT_PACK_MODES = {
+    "per_repeat_repack",
+    "prepacked_reuse_a",
+    "prepacked_reuse_b",
+    "prepacked_reuse",
+}
+
+
+def canonical_backend(backend: Any) -> str:
+    if backend == "cpu":
+        return "cpu-reference"
+    return str(backend)
 
 
 def _median(values: Any) -> float | None:
@@ -41,9 +60,9 @@ def end_to_end_median(capture: dict[str, Any]) -> float | None:
 
 def pack_mode(capture: dict[str, Any]) -> str:
     timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
-    for key in ("prepack_reuse_strategy", "pack_mode"):
-        value = timing.get(key) or capture.get(key)
-        if isinstance(value, str) and value:
+    for source in (timing, capture):
+        value = source.get("pack_mode") if isinstance(source, dict) else None
+        if isinstance(value, str) and value and value != "none":
             return value
     if capture.get("reuse_packed_inputs") is True:
         return "prepacked_reuse"
@@ -81,7 +100,7 @@ def capture_row(path: Path) -> dict[str, Any]:
     return {
         "path": str(path),
         "path_key": path_key(path),
-        "backend": capture.get("backend_selected"),
+        "backend": canonical_backend(capture.get("backend_selected")),
         "selected_kernel": capture.get("selected_kernel"),
         "pack_mode": pack_mode(capture),
         "autotune_key": metadata.get("autotune_key"),
@@ -161,8 +180,91 @@ def row_gate_state(
     }
 
 
-def decide_disposition(row: dict[str, Any], direct: dict[str, Any] | None, gate: dict[str, Any], margin: float) -> dict[str, Any]:
+def comparator_coverage(group_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    present = {
+        canonical_backend(row.get("backend"))
+        for row in group_rows
+        if row.get("pack_mode") == "per_repeat_repack"
+    }
+    missing = sorted(REQUIRED_COMPARATOR_BACKENDS - present)
+    return {
+        "required_comparator_backends": sorted(REQUIRED_COMPARATOR_BACKENDS),
+        "present_comparator_backends": sorted(present & REQUIRED_COMPARATOR_BACKENDS),
+        "missing_required_comparator_backends": missing,
+        "complete": not missing,
+    }
+
+
+def hipblaslt_pack_coverage(group_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    present = {
+        str(row.get("pack_mode"))
+        for row in group_rows
+        if canonical_backend(row.get("backend")) == "hipblaslt"
+    }
+    missing = sorted(REQUIRED_HIPBLASLT_PACK_MODES - present)
+    return {
+        "required_hipblaslt_pack_modes": sorted(REQUIRED_HIPBLASLT_PACK_MODES),
+        "present_hipblaslt_pack_modes": sorted(present & REQUIRED_HIPBLASLT_PACK_MODES),
+        "missing_hipblaslt_pack_modes": missing,
+        "complete": not missing,
+    }
+
+
+def comparator_medians(group_rows: list[dict[str, Any]]) -> dict[str, float]:
+    medians: dict[str, float] = {}
+    for row in group_rows:
+        backend = canonical_backend(row.get("backend"))
+        if backend not in REQUIRED_COMPARATOR_BACKENDS:
+            continue
+        if row.get("pack_mode") != "per_repeat_repack":
+            continue
+        median = row.get("median_end_to_end_us")
+        if not isinstance(median, (int, float)):
+            continue
+        current = medians.get(backend)
+        if current is None or float(median) < current:
+            medians[backend] = float(median)
+    return medians
+
+
+def best_required_comparator(group_rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    candidates = [
+        row
+        for row in group_rows
+        if canonical_backend(row.get("backend")) in REQUIRED_COMPARATOR_BACKENDS
+        and row.get("pack_mode") == "per_repeat_repack"
+        and isinstance(row.get("median_end_to_end_us"), (int, float))
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: float(item["median_end_to_end_us"]))
+
+
+def candidate_speedups(row: dict[str, Any], medians: dict[str, float]) -> dict[str, float | None]:
+    median = row.get("median_end_to_end_us")
+    if not isinstance(median, (int, float)) or float(median) <= 0:
+        return {backend: None for backend in sorted(REQUIRED_COMPARATOR_BACKENDS)}
+    return {backend: float(value) / float(median) for backend, value in sorted(medians.items())}
+
+
+def decide_disposition(
+    row: dict[str, Any],
+    direct: dict[str, Any] | None,
+    best_comparator: dict[str, Any] | None,
+    comparator_median_map: dict[str, float],
+    gate: dict[str, Any],
+    margin: float,
+    *,
+    missing_comparators: list[str],
+    missing_pack_modes: list[str],
+) -> dict[str, Any]:
     blockers: list[str] = []
+    if row.get("pack_mode") != "per_repeat_repack":
+        blockers.append("prepacked_reuse_not_cache_promotable")
+    for backend in missing_comparators:
+        blockers.append(f"missing_required_comparator:{backend}")
+    for mode in missing_pack_modes:
+        blockers.append(f"missing_hipblaslt_pack_mode:{mode}")
     if direct is None:
         blockers.append("missing_direct_hip_baseline")
     if row.get("median_end_to_end_us") is None:
@@ -192,18 +294,40 @@ def decide_disposition(row: dict[str, Any], direct: dict[str, Any] | None, gate:
         if speedup < margin:
             blockers.append("does_not_clear_speedup_margin")
 
+    speedups = candidate_speedups(row, comparator_median_map)
+    speedup_vs_best = None
+    if best_comparator is not None and best_comparator.get("median_end_to_end_us") and row.get("median_end_to_end_us"):
+        speedup_vs_best = float(best_comparator["median_end_to_end_us"]) / float(row["median_end_to_end_us"])
+        if speedup_vs_best < margin:
+            blockers.append("not_faster_than_best_required_comparator")
+
     promotable = not blockers
     if promotable and gate.get("ledger_installed_cache_entry") is True:
         disposition = "keep cache"
     elif promotable:
         disposition = "replace cache"
-    elif direct is not None and speedup is not None and speedup < 1.0 and row.get("exact_correct") and row.get("required_events"):
+    elif (
+        row.get("exact_correct")
+        and row.get("required_events")
+        and (
+            (direct is not None and speedup is not None and speedup < 1.0)
+            or (speedup_vs_best is not None and speedup_vs_best < 1.0)
+        )
+    ):
         disposition = "drop/deprioritize"
     else:
         disposition = "keep experimental"
     return {
         "disposition": disposition,
         "speedup_vs_direct_hip": speedup,
+        "speedup_vs_required_comparators": speedups,
+        "best_required_comparator_backend": canonical_backend(best_comparator.get("backend"))
+        if isinstance(best_comparator, dict)
+        else None,
+        "best_required_comparator_median_us": best_comparator.get("median_end_to_end_us")
+        if isinstance(best_comparator, dict)
+        else None,
+        "speedup_vs_best_required_comparator": speedup_vs_best,
         "required_speedup_margin": margin,
         "blockers": sorted(set(blockers)),
     }
@@ -229,6 +353,10 @@ def build_report(
 
     groups = []
     for group_key, group_rows in sorted(by_group.items()):
+        coverage = comparator_coverage(group_rows)
+        pack_coverage = hipblaslt_pack_coverage(group_rows)
+        comparator_median_map = comparator_medians(group_rows)
+        best_comparator = best_required_comparator(group_rows)
         direct_candidates = [
             row for row in group_rows if row.get("backend") == "hip-direct" and row.get("pack_mode") == "per_repeat_repack"
         ]
@@ -251,7 +379,16 @@ def build_report(
             required = gate.get("variance_required_speedup_margin")
             if isinstance(required, (int, float)):
                 margin = max(margin, float(required))
-            decision = decide_disposition(row, direct, gate, margin)
+            decision = decide_disposition(
+                row,
+                direct,
+                best_comparator,
+                comparator_median_map,
+                gate,
+                margin,
+                missing_comparators=coverage["missing_required_comparator_backends"],
+                missing_pack_modes=pack_coverage["missing_hipblaslt_pack_modes"],
+            )
             candidates.append({k: v for k, v in row.items() if k != "capture"} | {"gates": gate, **decision})
         if not candidates:
             candidates.append(
@@ -261,12 +398,24 @@ def build_report(
                     "blockers": ["no_hipblaslt_capture_for_target_group"],
                 }
             )
+        cache_candidate_ready = any(
+            candidate.get("pack_mode") == "per_repeat_repack"
+            and candidate.get("disposition") in {"keep cache", "replace cache"}
+            and not candidate.get("blockers")
+            for candidate in candidates
+        )
         groups.append(
             {
                 "target_validation_group": group_key,
+                "comparator_coverage": coverage,
+                "hipblaslt_pack_coverage": pack_coverage,
+                "best_required_comparator": {k: v for k, v in best_comparator.items() if k != "capture"}
+                if isinstance(best_comparator, dict)
+                else None,
                 "direct_hip_baseline": {k: v for k, v in direct.items() if k != "capture"} if direct else None,
                 "candidate_count": len(candidates),
                 "candidates": candidates,
+                "rank50_group_complete": coverage["complete"] and pack_coverage["complete"] and cache_candidate_ready,
             }
         )
     return {
@@ -275,6 +424,7 @@ def build_report(
         "default_margin": default_margin,
         "capture_count": len(rows),
         "group_count": len(groups),
+        "rank50_gate_complete": bool(groups) and all(group.get("rank50_group_complete") for group in groups),
         "groups": groups,
     }
 
@@ -289,19 +439,36 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
         "",
         f"- Policy: `{report['policy']}`",
         f"- Default margin: `{report['default_margin']}`",
+        f"- Gate complete: `{report.get('rank50_gate_complete')}`",
         "",
-        "| group | pack mode | median us | speedup vs Direct-HIP | disposition | blockers |",
-        "| --- | --- | ---: | ---: | --- | --- |",
+        "| group | pack mode | median us | speedup vs Direct-HIP | speedup vs best comparator | disposition | blockers |",
+        "| --- | --- | ---: | ---: | ---: | --- | --- |",
     ]
     for group in report["groups"]:
+        coverage = group.get("comparator_coverage") or {}
+        pack_coverage = group.get("hipblaslt_pack_coverage") or {}
+        lines.extend(
+            [
+                "",
+                f"## `{group['target_validation_group']}`",
+                "",
+                f"- Comparator coverage: `{coverage.get('present_comparator_backends')}`.",
+                f"- Missing comparators: `{coverage.get('missing_required_comparator_backends')}`.",
+                f"- hipBLASLt pack coverage: `{pack_coverage.get('present_hipblaslt_pack_modes')}`.",
+                f"- Missing hipBLASLt pack modes: `{pack_coverage.get('missing_hipblaslt_pack_modes')}`.",
+                "",
+            ]
+        )
         for candidate in group["candidates"]:
             speedup = candidate.get("speedup_vs_direct_hip")
+            best_speedup = candidate.get("speedup_vs_best_required_comparator")
             lines.append(
-                "| `{group}` | `{pack}` | {median} | {speedup} | `{disposition}` | `{blockers}` |".format(
+                "| `{group}` | `{pack}` | {median} | {speedup} | {best_speedup} | `{disposition}` | `{blockers}` |".format(
                     group=group["target_validation_group"],
                     pack=candidate.get("pack_mode"),
                     median=candidate.get("median_end_to_end_us"),
                     speedup=f"{float(speedup):.4g}" if isinstance(speedup, (int, float)) else "",
+                    best_speedup=f"{float(best_speedup):.4g}" if isinstance(best_speedup, (int, float)) else "",
                     disposition=candidate.get("disposition"),
                     blockers=", ".join(candidate.get("blockers") or []),
                 )
@@ -320,6 +487,7 @@ def main() -> int:
     parser.add_argument("--margin", type=float, default=DEFAULT_MARGIN)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--require-complete", action="store_true")
     args = parser.parse_args()
     report = build_report(
         args.captures,
@@ -334,6 +502,8 @@ def main() -> int:
     else:
         for label, path in write_outputs(report, args.out_dir).items():
             print(f"{label}: {path}")
+    if args.require_complete and not report.get("rank50_gate_complete"):
+        return 1
     return 0
 
 

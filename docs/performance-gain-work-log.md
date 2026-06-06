@@ -7,6 +7,22 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-50 bounded-i64 1024 hipBLASLt review-gate closeout:
+
+- Rank 50 moved from the active queue to the completed-work archive after
+  `tools/bounded_i64_1024_review.py` became a complete same-target disposition
+  gate for the narrow bounded-i64 1024 hipBLASLt lane. The report now requires
+  CPU, Direct HIP, runtime vector ALU, CK, and rocWMMA comparator coverage;
+  requires hipBLASLt per-repeat, reuse-A, reuse-B, and reuse-A+B pack-mode
+  coverage; compares the candidate against both Direct HIP and the fastest
+  required comparator; and consumes target-validation, variance,
+  counter/resource, and promotion-ledger sidecars before reporting keep,
+  replace, experimental, or drop/deprioritize dispositions. The self-test
+  covers full success, missing comparator, missing reuse mode, slow hipBLASLt,
+  and unsupported-accelerator cases. This is cache-maintenance/review-control
+  infrastructure only; it does not add a README headline claim, installed cache
+  replacement, Linux readiness claim, or CDNA performance claim.
+
 June 6, 2026 rank-39 error-detection policy closeout:
 
 - Rank 39 moved from the active queue to the completed-work archive after

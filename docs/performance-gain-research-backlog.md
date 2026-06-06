@@ -2676,7 +2676,7 @@ Promotion gate:
 The current bounded-i64 1024 hipBLASLt win is narrow. It is valuable enough to
 protect, but not wide enough to stop tuning.
 
-Implementation status, 2026-06-06:
+Closeout status, 2026-06-06:
 
 - `tools/bounded_i64_1024_review.py` is the focused disposition path. It joins
   setup-inclusive 1024 bounded-i64 captures with target validation, variance,
@@ -2686,8 +2686,15 @@ Implementation status, 2026-06-06:
 - `benchmarks/scenarios/hipblaslt_bounded_i64_1024_ab.json` now covers the
   required comparator set plus stable-A, stable-B, and stable-A+B reuse roles.
   This is future CDNA validation infrastructure, not CDNA evidence.
+- The rank is closed in
+  [performance-gain-completed-work.md](performance-gain-completed-work.md)
+  after the review tool gained complete comparator coverage checks, complete
+  hipBLASLt pack-mode coverage checks, fastest-required-comparator speedups,
+  and a `--require-complete` gate with fixture coverage for missing
+  comparators, missing reuse modes, slow candidates, and unsupported
+  accelerators.
 
-Technical direction:
+Historical technical direction:
 
 - Compare current specialized reducer against scratch layout, pack layout,
   reduction kernel, stream/event, and workspace reuse variants.
@@ -2698,12 +2705,13 @@ Technical direction:
 - Add regression guard captures so stale hipBLASLt cache entries fail when
   selected-kernel or event labels change.
 
-Likely first slices:
+Closed slices:
 
-- Focused 1024 bounded-i64 release A/B matrix with current v2, reducer
-  variants, prepacked variants, and Direct-HIP baseline.
-- ISA/counter report for hipBLASLt pack/reduce phases where available.
-- Review report that flags narrow wins under a configurable margin.
+- Focused 1024 bounded-i64 release A/B matrix support exists through the
+  scenario family and review report.
+- ISA/counter/resource sidecars are consumed by the review gate when present.
+- Narrow wins are flagged under a configurable margin and compared against both
+  Direct HIP and the fastest required comparator.
 
 Promotion gate:
 
