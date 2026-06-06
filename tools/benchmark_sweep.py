@@ -40,6 +40,7 @@ from benchmark_sweep_lib.config import (
     SweepCommand,
 )
 from benchmark_sweep_lib.execution import (
+    annotate_scenario_metadata,
     autotune_cache_path,
     cli_backend,
     execute_sweep_entries,

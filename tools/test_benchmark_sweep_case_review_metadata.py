@@ -129,6 +129,30 @@ assert group["candidates"][0]["bottleneck"]["class"] in {
     "unknown",
 }
 
+non_promoting_ck = copy.deepcopy(ck)
+non_promoting_direct = copy.deepcopy(direct)
+non_promoting_cpu = copy.deepcopy(cpu)
+scenario_metadata = {
+    "family": "finite-modulus-map",
+    "name": "finite-ring-map-1024",
+    "promotion_eligibility": "non_promoting_modulus_map",
+    "metadata": {"promotion_scope": "non_promoting_modulus_map"},
+}
+for item in [non_promoting_ck, non_promoting_direct, non_promoting_cpu]:
+    item["scenario_metadata"] = scenario_metadata
+non_promoting_report = benchmark_sweep.review_captures(
+    [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
+    review_mode="release",
+)
+non_promoting_group = non_promoting_report["groups"][0]
+assert non_promoting_report["promotable_autotune_entries"] == []
+assert non_promoting_group["scenario_promotion_scopes"] == ["non_promoting_modulus_map"]
+non_promoting_ck_candidate = next(
+    item for item in non_promoting_group["candidates"] if item["backend"] == "ck"
+)
+assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
+assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
+
 missing_target_ck = copy.deepcopy(ck)
 missing_target_ck["device"]["gcn_arch"] = "unknown"
 missing_target_report = benchmark_sweep.review_captures(

@@ -135,6 +135,10 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- repeat_count_compatible: `{group.get('repeat_count_compatible')}`")
         duplicates = group.get("duplicate_backends") or []
         lines.append(f"- duplicate_backends: `{','.join(duplicates) if duplicates else 'none'}`")
+        scenario_scopes = group.get("scenario_promotion_scopes") or []
+        lines.append(
+            f"- scenario_promotion_scopes: `{','.join(scenario_scopes) if scenario_scopes else 'none'}`"
+        )
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:

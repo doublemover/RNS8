@@ -803,3 +803,17 @@ June 4-5, 2026 updates:
   3.99x faster than same-backend non-reuse and 2.35x faster than the same-run
   fastest non-reuse baseline. This is still a reuse-workload contract, not an
   AUTO cache entry.
+- Rank 52 finite generic modulus family map is closed as local Windows
+  `gfx1100` non-promoting evidence. The June 6 release sweep under
+  `temp/rank52-finite-modulus-map-release-20260606/` produced 200 captures:
+  ring moduli 127, 241, 243, 251, 253, 255, and 256 plus field moduli 127,
+  241, and 251 at 128, 512, 1024, and 2048 across CPU, Direct HIP, hipBLASLt,
+  CK, and rocWMMA. `tools/finite_modulus_map_report.py --require-complete-map`
+  reports 40/40 ready groups, zero missing expected groups, zero missing
+  backends, zero missing GPU events, and zero non-release-ready groups. The
+  generic sweep review now carries scenario metadata on captures and reports
+  zero autotune-promotable entries because the scenario scope is
+  `non_promoting_modulus_map`. Winner distribution is CPU reference for all
+  128 groups, mixed Direct HIP/CK/rocWMMA/hipBLASLt at 512 and 1024, and
+  hipBLASLt for all 2048 groups. No README/cache/default-route/Linux/CDNA claim
+  changes from this map.

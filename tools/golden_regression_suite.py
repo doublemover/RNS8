@@ -68,6 +68,11 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_bounded_i64_1024_review.py"],
     ),
     SuiteCase(
+        "finite_modulus_map_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_finite_modulus_map_report.py"],
+    ),
+    SuiteCase(
         "shape_family_shadow_report",
         "performance_evidence_drift",
         [sys.executable, "tools/test_shape_family_shadow_report.py"],

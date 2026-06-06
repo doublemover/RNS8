@@ -218,6 +218,20 @@ release_command = benchmark_sweep.command_for(
 )
 assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
 
+with tempfile.TemporaryDirectory() as temp_dir:
+    capture_path = Path(temp_dir) / "capture.json"
+    capture_path.write_text(json.dumps(finite_capture("ck", 190)), encoding="utf-8")
+    metadata = {
+        "family": "finite-modulus-map",
+        "name": "finite-ring-map-1024",
+        "promotion_eligibility": "non_promoting_modulus_map",
+        "metadata": {"promotion_scope": "non_promoting_modulus_map"},
+    }
+    benchmark_sweep.annotate_scenario_metadata(capture_path, metadata)
+    annotated = load_capture(capture_path)
+    validate_capture(annotated, capture_path)
+    assert annotated["scenario_metadata"] == metadata
+
 broader_chain_items = catalog["rns-chain-final-output-broader"]
 assert len(broader_chain_items) == 16
 assert {

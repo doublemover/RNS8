@@ -219,6 +219,18 @@ The field-127 generic-modulus refresh also reran hipBLASLt with complete
 `hipblaslt_i32_to_residue_reduce` event timing. It was not promoted because it
 lost to Direct HIP and CK at 512, not because event data was missing.
 
+A June 6 finite modulus-family map under
+`temp/rank52-finite-modulus-map-release-20260606/` broadens the local evidence
+without changing cache or README claims. It covers ring moduli 127, 241, 243,
+251, 253, 255, and 256 plus field moduli 127, 241, and 251 at 128, 512, 1024,
+and 2048 across CPU, Direct HIP, hipBLASLt, CK, and rocWMMA. All 40
+same-contract groups are release-reviewed, schema-valid, baseline-complete, and
+GPU-event-complete where required; the scenario is intentionally tagged
+`non_promoting_modulus_map`, so generic review reports zero autotune-promotable
+entries. The map says 128 is CPU-favored for every tested modulus, 512/1024 are
+backend-mixed, and 2048 is hipBLASLt-favored for every tested modulus on local
+Windows `gfx1100`.
+
 The generic ring 127/253 2048 refresh closed the previous GPU-only evidence gap
 with CPU-backed release review. rocWMMA won both reviewed contracts and was
 installed locally. The stale hipBLASLt ring-127 2048 capture was

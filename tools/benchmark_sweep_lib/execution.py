@@ -130,6 +130,15 @@ def validate_paths(paths: list[Path]) -> list[dict[str, Any]]:
     return captures
 
 
+def annotate_scenario_metadata(path: Path, scenario: dict[str, Any] | None) -> None:
+    if scenario is None:
+        return
+    data = load_capture(path)
+    data["scenario_metadata"] = scenario
+    validate_capture(data, path)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def existing_capture_valid(path: Path) -> bool:
     if not path.exists():
         return False
@@ -157,6 +166,7 @@ def execute_sweep_entries(
     timeout_seconds = getattr(args, "capture_timeout_seconds", None)
     for entry in entries:
         if getattr(args, "skip_existing", False) and existing_capture_valid(entry.output):
+            annotate_scenario_metadata(entry.output, entry.scenario)
             capture_paths.append(entry.output)
             stats["skipped_existing_captures"] += 1
             continue
@@ -165,6 +175,7 @@ def execute_sweep_entries(
             continue
         stats["new_captures_attempted"] += 1
         if run_command(entry.command, entry.output, timeout_seconds=timeout_seconds, env_overrides=entry.env):
+            annotate_scenario_metadata(entry.output, entry.scenario)
             capture_paths.append(entry.output)
             stats["new_captures_completed"] += 1
     return stats

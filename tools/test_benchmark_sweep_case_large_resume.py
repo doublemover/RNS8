@@ -157,6 +157,34 @@ assert any(
     for entry in finite_generic_entries
 )
 
+finite_modulus_map_args = copy.copy(scenario_args)
+finite_modulus_map_args.backends = None
+finite_modulus_map_args.scenario = ["finite-modulus-map"]
+finite_modulus_map_entries = benchmark_sweep.sweep_command_entries(finite_modulus_map_args)
+assert len(finite_modulus_map_entries) == 200
+assert {entry.scenario["shape"]["m"] for entry in finite_modulus_map_entries} == {128, 512, 1024, 2048}
+assert {
+    entry.scenario["modulus"]
+    for entry in finite_modulus_map_entries
+    if entry.scenario["semantics"] == "finite-u8-ring"
+} == {127, 241, 243, 251, 253, 255, 256}
+assert {
+    entry.scenario["modulus"]
+    for entry in finite_modulus_map_entries
+    if entry.scenario["semantics"] == "finite-u8-field"
+} == {127, 241, 251}
+assert {entry.scenario["backend"] for entry in finite_modulus_map_entries} == {
+    "cpu",
+    "hip-direct",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+}
+assert all(
+    entry.scenario.get("metadata", {}).get("promotion_scope") == "non_promoting_modulus_map"
+    for entry in finite_modulus_map_entries
+)
+
 bridge_args = copy.copy(scenario_args)
 bridge_args.backends = None
 bridge_args.bench_for = ["hip-direct=hip-direct-release-bench"]

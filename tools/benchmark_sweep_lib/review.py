@@ -227,6 +227,28 @@ def capture_gpu_events_available(capture: dict[str, Any]) -> bool:
     )
 
 
+def capture_scenario_promotion_scope(capture: dict[str, Any]) -> str | None:
+    scenario = capture.get("scenario_metadata")
+    if not isinstance(scenario, dict):
+        return None
+    eligibility = scenario.get("promotion_eligibility")
+    if isinstance(eligibility, str) and eligibility:
+        return eligibility
+    metadata = scenario.get("metadata")
+    if isinstance(metadata, dict):
+        scope = metadata.get("promotion_scope")
+        if isinstance(scope, str) and scope:
+            return scope
+    return None
+
+
+def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
+    scope = capture_scenario_promotion_scope(capture)
+    if scope is None or scope == "release_review_candidate":
+        return []
+    return ["scenario_scope_not_autotune_promotable"]
+
+
 def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
@@ -332,6 +354,13 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         repeat_count_values = {count for count in repeat_counts.values() if count}
         repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
+        scenario_promotion_scopes = sorted(
+            {
+                scope
+                for item in items
+                if (scope := capture_scenario_promotion_scope(item)) is not None
+            }
+        )
         candidates = []
         for item in items:
             backend = backend_id(item)
@@ -381,12 +410,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
             )
+            blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
             candidate = {
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
                 "source_metadata": candidate_source_metadata(item),
+                "scenario_promotion_scope": capture_scenario_promotion_scope(item),
                 "accelerator_backend": accelerator,
                 "release_review_capture": release_capture_satisfied(item),
                 "median_end_to_end_us": end_to_end,
@@ -485,6 +516,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "repeat_count_complete": repeat_count_complete,
                 "repeat_count_compatible": repeat_count_compatible,
                 "duplicate_backends": duplicate_backends,
+                "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
