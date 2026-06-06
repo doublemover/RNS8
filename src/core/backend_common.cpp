@@ -1,6 +1,7 @@
 #include "core/backend_common.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "core/hip_resources.hpp"
 
 #include <limits>
 
@@ -41,36 +42,20 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
     return fn();
   }
 
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  hipError_t event_status = hipEventCreate(&start);
+  hip_unique_event_pair events;
+  hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
-    return fn();
-  }
-  event_status = hipEventCreate(&stop);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(start);
-    return fn();
-  }
-
-  event_status = hipEventRecord(start, nullptr);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(stop);
-    (void)hipEventDestroy(start);
     return fn();
   }
 
   const int code = fn();
   if (code == 0) {
-    event_status = hipEventRecord(stop, nullptr);
+    event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, start, stop);
+      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
       return code;
     }
   }
-
-  (void)hipEventDestroy(stop);
-  (void)hipEventDestroy(start);
   return code;
 #else
   (void)label;

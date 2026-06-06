@@ -21,6 +21,10 @@ git diff --check
 python tools\test_check_dependencies.py
 python tools\test_benchmark_schema.py
 python tools\test_result_compare.py
+python tools\test_bound_discovery_report.py
+python tools\test_host_api_batch_report.py
+python tools\test_many_small_grouped_report.py
+python tools\test_rns_chain_report.py
 python tools\test_benchmark_sweep.py
 python tools\check_release_tree.py
 cmake --preset cpu-debug
@@ -31,6 +35,30 @@ cmake --install build/cpu-debug --prefix temp/install-rns8/Debug
 
 The CPU CTest preset also runs the downstream CMake smoke when examples and
 package export support are enabled.
+
+Optional CPU sanitizer presets are available for cleanup and release-candidate
+hardening when the local toolchain supports them. The tracked portable
+non-Windows preset is the Clang/GCC-like CPU-only ASan/UBSan gate:
+
+```powershell
+cmake --preset cpu-asan-ubsan-debug
+cmake --build --preset cpu-asan-ubsan
+ctest --preset cpu-asan-ubsan --output-on-failure
+```
+
+The tracked Windows hardening lane is CPU-only and uses LLVM `clang-cl`,
+AddressSanitizer, and libFuzzer. HIP sanitizer coverage is out of scope for
+this preset:
+
+```powershell
+cmake --preset windows-clang-asan-debug
+cmake --build --preset windows-clang-asan
+ctest --preset windows-clang-asan --output-on-failure
+build\windows-clang-asan-debug\rns8_fuzz_plan_descriptor.exe -runs=20000
+build\windows-clang-asan-debug\rns8_fuzz_export_contract.exe -runs=20000
+build\windows-clang-asan-debug\rns8_fuzz_metadata_json.exe -runs=20000
+python tools\windbg_triage.py --locate-only
+```
 
 ## Windows HIP Gate
 

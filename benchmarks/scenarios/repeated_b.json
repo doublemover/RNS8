@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "family": "repeated-b",
+  "items": [
+    {
+      "name": "bounded-i64-512",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same B operand reused across measured repeats",
+      "output_domain": "host_export",
+      "rationale": "measures whether setup cost amortizes for the current repeated-B implementation surfaces",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9
+    },
+    {
+      "name": "bounded-i64-1024",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same B operand reused across measured repeats",
+      "output_domain": "host_export",
+      "rationale": "keeps hipBLASLt and rocWMMA repeated-B evidence tied to the current 1024 winner split",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9
+    }
+  ]
+}

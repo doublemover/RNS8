@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "family": "fhe-lattice-proxy-starfoundry",
+  "items": [
+    {
+      "name": "key-switch-reuse-b-output-rns",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "key-switch-1024x256x1024",
+        "m": 1024,
+        "n": 256,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "FHE/lattice key-switch proxy with stable RHS and RNS continuation intent",
+      "output_domain": "residue_current_then_final_export",
+      "rationale": "groups tower/reuse/output-domain metadata without claiming compatibility with an FHE library",
+      "backends": [
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "proxy_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "next_op_hint": "rns-gemm",
+      "workload_proxy": "fhe:key_switch_digit_aggregation",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
+        "workflow_name": "key_switch_digit_aggregation",
+        "reuse_profile": "large_read_only_key_material",
+        "output_domain_requirement": "rns_residue_current",
+        "promotion_scope": "proxy_evidence_only"
+      }
+    },
+    {
+      "name": "ckks-linear-layer-final-export",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "linear-layer-1024x128x1024",
+        "m": 1024,
+        "n": 128,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "FHE/lattice dense linear-layer proxy with final export",
+      "output_domain": "host_export",
+      "rationale": "keeps proxy workload grouping visible without asserting frontend library readiness",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "proxy_evidence_only",
+      "workload_proxy": "fhe:ckks_linear_layer_dense_proxy",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
+      "metadata": {
+        "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
+        "workflow_name": "ckks_linear_layer_dense_proxy",
+        "reuse_profile": "single_call_dense_layer",
+        "output_domain_requirement": "host_export",
+        "promotion_scope": "proxy_evidence_only"
+      }
+    }
+  ]
+}

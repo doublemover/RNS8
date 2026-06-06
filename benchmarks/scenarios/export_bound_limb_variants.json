@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "family": "export-bound-limb-variants",
+  "items": [
+    {
+      "name": "exact-wide-signed-limb-zoo",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide signed fixed-limb export variants",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "reuses current fixed-limb export kernels while making export-bound behavior explicit",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        1,
+        2,
+        3,
+        4,
+        8,
+        16,
+        32
+      ],
+      "export_variant": "fixed_limb_export_zoo",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "fixed_limb_export_review_required"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-limb-zoo",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide unsigned fixed-limb export variants",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "checks whether unsigned limb count changes export/status balance differently from signed",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        1,
+        2,
+        3,
+        4,
+        8,
+        16,
+        32
+      ],
+      "export_variant": "fixed_limb_export_zoo",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "fixed_limb_export_review_required"
+      }
+    }
+  ]
+}

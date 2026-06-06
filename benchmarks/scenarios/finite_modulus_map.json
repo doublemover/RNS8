@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "family": "finite-modulus-map",
+  "items": [
+    {
+      "name": "finite-ring-map-512",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-generic-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-ring u8 modulus map over hot and generic byte moduli",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "maps prime/composite and power-of-two behavior without assuming the hot-modulus kernels generalize",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [
+        127,
+        241,
+        243,
+        251,
+        253,
+        255,
+        256
+      ],
+      "metadata": {
+        "modulus_role": "prime_composite_power_of_two_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "mixed"
+      }
+    },
+    {
+      "name": "finite-field-prime-map-512",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-generic-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-field u8 prime modulus map",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps prime field behavior separate from composite finite-ring captures",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [
+        127,
+        241,
+        251
+      ],
+      "metadata": {
+        "modulus_role": "prime_field_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "prime"
+      }
+    }
+  ]
+}

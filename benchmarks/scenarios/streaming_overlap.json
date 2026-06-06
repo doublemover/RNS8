@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "family": "streaming-overlap",
+  "items": [
+    {
+      "name": "bounded-i64-512-reuse-b-overlap",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP repeated-B pack/compute/export overlap evidence",
+      "output_domain": "host_export",
+      "rationale": "declares double-buffered stream dependency contracts before overlap routing",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "streaming_overlap": true,
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only",
+        "dependency_contract": "pack_before_gemm_gemm_before_export_status_before_host_read"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-overlap",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide chain plus final export overlap evidence",
+      "output_domain": "residue_current_then_final_limb_export",
+      "rationale": "tests whether final export can overlap with next pack without changing output contract",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "streaming_overlap": true,
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only"
+      }
+    }
+  ]
+}

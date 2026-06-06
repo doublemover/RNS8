@@ -5,6 +5,7 @@
 #include <limits>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "core/hip_resources.hpp"
 
 #if RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
@@ -144,41 +145,26 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
     return fn();
   }
 
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
-  hipError_t event_status = hipEventCreate(&start);
+  hip_unique_event_pair events;
+  hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
-    return fn();
-  }
-  event_status = hipEventCreate(&stop);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(start);
-    return fn();
-  }
-  event_status = hipEventRecord(start, nullptr);
-  if (event_status != hipSuccess) {
-    (void)hipEventDestroy(stop);
-    (void)hipEventDestroy(start);
     return fn();
   }
 
   const hipError_t op_status = fn();
   if (op_status == hipSuccess) {
-    event_status = hipEventRecord(stop, nullptr);
+    event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      event_status = hipEventSynchronize(stop);
+      event_status = hipEventSynchronize(events.stop());
     }
     if (event_status == hipSuccess) {
       float milliseconds = 0.0f;
-      event_status = hipEventElapsedTime(&milliseconds, start, stop);
+      event_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
       if (event_status == hipSuccess && milliseconds >= 0.0f) {
         hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
       }
     }
   }
-
-  (void)hipEventDestroy(stop);
-  (void)hipEventDestroy(start);
   return op_status;
 }
 

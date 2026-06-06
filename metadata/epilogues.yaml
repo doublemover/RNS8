@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "epilogue_types": [
+    "crt_export",
+    "canonical_u8_export",
+    "low64_wrap_export",
+    "residue_current_rns_output"
+  ],
+  "backend_epilogue_modes": [
+    "direct_int64_export",
+    "fused_centered_residue_then_crt_export",
+    "native_input_centered_residue_then_crt_export",
+    "native_input_centered_residue_rns_output",
+    "native_i64_u64_export",
+    "low64_wrap_export",
+    "separate_i32_scratch_reduce_then_canonical_u8_export",
+    "separate_i32_scratch_reduce_rns_output",
+    "separate_i32_scratch_reduce_then_crt_export",
+    "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "ck_fused_i32_to_centered_residue_rns_output",
+    "ck_fused_i32_to_centered_residue_then_crt_export",
+    "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "rocwmma_fused_i32_to_centered_residue_rns_output",
+    "rocwmma_fused_i32_to_centered_residue_then_crt_export"
+  ]
+}

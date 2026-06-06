@@ -36,6 +36,9 @@ and correctness requirements are human defined. Codex does the typing.
   or unreviewed backends fall back to correctness paths.
 - Benchmark schema v4, release-sweep review tooling, result comparison, GPU
   event reports, ISA reports, and cache-install validation.
+- Benchmark-only workload evidence for reusable operands, many-small grouped
+  dispatch, RNS-chain final-output reuse, vector N=1 kernels, and wrap64
+  byte-limb tuning.
 
 ## Quick Start
 
@@ -98,27 +101,46 @@ see [docs/performance-model.md](docs/performance-model.md),
 [docs/performance-wins.md](docs/performance-wins.md), and
 [docs/reviewed-local-evidence.md](docs/reviewed-local-evidence.md).
 
-Current local Windows `gfx1100` release-reviewed snapshot:
+Exactness rules are explicit:
 
-| Contract | Shape | Current reviewed path | Median end-to-end | Comparison | Cache |
-|---|---:|---|---:|---:|---|
-| bounded i64 | 512 | Direct HIP <br/> `direct_hip_tiled_active_prefix_rns_gemm_v2` | 1851 us | no accelerator win | none |
-| bounded i64 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 4174 us | 1.09x vs Direct HIP | installed |
-| finite ring u8 mod 251 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1136 us | 1.11x vs Direct HIP | installed |
-| finite ring u8 mod 251 | 1024 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2` | 1709 us | 2.74x vs Direct HIP | installed |
-| finite ring u8 mod 255 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2` | 1938 us | 3.00x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 128 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1132 us | 1.02x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2` | 1365 us | 4.08x vs Direct HIP | installed |
-| finite ring u8 mod 256 | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 1792 us | 7.05x vs Direct HIP | installed |
-| finite field u8 mod 251 | 1024 | CK <br/> `ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2` | 1860 us | 5.68x vs Direct HIP | installed |
-| exact-wide signed | 512 | rocWMMA <br/> `rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2` | 7162 us | 1.02x vs Direct HIP | installed |
-| exact-wide signed | 1024 | hipBLASLt <br/> `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 17092 us | 1.32x vs Direct HIP | installed |
-| exact-wide unsigned | 1024 | CK <br/> `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 20481 us | 1.22x vs Direct HIP | installed |
+- Bounded `i64`/`u64` uses range-proven CRT/RNS, not type inference.
+- Exact-wide signed/unsigned outputs use fixed-width limb export contracts.
+- Finite-u8 rows are keyed by explicit ring or prime-field modulus.
+- Strict `mod 2^64` uses byte limbs, not odd-modulus CRT.
 
-The installed reviewed cache currently covers 11 exact plan keys: one
-bounded-i64 key, seven finite-u8 keys, and three exact-wide keys. Some rows are
-deliberately narrow local wins; Linux ROCm, Instinct, RDNA4, and profiler-backed
-production claims remain separate validation work.
+Current local Windows `gfx1100` release-reviewed cache snapshot:
+
+| Family | Case | Winner | Median | vs Direct HIP | vs CPU/ref | Disposition |
+|---|---|---|---:|---:|---:|---|
+| Bounded exact | i64 4096 | hipBLASLt | 35.3 ms | 3.65x | 601.8x | Installed cache key |
+| Bounded exact | u64 4096 | hipBLASLt | 37.5 ms | 3.16x | 441.9x | Installed cache key |
+| Finite u8 | field-251 4096 | hipBLASLt | 6.4 ms | 5.25x | 747.8x | Installed cache key |
+| Finite u8 | ring-256 4096 | hipBLASLt | 6.9 ms | 4.73x | 680.9x | Installed cache key |
+| Exact-wide | signed 4096 | hipBLASLt | 176.9 ms | 3.61x | 639.1x | Installed cache key |
+| Exact-wide | unsigned 4096 | hipBLASLt | 162.4 ms | 3.78x | 649.5x | Installed cache key |
+| Strict wrap64 | 2048 | Direct HIP | 58.3 ms | n/a | 230.1x | Correctness path |
+| Strict wrap64 | 4096 | Direct HIP | 295.7 ms | n/a | 348.1x | Correctness path |
+
+Explicit workload and implementation wins:
+
+| Area | Case | Path | Median | Same-path gain | Control gain | Boundary |
+|---|---|---|---:|---:|---:|---|
+| Reusable operands | bounded-u64 2048 A+B | hipBLASLt | 9.2 ms/repeat | 3.99x vs non-reuse | 2.35x vs fastest | Workload contract only |
+| Many-small grouped | exact-wide signed 64 group32 | Direct HIP grouped | 66.5 us/task | 3.43x vs prior grouped | 58.4x vs independent | Benchmark evidence |
+| Many-small grouped | exact-wide unsigned 64 group32 | Direct HIP grouped | 79.1 us/task | 13.5x vs hostbatch | 18.7x vs independent | Benchmark evidence |
+| RNS chains | exact-wide signed 128 chain3 | Direct HIP final-output | 1.77 ms | 9.80x vs independent | n/a | Benchmark evidence |
+| RNS chains | exact-wide unsigned 256 chain3 | Direct HIP final-output | 2.84 ms | 10.80x vs independent | n/a | Benchmark evidence |
+| Shape-specialized | vector N=1 i64 | Vector ALU | n/a | 7.41x vs old path | 35.9x kernel | Active explicit route |
+| Shape-specialized | one-shot i64 512 | Direct HIP colpair | n/a | 3.07x vs old path | 3.02x API event | Active explicit route |
+| Planner/prepass | bounded-u64 adaptive scan | Direct HIP setup | 414.4 ms | 1.35x vs old scan | n/a | Not promoted |
+
+The installed reviewed cache currently contains 39 validated exact-key entries.
+The table above is intentionally compact; long kernel identities, per-row
+baselines, checksums, event status, caveats, and reproduction commands live in
+[docs/performance-wins.md](docs/performance-wins.md) and
+[docs/reviewed-local-evidence.md](docs/reviewed-local-evidence.md). Linux ROCm,
+Instinct, RDNA4, and profiler-backed production claims remain separate
+validation work.
 
 ## Known Limitations
 

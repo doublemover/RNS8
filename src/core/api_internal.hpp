@@ -297,6 +297,38 @@ bool matrix_has_native_storage(const rns8_matrix& matrix);
 
 void clear_native_current(rns8_matrix& matrix);
 
+void clear_device_native_current(rns8_matrix& matrix);
+
+void clear_residue_current(rns8_matrix& matrix);
+
+void clear_device_residues_current(rns8_matrix& matrix);
+
+void clear_byte_limb_current(rns8_matrix& matrix);
+
+void clear_device_byte_limb_current(rns8_matrix& matrix);
+
+void invalidate_output_currentness(rns8_matrix& matrix);
+
+void mark_host_residues_current(rns8_matrix& matrix);
+
+void mark_device_residues_current(rns8_matrix& matrix);
+
+void mark_host_byte_limbs_current(rns8_matrix& matrix);
+
+void mark_device_byte_limbs_current(rns8_matrix& matrix);
+
+void mark_device_native_current(rns8_matrix& matrix);
+
+void mark_output_host_residues_current(rns8_matrix& matrix);
+
+void mark_output_device_residues_current(rns8_matrix& matrix);
+
+void mark_output_host_byte_limbs_current(rns8_matrix& matrix);
+
+void mark_output_device_byte_limbs_current(rns8_matrix& matrix);
+
+void mark_output_device_native_current(rns8_matrix& matrix);
+
 bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t& residues);
 
 bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols, uint32_t prefix);

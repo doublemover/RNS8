@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "family": "layout-search",
+  "items": [
+    {
+      "name": "bounded-i64-prefix9-final-export",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 fixed-prefix RNS final-export layout candidate",
+      "output_domain": "host_export",
+      "rationale": "anchors layout search against the current host-export RNS contract before trying lazy or fused variants",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "rns_residue_planes_final_export",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "host_export",
+        "promotion_scope": "layout_comparison_only"
+      }
+    },
+    {
+      "name": "bounded-i64-prefix9-rns-next",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 fixed-prefix RNS next-GEMM layout candidate",
+      "output_domain": "host_export",
+      "rationale": "keeps next-op intent visible when comparing final-export and residue-current layout choices",
+      "backends": [
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "rns_residue_planes_next_rns_gemm",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "rns_gemm_continuation",
+        "promotion_scope": "layout_comparison_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-prefix20-final-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide signed prefix-20 final limb-output layout candidate",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "separates fixed limb export layout from bounded RNS host-output behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "exact_wide_prefix20_limb_export",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "host_limb_export",
+        "promotion_scope": "layout_comparison_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-prefix20-rns-next",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide signed prefix-20 RNS-next layout candidate",
+      "output_domain": "residue_current_rns",
+      "rationale": "tests whether exact-wide work should stay residue-current before final limb export",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "next_op_hint": "rns-gemm",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "exact_wide_prefix20_next_rns_gemm",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "lazy_export",
+        "promotion_scope": "layout_comparison_only"
+      }
+    },
+    {
+      "name": "finite-ring-hot-modulus-layout",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-ring u8 hot-modulus layout candidate",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps finite-ring residue layout decisions separate from bounded RNS prefix decisions",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "finite_u8_ring_residue_layout",
+        "pack_layout_family": "centered_i8_finite_residues",
+        "output_domain_requirement": "finite_host_export",
+        "promotion_scope": "layout_comparison_only",
+        "modulus_role": "hot_modulus"
+      }
+    },
+    {
+      "name": "finite-field-hot-prime-layout",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-field u8 hot-prime layout candidate",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "separates prime-field layout behavior from composite finite-ring behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "finite_moduli": [
+        251
+      ],
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "finite_u8_prime_field_residue_layout",
+        "pack_layout_family": "centered_i8_finite_residues",
+        "output_domain_requirement": "finite_host_export",
+        "promotion_scope": "layout_comparison_only",
+        "modulus_role": "hot_prime",
+        "prime_or_composite": "prime"
+      }
+    },
+    {
+      "name": "wrap64-direct-byte-layout",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "strict wrap64 byte-limb direct layout candidate",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "keeps byte-limb wraparound layout decisions separate from odd-modulus RNS and finite-u8 paths",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "layout_comparison_only",
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "wrap64_byte_limb_low64_output",
+        "pack_layout_family": "unsigned_byte_limb_planes",
+        "output_domain_requirement": "low64_host_export",
+        "promotion_scope": "layout_comparison_only"
+      }
+    }
+  ]
+}

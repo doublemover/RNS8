@@ -32,6 +32,51 @@
       }
     },
     {
+      "name": "cpu-asan-ubsan-debug",
+      "displayName": "CPU + vcpkg + ASan/UBSan (Debug)",
+      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains. This remains host-gated until validated on the target host.",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-debug",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined"
+      }
+    },
+    {
+      "name": "windows-clang-asan-debug",
+      "displayName": "Windows clang-cl + vcpkg + ASan/libFuzzer (Debug)",
+      "description": "CPU-only Windows hardening preset. HIP stays disabled; fuzzers are built with LLVM libFuzzer and AddressSanitizer.",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/windows-clang-asan-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_COMPILER": "$env{LLVM_ROOT}/bin/clang-cl.exe",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/fsanitize=address /Zi /O1 /MT",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "RNS8_BUILD_SHARED": "OFF",
+        "RNS8_BUILD_FUZZERS": "ON",
+        "RNS8_ENABLE_WINDOWS_CLANG_ASAN": "ON",
+        "RNS8_ENABLE_HIP": "OFF",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
       "name": "windows-msvc-hip-debug",
       "displayName": "Windows MSVC + HIP SDK + vcpkg (Debug)",
       "description": "Windows Radeon bring-up preset using Ninja, vcpkg, and explicit HIP SDK paths.",
@@ -202,6 +247,14 @@
       "configurePreset": "cpu-release"
     },
     {
+      "name": "cpu-asan-ubsan",
+      "configurePreset": "cpu-asan-ubsan-debug"
+    },
+    {
+      "name": "windows-clang-asan",
+      "configurePreset": "windows-clang-asan-debug"
+    },
+    {
       "name": "windows-debug",
       "configurePreset": "windows-msvc-hip-debug"
     },
@@ -261,6 +314,20 @@
     {
       "name": "cpu-release",
       "configurePreset": "cpu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-asan-ubsan",
+      "configurePreset": "cpu-asan-ubsan-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-clang-asan",
+      "configurePreset": "windows-clang-asan-debug",
       "output": {
         "outputOnFailure": true
       }

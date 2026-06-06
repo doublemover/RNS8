@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "family": "wrap64-carry",
+  "items": [
+    {
+      "name": "wrap64-512",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "strict mod 2^64 byte-limb carry-heavy workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "tracks byte-limb direct-HIP tuning separately from odd-modulus RNS claims",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "include_wrap64_candidate": true
+    },
+    {
+      "name": "wrap64-1024",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "strict mod 2^64 byte-limb carry-heavy workload",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "keeps large wrap64 evidence pinned to direct byte-limb behavior",
+      "backends": [
+        "wrap64-byte-limb",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "include_wrap64_candidate": true
+    }
+  ]
+}

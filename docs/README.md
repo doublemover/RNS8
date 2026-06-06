@@ -24,6 +24,8 @@ Start here when evaluating the repository.
   of reviewed local benchmark claims and reproduction command families.
 - [performance-model.md](performance-model.md): benchmark schema, review
   requirements, release evidence summaries, and performance-promotion policy.
+- [resident-output-api-draft.md](resident-output-api-draft.md): ABI-neutral
+  draft for future resident matrix and residue-current output handles.
 - [platform-windows.md](platform-windows.md): Windows HIP SDK setup and local
   `gfx1100` validation path.
 - [platform-linux.md](platform-linux.md): Linux ROCm and Instinct validation
@@ -31,6 +33,20 @@ Start here when evaluating the repository.
 - [platform-readiness.md](platform-readiness.md): dependency/readiness report
   policy and validation-boundary classes.
 - [design.md](design.md): compact design notes for the implemented scaffold.
+
+Cleanup and drift-control helpers:
+
+- `metadata/`: checked-in registry for benchmark modes, grouped-dispatch
+  strategies, output policies, event phases, kernel identities, epilogues,
+  workspace modes, and claim labels.
+- `tools/metadata_registry.py`: validates the registry and regenerates tracked
+  Python/C++ constants.
+- `tools/repo_hygiene_report.py`: reports large files, duplicated metadata
+  strings, direct currentness writes, and raw HIP resource calls.
+- `tools/claim_validation.py`: checks durable docs for unsupported target
+  readiness wording and unqualified speedup claims.
+- `tools/golden_regression_suite.py`: runs compact metadata/schema/report smoke
+  checks without broad release performance sweeps.
 
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under

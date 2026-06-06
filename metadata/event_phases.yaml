@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "timing_phases": [
+    "planning",
+    "scheduling",
+    "matrix_alloc",
+    "pack",
+    "rns_gemm",
+    "crt_export",
+    "end_to_end"
+  ],
+  "direct_hip_core_events": [
+    "pack_h2d",
+    "pack_kernel",
+    "pack",
+    "rns_gemm_kernel_group",
+    "rns_gemm",
+    "crt_export_status_memset",
+    "crt_export_kernel",
+    "crt_export_status_d2h",
+    "crt_export_d2h",
+    "crt_export"
+  ],
+  "grouped_dispatch_events": [
+    "rns_gemm_kernel_group",
+    "exact_wide_export_kernel",
+    "exact_wide_export_d2h",
+    "exact_wide_export_compact_to_host",
+    "grouped_residue_pointer_table_h2d"
+  ],
+  "vector_alu_events": [
+    "vector_alu_pack_a_h2d",
+    "vector_alu_pack_b_h2d",
+    "vector_alu_status_memset",
+    "vector_alu_i64_kernel",
+    "vector_alu_u64_kernel",
+    "vector_alu_status_d2h",
+    "vector_alu_output_d2h"
+  ],
+  "hipblaslt_events": [
+    "hipblaslt_pack_transpose_centered",
+    "hipblaslt_int8_i32_matmul",
+    "hipblaslt_i32_to_residue_reduce"
+  ],
+  "accelerator_events": [
+    "ck_int8_matmul_kernel",
+    "rocwmma_pack_a_kernel",
+    "rocwmma_pack_b_kernel",
+    "rocwmma_matmul_kernel",
+    "rocwmma_pack_a_prepacked_b_kernel",
+    "rocwmma_matmul_prepacked_b_kernel",
+    "rocwmma_zero_output_tile_memset"
+  ],
+  "gpu_event_source_scopes": [
+    "direct_hip_default_stream_backend_operation_groups",
+    "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
+    "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
+    "direct_hip_oneshot_default_stream_operation_groups",
+    "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
+    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
+    "hipblaslt_baseline_default_stream_backend_operation_groups",
+    "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
+    "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups",
+    "vector_alu_default_stream_native_int64_operation_groups"
+  ],
+  "direct_hip_gpu_event_scopes": [
+    "direct_hip_default_stream_backend_operation_groups",
+    "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
+    "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
+    "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
+    "direct_hip_oneshot_default_stream_operation_groups",
+    "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
+    "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups"
+  ],
+  "hipblaslt_gpu_event_scopes": [
+    "hipblaslt_baseline_default_stream_backend_operation_groups"
+  ],
+  "accelerator_gpu_event_scopes": [
+    "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
+    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
+    "rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups"
+  ],
+  "vector_alu_gpu_event_scopes": [
+    "vector_alu_default_stream_native_int64_operation_groups"
+  ],
+  "ck_deep_gpu_event_labels": [
+    "ck_pack_a_kernel",
+    "ck_pack_b_kernel",
+    "ck_wmma_cshuffle_matmul",
+    "ck_copy_centered_kernel",
+    "ck_add_centered_kernel",
+    "ck_zero_output_tile_memset"
+  ],
+  "rocwmma_deep_gpu_event_labels": [
+    "rocwmma_pack_a_kernel",
+    "rocwmma_pack_b_kernel",
+    "rocwmma_matmul_kernel",
+    "rocwmma_pack_a_prepacked_b_kernel",
+    "rocwmma_matmul_prepacked_b_kernel",
+    "rocwmma_zero_output_tile_memset"
+  ]
+}

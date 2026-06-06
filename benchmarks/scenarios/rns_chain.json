@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "family": "rns-chain",
+  "items": [
+    {
+      "name": "bounded-i64-chain3",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained RNS GEMMs with final untimed checksum export",
+      "output_domain": "residue_current_rns",
+      "rationale": "measures lazy-export benefit without confusing it with host-output timing",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain"
+      }
+    },
+    {
+      "name": "bounded-i64-chain3-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained RNS GEMMs with stable RHS packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "measures whether a residue-current chain benefits when the repeated B operand stays resident",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain_reuse_b",
+        "reuse_profile": "chain_current_residue_output_reused_b",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain",
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-chain4-256",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "four chained bounded i64 RNS GEMMs with one final checksum export",
+      "output_domain": "residue_current_rns",
+      "rationale": "separates longer residue-current chain scheduling from ordinary one-shot host export",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "residue_chain_length": 4,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain",
+        "chain_depth": 4
+      }
+    },
+    {
+      "name": "bounded-i64-chain4-256-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "four chained bounded i64 RNS GEMMs with stable RHS packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "checks whether longer residue-current chains amortize downstream B residency at 256",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "residue_chain_length": 4,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain_reuse_b",
+        "reuse_profile": "chain_current_residue_output_reused_b",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain",
+        "chain_depth": 4,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-256",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained bounded u64 RNS GEMMs with one final checksum export",
+      "output_domain": "residue_current_rns",
+      "rationale": "checks whether unsigned bounded chain behavior tracks signed chain behavior before a public chain planner exists",
+      "backends": [
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain",
+        "chain_depth": 3
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-256-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained bounded u64 RNS GEMMs with stable RHS packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "checks whether unsigned bounded chains amortize B residency differently than signed chains",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "phase_label": "residue_current_chain_reuse_b",
+        "reuse_profile": "chain_current_residue_output_reused_b",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain",
+        "chain_depth": 3,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide RNS GEMMs with final untimed checksum export",
+      "output_domain": "residue_current_rns",
+      "rationale": "profiles exact-wide RNS-native chains separately from fixed-width limb export",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain",
+        "phase_label": "residue_current_chain",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain_before_limb_export",
+        "chain_depth": 3
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-reuse-b",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide signed RNS GEMMs with stable RHS packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "measures whether exact-wide lazy-export chains amortize reusable B residency before limb export",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain",
+        "phase_label": "residue_current_chain_reuse_b",
+        "reuse_profile": "chain_current_residue_output_reused_b",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain_before_limb_export",
+        "chain_depth": 3,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-chain3-256",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide unsigned RNS GEMMs with one final checksum export",
+      "output_domain": "residue_current_rns",
+      "rationale": "keeps unsigned exact-wide lazy-export evidence separate from signed limb-output evidence",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain",
+        "phase_label": "residue_current_chain",
+        "reuse_profile": "chain_current_residue_output",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain_before_limb_export",
+        "chain_depth": 3
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-chain3-256-reuse-b",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide unsigned RNS GEMMs with stable RHS packed once before warmups",
+      "output_domain": "residue_current_rns",
+      "rationale": "keeps exact-wide unsigned reusable-B chain evidence separate from one-shot limb-output evidence",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain",
+        "phase_label": "residue_current_chain_reuse_b",
+        "reuse_profile": "chain_current_residue_output_reused_b",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "output_domain_requirement": "lazy_export",
+        "lowering_role": "native_rns_chain_before_limb_export",
+        "chain_depth": 3,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
+      }
+    }
+  ]
+}

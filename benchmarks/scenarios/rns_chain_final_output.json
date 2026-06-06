@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "family": "rns-chain-final-output",
+  "items": [
+    {
+      "name": "bounded-i64-chain3-final-export",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained bounded i64 RNS GEMMs with final host export inside each measured repeat",
+      "output_domain": "host_export",
+      "rationale": "compares lazy intermediate residency against the same final-output contract callers already request",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_evidence_only",
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "rns_chain_final_output",
+        "phase_label": "chain_final_export",
+        "output_domain_requirement": "same_final_output",
+        "chain_depth": 3,
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-i64-chain3-independent-final-export",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three independent bounded i64 RNS GEMMs with host export and repack between chain steps",
+      "output_domain": "host_export",
+      "rationale": "same-output control for measuring what lazy intermediate residency removes",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "independent_export_repack_control_only",
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "residue_chain_independent_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "rns_chain_final_output",
+        "phase_label": "chain_independent_final_export",
+        "output_domain_requirement": "same_final_output",
+        "chain_depth": 3,
+        "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+        "promotion_scope": "independent_export_repack_control_only"
+      }
+    },
+    {
+      "name": "bounded-i64-chain3-final-export-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained bounded i64 RNS GEMMs with stable RHS and final host export inside each measured repeat",
+      "output_domain": "host_export",
+      "rationale": "checks whether reusable B survives the setup-inclusive same-final-output contract",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_reuse_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "rns_chain_final_output",
+        "phase_label": "chain_final_export_reuse_b",
+        "output_domain_requirement": "same_final_output",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "chain_depth": 3,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_reuse_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-final-export-256",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained bounded u64 RNS GEMMs with final host export inside each measured repeat",
+      "output_domain": "host_export",
+      "rationale": "keeps unsigned same-final-output chain evidence separate from lazy residue-current evidence",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_evidence_only",
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "rns_chain_final_output",
+        "phase_label": "chain_final_export",
+        "output_domain_requirement": "same_final_output",
+        "chain_depth": 3,
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-u64-chain3-independent-final-export-256",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three independent bounded u64 RNS GEMMs with host export and repack between chain steps",
+      "output_domain": "host_export",
+      "rationale": "unsigned same-output control for measuring what lazy intermediate residency removes",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "independent_export_repack_control_only",
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "residue_chain_independent_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "rns_chain_final_output",
+        "phase_label": "chain_independent_final_export",
+        "output_domain_requirement": "same_final_output",
+        "chain_depth": 3,
+        "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+        "promotion_scope": "independent_export_repack_control_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-final-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide signed RNS GEMMs with final fixed-limb export inside each measured repeat",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "turns lazy exact-wide chaining into a same-final-output benchmark contract",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_final_export",
+        "output_domain_requirement": "same_final_output",
+        "lowering_role": "native_rns_chain_before_final_limb_export",
+        "chain_depth": 3,
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_evidence_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-independent-final-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three independent exact-wide signed RNS GEMMs with fixed-limb host export and RNS repack between chain steps",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "same-output exact-wide control for measuring what lazy intermediate RNS residency removes",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "independent_export_repack_control_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "residue_chain_independent_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_independent_final_export",
+        "output_domain_requirement": "same_final_output",
+        "lowering_role": "limb_export_then_rns_repack_control",
+        "chain_depth": 3,
+        "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+        "promotion_scope": "independent_export_repack_control_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-final-export-reuse-b",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide signed RNS GEMMs with stable RHS and final fixed-limb export inside each measured repeat",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "measures whether reusable B still wins when the final exact-wide host output is part of the repeat",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_reuse_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_final_export_reuse_b",
+        "output_domain_requirement": "same_final_output",
+        "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "lowering_role": "native_rns_chain_before_final_limb_export",
+        "chain_depth": 3,
+        "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review",
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_reuse_evidence_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-chain3-final-export-256",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three chained exact-wide unsigned RNS GEMMs with final fixed-limb export inside each measured repeat",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "adds unsigned exact-wide same-final-output chain coverage before API-level lazy output work",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "final_output_chain_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_final_export",
+        "output_domain_requirement": "same_final_output",
+        "lowering_role": "native_rns_chain_before_final_limb_export",
+        "chain_depth": 3,
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "final_output_chain_evidence_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-chain3-independent-final-export-256",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "chain-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "three independent exact-wide unsigned RNS GEMMs with fixed-limb host export and RNS repack between chain steps",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "unsigned exact-wide same-output control for measuring what lazy intermediate RNS residency removes",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "independent_export_repack_control_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "residue_chain_independent_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_independent_final_export",
+        "output_domain_requirement": "same_final_output",
+        "lowering_role": "limb_export_then_rns_repack_control",
+        "chain_depth": 3,
+        "validation_contract": "independent_export_repack_vs_chain_plus_final_export",
+        "promotion_scope": "independent_export_repack_control_only"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-final-export-512",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "chain-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "512-sized exact-wide signed RNS chain with final fixed-limb export inside each measured repeat",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "seeds the larger same-final-output matrix without running the full 2048/4096 release sweep",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "larger_final_output_chain_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "next_op_hint": "final-export",
+      "metadata": {
+        "workflow_name": "exact_wide_rns_chain_final_output",
+        "phase_label": "chain_final_export_512",
+        "output_domain_requirement": "same_final_output",
+        "lowering_role": "native_rns_chain_before_final_limb_export",
+        "chain_depth": 3,
+        "validation_contract": "independent_calls_vs_chain_plus_final_export",
+        "promotion_scope": "larger_final_output_chain_evidence_only"
+      }
+    }
+  ]
+}

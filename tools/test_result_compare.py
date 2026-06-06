@@ -86,6 +86,60 @@ def main() -> int:
     assert repack_vs_reuse["contract"]["pack_mode"]["match"] is False
     assert repack_vs_reuse["contract"]["prepack_reuse_operands"]["match"] is False
 
+    layout_a = copy.deepcopy(gpu)
+    layout_b = copy.deepcopy(gpu)
+    layout_a["timing_metadata"]["pack_layout"] = "resident_rns_residue_planes"
+    layout_b["timing_metadata"]["pack_layout"] = "matrix_engine_transient_pack_layout"
+    layout_compare = result_compare.compare(layout_a, layout_b, Path("layout-a.json"), Path("layout-b.json"))
+    assert layout_compare["matching_contract"] is True
+    assert layout_compare["backend_evidence"]["timing_metadata.pack_layout"]["match"] is False
+
+    native_layout = copy.deepcopy(gpu)
+    native_layout["packed_layout_version"] = "native_i64_rowmajor_v1"
+    native_layout["requested_next_op"] = {
+        "requested": "native-gemm",
+        "resolved": "native-gemm",
+        "source": "benchmark_default",
+    }
+    native_layout["plan_packing"] = {
+        "source": "rns8_get_plan_packing_info",
+        "backend": "hip-vector-alu-int64",
+        "semantics": "finite_ring_u8",
+        "input_domain_name": "native_i64_u64_current",
+        "output_domain_name": "native_i64_u64_current",
+        "next_op_hint": "native-gemm",
+        "input_domain": 2,
+        "output_domain": 2,
+        "next_op_flags": 4,
+        "uses_transient_pack_workspace": False,
+        "uses_matrix_engine_pack_layout": False,
+        "residue_group_width": 1,
+        "input_channel_count": 1,
+        "output_channel_count": 1,
+    }
+    native_compare = result_compare.compare(gpu, native_layout, Path("gpu.json"), Path("native.json"))
+    assert native_compare["matching_contract"] is True
+    assert native_compare["backend_evidence"]["packed_layout_version"]["match"] is False
+    assert native_compare["backend_evidence"]["requested_next_op.resolved"]["match"] is False
+    assert native_compare["backend_evidence"]["plan_packing.input_domain_name"]["match"] is False
+
+    target_a = copy.deepcopy(gpu)
+    target_b = copy.deepcopy(gpu)
+    target_a["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx1100",
+        "review_group_key": "gfx1100/target=gfx1100/backend=ck",
+    }
+    target_b["target_variant"] = {
+        "target_id": "gfx1100",
+        "target_namespace": "gfx11xx",
+        "review_group_key": "gfx11xx/target=gfx1100/backend=ck",
+    }
+    target_compare = result_compare.compare(target_a, target_b, Path("target-a.json"), Path("target-b.json"))
+    assert target_compare["gpu_compatibility_required"] is True
+    assert target_compare["gpu_compatible"] is False
+    assert target_compare["gpu_compatibility"]["target_variant.target_namespace"]["match"] is False
+
     print("result compare self-test: PASS")
     return 0
 

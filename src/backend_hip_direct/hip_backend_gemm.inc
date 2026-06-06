@@ -1,0 +1,5 @@
+#include "hip_backend_gemm_rns.inc"
+#include "hip_backend_gemm_native_prefix.inc"
+#include "hip_backend_gemm_native_reuse.inc"
+#include "hip_backend_gemm_uniform_colpair.inc"
+#include "hip_backend_gemm_finite_tiled.inc"

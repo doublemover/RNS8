@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "family": "hipblaslt-bounded-i64-1024-ab",
+  "items": [
+    {
+      "name": "bounded-i64-1024-current-reducer",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "hipBLASLt bounded i64 1024 current reducer A/B workload",
+      "output_domain": "host_export",
+      "rationale": "keeps hipBLASLt reducer evidence comparable against Direct-HIP and CPU at a narrow-margin shape",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "narrow_margin_review_only",
+      "metadata": {
+        "promotion_scope": "narrow_margin_review_only",
+        "comparison_role": "current_reducer_vs_direct_hip_baseline",
+        "margin_policy": "require reviewed same-contract margin before promotion"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "hipBLASLt bounded i64 1024 stable-B reuse A/B workload",
+      "output_domain": "host_export",
+      "rationale": "separates setup-inclusive reusable-B behavior from ordinary per-repeat packing",
+      "backends": [
+        "hip-direct",
+        "hipblaslt"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "promotion_scope": "explicit_reuse_contract_only",
+        "comparison_role": "reuse_b_vs_repack",
+        "margin_policy": "narrow_margin_report_required"
+      }
+    }
+  ]
+}

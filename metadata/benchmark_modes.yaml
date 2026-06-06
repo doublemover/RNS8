@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "generated_namespace": "rns8_metadata",
+  "benchmark_execution_modes": [
+    "persistent_resident_matrices",
+    "public_oneshot_transient_native_inputs",
+    "benchmark_owned_vector_alu_native_buffers",
+    "public_runtime_vector_alu_native_buffers",
+    "auto_native_to_rns_bridge",
+    "vector_native_to_direct_rns_chain",
+    "benchmark_host_api_batch",
+    "hip_graph_replay_resident_rns_chain",
+    "residue_current_rns_chain",
+    "residue_chain_final_host_export",
+    "residue_chain_independent_final_host_export",
+    "transient_native_a_resident_b_reuse",
+    "transient_native_b_resident_a_reuse",
+    "transient_uniform_small_i8_ab_inputs",
+    "residue_channel_fusion_native_inputs",
+    "transient_uniform_small_i8_a_resident_i8_b_reuse",
+    "transient_uniform_small_i8_b_resident_i8_a_reuse",
+    "internal_wrap64_rocwmma_candidate",
+    "benchmark_grouped_dispatch_evidence",
+    "benchmark_hip_graph_replay_evidence"
+  ],
+  "grouped_dispatch_statuses": [
+    "not_requested",
+    "metadata_only_unsupported_for_execution_path",
+    "executed"
+  ],
+  "grouped_dispatch_execution_strategies": [
+    {
+      "id": "not_requested",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "not_requested"
+    },
+    {
+      "id": "host_phase_loop_per_task_export",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "host_resident_task_loop"
+    },
+    {
+      "id": "host_phase_loop_batched_exact_wide_export_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "host_resident_task_loop"
+    },
+    {
+      "id": "device_grouped_pack_gemm_host_exports",
+      "batched_exact_wide_export": false,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_exact_wide_export_kernel_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
+      "batched_exact_wide_export": true,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    }
+  ],
+  "grouped_task_descriptor": {
+    "descriptor_layouts": [
+      "not_requested",
+      "same_shape_resident_task_triplets_v1"
+    ],
+    "bucket_policies": [
+      "not_requested",
+      "single_same_shape_bucket"
+    ],
+    "source_version_policies": [
+      "not_requested",
+      "per_task_monotonic_source_version_repack"
+    ],
+    "workspace_policies": [
+      "not_requested",
+      "one_workspace_per_task_shared_plan"
+    ],
+    "checksum_policies": [
+      "not_requested",
+      "combined_per_task_checksum_u64"
+    ],
+    "status_policies": [
+      "not_requested",
+      "fail_fast_per_task_operation_status"
+    ],
+    "device_descriptor_policies": [
+      "not_requested",
+      "host_resident_task_loop",
+      "device_pointer_tables_and_compact_slabs"
+    ]
+  },
+  "bound_sources": [
+    "static_profile",
+    "input_scan"
+  ],
+  "bound_discovery_sources": [
+    "static_profile_contract",
+    "input_row_column_abs_summary",
+    "input_exact_tile_bounds"
+  ],
+  "bound_kinds": [
+    "none",
+    "global_max_abs",
+    "global_max_unsigned",
+    "per_tile_max_abs",
+    "per_tile_max_unsigned",
+    "input_range_and_k"
+  ],
+  "pack_modes": [
+    "per_repeat_repack",
+    "prepacked_reuse",
+    "prepacked_reuse_a",
+    "prepacked_reuse_b"
+  ],
+  "next_op_hints": [
+    "auto",
+    "final-export",
+    "rns-gemm",
+    "native-gemm",
+    "native-to-rns",
+    "reuse-b"
+  ],
+  "fusion_modes": [
+    "none",
+    "residue_channel_width3_experimental_benchmark_only"
+  ],
+  "reuse_operand_roles": [
+    "none",
+    "A",
+    "B",
+    "A+B"
+  ],
+  "graph_replay_statuses": [
+    "not_requested",
+    "unsupported_stream_capture_not_executed",
+    "captured",
+    "replayed"
+  ],
+  "streaming_overlap_statuses": [
+    "not_requested",
+    "metadata_only_unsupported_for_execution_path",
+    "executed"
+  ],
+  "workload_proxy_families": [
+    "not_requested",
+    "fhe_lattice_proxy",
+    "dense_exact_arithmetic_proxy"
+  ],
+  "selector_rejection_reasons": [
+    "unsupported semantics",
+    "per-tile unsupported",
+    "backend not compiled",
+    "probe failed",
+    "no exact entry",
+    "unvalidated entry",
+    "identity/runtime mismatch",
+    "workspace mismatch",
+    "slower than selected"
+  ],
+  "prepack_reuse_strategies": [
+    "none",
+    "persistent_matrix_residency",
+    "rocwmma_reusable_b_cache"
+  ],
+  "contract_prefix_policies": [
+    "minimum_proven",
+    "fixed_requested",
+    "fixed_requested_residue_chain",
+    "per_tile_minimum",
+    "semantic_specific_no_rns_prefix"
+  ],
+  "rns_prefix_semantics": [
+    "bounded_i64",
+    "bounded_u64",
+    "exact_wide_signed",
+    "exact_wide_unsigned"
+  ],
+  "non_rns_prefix_semantics": [
+    "finite_ring_u8",
+    "finite_field_u8",
+    "wrap_u64_mod_2_64"
+  ],
+  "hip_resident_backends": [
+    "hip-direct",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+    "hip-vector-alu-int64"
+  ],
+  "current_correctness_backends": [
+    "cpu-reference",
+    "hip-direct",
+    "wrap64-byte-limb"
+  ],
+  "backend_requested_values": [
+    "cpu-reference",
+    "hip-direct",
+    "wrap64-byte-limb",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+    "hip-vector-alu-int64",
+    "auto",
+    "rocwmma-wrap64-candidate"
+  ],
+  "backend_selected_values": [
+    "cpu-reference",
+    "hip-direct",
+    "wrap64-byte-limb",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+    "hip-vector-alu-int64"
+  ],
+  "bounded_semantics": [
+    "bounded_i64",
+    "bounded_u64"
+  ],
+  "exact_wide_semantics": [
+    "exact_wide_signed",
+    "exact_wide_unsigned"
+  ],
+  "finite_u8_semantics": [
+    "finite_ring_u8",
+    "finite_field_u8"
+  ]
+}

@@ -1,0 +1,194 @@
+#pragma once
+
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "backend_hip_direct/hip_backend.hpp"
+#include "core/plan_lowering.hpp"
+#include "rns8/rns8.h"
+
+namespace rns8::bench {
+
+inline constexpr uint32_t kDefaultExactWideBenchmarkLimbCount = 4;
+
+enum class BenchSemantics {
+  BoundedI64,
+  BoundedU64,
+  ExactWideSigned,
+  ExactWideUnsigned,
+  WrapU64Mod2_64,
+  FiniteRingU8,
+  FiniteFieldU8,
+};
+
+enum class BoundMode {
+  Global,
+  PerTile,
+};
+
+enum class InputProfile {
+  UniformSmall,
+  AdaptiveBands,
+};
+
+enum class BoundSource {
+  StaticProfile,
+  InputScan,
+};
+
+enum class PrefixPolicy {
+  MinimumProven,
+  FixedRequested,
+};
+
+enum class NextOpHint {
+  Auto,
+  FinalExport,
+  RnsGemm,
+  NativeGemm,
+  NativeToRns,
+  ReuseB,
+};
+
+struct Args {
+  int64_t m = 64;
+  int64_t n = 64;
+  int64_t k = 64;
+  int64_t output_ld_padding = 0;
+  uint32_t warmups = 1;
+  uint32_t repeats = 5;
+  uint64_t seed = 1;
+  uint32_t tile_m = 128;
+  uint32_t tile_n = 128;
+  int device_id = std::numeric_limits<int>::min();
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  bool vector_alu_baseline = false;
+  bool wrap64_rocwmma_candidate = false;
+  BenchSemantics semantics = BenchSemantics::BoundedI64;
+  uint16_t finite_modulus = 251;
+  BoundMode bound_mode = BoundMode::Global;
+  InputProfile input_profile = InputProfile::UniformSmall;
+  BoundSource bound_source = BoundSource::StaticProfile;
+  PrefixPolicy prefix_policy = PrefixPolicy::MinimumProven;
+  uint32_t max_prefix_override = 0;
+  uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
+  uint32_t residue_chain_length = 1;
+  bool residue_chain_final_export = false;
+  bool residue_chain_independent_final_export = false;
+  uint32_t host_api_batch_size = 1;
+  bool require_adaptive_execution = false;
+  bool write_autotune_cache = false;
+  bool oneshot = false;
+  bool transient_uniform_small_inputs = false;
+  bool reuse_packed_inputs = false;
+  bool reuse_packed_a = false;
+  bool reuse_packed_b = false;
+  bool native_to_rns_bridge = false;
+  bool vector_to_rns_chain = false;
+  NextOpHint next_op_hint = NextOpHint::Auto;
+  bool residue_channel_fusion = false;
+  std::string modulus_set = "default";
+  std::string tile_shape_variant = "default";
+  std::string export_variant = "default";
+  std::string reconstruction_variant = "default_garner";
+  uint32_t grouped_dispatch_tasks = 1;
+  bool hip_graph_replay = false;
+  std::string workload_proxy = "none";
+  bool resident_lifetime = false;
+  bool workspace_arena = false;
+  bool adaptive_grouped_scheduler = false;
+  bool streaming_overlap = false;
+  std::string release_gate = "none";
+  std::string verification_amortization = "none";
+};
+
+struct TimingSamples {
+  std::vector<uint64_t> pack_us;
+  std::vector<uint64_t> gemm_us;
+  std::vector<uint64_t> export_us;
+  std::vector<uint64_t> end_to_end_us;
+};
+
+struct GpuEventSamples {
+  bool requested = false;
+  bool complete = true;
+  std::vector<std::string> unavailable_reasons;
+  std::map<std::string, std::vector<double>> timings_us;
+};
+
+enum class PrepackReuseStrategy {
+  None,
+  PersistentMatrixResidency,
+  RocwmmaReusableBCache,
+};
+
+struct BenchmarkResult {
+  uint64_t plan_us = 0;
+  uint64_t schedule_query_us = 0;
+  uint64_t global_bound_scan_us = 0;
+  bool global_bound_scan_available = false;
+  uint64_t tile_bound_scan_us = 0;
+  bool tile_bound_scan_available = false;
+  uint64_t matrix_alloc_us = 0;
+  uint64_t static_bound = 0;
+  uint64_t effective_bound = 0;
+  bool effective_bound_available = false;
+  uint64_t discovered_global_bound = 0;
+  uint64_t bound_candidate_row_sum_col_max = 0;
+  uint64_t bound_candidate_row_max_col_sum = 0;
+  uint64_t row_abs_sum_max = 0;
+  uint64_t row_abs_max = 0;
+  uint64_t col_abs_sum_max = 0;
+  uint64_t col_abs_max = 0;
+  uint64_t zero_row_count = 0;
+  uint64_t zero_col_count = 0;
+  std::vector<uint64_t> tile_bounds{};
+  std::vector<uint8_t> zero_a_rows{};
+  std::vector<uint8_t> zero_b_cols{};
+  uint64_t zero_a_row_proof_count = 0;
+  uint64_t zero_b_col_proof_count = 0;
+  uint64_t zero_row_col_product_count = 0;
+  uint64_t tile_bound_min = 0;
+  uint64_t tile_bound_max = 0;
+  uint64_t tile_bound_hash = 0;
+  rns8_plan_schedule_info schedule_info{};
+  bool schedule_info_available = false;
+  uint64_t zero_output_tile_count = 0;
+  uint64_t zero_output_selected_residue_plane_count = 0;
+  std::string schedule_source = "rns8_get_plan_schedule_info";
+  std::string target_id = "cpu";
+  rns8_plan_backend_info backend_info{};
+  bool backend_info_available = false;
+  rns8_plan_packing_info packing_info{};
+  bool packing_info_available = false;
+  rns8::detail::PlanLoweringDescription lowering_info{};
+  bool lowering_info_available = false;
+  TimingSamples samples{};
+  GpuEventSamples gpu_events{};
+  rns8::detail::hip_direct_allocation_counters allocation_before{};
+  rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
+  rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
+  bool allocation_tracking_available = false;
+  bool allocation_after_warmups_available = false;
+  uint64_t prepack_setup_us = 0;
+  bool prepack_setup_available = false;
+  PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
+  bool hip_graph_replay_requested = false;
+  bool hip_graph_replay_available = false;
+  bool hip_graph_replay_used = false;
+  uint64_t hip_graph_capture_us = 0;
+  uint64_t hip_graph_instantiate_us = 0;
+  uint64_t hip_graph_launch_count = 0;
+  std::string hip_graph_replay_status = "not_requested";
+  std::string hip_graph_replay_scope = "not_applicable";
+  std::string hip_graph_replay_caveat{};
+  bool grouped_dispatch_batched_export_enabled = false;
+  uint64_t grouped_dispatch_device_output_slab_bytes = 0;
+  std::string grouped_dispatch_execution_strategy = "not_requested";
+  uint64_t checksum = 0;
+};
+
+}  // namespace rns8::bench

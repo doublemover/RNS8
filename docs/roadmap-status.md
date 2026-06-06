@@ -1,6 +1,6 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-04
+Status date: 2026-06-05
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
@@ -43,10 +43,10 @@ architecture and roadmap source of truth when details disagree.
 |---|---|---|
 | CPU reference | Required reference backend | Baseline only |
 | Direct HIP | Required Windows GPU correctness path | Production correctness baseline; not a matrix-engine speed claim |
-| Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and current long-K `n == 1` shape-specialized win; not a current AUTO cache winner |
-| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes |
-| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
-| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected finite-u8 and exact-wide shapes |
+| Native vector ALU | Bounded i64/u64 correctness backend | Useful explicit backend and long-K `n == 1` microkernel evidence, but the current skinny-GEMV release review keeps reviewed N=1 scenario routing on Direct HIP; not a current AUTO cache winner |
+| hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including eligible 4096 bounded, finite hot-modulus, and exact-wide entries |
+| CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048, generic finite-field 2048, and finite ring-255 4096 |
+| rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, generic finite-ring 2048 entries, finite-field 512 entries, and smaller hot finite-u8 shapes; post-fix hot finite-u8 2048 winners are hipBLASLt |
 | AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
@@ -54,6 +54,53 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
 [performance-model.md](performance-model.md),
 [performance-wins.md](performance-wins.md), and
 [reviewed-local-evidence.md](reviewed-local-evidence.md).
+
+## Cleanup Consolidation Status
+
+The current cleanup program is an internal consolidation lane, not a public API
+or routing change. The branch now has a checked-in metadata registry under
+`metadata/`, generated Python/C++ constants, stale-label registry tests, a repo
+hygiene reporter, a compact golden regression runner, and durable documentation
+claim validation for target-readiness and speedup wording.
+
+Cleanup adoption has progressed beyond the guardrail slice: benchmark scenario
+families live in data under `benchmarks/scenarios/` with explicit review-mode
+and promotion-eligibility contracts backed by the metadata registry. Benchmark
+schema validation has a compatibility wrapper over a package entrypoint, with
+GPU event, semantic-contract, reuse-timing, execution-mode,
+contract-metadata, helper/output-policy, and backend metadata validators split
+into focused modules and CTest-backed self-tests. Shared benchmark support,
+argument parsing, backend selection, grouped-dispatch descriptor contracts, and
+large semantic lane bodies have been moved behind internal helpers or include
+units while preserving `rns8-bench` flags and schema output.
+
+Core currentness transitions for output setup, benchmark exact-wide pack
+materialization, Direct-HIP output stamping, native-to-RNS bridge paths, and
+test-owned stale/currentness mutations are helper-routed. Workspace identity,
+schedule metadata, backend metadata, accelerator scratch, and prepack/resource
+teardown now flow through named internal helpers while keeping the public
+`rns8_workspace*` handle unchanged. Export/reconstruction paths now create an
+internal plan that records output layout, limb count, status policy, D2H
+policy, selected export kernel, and tiled metadata needs before touching the
+documented mutable export cache.
+
+HIP event/stream/pinned-staging/temporary-device-buffer ownership uses internal
+RAII wrappers, including CK/rocWMMA event timing helpers. Direct-HIP host code
+is split into resource, pack, GEMM, and export include units behind the same
+translation unit; the Direct-HIP `.hip` source is split into common device
+helpers plus pack, GEMM, and export kernel include units while preserving the
+existing compiled object and launch wrappers. Hardening now includes the
+portable non-Windows CPU ASan/UBSan preset, a Windows clang-cl CPU-only
+ASan/libFuzzer preset, three deterministic fuzz harnesses, and a non-GUI
+`cdb.exe` WinDbg triage helper. The hygiene report filters intentional
+helper/RAII implementation sites so remaining findings point at real drift.
+
+Remaining cleanup is now mostly validation and follow-through: run the full
+final gate on the current host, fix any sanitizer/fuzzer/HIP failures it
+exposes, and keep future optimization lanes using the registry, split schema
+modules, currentness helpers, descriptor contracts, and export plan surface.
+These changes preserve public ABI, reviewed cache behavior, existing benchmark
+CLI compatibility, and Windows `gfx1100` validation boundaries.
 
 ## Not Yet Implemented
 
@@ -63,10 +110,15 @@ Detailed benchmark policy, current wins, and reviewed release summaries live in
 - Public optimized matrix-engine strict wrap64 backend.
 - AMDGPU builtin hot kernels.
 - Durable packed-layout/prepack-cache production paths.
-- Optimized finite-field algorithms beyond current explicit-modulus CPU and
-  direct-HIP correctness paths.
+- Optimized finite-field algorithms beyond current explicit-modulus CPU,
+  direct-HIP correctness, and narrow reviewed accelerator-cache paths.
 - Broader production performance gates beyond reviewed Windows `gfx1100`
   shape-scoped evidence.
+- Linux/Instinct promotion gates remain unvalidated. Exact-wide 2048 and
+  eligible exact-wide 4096 rows now have Windows `gfx1100`
+  CPU/direct/accelerator release review and installed local cache entries;
+  strict wrap64 2048/4096 has CPU/direct-HIP release review but no public
+  optimized matrix-engine backend.
 
 ## Validation Boundary
 

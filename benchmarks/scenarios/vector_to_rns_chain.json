@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "family": "vector-to-rns-chain",
+  "items": [
+    {
+      "name": "bounded-i64-64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+      "output_domain": "host_export",
+      "rationale": "turns the strong vector bounded path into an executable producer for an RNS-resident downstream GEMM",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "conversion_event_required": "native_i64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-u64-64",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+      "output_domain": "host_export",
+      "rationale": "checks that bounded-u64 vector output can feed a downstream Direct-HIP RNS workload without host export",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "conversion_event_required": "native_u64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-i64-128",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+      "output_domain": "host_export",
+      "rationale": "exposes whether the native-to-RNS handoff remains visible beyond the smallest smoke shape",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "conversion_event_required": "native_i64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-u64-128",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result materialized into a Direct-HIP RNS consumer GEMM",
+      "output_domain": "host_export",
+      "rationale": "exposes bounded-u64 materialization overhead at a shape large enough to separate copy and GEMM costs",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "conversion_event_required": "native_u64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-i64-64-reuse-consumer-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result feeds a Direct-HIP RNS consumer with reused consumer B",
+      "output_domain": "host_export",
+      "rationale": "checks whether the chain path can remove per-repeat Direct-HIP consumer-B packing",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "pack_mode": "prepacked_reuse_b",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "reuse_contract": "consumer_b_prepacked_before_warmups",
+        "conversion_event_required": "native_i64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-u64-64-reuse-consumer-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result feeds a Direct-HIP RNS consumer with reused consumer B",
+      "output_domain": "host_export",
+      "rationale": "checks whether bounded-u64 chain work benefits when downstream RNS B is source-stable",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "pack_mode": "prepacked_reuse_b",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "reuse_contract": "consumer_b_prepacked_before_warmups",
+        "conversion_event_required": "native_u64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-i64-128-reuse-consumer-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result feeds a Direct-HIP RNS consumer with reused consumer B",
+      "output_domain": "host_export",
+      "rationale": "measures setup-inclusive consumer-B reuse at a shape where pack overhead is still event-visible",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "pack_mode": "prepacked_reuse_b",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "reuse_contract": "consumer_b_prepacked_before_warmups",
+        "conversion_event_required": "native_i64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "bounded-u64-128-reuse-consumer-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "vector-ALU native producer result feeds a Direct-HIP RNS consumer with reused consumer B",
+      "output_domain": "host_export",
+      "rationale": "measures bounded-u64 setup-inclusive consumer-B reuse before larger chain workload promotion",
+      "backends": [
+        "auto"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "execution_path_evidence",
+      "pack_mode": "prepacked_reuse_b",
+      "vector_to_rns_chain": true,
+      "metadata": {
+        "workflow_name": "vector_to_rns_chain",
+        "bridge_role": "vector_native_output_to_direct_rns_consumer",
+        "producer_backend_requirement": "hip-vector-alu-int64",
+        "consumer_backend_requirement": "hip-direct",
+        "reuse_contract": "consumer_b_prepacked_before_warmups",
+        "conversion_event_required": "native_u64_to_rns_kernel",
+        "selected_backend_requirement": "hip-direct",
+        "promotion_scope": "execution_path_evidence"
+      }
+    }
+  ]
+}

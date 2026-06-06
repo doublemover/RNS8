@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
+
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
 PUBLIC_ACCELERATOR_AUTOTUNE_BACKENDS = {"hipblaslt", "ck", "rocwmma"}
@@ -22,9 +24,6 @@ PUBLIC_ACCELERATOR_AUTOTUNE_SEMANTICS = {
     "finite_ring_u8",
     "finite_field_u8",
 }
-BOUNDED_SEMANTICS = {"bounded_i64", "bounded_u64"}
-EXACT_WIDE_SEMANTICS = {"exact_wide_signed", "exact_wide_unsigned"}
-FINITE_U8_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
 CK_FINITE_SPECIALIZED_KERNELS = {
     251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",

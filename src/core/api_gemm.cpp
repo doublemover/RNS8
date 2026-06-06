@@ -194,6 +194,15 @@ rns8_status validate_wrap_gemm_operands(
   return RNS8_SUCCESS;
 }
 
+rns8_status ensure_logically_const_rns_input_current(
+    rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_matrix& matrix) {
+  // AUTO can populate internal residue cache state without changing the logical matrix value.
+  return ensure_bounded_native_residues_current_for_rns_plan(
+      ctx, plan, *const_cast<rns8_matrix*>(&matrix));
+}
+
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
@@ -215,16 +224,13 @@ rns8_status rns8_gemm_rns(
     }
     const bool trusted_all_zero_direct_hip =
         plan->backend == RNS8_BACKEND_HIP_DIRECT && plan_all_zero_output_tiles(*plan);
-    // GEMM inputs are logically const; AUTO may still materialize cached RNS device residues from current native storage.
-    rns8_matrix* mutable_a = const_cast<rns8_matrix*>(A);
-    rns8_matrix* mutable_b = const_cast<rns8_matrix*>(B);
     if (!trusted_all_zero_direct_hip) {
       rns8_status conversion_status =
-          ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_a);
+          ensure_logically_const_rns_input_current(*ctx, *plan, *A);
       if (conversion_status != RNS8_SUCCESS) {
         return conversion_status;
       }
-      conversion_status = ensure_bounded_native_residues_current_for_rns_plan(*ctx, *plan, *mutable_b);
+      conversion_status = ensure_logically_const_rns_input_current(*ctx, *plan, *B);
       if (conversion_status != RNS8_SUCCESS) {
         return conversion_status;
       }
@@ -281,23 +287,14 @@ rns8_status rns8_gemm_rns(
       if (host_status != 0) {
         return RNS8_RANGE_ERROR;
       }
-      mutable_c->host_residues_current = false;
-      mutable_c->device_residues_current = false;
-      mutable_c->host_byte_limbs_current = false;
-      mutable_c->device_byte_limbs_current = false;
-      mutable_c->host_native_current = false;
-      mutable_c->device_native_current = true;
+      mark_output_device_native_current(*mutable_c);
       mutable_c->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        C->host_residues_current = true;
-        C->device_residues_current = false;
-        C->host_byte_limbs_current = false;
-        C->device_byte_limbs_current = false;
-        clear_native_current(*C);
+        mark_output_host_residues_current(*C);
         if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
           C->source_version = gemm_output_source_version(*A, *B);
         }
@@ -344,9 +341,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->device_residues_current = true;
-      C->host_residues_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
         C->source_version = gemm_output_source_version(*A, *B);
       }
@@ -380,9 +375,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->device_residues_current = true;
-      C->host_residues_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
         C->source_version = gemm_output_source_version(*A, *B);
       }
@@ -429,9 +422,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->device_residues_current = true;
-      C->host_residues_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
         C->source_version = gemm_output_source_version(*A, *B);
       }
@@ -478,9 +469,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->device_residues_current = true;
-      C->host_residues_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
         C->source_version = gemm_output_source_version(*A, *B);
       }
@@ -531,11 +520,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     if (status != RNS8_SUCCESS) {
       return status;
     }
-    C->device_residues_current = true;
-    C->host_residues_current = false;
-    C->host_byte_limbs_current = false;
-    C->device_byte_limbs_current = false;
-    clear_native_current(*C);
+    mark_output_device_residues_current(*C);
     if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
       C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
     }
@@ -566,11 +551,7 @@ rns8_status rns8_gemm_finite_u8(
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        C->host_residues_current = true;
-        C->device_residues_current = false;
-        C->host_byte_limbs_current = false;
-        C->device_byte_limbs_current = false;
-        clear_native_current(*C);
+        mark_output_host_residues_current(*C);
         C->finite_modulus = modulus;
         C->source_version = gemm_output_source_version(*A, *B);
       }
@@ -592,11 +573,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->host_residues_current = false;
-      C->device_residues_current = true;
-      C->host_byte_limbs_current = false;
-      C->device_byte_limbs_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
       C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
@@ -626,11 +603,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->host_residues_current = false;
-      C->device_residues_current = true;
-      C->host_byte_limbs_current = false;
-      C->device_byte_limbs_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
       C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
@@ -657,11 +630,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->host_residues_current = false;
-      C->device_residues_current = true;
-      C->host_byte_limbs_current = false;
-      C->device_byte_limbs_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
       C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
@@ -688,11 +657,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->host_residues_current = false;
-      C->device_residues_current = true;
-      C->host_byte_limbs_current = false;
-      C->device_byte_limbs_current = false;
-      clear_native_current(*C);
+      mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
       C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
@@ -726,11 +691,7 @@ rns8_status rns8_gemm_wrap_u64(
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       const rns8_status status = rns8::detail::cpu_gemm_wrap_u64(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        C->host_residues_current = false;
-        C->device_residues_current = false;
-        C->host_byte_limbs_current = true;
-        C->device_byte_limbs_current = false;
-        clear_native_current(*C);
+        mark_output_host_byte_limbs_current(*C);
       }
       return status;
     }
@@ -746,11 +707,7 @@ rns8_status rns8_gemm_wrap_u64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      C->host_residues_current = false;
-      C->device_residues_current = false;
-      C->host_byte_limbs_current = false;
-      C->device_byte_limbs_current = true;
-      clear_native_current(*C);
+      mark_output_device_byte_limbs_current(*C);
       return RNS8_SUCCESS;
     }
     return RNS8_UNSUPPORTED_BACKEND;

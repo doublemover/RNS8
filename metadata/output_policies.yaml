@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "destination_layouts": [
+    "contiguous_row_major",
+    "padded_row_major"
+  ],
+  "status_handling": [
+    "required",
+    "structurally_elided",
+    "not_applicable"
+  ],
+  "output_contract_domains": [
+    "rns_residue_current",
+    "finite_u8_host",
+    "wrap64_u64_host",
+    "exact_wide_limb_host",
+    "native_i64_u64_host"
+  ],
+  "direct_hip_export_staging_policies": [
+    "not_applicable",
+    "disabled_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "forced_for_large_outputs_by_RNS8_HIP_PINNED_EXPORT_STAGING",
+    "wrap64_forced_only_pending_padded_staging_evidence",
+    "exact_wide_signed_forced_only_local_gfx1100_padded_staging_loses",
+    "large_padded_outputs_only_default"
+  ],
+  "pack_layouts": [
+    "resident_rns_residue_planes",
+    "wrap64_byte_limb_planes",
+    "finite_u8_centered_residue",
+    "native_i64_row_major",
+    "native_u64_row_major",
+    "native_i8_row_major_uniform_small",
+    "native_i8_row_major_residue_channel_width3",
+    "matrix_engine_transient_pack_layout",
+    "transient_backend_pack_layout"
+  ],
+  "residue_group_layouts": [
+    "one_modulus_per_residue_plane",
+    "first_prefix9_moduli_contiguous_width3_groups"
+  ],
+  "target_namespaces": [
+    "cpu",
+    "gfx1100",
+    "gfx11xx",
+    "gfx12xx",
+    "gfx9xx_gfx94x",
+    "unknown"
+  ],
+  "placeholder_gpu_target_ids": [
+    "",
+    "none",
+    "cpu",
+    "unknown",
+    "not_applicable",
+    "n/a",
+    "null"
+  ]
+}

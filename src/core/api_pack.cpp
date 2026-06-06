@@ -27,10 +27,8 @@ rns8_status rns8_pack_i64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = false;
-      matrix->host_byte_limbs_current = false;
-      matrix->device_byte_limbs_current = false;
+      clear_residue_current(*matrix);
+      clear_byte_limb_current(*matrix);
       matrix->source_version = source_version;
       return RNS8_SUCCESS;
     }
@@ -54,12 +52,10 @@ rns8_status rns8_pack_i64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      matrix->device_residues_current = true;
-      matrix->host_residues_current = false;
+      mark_device_residues_current(*matrix);
     } else {
       rns8::detail::pack_i64_matrix(*matrix, src, ld);
-      matrix->host_residues_current = true;
-      matrix->device_residues_current = false;
+      mark_host_residues_current(*matrix);
     }
     if (should_populate_native_on_pack(*ctx, *matrix)) {
       const rns8_status native_status = upload_native_i64(*ctx, *matrix, src, ld);
@@ -67,8 +63,7 @@ rns8_status rns8_pack_i64(
         return native_status;
       }
     } else {
-      matrix->host_native_current = false;
-      matrix->device_native_current = false;
+      clear_native_current(*matrix);
     }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
@@ -101,10 +96,8 @@ rns8_status rns8_pack_u64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = false;
-      matrix->host_byte_limbs_current = false;
-      matrix->device_byte_limbs_current = false;
+      clear_residue_current(*matrix);
+      clear_byte_limb_current(*matrix);
       matrix->source_version = source_version;
       return RNS8_SUCCESS;
     }
@@ -117,10 +110,7 @@ rns8_status rns8_pack_u64(
       }
       if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
         rns8::detail::pack_wrap_u64_matrix(*matrix, src, ld);
-        matrix->host_residues_current = false;
-        matrix->device_residues_current = false;
-        matrix->host_byte_limbs_current = true;
-        matrix->device_byte_limbs_current = false;
+        mark_host_byte_limbs_current(*matrix);
       } else if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
         const rns8_status status = rns8::detail::wrap64_hip_pack_u64_device(
             ctx->device_id,
@@ -134,10 +124,7 @@ rns8_status rns8_pack_u64(
         if (status != RNS8_SUCCESS) {
           return status;
         }
-        matrix->host_residues_current = false;
-        matrix->device_residues_current = false;
-        matrix->host_byte_limbs_current = false;
-        matrix->device_byte_limbs_current = true;
+        mark_device_byte_limbs_current(*matrix);
       } else {
         return RNS8_UNSUPPORTED_BACKEND;
       }
@@ -160,12 +147,10 @@ rns8_status rns8_pack_u64(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      matrix->device_residues_current = true;
-      matrix->host_residues_current = false;
+      mark_device_residues_current(*matrix);
     } else {
       rns8::detail::pack_u64_matrix(*matrix, src, ld);
-      matrix->host_residues_current = true;
-      matrix->device_residues_current = false;
+      mark_host_residues_current(*matrix);
     }
     if (should_populate_native_on_pack(*ctx, *matrix)) {
       const rns8_status native_status = upload_native_u64(*ctx, *matrix, src, ld);
@@ -173,8 +158,7 @@ rns8_status rns8_pack_u64(
         return native_status;
       }
     } else if (matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
-      matrix->host_native_current = false;
-      matrix->device_native_current = false;
+      clear_native_current(*matrix);
     }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
@@ -217,17 +201,13 @@ rns8_status rns8_pack_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      matrix->host_residues_current = false;
-      matrix->device_residues_current = true;
+      mark_device_residues_current(*matrix);
     } else if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
       rns8::detail::pack_finite_u8_matrix(*matrix, src, ld, modulus);
-      matrix->host_residues_current = true;
-      matrix->device_residues_current = false;
+      mark_host_residues_current(*matrix);
     } else {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    matrix->host_byte_limbs_current = false;
-    matrix->device_byte_limbs_current = false;
     matrix->finite_modulus = modulus;
     matrix->source_version = source_version;
     return RNS8_SUCCESS;

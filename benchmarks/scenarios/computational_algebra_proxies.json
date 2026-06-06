@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "family": "computational-algebra-proxies",
+  "items": [
+    {
+      "name": "dense-finite-field-blas-512",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "dense finite-field BLAS phase over GF(p <= 251)",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "isolates a dense modular GEMM phase without claiming rank, determinant, solve, or full CAS workflow coverage",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "source_role": "computational_algebra_proxy",
+        "algebra_family": "finite_field_linear_algebra",
+        "domain_family": "prime_field_u8",
+        "workflow_name": "dense_finite_field_blas",
+        "phase_label": "gemm",
+        "phase_id": "dense_gemm",
+        "prime_or_composite": "prime",
+        "extension_degree": 1,
+        "dense_kernel_extracted": true,
+        "oracle_role": "optional_cpu_cas_comparison",
+        "artifact_lineage": "rns8_synthetic_shape"
+      }
+    },
+    {
+      "name": "rank-k-update-field-251",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "rank-update-512x512x128",
+        "m": 512,
+        "n": 512,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "rectangular finite-field rank-k update phase",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "models dense trailing-update work that can appear inside modular rank, PLUQ, CUP, PLE, and echelon pipelines",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "source_role": "computational_algebra_proxy",
+        "algebra_family": "finite_field_linear_algebra",
+        "domain_family": "prime_field_u8",
+        "workflow_name": "modular_rank_or_elimination",
+        "phase_label": "rank_k_trailing_update",
+        "phase_id": "dense_update",
+        "shape_signature": "rectangular_rank_k",
+        "symbolic_precompute": "outside_timed_region",
+        "dense_kernel_extracted": true,
+        "verification_mode": "cpu_reference_capture"
+      }
+    },
+    {
+      "name": "f4-dense-field-251",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "f4-dense-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "F4 dense finite-field matrix phase proxy",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "labels dense F4 matrix arithmetic separately from sparse symbolic preprocessing and reduction-control work",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "source_role": "computational_algebra_proxy",
+        "algebra_family": "groebner_basis",
+        "domain_family": "prime_field_u8",
+        "workflow_name": "F4",
+        "phase_label": "dense_finite_field_matrix_phase",
+        "phase_id": "f4_dense_block",
+        "symbolic_precompute": "outside_timed_region",
+        "density": "dense_phase_only",
+        "dense_kernel_extracted": true,
+        "certificate_mode": "not_applicable_to_raw_gemm"
+      }
+    },
+    {
+      "name": "fglm-multiplication-matrix-field-251",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "fglm-mulmat-256",
+        "m": 256,
+        "n": 256,
+        "k": 256,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "FGLM multiplication-matrix conversion dense phase proxy",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps multiplication-matrix dense arithmetic distinct from ordering conversion and basis-controller work",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "finite_moduli": [
+        251
+      ],
+      "metadata": {
+        "source_role": "computational_algebra_proxy",
+        "algebra_family": "groebner_basis",
+        "domain_family": "prime_field_u8",
+        "workflow_name": "FGLM",
+        "phase_label": "multiplication_matrix_dense_phase",
+        "phase_id": "fglm_mulmat",
+        "symbolic_precompute": "outside_timed_region",
+        "dense_kernel_extracted": true,
+        "controller_mode": "not_timed"
+      }
+    },
+    {
+      "name": "crt-rational-reconstruction-export",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "crt-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "CRT/Garner export-heavy exact-LA proxy",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "profiles reconstruction/export pressure before mapping dense GEMM timings onto rational reconstruction or Dixon-style workflows",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "source_role": "computational_algebra_proxy",
+        "algebra_family": "exact_linear_algebra",
+        "domain_family": "integer_rns",
+        "workflow_name": "rational_reconstruction_or_dixon",
+        "phase_label": "crt_garner_export",
+        "phase_id": "reconstruction_export",
+        "reconstruction_mode": "fixed_width_limb_export",
+        "dense_kernel_extracted": true,
+        "controller_mode": "outside_timed_region"
+      }
+    }
+  ]
+}
