@@ -3029,13 +3029,18 @@ or instruction mix.
 
 Implementation status, 2026-06-06:
 
-- `tools/gpu_counter_report.py` keeps the original per-capture report and now
-  also emits batch reports grouped by target, roofline target, and semantic.
-  The report joins event medians, profiler counters, ISA summaries, resource
-  signals, bottleneck classification, and estimated work metrics.
-- Fixture coverage proves present counters, ISA attachment, resource summaries,
-  and batch output without requiring CDNA hardware. Real CDNA profiler exports
-  remain pending.
+- `tools/gpu_counter_report.py` keeps the original per-capture report, accepts
+  optional per-capture attachment manifests, and emits batch reports grouped by
+  target, roofline target, and semantic. The report joins event medians,
+  profiler counters, ISA summaries, resource signals, bottleneck
+  classification, and estimated work metrics.
+- Batch rows summarize VGPR, SGPR, LDS, scratch, occupancy, memory-pressure,
+  wait/stall, store, matrix-instruction, and work-intensity signals while
+  keeping missing counter, partial ISA, and missing event evidence visible.
+- Fixture coverage proves present counters, missing counters, partial ISA data,
+  ISA attachment, resource summaries, multi-capture batch output, and
+  per-capture attachment manifests without requiring CDNA hardware. Real CDNA
+  profiler exports remain pending.
 
 Technical direction:
 

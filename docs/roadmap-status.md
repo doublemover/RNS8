@@ -116,6 +116,9 @@ Future CDNA validation infrastructure now also includes schema-visible export se
 keys, export selector reports, Direct-HIP workspace arena allocation-delta
 gates, and K-block/tile-K scenario/report metadata; these are readiness
 surfaces only, not Linux/CDNA performance claims.
+Counter/resource audit reports now support per-capture counter/ISA attachment
+manifests, batch-level VGPR/SGPR/LDS/scratch/occupancy/wait/memory signal
+summaries, and missing-evidence diagnostics so profiler gaps stay visible.
 Pending-validation infrastructure now uses `tools/pending_validation.py` as the
 target-generic command-planning, review-indexing, post-report, and summary core;
 `tools/gfx1100_pending_validation.py` is the local Windows `gfx1100`

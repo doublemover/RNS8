@@ -965,10 +965,14 @@ speedup claim.
 `tools/gpu_isa_report.py --capture <capture.json>` validates and cross-links a
 capture before writing temp-only ISA summaries under `temp/isa-reports/`.
 `tools/gpu_counter_report.py` validates captures, optionally ingests JSON/CSV
-profiler counter exports and ISA summaries, and writes JSON/Markdown reports
-under `temp/gpu-counter-reports/`. Counter and ISA reports explain bottlenecks
-and next experiments only; they do not replace exact correctness checks, host
-timings, HIP event timings, or release baseline gates.
+profiler counter exports and ISA summaries, supports per-capture attachment
+manifests for batch audits, and writes JSON/Markdown reports under
+`temp/gpu-counter-reports/`. Batch rows summarize VGPR, SGPR, LDS, scratch,
+occupancy, memory-pressure, wait/stall, store, matrix-instruction, and
+work-intensity signals while keeping missing counter, partial ISA, and missing
+event evidence visible. Counter and ISA reports explain bottlenecks and next
+experiments only; they do not replace exact correctness checks, host timings,
+HIP event timings, or release baseline gates.
 
 Additional Starfoundry report tools are temp-output only: `tools/reuse_contract_report.py`,
 `tools/promotion_ledger.py`, `tools/target_validation_report.py`,

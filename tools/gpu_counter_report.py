@@ -21,6 +21,23 @@ COUNTER_REPORT_POLICY = (
 )
 DEFAULT_OUT_DIR = Path("temp") / "gpu-counter-reports"
 COUNTER_VALUE_RE = re.compile(r"^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+RESOURCE_SIGNAL_FIELDS = [
+    "vgpr",
+    "sgpr",
+    "lds_bytes",
+    "scratch_bytes",
+    "occupancy",
+    "memory_pressure_signal",
+    "wait_signal",
+    "global_store_instruction_count",
+    "lds_instruction_mentions",
+    "wait_instruction_count",
+    "matrix_instruction_count",
+    "arithmetic_intensity_ops_per_byte",
+    "measured_gops",
+    "pack_bandwidth_gbs",
+    "export_bandwidth_gbs",
+]
 
 
 def _number(value: Any) -> float | None:
@@ -87,6 +104,24 @@ def _top_numeric_metrics(metrics: dict[str, Any], limit: int) -> list[dict[str, 
         rows.append({"metric": str(name), "value": number})
     rows.sort(key=lambda row: abs(float(row["value"])), reverse=True)
     return rows[: max(limit, 0)]
+
+
+def _numeric_summary(values: list[float], total_count: int) -> dict[str, Any]:
+    if not values:
+        return {
+            "present_count": 0,
+            "missing_count": total_count,
+            "min": None,
+            "average": None,
+            "max": None,
+        }
+    return {
+        "present_count": len(values),
+        "missing_count": max(total_count - len(values), 0),
+        "min": min(values),
+        "average": sum(values) / len(values),
+        "max": max(values),
+    }
 
 
 def _first_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float | None:
@@ -181,6 +216,50 @@ def _counter_resource_summary(
     }
 
 
+def _resource_signal_coverage(resource_summary: dict[str, Any]) -> dict[str, str]:
+    coverage = {}
+    for field in RESOURCE_SIGNAL_FIELDS:
+        coverage[field] = "present" if _number(resource_summary.get(field)) is not None else "missing"
+    return coverage
+
+
+def _evidence_status(
+    counter_reports: list[dict[str, Any]],
+    isa_reports: list[dict[str, Any]],
+    event_medians: dict[str, float],
+    resource_summary: dict[str, Any],
+) -> dict[str, Any]:
+    isa_totals = _isa_resource_summary(isa_reports)
+    isa_total_count = sum(int(value) for value in isa_totals.values())
+    isa_status = "missing"
+    if isa_reports and isa_total_count > 0:
+        isa_status = "present"
+    elif isa_reports:
+        isa_status = "partial"
+
+    resource_coverage = _resource_signal_coverage(resource_summary)
+    missing_evidence = []
+    if not counter_reports:
+        missing_evidence.append("missing_profiler_counter_export")
+    if isa_status == "missing":
+        missing_evidence.append("missing_isa_summary")
+    elif isa_status == "partial":
+        missing_evidence.append("partial_isa_summary")
+    if not event_medians:
+        missing_evidence.append("missing_gpu_event_medians")
+    if resource_coverage.get("occupancy") == "missing":
+        missing_evidence.append("missing_occupancy_signal")
+    if resource_coverage.get("vgpr") == "missing" and resource_coverage.get("sgpr") == "missing":
+        missing_evidence.append("missing_register_pressure_signal")
+    return {
+        "profiler_counter_status": "present" if counter_reports else "missing",
+        "isa_resource_status": isa_status,
+        "gpu_event_timing_status": "present" if event_medians else "missing",
+        "resource_signal_coverage": resource_coverage,
+        "missing_evidence": sorted(set(missing_evidence)),
+    }
+
+
 def _json_counter_records(path: Path) -> list[dict[str, Any]]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(raw, list):
@@ -269,15 +348,18 @@ def report_for_capture(
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
     isa_reports = [load_isa_summary(path) for path in isa_paths]
+    event_medians = _event_medians(capture)
     resource_summary = _counter_resource_summary(capture, counter_reports, isa_reports)
+    evidence_status = _evidence_status(counter_reports, isa_reports, event_medians, resource_summary)
     return {
         "schema_version": 1,
         "capture": _capture_identity(capture, capture_path),
         "policy": COUNTER_REPORT_POLICY,
-        "gpu_event_medians_us": _event_medians(capture),
+        "gpu_event_medians_us": event_medians,
         "counter_inputs": counter_reports,
         "isa_summaries": isa_reports,
         "resource_summary": resource_summary,
+        "evidence_status": evidence_status,
         "review_notes": [
             "Counters and ISA summaries explain likely bottlenecks but do not replace exact CPU reference checks.",
             "Use host timings and HIP event timings for release comparisons; use counters to choose the next kernel experiment.",
@@ -361,6 +443,7 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
         lines.extend(["No ISA summaries were attached.", ""])
 
     summary = report.get("resource_summary") or {}
+    evidence = report.get("evidence_status") or {}
     lines.extend(
         [
             "## Resource Summary",
@@ -379,6 +462,18 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
                 memory=summary.get("memory_pressure_signal"),
                 wait=summary.get("wait_signal"),
             ),
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "## Evidence Status",
+            "",
+            f"- Profiler counters: `{evidence.get('profiler_counter_status')}`",
+            f"- ISA resources: `{evidence.get('isa_resource_status')}`",
+            f"- GPU event timing: `{evidence.get('gpu_event_timing_status')}`",
+            f"- Missing evidence: `{', '.join(evidence.get('missing_evidence') or [])}`",
             "",
         ]
     )
@@ -403,12 +498,39 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         groups.setdefault(key, []).append(report)
     group_rows = []
     for (target_id, roofline, semantics), rows in sorted(groups.items()):
+        total_count = len(rows)
+        signal_summary = {}
+        for field in RESOURCE_SIGNAL_FIELDS:
+            values = [
+                number
+                for number in (_number((row.get("resource_summary") or {}).get(field)) for row in rows)
+                if number is not None
+            ]
+            signal_summary[field] = _numeric_summary(values, total_count)
+        missing_evidence = sorted(
+            {
+                str(item)
+                for row in rows
+                for item in ((row.get("evidence_status") or {}).get("missing_evidence") or [])
+                if isinstance(item, str) and item
+            }
+        )
+        status_counts: dict[str, dict[str, int]] = {
+            "profiler_counter_status": {},
+            "isa_resource_status": {},
+            "gpu_event_timing_status": {},
+        }
+        for row in rows:
+            evidence = row.get("evidence_status") or {}
+            for key, counts in status_counts.items():
+                label = str(evidence.get(key) or "unknown")
+                counts[label] = counts.get(label, 0) + 1
         group_rows.append(
             {
                 "target_id": target_id,
                 "roofline_target": roofline,
                 "semantics": semantics,
-                "capture_count": len(rows),
+                "capture_count": total_count,
                 "backends": sorted({str(row["capture"].get("backend_selected")) for row in rows}),
                 "selected_kernels": sorted({str(row["capture"].get("selected_kernel")) for row in rows}),
                 "bottleneck_classes": sorted(
@@ -421,6 +543,12 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
                 if any(row.get("counter_inputs") for row in rows)
                 else "missing",
                 "isa_evidence": "present" if any(row.get("isa_summaries") for row in rows) else "missing",
+                "counter_input_count": sum(len(row.get("counter_inputs") or []) for row in rows),
+                "isa_summary_count": sum(len(row.get("isa_summaries") or []) for row in rows),
+                "gpu_event_capture_count": sum(1 for row in rows if row.get("gpu_event_medians_us")),
+                "evidence_status_counts": status_counts,
+                "missing_evidence": missing_evidence,
+                "resource_signal_summary": signal_summary,
                 "example_captures": [str(row["capture"].get("path")) for row in rows[:3]],
             }
         )
@@ -429,6 +557,15 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "policy": COUNTER_REPORT_POLICY,
         "report_count": len(reports),
         "group_count": len(group_rows),
+        "summary": {
+            "captures_with_counter_exports": sum(1 for row in reports if row.get("counter_inputs")),
+            "captures_with_isa_summaries": sum(1 for row in reports if row.get("isa_summaries")),
+            "captures_with_gpu_event_medians": sum(1 for row in reports if row.get("gpu_event_medians_us")),
+            "groups_with_missing_counter_exports": sum(
+                1 for row in group_rows if row.get("counter_evidence") == "missing"
+            ),
+            "groups_with_missing_isa_summaries": sum(1 for row in group_rows if row.get("isa_evidence") == "missing"),
+        },
         "groups": group_rows,
         "reports": reports,
     }
@@ -445,12 +582,12 @@ def write_batch_reports(batch: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Policy: `{batch['policy']}`",
         f"- Capture reports: `{batch['report_count']}`",
         "",
-        "| target | roofline target | semantics | captures | backends | counter evidence | ISA evidence | bottlenecks |",
-        "| --- | --- | --- | ---: | --- | --- | --- | --- |",
+        "| target | roofline target | semantics | captures | backends | counter evidence | ISA evidence | event captures | missing evidence | bottlenecks |",
+        "| --- | --- | --- | ---: | --- | --- | --- | ---: | --- | --- |",
     ]
     for group in batch["groups"]:
         lines.append(
-            "| `{target}` | `{roofline}` | `{semantics}` | {count} | `{backends}` | `{counters}` | `{isa}` | `{bottlenecks}` |".format(
+            "| `{target}` | `{roofline}` | `{semantics}` | {count} | `{backends}` | `{counters}` | `{isa}` | {events} | `{missing}` | `{bottlenecks}` |".format(
                 target=group["target_id"],
                 roofline=group["roofline_target"],
                 semantics=group["semantics"],
@@ -458,6 +595,8 @@ def write_batch_reports(batch: dict[str, Any], out_dir: Path) -> dict[str, str]:
                 backends=", ".join(group["backends"]),
                 counters=group["counter_evidence"],
                 isa=group["isa_evidence"],
+                events=group.get("gpu_event_capture_count", 0),
+                missing=", ".join(group.get("missing_evidence") or []),
                 bottlenecks=", ".join(group["bottleneck_classes"]),
             )
         )
@@ -465,11 +604,117 @@ def write_batch_reports(batch: dict[str, Any], out_dir: Path) -> dict[str, str]:
     return {"json": str(json_path), "markdown": str(md_path)}
 
 
+def _path_lookup_keys(path: Path) -> list[str]:
+    keys = [str(path), path.as_posix(), path.name, path.stem]
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = None
+    if resolved is not None:
+        keys.extend([str(resolved), resolved.as_posix()])
+    deduped = []
+    for key in keys:
+        if key and key not in deduped:
+            deduped.append(key)
+    return deduped
+
+
+def _resolve_manifest_paths(base_dir: Path, values: Any) -> list[Path]:
+    if values is None:
+        return []
+    if isinstance(values, (str, Path)):
+        values = [values]
+    if not isinstance(values, list):
+        raise RuntimeError("attachment manifest path values must be strings or lists")
+    paths = []
+    for item in values:
+        if not isinstance(item, str):
+            raise RuntimeError("attachment manifest paths must be strings")
+        path = Path(item)
+        paths.append(path if path.is_absolute() else base_dir / path)
+    return paths
+
+
+def load_attachment_manifest(path: Path | None) -> dict[str, dict[str, list[Path]]]:
+    if path is None:
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    base_dir = path.parent
+    raw_entries: list[dict[str, Any]]
+    if isinstance(data, dict) and isinstance(data.get("captures"), list):
+        raw_entries = [item for item in data["captures"] if isinstance(item, dict)]
+    elif isinstance(data, dict):
+        raw_entries = []
+        for key, value in data.items():
+            if not isinstance(value, dict):
+                continue
+            entry = dict(value)
+            entry.setdefault("capture", key)
+            raw_entries.append(entry)
+    else:
+        raise RuntimeError("attachment manifest must be a JSON object")
+
+    manifest = {}
+    for entry in raw_entries:
+        capture = entry.get("capture")
+        if not isinstance(capture, str) or not capture:
+            raise RuntimeError("attachment manifest entries require a capture string")
+        manifest[capture] = {
+            "counters": _resolve_manifest_paths(base_dir, entry.get("counters") or entry.get("counter")),
+            "isa_summaries": _resolve_manifest_paths(
+                base_dir,
+                entry.get("isa_summaries") or entry.get("isa_summary") or entry.get("isa"),
+            ),
+        }
+    return manifest
+
+
+def attachments_for_capture(
+    capture_path: Path,
+    manifest: dict[str, dict[str, list[Path]]],
+    global_counters: list[Path],
+    global_isa_summaries: list[Path],
+) -> tuple[list[Path], list[Path]]:
+    counters = list(global_counters)
+    isa_summaries = list(global_isa_summaries)
+    for key in _path_lookup_keys(capture_path):
+        entry = manifest.get(key)
+        if entry:
+            counters.extend(entry.get("counters") or [])
+            isa_summaries.extend(entry.get("isa_summaries") or [])
+            break
+    return counters, isa_summaries
+
+
+def build_reports(
+    capture_paths: list[Path],
+    global_counters: list[Path],
+    global_isa_summaries: list[Path],
+    attachment_manifest: dict[str, dict[str, list[Path]]],
+    top_limit: int,
+) -> list[dict[str, Any]]:
+    reports = []
+    for capture_path in capture_paths:
+        counters, isa_summaries = attachments_for_capture(
+            capture_path,
+            attachment_manifest,
+            global_counters,
+            global_isa_summaries,
+        )
+        reports.append(report_for_capture(capture_path, counters, isa_summaries, top_limit))
+    return reports
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("captures", type=Path, nargs="+", help="schema-v4 benchmark JSON captures")
     parser.add_argument("--counter", action="append", type=Path, default=[], help="CSV or JSON profiler counter export")
     parser.add_argument("--isa-summary", action="append", type=Path, default=[], help="gpu_isa_report.py JSON summary")
+    parser.add_argument(
+        "--attachment-manifest",
+        type=Path,
+        help="JSON map from capture path/name/stem to per-capture counter and ISA summary files",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="temp-only report directory")
     parser.add_argument("--top", type=int, default=20, help="top numeric counter metrics to include")
     parser.add_argument("--json", action="store_true", help="print combined JSON report to stdout")
@@ -480,10 +725,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    reports = [
-        report_for_capture(capture_path, args.counter, args.isa_summary, args.top)
-        for capture_path in args.captures
-    ]
+    reports = build_reports(
+        args.captures,
+        args.counter,
+        args.isa_summary,
+        load_attachment_manifest(args.attachment_manifest),
+        args.top,
+    )
     outputs: list[Path] = []
     for index, report in enumerate(reports):
         stem = safe_report_stem(Path(report["capture"]["path"]), index)

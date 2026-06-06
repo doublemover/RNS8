@@ -40,7 +40,7 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 28 ranks. Rank IDs are historical/stable
+active table below now contains 27 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
@@ -51,7 +51,6 @@ file focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | `tools/gpu_counter_report.py --batch` now joins captures, event medians, ISA summaries, counter exports, resource signals, and roofline groups with fixture coverage; remaining proof is real profiler exports from target hosts | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |
 | 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | `tools/target_validation_report.py` now emits per OS/target/toolchain readiness groups for build, CTest, smoke, release capture, profiler, accelerator availability, and cache eligibility, with Windows/RDNA/CDNA fixtures; remaining gate is real supported-host evidence | Claim only the targets that pass on real supported hosts |
 | 44 | Persistent resident matrix lifetime implementation | Persistent RNS/native matrices are the core representation, but benchmark-owned lifetimes still hide routing semantics | Public/benchmark contract for resident A/B/C lifetimes, source versions, workspace binding, and output currentness across repeated calls | Promote only when lifetime identity prevents accidental reuse across changed descriptors, data, semantics, target, or plan |
 | 20 | Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse has chain and bounded evidence, but non-bounded profiles remain thin | Classify Direct-HIP reuse captures through the setup gate with same-backend and fastest-baseline controls | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
