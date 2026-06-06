@@ -6,13 +6,12 @@ foreach(_RNS8_CK_HINT IN ITEMS
     "${RNS8_HIP_ROOT}"
     "$ENV{ROCM_PATH}"
     "$ENV{HIP_PATH}"
-    "$ENV{VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}"
     "/opt/rocm")
   if(_RNS8_CK_HINT)
     list(APPEND _RNS8_CK_HINTS "${_RNS8_CK_HINT}")
   endif()
 endforeach()
+rns8_append_windows_vcpkg_hints(_RNS8_CK_HINTS)
 
 find_path(
   RNS8_CK_INCLUDE_DIR
@@ -30,6 +29,7 @@ set(RNS8_CK_PRIMITIVE_PROBE_OUTPUT "")
 set(RNS8_CK_GENERATED_INCLUDE_DIR "")
 
 if(RNS8_CK_INCLUDE_DIR)
+  rns8_assert_no_linux_windows_vcpkg_paths("CK include directory" "${RNS8_CK_INCLUDE_DIR}")
   set(RNS8_CK_CANDIDATE TRUE)
   set(RNS8_CK_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/accelerator-dependency-probes/ck-generated/include")
   file(MAKE_DIRECTORY "${RNS8_CK_GENERATED_INCLUDE_DIR}/ck")

@@ -43,6 +43,9 @@ find_package_handle_standard_args(
 )
 
 if(RNS8HIP_FOUND)
+  rns8_assert_no_linux_windows_vcpkg_paths("HIP include directory" "${RNS8_HIP_INCLUDE_DIR}")
+  rns8_assert_no_linux_windows_vcpkg_paths("HIP library" "${RNS8_HIP_LIBRARY}")
+  rns8_assert_no_linux_windows_vcpkg_paths("hipcc executable" "${RNS8_HIP_HIPCC}")
   set(RNS8_HIP_INCLUDE_DIRS "${RNS8_HIP_INCLUDE_DIR}")
   set(RNS8_HIP_LIBRARIES "${RNS8_HIP_LIBRARY}")
 endif()

@@ -50,6 +50,14 @@ cmake --build --preset cpu-debug
 ctest --preset cpu-debug --output-on-failure
 ```
 
+On Linux, use native packages rather than Windows vcpkg paths:
+
+```bash
+cmake --preset linux-cpu-debug
+cmake --build --preset linux-cpu-debug
+ctest --preset linux-cpu-debug --output-on-failure
+```
+
 Windows HIP bring-up:
 
 ```powershell

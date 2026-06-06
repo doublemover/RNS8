@@ -493,6 +493,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
 
   find_package(Catch2 3 CONFIG REQUIRED)
+  rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2)
+  rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2WithMain)
   add_executable(
     rns8_tests
     tests/unit/test_moduli.cpp

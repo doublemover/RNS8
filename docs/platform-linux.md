@@ -26,10 +26,37 @@ and readiness metadata on Windows, not validation evidence.
 Expected Linux configure path:
 
 ```bash
+cmake --preset linux-cpu-debug
+cmake --build --preset linux-cpu-debug
+ctest --preset linux-cpu-debug --output-on-failure
+
 cmake --preset linux-rocm-debug
 cmake --build --preset linux-debug
 ctest --preset linux-debug --output-on-failure
 ```
+
+Linux presets use system packages and native CMake package discovery only.
+Install native Linux development packages for dependencies such as Catch2,
+nlohmann-json, Boost headers, and optional GMP/FLINT references, or point
+`CMAKE_PREFIX_PATH` at native Linux installs. Do not point Linux/WSL
+configures at Windows vcpkg roots such as `/mnt/c/vcpkg`, and do not use a
+Windows vcpkg triplet; CMake fails at configure time if those paths enter the
+Linux prefix or include search.
+
+Clean CDNA real-host presets avoid repo-local generated accelerator dependency
+roots and target the supported CDNA families directly:
+
+```bash
+cmake --preset linux-cdna-debug
+cmake --build --preset linux-cdna-debug
+ctest --preset linux-cdna-debug --output-on-failure
+```
+
+GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`
+internals on some optimization levels. Treat those as non-blocking compiler
+noise unless a project-owned callsite is implicated; isolate or suppress them
+locally in a later warning-cleanup pass rather than globally weakening Linux
+diagnostics here.
 
 The Linux preset keeps two target lists separate:
 

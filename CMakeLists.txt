@@ -11,7 +11,8 @@ include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-
+include(cmake/rns8_platform_guards.cmake)
+rns8_assert_linux_native_discovery_context()
 include(cmake/rns8_options.cmake)
 include(cmake/rns8_sources.cmake)
 include(cmake/rns8_targets.cmake)
