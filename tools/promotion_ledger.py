@@ -118,6 +118,11 @@ def capture_entry(
     export_variant_name = str(export_variant.get("name") or "default")
     reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
     export_selector_key = export_variant.get("selector_key")
+    cache_scope = (
+        "runtime_exact_autotune"
+        if export_variant_name == "default" and reconstruction_variant_name == "default_garner"
+        else "selector_review_only_non_default"
+    )
     shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
     blockers: list[str] = []
     key = metadata.get("autotune_key")
@@ -220,6 +225,8 @@ def capture_entry(
             or int(repeat_delta.get("allocated_bytes") or 0) != 0
         ):
             blockers.append("workspace_arena_repeat_allocation_delta_nonzero")
+    if cache_scope != "runtime_exact_autotune":
+        blockers.append("selector_review_only_not_runtime_cache_route")
     return {
         "path": str(path),
         "autotune_key": key,
@@ -252,9 +259,7 @@ def capture_entry(
         "export_selector_policy": export_variant.get("selector_policy"),
         "export_cache_visibility": export_variant.get("cache_visibility"),
         "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
-        "cache_scope": "runtime_exact_autotune"
-        if export_variant_name == "default" and reconstruction_variant_name == "default_garner"
-        else "selector_review_only_non_default",
+        "cache_scope": cache_scope,
         "shape_family_recommendation_status": "exact_cache_only_no_family_routing",
     }
 
@@ -273,7 +278,12 @@ def stale_invalidation_reasons(entry: dict[str, Any]) -> list[str]:
             reasons.append("epilogue_mismatch")
         elif "workspace" in text:
             reasons.append("workspace_mismatch")
-        elif "export_selector" in text or "export_variant" in text or "reconstruction_variant" in text:
+        elif (
+            "export_selector" in text
+            or "export_variant" in text
+            or "reconstruction_variant" in text
+            or "selector_review" in text
+        ):
             reasons.append("export_selector_contract_mismatch")
         elif "schema" in text:
             reasons.append("schema_mismatch")

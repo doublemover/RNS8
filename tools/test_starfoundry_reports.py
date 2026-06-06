@@ -382,6 +382,18 @@ def main() -> int:
         assert reviewed_entry["performance_validated"] is True
         assert reviewed_entry["speedup_margin"] == 1.5
         assert reviewed_entry["promotion_blockers"] == []
+        selector_review_capture = copy.deepcopy(reviewed_capture)
+        selector_review_capture["export_variant"]["name"] = "compact-d2h-export-candidate"
+        selector_review_capture["export_variant"]["promotion_eligible"] = False
+        selector_review_capture["export_variant"]["promotion_blocker"] = "experimental_export_variant"
+        selector_review_capture["export_variant"]["selector_key"] += ";export_variant=compact-d2h-export-candidate"
+        selector_review_path = tmp / "selector-review-only.json"
+        selector_review_path.write_text(json.dumps(selector_review_capture), encoding="utf-8")
+        selector_review_ledger = promotion_ledger.build_ledger([selector_review_path], cache_path)
+        selector_review_entry = selector_review_ledger["entries"][0]
+        assert selector_review_entry["cache_scope"] == "selector_review_only_non_default"
+        assert "selector_review_only_not_runtime_cache_route" in selector_review_entry["promotion_blockers"]
+        assert "export_selector_contract_mismatch" in selector_review_entry["stale_invalidation_reasons"]
         failure_path = tmp / "starfoundry-cpu.failed.json"
         failure_path.write_text(
             json.dumps(

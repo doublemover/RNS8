@@ -487,6 +487,7 @@ def install_cache(
     promotion_ledgers: list[Path] | None = None,
     require_variance_gate: bool = False,
     require_target_validation_gate: bool = False,
+    allow_selector_review_cache: bool = False,
 ) -> dict[str, Any]:
     if replace_existing:
         existing_entries: list[dict[str, Any]] = []
@@ -510,6 +511,12 @@ def install_cache(
         reviewed_source_entries.extend(entries)
         for entry in entries:
             source_by_key[entry["key"]] = str(source)
+    if not allow_selector_review_cache:
+        for entry in reviewed_source_entries:
+            if entry.get("cache_scope", "runtime_exact_autotune") != "runtime_exact_autotune":
+                raise AutotuneCacheInstallError(
+                    "selector_review_only_cache_entry_not_runtime_installable:" + str(entry.get("key") or "<missing>")
+                )
     if promotion_ledgers:
         validate_promotion_ledger_gate(
             reviewed_source_entries,
@@ -562,6 +569,7 @@ def install_cache(
         "promotion_ledgers": [str(path) for path in (promotion_ledgers or [])],
         "require_variance_gate": require_variance_gate,
         "require_target_validation_gate": require_target_validation_gate,
+        "allow_selector_review_cache": allow_selector_review_cache,
         "source_entries": source_entries,
         "existing_entries": len(existing_entries),
         "installed_entries": len(ordered),
@@ -599,6 +607,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="require supplied promotion ledger rows to include matching target_validation_report cache eligibility",
     )
+    parser.add_argument(
+        "--allow-selector-review-cache",
+        action="store_true",
+        help=(
+            "allow non-default export/reconstruction selector review entries in the destination cache artifact; "
+            "normal runtime cache installs reject these because AUTO cannot route them"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -613,6 +629,7 @@ def main() -> int:
         promotion_ledgers=args.promotion_ledger,
         require_variance_gate=args.require_variance_gate,
         require_target_validation_gate=args.require_target_validation_gate,
+        allow_selector_review_cache=args.allow_selector_review_cache,
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0

@@ -292,8 +292,17 @@ def main() -> int:
         )
         exact_selector_source = root / "exact-selector-cache.json"
         write_cache(exact_selector_source, [exact_default, exact_fixed_limb])
+        try:
+            install_autotune_cache.install_cache([exact_selector_source], destination, dry_run=True)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "selector_review_only_cache_entry_not_runtime_installable" in str(exc)
+        else:
+            raise AssertionError("selector-review-only entry was accepted by the default runtime cache install")
         exact_selector_summary = install_autotune_cache.install_cache(
-            [exact_selector_source], destination, dry_run=True
+            [exact_selector_source],
+            destination,
+            dry_run=True,
+            allow_selector_review_cache=True,
         )
         assert exact_default["key"] != exact_fixed_limb["key"]
         assert exact_default["key"] in exact_fixed_limb["key"] or "export_selector_hash" in exact_fixed_limb["key"]
@@ -313,7 +322,11 @@ def main() -> int:
         missing_selector_source = root / "missing-selector-key-field.json"
         write_cache(missing_selector_source, [missing_selector_key_field])
         try:
-            install_autotune_cache.install_cache([missing_selector_source], destination)
+            install_autotune_cache.install_cache(
+                [missing_selector_source],
+                destination,
+                allow_selector_review_cache=True,
+            )
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "key_export_variant_mismatch" in str(exc)
         else:
@@ -324,7 +337,11 @@ def main() -> int:
         stale_selector_hash_source = root / "stale-selector-hash.json"
         write_cache(stale_selector_hash_source, [stale_selector_hash])
         try:
-            install_autotune_cache.install_cache([stale_selector_hash_source], destination)
+            install_autotune_cache.install_cache(
+                [stale_selector_hash_source],
+                destination,
+                allow_selector_review_cache=True,
+            )
         except install_autotune_cache.AutotuneCacheInstallError as exc:
             assert "export_selector_hash_mismatch" in str(exc)
         else:
