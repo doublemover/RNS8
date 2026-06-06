@@ -53,6 +53,9 @@ Cleanup and drift-control helpers:
 - `tools/shape_family_shadow_report.py`: builds non-routing AUTO
   shape-family recommendations from reviewed exact cache entries and records
   why each recommendation remains advisory.
+- `tools/auto_shape_family_gate.py`: verifies shape-family shadow reports stay
+  exact-cache, non-routing, non-promotable, and boundary-safe before any AUTO
+  selector work can use them.
 
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under

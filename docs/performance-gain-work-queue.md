@@ -40,13 +40,12 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 19 ranks. Rank IDs are historical/stable
+active table below now contains 18 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 36 | AUTO cache shape-family recommendation layer | Exact-shape cache hits are too narrow for real workloads | Reviewed shape-family policy layered above exact-shape entries | Keep disabled until family recommendations cannot cross semantic/layout/target boundaries |
 | 38 | Verification-cost reduction for repeated exact workloads | Exact checks can dominate validation of repeated scenarios | Validation modes that reuse CPU/reference structure without reducing correctness | Keep tooling-only unless every promoted capture still has exact CPU differential coverage |
 | 39 | Error-detecting exact fast path with explicit metadata | Probabilistic or checked fast paths are research-only but may unlock workloads | Research captures with verification metadata and false-negative policy | Never make default exact API probabilistic; keep explicitly research-marked |
 | 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | `tools/bounded_i64_1024_review.py` now produces keep/replace/experimental/drop dispositions from setup-inclusive timings, target validation, variance, counter/resource evidence, and promotion ledger rows; scenario coverage now includes Direct HIP, vector, hipBLASLt, CK, rocWMMA, and A/B/A+B reuse roles | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |

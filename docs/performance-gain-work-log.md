@@ -7,6 +7,22 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-36 AUTO shape-family gate closeout:
+
+- Rank 36 moved from the active queue to the completed-work archive after
+  `tools/auto_shape_family_gate.py` added a concrete exact-cache/AUTO safety
+  gate around the existing shape-family shadow recommendations. The gate reads
+  reviewed cache JSON plus `shape_family_shadow_report.py` output, verifies
+  that `src/core/autotune_cache.cpp` still uses exact cache lookup with no
+  runtime shape-family lookup, requires all family recommendations to remain
+  non-routing and non-promotable, checks the required target, semantic,
+  layout, and output-contract boundary fields, and verifies recommendation
+  basis keys exist in the reviewed cache. The closeout under
+  `temp/rank36-auto-shape-family-gate-20260606/` regenerated the shadow report
+  and validates three query classes with zero blockers: an exact 512 cache hit,
+  a same-boundary 768 advisory representative, and a rejected
+  cross-output-contract 768 query. AUTO routing remains exact-cache only.
+
 June 6, 2026 rank-33 reconstruction/export closeout:
 
 - Rank 33 moved from the active queue to the completed-work archive after

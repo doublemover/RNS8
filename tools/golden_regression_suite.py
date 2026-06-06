@@ -88,6 +88,11 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_shape_family_shadow_report.py"],
     ),
+    SuiteCase(
+        "auto_shape_family_gate",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_auto_shape_family_gate.py"],
+    ),
     SuiteCase("export_selector_report", "performance_evidence_drift", [sys.executable, "tools/test_export_selector_report.py"]),
     SuiteCase(
         "reconstruction_export_report",
