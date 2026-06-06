@@ -101,6 +101,7 @@ struct Args {
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
   bool streaming_overlap = false;
+  std::string k_block_policy = "auto";
   std::string release_gate = "none";
   std::string verification_amortization = "none";
 };
@@ -172,6 +173,17 @@ struct BenchmarkResult {
   std::string export_selector_status_policy = "unknown";
   std::string export_d2h_policy = "unknown";
   std::string export_selected_kernel{};
+  std::string export_selector_key{};
+  std::string export_selector_policy{};
+  std::string export_semantic_contract{};
+  std::string export_backend{};
+  std::string export_target_id{};
+  std::string export_prefix_contract{};
+  std::string export_signedness{};
+  std::string export_final_output_mode{};
+  std::string export_cache_visibility{};
+  std::string export_stale_entry_reason{};
+  std::string export_status_elision_reason{};
   uint32_t export_limb_count = 0;
   bool export_requires_tile_metadata = false;
   bool export_all_zero_tiled_output = false;
@@ -182,6 +194,12 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
+  bool workspace_arena_info_available = false;
+  uint64_t workspace_arena_size_bytes = 0;
+  uint64_t workspace_arena_high_water_mark_bytes = 0;
+  uint32_t workspace_arena_suballocation_count = 0;
+  std::string workspace_arena_target_id{};
+  std::string workspace_arena_policy{};
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;

@@ -3,97 +3,138 @@
   "family": "exact-wide-export",
   "items": [
     {
-      "name": "signed-limbs4-512",
+      "name": "signed-limbs4-64",
       "semantics": "exact-wide-signed",
-      "case": {
-        "name": "exact-wide-512",
-        "m": 512,
-        "n": 512,
-        "k": 512,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
-      "evidence_scope": "signed exact-wide host limb export with full-width status-elided output",
+      "case": {"name": "exact-wide-64", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "signed exact-wide limb export selector smoke at 64",
       "output_domain": "exact_wide_signed_limbs",
-      "rationale": "profiles exact-wide export before expanding exact-wide GEMM variants",
-      "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
-      ],
+      "rationale": "small-shape export selector sanity before CDNA release review",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
-      "exact_wide_limb_counts": [
-        4
-      ]
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export",
+      "metadata": {"promotion_scope": "export_selector_same_contract_review_required"}
     },
     {
-      "name": "unsigned-limbs3-512",
+      "name": "unsigned-limbs4-64",
       "semantics": "exact-wide-unsigned",
-      "case": {
-        "name": "exact-wide-512",
-        "m": 512,
-        "n": 512,
-        "k": 512,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
-      "evidence_scope": "unsigned exact-wide compact full-width three-limb export",
+      "case": {"name": "exact-wide-64", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "unsigned exact-wide limb export selector smoke at 64",
       "output_domain": "exact_wide_unsigned_limbs",
-      "rationale": "compares compact 192-bit output against the default four-limb export contract",
-      "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
-      ],
+      "rationale": "checks signedness boundary for exact-wide export selector",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export",
+      "metadata": {"promotion_scope": "export_selector_same_contract_review_required"}
+    },
+    {
+      "name": "signed-limbs4-128",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "exact-wide-128", "m": 128, "n": 128, "k": 128, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "signed exact-wide limb export selector smoke at 128",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "keeps exact-wide export behavior visible below launch-bound 512 cases",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export",
+      "metadata": {"promotion_scope": "export_selector_same_contract_review_required"}
+    },
+    {
+      "name": "unsigned-limbs4-128",
+      "semantics": "exact-wide-unsigned",
+      "case": {"name": "exact-wide-128", "m": 128, "n": 128, "k": 128, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "unsigned exact-wide limb export selector smoke at 128",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "keeps unsigned exact-wide export behavior visible below launch-bound 512 cases",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export",
+      "metadata": {"promotion_scope": "export_selector_same_contract_review_required"}
+    },
+    {
+      "name": "signed-limbs4-512",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "exact-wide-512", "m": 512, "n": 512, "k": 512, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": true},
+      "evidence_scope": "signed exact-wide host limb export with selector metadata",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "profiles exact-wide export before expanding exact-wide GEMM variants",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
-      "exact_wide_limb_counts": [
-        3
-      ]
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
     },
     {
       "name": "unsigned-limbs4-512",
       "semantics": "exact-wide-unsigned",
-      "case": {
-        "name": "exact-wide-512",
-        "m": 512,
-        "n": 512,
-        "k": 512,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
+      "case": {"name": "exact-wide-512", "m": 512, "n": 512, "k": 512, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": true},
       "evidence_scope": "unsigned exact-wide default four-limb export",
       "output_domain": "exact_wide_unsigned_limbs",
       "rationale": "keeps compact-output claims anchored to the current default-width baseline",
-      "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
-      ],
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
-      "exact_wide_limb_counts": [
-        4
-      ]
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
+    },
+    {
+      "name": "signed-limbs4-1024",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "exact-wide-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "signed exact-wide export-bound release candidate at 1024",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "tests whether export is launch-bound or throughput-bound at a CDNA-relevant size",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
+    },
+    {
+      "name": "unsigned-limbs4-1024",
+      "semantics": "exact-wide-unsigned",
+      "case": {"name": "exact-wide-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "unsigned exact-wide export-bound release candidate at 1024",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "tests unsigned export pressure at a CDNA-relevant size",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
+    },
+    {
+      "name": "signed-limbs4-2048",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "exact-wide-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "signed exact-wide export-bound exploratory run at 2048",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "large-shape export selector and event/counter readiness for CDNA",
+      "backends": ["hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
+    },
+    {
+      "name": "unsigned-limbs4-2048",
+      "semantics": "exact-wide-unsigned",
+      "case": {"name": "exact-wide-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "unsigned exact-wide export-bound exploratory run at 2048",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "large-shape unsigned export selector and event/counter readiness for CDNA",
+      "backends": ["hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "exact-wide-fixed-limb-export"
     }
   ]
 }

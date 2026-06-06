@@ -250,6 +250,8 @@ Args parse_args(int argc, char** argv) {
       args.adaptive_grouped_scheduler = true;
     } else if (arg == "--streaming-overlap") {
       args.streaming_overlap = true;
+    } else if (arg == "--k-block-policy" && i + 1 < argc) {
+      args.k_block_policy = argv[++i];
     } else if (arg == "--release-gate" && i + 1 < argc) {
       args.release_gate = argv[++i];
     } else if (arg == "--verification-amortization" && i + 1 < argc) {
@@ -308,6 +310,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
           << "                  [--streaming-overlap]\n"
+          << "                  [--k-block-policy NAME]\n"
           << "                  [--release-gate NAME]\n"
           << "                  [--verification-amortization NAME]\n"
           << "                  [--require-adaptive-execution]\n"
@@ -545,6 +548,9 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.verification_amortization.empty()) {
     usage_error("--verification-amortization must not be empty");
+  }
+  if (args.k_block_policy.empty()) {
+    usage_error("--k-block-policy must not be empty");
   }
   if (host_api_batch_requested_for_args(args)) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {

@@ -267,6 +267,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 

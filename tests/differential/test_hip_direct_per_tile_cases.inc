@@ -232,6 +232,12 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   CHECK(
       hip_workspace->hip_tile_schedule_active_entries_bytes ==
       nonzero_active_entry_count * sizeof(rns8_plan_tile_schedule_entry));
+  CHECK(hip_workspace->hip_workspace_arena != nullptr);
+  CHECK(hip_workspace->hip_workspace_arena_bytes >= zero_skip_info.workspace_required_bytes);
+  CHECK(hip_workspace->hip_workspace_arena_high_water_mark_bytes == hip_workspace->hip_workspace_arena_bytes);
+  CHECK(hip_workspace->hip_workspace_arena_suballocation_count >= 2);
+  CHECK(hip_workspace->hip_workspace_arena_target_id == std::string(hip_plan->backend_target_id));
+  CHECK(hip_workspace->hip_workspace_arena_policy == "direct_hip_workspace_owned_suballocation_v1");
 
   std::fill(hip_c->residues.begin(), hip_c->residues.end(), sentinel);
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(

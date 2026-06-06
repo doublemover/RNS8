@@ -184,6 +184,28 @@ def capture_entry(
             blockers.append(f"{object_name}_non_promoting")
         if object_name == "modulus_set" and isinstance(item, dict) and item.get("cache_promotion_blocker"):
             blockers.append(str(item.get("cache_promotion_blocker")))
+        if object_name == "export_variant" and isinstance(item, dict):
+            if not item.get("selector_key"):
+                blockers.append("export_selector_key_missing")
+            if not item.get("stale_entry_reason"):
+                blockers.append("export_selector_stale_reason_missing")
+    tile_variant = capture.get("tile_shape_variant")
+    if isinstance(tile_variant, dict):
+        if tile_variant.get("k_block_policy") not in {None, "auto"}:
+            blockers.append("non_default_k_block_policy_requires_same_target_counter_review")
+        if tile_variant.get("accumulator_safety_key") is None:
+            blockers.append("tile_shape_accumulator_safety_key_missing")
+    arena = capture.get("workspace_arena")
+    if isinstance(arena, dict) and arena.get("enabled"):
+        if arena.get("measured_repeat_allocation_free") is not True:
+            blockers.append("workspace_arena_repeat_allocation_not_free")
+        repeat_delta = arena.get("measured_repeat_allocation_delta")
+        if isinstance(repeat_delta, dict) and (
+            int(repeat_delta.get("allocate_calls") or 0) != 0
+            or int(repeat_delta.get("free_calls") or 0) != 0
+            or int(repeat_delta.get("allocated_bytes") or 0) != 0
+        ):
+            blockers.append("workspace_arena_repeat_allocation_delta_nonzero")
     return {
         "path": str(path),
         "autotune_key": key,
@@ -209,6 +231,10 @@ def capture_entry(
         "variance_required_speedup_margin": variance_required_margin,
         "variance_observed_max_relative_noise": variance_observed_noise,
         "promotion_blockers": sorted(set(blockers)),
+        "export_selector_key": (capture.get("export_variant") or {}).get("selector_key")
+        if isinstance(capture.get("export_variant"), dict)
+        else None,
+        "shape_family_recommendation_status": "exact_cache_only_no_family_routing",
     }
 
 

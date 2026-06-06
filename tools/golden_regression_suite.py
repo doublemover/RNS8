@@ -65,6 +65,7 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_shape_family_shadow_report.py"],
     ),
+    SuiteCase("export_selector_report", "performance_evidence_drift", [sys.executable, "tools/test_export_selector_report.py"]),
     SuiteCase("claim_validation", "documentation_claims", [sys.executable, "tools/test_claim_validation.py"]),
 ]
 

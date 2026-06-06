@@ -200,6 +200,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
         args, "adaptive_grouped_scheduler", False
     )
     scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
+    scenario_args.k_block_policy = item.k_block_policy or getattr(args, "k_block_policy", "auto")
     scenario_args.release_gate = (
         item.release_gate if item.release_gate and item.release_gate != "none" else getattr(args, "release_gate", "none")
     )
@@ -265,6 +266,7 @@ def scenario_metadata(
         "workspace_arena": item.workspace_arena,
         "adaptive_grouped_scheduler": item.adaptive_grouped_scheduler,
         "streaming_overlap": item.streaming_overlap,
+        "k_block_policy": item.k_block_policy,
         "release_gate": item.release_gate,
         "verification_amortization": item.verification_amortization,
         "oneshot": oneshot,
@@ -464,6 +466,9 @@ def command_for(
         command.append("--adaptive-grouped-scheduler")
     if getattr(args, "streaming_overlap", False):
         command.append("--streaming-overlap")
+    k_block_policy = getattr(args, "k_block_policy", "auto")
+    if k_block_policy and k_block_policy != "auto":
+        command.extend(["--k-block-policy", k_block_policy])
     release_gate = getattr(args, "release_gate", "none")
     if release_gate and release_gate != "none":
         command.extend(["--release-gate", release_gate])

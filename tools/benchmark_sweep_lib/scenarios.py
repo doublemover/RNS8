@@ -228,6 +228,9 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                     default=False,
                 ),
                 streaming_overlap=_bool_or_default(raw, "streaming_overlap", label=label, default=False),
+                k_block_policy=_required_string(raw, "k_block_policy", label=label)
+                if "k_block_policy" in raw
+                else "auto",
                 release_gate=_required_string(raw, "release_gate", label=label) if "release_gate" in raw else "none",
                 verification_amortization=_required_string(raw, "verification_amortization", label=label)
                 if "verification_amortization" in raw

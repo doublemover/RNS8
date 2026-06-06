@@ -99,11 +99,28 @@ def main() -> int:
         "name": "default",
         "source": "current_backend_export_path",
         "selector_source": "rns8_internal_export_plan",
+        "selector_key": (
+            "semantics=exact_wide_signed;backend=hip-direct;target_id=gfx1100;prefix=9;"
+            "limb_count=4;signedness=signed;output_layout=fixed_u64_limbs;"
+            "status_policy=range_checked_status_buffer;d2h_policy=host_ld_padded;"
+            "final_output_mode=final_host_output;"
+            "selected_kernel=hip_direct_export_exact_wide_signed_limbs_device"
+        ),
+        "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
+        "semantic_contract": "exact_wide_signed",
+        "backend": "hip-direct",
+        "target_id": "gfx1100",
+        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "signedness": "signed",
         "output_layout": "fixed_u64_limbs",
         "limb_count": 4,
         "status_policy": "required",
         "selector_status_policy": "range_checked_status_buffer",
         "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "exact_shape_selector_metadata_only",
+        "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
+        "status_elision_reason": None,
         "requires_tile_metadata": False,
         "all_zero_tiled_output": False,
         "selected_kernel": "hip_direct_export_exact_wide_signed_limbs_device",
@@ -128,6 +145,14 @@ def main() -> int:
     stale_export_d2h = copy.deepcopy(exact)
     stale_export_d2h["export_variant"]["d2h_policy"] = "compact_unproven"
     expect_invalid(stale_export_d2h, "export_variant.d2h_policy must be one of")
+
+    stale_export_mode = copy.deepcopy(exact)
+    stale_export_mode["export_variant"]["final_output_mode"] = "secret_route"
+    expect_invalid(stale_export_mode, "export_variant.final_output_mode must be one of")
+
+    stale_export_key = copy.deepcopy(exact)
+    stale_export_key["export_variant"]["selector_key"] = "semantics=exact_wide_signed;selected_kernel=other"
+    expect_invalid(stale_export_key, "export_variant.selector_key must include selected_kernel")
 
     stale_export_tile_flag = copy.deepcopy(exact)
     stale_export_tile_flag["export_variant"]["requires_tile_metadata"] = "false"

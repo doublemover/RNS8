@@ -448,6 +448,21 @@ bool all_zero_direct_hip_input_pack_elided(
          result.zero_output_tile_count == result.schedule_info.tile_count;
 }
 
+void capture_workspace_arena_info(const rns8_workspace* workspace, BenchmarkResult& result) {
+  if (!workspace) {
+    return;
+  }
+  result.workspace_arena_info_available =
+      workspace->hip_workspace_arena != nullptr || workspace->hip_workspace_arena_bytes != 0 ||
+      workspace->hip_workspace_arena_suballocation_count != 0 || !workspace->hip_workspace_arena_policy.empty();
+  result.workspace_arena_size_bytes = static_cast<uint64_t>(workspace->hip_workspace_arena_bytes);
+  result.workspace_arena_high_water_mark_bytes =
+      static_cast<uint64_t>(workspace->hip_workspace_arena_high_water_mark_bytes);
+  result.workspace_arena_suballocation_count = workspace->hip_workspace_arena_suballocation_count;
+  result.workspace_arena_target_id = workspace->hip_workspace_arena_target_id;
+  result.workspace_arena_policy = workspace->hip_workspace_arena_policy;
+}
+
 bool expects_hipblaslt_pack_transpose_event(const Args& args) {
   return !reuses_all_packed_inputs(args);
 }

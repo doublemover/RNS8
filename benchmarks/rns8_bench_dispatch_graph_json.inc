@@ -160,6 +160,16 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
 void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult& result) {
   const bool residency = args.resident_lifetime || args.reuse_packed_inputs || args.residue_chain_length > 1;
   const bool arena = args.workspace_arena;
+  const uint64_t arena_size =
+      result.workspace_arena_info_available ? result.workspace_arena_size_bytes : result.backend_info.workspace_required_bytes;
+  const uint64_t arena_high_water =
+      result.workspace_arena_info_available ? result.workspace_arena_high_water_mark_bytes : result.backend_info.workspace_required_bytes;
+  const uint32_t arena_suballocations =
+      result.workspace_arena_info_available ? result.workspace_arena_suballocation_count : 5u;
+  const std::string arena_policy =
+      result.workspace_arena_info_available ? result.workspace_arena_policy : std::string("benchmark_declared_workspace_bytes");
+  const std::string arena_target =
+      result.workspace_arena_info_available ? result.workspace_arena_target_id : result.target_id;
   const bool repeat_alloc_free =
       result.allocation_tracking_available &&
       (result.allocation_after_repeats.allocate_calls == result.allocation_after_warmups.allocate_calls) &&
@@ -178,12 +188,23 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"workspace_arena\": {\n";
   std::cout << "    \"enabled\": " << (arena ? "true" : "false") << ",\n";
   std::cout << "    \"arena_identity\": \"" << json_escape(result.backend_info.autotune_key) << "|"
-            << json_escape(result.backend_info.workspace_mode) << "\",\n";
-  std::cout << "    \"size_bytes\": " << result.backend_info.workspace_required_bytes << ",\n";
-  std::cout << "    \"high_water_mark_bytes\": " << result.backend_info.workspace_required_bytes << ",\n";
-  std::cout << "    \"suballocation_count\": " << (arena ? 5 : 0) << ",\n";
+            << json_escape(result.backend_info.workspace_mode) << "|target=" << json_escape(arena_target)
+            << "|policy=" << json_escape(arena_policy) << "\",\n";
+  std::cout << "    \"size_bytes\": " << arena_size << ",\n";
+  std::cout << "    \"high_water_mark_bytes\": " << arena_high_water << ",\n";
+  std::cout << "    \"suballocation_count\": " << (arena ? arena_suballocations : 0) << ",\n";
   std::cout << "    \"measured_repeat_allocation_free\": "
             << (repeat_alloc_free ? "true" : "false") << ",\n";
+  std::cout << "    \"setup_allocation_delta\": ";
+  print_counter_object(allocation_delta(result.allocation_before, result.allocation_after_warmups));
+  std::cout << ",\n";
+  std::cout << "    \"measured_repeat_allocation_delta\": ";
+  if (result.allocation_after_warmups_available) {
+    print_counter_object(allocation_delta(result.allocation_after_warmups, result.allocation_after_repeats));
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "    \"source_version_policy\": \"plan_target_backend_semantic_shape_prefix_output_policy\",\n";
   std::cout << "    \"stream_safety\": \"" << (args.streaming_overlap ? "event_guarded_pipeline_lanes" : "single_stream_owner")
             << "\",\n";

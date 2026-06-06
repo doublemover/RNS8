@@ -22,19 +22,44 @@ def _median(capture: dict[str, Any], phase: str) -> float | None:
     return None
 
 
+def _target_id(capture: dict[str, Any]) -> str | None:
+    for source in (capture.get("target_variant"), capture.get("device"), capture):
+        if isinstance(source, dict) and isinstance(source.get("target_id"), str):
+            return source["target_id"]
+        if isinstance(source, dict) and isinstance(source.get("target_arch"), str):
+            return source["target_arch"]
+    return None
+
+
 def row_for_capture(path: Path) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
     variant = capture.get("tile_shape_variant") if isinstance(capture.get("tile_shape_variant"), dict) else {}
+    safety = (capture.get("backend_metadata") or {}).get("accumulator_safety") or {}
+    k_block_policy = variant.get("k_block_policy", "auto")
+    blockers = ["tile_shape_report_evidence_only"]
+    if k_block_policy != "auto":
+        blockers.append("non_default_k_block_policy_requires_release_ab_and_counter_report")
+    if not variant.get("resource_report_key"):
+        blockers.append("missing_resource_report_key")
+    if not variant.get("accumulator_safety_key"):
+        blockers.append("missing_accumulator_safety_key")
+    if safety.get("safe_for_k_block") is not True:
+        blockers.append("accumulator_safety_not_proven")
     return {
         "path": str(path),
         "semantics": capture.get("semantics"),
         "backend_selected": capture.get("backend_selected"),
+        "target_id": _target_id(capture),
         "selected_kernel": capture.get("selected_kernel"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "tile_m": variant.get("tile_m", capture.get("tile_m")),
         "tile_n": variant.get("tile_n", capture.get("tile_n")),
         "tile_k": variant.get("tile_k", capture.get("k_block_size")),
+        "k_block_policy": k_block_policy,
+        "split_k_mode": variant.get("split_k_mode", "single_gpu_no_split_k"),
+        "accumulator_safety_key": variant.get("accumulator_safety_key"),
+        "resource_report_required": variant.get("resource_report_required"),
         "variant_name": variant.get("name", "legacy"),
         "shape_family_bucket": variant.get("shape_family_bucket"),
         "resource_report_key": variant.get("resource_report_key"),
@@ -42,6 +67,8 @@ def row_for_capture(path: Path) -> dict[str, Any]:
         "median_pack_us": _median(capture, "pack"),
         "median_gemm_us": _median(capture, "rns_gemm"),
         "median_export_us": _median(capture, "crt_export"),
+        "promotion_eligible": False,
+        "promotion_blockers": blockers,
     }
 
 
@@ -50,10 +77,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         shape = row["shape"]
-        groups[(row["semantics"], row["backend_selected"], shape["m"], shape["n"], shape["k"])].append(row)
+        groups[(row["semantics"], row["backend_selected"], row["target_id"], shape["m"], shape["n"], shape["k"])].append(row)
     return {
         "schema_version": 1,
-        "policy": "tile_shape_evidence_only_requires_same_contract_comparison",
+        "policy": "tile_shape_and_k_block_evidence_only_requires_same_contract_resource_counter_review",
         "groups": [
             {"key": key, "rows": sorted(value, key=lambda row: (row.get("median_end_to_end_us") or float("inf")))}
             for key, value in sorted(groups.items(), key=lambda item: str(item[0]))

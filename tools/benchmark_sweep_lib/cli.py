@@ -185,6 +185,11 @@ def parse_args() -> argparse.Namespace:
         help="benchmark-only streaming pack/compute/export overlap evidence metadata",
     )
     parser.add_argument(
+        "--k-block-policy",
+        default="auto",
+        help="benchmark-only K-block/tile-K policy label",
+    )
+    parser.add_argument(
         "--release-gate",
         default="none",
         help="benchmark-only release gate label such as large-release-validation-4096-budgeted",

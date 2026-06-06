@@ -208,6 +208,8 @@ enum class export_status_policy {
 
 enum class export_d2h_policy {
   host_ld_padded,
+  compact_contiguous,
+  device_residue_current,
 };
 
 struct export_reconstruction_plan {
@@ -216,6 +218,17 @@ struct export_reconstruction_plan {
   export_status_policy status_policy = export_status_policy::none;
   export_d2h_policy d2h_policy = export_d2h_policy::host_ld_padded;
   const char* selected_export_kernel = "cpu_reference_export";
+  std::string selector_key;
+  std::string selector_policy = "default_export_selector";
+  std::string semantic_contract;
+  std::string backend;
+  std::string target_id;
+  std::string prefix_contract;
+  std::string signedness;
+  std::string final_output_mode = "final_host_output";
+  std::string cache_visibility = "exact_shape_selector_metadata_only";
+  std::string stale_entry_reason;
+  std::string status_elision_reason;
   bool requires_hip_tile_metadata = false;
   bool all_zero_tiled_output = false;
 };

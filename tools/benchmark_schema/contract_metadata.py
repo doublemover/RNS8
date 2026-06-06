@@ -46,6 +46,14 @@ EXPORT_SELECTOR_STATUS_POLICIES = {
 EXPORT_D2H_POLICIES = {
     "unknown",
     "host_ld_padded",
+    "compact_contiguous",
+    "device_residue_current",
+}
+
+EXPORT_FINAL_OUTPUT_MODES = {
+    "final_host_output",
+    "residue_chain_no_final_export",
+    "chain_internal_residue_output",
 }
 
 
@@ -132,6 +140,26 @@ def validate_contract_metadata(self: Any) -> None:
             selector_source = export_variant.get("selector_source")
             if selector_source is not None and not isinstance(selector_source, str):
                 self._error("export_variant.selector_source must be a string when present")
+            for key in [
+                "selector_policy",
+                "semantic_contract",
+                "backend",
+                "target_id",
+                "prefix_contract",
+                "signedness",
+                "cache_visibility",
+            ]:
+                if key in export_variant and not isinstance(export_variant.get(key), str):
+                    self._error(f"export_variant.{key} must be a string when present")
+            selector_key = export_variant.get("selector_key")
+            if selector_key is not None and not isinstance(selector_key, str):
+                self._error("export_variant.selector_key must be a string or null")
+            final_output_mode = export_variant.get("final_output_mode")
+            if final_output_mode is not None and final_output_mode not in EXPORT_FINAL_OUTPUT_MODES:
+                self._error(f"export_variant.final_output_mode must be one of {sorted(EXPORT_FINAL_OUTPUT_MODES)}")
+            for key in ["stale_entry_reason", "status_elision_reason"]:
+                if export_variant.get(key) is not None and not isinstance(export_variant.get(key), str):
+                    self._error(f"export_variant.{key} must be a string or null")
             output_layout = export_variant.get("output_layout")
             if output_layout is not None and output_layout not in EXPORT_OUTPUT_LAYOUTS:
                 self._error(f"export_variant.output_layout must be one of {sorted(EXPORT_OUTPUT_LAYOUTS)}")
@@ -154,6 +182,18 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("export_variant.limb_count must be in [1, 32] or null")
             if not isinstance(export_variant.get("promotion_eligible"), bool):
                 self._error("export_variant.promotion_eligible must be a boolean")
+            if (
+                selected_export_kernel
+                and selector_key
+                and f"selected_kernel={selected_export_kernel}" not in selector_key
+            ):
+                self._error("export_variant.selector_key must include selected_kernel")
+            if (
+                export_variant.get("semantic_contract")
+                and selector_key
+                and f"semantics={export_variant['semantic_contract']}" not in selector_key
+            ):
+                self._error("export_variant.selector_key must include semantic_contract")
             if export_variant.get("name") != "default" and export_variant.get("promotion_eligible") is True:
                 self._error("experimental export_variant captures must set promotion_eligible=false")
             blocker = export_variant.get("promotion_blocker")
@@ -225,8 +265,20 @@ def validate_contract_metadata(self: Any) -> None:
         else:
             if not isinstance(tile_variant.get("name"), str) or not tile_variant.get("name"):
                 self._error("tile_shape_variant.name must be a nonempty string")
-            for key in ["resource_report_key", "shape_family_bucket", "stale_kernel_rejection"]:
+            for key in [
+                "resource_report_key",
+                "shape_family_bucket",
+                "stale_kernel_rejection",
+            ]:
                 if not isinstance(tile_variant.get(key), str):
+                    self._error(f"tile_shape_variant.{key} must be a string")
+            for key in [
+                "k_block_policy",
+                "split_k_mode",
+                "accumulator_safety_key",
+                "resource_report_required",
+            ]:
+                if key in tile_variant and not isinstance(tile_variant.get(key), str):
                     self._error(f"tile_shape_variant.{key} must be a string")
             for key in ["tile_m", "tile_n", "tile_k"]:
                 value = tile_variant.get(key)
@@ -242,6 +294,9 @@ def validate_contract_metadata(self: Any) -> None:
             selected_kernel = self.data.get("selected_kernel")
             if identity is not None and identity != selected_kernel:
                 self._error("tile_shape_variant.selected_kernel_identity must match selected_kernel")
+            safety_key = tile_variant.get("accumulator_safety_key")
+            if safety_key and f"k_block_size={tile_variant.get('tile_k')}" not in safety_key:
+                self._error("tile_shape_variant.accumulator_safety_key must include tile_k k_block_size")
 
     grouped = self.data.get("grouped_dispatch")
     if grouped is not None:
@@ -400,6 +455,9 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error(f"workspace_arena.{key} must be a nonnegative integer")
             if not isinstance(arena.get("measured_repeat_allocation_free"), bool):
                 self._error("workspace_arena.measured_repeat_allocation_free must be a boolean")
+            for key in ["setup_allocation_delta", "measured_repeat_allocation_delta"]:
+                if arena.get(key) is not None:
+                    self._validate_counter_snapshot(f"workspace_arena.{key}", arena.get(key))
             if arena.get("promotion_eligible") is not False:
                 self._error("workspace_arena captures must set promotion_eligible=false")
 

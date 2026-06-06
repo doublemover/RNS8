@@ -167,6 +167,15 @@ struct rns8_workspace {
   std::size_t hip_zero_a_rows_bytes = 0;
   void* hip_zero_b_cols = nullptr;
   std::size_t hip_zero_b_cols_bytes = 0;
+  void* hip_workspace_scratch = nullptr;
+  std::size_t hip_workspace_scratch_bytes = 0;
+  void* hip_workspace_arena = nullptr;
+  std::size_t hip_workspace_arena_bytes = 0;
+  std::size_t hip_workspace_arena_high_water_mark_bytes = 0;
+  uint32_t hip_workspace_arena_suballocation_count = 0;
+  uint64_t hip_workspace_arena_plan_fingerprint = 0;
+  std::string hip_workspace_arena_target_id;
+  std::string hip_workspace_arena_policy;
   void* hipblaslt_int32_scratch = nullptr;
   std::size_t hipblaslt_int32_scratch_bytes = 0;
   void* hipblaslt_workspace = nullptr;

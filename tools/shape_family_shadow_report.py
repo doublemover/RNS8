@@ -25,6 +25,43 @@ class ShapeQuery:
     target_id: str
     finite_modulus: int = 0
     layout: str = "row_major"
+    target_family: str = "unknown"
+    signedness: str = "unknown"
+    output_contract: str = "default"
+    export_selector: str = "default"
+    limb_count: int = 0
+
+
+def target_family_for_id(target_id: str) -> str:
+    if target_id == "cpu":
+        return "cpu"
+    if target_id.startswith("gfx94") or target_id in {"gfx90a", "gfx950"}:
+        return "cdna"
+    if target_id.startswith("gfx10") or target_id.startswith("gfx11") or target_id.startswith("gfx12"):
+        return "rdna"
+    return "unknown"
+
+
+def signedness_for_semantics(semantic: str) -> str:
+    if semantic in {"bounded_i64", "exact_wide_signed"}:
+        return "signed"
+    if semantic in {"bounded_u64", "exact_wide_unsigned", "wrap_u64_mod_2_64"}:
+        return "unsigned"
+    if semantic.startswith("finite_"):
+        return "finite"
+    return "unknown"
+
+
+def output_contract_for_semantics(semantic: str) -> str:
+    if semantic == "exact_wide_signed":
+        return "exact_wide_signed_limbs"
+    if semantic == "exact_wide_unsigned":
+        return "exact_wide_unsigned_limbs"
+    if semantic.startswith("finite_"):
+        return "finite_u8_canonical_host_export"
+    if semantic == "wrap_u64_mod_2_64":
+        return "native_u64_host"
+    return "native_i64_u64_host"
 
 
 def _require_positive_int(fields: dict[str, str], name: str) -> int:
@@ -56,6 +93,9 @@ def parse_query(text: str) -> ShapeQuery:
     finite_modulus = int(fields.get("finite_modulus", "0"), 10)
     if finite_modulus < 0:
         raise ValueError("finite_modulus must be >= 0")
+    limb_count = int(fields.get("limb_count", "0"), 10)
+    if limb_count < 0:
+        raise ValueError("limb_count must be >= 0")
     return ShapeQuery(
         semantic_contract=semantic,
         m=_require_positive_int(fields, "m"),
@@ -64,6 +104,11 @@ def parse_query(text: str) -> ShapeQuery:
         target_id=target,
         finite_modulus=finite_modulus,
         layout=fields.get("layout", "row_major"),
+        target_family=fields.get("target_family", target_family_for_id(target)),
+        signedness=fields.get("signedness", signedness_for_semantics(semantic)),
+        output_contract=fields.get("output_contract", output_contract_for_semantics(semantic)),
+        export_selector=fields.get("export_selector", "default"),
+        limb_count=limb_count,
     )
 
 
@@ -82,46 +127,55 @@ def shape_bucket(m: int, n: int, k: int) -> str:
 
 def query_key(query: ShapeQuery) -> str:
     return (
-        f"target={query.target_id};semantics={query.semantic_contract};finite_modulus={query.finite_modulus};"
-        f"layout={query.layout};bucket={shape_bucket(query.m, query.n, query.k)}"
+        f"target={query.target_id};target_family={query.target_family};semantics={query.semantic_contract};"
+        f"signedness={query.signedness};finite_modulus={query.finite_modulus};layout={query.layout};"
+        f"output_contract={query.output_contract};export_selector={query.export_selector};"
+        f"limb_count={query.limb_count};bucket={shape_bucket(query.m, query.n, query.k)}"
     )
 
 
 def entry_query(entry: dict[str, Any]) -> ShapeQuery:
     shape = entry["shape"]
+    semantic = str(entry["semantic_contract"])
+    target = str(entry["target_id"])
     return ShapeQuery(
-        semantic_contract=str(entry["semantic_contract"]),
+        semantic_contract=semantic,
         m=int(shape["m"]),
         n=int(shape["n"]),
         k=int(shape["k"]),
-        target_id=str(entry["target_id"]),
+        target_id=target,
         finite_modulus=int(entry.get("finite_modulus") or 0),
         layout=str(entry.get("layout", "row_major")),
+        target_family=str(entry.get("target_family") or target_family_for_id(target)),
+        signedness=str(entry.get("signedness") or signedness_for_semantics(semantic)),
+        output_contract=str(entry.get("output_contract") or output_contract_for_semantics(semantic)),
+        export_selector=str(entry.get("export_selector") or "default"),
+        limb_count=int(entry.get("limb_count") or 0),
+    )
+
+
+def boundary_matches(query: ShapeQuery, basis: ShapeQuery) -> bool:
+    return (
+        basis.semantic_contract == query.semantic_contract
+        and basis.target_id == query.target_id
+        and basis.target_family == query.target_family
+        and basis.signedness == query.signedness
+        and basis.finite_modulus == query.finite_modulus
+        and basis.layout == query.layout
+        and basis.output_contract == query.output_contract
+        and basis.export_selector == query.export_selector
+        and basis.limb_count == query.limb_count
     )
 
 
 def exact_cache_key_for(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
-    return (
-        basis.semantic_contract == query.semantic_contract
-        and basis.m == query.m
-        and basis.n == query.n
-        and basis.k == query.k
-        and basis.target_id == query.target_id
-        and basis.finite_modulus == query.finite_modulus
-        and basis.layout == query.layout
-    )
+    return boundary_matches(query, basis) and basis.m == query.m and basis.n == query.n and basis.k == query.k
 
 
 def same_family(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
-    return (
-        basis.semantic_contract == query.semantic_contract
-        and basis.target_id == query.target_id
-        and basis.finite_modulus == query.finite_modulus
-        and basis.layout == query.layout
-        and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
-    )
+    return boundary_matches(query, basis) and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
 
 
 def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
@@ -136,33 +190,58 @@ def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
     return sum(ratios) + timing_bias
 
 
+def query_payload(query: ShapeQuery) -> dict[str, Any]:
+    return {
+        "semantic_contract": query.semantic_contract,
+        "m": query.m,
+        "n": query.n,
+        "k": query.k,
+        "target_id": query.target_id,
+        "target_family": query.target_family,
+        "finite_modulus": query.finite_modulus,
+        "layout": query.layout,
+        "signedness": query.signedness,
+        "output_contract": query.output_contract,
+        "export_selector": query.export_selector,
+        "limb_count": query.limb_count,
+        "shape_bucket": shape_bucket(query.m, query.n, query.k),
+    }
+
+
 def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict[str, Any]:
     exact = [entry for entry in entries if exact_cache_key_for(query, entry)]
     family = [entry for entry in entries if same_family(query, entry)]
     candidates = exact or family
     candidate = min(candidates, key=lambda entry: entry_distance(query, entry)) if candidates else None
+    representative_entries = sorted(family, key=lambda entry: entry_distance(query, entry))
     blockers: list[str] = ["shape_family_shadow_only_no_routing_change"]
     if candidate is None:
         blockers.append("missing_same_family_reviewed_entry")
     elif not exact:
-        blockers.extend(["exact_query_not_reviewed", "family_policy_not_mechanically_enforced"])
+        blockers.extend(["exact_query_not_reviewed", "representative_matrix_requires_same_target_layout_contract_review"])
     else:
         blockers.append("exact_cache_hit_already_owned_by_current_AUTO_cache")
+    if query.target_family == "unknown":
+        blockers.append("target_family_not_classified")
     basis = entry_query(candidate) if candidate else None
     return {
-        "query": {
-            "semantic_contract": query.semantic_contract,
-            "m": query.m,
-            "n": query.n,
-            "k": query.k,
-            "target_id": query.target_id,
-            "finite_modulus": query.finite_modulus,
-            "layout": query.layout,
-            "shape_bucket": shape_bucket(query.m, query.n, query.k),
-        },
+        "query": query_payload(query),
         "family_key": query_key(query),
         "would_recommend": candidate is not None,
         "recommendation_is_exact_cache_hit": bool(exact),
+        "selector_explanation": "exact reviewed cache hit"
+        if exact
+        else ("nearest same-family reviewed cache entry" if candidate else "no same-family reviewed cache entry"),
+        "representative_matrix": {
+            "reviewed_entry_count": len(representative_entries),
+            "exact_entry_count": len(exact),
+            "shapes": [
+                f"{item['shape']['m']}x{item['shape']['n']}x{item['shape']['k']}"
+                for item in representative_entries[:8]
+            ],
+            "backends": sorted({str(item["selected_backend"]) for item in representative_entries}),
+            "targets": sorted({str(item["target_id"]) for item in representative_entries}),
+        },
         "recommended_backend": candidate.get("selected_backend") if candidate else None,
         "recommended_kernel": candidate.get("selected_kernel") if candidate else None,
         "basis_cache_key": candidate.get("key") if candidate else None,
@@ -191,12 +270,8 @@ def family_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "family_key": key,
                 "reviewed_entry_count": len(items),
                 "backends": sorted({str(item["selected_backend"]) for item in items}),
-                "shapes": sorted(
-                    {
-                        f"{item['shape']['m']}x{item['shape']['n']}x{item['shape']['k']}"
-                        for item in items
-                    }
-                ),
+                "targets": sorted({str(item["target_id"]) for item in items}),
+                "shapes": sorted({f"{item['shape']['m']}x{item['shape']['n']}x{item['shape']['k']}" for item in items}),
             }
         )
     return rows
@@ -204,13 +279,25 @@ def family_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def build_report(cache_path: Path, queries: list[ShapeQuery]) -> dict[str, Any]:
     entries = install_autotune_cache.read_cache(cache_path)
+    families = family_summary(entries)
     return {
-        "schema": "rns8_shape_family_shadow_report_v1",
+        "schema": "rns8_shape_family_shadow_report_v2",
         "policy": "non_routing_shape_family_recommendations_require_exact_review_before_AUTO",
         "cache_path": str(cache_path),
         "reviewed_cache_entry_count": len(entries),
-        "family_count": len(family_summary(entries)),
-        "families": family_summary(entries),
+        "family_count": len(families),
+        "boundary_fields": [
+            "target_id",
+            "target_family",
+            "semantic_contract",
+            "signedness",
+            "finite_modulus",
+            "layout",
+            "output_contract",
+            "export_selector",
+            "limb_count",
+        ],
+        "families": families,
         "recommendations": [recommendation_for(query, entries) for query in queries],
     }
 
@@ -226,16 +313,17 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Policy: `{report['policy']}`",
         f"- Reviewed cache entries: `{report['reviewed_cache_entry_count']}`",
         "",
-        "| semantic | shape | target | recommendation | exact hit | blockers |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| semantic | shape | target | output | recommendation | exact hit | blockers |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in report["recommendations"]:
         query = row["query"]
         lines.append(
-            "| `{semantic}` | `{shape}` | `{target}` | `{backend}` / `{kernel}` | `{exact}` | `{blockers}` |".format(
+            "| `{semantic}` | `{shape}` | `{target}` | `{output}` | `{backend}` / `{kernel}` | `{exact}` | `{blockers}` |".format(
                 semantic=query["semantic_contract"],
                 shape=f"{query['m']}x{query['n']}x{query['k']}",
                 target=query["target_id"],
+                output=query["output_contract"],
                 backend=row["recommended_backend"],
                 kernel=row["recommended_kernel"],
                 exact=row["recommendation_is_exact_cache_hit"],

@@ -18,11 +18,14 @@ Current count: 30 closed/completed ranks.
 
 ## CDNA-Ready Infrastructure Notes
 
-Ranks 50, 60, 61, and 62 now have repository-side control surfaces for a later
-CDNA validation run: bounded-i64 1024 hipBLASLt disposition reporting,
-promotion-ledger/cache replacement history, batch counter/resource reporting,
-and per-target validation reports. They remain active evidence gates until real
-Linux ROCm CDNA host captures, profiler exports, and target-specific cache
+Ranks 47, 48, 50, 57, 59, 60, 61, 62, and 74 now have repository-side control
+surfaces for a later CDNA validation run: exact-wide/export selector scenarios,
+export/reconstruction selector reports, bounded-i64 1024 hipBLASLt disposition
+reporting, Direct-HIP workspace arena allocation gates, shape-family shadow
+recommendations, promotion-ledger/cache replacement history, batch
+counter/resource reporting, per-target validation reports, and K-block/tile-K
+scenario/report metadata. They remain active evidence gates until real Linux
+ROCm CDNA host captures, profiler exports, and target-specific cache
 eligibility reports exist. These notes are not counted as closed production
 speedups and do not imply Instinct readiness.
 

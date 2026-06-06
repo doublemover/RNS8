@@ -156,6 +156,17 @@ void capture_export_plan_info(const Args& args, rns8_plan* plan, BenchmarkResult
       rns8::detail::api::export_status_policy_name(export_plan.status_policy);
   result.export_d2h_policy = rns8::detail::api::export_d2h_policy_name(export_plan.d2h_policy);
   result.export_selected_kernel = export_plan.selected_export_kernel ? export_plan.selected_export_kernel : "";
+  result.export_selector_key = export_plan.selector_key;
+  result.export_selector_policy = export_plan.selector_policy;
+  result.export_semantic_contract = export_plan.semantic_contract;
+  result.export_backend = export_plan.backend;
+  result.export_target_id = export_plan.target_id;
+  result.export_prefix_contract = export_plan.prefix_contract;
+  result.export_signedness = export_plan.signedness;
+  result.export_final_output_mode = export_plan.final_output_mode;
+  result.export_cache_visibility = export_plan.cache_visibility;
+  result.export_stale_entry_reason = export_plan.stale_entry_reason;
+  result.export_status_elision_reason = export_plan.status_elision_reason;
   result.export_limb_count = export_plan.limb_count;
   result.export_requires_tile_metadata = export_plan.requires_hip_tile_metadata;
   result.export_all_zero_tiled_output = export_plan.all_zero_tiled_output;

@@ -29,6 +29,7 @@ FIXTURE_DIR = ROOT / "tests" / "fixtures" / "benchmark_schema"
 
 def starfoundry_capture() -> dict:
     capture = add_helper_lane_fields(copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_hipblaslt.json")))
+    capture.setdefault("target_id", "gfx1100")
     capture.setdefault("selected_prefix", capture["prefix"])
     capture.setdefault("requested_max_prefix", capture["prefix"])
     capture.setdefault("contract_prefix_policy", "fixed_requested")
@@ -66,8 +67,30 @@ def starfoundry_capture() -> dict:
     capture["export_variant"] = {
         "name": "default",
         "source": "current_backend_export_path",
+        "selector_source": "rns8_internal_export_plan",
+        "selector_key": (
+            f"semantics={capture['semantics']};backend={capture['backend_selected']};"
+            f"target_id={capture['target_id']};prefix={capture['selected_prefix']};limb_count=0;"
+            f"signedness=signed;output_layout=scalar_i64;status_policy=range_checked_status_buffer;"
+            f"d2h_policy=host_ld_padded;final_output_mode=final_host_output;selected_kernel={selected_kernel}"
+        ),
+        "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
+        "semantic_contract": capture["semantics"],
+        "backend": capture["backend_selected"],
+        "target_id": capture["target_id"],
+        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "signedness": "signed",
+        "output_layout": "scalar_i64",
         "limb_count": None,
         "status_policy": "required",
+        "selector_status_policy": "range_checked_status_buffer",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "exact_shape_selector_metadata_only",
+        "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
+        "status_elision_reason": None,
+        "requires_tile_metadata": False,
+        "all_zero_tiled_output": False,
         "selected_kernel": selected_kernel,
         "constants_placement": "backend_default",
         "promotion_eligible": True,
@@ -107,9 +130,13 @@ def starfoundry_capture() -> dict:
         "tile_m": capture["tile_m"],
         "tile_n": capture["tile_n"],
         "tile_k": capture["k_block_size"],
+        "k_block_policy": "auto",
+        "split_k_mode": "single_gpu_no_split_k",
+        "accumulator_safety_key": f"k_block_size={capture['k_block_size']};k_block_cap=65536;safe_for_k_block=true",
         "selected_kernel_identity": selected_kernel,
         "resource_report_key": f"tile_m={capture['tile_m']};tile_n={capture['tile_n']};tile_k={capture['k_block_size']};kernel={selected_kernel}",
         "shape_family_bucket": "medium",
+        "resource_report_required": "isa_or_counter_for_non_default_k_block_policy",
         "stale_kernel_rejection": "selected_kernel_identity_must_match_capture",
     }
     capture["grouped_dispatch"] = {
@@ -174,6 +201,8 @@ def starfoundry_capture() -> dict:
         "high_water_mark_bytes": 0,
         "suballocation_count": 5,
         "measured_repeat_allocation_free": True,
+        "setup_allocation_delta": {"allocate_calls": 1, "free_calls": 0, "allocated_bytes": 4096},
+        "measured_repeat_allocation_delta": {"allocate_calls": 0, "free_calls": 0, "allocated_bytes": 0},
         "source_version_policy": "plan_target_backend_semantic_shape_prefix_output_policy",
         "stream_safety": "single_stream_owner",
         "promotion_eligible": False,
@@ -276,10 +305,16 @@ def main() -> int:
         assert ledger_entry["installed_cache_entry"] is True
         assert "hip_graph_replay_non_promoting" not in ledger_entry["promotion_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
-        assert tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]["variant_name"]
+        tile_row = tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]
+        assert tile_row["variant_name"]
+        assert tile_row["k_block_policy"] == "auto"
+        assert tile_row["accumulator_safety_key"]
         assert many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"] == "grouped_dispatch"
         assert fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"] == "fhe_lattice_proxy"
-        assert resident_workspace_report.build_report([capture_path])["rows"][0]["arena_enabled"] is True
+        resident_report = resident_workspace_report.build_report([capture_path])
+        assert resident_report["rows"][0]["arena_enabled"] is True
+        assert resident_report["arena_ready_count"] == 1
+        assert "measured_repeat_allocation_delta_nonzero" not in resident_report["rows"][0]["promotion_blockers"]
         assert scheduler_overlap_report.build_report([capture_path])["rows"][0]["overlap_requested"] is True
         release_report = release_gate_report.build_report([capture_path])
         assert release_report["schema"] == "rns8_release_gate_report_v2"

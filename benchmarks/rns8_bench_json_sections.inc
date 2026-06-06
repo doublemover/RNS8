@@ -434,6 +434,26 @@ void print_export_variant_json(
   std::cout << "    \"selector_source\": \""
             << json_escape(result.export_plan_info_available ? result.export_plan_source : "legacy_selected_kernel")
             << "\",\n";
+  std::cout << "    \"selector_key\": ";
+  print_nullable_std_string(result.export_plan_info_available ? result.export_selector_key : std::string());
+  std::cout << ",\n";
+  std::cout << "    \"selector_policy\": \""
+            << json_escape(result.export_plan_info_available ? result.export_selector_policy : "unknown")
+            << "\",\n";
+  std::cout << "    \"semantic_contract\": \""
+            << json_escape(result.export_plan_info_available ? result.export_semantic_contract : semantics_name(args.semantics))
+            << "\",\n";
+  std::cout << "    \"backend\": \""
+            << json_escape(result.export_plan_info_available ? result.export_backend : backend_name(args.backend))
+            << "\",\n";
+  std::cout << "    \"target_id\": \""
+            << json_escape(result.export_plan_info_available ? result.export_target_id : benchmark_key_target_id(result))
+            << "\",\n";
+  std::cout << "    \"prefix_contract\": \""
+            << json_escape(result.export_plan_info_available ? result.export_prefix_contract : schedule_hash_string(args, result))
+            << "\",\n";
+  std::cout << "    \"signedness\": \""
+            << json_escape(result.export_plan_info_available ? result.export_signedness : "unknown") << "\",\n";
   std::cout << "    \"output_layout\": \""
             << json_escape(result.export_plan_info_available ? result.export_output_layout : "unknown") << "\",\n";
   std::cout << "    \"limb_count\": ";
@@ -451,6 +471,21 @@ void print_export_variant_json(
             << "\",\n";
   std::cout << "    \"d2h_policy\": \""
             << json_escape(result.export_plan_info_available ? result.export_d2h_policy : "unknown") << "\",\n";
+  std::cout << "    \"final_output_mode\": \""
+            << (residue_current_output_mode(args) ? "residue_chain_no_final_export"
+                                                  : json_escape(result.export_plan_info_available
+                                                                    ? result.export_final_output_mode
+                                                                    : "final_host_output"))
+            << "\",\n";
+  std::cout << "    \"cache_visibility\": \""
+            << json_escape(result.export_plan_info_available ? result.export_cache_visibility : "legacy_capture")
+            << "\",\n";
+  std::cout << "    \"stale_entry_reason\": ";
+  print_nullable_std_string(result.export_plan_info_available ? result.export_stale_entry_reason : std::string());
+  std::cout << ",\n";
+  std::cout << "    \"status_elision_reason\": ";
+  print_nullable_std_string(result.export_plan_info_available ? result.export_status_elision_reason : std::string());
+  std::cout << ",\n";
   std::cout << "    \"requires_tile_metadata\": "
             << (result.export_plan_info_available && result.export_requires_tile_metadata ? "true" : "false")
             << ",\n";
@@ -539,6 +574,14 @@ void print_tile_shape_variant_json(
   std::cout << "    \"tile_m\": " << args.tile_m << ",\n";
   std::cout << "    \"tile_n\": " << args.tile_n << ",\n";
   std::cout << "    \"tile_k\": " << k_block << ",\n";
+  std::cout << "    \"k_block_policy\": \"" << json_escape(args.k_block_policy) << "\",\n";
+  std::cout << "    \"split_k_mode\": \"single_gpu_no_split_k\",\n";
+  std::cout << "    \"accumulator_safety_key\": \"k_block_size=" << k_block
+            << ";k_block_cap="
+            << (result.backend_info_available ? result.backend_info.accumulator_k_block_cap : 0)
+            << ";safe_for_k_block="
+            << (result.backend_info_available && result.backend_info.accumulator_safe_for_k_block ? "true" : "false")
+            << "\",\n";
   std::cout << "    \"selected_kernel_identity\": ";
   if (selected_kernel) {
     std::cout << "\"" << json_escape(selected_kernel) << "\"";
@@ -550,6 +593,7 @@ void print_tile_shape_variant_json(
             << ";tile_k=" << k_block << ";kernel=" << (selected_kernel ? json_escape(selected_kernel) : "unknown")
             << "\",\n";
   std::cout << "    \"shape_family_bucket\": \"" << shape_family_bucket(args) << "\",\n";
+  std::cout << "    \"resource_report_required\": \"isa_or_counter_for_non_default_k_block_policy\",\n";
   std::cout << "    \"stale_kernel_rejection\": \"selected_kernel_identity_must_match_capture\"\n";
   std::cout << "  },\n";
   (void)default_variant;

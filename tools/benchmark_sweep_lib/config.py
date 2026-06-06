@@ -93,6 +93,7 @@ class ScenarioItem:
     workspace_arena: bool = False
     adaptive_grouped_scheduler: bool = False
     streaming_overlap: bool = False
+    k_block_policy: str = "auto"
     release_gate: str = "none"
     verification_amortization: str = "none"
     include_wrap64_candidate: bool = False
