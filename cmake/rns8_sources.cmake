@@ -19,6 +19,7 @@ set(RNS8_SOURCES
   src/core/api_pack.cpp
   src/core/api_plan.cpp
   src/core/backend_common.cpp
+  src/core/export_plan.cpp
   src/core/moduli.cpp
   src/core/plan_lowering.cpp
   src/core/status.cpp

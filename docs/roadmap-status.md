@@ -83,10 +83,10 @@ materialization, Direct-HIP output stamping, native-to-RNS bridge paths, and
 test-owned stale/currentness mutations are helper-routed. Workspace identity,
 schedule metadata, backend metadata, accelerator scratch, and prepack/resource
 teardown now flow through named internal helpers while keeping the public
-`rns8_workspace*` handle unchanged. Export/reconstruction paths now create an
-internal plan that records output layout, limb count, status policy, D2H
-policy, selected export kernel, and tiled metadata needs before touching the
-documented mutable export cache.
+`rns8_workspace*` handle unchanged. Export/reconstruction paths now use a
+shared internal selector module that records output layout, limb count, status
+policy, D2H policy, selected export kernel, and tiled/all-zero metadata needs
+before touching the documented mutable export cache.
 
 HIP event/stream/pinned-staging/temporary-device-buffer ownership uses internal
 RAII wrappers, including CK/rocWMMA event timing helpers. Direct-HIP host code
