@@ -230,7 +230,18 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_BOUNDED_I64,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -238,7 +249,10 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_BOUNDED_I64,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,
@@ -394,7 +408,18 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_BOUNDED_U64,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -402,7 +427,10 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_BOUNDED_U64,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,

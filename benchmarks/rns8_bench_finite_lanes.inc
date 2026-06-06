@@ -118,7 +118,18 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        c_semantics(args.semantics),
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -126,7 +137,10 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        c_semantics(args.semantics),
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,

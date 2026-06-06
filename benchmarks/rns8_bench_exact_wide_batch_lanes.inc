@@ -217,7 +217,18 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_SIGNED,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -225,7 +236,10 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_EXACT_WIDE_SIGNED,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,
@@ -466,7 +480,18 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -474,7 +499,10 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,

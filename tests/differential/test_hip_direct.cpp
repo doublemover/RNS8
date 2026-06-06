@@ -33,6 +33,7 @@ namespace {
 #include "test_hip_direct_wrap64_colpair_cases.inc"
 #include "test_hip_direct_rns_residue_cases.inc"
 #include "test_hip_direct_vector_bridge_cases.inc"
+#include "test_hip_direct_grouped_descriptor_cases.inc"
 #include "test_hip_direct_bounded_residency_cases.inc"
 #include "test_hip_direct_bounded_schedule_cases.inc"
 #include "test_hip_direct_exact_wide_residue_cases.inc"

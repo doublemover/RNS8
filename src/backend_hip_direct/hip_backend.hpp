@@ -21,6 +21,24 @@ struct hip_direct_allocation_counters {
   uint64_t allocated_bytes = 0;
 };
 
+struct hip_direct_grouped_gemm_task {
+  rns8_matrix* a = nullptr;
+  rns8_matrix* b = nullptr;
+  rns8_matrix* c = nullptr;
+  rns8_workspace* workspace = nullptr;
+};
+
+struct hip_direct_grouped_gemm_descriptor {
+  const rns8_plan* plan = nullptr;
+  const hip_direct_grouped_gemm_task* tasks = nullptr;
+  uint32_t task_count = 0;
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  int64_t m = 0;
+  int64_t n = 0;
+  int64_t k = 0;
+  uint32_t prefix = 0;
+};
+
 bool hip_direct_compiled();
 void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
@@ -53,6 +71,14 @@ rns8_status hip_direct_copy_compact_matrix_device_to_host(
     int64_t cols,
     std::size_t cell_bytes,
     bool default_padded_staging = true);
+rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    int* out_device_id = nullptr);
+rns8_status hip_direct_validate_grouped_gemm_descriptor_after_pack(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    uint64_t first_source_version);
+rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
+    const hip_direct_grouped_gemm_descriptor& descriptor);
 rns8_status hip_direct_pack_i64_device(
     int device_id,
     const int64_t* src,
