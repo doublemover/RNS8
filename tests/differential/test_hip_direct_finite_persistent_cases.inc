@@ -205,6 +205,9 @@ TEST_CASE("direct HIP finite u8 public grouped GEMM matches CPU") {
     REQUIRE(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c[task], hip_out[task].data(), n) == RNS8_SUCCESS);
     CHECK(hip_out[task] == cpu_out[task]);
   }
+  rns8::test::set_device_residues_current(*hip_a[1], false);
+  CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
+  rns8::test::set_device_residues_current(*hip_a[1], true);
 
   for (int task = 1; task >= 0; --task) {
     rns8_destroy_matrix(hip_c[task]);

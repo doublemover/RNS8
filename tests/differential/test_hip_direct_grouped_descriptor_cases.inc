@@ -123,6 +123,9 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   REQUIRE(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_SUCCESS);
+  rns8::test::set_device_residues_current(*a1, false);
+  CHECK(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_INVALID_ARGUMENT);
+  rns8::test::set_device_residues_current(*a1, true);
 
   REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
               descriptor,
