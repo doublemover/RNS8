@@ -126,8 +126,8 @@ Explicit workload and implementation wins:
 | Area | Case | Path | Median | Same-path gain | Control gain | Boundary |
 |---|---|---|---:|---:|---:|---|
 | Reusable operands | bounded-u64 2048 A+B | hipBLASLt | 9.2 ms/repeat | 3.99x vs non-reuse | 2.35x vs fastest | Workload contract only |
-| Many-small grouped | exact-wide signed 64 group32 | Direct HIP grouped | 66.5 us/task | 3.43x vs prior grouped | 58.4x vs independent | Benchmark evidence |
-| Many-small grouped | exact-wide unsigned 64 group32 | Direct HIP grouped | 79.1 us/task | 13.5x vs hostbatch | 18.7x vs independent | Benchmark evidence |
+| Many-small grouped | exact-wide signed 64/128 group32 | Direct HIP grouped | 68.1-185.0 us/task | 7.6-16.8x vs hostbatch | 7.9-18.5x vs independent | Benchmark evidence |
+| Many-small grouped | exact-wide unsigned 64/128 group32 | Direct HIP grouped | 75.5-155.9 us/task | 8.9-14.0x vs hostbatch | 11.7-16.2x vs independent | Benchmark evidence |
 | Many-small grouped | bounded/finite grouped matrix | Direct HIP grouped | 33.5-100.8 us/task | 14.6-26.4x vs hostbatch | 2.3-26.6x vs best independent | Benchmark evidence |
 | RNS chains | exact-wide signed 128 chain3 | Direct HIP final-output | 1.77 ms | 9.80x vs independent | n/a | Benchmark evidence |
 | RNS chains | exact-wide unsigned 256 chain3 | Direct HIP final-output | 2.84 ms | 10.80x vs independent | n/a | Benchmark evidence |

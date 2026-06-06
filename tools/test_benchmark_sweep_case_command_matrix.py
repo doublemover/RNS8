@@ -195,7 +195,7 @@ many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
 many_small_args.scenario = ["many-small"]
 many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-assert len(many_small_entries) == 18
+assert len(many_small_entries) == 22
 assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
 assert {entry.scenario["name"] for entry in many_small_entries} == {
     "bounded-i64-32-proxy",
@@ -211,8 +211,12 @@ assert {entry.scenario["name"] for entry in many_small_entries} == {
     "bounded-u64-skinny-n1-proxy",
     "exact-wide-signed-64-proxy",
     "exact-wide-signed-64-host-batch32",
+    "exact-wide-signed-128-proxy",
+    "exact-wide-signed-128-host-batch32",
     "exact-wide-unsigned-64-proxy",
     "exact-wide-unsigned-64-host-batch32",
+    "exact-wide-unsigned-128-proxy",
+    "exact-wide-unsigned-128-host-batch32",
     "finite-ring-64-host-batch32",
     "finite-ring-64-proxy",
 }
@@ -254,6 +258,8 @@ assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
     "finite-ring-64-group32",
     "exact-wide-signed-64-group32",
     "exact-wide-unsigned-64-group32",
+    "exact-wide-signed-128-group32",
+    "exact-wide-unsigned-128-group32",
 ]
 assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
 assert {entry.scenario["grouped_dispatch_tasks"] for entry in grouped_dispatch_entries} == {32, 64, 128}
@@ -261,6 +267,19 @@ assert all(entry.scenario["review_mode_expectation"] == "smoke" for entry in gro
 assert all(entry.scenario["promotion_eligibility"] for entry in grouped_dispatch_entries)
 assert all("--grouped-dispatch" in entry.command for entry in grouped_dispatch_entries)
 assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
+assert sum(1 for entry in grouped_dispatch_entries if entry.scenario["semantics"].startswith("exact-wide")) == 4
+assert any(
+    entry.scenario["semantics"] == "exact-wide-signed"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 32
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "exact-wide-unsigned"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 32
+    for entry in grouped_dispatch_entries
+)
 assert any(
     entry.scenario["semantics"] == "bounded-u64"
     and entry.scenario["shape"]["n"] == 64

@@ -456,6 +456,22 @@ output D2H. These rows supersede narrower grouped smokes for the same contracts
 but remain benchmark-owned same-shape workload evidence, not public grouped
 ABI, AUTO routing, cache entries, or Linux/Instinct proof.
 
+The exact-wide 128 grouped-control closeout under
+`temp/perf-queue-grouped-exact128-release/` keeps the same report gate but adds
+signed and unsigned 128-square independent, hostbatch32, and grouped-dispatch
+controls. The 20-capture release set has schema v4 throughout, required GPU
+events for all 12 GPU captures, and four candidate wins with no missing
+baselines. Exact-wide signed 64 group32 is 68.12 us per task, 18.47x faster
+than independent Direct HIP and 16.78x faster than hostbatch32; exact-wide
+signed 128 group32 is 184.97 us per task, 7.93x faster than independent
+Direct HIP and 7.59x faster than hostbatch32; exact-wide unsigned 64 group32
+is 75.53 us per task, 16.16x faster than independent Direct HIP and 13.96x
+faster than hostbatch32; exact-wide unsigned 128 group32 is 155.88 us per
+task, 11.66x faster than independent Direct HIP and 8.94x faster than
+hostbatch32. The 128 rows are still benchmark-owned same-shape grouped
+evidence; they do not create public grouped descriptors, cache entries, AUTO
+routing, or Linux/Instinct claims.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized
