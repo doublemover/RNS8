@@ -13,6 +13,11 @@ from metadata_registry_constants import (
     GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES,
 )
 
+SINGLE_GROUPED_DESCRIPTOR_LAYOUT = "same_shape_resident_task_triplets_v1"
+BUCKETED_GROUPED_DESCRIPTOR_LAYOUT = "same_contract_bucketed_resident_task_triplets_v1"
+SINGLE_GROUPED_BUCKET_POLICY = "single_same_shape_bucket"
+BUCKETED_GROUPED_BUCKET_POLICY = "same_contract_shape_buckets"
+
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -110,31 +115,72 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
             self._error("benchmark_grouped_dispatch_evidence captures must include task_descriptor_contract")
         else:
             semantics = self.data.get("semantics")
-            if task_descriptor.get("descriptor_layout") != "same_shape_resident_task_triplets_v1":
-                self._error("grouped task descriptor must use same_shape_resident_task_triplets_v1")
-            if task_descriptor.get("bucket_policy") != "single_same_shape_bucket":
-                self._error("grouped task descriptor must use single_same_shape_bucket")
-            if task_descriptor.get("bucket_count") != 1:
-                self._error("grouped task descriptor bucket_count must be 1")
+            expected_output_domain = "native_i64_u64_host"
+            if semantics in {"finite_ring_u8", "finite_field_u8"}:
+                expected_output_domain = "finite_u8_host"
+            elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+                expected_output_domain = "exact_wide_limb_host"
+            descriptor_layout = task_descriptor.get("descriptor_layout")
+            bucket_policy = task_descriptor.get("bucket_policy")
+            bucket_count = task_descriptor.get("bucket_count")
+            if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY:
+                if descriptor_layout != SINGLE_GROUPED_DESCRIPTOR_LAYOUT:
+                    self._error("single grouped task descriptors must use same_shape_resident_task_triplets_v1")
+                if bucket_count != 1:
+                    self._error("single grouped task descriptor bucket_count must be 1")
+            elif bucket_policy == BUCKETED_GROUPED_BUCKET_POLICY:
+                if descriptor_layout != BUCKETED_GROUPED_DESCRIPTOR_LAYOUT:
+                    self._error("bucketed grouped task descriptors must use same_contract_bucketed_resident_task_triplets_v1")
+                if not _is_int(bucket_count) or bucket_count < 2:
+                    self._error("bucketed grouped task descriptor bucket_count must be at least 2")
+            else:
+                self._error("grouped task descriptor must use a known executable bucket policy")
             if _is_int(task_count) and task_descriptor.get("task_count") != task_count:
                 self._error("grouped task descriptor task_count must match grouped_dispatch.task_count")
-            if task_descriptor.get("same_shape_required") is not True:
-                self._error("grouped task descriptor must require same_shape")
+            if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY:
+                if task_descriptor.get("same_shape_required") is not True:
+                    self._error("single grouped task descriptor must require same_shape")
+            elif task_descriptor.get("same_shape_required") is not False:
+                self._error("bucketed grouped task descriptor must not require same_shape")
             selected_prefix = self.data.get("selected_prefix", self.data.get("prefix"))
             expected_shape_key = (
                 f"m={self.data.get('m')};n={self.data.get('n')};k={self.data.get('k')};"
                 f"tile_m={self.data.get('tile_m')};tile_n={self.data.get('tile_n')};"
                 f"prefix={selected_prefix}"
             )
-            if task_descriptor.get("shape_key") != expected_shape_key:
+            if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY and task_descriptor.get("shape_key") != expected_shape_key:
                 self._error("grouped task descriptor shape_key must match capture shape/tile/prefix")
+            if bucket_policy == BUCKETED_GROUPED_BUCKET_POLICY:
+                buckets = task_descriptor.get("buckets")
+                if not isinstance(buckets, list) or len(buckets) != bucket_count:
+                    self._error("bucketed grouped task descriptor buckets must match bucket_count")
+                else:
+                    expected_offset = 0
+                    for bucket_index, bucket in enumerate(buckets):
+                        if not isinstance(bucket, dict):
+                            self._error("bucketed grouped task descriptor bucket entries must be objects")
+                            continue
+                        if bucket.get("bucket_index") != bucket_index:
+                            self._error("bucketed grouped task descriptor bucket_index must be contiguous")
+                        if bucket.get("task_offset") != expected_offset:
+                            self._error("bucketed grouped task descriptor task_offset must be contiguous")
+                        bucket_tasks = bucket.get("task_count")
+                        if not _is_int(bucket_tasks) or bucket_tasks <= 1:
+                            self._error("bucketed grouped task descriptor bucket task_count must exceed one")
+                        else:
+                            expected_offset += bucket_tasks
+                        if not isinstance(bucket.get("shape_key"), str) or not bucket.get("shape_key"):
+                            self._error("bucketed grouped task descriptor bucket shape_key must be a string")
+                        if bucket.get("semantics") != semantics:
+                            self._error("bucketed grouped task descriptor bucket semantics must match capture semantics")
+                        if bucket.get("output_domain") != expected_output_domain:
+                            self._error(
+                                "bucketed grouped task descriptor bucket output_domain must match capture output contract"
+                            )
+                    if _is_int(task_count) and expected_offset != task_count:
+                        self._error("bucketed grouped task descriptor bucket task counts must sum to task_count")
             if task_descriptor.get("semantics") != semantics:
                 self._error("grouped task descriptor semantics must match capture semantics")
-            expected_output_domain = "native_i64_u64_host"
-            if semantics in {"finite_ring_u8", "finite_field_u8"}:
-                expected_output_domain = "finite_u8_host"
-            elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-                expected_output_domain = "exact_wide_limb_host"
             if task_descriptor.get("output_domain") != expected_output_domain:
                 self._error("grouped task descriptor output_domain must match capture output contract")
             if task_descriptor.get("source_version_policy") != "per_task_monotonic_source_version_repack":

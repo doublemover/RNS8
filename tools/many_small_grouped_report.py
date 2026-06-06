@@ -18,6 +18,10 @@ RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
 REPORT_OUTPUT_NAMES = {"many-small-grouped-report.json"}
+SINGLE_GROUPED_DESCRIPTOR_LAYOUT = "same_shape_resident_task_triplets_v1"
+BUCKETED_GROUPED_DESCRIPTOR_LAYOUT = "same_contract_bucketed_resident_task_triplets_v1"
+SINGLE_GROUPED_BUCKET_POLICY = "single_same_shape_bucket"
+BUCKETED_GROUPED_BUCKET_POLICY = "same_contract_shape_buckets"
 
 
 def expand_inputs(paths: list[Path]) -> list[Path]:
@@ -123,14 +127,9 @@ def expected_grouped_device_descriptor_policy(capture: dict[str, Any]) -> str:
 
 def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
     contract = grouped_task_descriptor_contract(capture)
-    return (
+    common_valid = (
         contract.get("schema_version") == 1
-        and contract.get("descriptor_layout") == "same_shape_resident_task_triplets_v1"
-        and contract.get("bucket_policy") == "single_same_shape_bucket"
-        and contract.get("bucket_count") == 1
         and contract.get("task_count") == task_count_for_capture(capture)
-        and contract.get("same_shape_required") is True
-        and contract.get("shape_key") == expected_grouped_shape_key(capture)
         and contract.get("semantics") == capture.get("semantics")
         and contract.get("output_domain") == expected_grouped_output_domain(capture)
         and contract.get("source_version_policy") == "per_task_monotonic_source_version_repack"
@@ -146,6 +145,45 @@ def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
         and contract.get("device_descriptor_policy") == expected_grouped_device_descriptor_policy(capture)
         and contract.get("promotion_eligible") is False
     )
+    if not common_valid:
+        return False
+    if contract.get("bucket_policy") == SINGLE_GROUPED_BUCKET_POLICY:
+        return (
+            contract.get("descriptor_layout") == SINGLE_GROUPED_DESCRIPTOR_LAYOUT
+            and contract.get("bucket_count") == 1
+            and contract.get("same_shape_required") is True
+            and contract.get("shape_key") == expected_grouped_shape_key(capture)
+        )
+    if contract.get("bucket_policy") != BUCKETED_GROUPED_BUCKET_POLICY:
+        return False
+    if (
+        contract.get("descriptor_layout") != BUCKETED_GROUPED_DESCRIPTOR_LAYOUT
+        or not isinstance(contract.get("bucket_count"), int)
+        or contract.get("bucket_count") < 2
+        or contract.get("same_shape_required") is not False
+    ):
+        return False
+    buckets = contract.get("buckets")
+    if not isinstance(buckets, list) or len(buckets) != contract.get("bucket_count"):
+        return False
+    offset = 0
+    for index, bucket in enumerate(buckets):
+        if not isinstance(bucket, dict):
+            return False
+        bucket_task_count = bucket.get("task_count")
+        if (
+            bucket.get("bucket_index") != index
+            or bucket.get("task_offset") != offset
+            or not isinstance(bucket_task_count, int)
+            or bucket_task_count <= 1
+            or not isinstance(bucket.get("shape_key"), str)
+            or not bucket.get("shape_key")
+            or bucket.get("semantics") != capture.get("semantics")
+            or bucket.get("output_domain") != expected_grouped_output_domain(capture)
+        ):
+            return False
+        offset += bucket_task_count
+    return offset == task_count_for_capture(capture)
 
 
 def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
@@ -326,6 +364,7 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
         "grouped_dispatch_batched_export_enabled": grouped.get("batched_export_enabled"),
         "grouped_task_descriptor_layout": descriptor.get("descriptor_layout"),
         "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
+        "grouped_task_descriptor_bucket_count": descriptor.get("bucket_count"),
         "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
         "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if is_grouped_dispatch(capture) else None,
     }
@@ -438,6 +477,7 @@ def row_for_capture(
         ),
         "grouped_task_descriptor_layout": descriptor.get("descriptor_layout"),
         "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
+        "grouped_task_descriptor_bucket_count": descriptor.get("bucket_count"),
         "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
         "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if mode == "grouped_dispatch" else None,
         "same_backend_independent": capture_summary(same_backend_independent),

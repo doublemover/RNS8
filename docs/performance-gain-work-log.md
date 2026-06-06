@@ -82,14 +82,21 @@ June 6, 2026 queue-triage update:
   prefix20 remains experimental. The resulting Direct-HIP default route is
   intentionally narrow: signed prefix18, four requested limbs, and large
   outputs only. This is Windows `gfx1100` evidence, not Linux/CDNA proof.
-- Rank 45 public grouped-dispatch contract introspection now distinguishes the
-  public resident-GEMM surface from benchmark-owned pack/export experiments.
-  `rns8_get_grouped_dispatch_contract_info` reports caller-owned unique task
-  triplets, call-return lifetime, explicit caller pack/export phases, generic
-  bucketing unavailable, and AUTO routing disabled through stable flag bits and
-  policy strings. This does not broaden grouped routing; it makes the current
-  ABI/lifetime contract mechanically visible before generic bucketing or public
-  grouped pack/export work can be promoted.
+- Rank 45 is closed as an ABI/lifetime and descriptor-bucketing gate, not as a
+  broad public grouped route. `rns8_get_grouped_dispatch_contract_info` reports
+  caller-owned unique task triplets, call-return lifetime, explicit caller
+  pack/export phases, generic public bucketing unavailable, and AUTO routing
+  disabled through stable flag bits and policy strings. The internal
+  Direct-HIP descriptor builder now also accepts same-contract shape buckets and
+  rejects cross-bucket device mismatches, stale shape/semantic contracts,
+  overlapping matrix/workspace ownership, non-contiguous task offsets, and
+  task-count overflow. Registry, schema, and grouped reports understand
+  `same_contract_shape_buckets`. Existing release artifacts under
+  `temp/perf-queue-grouped-broader-release/` and
+  `temp/perf-queue-grouped-exact128-release/` provide nine local Windows
+  `gfx1100` grouped candidate wins with no missing baselines. Generic public
+  pack/export, AUTO/cache routing, README claims, and Linux/CDNA validation
+  remain outside this closed rank.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,

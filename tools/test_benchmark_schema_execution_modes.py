@@ -9,6 +9,8 @@ from benchmark_schema import validate_capture
 from metadata_registry_constants import (
     GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS,
     GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES,
+    GROUPED_TASK_BUCKET_POLICIES,
+    GROUPED_TASK_DESCRIPTOR_LAYOUTS,
 )
 from test_benchmark_schema import (
     as_grouped_dispatch_capture,
@@ -32,6 +34,53 @@ def main() -> int:
 
     grouped = as_grouped_dispatch_capture(base)
     validate_capture(grouped)
+
+    bucketed_grouped = copy.deepcopy(grouped)
+    bucketed_grouped["grouped_dispatch"]["task_count"] = 8
+    bucketed_grouped["avg_end_to_end_per_task_us"] = bucketed_grouped["avg_end_to_end_us"] / 8.0
+    bucketed_grouped["avg_pack_per_task_us"] = bucketed_grouped["avg_pack_us"] / 8.0
+    bucketed_grouped["avg_rns_gemm_per_task_us"] = bucketed_grouped["avg_rns_gemm_us"] / 8.0
+    bucketed_grouped["avg_crt_export_per_task_us"] = bucketed_grouped["avg_crt_export_us"] / 8.0
+    bucketed_grouped["timing_metadata"]["grouped_dispatch_task_count"] = 8
+    bucketed_contract = bucketed_grouped["grouped_dispatch"]["task_descriptor_contract"]
+    bucketed_contract.update(
+        {
+            "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
+            "bucket_policy": "same_contract_shape_buckets",
+            "bucket_count": 2,
+            "task_count": 8,
+            "same_shape_required": False,
+            "shape_key": "multiple_shape_buckets",
+            "buckets": [
+                {
+                    "bucket_index": 0,
+                    "task_offset": 0,
+                    "task_count": 4,
+                    "shape_key": "m=64;n=64;k=64;tile_m=128;tile_n=128;prefix=9",
+                    "semantics": bucketed_grouped["semantics"],
+                    "output_domain": "native_i64_u64_host",
+                },
+                {
+                    "bucket_index": 1,
+                    "task_offset": 4,
+                    "task_count": 4,
+                    "shape_key": "m=128;n=128;k=128;tile_m=128;tile_n=128;prefix=9",
+                    "semantics": bucketed_grouped["semantics"],
+                    "output_domain": "native_i64_u64_host",
+                },
+            ],
+        }
+    )
+    validate_capture(bucketed_grouped)
+    assert "same_contract_shape_buckets" in GROUPED_TASK_BUCKET_POLICIES
+    assert "same_contract_bucketed_resident_task_triplets_v1" in GROUPED_TASK_DESCRIPTOR_LAYOUTS
+
+    bucketed_bad_offset = copy.deepcopy(bucketed_grouped)
+    bucketed_bad_offset["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1]["task_offset"] = 5
+    expect_invalid(
+        bucketed_bad_offset,
+        "bucketed grouped task descriptor task_offset must be contiguous",
+    )
 
     grouped_device_pack_gemm = copy.deepcopy(grouped)
     grouped_device_pack_gemm["grouped_dispatch"][

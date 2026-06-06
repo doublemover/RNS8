@@ -221,6 +221,51 @@ expect_invalid(stale_host_batch_note, "benchmark_host_api_batch phase note end_t
 grouped_dispatch = as_grouped_dispatch_capture(v4_ck_i64)
 validate_capture(grouped_dispatch)
 
+bucketed_grouped_dispatch = copy.deepcopy(grouped_dispatch)
+bucketed_grouped_dispatch["grouped_dispatch"]["task_count"] = 8
+bucketed_grouped_dispatch["timing_metadata"]["grouped_dispatch_task_count"] = 8
+bucketed_grouped_dispatch["avg_end_to_end_per_task_us"] = bucketed_grouped_dispatch["avg_end_to_end_us"] / 8.0
+bucketed_grouped_dispatch["avg_pack_per_task_us"] = bucketed_grouped_dispatch["avg_pack_us"] / 8.0
+bucketed_grouped_dispatch["avg_rns_gemm_per_task_us"] = bucketed_grouped_dispatch["avg_rns_gemm_us"] / 8.0
+bucketed_grouped_dispatch["avg_crt_export_per_task_us"] = bucketed_grouped_dispatch["avg_crt_export_us"] / 8.0
+bucketed_contract = bucketed_grouped_dispatch["grouped_dispatch"]["task_descriptor_contract"]
+bucketed_contract.update(
+    {
+        "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
+        "bucket_policy": "same_contract_shape_buckets",
+        "bucket_count": 2,
+        "task_count": 8,
+        "same_shape_required": False,
+        "shape_key": "multiple_shape_buckets",
+        "buckets": [
+            {
+                "bucket_index": 0,
+                "task_offset": 0,
+                "task_count": 4,
+                "shape_key": "m=64;n=64;k=64;tile_m=128;tile_n=128;prefix=9",
+                "semantics": bucketed_grouped_dispatch["semantics"],
+                "output_domain": "native_i64_u64_host",
+            },
+            {
+                "bucket_index": 1,
+                "task_offset": 4,
+                "task_count": 4,
+                "shape_key": "m=128;n=128;k=128;tile_m=128;tile_n=128;prefix=9",
+                "semantics": bucketed_grouped_dispatch["semantics"],
+                "output_domain": "native_i64_u64_host",
+            },
+        ],
+    }
+)
+validate_capture(bucketed_grouped_dispatch)
+
+bucketed_bad_task_sum = copy.deepcopy(bucketed_grouped_dispatch)
+bucketed_bad_task_sum["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1]["task_count"] = 3
+expect_invalid(
+    bucketed_bad_task_sum,
+    "bucketed grouped task descriptor bucket task counts must sum to task_count",
+)
+
 grouped_device_pack_gemm = copy.deepcopy(grouped_dispatch)
 grouped_device_pack_gemm["grouped_dispatch"][
     "execution_strategy"

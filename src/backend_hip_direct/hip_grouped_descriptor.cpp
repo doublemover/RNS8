@@ -87,6 +87,30 @@ bool task_reuses_prior_objects(
   return false;
 }
 
+bool task_reuses_objects_from_descriptor(
+    const hip_direct_grouped_gemm_task& task,
+    const hip_direct_grouped_gemm_descriptor& prior_descriptor) {
+  for (uint32_t prior_index = 0; prior_index < prior_descriptor.task_count; ++prior_index) {
+    const hip_direct_grouped_gemm_task& prior = prior_descriptor.tasks[prior_index];
+    if (task.a == prior.a || task.b == prior.b || task.c == prior.c ||
+        task.workspace == prior.workspace) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool plans_share_grouped_bucket_contract(const rns8_plan& first, const rns8_plan& next) {
+  return first.backend == next.backend && first.desc.semantics == next.desc.semantics &&
+         first.desc.bound_kind == next.desc.bound_kind && first.desc.bound == next.desc.bound &&
+         first.desc.finite_modulus == next.desc.finite_modulus &&
+         first.desc.tile_m == next.desc.tile_m && first.desc.tile_n == next.desc.tile_n &&
+         first.prefix == next.prefix && first.backend_selected_kernel == next.backend_selected_kernel &&
+         first.backend_target_id == next.backend_target_id &&
+         first.backend_epilogue_mode == next.backend_epilogue_mode &&
+         first.backend_workspace_mode == next.backend_workspace_mode;
+}
+
 void keep_first_grouped_error(rns8_status& first, rns8_status next) {
   if (first == RNS8_SUCCESS && next != RNS8_SUCCESS) {
     first = next;
@@ -248,6 +272,110 @@ rns8_status hip_direct_build_same_shape_grouped_bucket_plan(
   next.same_shape_required = true;
   next.buckets.push_back(bucket);
 
+  *out = std::move(next);
+  return RNS8_SUCCESS;
+}
+
+rns8_status hip_direct_build_bucketed_grouped_gemm_plan(
+    const hip_direct_grouped_gemm_bucket_request* requests,
+    uint32_t request_count,
+    hip_direct_grouped_gemm_bucket_plan* out) {
+  if (!out || !requests || request_count <= 1) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  hip_direct_grouped_gemm_bucket_plan next{};
+  next.plan = requests[0].plan;
+  next.tasks = nullptr;
+  next.bucket_count = request_count;
+  next.same_shape_required = false;
+  if (!next.plan) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  next.semantics = next.plan->desc.semantics;
+  next.prefix = next.plan->prefix;
+
+  const rns8_plan& first_plan = *next.plan;
+  int expected_device_id = -1;
+  bool have_first_shape = false;
+  int64_t first_m = 0;
+  int64_t first_n = 0;
+  int64_t first_k = 0;
+
+  for (uint32_t request_index = 0; request_index < request_count; ++request_index) {
+    const hip_direct_grouped_gemm_bucket_request& request = requests[request_index];
+    if (!request.plan || !request.tasks || request.task_count <= 1 ||
+        !plans_share_grouped_bucket_contract(first_plan, *request.plan) ||
+        request.semantics != request.plan->desc.semantics ||
+        request.m != request.plan->desc.m || request.n != request.plan->desc.n ||
+        request.k != request.plan->desc.k || request.prefix != request.plan->prefix) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    hip_direct_grouped_gemm_bucket_plan single_bucket_plan{};
+    rns8_status status = hip_direct_build_same_shape_grouped_bucket_plan(
+        request.plan,
+        request.tasks,
+        request.task_count,
+        request.semantics,
+        request.m,
+        request.n,
+        request.k,
+        request.prefix,
+        &single_bucket_plan);
+    if (status != RNS8_SUCCESS || single_bucket_plan.buckets.size() != 1) {
+      return status != RNS8_SUCCESS ? status : RNS8_INVALID_ARGUMENT;
+    }
+
+    hip_direct_grouped_gemm_bucket bucket = single_bucket_plan.buckets.front();
+    int bucket_device_id = -1;
+    status = hip_direct_validate_grouped_gemm_descriptor_setup(bucket.descriptor, &bucket_device_id);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    if (request_index == 0) {
+      expected_device_id = bucket_device_id;
+      first_m = request.m;
+      first_n = request.n;
+      first_k = request.k;
+      have_first_shape = true;
+    } else if (bucket_device_id != expected_device_id) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    for (uint32_t task_index = 0; task_index < bucket.descriptor.task_count; ++task_index) {
+      const hip_direct_grouped_gemm_task& task = bucket.descriptor.tasks[task_index];
+      for (const hip_direct_grouped_gemm_bucket& prior_bucket : next.buckets) {
+        if (task_reuses_objects_from_descriptor(task, prior_bucket.descriptor)) {
+          return RNS8_INVALID_ARGUMENT;
+        }
+      }
+    }
+
+    if (request.task_offset != next.task_count) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    bucket.task_offset = request.task_offset;
+    bucket.task_count = request.task_count;
+    if (request.task_count > std::numeric_limits<uint32_t>::max() - next.task_count) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    next.task_count += request.task_count;
+    next.buckets.push_back(bucket);
+    if (have_first_shape && (request.m != first_m || request.n != first_n || request.k != first_k)) {
+      next.m = 0;
+      next.n = 0;
+      next.k = 0;
+    } else {
+      next.m = first_m;
+      next.n = first_n;
+      next.k = first_k;
+    }
+  }
+
+  if (next.buckets.size() != request_count || next.task_count == 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
   *out = std::move(next);
   return RNS8_SUCCESS;
 }

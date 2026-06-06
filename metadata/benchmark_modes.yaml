@@ -96,11 +96,13 @@
   "grouped_task_descriptor": {
     "descriptor_layouts": [
       "not_requested",
-      "same_shape_resident_task_triplets_v1"
+      "same_shape_resident_task_triplets_v1",
+      "same_contract_bucketed_resident_task_triplets_v1"
     ],
     "bucket_policies": [
       "not_requested",
-      "single_same_shape_bucket"
+      "single_same_shape_bucket",
+      "same_contract_shape_buckets"
     ],
     "source_version_policies": [
       "not_requested",

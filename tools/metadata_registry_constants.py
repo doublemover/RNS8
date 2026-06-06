@@ -188,10 +188,12 @@ GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES = {
 }
 GROUPED_TASK_DESCRIPTOR_LAYOUTS = {
     'not_requested',
+    'same_contract_bucketed_resident_task_triplets_v1',
     'same_shape_resident_task_triplets_v1',
 }
 GROUPED_TASK_BUCKET_POLICIES = {
     'not_requested',
+    'same_contract_shape_buckets',
     'single_same_shape_bucket',
 }
 GROUPED_TASK_SOURCE_VERSION_POLICIES = {

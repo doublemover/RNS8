@@ -409,6 +409,38 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error("grouped_dispatch.task_descriptor_contract.device_descriptor_policy must be known")
                     if task_descriptor.get("promotion_eligible") is not False:
                         self._error("grouped_dispatch.task_descriptor_contract.promotion_eligible must be false")
+                    buckets = task_descriptor.get("buckets")
+                    if buckets is not None:
+                        if not isinstance(buckets, list):
+                            self._error("grouped_dispatch.task_descriptor_contract.buckets must be an array")
+                        else:
+                            for index, bucket in enumerate(buckets):
+                                if not isinstance(bucket, dict):
+                                    self._error(
+                                        "grouped_dispatch.task_descriptor_contract.buckets entries must be objects"
+                                    )
+                                    continue
+                                if bucket.get("bucket_index") != index:
+                                    self._error(
+                                        "grouped_dispatch.task_descriptor_contract.buckets bucket_index must be contiguous"
+                                    )
+                                for key in ["task_offset", "task_count"]:
+                                    value = bucket.get(key)
+                                    if not _is_int(value) or value < 0:
+                                        self._error(
+                                            f"grouped_dispatch.task_descriptor_contract.buckets.{key} "
+                                            "must be a nonnegative integer"
+                                        )
+                                for key in ["shape_key", "semantics"]:
+                                    if not isinstance(bucket.get(key), str):
+                                        self._error(
+                                            f"grouped_dispatch.task_descriptor_contract.buckets.{key} must be a string"
+                                        )
+                                if bucket.get("output_domain") not in OUTPUT_CONTRACT_DOMAINS:
+                                    self._error(
+                                        "grouped_dispatch.task_descriptor_contract.buckets.output_domain "
+                                        "must be a known output domain"
+                                    )
 
     graph = self.data.get("hip_graph_replay")
     if graph is not None:
