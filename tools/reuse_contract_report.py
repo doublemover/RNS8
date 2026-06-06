@@ -33,6 +33,7 @@ NON_CAPTURE_JSON_NAMES = {
     "scenario_manifest.json",
     "reuse_contract_report.json",
     "reuse-contract-report.json",
+    "direct-hip-reuse-expansion-report.json",
     "validation-summary.json",
 }
 SOURCE_VERSION_REJECTION_REASON = "source_version_changed"

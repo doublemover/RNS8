@@ -492,6 +492,26 @@ reuse_a_blockers = {
 }
 assert "prepacked_reuse_not_autotune_promotable" in reuse_a_blockers["ck"]
 
+reuse_evidence_direct = mark_reused_a_pack(direct)
+reuse_evidence_direct["scenario_metadata"] = {
+    "family": "direct-hip-reuse-expansion",
+    "name": "bounded-u64-adaptive-512-reuse-a",
+    "promotion_eligibility": "reuse_contract_evidence_only",
+    "metadata": {
+        "workflow_name": "direct_hip_reuse_expansion",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "reuse_contract_evidence_only",
+    },
+}
+reuse_evidence_report = benchmark_sweep.review_captures([reuse_evidence_direct], review_mode="release")
+reuse_evidence_group = reuse_evidence_report["groups"][0]
+assert reuse_evidence_group["required_baselines"] == []
+assert reuse_evidence_group["missing_required_baselines"] == []
+reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
+assert "missing_required_baselines" not in reuse_evidence_blockers
+assert "prepacked_reuse_not_autotune_promotable" in reuse_evidence_blockers
+assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
+
 variant_direct_a = exact_wide_capture("hip-direct", 3000)
 variant_direct_b = copy.deepcopy(variant_direct_a)
 variant_direct_a["export_variant"] = {

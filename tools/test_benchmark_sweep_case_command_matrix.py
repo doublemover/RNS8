@@ -194,6 +194,33 @@ assert {
     "stable_ab_candidate",
 }
 
+direct_reuse_args = copy.copy(scenario_args)
+direct_reuse_args.backends = None
+direct_reuse_args.scenario = ["direct-hip-reuse-expansion"]
+direct_reuse_entries = benchmark_sweep.sweep_command_entries(direct_reuse_args)
+assert len(direct_reuse_entries) == 70
+assert {entry.scenario["family"] for entry in direct_reuse_entries} == {"direct-hip-reuse-expansion"}
+assert {
+    entry.scenario["semantics"]
+    for entry in direct_reuse_entries
+} == {"bounded-u64", "finite-u8-ring", "finite-u8-field", "exact-wide-signed", "exact-wide-unsigned", "wrap-u64"}
+assert {
+    entry.scenario.get("metadata", {}).get("workflow_name")
+    for entry in direct_reuse_entries
+} == {"direct_hip_reuse_expansion"}
+assert {
+    entry.scenario.get("metadata", {}).get("reuse_contract_role")
+    for entry in direct_reuse_entries
+} == {"nonreuse_baseline", "stable_a_candidate", "stable_b_candidate", "stable_ab_candidate"}
+assert any("--reuse-packed-a" in entry.command for entry in direct_reuse_entries)
+assert any("--reuse-packed-b" in entry.command for entry in direct_reuse_entries)
+assert any("--reuse-packed-inputs" in entry.command for entry in direct_reuse_entries)
+assert any(entry.scenario["input_profile"] == "adaptive-bands" for entry in direct_reuse_entries)
+assert any(entry.scenario["modulus"] == 255 for entry in direct_reuse_entries)
+assert any(entry.scenario["residue_chain_length"] == 3 for entry in direct_reuse_entries)
+assert any(entry.scenario["backend"] == "wrap64-byte-limb" for entry in direct_reuse_entries)
+assert all("scenarios" in entry.output.parts and "direct-hip-reuse-expansion" in entry.output.parts for entry in direct_reuse_entries)
+
 skinny_args = copy.copy(scenario_args)
 skinny_args.backends = ["hip-vector-alu-int64"]
 skinny_args.scenario = ["skinny-gemv"]

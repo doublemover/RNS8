@@ -48,6 +48,24 @@ def required_baselines(semantics: Any) -> list[str]:
     return []
 
 
+REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
+
+
+def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
+    if not items:
+        return False
+    if not all(capture_pack_mode(item) != "per_repeat_repack" for item in items):
+        return False
+    scopes = {capture_scenario_promotion_scope(item) for item in items}
+    return bool(scopes & REUSE_EVIDENCE_PROMOTION_SCOPES)
+
+
+def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) -> list[str]:
+    if reuse_evidence_group(items):
+        return []
+    return required_baselines(semantics)
+
+
 def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for phase in PHASES:
@@ -265,7 +283,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         duplicate_backends = sorted(backend for backend, count in backend_counts.items() if count > 1)
         by_backend = {backend_id(item): item for item in items}
         semantics = items[0].get("semantics")
-        required = required_baselines(semantics)
+        required = required_baselines_for_group(semantics, items)
         missing = [backend for backend in required if backend not in by_backend]
         cpu_capture = by_backend.get("cpu-reference")
         direct_capture = by_backend.get("hip-direct")

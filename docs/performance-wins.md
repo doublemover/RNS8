@@ -540,6 +540,18 @@ schema-valid/event-valid v4 captures, and checksum-matched before/after output.
 | Strict wrap64 Direct-HIP reuse-packed inputs | 512 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.07x | 1.99x | Positive but export-noisy |
 | Strict wrap64 Direct-HIP reuse-packed inputs | 1024 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 6.74x | 7.83x | Local implementation win |
 
+The rank-20 Direct-HIP reuse expansion closeout reran strict wrap64
+reuse-packed inputs against the current v4 non-reuse path with setup cost folded
+into each measured repeat. Under
+`temp/rank20-direct-hip-reuse-expansion-release-20260606/`, the 512 row is
+2267 us non-reuse versus 2057.22 us setup-inclusive reuse, a 1.10x local
+workload win, and the 1024 row is 6627 us non-reuse versus 5561.89 us
+setup-inclusive reuse, a 1.19x local workload win. The same closeout
+deprioritizes adaptive bounded-u64 colpair reuse-A/B, finite-u8 native-A/reuse-B,
+and exact-wide residue-current chain reuse-B at the 9-repeat release gate. These
+are explicit workload-contract classifications only: no AUTO/cache entry,
+README headline claim, default route, or Linux/CDNA claim changes.
+
 The large-shape release-validation follow-up on June 5, 2026 covered strict
 wrap64 2048x2048x2048 with the same-contract byte-limb CPU reference and Direct
 HIP v4. The review had no missing required baselines, duplicate backends, target

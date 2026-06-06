@@ -40,7 +40,7 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 25 ranks. Rank IDs are historical/stable
+active table below now contains 24 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
@@ -51,7 +51,6 @@ file focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 20 | Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse has chain and bounded evidence, but non-bounded profiles remain thin | Classify Direct-HIP reuse captures through the setup gate with same-backend and fastest-baseline controls | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
 | 30 | HIP Graph replay release-size validation | Repeated resident workflows may remove per-call launch overhead without changing math or public API semantics | Compare `--hip-graph-replay` against the same non-graph Direct-HIP resident RNS chain with graph capture/instantiate setup cost included | Keep benchmark-only until release-size comparisons prove ordinary-call parity and a real setup-inclusive win |
 | 10 | Direct-HIP prefix-9/prefix-20 fusion | Prefix-specific work remains useful but is behind grouping/export/RNS/reuse work in current priority | Keep the proven one-shot prefix-9 colpair route and prefix-20 exact-wide export evidence; rerun only paired end-to-end A/B captures | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips, but scan-derived proof masks lost the setup-inclusive gate | Test only caller-provided proof metadata or naturally sparse workloads, with CPU/CK/rocWMMA/hipBLASLt correctness and event evidence | Do not chase scan-derived proof masks as default routing unless a cheaper persistent bound contract changes the economics |

@@ -7,6 +7,24 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-20 Direct-HIP reuse expansion closeout:
+
+- Rank 20 moved from the active queue to the completed-work archive after a
+  current Windows `gfx1100` release classification under
+  `temp/rank20-direct-hip-reuse-expansion-release-20260606/`. The new
+  `direct-hip-reuse-expansion` scenario family covers adaptive bounded-u64
+  reuse-A/reuse-B, finite-u8 native-A/reuse-B, exact-wide residue-current chain
+  reuse-B, and strict wrap64 reuse-packed-inputs profiles. The matrix produced
+  70 schema-v4 captures, 26 release-satisfied review groups, zero duplicate
+  backend records, and zero missing required baselines after explicit reuse
+  evidence groups delegate setup-inclusive matching to
+  `tools/direct_hip_reuse_expansion_report.py`. The rank-specific report
+  classified 14 Direct-HIP reuse comparisons: strict wrap64 A+B reuse wins at
+  512 and 1024, while adaptive bounded-u64, finite-u8, and exact-wide chain
+  reuse rows are deprioritized at the 9-repeat gate. This closes the
+  classification lane only; no AUTO/cache entry, README claim, default route,
+  or Linux/CDNA claim changes.
+
 June 6, 2026 rank-44 resident lifetime contract closeout:
 
 - Rank 44 moved from the active queue to the completed-work archive after the
