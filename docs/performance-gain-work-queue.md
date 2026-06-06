@@ -62,9 +62,13 @@ June 6, 2026 queue-triage update:
   completed-work archive; 8192 and multi-GPU work moved to the future/platform
   scout subsection.
 - Queue promotion now requires the usual release/schema/correctness evidence
-  plus golden-regression/perf-smoke observation for optimization lanes. README,
-  cache, or durable evidence-doc updates must pass claim validation before
-  publication.
+  plus golden-regression/perf-smoke observation for optimization lanes. The
+  branch now has `tools/perf_variance_report.py`, which groups same-contract
+  reruns by backend/kernel, reports within-capture and run-to-run timing
+  spread, derives the speedup margin needed to clear observed repeatability
+  noise, and can feed `tools/promotion_ledger.py --variance-report` so narrow
+  wins block cache-promotion review. README, cache, or durable evidence-doc
+  updates must pass claim validation before publication.
 - Grouped-dispatch descriptor enforcement is now real internal runtime
   guardrail work instead of JSON-only metadata: grouped setup validates one
   shared Direct-HIP plan, unique workspace and resident A/B/C triplet ownership
@@ -710,7 +714,7 @@ June 4-5, 2026 updates:
 | 9 | RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is a structural win | Broaden final-output chain matrices beyond current bounded/exact-wide controls, keep independent export/repack baselines, exact CPU final-output checks, and required events | Keep active until reuse/setup policy, output lifetime, and public or benchmark currentness semantics prevent accidental cross-workload reuse |
 | 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy exact-wide residue-current chains avoid per-repeat CRT, but need same-output proof and API semantics | Extend exact-wide chain length/shape/semantic controls, pair residue-current and final-output captures, and draft residue-current output lifetime rules | Keep benchmark-only until broader exact final CPU comparison, release-size speedup, and public lifetime semantics are explicit |
 | 43 | Reuse contract ledger and persistent matrix policy | Reuse/prepack wins compare different workload contracts and need caller-visible lifetime rules | Use `tools/reuse_contract_report.py` for setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, source identity, stale-source rejection, and selector eligibility | Keep reuse out of AUTO until the ledger proves a same workload family and stale-source rejection |
-| 70 | Release variance and golden performance regression gate | Export noise and narrow colpair/reuse wins can disappear under rerun variance | Add multi-run release review policy plus golden-regression/perf-smoke observation for optimization lanes before README, cache, or evidence-doc updates | Do not promote rows whose margin is inside measured noise or whose event bottlenecks shift unpredictably |
+| 70 | Advanced release variance and golden performance regression gate | Export noise and narrow colpair/reuse wins can disappear under rerun variance | `tools/perf_variance_report.py` now validates schema-v4 captures, groups same-contract reruns by backend/kernel/export selector, reports within-capture and run-to-run spread, derives the required speedup margin, runs in the golden regression suite, and can be consumed by `tools/promotion_ledger.py --variance-report`; remaining gate is making variance reports mandatory for cache/evidence-doc promotion passes | Do not promote rows whose margin is inside measured noise or whose event bottlenecks shift unpredictably |
 | 47 | Export-bound exact-wide optimization and limb variants | Large exact-wide accelerator wins are export-bound after GEMM acceleration | Limb-count, compact D2H, status-elision, prefix-20 constants, tree/CRT, and final-output A/B captures for signed/unsigned 64/128/512/1024/2048 | Promote only for the caller-requested limb contract; never substitute a narrower output claim |
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT remain practical wins | Direct-HIP prefix-20 fixed-limb export, status-elided full-width exports, and three-limb/four-limb Direct-HIP A/B captures must stay schema/event-valid | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements |
 | 52 | Finite generic modulus family map | Generic finite-u8 wins now exist, but the modulus family is sparse and partly duplicated in old queue rows | Release map for prime/composite/hot/non-hot moduli, field/ring semantics, 128/512/1024/2048, and backend-specific reducer identities | Promote only exact modulus/semantic/shape keys with CPU/direct baselines and required accelerator events |
@@ -4295,8 +4299,13 @@ Technical direction:
 
 - Add multi-run release review for narrow cache candidates, reuse rows, and
   rejected-but-close Direct-HIP variants.
-- Record median, minimum, variance, outliers, run order, thermal/clock caveats
-  where available, and phase-shift evidence from GPU events.
+- Use `tools/perf_variance_report.py` to record within-capture p95/median
+  spread, run-to-run median spread for same-contract backend/kernel reruns,
+  required speedup margin, and promotion blockers for single-run, noisy, or
+  under-sampled evidence.
+- Keep recording median, minimum, variance, outliers, run order,
+  thermal/clock caveats where available, and phase-shift evidence from GPU
+  events in the underlying release artifacts.
 - Add stale-cache regression guards for installed entries whose margin is inside
   measured noise.
 

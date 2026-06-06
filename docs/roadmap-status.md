@@ -101,6 +101,11 @@ portable non-Windows CPU ASan/UBSan preset, a Windows clang-cl CPU-only
 ASan/libFuzzer preset, three deterministic fuzz harnesses, and a non-GUI
 `cdb.exe` WinDbg triage helper. The hygiene report filters intentional
 helper/RAII implementation sites so remaining findings point at real drift.
+Performance evidence hardening now also includes
+`tools/perf_variance_report.py`, which groups same-contract capture reruns by
+backend/kernel, records within-capture and run-to-run timing spread, derives
+the minimum speedup margin needed to clear observed repeatability noise, and
+can feed `tools/promotion_ledger.py` through `--variance-report`.
 
 Remaining cleanup is now mostly validation and follow-through: run the full
 final gate on the current host, fix any sanitizer/fuzzer/HIP failures it

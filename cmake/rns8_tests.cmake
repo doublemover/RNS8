@@ -123,6 +123,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(starfoundry_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
   add_test(
+    NAME perf_variance_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_perf_variance_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(perf_variance_report_self_test PROPERTIES LABELS "benchmark;evidence;perf")
+
+  add_test(
     NAME autotune_cache_install_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_autotune_cache_install.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

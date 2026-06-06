@@ -47,6 +47,9 @@ Cleanup and drift-control helpers:
   readiness wording and unqualified speedup claims.
 - `tools/golden_regression_suite.py`: runs compact metadata/schema/report smoke
   checks without broad release performance sweeps.
+- `tools/perf_variance_report.py`: groups reviewed captures by same
+  contract/backend/kernel and reports whether observed timing variance leaves a
+  claimed speedup outside the repeatability margin.
 
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under

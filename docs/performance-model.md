@@ -960,8 +960,9 @@ Additional Starfoundry report tools are temp-output only: `tools/reuse_contract_
 `tools/promotion_ledger.py`, `tools/target_validation_report.py`,
 `tools/tile_shape_report.py`, `tools/modulus_set_search.py`,
 `tools/fhe_workload_report.py`, `tools/many_small_grouped_report.py`,
-`tools/rns_chain_report.py`, `tools/resident_workspace_report.py`,
-`tools/scheduler_overlap_report.py`, and `tools/release_gate_report.py`.
+`tools/rns_chain_report.py`, `tools/perf_variance_report.py`,
+`tools/resident_workspace_report.py`, `tools/scheduler_overlap_report.py`, and
+`tools/release_gate_report.py`.
 They validate captures before grouping evidence and should be used to decide
 which optimizer experiment to run next, not to install cache entries or make
 release claims by themselves.
