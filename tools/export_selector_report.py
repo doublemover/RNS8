@@ -39,15 +39,35 @@ def _target_id(capture: dict[str, Any], export: dict[str, Any]) -> str | None:
     return None
 
 
+def _reviewable_export_variant(capture: dict[str, Any], export: dict[str, Any]) -> bool:
+    name = export.get("name")
+    if name == "default":
+        return True
+    return (
+        name == "exact-wide-fixed-limb-export"
+        and capture.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}
+        and export.get("semantic_contract") == capture.get("semantics")
+        and export.get("output_layout") == "fixed_u64_limbs"
+        and isinstance(export.get("limb_count"), int)
+        and export.get("selector_status_policy") == "range_checked_status_buffer"
+        and export.get("d2h_policy") == "host_ld_padded"
+        and export.get("final_output_mode") == "final_host_output"
+    )
+
+
 def _blockers(capture: dict[str, Any]) -> list[str]:
     export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
-    blockers = ["export_selector_report_evidence_only"]
+    blockers: list[str] = []
     if not export.get("selector_key"):
         blockers.append("missing_selector_key")
     if not export.get("stale_entry_reason"):
         blockers.append("missing_stale_entry_reason")
-    if export.get("name") != "default" and export.get("promotion_eligible") is not False:
-        blockers.append("experimental_export_variant_must_not_be_promotable")
+    selector_promotion_eligible = export.get("promotion_eligible") is True
+    if selector_promotion_eligible and not _reviewable_export_variant(capture, export):
+        blockers.append("non_default_export_variant_not_reviewable_for_promotion")
+    if not selector_promotion_eligible:
+        blocker = export.get("promotion_blocker")
+        blockers.append(str(blocker) if isinstance(blocker, str) and blocker else "non_promoting_export_variant")
     correctness = capture.get("correctness")
     if correctness is None:
         blockers.append("correctness_not_recorded")
@@ -90,7 +110,8 @@ def row_for_capture(path: Path) -> dict[str, Any]:
         "status_elision_reason": export.get("status_elision_reason"),
         "median_end_to_end_us": _timing_median(capture, "end_to_end"),
         "median_export_us": _timing_median(capture, "crt_export"),
-        "promotion_eligible": False,
+        "selector_promotion_eligible": export.get("promotion_eligible") is True,
+        "promotion_eligible": export.get("promotion_eligible") is True,
         "promotion_blockers": _blockers(capture),
     }
 
@@ -116,7 +137,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         ].append(row)
     return {
         "schema": "rns8_export_selector_report_v1",
-        "policy": "same_target_same_contract_export_selector_evidence_only",
+        "policy": "same_target_same_contract_export_selector_review_surface",
         "capture_count": len(rows),
         "groups": [
             {

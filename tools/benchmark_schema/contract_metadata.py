@@ -56,6 +56,11 @@ EXPORT_FINAL_OUTPUT_MODES = {
     "chain_internal_residue_output",
 }
 
+REVIEWABLE_EXPORT_VARIANTS = {
+    "default",
+    "exact-wide-fixed-limb-export",
+}
+
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -194,11 +199,28 @@ def validate_contract_metadata(self: Any) -> None:
                 and f"semantics={export_variant['semantic_contract']}" not in selector_key
             ):
                 self._error("export_variant.selector_key must include semantic_contract")
-            if export_variant.get("name") != "default" and export_variant.get("promotion_eligible") is True:
-                self._error("experimental export_variant captures must set promotion_eligible=false")
+            reviewable_fixed_limb = (
+                export_variant.get("name") == "exact-wide-fixed-limb-export"
+                and self.data.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}
+                and export_variant.get("semantic_contract") == self.data.get("semantics")
+                and output_layout == "fixed_u64_limbs"
+                and _is_int(limb_count)
+                and export_variant.get("selector_status_policy") == "range_checked_status_buffer"
+                and export_variant.get("d2h_policy") == "host_ld_padded"
+                and final_output_mode == "final_host_output"
+            )
+            if export_variant.get("promotion_eligible") is True:
+                if export_variant.get("name") not in REVIEWABLE_EXPORT_VARIANTS or (
+                    export_variant.get("name") != "default" and not reviewable_fixed_limb
+                ):
+                    self._error(
+                        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures"
+                    )
             blocker = export_variant.get("promotion_blocker")
-            if export_variant.get("name") != "default" and not isinstance(blocker, str):
-                self._error("experimental export_variant captures must declare promotion_blocker")
+            if export_variant.get("promotion_eligible") is True and blocker is not None:
+                self._error("promotion-eligible export_variant captures must set promotion_blocker=null")
+            if export_variant.get("promotion_eligible") is False and export_variant.get("name") != "default" and not isinstance(blocker, str):
+                self._error("non-promoting export_variant captures must declare promotion_blocker")
 
     reconstruction = self.data.get("reconstruction_variant")
     if reconstruction is not None:

@@ -425,12 +425,22 @@ void print_export_variant_json(
     const BenchmarkResult& result,
     const char* selected_kernel) {
   const bool default_variant = args.export_variant == "default";
+  const bool reviewable_fixed_limb_variant =
+      args.export_variant == "exact-wide-fixed-limb-export" &&
+      exact_wide_benchmark_semantics(args.semantics) &&
+      args.exact_wide_limb_count > 0 &&
+      args.reconstruction_variant == "default_garner";
+  const bool promotion_eligible = default_variant || reviewable_fixed_limb_variant;
   const std::string export_kernel =
       result.export_plan_info_available ? result.export_selected_kernel
                                         : (selected_kernel ? std::string(selected_kernel) : std::string());
   std::cout << "  \"export_variant\": {\n";
   std::cout << "    \"name\": \"" << json_escape(args.export_variant) << "\",\n";
-  std::cout << "    \"source\": \"" << (default_variant ? "current_backend_export_path" : "benchmark_cli_evidence_mode") << "\",\n";
+  std::cout << "    \"source\": \""
+            << (default_variant ? "current_backend_export_path"
+                                : (reviewable_fixed_limb_variant ? "reviewable_exact_wide_fixed_limb_selector"
+                                                                 : "benchmark_cli_evidence_mode"))
+            << "\",\n";
   std::cout << "    \"selector_source\": \""
             << json_escape(result.export_plan_info_available ? result.export_plan_source : "legacy_selected_kernel")
             << "\",\n";
@@ -496,9 +506,9 @@ void print_export_variant_json(
   print_nullable_std_string(export_kernel);
   std::cout << ",\n";
   std::cout << "    \"constants_placement\": \"backend_default\",\n";
-  std::cout << "    \"promotion_eligible\": " << (default_variant ? "true" : "false") << ",\n";
+  std::cout << "    \"promotion_eligible\": " << (promotion_eligible ? "true" : "false") << ",\n";
   std::cout << "    \"promotion_blocker\": ";
-  print_nullable_std_string(default_variant ? std::string() : std::string("experimental_export_variant"));
+  print_nullable_std_string(promotion_eligible ? std::string() : std::string("experimental_export_variant"));
   std::cout << "\n";
   std::cout << "  },\n";
 }

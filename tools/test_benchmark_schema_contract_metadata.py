@@ -130,6 +130,27 @@ def main() -> int:
     }
     validate_capture(exact)
 
+    reviewable_fixed_limb = copy.deepcopy(exact)
+    reviewable_fixed_limb["export_variant"]["name"] = "exact-wide-fixed-limb-export"
+    reviewable_fixed_limb["export_variant"]["source"] = "reviewable_exact_wide_fixed_limb_selector"
+    reviewable_fixed_limb["export_variant"]["promotion_eligible"] = True
+    reviewable_fixed_limb["export_variant"]["promotion_blocker"] = None
+    validate_capture(reviewable_fixed_limb)
+
+    stale_reviewable_layout = copy.deepcopy(reviewable_fixed_limb)
+    stale_reviewable_layout["export_variant"]["output_layout"] = "scalar_i64"
+    expect_invalid(
+        stale_reviewable_layout,
+        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures",
+    )
+
+    stale_compact_promotable = copy.deepcopy(reviewable_fixed_limb)
+    stale_compact_promotable["export_variant"]["name"] = "compact-d2h-export-candidate"
+    expect_invalid(
+        stale_compact_promotable,
+        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures",
+    )
+
     stale_exact_domain = copy.deepcopy(exact)
     stale_exact_domain["exact_output_contract"]["requested_final_output"] = "linux_instinct_claim"
     expect_invalid(stale_exact_domain, "exact_output_contract.requested_final_output must be one of")
