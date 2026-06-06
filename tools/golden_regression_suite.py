@@ -90,6 +90,11 @@ DEFAULT_CASES = [
     ),
     SuiteCase("export_selector_report", "performance_evidence_drift", [sys.executable, "tools/test_export_selector_report.py"]),
     SuiteCase(
+        "reconstruction_export_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_reconstruction_export_report.py"],
+    ),
+    SuiteCase(
         "gfx1100_pending_validation",
         "performance_evidence_drift",
         [sys.executable, "tools/test_gfx1100_pending_validation.py"],

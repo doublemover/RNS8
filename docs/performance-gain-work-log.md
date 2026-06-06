@@ -7,6 +7,22 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-33 reconstruction/export closeout:
+
+- Rank 33 moved from the active queue to the completed-work archive after
+  `tools/reconstruction_export_report.py` added a rank-level classifier for
+  GPU CRT/export reconstruction variants. The closeout report under
+  `temp/rank33-reconstruction-export-closeout-20260606/` consumes the 14
+  schema-valid Windows `gfx1100` rank-48 selector A/B captures plus their
+  release review reports, checks all four required variant classes, and finds
+  no blockers. Seven hip-direct captures have required GPU events. The
+  explicit selector comparisons classify compact D2H and status-elided
+  hip-direct candidates as end-to-end losers (`0.991x` and `0.960x`), while
+  prefix20 fixed export and tree/CRT reconstruction remain narrow local
+  experimental wins (`1.020x` and `1.048x`). This is selector/reconstruction
+  evidence only: no README headline claim, installed cache entry, default
+  AUTO route, Linux, or CDNA claim changes.
+
 June 6, 2026 rank-24 reducer/epilogue registry closeout:
 
 - Rank 24 moved from the active queue to the completed-work archive after
