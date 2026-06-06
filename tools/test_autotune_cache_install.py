@@ -115,6 +115,36 @@ def write_cache(path: Path, entries: list[dict]) -> None:
     path.write_text(json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8")
 
 
+def write_ledger(
+    path: Path,
+    entries: list[dict],
+    *,
+    blockers: list[str] | None = None,
+    variance: bool = False,
+    variance_ready: bool = True,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "policy": "reviewed_release_evidence_required_for_autotune_promotion",
+                "entries": [
+                    {
+                        "autotune_key": item["key"],
+                        "performance_validated": True,
+                        "promotion_blockers": list(blockers or []),
+                        "variance_gate_available": variance,
+                        "variance_gate_ready": variance_ready if variance else None,
+                    }
+                    for item in entries
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def restore_env(name: str, value: str | None) -> None:
     if value is None:
         os.environ.pop(name, None)
@@ -192,6 +222,59 @@ def main() -> int:
         assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
         assert any(item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1" for item in installed)
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
+
+        ledger = root / "promotion-ledger.json"
+        write_ledger(ledger, [replacement])
+        ledger_summary = install_autotune_cache.install_cache(
+            [source_a],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[ledger],
+        )
+        assert ledger_summary["promotion_ledgers"] == [str(ledger)]
+        assert ledger_summary["require_variance_gate"] is False
+
+        missing_ledger = root / "missing-promotion-ledger.json"
+        write_ledger(missing_ledger, [finite])
+        try:
+            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[missing_ledger])
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "missing_promotion_ledger_entry" in str(exc)
+        else:
+            raise AssertionError("source cache entry without a ledger row was accepted")
+
+        blocked_ledger = root / "blocked-promotion-ledger.json"
+        write_ledger(blocked_ledger, [replacement], blockers=["speedup_inside_variance_margin"])
+        try:
+            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[blocked_ledger])
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_blocked" in str(exc)
+            assert "speedup_inside_variance_margin" in str(exc)
+        else:
+            raise AssertionError("blocked promotion ledger row was accepted")
+
+        try:
+            install_autotune_cache.install_cache(
+                [source_a],
+                destination,
+                promotion_ledgers=[ledger],
+                require_variance_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_variance_gate" in str(exc)
+        else:
+            raise AssertionError("cache install accepted a missing required variance gate")
+
+        variance_ledger = root / "variance-promotion-ledger.json"
+        write_ledger(variance_ledger, [replacement], variance=True, variance_ready=True)
+        variance_summary = install_autotune_cache.install_cache(
+            [source_a],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[variance_ledger],
+            require_variance_gate=True,
+        )
+        assert variance_summary["require_variance_gate"] is True
 
         bad = copy.deepcopy(finite)
         bad["key"] = bad["key"].replace(";finite_modulus=251", "")

@@ -108,6 +108,10 @@ key, and writes either an explicit destination or the default cache path. The
 installer accepts `hip-vector-alu-int64` only for bounded i64/u64 reviewed
 entries with native final/export epilogues; finite, exact-wide, and wrap64
 entries still require their explicit residue or byte-limb backend contracts.
+For cache replacement reviews, pass `--promotion-ledger <promotion-ledger.json>`
+so every source entry must have an unblocked ledger row; add
+`--require-variance-gate` when the reviewed lane also needs a
+`perf_variance_report.py` repeatability gate before install.
 
 ## Windows `gfx1100` release-smoke snapshot
 

@@ -315,6 +315,63 @@ def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any
     return [validate_entry(entry, source=path, index=index) for index, entry in enumerate(entries)]
 
 
+def read_promotion_ledger(path: Path) -> dict[str, dict[str, Any]]:
+    try:
+        root = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AutotuneCacheInstallError(f"{path}: failed to read promotion ledger: {exc}") from exc
+    if not isinstance(root, dict):
+        raise AutotuneCacheInstallError(f"{path}: promotion ledger root must be an object")
+    entries = root.get("entries")
+    if not isinstance(entries, list):
+        raise AutotuneCacheInstallError(f"{path}: promotion ledger entries must be an array")
+    by_key: dict[str, dict[str, Any]] = {}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise AutotuneCacheInstallError(f"{path}: promotion ledger entry {index} must be an object")
+        key = entry.get("autotune_key")
+        if not isinstance(key, str) or not key:
+            raise AutotuneCacheInstallError(f"{path}: promotion ledger entry {index} missing autotune_key")
+        if key in by_key:
+            raise AutotuneCacheInstallError(f"{path}: duplicate promotion ledger autotune_key {key}")
+        by_key[key] = entry
+    return by_key
+
+
+def validate_promotion_ledger_gate(
+    source_entries: list[dict[str, Any]],
+    ledger_paths: list[Path],
+    *,
+    require_variance_gate: bool = False,
+) -> None:
+    ledgers: dict[str, dict[str, Any]] = {}
+    for path in ledger_paths:
+        for key, entry in read_promotion_ledger(path).items():
+            if key in ledgers and ledgers[key] != entry:
+                raise AutotuneCacheInstallError(f"{path}: conflicting promotion ledger entry for {key}")
+            ledgers[key] = entry
+    if require_variance_gate and not ledger_paths:
+        raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
+    for entry in source_entries:
+        key = entry["key"]
+        ledger_entry = ledgers.get(key)
+        if ledger_entry is None:
+            raise AutotuneCacheInstallError(f"missing_promotion_ledger_entry:{key}")
+        blockers = ledger_entry.get("promotion_blockers")
+        if not isinstance(blockers, list):
+            raise AutotuneCacheInstallError(f"promotion_ledger_blockers_malformed:{key}")
+        if blockers:
+            joined = ",".join(str(blocker) for blocker in blockers)
+            raise AutotuneCacheInstallError(f"promotion_ledger_blocked:{key}:{joined}")
+        if ledger_entry.get("performance_validated") is not True:
+            raise AutotuneCacheInstallError(f"promotion_ledger_not_performance_validated:{key}")
+        if require_variance_gate:
+            if ledger_entry.get("variance_gate_available") is not True:
+                raise AutotuneCacheInstallError(f"promotion_ledger_missing_variance_gate:{key}")
+            if ledger_entry.get("variance_gate_ready") is not True:
+                raise AutotuneCacheInstallError(f"promotion_ledger_variance_gate_not_ready:{key}")
+
+
 def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({"schema_version": 1, "entries": entries}, indent=2, sort_keys=True) + "\n"
@@ -330,6 +387,8 @@ def install_cache(
     *,
     dry_run: bool = False,
     replace_existing: bool = False,
+    promotion_ledgers: list[Path] | None = None,
+    require_variance_gate: bool = False,
 ) -> dict[str, Any]:
     if replace_existing:
         existing_entries: list[dict[str, Any]] = []
@@ -344,10 +403,21 @@ def install_cache(
     merged = {entry["key"]: entry for entry in existing_entries}
     initial_keys = set(merged)
     source_entries = 0
+    reviewed_source_entries: list[dict[str, Any]] = []
     for source in sources:
-        for entry in read_cache(source):
-            source_entries += 1
-            merged[entry["key"]] = entry
+        entries = read_cache(source)
+        source_entries += len(entries)
+        reviewed_source_entries.extend(entries)
+    if promotion_ledgers:
+        validate_promotion_ledger_gate(
+            reviewed_source_entries,
+            promotion_ledgers,
+            require_variance_gate=require_variance_gate,
+        )
+    elif require_variance_gate:
+        raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
+    for entry in reviewed_source_entries:
+        merged[entry["key"]] = entry
     ordered = [merged[key] for key in sorted(merged)]
     added = len(set(merged) - initial_keys)
     replaced = sum(1 for key in initial_keys if merged[key] not in existing_entries)
@@ -358,6 +428,8 @@ def install_cache(
         "dry_run": dry_run,
         "replace_existing": replace_existing,
         "sources": [str(source) for source in sources],
+        "promotion_ledgers": [str(path) for path in (promotion_ledgers or [])],
+        "require_variance_gate": require_variance_gate,
         "source_entries": source_entries,
         "existing_entries": len(existing_entries),
         "installed_entries": len(ordered),
@@ -376,13 +448,32 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="discard existing destination entries after validating the reviewed sources",
     )
+    parser.add_argument(
+        "--promotion-ledger",
+        type=Path,
+        action="append",
+        default=[],
+        help="promotion_ledger.py output; when supplied every source entry must have an unblocked ledger row",
+    )
+    parser.add_argument(
+        "--require-variance-gate",
+        action="store_true",
+        help="require supplied promotion ledger rows to include a ready perf_variance_report gate",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     destination = args.destination or default_autotune_cache_path()
-    summary = install_cache(args.source, destination, dry_run=args.dry_run, replace_existing=args.replace_existing)
+    summary = install_cache(
+        args.source,
+        destination,
+        dry_run=args.dry_run,
+        replace_existing=args.replace_existing,
+        promotion_ledgers=args.promotion_ledger,
+        require_variance_gate=args.require_variance_gate,
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 

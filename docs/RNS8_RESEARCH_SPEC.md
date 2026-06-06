@@ -260,7 +260,8 @@ The repository produces:
 - `tools/install_autotune_cache.py`: validates and merges reviewed release
   autotune cache entries into an explicit or default cache path, with an
   explicit replacement mode for discarding stale or non-reviewed destination
-  entries.
+  entries. Cache replacement reviews can require a promotion-ledger artifact
+  with optional variance-gate enforcement before any source entry is merged.
 - Python package `rns8bench` for benchmark sweeps only.
 
 ## 6. Integer Semantics

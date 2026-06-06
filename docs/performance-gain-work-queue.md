@@ -739,7 +739,7 @@ June 4-5, 2026 updates:
 | 55 | Streaming pack/compute/export overlap | Repeated workflows can pipeline pack-next, compute-current, export-previous | Multi-stream benchmark with double/triple-buffered workspaces, pinned/compact transfers, explicit stream dependencies, and per-stage events | Keep disabled until status/error behavior matches the serial path and overlap is visible in events |
 | 56 | Tile-shape autotuning | Current tile sizes are conservative and may not match each backend/resource envelope | Generate and benchmark tile M/N/K/block/group variants with target id, occupancy, LDS, VGPR/SGPR, event phases, and cache keys | Promote only per target/backend/semantic when tile identity is encoded in selected kernel and autotune key |
 | 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | The first graph path deliberately excludes pack, export, finite-u8, wrap64, and mixed-backend work | Prove explicit-stream capture, status/error equivalence, currentness, and setup accounting for each broader path | Do not expand until rank 30 survives release-size same-contract review |
-| 60 | Promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | Make `tools/promotion_ledger.py` output part of cache-install/replacement review, stale-entry explanation, and release docs | Do not install or replace cache entries without ledger consistency and claim validation |
+| 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/install_autotune_cache.py` now accepts `--promotion-ledger` and rejects source entries without unblocked ledger rows; `--require-variance-gate` additionally requires a ready variance report row from the ledger. Remaining work is replacement-history reporting and durable installed-cache coverage summaries | Do not install or replace cache entries without ledger consistency and claim validation |
 | 63 | Verification amortization and real FHE/lattice workload suite | Exact repeated validation and FHE/lattice-inspired workloads need realistic contracts | Add CKKS/BFV/BGV-like NTT, key-switch, relinearization, rotation, ModUp/ModDown/rescale, bootstrapping-stage, tower reuse proxies, and safe verification amortization | Keep as workload/proxy evidence, not cryptographic correctness or library support claims |
 | 68 | Strict wrap64 Direct-HIP v4 carry/byte-limb tuning | Direct-HIP v4 is the only reviewed strict wrap64 performance path | Release A/B for byte-limb carry propagation, pack/export policy, accumulator tiling, u32 store shape, and event/ISA evidence at 512, 1024, 2048, and exploratory 4096 | Promote only Direct-HIP same-contract wins; keep matrix-engine wrap64 paths experimental until they beat v4 end-to-end |
 | 69 | CPU small-shape optimized fallback and selector thresholds | The many-small review shows CPU wins several tiny exact workloads | CPU microbench and selector A/B for bounded-i64 32, bounded-u64 64, finite-u8 64, cache locality, threading policy, vectorized host paths, and cutoff thresholds versus GPU paths | Route to CPU only when same-contract release evidence beats GPU paths and selector explanations stay explicit |
@@ -4005,14 +4005,19 @@ Promotion gate:
 ### 60. Promotion Ledger Adoption And Cache-Install Gate
 
 The installed reviewed cache is now important enough to need its own audit
-surface. The tool exists; the remaining performance-control work is making the
-ledger part of every cache install, replacement, and stale-entry review.
+surface. The ledger and installer can now work together; the remaining
+performance-control work is making that path routine for every cache
+replacement and stale-entry review.
 
 Technical direction:
 
 - Use `tools/promotion_ledger.py` to join installed cache entries to evidence summaries,
   reviewed captures, target/toolchain metadata, selected kernel, epilogue,
   workspace, speedup, and promotion blockers cleared.
+- Use `tools/install_autotune_cache.py --promotion-ledger <ledger.json>` to
+  reject source cache entries that are missing from the ledger or still carry
+  promotion blockers; add `--require-variance-gate` for narrow/noisy lanes that
+  require `tools/perf_variance_report.py` evidence.
 - Record replacement history: old key, new key, reason, date, commit, target,
   and validation command family.
 - Add stale invalidation reasons: target id mismatch, HIP SDK mismatch,
@@ -4021,10 +4026,10 @@ Technical direction:
 
 Likely first slices:
 
-- Run the ledger on every reviewed-cache install/update before accepting the
-  cache diff.
-- CI/self-test fixture for stale cache entry reporting beyond the current
-  Starfoundry report smoke.
+- Use the new installer ledger gate on every reviewed-cache install/update
+  before accepting the cache diff.
+- Add CI/self-test fixture for stale cache entry reporting beyond the current
+  installer and Starfoundry report smokes.
 - Docs table summarizing installed local cache coverage by semantic.
 
 Promotion gate:
