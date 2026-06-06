@@ -52,6 +52,11 @@ DEFAULT_CASES = [
     SuiteCase("many_small_grouped_report", "grouped_dispatch", [sys.executable, "tools/test_many_small_grouped_report.py"]),
     SuiteCase("reuse_contract_report", "reuse_contract", [sys.executable, "tools/test_reuse_contract_report.py"]),
     SuiteCase("rns_chain_report", "residue_chain", [sys.executable, "tools/test_rns_chain_report.py"]),
+    SuiteCase(
+        "exact_wide_chain_report",
+        "residue_chain",
+        [sys.executable, "tools/test_exact_wide_chain_report.py"],
+    ),
     SuiteCase("perf_variance_report", "performance_evidence_drift", [sys.executable, "tools/test_perf_variance_report.py"]),
     SuiteCase("gpu_counter_report", "performance_evidence_drift", [sys.executable, "tools/test_gpu_counter_report.py"]),
     SuiteCase("target_validation_report", "target_readiness", [sys.executable, "tools/test_target_validation_report.py"]),

@@ -125,6 +125,21 @@ June 6, 2026 queue-triage update:
   correctly. This is local Windows `gfx1100` benchmark evidence only, not a
   public lazy-output API, AUTO/cache route, README headline claim, or
   Linux/CDNA claim.
+- Rank 46 is closed as the current exact-wide residue-current/final-output
+  chain matrix and API-draft lane. The release sweep under
+  `temp/rank46-exact-wide-output-chain-release/` adds 16 schema-v4 captures for
+  exact-wide signed/unsigned 512 and 1024 residue-current chain3/chain4 rows
+  plus matching chain4 final-output CPU and Direct-HIP pairs. Combined with the
+  rank-9 final-output chain3 captures,
+  `tools/exact_wide_chain_report.py` writes
+  `temp/rank46-exact-wide-output-chain-release/exact-wide-chain-report/` and
+  reports eight paired residue-current/final-output rows, eight ready pairs,
+  zero missing residue-current captures, zero missing final-output captures,
+  zero missing CPU baselines, and required GPU events for every Direct-HIP
+  capture. `docs/resident-output-api-draft.md` now records the benchmark-owned
+  residue-current lifetime rules this evidence assumes. This is not a public
+  resident-output API, AUTO/cache route, README headline claim, or Linux/CDNA
+  claim.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,

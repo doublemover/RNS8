@@ -593,6 +593,29 @@ These rows close the current benchmark-owned RNS-chain final-output matrix.
 They do not install cache entries, change AUTO routing, expose a public lazy
 output API, or imply Linux/CDNA behavior.
 
+Exact-wide residue-current chain pairs now have a dedicated report in
+`tools/exact_wide_chain_report.py`. The rank-46 release sweep under
+`temp/rank46-exact-wide-output-chain-release/`, paired with the rank-9
+final-output chain3 captures, reports eight ready residue-current/final-output
+pairs with no missing baselines. The ratio below is final-output median divided
+by residue-current median for the same Direct-HIP exact-wide chain contract:
+
+| Contract | Shape | Chain | Residue-Current Median | Final-Output Median | Final/Residue Ratio |
+|---|---:|---:|---:|---:|---:|
+| exact-wide signed | 512 | 3 | 4513 us | 6475 us | 1.43x |
+| exact-wide signed | 512 | 4 | 5799 us | 7727 us | 1.33x |
+| exact-wide signed | 1024 | 3 | 26612 us | 32339 us | 1.22x |
+| exact-wide signed | 1024 | 4 | 34372 us | 40388 us | 1.18x |
+| exact-wide unsigned | 512 | 3 | 4473 us | 5817 us | 1.30x |
+| exact-wide unsigned | 512 | 4 | 5852 us | 7218 us | 1.23x |
+| exact-wide unsigned | 1024 | 3 | 25974 us | 30178 us | 1.16x |
+| exact-wide unsigned | 1024 | 4 | 33509 us | 37377 us | 1.12x |
+
+These rows prove that the benchmark-owned residue-current chain contract is
+event-complete and paired with exact final-output checks. They remain API
+design evidence until public resident-output handles and lifetime rejection
+rules exist.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend

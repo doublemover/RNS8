@@ -49,6 +49,7 @@ for scenario_name in [
     "modulus-set-autotune",
     "tile-shape-sweeps",
     "exact-wide-output-chain",
+    "exact-wide-output-chain-broader",
     "export-bound-limb-variants",
     "reconstruction-zoo",
     "hip-graph-replay",
@@ -240,4 +241,30 @@ broader_chain_command = benchmark_sweep.command_for(
 )
 assert "--residue-chain-length" in broader_chain_command and "3" in broader_chain_command
 assert "--residue-chain-final-export" in broader_chain_command
+
+exact_wide_output_chain_items = catalog["exact-wide-output-chain-broader"]
+assert len(exact_wide_output_chain_items) == 12
+assert {
+    (item.semantics, item.case.m, item.residue_chain_length, item.residue_chain_final_export)
+    for item in exact_wide_output_chain_items
+} == {
+    (semantics, shape, chain, final_export)
+    for semantics in ["exact-wide-signed", "exact-wide-unsigned"]
+    for shape in [512, 1024]
+    for chain, final_export in [(3, False), (4, False), (4, True)]
+}
+residue_item = next(item for item in exact_wide_output_chain_items if not item.residue_chain_final_export)
+residue_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, residue_item)
+residue_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    residue_item.semantics,
+    residue_item.case,
+    None,
+    4,
+    residue_args,
+)
+assert "--residue-chain-length" in residue_command and "3" in residue_command
+assert "--residue-chain-final-export" not in residue_command
+assert "--next-op-hint" in residue_command and "rns-gemm" in residue_command
 
