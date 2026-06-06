@@ -61,6 +61,16 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_direct_hip_resident_redesign_report.py"],
     ),
+    SuiteCase(
+        "modulus_set_search",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_modulus_set_search.py"],
+    ),
+    SuiteCase(
+        "modulus_set_autotune_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_modulus_set_autotune_report.py"],
+    ),
     SuiteCase("hip_graph_replay_report", "scheduler_overlap", [sys.executable, "tools/test_hip_graph_replay_report.py"]),
     SuiteCase("rns_chain_report", "residue_chain", [sys.executable, "tools/test_rns_chain_report.py"]),
     SuiteCase(

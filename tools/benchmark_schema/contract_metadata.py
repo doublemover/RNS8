@@ -284,14 +284,26 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["source", "execution_ladder", "pairwise_coprime_proof", "reducer_cost_hint"]:
                 if not isinstance(modulus_set.get(key), str):
                     self._error(f"modulus_set.{key} must be a string")
+            for key in ["runtime_selectable", "search_report_required"]:
+                if key in modulus_set and not isinstance(modulus_set.get(key), bool):
+                    self._error(f"modulus_set.{key} must be a boolean when present")
+            if "default_change_gate" in modulus_set and not isinstance(modulus_set.get("default_change_gate"), str):
+                self._error("modulus_set.default_change_gate must be a string when present")
             for key in ["product_bits", "prefix_count"]:
                 value = modulus_set.get(key)
                 if not _is_int(value) or value < 0:
                     self._error(f"modulus_set.{key} must be a nonnegative integer")
             if name == "default" and modulus_set.get("experimental") is not False:
                 self._error("modulus_set.experimental must be false for default")
-            if name != "default" and not isinstance(modulus_set.get("cache_promotion_blocker"), str):
-                self._error("experimental modulus_set captures must declare cache_promotion_blocker")
+            if name != "default":
+                if not isinstance(modulus_set.get("cache_promotion_blocker"), str):
+                    self._error("experimental modulus_set captures must declare cache_promotion_blocker")
+                if modulus_set.get("runtime_selectable") is not False:
+                    self._error("experimental modulus_set captures must set runtime_selectable=false")
+                if modulus_set.get("search_report_required") is not True:
+                    self._error("experimental modulus_set captures must set search_report_required=true")
+                if modulus_set.get("default_change_gate") != "spec_cache_schema_proof_and_same_target_review_required":
+                    self._error("experimental modulus_set captures must declare the default-change gate")
 
     residue_policy = self.data.get("residue_count_policy")
     if residue_policy is not None:
@@ -305,10 +317,22 @@ def validate_contract_metadata(self: Any) -> None:
                 value = residue_policy.get(key)
                 if not _is_int(value) or value < 0:
                     self._error(f"residue_count_policy.{key} must be a nonnegative integer")
+            if "promotion_eligible" in residue_policy and not isinstance(residue_policy.get("promotion_eligible"), bool):
+                self._error("residue_count_policy.promotion_eligible must be a boolean when present")
             if _is_int(self.data.get("selected_prefix")) and residue_policy.get("selected_prefix") != self.data.get("selected_prefix"):
                 self._error("residue_count_policy.selected_prefix must match selected_prefix")
             if _is_int(self.data.get("requested_max_prefix")) and residue_policy.get("requested_prefix") != self.data.get("requested_max_prefix"):
                 self._error("residue_count_policy.requested_prefix must match requested_max_prefix")
+            expected_redundant = max(0, residue_policy.get("selected_prefix", 0) - residue_policy.get("minimum_range_prefix", 0))
+            if residue_policy.get("redundant_residue_count") != expected_redundant:
+                self._error("residue_count_policy.redundant_residue_count must equal selected_prefix - minimum_range_prefix")
+            if residue_policy.get("autotune_scope") == "evidence_only_non_promoting":
+                if residue_policy.get("promotion_eligible") is not False:
+                    self._error("evidence-only residue_count_policy captures must set promotion_eligible=false")
+                if not isinstance(residue_policy.get("cache_promotion_blocker"), str):
+                    self._error("evidence-only residue_count_policy captures must declare cache_promotion_blocker")
+            if residue_policy.get("autotune_scope") == "current_exact_cache" and residue_policy.get("promotion_eligible") is False:
+                self._error("current_exact_cache residue_count_policy captures must not force promotion_eligible=false")
 
     tile_variant = self.data.get("tile_shape_variant")
     if tile_variant is not None:

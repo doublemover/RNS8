@@ -121,7 +121,10 @@ def starfoundry_capture() -> dict:
         "requested_prefix": capture["requested_max_prefix"],
         "selected_prefix": capture["selected_prefix"],
         "minimum_range_prefix": capture["schedule_metadata"]["min_required_prefix"],
-        "redundant_residue_count": 0,
+        "redundant_residue_count": max(
+            0,
+            capture["selected_prefix"] - capture["schedule_metadata"]["min_required_prefix"],
+        ),
         "autotune_scope": "current_exact_cache",
         "cache_promotion_blocker": None,
     }

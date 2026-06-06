@@ -7,6 +7,25 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-53 modulus-set and residue-count gate closeout:
+
+- Rank 53 moved from the active queue to the completed-work archive after the
+  modulus-set lane became an explicit non-promoting search and review surface.
+  `tools/modulus_set_search.py` now emits schema-v2 offline reports for
+  candidate RNS ladders, generated default/prime/NTT-front/coprime candidates,
+  modulus ordering, prefix products, bounded/exact-wide required-prefix bits,
+  reducer-cost summaries, Garner/CRT prefix constants, and NTT-friendly small
+  prime hints. `tools/modulus_set_autotune_report.py` joins those search
+  reports to benchmark captures, requires schema-valid metadata, a
+  same-workload default anchor for every experimental row, and explicit
+  non-promoting/cache-blocker policy. Benchmark JSON now records
+  `runtime_selectable`, `search_report_required`, `default_change_gate`, and
+  residue-count promotion eligibility. The schema rejects stale experimental
+  modulus metadata, and the `modulus-set-autotune` scenario family now covers
+  fewer-plane experiments, fixed-prefix anchors, exact-wide range-product
+  anchors, and an NTT-prime-front candidate. This does not change the runtime
+  default ladder, installed cache entries, README claims, or Linux/CDNA status.
+
 June 6, 2026 rank-51 Direct-HIP resident redesign closeout:
 
 - Rank 51 moved from the active queue to the completed-work archive after the

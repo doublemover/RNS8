@@ -248,6 +248,79 @@ def main() -> int:
         "resident_redesign.dimensions contains unknown values",
     )
 
+    experimental_modulus = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
+    experimental_modulus["selected_prefix"] = experimental_modulus["schedule_metadata"]["max_selected_prefix"]
+    experimental_modulus["requested_max_prefix"] = experimental_modulus["prefix"]
+    experimental_modulus["contract_prefix_policy"] = "per_tile_minimum"
+    experimental_modulus["residue_planes_requested"] = experimental_modulus["requested_max_prefix"]
+    experimental_modulus["residue_planes_selected"] = experimental_modulus["selected_prefix"]
+    experimental_modulus["residue_planes_skipped"] = (
+        experimental_modulus["requested_max_prefix"] - experimental_modulus["selected_prefix"]
+    )
+    experimental_modulus["residue_plane_skip_fraction"] = (
+        experimental_modulus["residue_planes_skipped"] / experimental_modulus["requested_max_prefix"]
+    )
+    experimental_modulus["modulus_set"] = {
+        "name": "default",
+        "source": "rns8_default_modulus_ladder",
+        "execution_ladder": "rns8_default_8bit_coprime_ladder",
+        "experimental": False,
+        "product_bits": 72,
+        "prefix_count": experimental_modulus["selected_prefix"],
+        "pairwise_coprime_proof": "schema_declared_current_ladder_or_offline_search_report",
+        "reducer_cost_hint": "backend_default",
+        "cache_promotion_blocker": None,
+    }
+    experimental_modulus["residue_count_policy"] = {
+        "policy": experimental_modulus["contract_prefix_policy"],
+        "requested_prefix": experimental_modulus["requested_max_prefix"],
+        "selected_prefix": experimental_modulus["selected_prefix"],
+        "minimum_range_prefix": experimental_modulus["schedule_metadata"]["min_required_prefix"],
+        "redundant_residue_count": experimental_modulus["selected_prefix"]
+        - experimental_modulus["schedule_metadata"]["min_required_prefix"],
+        "autotune_scope": "current_exact_cache",
+        "cache_promotion_blocker": None,
+    }
+    experimental_modulus["modulus_set"] = {
+        "name": "experimental:prefix5-byte-ladder-search",
+        "source": "benchmark_experimental_ladder",
+        "execution_ladder": "rns8_default_8bit_coprime_ladder",
+        "experimental": True,
+        "runtime_selectable": False,
+        "search_report_required": True,
+        "product_bits": experimental_modulus["modulus_set"]["product_bits"],
+        "prefix_count": experimental_modulus["selected_prefix"],
+        "pairwise_coprime_proof": "schema_declared_current_ladder_or_offline_search_report",
+        "reducer_cost_hint": "offline_search_required",
+        "default_change_gate": "spec_cache_schema_proof_and_same_target_review_required",
+        "cache_promotion_blocker": "experimental_modulus_set",
+    }
+    experimental_modulus["residue_count_policy"]["autotune_scope"] = "evidence_only_non_promoting"
+    experimental_modulus["residue_count_policy"]["promotion_eligible"] = False
+    experimental_modulus["residue_count_policy"]["cache_promotion_blocker"] = "experimental_residue_count_policy"
+    validate_capture(experimental_modulus)
+
+    stale_experimental_modulus_runtime = copy.deepcopy(experimental_modulus)
+    stale_experimental_modulus_runtime["modulus_set"]["runtime_selectable"] = True
+    expect_invalid(
+        stale_experimental_modulus_runtime,
+        "experimental modulus_set captures must set runtime_selectable=false",
+    )
+
+    stale_experimental_modulus_gate = copy.deepcopy(experimental_modulus)
+    stale_experimental_modulus_gate["modulus_set"]["default_change_gate"] = "claim_after_smoke"
+    expect_invalid(
+        stale_experimental_modulus_gate,
+        "experimental modulus_set captures must declare the default-change gate",
+    )
+
+    stale_residue_redundancy = copy.deepcopy(experimental_modulus)
+    stale_residue_redundancy["residue_count_policy"]["redundant_residue_count"] = 999
+    expect_invalid(
+        stale_residue_redundancy,
+        "residue_count_policy.redundant_residue_count must equal selected_prefix - minimum_range_prefix",
+    )
+
     optional = add_optional_contracts(add_helper_lane_fields(copy.deepcopy(base)))
     validate_capture(optional)
 

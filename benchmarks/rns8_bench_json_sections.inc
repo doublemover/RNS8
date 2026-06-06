@@ -552,11 +552,14 @@ void print_modulus_and_residue_policy_json(const Args& args, const BenchmarkResu
                                                                                : "rns8_default_8bit_coprime_ladder")
             << "\",\n";
   std::cout << "    \"experimental\": " << (experimental ? "true" : "false") << ",\n";
+  std::cout << "    \"runtime_selectable\": " << (experimental ? "false" : "true") << ",\n";
+  std::cout << "    \"search_report_required\": " << (experimental ? "true" : "false") << ",\n";
   std::cout << "    \"product_bits\": " << estimated_modulus_product_bits(args, result) << ",\n";
   std::cout << "    \"prefix_count\": " << selected_execution_prefix(args, result) << ",\n";
   std::cout << "    \"pairwise_coprime_proof\": \"schema_declared_current_ladder_or_offline_search_report\",\n";
   std::cout << "    \"reducer_cost_hint\": \"" << (experimental ? "offline_search_required" : "backend_default")
             << "\",\n";
+  std::cout << "    \"default_change_gate\": \"spec_cache_schema_proof_and_same_target_review_required\",\n";
   std::cout << "    \"cache_promotion_blocker\": ";
   print_nullable_std_string(experimental ? std::string("experimental_modulus_set") : std::string());
   std::cout << "\n";
@@ -573,6 +576,7 @@ void print_modulus_and_residue_policy_json(const Args& args, const BenchmarkResu
             << ",\n";
   std::cout << "    \"autotune_scope\": \"" << (experimental ? "evidence_only_non_promoting" : "current_exact_cache")
             << "\",\n";
+  std::cout << "    \"promotion_eligible\": " << (experimental ? "false" : "true") << ",\n";
   std::cout << "    \"cache_promotion_blocker\": ";
   print_nullable_std_string(experimental ? std::string("experimental_residue_count_policy") : std::string());
   std::cout << "\n";

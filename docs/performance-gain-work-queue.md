@@ -40,13 +40,16 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md).
-The active table below now contains 14 ranks. Rank IDs are historical/stable
+Archived research notes, dated execution updates, and non-active disposition
+tables live in [performance-gain-research-backlog.md](performance-gain-research-backlog.md),
+[performance-gain-work-log.md](performance-gain-work-log.md), and
+[performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
+The active table below now contains 13 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 53 | Modulus-set search and residue-count autotuning | Default modulus order/count may not be optimal for every semantic, target, or export path | Search candidate RNS ladders, modulus ordering, prefix counts, reducer cost, CRT constants, NTT-friendly/FHE-inspired primes, and exact range products | Never change a default modulus set without spec, cache, schema, and proof updates |
 | 54 | Adaptive prefix grouped scheduler | Adaptive prefix schedules delete residue work but can add launch/scheduling overhead | Group per-prefix/per-tile work into fewer launches with compact schedule metadata, per-group events, and CPU/direct baselines | Promote only when grouping beats independent scheduled launches including queue/setup overhead |
 | 55 | Streaming pack/compute/export overlap | Repeated workflows can pipeline pack-next, compute-current, export-previous | Multi-stream benchmark with double/triple-buffered workspaces, pinned/compact transfers, explicit stream dependencies, and per-stage events | Keep disabled until status/error behavior matches the serial path and overlap is visible in events |
 | 56 | Tile-shape autotuning | Current tile sizes are conservative and may not match each backend/resource envelope | Generate and benchmark tile M/N/K/block/group variants with target id, occupancy, LDS, VGPR/SGPR, event phases, and cache keys | Promote only per target/backend/semantic when tile identity is encoded in selected kernel and autotune key |

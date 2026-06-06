@@ -36,6 +36,70 @@
       }
     },
     {
+      "name": "bounded-i64-prefix7-experimental-residue-count",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "experimental residue-count evidence for bounded i64",
+      "output_domain": "host_export",
+      "rationale": "checks whether fewer default-ladder planes can win for small bounded values while staying non-promoting",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_set_experiment",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 7,
+      "modulus_set": "experimental:prefix7-byte-ladder-search",
+      "metadata": {
+        "promotion_scope": "non_promoting_modulus_set_experiment",
+        "cache_promotion_blocker": "experimental_modulus_set",
+        "reducer_cost_policy": "offline_search_report_required"
+      }
+    },
+    {
+      "name": "bounded-i64-prefix9-default-count",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "default ladder residue-count anchor for bounded i64",
+      "output_domain": "host_export",
+      "rationale": "anchors prefix-count experiments to the current default bounded i64 ladder",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "comparison_anchor_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "promotion_scope": "comparison_anchor_only",
+        "cache_promotion_blocker": "residue_count_policy_review_required"
+      }
+    },
+    {
       "name": "bounded-u64-prefix9-default-count",
       "semantics": "bounded-u64",
       "case": {
@@ -64,6 +128,73 @@
       "metadata": {
         "promotion_scope": "comparison_anchor_only",
         "cache_promotion_blocker": "residue_count_policy_review_required"
+      }
+    },
+    {
+      "name": "exact-wide-signed-prefix18-default-range-product",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "default ladder exact-wide range-product anchor",
+      "output_domain": "host_export",
+      "rationale": "anchors exact-wide prefix/range-product experiments before alternate ladders are considered",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "comparison_anchor_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 18,
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "promotion_scope": "comparison_anchor_only",
+        "cache_promotion_blocker": "modulus_set_default_change_review_required"
+      }
+    },
+    {
+      "name": "bounded-i64-ntt-prime-front-experimental-ladder",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "experimental NTT-friendly prime ordering evidence for bounded i64",
+      "output_domain": "host_export",
+      "rationale": "keeps FHE/NTT-inspired small-prime ordering visible without changing runtime defaults",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "non_promoting_modulus_set_experiment",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "modulus_set": "experimental:prime-ntt-front-byte",
+      "metadata": {
+        "promotion_scope": "non_promoting_modulus_set_experiment",
+        "cache_promotion_blocker": "experimental_modulus_set",
+        "reducer_cost_policy": "offline_search_report_required"
       }
     }
   ]
