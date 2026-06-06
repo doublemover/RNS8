@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-43 reuse contract closeout:
+
+- Rank 43 moved from the active queue to the completed-work archive after a
+  fresh Windows `gfx1100` release rerun under
+  `temp/rank43-reuse-contract-release-20260606/`. The matrix produced 96
+  schema-v4 captures across 16 release groups with seed `20260606`, three
+  warmups, nine repeats, CPU, Direct HIP, runtime vector ALU, hipBLASLt, CK,
+  and rocWMMA comparators where supported. `tools/reuse_contract_report.py`
+  now consumes current `reuse_contract` metadata, normalizes reuse-only
+  resident-lifetime and backend-specific export-selector fields for workload
+  grouping, reports source-version stale rejection and explicit selector
+  eligibility, and classifies 11/72 reuse rows as explicit-workload
+  selector-ready with zero missing baselines. `benchmark_schema.py` passes over
+  all 96 captures and `gpu_event_report.py --require-events` passes over every
+  non-CPU capture. This closes explicit reuse workload policy only; no
+  AUTO/cache entry, README headline claim, or Linux/CDNA claim changes.
+
 June 6, 2026 queue-triage update:
 
 - PR #12 is merged into `main`, so the active queue has been re-ranked against

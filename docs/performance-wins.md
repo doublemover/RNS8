@@ -638,8 +638,32 @@ one-off spreadsheet math. The report normalizes reuse captures against their
 non-reuse workload contract, adds setup cost back into the per-repeat median,
 computes break-even repeats, requires GPU events for GPU captures, and records
 whether source-version/setup-scope metadata is strong enough for a workload
-claim. The latest large-shape reports and bounded reuse-contract matrix produced
-these explicit workload candidate rows:
+claim.
+
+The current rank-43 ledger reran the bounded reuse-contract matrix with current
+`reuse_contract` metadata and selector policy. It produced 96 release captures,
+16 release-reviewed groups, zero missing baselines, zero duplicate backend
+records, required GPU events for every non-CPU capture, and 11 explicit
+workload selector-ready rows. These are still explicit reusable-input workload
+claims only: no AUTO cache entry, README headline claim, one-shot route, or
+Linux/CDNA claim changes.
+
+| Candidate | Reuse mode | Setup-inclusive per-repeat | Fastest non-reuse baseline | Workload speedup | Same-backend speedup | Break-even repeats |
+|---|---|---:|---|---:|---:|---:|
+| Direct HIP bounded-i64 1024 | repeated-A | 4730 us | Direct HIP 6850 us | 1.45x | 1.45x | 1 |
+| Direct HIP bounded-i64 1024 | repeated-B | 4674 us | Direct HIP 6850 us | 1.47x | 1.47x | 1 |
+| hipBLASLt bounded-i64 2048 | repeated-A | 10993 us | hipBLASLt 11640 us | 1.06x | 1.06x | 8 |
+| CK bounded-i64 2048 | repeated-A+B | 9875 us | hipBLASLt 11640 us | 1.18x | 1.21x | 6 |
+| hipBLASLt bounded-i64 2048 | repeated-A+B | 9544 us | hipBLASLt 11640 us | 1.22x | 1.22x | 6 |
+| rocWMMA bounded-i64 2048 | repeated-A+B | 10958 us | hipBLASLt 11640 us | 1.06x | 1.28x | 5 |
+| hipBLASLt bounded-i64 2048 | repeated-B | 11154 us | hipBLASLt 11640 us | 1.04x | 1.04x | 8 |
+| Direct HIP bounded-u64 1024 | repeated-A | 4625 us | Direct HIP 6649 us | 1.44x | 1.44x | 1 |
+| Direct HIP bounded-u64 1024 | repeated-B | 4932 us | Direct HIP 6649 us | 1.35x | 1.35x | 1 |
+| CK bounded-u64 2048 | repeated-A+B | 9867 us | hipBLASLt 10293 us | 1.04x | 1.38x | 5 |
+| hipBLASLt bounded-u64 2048 | repeated-A+B | 8658 us | hipBLASLt 10293 us | 1.19x | 1.19x | 7 |
+
+Earlier large-shape reports and the June 5 bounded reuse-contract matrix
+produced these historical explicit workload candidate rows:
 
 | Capture family | Candidate | Setup-inclusive per-repeat | Same-backend speedup | Fastest non-reuse baseline | Workload speedup | Break-even repeats | Decision |
 |---|---|---:|---:|---|---:|---:|---|
