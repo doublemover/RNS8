@@ -111,6 +111,14 @@ class Plan final {
     return info;
   }
 
+  rns8_grouped_dispatch_contract_info grouped_dispatch_contract_info(uint32_t task_count) const {
+    rns8_grouped_dispatch_contract_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_grouped_dispatch_contract_info(handle_, task_count, &info));
+    return info;
+  }
+
   std::vector<rns8_plan_tile_schedule_entry> tile_schedule() const {
     uint64_t count = 0;
     check(rns8_get_plan_tile_schedule(handle_, nullptr, 0, &count));

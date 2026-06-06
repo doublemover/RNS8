@@ -103,6 +103,12 @@ void fuzz_plan_descriptor(const uint8_t* data, std::size_t size) {
     backend.abi_version = RNS8_ABI_VERSION;
     (void)rns8_get_plan_backend_info(plan, &backend);
 
+    rns8_grouped_dispatch_contract_info grouped{};
+    grouped.struct_size = sizeof(grouped);
+    grouped.abi_version = RNS8_ABI_VERSION;
+    grouped.task_count = 0;
+    (void)rns8_get_grouped_dispatch_contract_info(plan, static_cast<uint32_t>((mode % 8u) + 1u), &grouped);
+
     rns8_workspace* workspace = nullptr;
     if (rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS) {
       (void)rns8_destroy_workspace(workspace);

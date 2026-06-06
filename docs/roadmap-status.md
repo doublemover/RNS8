@@ -114,12 +114,13 @@ Remaining cleanup is now mostly validation and follow-through: run the full
 final gate on the current host, fix any sanitizer/fuzzer/HIP failures it
 exposes, and keep future optimization lanes using the registry, split schema
 modules, currentness helpers, descriptor contracts, and export plan surface.
-These changes preserve public ABI, reviewed cache behavior, existing benchmark
-CLI compatibility, and Windows `gfx1100` validation boundaries. Grouped
+These changes preserve existing public ABI compatibility, reviewed cache
+behavior, existing benchmark CLI compatibility, and Windows `gfx1100`
+validation boundaries. Grouped
 benchmark lanes now also route bounded, finite, and exact-wide pack/GEMM/export
 phase execution through the internal Direct-HIP grouped descriptor/resource
-helpers, leaving public/generic grouped dispatch as the remaining contract
-surface.
+helpers. `rns8_get_grouped_dispatch_contract_info` exposes the read-only
+contract surface, while public/generic grouped execution remains unexposed.
 
 After PR #12, the active performance queue was refreshed so grouping, export,
 residency, reuse policy, variance gates, and target validation drive the next

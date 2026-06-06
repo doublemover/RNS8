@@ -281,6 +281,55 @@ typedef struct rns8_plan_packing_info {
   char detail[256];
 } rns8_plan_packing_info;
 
+#define RNS8_GROUPED_DISPATCH_CONTRACT_SAME_SHAPE_REQUIRED 0x00000001u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_COMPACT_ROW_MAJOR_REQUIRED 0x00000002u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_UNIQUE_TASK_HANDLES_REQUIRED 0x00000004u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_ONE_WORKSPACE_PER_TASK_REQUIRED 0x00000008u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_SAME_DEVICE_REQUIRED 0x00000010u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_PER_TASK_SOURCE_VERSION_REQUIRED 0x00000020u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED 0x00000040u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION 0x00000080u
+
+typedef struct rns8_grouped_dispatch_contract_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  uint32_t task_count;
+  uint32_t descriptor_contract_supported;
+  uint32_t public_execution_available;
+  uint32_t same_shape_required;
+  uint32_t same_semantics_required;
+  uint32_t compact_row_major_required;
+  uint32_t unique_matrix_handles_required;
+  uint32_t unique_workspace_handles_required;
+  uint32_t same_plan_fingerprint_required;
+  uint32_t same_device_required;
+  uint32_t device_resident_inputs_required;
+  uint32_t per_task_source_versions_required;
+  uint32_t produces_device_current_output;
+  uint32_t final_export_required_for_host_output;
+  uint32_t per_task_status_required;
+  uint32_t checksum_policy_required;
+  uint32_t descriptor_reuse_validated;
+  uint32_t flags;
+  char descriptor_layout[96];
+  char bucket_policy[96];
+  char source_version_policy[96];
+  char workspace_policy[96];
+  char matrix_ownership_policy[128];
+  char descriptor_reuse_policy[128];
+  char stride_policy[128];
+  char output_currentness_policy[128];
+  char lifetime_policy[128];
+  char checksum_policy[96];
+  char status_policy[96];
+  char device_descriptor_policy[96];
+  char output_domain[64];
+  char unsupported_reason[160];
+  char detail[256];
+} rns8_grouped_dispatch_contract_info;
+
 typedef struct rns8_matrix_storage_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -429,6 +478,17 @@ RNS8_API rns8_status rns8_get_plan_backend_info(
 RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
     rns8_plan_packing_info* out);
+
+/*
+ * Report the current grouped-dispatch descriptor and lifetime contract for a
+ * created plan. This is read-only introspection: current public GEMM entry
+ * points do not execute grouped dispatch directly, and public_execution_available
+ * remains zero until a real public grouped executor is exposed.
+ */
+RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
+    const rns8_plan* plan,
+    uint32_t task_count,
+    rns8_grouped_dispatch_contract_info* out);
 
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,

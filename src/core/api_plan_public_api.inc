@@ -223,6 +223,141 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
   });
 }
 
+bool grouped_dispatch_contract_semantics_supported(rns8_semantics semantics) {
+  return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
+         semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
+         semantics == RNS8_FINITE_FIELD_U8 || semantics == RNS8_FINITE_RING_U8;
+}
+
+const char* grouped_dispatch_contract_output_domain(rns8_semantics semantics) {
+  switch (semantics) {
+    case RNS8_BOUNDED_I64:
+    case RNS8_BOUNDED_U64:
+      return "native_i64_u64_host";
+    case RNS8_EXACT_WIDE_SIGNED:
+    case RNS8_EXACT_WIDE_UNSIGNED:
+      return "exact_wide_limb_host";
+    case RNS8_FINITE_FIELD_U8:
+    case RNS8_FINITE_RING_U8:
+      return "finite_u8_host";
+    case RNS8_WRAP_U64_MOD_2_64:
+      return "wrap64_u64_host";
+  }
+  return "unknown";
+}
+
+rns8_status rns8_get_grouped_dispatch_contract_info(
+    const rns8_plan* plan,
+    uint32_t task_count,
+    rns8_grouped_dispatch_contract_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (!plan_schedule_contract_matches(*plan)) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+
+    const uint64_t struct_size = out->struct_size;
+    const uint32_t abi_version = out->abi_version;
+    *out = {};
+    out->struct_size = struct_size;
+    out->abi_version = abi_version;
+    out->backend = plan->backend;
+    out->semantics = plan->desc.semantics;
+    out->task_count = task_count;
+
+    out->same_shape_required = 1;
+    out->same_semantics_required = 1;
+    out->compact_row_major_required = 1;
+    out->unique_matrix_handles_required = 1;
+    out->unique_workspace_handles_required = 1;
+    out->same_plan_fingerprint_required = 1;
+    out->same_device_required = 1;
+    out->device_resident_inputs_required = 1;
+    out->per_task_source_versions_required = 1;
+    out->produces_device_current_output = 1;
+    out->final_export_required_for_host_output = 1;
+    out->per_task_status_required = 1;
+    out->checksum_policy_required = 1;
+    out->descriptor_reuse_validated = 1;
+    out->public_execution_available = 0;
+    out->flags = RNS8_GROUPED_DISPATCH_CONTRACT_SAME_SHAPE_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_COMPACT_ROW_MAJOR_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_UNIQUE_TASK_HANDLES_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_ONE_WORKSPACE_PER_TASK_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_SAME_DEVICE_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_PER_TASK_SOURCE_VERSION_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION;
+    set_text(out->descriptor_layout, sizeof(out->descriptor_layout), "same_shape_resident_task_triplets_v1");
+    set_text(out->bucket_policy, sizeof(out->bucket_policy), "single_same_shape_bucket");
+    set_text(
+        out->source_version_policy,
+        sizeof(out->source_version_policy),
+        "per_task_monotonic_source_version_repack");
+    set_text(out->workspace_policy, sizeof(out->workspace_policy), "one_workspace_per_task_shared_plan");
+    set_text(
+        out->matrix_ownership_policy,
+        sizeof(out->matrix_ownership_policy),
+        "benchmark_owns_all_task_triplets_until_capture_end");
+    set_text(
+        out->descriptor_reuse_policy,
+        sizeof(out->descriptor_reuse_policy),
+        "reuse_after_shape_workspace_source_validation");
+    set_text(
+        out->stride_policy,
+        sizeof(out->stride_policy),
+        "matrix_ld_matches_logical_shape_host_output_ld_explicit");
+    set_text(
+        out->output_currentness_policy,
+        sizeof(out->output_currentness_policy),
+        "device_residue_current_after_grouped_gemm_host_output_after_export");
+    set_text(out->lifetime_policy, sizeof(out->lifetime_policy), "task_matrices_and_workspaces_destroyed_after_capture");
+    set_text(out->checksum_policy, sizeof(out->checksum_policy), "combined_per_task_checksum_u64");
+    set_text(out->status_policy, sizeof(out->status_policy), "fail_fast_per_task_operation_status");
+    set_text(
+        out->device_descriptor_policy,
+        sizeof(out->device_descriptor_policy),
+        "device_pointer_tables_and_compact_slabs");
+    set_text(
+        out->output_domain,
+        sizeof(out->output_domain),
+        grouped_dispatch_contract_output_domain(plan->desc.semantics));
+
+    if (plan->backend != RNS8_BACKEND_HIP_DIRECT) {
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "backend_not_hip_direct");
+    } else if (!direct_hip_compiled()) {
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "direct_hip_not_compiled");
+    } else if (task_count <= 1) {
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "task_count_must_exceed_one");
+    } else if (!grouped_dispatch_contract_semantics_supported(plan->desc.semantics)) {
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "unsupported_grouped_semantics");
+    } else if (plan->desc.m <= 0 || plan->desc.n <= 0 || plan->desc.k <= 0) {
+      set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "invalid_plan_shape");
+    } else {
+      out->descriptor_contract_supported = 1;
+      set_text(
+          out->unsupported_reason,
+          sizeof(out->unsupported_reason),
+          "public_grouped_execution_not_available");
+    }
+
+    if (out->descriptor_contract_supported) {
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "Internal Direct-HIP same-shape grouped descriptors are contract-valid for this plan when callers provide distinct resident A/B/C matrices and workspaces per task; public grouped execution is not exposed.");
+    } else {
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "Grouped dispatch remains a Direct-HIP benchmark/internal path for supported same-shape resident RNS plans; this plan cannot form that descriptor contract.");
+    }
+    return RNS8_SUCCESS;
+  });
+}
+
 rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_info* out) {
   return guard_api([&]() -> rns8_status {
     if (!plan || !out || !rns8::detail::valid_abi(out->struct_size, out->abi_version, sizeof(*out))) {

@@ -8,6 +8,25 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
 
+  rns8_grouped_dispatch_contract_info public_contract{};
+  public_contract.struct_size = sizeof(public_contract);
+  public_contract.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_grouped_dispatch_contract_info(plan, 2, &public_contract) == RNS8_SUCCESS);
+  CHECK(public_contract.backend == RNS8_BACKEND_HIP_DIRECT);
+  CHECK(public_contract.semantics == RNS8_BOUNDED_U64);
+  CHECK(public_contract.task_count == 2);
+  CHECK(public_contract.descriptor_contract_supported == 1);
+  CHECK(public_contract.public_execution_available == 0);
+  CHECK(public_contract.same_shape_required == 1);
+  CHECK(public_contract.unique_matrix_handles_required == 1);
+  CHECK(public_contract.unique_workspace_handles_required == 1);
+  CHECK(public_contract.same_plan_fingerprint_required == 1);
+  CHECK(public_contract.same_device_required == 1);
+  CHECK(public_contract.device_resident_inputs_required == 1);
+  CHECK(public_contract.produces_device_current_output == 1);
+  CHECK(std::string(public_contract.unsupported_reason) == "public_grouped_execution_not_available");
+  CHECK(std::string(public_contract.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
+
   rns8_workspace* workspace0 = nullptr;
   rns8_workspace* workspace1 = nullptr;
   REQUIRE(rns8_create_workspace(ctx, plan, &workspace0) == RNS8_SUCCESS);

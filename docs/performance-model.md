@@ -870,8 +870,10 @@ provide `avg_prepack_setup_us`.
 
 ## Helper-Lane Evidence Metadata
 
-Current schema-v4 benchmark captures emit additional optimizer-facing metadata
-without changing the public C/C++ ABI or AUTO promotion policy:
+Current schema-v4 benchmark captures emit additional optimizer-facing metadata.
+Most objects remain benchmark-only and do not change public C/C++ execution
+semantics or AUTO promotion policy; public read-only inspection calls are
+called out explicitly below.
 
 - `plan_packing` mirrors `rns8_get_plan_packing_info` and names the selected
   input/output domains, resident/transient layout use, prepack-cache
@@ -923,7 +925,9 @@ without changing the public C/C++ ABI or AUTO promotion policy:
   output domain, checksum/status behavior, and whether the path used a host task
   loop or device-readable pointer/slab descriptors. Current captures may report
   deterministic unsupported metadata instead of pretending a graph or grouped
-  path ran.
+  path ran. `rns8_get_grouped_dispatch_contract_info` exposes the current
+  grouped descriptor and lifetime rules for a created plan, but reports public
+  grouped execution as unavailable until a real executor ABI is added.
 - `resident_lifetime` and `workspace_arena` make resident A/B/C currentness,
   source-version policy, workspace identity, arena high-water mark,
   suballocation count, stream-safety contract, and allocation-free repeat proof
