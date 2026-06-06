@@ -108,6 +108,20 @@ def print_human(report: dict[str, object]) -> None:
         print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item.get('version') or 'not installed'}")
     print()
 
+    print("RCCL / rccl-tests readiness")
+    rccl = report.get("rccl", {})
+    assert isinstance(rccl, dict)
+    print(f"RCCL: {'OK' if rccl.get('ok') else 'MISSING'} ({rccl.get('readiness_lane')})")
+    print(f"  header: {rccl.get('header') or 'not found'}")
+    print(f"  library: {rccl.get('library') or 'not found'}")
+    print(f"  rccl-tests: {'OK' if rccl.get('rccl_tests_ready') else 'MISSING'}")
+    tests = rccl.get("rccl_test_commands") or {}
+    assert isinstance(tests, dict)
+    for name in sorted(tests):
+        print(f"    {name}: {tests[name] or 'not found'}")
+    print(f"  detail: {rccl.get('detail')}")
+    print()
+
     print("Accelerator components")
     accelerators = report["accelerator_components"]
     assert isinstance(accelerators, dict)

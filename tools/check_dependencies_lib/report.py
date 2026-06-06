@@ -30,11 +30,9 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
     cmake_presets = cmake_presets_report()
     if not cmake_presets["ok"]:
         missing_required = True
-    for command in command_names_for_host():
+    for command in command_names_for_host(host_system):
         path = find_command(command)
-        required = command in CORE_COMMANDS or (
-            host_system == "Windows" and command in WINDOWS_HIP_COMMANDS
-        ) or (host_system == "Linux" and command in LINUX_ROCM_COMMANDS)
+        required = command_required_for_host(command, host_system)
         if not path:
             commands[command] = {"ok": False, "required": required, "detail": "not found"}
             missing_required = missing_required or required
@@ -57,7 +55,7 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
     for package in vcpkg_packages:
         version = vcpkg_installed.get(package)
         vcpkg_report[package] = version
-        if package in CORE_VCPKG_PACKAGES and version is None:
+        if host_system == "Windows" and package in CORE_VCPKG_PACKAGES and version is None:
             missing_required = True
 
     msvc = find_msvc()
@@ -84,6 +82,7 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
         "vcpkg_packages": vcpkg_report,
         "hip_info": hip_info,
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
+        "rccl": rccl_discovery_report(),
         "accelerator_components": accelerators,
         "accelerator_compile_probes": accelerator_compile_probes(
             accelerators, run_accelerator_probes, accelerator_probe_dir, offload_target_value

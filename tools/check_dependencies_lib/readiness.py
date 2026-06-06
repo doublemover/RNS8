@@ -71,7 +71,7 @@ def vcpkg_ok(vcpkg_report: dict[str, str | None], names: list[str]) -> bool:
 
 def vcpkg_package_role(name: str) -> str:
     if name in CORE_VCPKG_PACKAGES:
-        return "host-required"
+        return "windows-host-required"
     if name in OPTIONAL_CPP_PACKAGES:
         return "optional-reference"
     return "manifest-tracked"
@@ -403,6 +403,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     cmake_presets = report["cmake_presets"]
     accelerators = report["accelerator_components"]
     accelerator_probes = report["accelerator_compile_probes"]
+    rccl = report.get("rccl", {})
     hip_info = report["hip_info"]
     msvc = report["msvc"]
     assert isinstance(commands, dict)
@@ -411,6 +412,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(cmake_presets, dict)
     assert isinstance(accelerators, dict)
     assert isinstance(accelerator_probes, dict)
+    assert isinstance(rccl, dict)
     assert isinstance(hip_info, dict)
     assert isinstance(msvc, dict)
 
@@ -422,10 +424,11 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(windows, dict)
     assert isinstance(linux, dict)
 
+    host_core_commands = HOST_NEUTRAL_CORE_COMMANDS + (WINDOWS_CORE_COMMANDS if host_is_windows else [])
     core_host_ok = (
-        all(command_ok(commands, name) for name in CORE_COMMANDS)
+        all(command_ok(commands, name) for name in host_core_commands)
         and packages_ok(py_packages, PYTHON_PACKAGES)
-        and vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES)
+        and (not host_is_windows or vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES))
     )
     windows_hip_ok = (
         host_is_windows
@@ -441,6 +444,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         and linux_smi_ok
         and bool(linux["represented"])
     )
+    linux_profiler_ok = host_is_linux and all(command_ok(commands, name) for name in LINUX_PROFILER_COMMANDS)
+    linux_topology_present = any(command_ok(commands, name) for name in LINUX_TOPOLOGY_COMMANDS)
+    rccl_ready = bool(rccl.get("ok"))
+    rccl_tests_ready = bool(rccl.get("rccl_tests_ready"))
     gpu_arch_ok = bool(hip_info["ok"]) and bool(hip_info["target_supported_by_spec"])
 
     gates: dict[str, dict[str, object]] = {
@@ -449,13 +456,17 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "ok": core_host_ok,
             "required_for_host_readiness": True,
             "evidence": [
-                "commands: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in CORE_COMMANDS),
+                "commands: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in host_core_commands),
                 "python packages: "
                 + ", ".join(f"{name}={'OK' if py_packages.get(name) else 'MISSING'}" for name in PYTHON_PACKAGES),
-                "vcpkg core: "
-                + ", ".join(
-                    f"{name}={'OK' if vcpkg_packages.get(name) else 'MISSING'}"
-                    for name in CORE_VCPKG_PACKAGES
+                (
+                    "Windows vcpkg core: "
+                    + ", ".join(
+                        f"{name}={'OK' if vcpkg_packages.get(name) else 'MISSING'}"
+                        for name in CORE_VCPKG_PACKAGES
+                    )
+                    if host_is_windows
+                    else "Windows vcpkg core: not required on Linux/native-package hosts"
                 ),
             ],
             "detail": "Phase 0 host/reference readiness; optional differential libraries are reported separately",
@@ -504,6 +515,40 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         "E008_amdgpu_builtin_capability": accelerator_gate(
             "amdgpu_builtins", accelerators, host_is_windows, accelerator_probes
         ),
+        "E009_linux_profiler_counter_tooling": {
+            "status": status_label(linux_profiler_ok, host_is_linux),
+            "ok": linux_profiler_ok,
+            "required_for_host_readiness": False,
+            "required_for_counter_resource_audit": host_is_linux,
+            "evidence": [
+                "commands: "
+                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_PROFILER_COMMANDS)
+            ],
+            "detail": "rocprofv3 and rocprofv3-avail are required for counter/resource audit readiness, not for basic build-only smoke",
+        },
+        "E010_linux_topology_capture_tooling": {
+            "status": status_label(linux_topology_present, host_is_linux),
+            "ok": linux_topology_present,
+            "required_for_host_readiness": False,
+            "evidence": [
+                "commands: "
+                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_TOPOLOGY_COMMANDS)
+            ],
+            "detail": "numactl/lstopo improve topology evidence for CDNA reports; missing tools do not block a basic single-device smoke",
+        },
+        "E011_linux_rccl_multigpu_platform": {
+            "status": status_label(rccl_ready and rccl_tests_ready, host_is_linux),
+            "ok": rccl_ready and rccl_tests_ready,
+            "required_for_host_readiness": False,
+            "required_for_multi_gpu_platform": host_is_linux,
+            "evidence": [
+                f"RCCL={'OK' if rccl_ready else 'MISSING'}",
+                f"rccl-tests={'OK' if rccl_tests_ready else 'MISSING'}",
+                f"header={rccl.get('header') or 'not found'}",
+                f"library={rccl.get('library') or 'not found'}",
+            ],
+            "detail": "RCCL and rccl-tests are future multi-GPU platform readiness signals; current multi-GPU smoke uses independent per-GPU shards",
+        },
     }
 
     target = hip_info.get("target")

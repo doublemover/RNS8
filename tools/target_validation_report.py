@@ -160,6 +160,42 @@ def _accelerators_from_status(record: dict[str, Any]) -> dict[str, str]:
     return {str(key).lower(): _status_text(item) for key, item in value.items()}
 
 
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value.strip())
+    return None
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "ok", "available", "ready", "pass"}:
+            return True
+        if lowered in {"0", "false", "no", "missing", "unavailable", "not_ready", "fail"}:
+            return False
+    return None
+
+
+def _optional_topology_fields(source: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "multi_gpu_mode": _clean_string(source.get("multi_gpu_mode")),
+        "rank": _int_or_none(source.get("rank")),
+        "world_size": _int_or_none(source.get("world_size")),
+        "device_bdf": _clean_string(source.get("device_bdf") or source.get("pci_bdf") or source.get("pci_bus_id")),
+        "numa_node": _int_or_none(source.get("numa_node")),
+        "xgmi_peers": source.get("xgmi_peers") if isinstance(source.get("xgmi_peers"), list) else None,
+        "rocprofv3_ready": _bool_or_none(source.get("rocprofv3_ready")),
+        "rccl_ready": _bool_or_none(source.get("rccl_ready")),
+        "rccl_tests_ready": _bool_or_none(source.get("rccl_tests_ready")),
+    }
+
+
 def _cache_eligibility_from_capture(capture: dict[str, Any], target: dict[str, Any], host_os: str) -> dict[str, Any]:
     metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     blockers: list[str] = []
@@ -191,6 +227,7 @@ def capture_target(path: Path) -> dict[str, Any]:
     version = _clean_string(toolchain.get("hip_sdk_or_rocm_version") or metadata.get("accelerator_version"))
     group_key = evidence_group_key(host_os, target_id, version)
     device_index = target.get("device_index", device.get("device_index", device.get("device_id")))
+    runtime_env = capture.get("runtime_environment") if isinstance(capture.get("runtime_environment"), dict) else {}
     cache_key = _clean_string(target.get("target_cache_key")) or target_cache_key(
         target_id,
         target.get("device_name") or device.get("device_name") or device.get("name"),
@@ -218,6 +255,7 @@ def capture_target(path: Path) -> dict[str, Any]:
         "device_name": device.get("name"),
         "visible_device_count": target.get("visible_device_count", device.get("visible_device_count")),
         "node_gpu_count": target.get("node_gpu_count", device.get("node_gpu_count")),
+        **_optional_topology_fields({**device, **target, **runtime_env}),
         "target_cache_key": cache_key,
         "target_instance_id": instance_id,
         "global_mem_bytes": device.get("global_mem_bytes"),
@@ -289,6 +327,7 @@ def status_target(path: Path, record: dict[str, Any], index: int) -> dict[str, A
         "device_name": record.get("device_name") or record.get("gpu_name"),
         "visible_device_count": record.get("visible_device_count"),
         "node_gpu_count": record.get("node_gpu_count"),
+        **_optional_topology_fields(record),
         "target_cache_key": cache_key,
         "target_instance_id": _clean_string(record.get("target_instance_id"))
         or target_instance_id(cache_key, device_index, record.get("visibility")),
@@ -397,6 +436,22 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                 "node_gpu_counts": sorted(
                     {str(row.get("node_gpu_count")) for row in value if row.get("node_gpu_count") is not None}
                 ),
+                "multi_gpu_modes": sorted(
+                    {str(row.get("multi_gpu_mode")) for row in value if row.get("multi_gpu_mode")}
+                ),
+                "ranks": sorted({str(row.get("rank")) for row in value if row.get("rank") is not None}),
+                "world_sizes": sorted({str(row.get("world_size")) for row in value if row.get("world_size") is not None}),
+                "device_bdfs": sorted({str(row.get("device_bdf")) for row in value if row.get("device_bdf")}),
+                "numa_nodes": sorted({str(row.get("numa_node")) for row in value if row.get("numa_node") is not None}),
+                "rocprofv3_ready_values": sorted(
+                    {str(row.get("rocprofv3_ready")).lower() for row in value if row.get("rocprofv3_ready") is not None}
+                ),
+                "rccl_ready_values": sorted(
+                    {str(row.get("rccl_ready")).lower() for row in value if row.get("rccl_ready") is not None}
+                ),
+                "rccl_tests_ready_values": sorted(
+                    {str(row.get("rccl_tests_ready")).lower() for row in value if row.get("rccl_tests_ready") is not None}
+                ),
                 "target_cache_keys": sorted(
                     {str(row.get("target_cache_key")) for row in value if row.get("target_cache_key")}
                 ),
@@ -439,18 +494,22 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Capture rows: `{report['capture_count']}`",
         f"- Status rows: `{report['status_record_count']}`",
         "",
-        "| group | OS | target | family | build | ctest | smoke | release | profiler | cache eligible | blockers |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| group | OS | target | family | modes | ranks | visible | node GPUs | build | ctest | smoke | release | profiler | cache eligible | blockers |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for group in report["groups"]:
         phases = group["validation_phases"]
         eligibility = group["cache_eligibility"]
         lines.append(
-            "| `{group}` | `{os}` | `{target}` | `{family}` | `{build}` | `{ctest}` | `{smoke}` | `{release}` | `{profiler}` | `{eligible}` | `{blockers}` |".format(
+            "| `{group}` | `{os}` | `{target}` | `{family}` | `{modes}` | `{ranks}` | `{visible}` | `{node_gpus}` | `{build}` | `{ctest}` | `{smoke}` | `{release}` | `{profiler}` | `{eligible}` | `{blockers}` |".format(
                 group=group["target_validation_group"],
                 os=group.get("host_os"),
                 target=group.get("target_id"),
                 family=group.get("target_family"),
+                modes=", ".join(group.get("multi_gpu_modes") or []),
+                ranks=", ".join(group.get("ranks") or []),
+                visible=", ".join(group.get("visible_device_counts") or []),
+                node_gpus=", ".join(group.get("node_gpu_counts") or []),
                 build=phases.get("build"),
                 ctest=phases.get("ctest"),
                 smoke=phases.get("smoke"),

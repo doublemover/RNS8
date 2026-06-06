@@ -16,6 +16,21 @@ def expect(condition: bool, message: str) -> None:
 
 def main() -> int:
     root = deps.repo_root()
+    expect((root / "CMakePresets.json").exists(), "dependency checker repo_root must resolve to the repository root")
+    expect((root / "vcpkg.json").exists(), "dependency checker repo_root must find the repository vcpkg manifest")
+
+    expect(deps.vcpkg_required_for_host("Windows") is True, "Windows vcpkg requirement policy changed")
+    expect(deps.vcpkg_required_for_host("Linux") is False, "Linux must not require Windows vcpkg")
+    expect(deps.command_required_for_host("vcpkg", "Windows") is True, "vcpkg should be Windows-required")
+    expect(deps.command_required_for_host("vcpkg", "Linux") is False, "vcpkg should not be Linux-required")
+    linux_commands = deps.command_names_for_host("Linux")
+    expect("vcpkg" in linux_commands, "Linux report should still show vcpkg if present")
+    expect("hipInfo" not in linux_commands, "Linux report should not require Windows HIP SDK tools")
+    expect("rocprofv3" in linux_commands, "Linux profiler readiness command missing")
+    expect("rocprofv3-avail" in linux_commands, "Linux rocprof counter-list command missing")
+    expect("numactl" in linux_commands and "lstopo" in linux_commands, "Linux topology commands missing")
+    expect("all_reduce_perf" in linux_commands, "rccl-tests discovery command missing")
+    expect(deps.rccl_discovery_report()["required_for_single_device_smoke"] is False, "RCCL must not block CDNA smoke")
 
     ck = deps.repo_local_dependency_report("ck")
     expect(ck["relative_path"] == "third_party/rocm/composable_kernel", "CK submodule path changed")

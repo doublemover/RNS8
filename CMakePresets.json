@@ -274,6 +274,27 @@
       }
     },
     {
+      "name": "linux-cdna-accelerators-release",
+      "displayName": "Linux ROCm CDNA accelerators + native packages (Release)",
+      "description": "Clean real-host CDNA preset for MI300X/Instinct accelerator probing with native ROCm package discovery only; no vcpkg toolchain, Windows paths, or repo-local generated dependency roots.",
+      "inherits": "linux-cdna-release",
+      "binaryDir": "${sourceDir}/build/linux-cdna-accelerators-release",
+      "cacheVariables": {
+        "RNS8_PROBE_ACCELERATORS": "ON",
+        "RNS8_ENABLE_HIPBLASLT": "ON",
+        "RNS8_ENABLE_CK": "ON",
+        "RNS8_ENABLE_ROCWMMA": "ON",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_DEPS_BUILD_ROOT": "",
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
+        "RNS8_CK_ROOT": "",
+        "RNS8_ROCWMMA_ROOT": ""
+      }
+    },
+    {
       "name": "linux-rocm-accelerator-probe",
       "displayName": "Linux ROCm accelerator probe (Debug)",
       "description": "Evidence-only Linux accelerator component probe preset; keeps accelerator backend enable flags disabled.",
@@ -389,6 +410,10 @@
     {
       "name": "linux-cdna-release",
       "configurePreset": "linux-cdna-release"
+    },
+    {
+      "name": "linux-cdna-accelerators-release",
+      "configurePreset": "linux-cdna-accelerators-release"
     },
     {
       "name": "linux-cpu-debug",
@@ -508,6 +533,13 @@
     {
       "name": "linux-cdna-release",
       "configurePreset": "linux-cdna-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cdna-accelerators-release",
+      "configurePreset": "linux-cdna-accelerators-release",
       "output": {
         "outputOnFailure": true
       }
