@@ -134,7 +134,7 @@ bool checked_wrap64_gemm_compact_layouts(
 #if RNS8_ENABLE_HIP
 rns8_status set_hip_device(int device_id) {
   if (device_id < 0) {
-    device_id = 0;
+    return RNS8_INVALID_ARGUMENT;
   }
   return hipSetDevice(device_id) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 }

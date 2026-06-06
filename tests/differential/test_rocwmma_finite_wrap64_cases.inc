@@ -55,7 +55,7 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate enforces K boundary") {
     SKIP("rocWMMA backend is not available on this device");
   }
 
-  constexpr int device_id = 0;
+  const int device_id = default_visible_hip_test_device();
   require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
       {"maximum accepted K", 1, 1, 32768, 0, 0, 0, 0x3332373638776d6dull});
 

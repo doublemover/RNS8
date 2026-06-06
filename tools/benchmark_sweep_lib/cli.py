@@ -43,6 +43,22 @@ def parse_args() -> argparse.Namespace:
         help="optional wall-clock timeout for each benchmark capture command; timed-out captures are recorded as .failed.json",
     )
     parser.add_argument(
+        "--hip-visible-devices",
+        help="set HIP_VISIBLE_DEVICES for every capture command, e.g. 0, 0,1, 0,1,2,3, or 0,1,2,3,4,5,6,7",
+    )
+    parser.add_argument(
+        "--rocr-visible-devices",
+        help="set ROCR_VISIBLE_DEVICES for every capture command using the same comma-separated device-list syntax",
+    )
+    parser.add_argument(
+        "--gpu-device-ordinal",
+        help="set GPU_DEVICE_ORDINAL for every capture command using the same comma-separated device-list syntax",
+    )
+    parser.add_argument(
+        "--gpu-shards",
+        help="duplicate each capture once per listed GPU with HIP_VISIBLE_DEVICES set to that single GPU and outputs under gpuN/",
+    )
+    parser.add_argument(
         "--scenario",
         action="append",
         choices=[*scenario_names(), "all"],
@@ -249,6 +265,15 @@ def parse_args() -> argparse.Namespace:
         parser.error("--max-new-captures must be non-negative")
     if args.capture_timeout_seconds is not None and args.capture_timeout_seconds <= 0:
         parser.error("--capture-timeout-seconds must be positive")
+    for option_name in ["hip_visible_devices", "rocr_visible_devices", "gpu_device_ordinal", "gpu_shards"]:
+        value = getattr(args, option_name, None)
+        if value is None:
+            continue
+        parts = [part.strip() for part in value.split(",")]
+        if not parts or any(not part.isdecimal() for part in parts):
+            parser.error(f"--{option_name.replace('_', '-')} must be a comma-separated list of nonnegative device indices")
+    if args.gpu_shards and args.hip_visible_devices:
+        parser.error("--gpu-shards sets HIP_VISIBLE_DEVICES per shard and cannot be combined with --hip-visible-devices")
     if args.grouped_dispatch_tasks <= 0:
         parser.error("--grouped-dispatch-tasks must be positive")
     if args.modulus_set != "default" and not args.modulus_set.startswith("experimental:"):

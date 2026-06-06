@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from check_dependencies_lib.config import LINUX_CDNA_TARGETS
 from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
 
 
@@ -70,6 +72,22 @@ def key_fields(key: str) -> dict[str, str]:
         if name:
             fields[name] = value
     return fields
+
+
+def entry_fingerprint(entry: dict[str, Any] | None) -> str | None:
+    if entry is None:
+        return None
+    payload = json.dumps(entry, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+
+def target_class_for_id(target_id: str | None) -> str:
+    target = (target_id or "").lower()
+    if target in LINUX_CDNA_TARGETS:
+        return "cdna"
+    if target.startswith("gfx10") or target.startswith("gfx11") or target.startswith("gfx12"):
+        return "rdna"
+    return "unknown" if target else "missing"
 
 
 def require_string(item: dict[str, Any], name: str) -> str:
@@ -343,6 +361,7 @@ def validate_promotion_ledger_gate(
     ledger_paths: list[Path],
     *,
     require_variance_gate: bool = False,
+    require_target_validation_gate: bool = False,
 ) -> None:
     ledgers: dict[str, dict[str, Any]] = {}
     for path in ledger_paths:
@@ -370,6 +389,15 @@ def validate_promotion_ledger_gate(
                 raise AutotuneCacheInstallError(f"promotion_ledger_missing_variance_gate:{key}")
             if ledger_entry.get("variance_gate_ready") is not True:
                 raise AutotuneCacheInstallError(f"promotion_ledger_variance_gate_not_ready:{key}")
+        target_id = str(entry.get("target_id") or "").lower()
+        target_gate_required = require_target_validation_gate or target_id in LINUX_CDNA_TARGETS
+        if target_gate_required:
+            if ledger_entry.get("target_validation_gate_available") is not True:
+                raise AutotuneCacheInstallError(f"promotion_ledger_missing_target_validation_gate:{key}")
+            if ledger_entry.get("target_validation_gate_ready") is not True:
+                raise AutotuneCacheInstallError(f"promotion_ledger_target_validation_gate_not_ready:{key}")
+            if ledger_entry.get("target_cache_eligible") is not True:
+                raise AutotuneCacheInstallError(f"promotion_ledger_target_cache_not_eligible:{key}")
 
 
 def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
@@ -381,6 +409,35 @@ def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
     temp_path.replace(path)
 
 
+def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str, str], int] = {}
+    for entry in entries:
+        shape = entry.get("shape") if isinstance(entry.get("shape"), dict) else {}
+        if all(isinstance(shape.get(key), int) for key in ("m", "n", "k")):
+            max_dim = max(int(shape[key]) for key in ("m", "n", "k"))
+            shape_family = "small" if max_dim <= 128 else "medium" if max_dim <= 1024 else "large"
+        else:
+            shape_family = "unknown"
+        target_id = str(entry.get("target_id") or "unknown")
+        key = (
+            str(entry.get("semantic_contract") or "unknown"),
+            shape_family,
+            str(entry.get("selected_backend") or "unknown"),
+            target_class_for_id(target_id),
+        )
+        groups[key] = groups.get(key, 0) + 1
+    return [
+        {
+            "semantic_contract": semantic,
+            "shape_family": shape_family,
+            "backend": backend,
+            "target_class": target_class,
+            "entry_count": count,
+        }
+        for (semantic, shape_family, backend, target_class), count in sorted(groups.items())
+    ]
+
+
 def install_cache(
     sources: list[Path],
     destination: Path,
@@ -389,6 +446,7 @@ def install_cache(
     replace_existing: bool = False,
     promotion_ledgers: list[Path] | None = None,
     require_variance_gate: bool = False,
+    require_target_validation_gate: bool = False,
 ) -> dict[str, Any]:
     if replace_existing:
         existing_entries: list[dict[str, Any]] = []
@@ -400,23 +458,52 @@ def install_cache(
                 f"{destination}: existing cache failed reviewed-cache validation; "
                 f"rerun with --replace-existing to discard existing entries: {exc}"
             ) from exc
-    merged = {entry["key"]: entry for entry in existing_entries}
+    existing_by_key = {entry["key"]: entry for entry in existing_entries}
+    merged = dict(existing_by_key)
     initial_keys = set(merged)
     source_entries = 0
     reviewed_source_entries: list[dict[str, Any]] = []
+    source_by_key: dict[str, str] = {}
     for source in sources:
         entries = read_cache(source)
         source_entries += len(entries)
         reviewed_source_entries.extend(entries)
+        for entry in entries:
+            source_by_key[entry["key"]] = str(source)
     if promotion_ledgers:
         validate_promotion_ledger_gate(
             reviewed_source_entries,
             promotion_ledgers,
             require_variance_gate=require_variance_gate,
+            require_target_validation_gate=require_target_validation_gate,
         )
     elif require_variance_gate:
         raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
+    elif require_target_validation_gate:
+        raise AutotuneCacheInstallError("--require-target-validation-gate requires at least one --promotion-ledger")
+    replacement_history: list[dict[str, Any]] = []
     for entry in reviewed_source_entries:
+        old_entry = merged.get(entry["key"])
+        if old_entry != entry:
+            replacement_history.append(
+                {
+                    "action": "replace" if old_entry is not None else "add",
+                    "key": entry["key"],
+                    "old_entry_fingerprint": entry_fingerprint(old_entry),
+                    "new_entry_fingerprint": entry_fingerprint(entry),
+                    "selected_backend": entry.get("selected_backend"),
+                    "selected_kernel": entry.get("selected_kernel"),
+                    "semantic_contract": entry.get("semantic_contract"),
+                    "target_id": entry.get("target_id"),
+                    "target_class": target_class_for_id(entry.get("target_id")),
+                    "evidence_source": source_by_key.get(entry["key"]),
+                    "updated_utc": entry.get("updated_utc"),
+                    "validation_status": entry.get("validation_status"),
+                    "validation_command_family": "reviewed_release_with_promotion_ledger"
+                    if promotion_ledgers
+                    else "reviewed_release_cache_validation_only",
+                }
+            )
         merged[entry["key"]] = entry
     ordered = [merged[key] for key in sorted(merged)]
     added = len(set(merged) - initial_keys)
@@ -430,11 +517,14 @@ def install_cache(
         "sources": [str(source) for source in sources],
         "promotion_ledgers": [str(path) for path in (promotion_ledgers or [])],
         "require_variance_gate": require_variance_gate,
+        "require_target_validation_gate": require_target_validation_gate,
         "source_entries": source_entries,
         "existing_entries": len(existing_entries),
         "installed_entries": len(ordered),
         "added_entries": added,
         "replaced_entries": replaced,
+        "replacement_history": replacement_history,
+        "cache_coverage": cache_coverage_summary(ordered),
     }
 
 
@@ -460,6 +550,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="require supplied promotion ledger rows to include a ready perf_variance_report gate",
     )
+    parser.add_argument(
+        "--require-target-validation-gate",
+        action="store_true",
+        help="require supplied promotion ledger rows to include matching target_validation_report cache eligibility",
+    )
     return parser.parse_args()
 
 
@@ -473,6 +568,7 @@ def main() -> int:
         replace_existing=args.replace_existing,
         promotion_ledgers=args.promotion_ledger,
         require_variance_gate=args.require_variance_gate,
+        require_target_validation_gate=args.require_target_validation_gate,
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0

@@ -106,5 +106,6 @@ class SweepCommand:
     command: list[str]
     output: Path
     scenario: dict[str, Any] | None = None
+    env: dict[str, str] | None = None
 
 

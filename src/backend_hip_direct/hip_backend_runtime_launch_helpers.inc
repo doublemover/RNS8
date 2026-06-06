@@ -69,7 +69,7 @@ bool checked_i32_shape(int64_t rows, int64_t cols, int64_t ld, uint32_t prefix) 
 
 rns8_status set_hip_device(int device_id) {
   if (device_id < 0) {
-    device_id = 0;
+    return RNS8_INVALID_ARGUMENT;
   }
   const hipError_t err = hipSetDevice(device_id);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;

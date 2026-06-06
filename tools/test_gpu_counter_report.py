@@ -74,6 +74,8 @@ def main() -> int:
         assert report["counter_inputs"][0]["numeric_metric_average"]["SQ_INSTS_VALU"] == 20.0
         assert report["counter_inputs"][1]["numeric_metric_average"]["LDS_BANK_CONFLICT"] == 3.0
         assert report["isa_summaries"][0]["instruction_totals"]["global_store"] == 4
+        assert report["resource_summary"]["memory_pressure_signal"] == 4.0
+        assert report["resource_summary"]["global_store_instruction_count"] == 4
 
         json_path = gpu_counter_report.write_json_report(report, out_dir, "self-test")
         md_path = gpu_counter_report.write_markdown_report(report, out_dir, "self-test")
@@ -81,6 +83,12 @@ def main() -> int:
         assert md_path.exists()
         loaded = json.loads(json_path.read_text(encoding="utf-8"))
         assert loaded["capture"]["semantics"] == "bounded_i64"
+        batch = gpu_counter_report.build_batch_report([report])
+        assert batch["group_count"] == 1
+        assert batch["groups"][0]["counter_evidence"] == "present"
+        batch_paths = gpu_counter_report.write_batch_reports(batch, out_dir)
+        assert Path(batch_paths["json"]).exists()
+        assert Path(batch_paths["markdown"]).exists()
 
     print("gpu counter report self-test: PASS")
     return 0

@@ -115,12 +115,21 @@ void print_target_variant_json(
     const char* selected_backend) {
   const std::string target_id = benchmark_key_target_id(result);
   const std::string target_namespace = target_namespace_for_id(target_id);
+  const uint32_t visible_device_count = visible_device_count_from_environment();
+  const uint32_t node_gpu_count = benchmark_node_gpu_count();
   std::cout << "  \"target_variant\": {\n";
   std::cout << "    \"target_id\": \"" << json_escape(target_id) << "\",\n";
+  std::cout << "    \"target_arch\": \"" << json_escape(info.gcn_arch) << "\",\n";
+  std::cout << "    \"target_cache_key\": \"" << json_escape(target_cache_key(info, result)) << "\",\n";
+  std::cout << "    \"target_instance_id\": \"" << json_escape(target_instance_id(info, result)) << "\",\n";
   std::cout << "    \"target_namespace\": \"" << json_escape(target_namespace) << "\",\n";
   std::cout << "    \"review_group_key\": \""
             << json_escape(target_review_group_key(args, info, result, selected_backend)) << "\",\n";
   std::cout << "    \"configured_amdgpu_targets\": \"" << json_escape(RNS8_CONFIGURED_AMDGPU_TARGETS) << "\",\n";
+  std::cout << "    \"device_index\": " << info.device_id << ",\n";
+  std::cout << "    \"device_name\": \"" << json_escape(info.name) << "\",\n";
+  std::cout << "    \"visible_device_count\": " << visible_device_count << ",\n";
+  std::cout << "    \"node_gpu_count\": " << node_gpu_count << ",\n";
   std::cout << "    \"hip_enabled\": " << (RNS8_CONFIGURED_HIP_ENABLED ? "true" : "false") << ",\n";
   std::cout << "    \"hip_runtime_version\": " << info.hip_runtime_version << ",\n";
   std::cout << "    \"hip_driver_version\": " << info.hip_driver_version << "\n";

@@ -122,6 +122,8 @@ def write_ledger(
     blockers: list[str] | None = None,
     variance: bool = False,
     variance_ready: bool = True,
+    target_gate: bool = False,
+    target_ready: bool = True,
 ) -> None:
     path.write_text(
         json.dumps(
@@ -135,6 +137,9 @@ def write_ledger(
                         "promotion_blockers": list(blockers or []),
                         "variance_gate_available": variance,
                         "variance_gate_ready": variance_ready if variance else None,
+                        "target_validation_gate_available": target_gate,
+                        "target_validation_gate_ready": target_ready if target_gate else None,
+                        "target_cache_eligible": target_ready if target_gate else None,
                     }
                     for item in entries
                 ],
@@ -216,6 +221,9 @@ def main() -> int:
         assert summary["installed_entries"] == 4
         assert summary["added_entries"] == 3
         assert summary["replaced_entries"] == 1
+        assert any(item["action"] == "replace" for item in summary["replacement_history"])
+        assert any(item["target_class"] == "rdna" for item in summary["replacement_history"])
+        assert summary["cache_coverage"]
         installed = json.loads(destination.read_text(encoding="utf-8"))["entries"]
         assert [item["key"] for item in installed] == sorted(item["key"] for item in installed)
         assert any(item["finite_modulus"] == 251 for item in installed)
@@ -275,6 +283,48 @@ def main() -> int:
             require_variance_gate=True,
         )
         assert variance_summary["require_variance_gate"] is True
+
+        target_ledger = root / "target-promotion-ledger.json"
+        write_ledger(target_ledger, [replacement], target_gate=True, target_ready=True)
+        target_summary = install_autotune_cache.install_cache(
+            [source_a],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[target_ledger],
+            require_target_validation_gate=True,
+        )
+        assert target_summary["require_target_validation_gate"] is True
+
+        cdna = copy.deepcopy(replacement)
+        cdna["target_id"] = "gfx942"
+        cdna["key"] = cdna["key"].replace("target_id=gfx1100-old", "target_id=gfx942")
+        cdna_source = root / "cdna-source.json"
+        write_cache(cdna_source, [cdna])
+        cdna_ledger_missing_target = root / "cdna-missing-target-ledger.json"
+        write_ledger(cdna_ledger_missing_target, [cdna], variance=True, variance_ready=True)
+        try:
+            install_autotune_cache.install_cache(
+                [cdna_source],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[cdna_ledger_missing_target],
+                require_variance_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_target_validation_gate" in str(exc)
+        else:
+            raise AssertionError("CDNA cache entry installed without target validation gate")
+
+        cdna_ledger = root / "cdna-target-ledger.json"
+        write_ledger(cdna_ledger, [cdna], variance=True, variance_ready=True, target_gate=True, target_ready=True)
+        cdna_summary = install_autotune_cache.install_cache(
+            [cdna_source],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[cdna_ledger],
+            require_variance_gate=True,
+        )
+        assert cdna_summary["replacement_history"][0]["target_class"] == "cdna"
 
         bad = copy.deepcopy(finite)
         bad["key"] = bad["key"].replace(";finite_modulus=251", "")

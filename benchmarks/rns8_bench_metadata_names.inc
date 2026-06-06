@@ -260,6 +260,33 @@ std::string target_namespace_for_id(const std::string& target_id) {
   return "unknown";
 }
 
+std::string target_visibility_key() {
+  for (const char* name : {"HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"}) {
+    const std::string value = trim_ascii_whitespace(environment_value(name));
+    if (!value.empty()) {
+      return std::string(name) + "=" + value;
+    }
+  }
+  return "runtime-default-visible-devices";
+}
+
+std::string target_cache_key(const rns8_device_info& info, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << "arch=" << benchmark_key_target_id(result)
+      << ";device_name=" << info.name
+      << ";hip_sdk_or_rocm=" << RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION
+      << ";hip_runtime=" << info.hip_runtime_version;
+  return out.str();
+}
+
+std::string target_instance_id(const rns8_device_info& info, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << target_cache_key(info, result)
+      << ";device_index=" << info.device_id
+      << ";visibility=" << target_visibility_key();
+  return out.str();
+}
+
 std::string target_review_group_key(
     const Args& args,
     const rns8_device_info& info,
@@ -271,6 +298,10 @@ std::string target_review_group_key(
       << "/target=" << target_id
       << "/backend=" << selected_backend
       << "/semantics=" << semantics_name(args.semantics)
+      << "/device_index=" << info.device_id
+      << "/device_name=" << info.name
+      << "/target_instance=" << target_instance_id(info, result)
+      << "/visibility=" << target_visibility_key()
       << "/configured=" << RNS8_CONFIGURED_AMDGPU_TARGETS
       << "/runtime=" << info.hip_runtime_version;
   return out.str();

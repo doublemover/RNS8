@@ -15,7 +15,7 @@ rns8_status hip_direct_probe(int device_id, rns8_device_info& out) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
   if (device_id < 0) {
-    device_id = 0;
+    return RNS8_INVALID_ARGUMENT;
   }
   if (device_id >= count) {
     return RNS8_INVALID_ARGUMENT;

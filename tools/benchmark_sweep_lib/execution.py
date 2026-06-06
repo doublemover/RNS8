@@ -71,8 +71,16 @@ def _timeout_text(value: str | bytes | None) -> str:
     return value
 
 
-def run_command(command: list[str], output: Path, timeout_seconds: float | None = None) -> bool:
+def run_command(
+    command: list[str],
+    output: Path,
+    timeout_seconds: float | None = None,
+    env_overrides: dict[str, str] | None = None,
+) -> bool:
     output.parent.mkdir(parents=True, exist_ok=True)
+    run_env = os.environ.copy()
+    if env_overrides:
+        run_env.update(env_overrides)
     try:
         completed = subprocess.run(
             command,
@@ -80,10 +88,12 @@ def run_command(command: list[str], output: Path, timeout_seconds: float | None 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=timeout_seconds,
+            env=run_env,
         )
     except subprocess.TimeoutExpired as exc:
         failure = {
             "command": command,
+            "environment": env_overrides or {},
             "returncode": None,
             "timed_out": True,
             "timeout_seconds": timeout_seconds,
@@ -95,6 +105,7 @@ def run_command(command: list[str], output: Path, timeout_seconds: float | None 
     if completed.returncode != 0:
         failure = {
             "command": command,
+            "environment": env_overrides or {},
             "returncode": completed.returncode,
             "timed_out": False,
             "stdout": completed.stdout,
@@ -153,7 +164,7 @@ def execute_sweep_entries(
             stats["deferred_captures"] += 1
             continue
         stats["new_captures_attempted"] += 1
-        if run_command(entry.command, entry.output, timeout_seconds=timeout_seconds):
+        if run_command(entry.command, entry.output, timeout_seconds=timeout_seconds, env_overrides=entry.env):
             capture_paths.append(entry.output)
             stats["new_captures_completed"] += 1
     return stats

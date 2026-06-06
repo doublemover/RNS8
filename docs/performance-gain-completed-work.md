@@ -16,6 +16,16 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 Current count: 30 closed/completed ranks.
 
+## CDNA-Ready Infrastructure Notes
+
+Ranks 50, 60, 61, and 62 now have repository-side control surfaces for a later
+CDNA validation run: bounded-i64 1024 hipBLASLt disposition reporting,
+promotion-ledger/cache replacement history, batch counter/resource reporting,
+and per-target validation reports. They remain active evidence gates until real
+Linux ROCm CDNA host captures, profiler exports, and target-specific cache
+eligibility reports exist. These notes are not counted as closed production
+speedups and do not imply Instinct readiness.
+
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |

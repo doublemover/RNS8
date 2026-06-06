@@ -10,13 +10,17 @@
 namespace {
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+int default_visible_hip_test_device() {
+  return 0;
+}
+
 rns8_context* create_backend_context(rns8_backend_kind backend) {
   rns8_context_options options{};
   options.struct_size = sizeof(options);
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = backend;
   rns8_context* ctx = nullptr;
-  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0;
+  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
   REQUIRE(rns8_create_context(device_id, &options, &ctx) == RNS8_SUCCESS);
   return ctx;
 }
@@ -27,7 +31,7 @@ bool ck_available() {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = RNS8_BACKEND_CK;
   rns8_context* ctx = nullptr;
-  const rns8_status status = rns8_create_context(0, &options, &ctx);
+  const rns8_status status = rns8_create_context(default_visible_hip_test_device(), &options, &ctx);
   rns8_destroy_context(ctx);
   return status == RNS8_SUCCESS;
 }

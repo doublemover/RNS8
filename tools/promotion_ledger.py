@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+import target_validation_report
 
 
 DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
@@ -67,6 +68,21 @@ def load_variance_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
     return entries
 
 
+def load_target_validation_groups(paths: list[Path]) -> dict[str, dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            continue
+        for group in data.get("groups", []):
+            if not isinstance(group, dict):
+                continue
+            key = group.get("target_validation_group") or group.get("review_group_key")
+            if isinstance(key, str) and key:
+                groups[key] = group
+    return groups
+
+
 def feature_lane_requested(item: dict[str, Any]) -> bool:
     if item.get("requested") is True or item.get("enabled") is True or item.get("used") is True:
         return True
@@ -80,11 +96,15 @@ def capture_entry(
     variance_entry: dict[str, Any] | None = None,
     *,
     variance_report_supplied: bool = False,
+    target_validation_entry: dict[str, Any] | None = None,
+    target_validation_report_supplied: bool = False,
 ) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
+    target_row = target_validation_report.capture_target(path)
     metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     baseline = capture.get("comparison_baseline") if isinstance(capture.get("comparison_baseline"), dict) else {}
+    shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
     blockers: list[str] = []
     key = metadata.get("autotune_key")
     if not key:
@@ -137,6 +157,23 @@ def capture_entry(
             and speedup <= variance_required_margin
         ):
             blockers.append("speedup_inside_variance_margin")
+    target_validation_ready = None
+    target_cache_eligible = None
+    target_cache_blockers: list[str] = []
+    if target_validation_report_supplied and target_validation_entry is None:
+        blockers.append("missing_target_validation_group")
+    elif target_validation_entry is not None:
+        eligibility = target_validation_entry.get("cache_eligibility")
+        if not isinstance(eligibility, dict):
+            eligibility = {}
+        target_cache_eligible = eligibility.get("eligible") is True
+        target_cache_blockers = [
+            str(item)
+            for item in eligibility.get("blockers", [])
+            if isinstance(item, str) and item
+        ]
+        target_validation_ready = target_cache_eligible and not target_cache_blockers
+        blockers.extend(f"target_validation_blocker:{item}" for item in target_cache_blockers)
     for object_name in ("modulus_set", "export_variant", "reconstruction_variant", "grouped_dispatch", "hip_graph_replay"):
         item = capture.get(object_name)
         if (
@@ -152,6 +189,17 @@ def capture_entry(
         "autotune_key": key,
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
+        "semantic_contract": capture.get("semantics"),
+        "shape": shape,
+        "target_id": target_row.get("target_id"),
+        "target_class": target_row.get("target_class"),
+        "target_family": target_row.get("target_family"),
+        "host_os": target_row.get("host_os"),
+        "target_validation_group": target_row.get("target_validation_group"),
+        "target_validation_gate_available": target_validation_entry is not None,
+        "target_validation_gate_ready": target_validation_ready,
+        "target_cache_eligible": target_cache_eligible,
+        "target_cache_blockers": sorted(set(target_cache_blockers)),
         "validation_status": metadata.get("capability_status"),
         "performance_validated": raw_performance_validated or reviewed_promotable,
         "review_report_promotable": reviewed_promotable,
@@ -164,22 +212,86 @@ def capture_entry(
     }
 
 
+def stale_invalidation_reasons(entry: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    for blocker in entry.get("promotion_blockers", []):
+        text = str(blocker)
+        if "target" in text:
+            reasons.append("target_id_or_target_validation_mismatch")
+        elif "variance" in text or "margin" in text or "speedup" in text:
+            reasons.append("margin_below_required_threshold")
+        elif "kernel" in text:
+            reasons.append("selected_kernel_mismatch")
+        elif "epilogue" in text:
+            reasons.append("epilogue_mismatch")
+        elif "workspace" in text:
+            reasons.append("workspace_mismatch")
+        elif "schema" in text:
+            reasons.append("schema_mismatch")
+        elif "review" in text or "evidence" in text or "performance" in text:
+            reasons.append("evidence_missing_or_not_promoted")
+    if not reasons and entry.get("promotion_blockers"):
+        reasons.append("promotion_blockers_present")
+    return sorted(set(reasons))
+
+
+def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
+    for entry in entries:
+        shape = entry.get("shape") if isinstance(entry.get("shape"), dict) else {}
+        shape_family = "unknown"
+        if all(isinstance(shape.get(key), int) for key in ("m", "n", "k")):
+            dims = [int(shape[key]) for key in ("m", "n", "k")]
+            max_dim = max(dims)
+            shape_family = "small" if max_dim <= 128 else "medium" if max_dim <= 1024 else "large"
+        key = (
+            str(entry.get("semantic_contract") or "unknown"),
+            shape_family,
+            str(entry.get("backend_selected") or "unknown"),
+            str(entry.get("target_class") or "unknown"),
+            str(entry.get("target_id") or "unknown"),
+        )
+        groups.setdefault(key, []).append(entry)
+    rows: list[dict[str, Any]] = []
+    for (semantic, shape_family, backend, target_class, target_id), grouped in sorted(groups.items()):
+        rows.append(
+            {
+                "semantic_contract": semantic,
+                "shape_family": shape_family,
+                "backend": backend,
+                "target_class": target_class,
+                "target_id": target_id,
+                "entry_count": len(grouped),
+                "installed_count": sum(1 for item in grouped if item.get("installed_cache_entry") is True),
+                "eligible_count": sum(1 for item in grouped if not item.get("promotion_blockers")),
+                "blocked_count": sum(1 for item in grouped if item.get("promotion_blockers")),
+            }
+        )
+    return rows
+
+
 def build_ledger(
     captures: list[Path],
     cache_path: Path | None,
     review_reports: list[Path] | None = None,
     variance_reports: list[Path] | None = None,
+    target_validation_reports: list[Path] | None = None,
 ) -> dict[str, Any]:
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
+    target_groups = load_target_validation_groups(target_validation_reports or [])
     variance_report_supplied = bool(variance_reports)
     entries = [
-        capture_entry(
-            path,
-            reviewed.get(path_key(path)),
-            variance.get(path_key(path)),
-            variance_report_supplied=variance_report_supplied,
-        )
+        (
+            lambda target_row: capture_entry(
+                path,
+                reviewed.get(path_key(path)),
+                variance.get(path_key(path)),
+                variance_report_supplied=variance_report_supplied,
+                target_validation_entry=target_groups.get(str(target_row.get("target_validation_group"))),
+                target_validation_report_supplied=bool(target_validation_reports),
+            )
+        )(target_validation_report.capture_target(path))
         for path in captures
     ]
     cache_entries = load_cache_entries(cache_path)
@@ -189,14 +301,17 @@ def build_ledger(
         entry["installed_cache_entry"] = bool(key and key in cache_keys)
         if key and key not in cache_keys:
             entry["promotion_blockers"].append("missing_installed_cache_entry")
+        entry["stale_invalidation_reasons"] = stale_invalidation_reasons(entry)
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",
         "cache_path": str(cache_path) if cache_path else None,
         "review_report_count": len(review_reports or []),
         "variance_report_count": len(variance_reports or []),
+        "target_validation_report_count": len(target_validation_reports or []),
         "cache_entry_count": len(cache_entries),
         "entries": entries,
+        "cache_coverage": cache_coverage(entries),
         "blocked_count": sum(1 for entry in entries if entry["promotion_blockers"]),
     }
 
@@ -213,19 +328,42 @@ def write_outputs(ledger: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Cache entries: `{ledger['cache_entry_count']}`",
         f"- Blocked entries: `{ledger['blocked_count']}`",
         "",
-        "| capture | backend | kernel | cache entry | variance gate | required speedup | blockers |",
-        "| --- | --- | --- | --- | --- | ---: | --- |",
+        "| capture | backend | target | cache entry | variance gate | target gate | required speedup | blockers |",
+        "| --- | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for entry in ledger["entries"]:
         lines.append(
-            "| `{path}` | `{backend}` | `{kernel}` | `{cache}` | `{variance}` | `{required}` | `{blockers}` |".format(
+            "| `{path}` | `{backend}` | `{target}` | `{cache}` | `{variance}` | `{target_gate}` | `{required}` | `{blockers}` |".format(
                 path=entry["path"],
                 backend=entry.get("backend_selected"),
-                kernel=entry.get("selected_kernel"),
+                target=entry.get("target_validation_group"),
                 cache=entry.get("installed_cache_entry"),
                 variance=entry.get("variance_gate_ready"),
+                target_gate=entry.get("target_validation_gate_ready"),
                 required=entry.get("variance_required_speedup_margin"),
                 blockers=", ".join(entry.get("promotion_blockers") or []),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Cache Coverage",
+            "",
+            "| semantic | shape family | backend | target | entries | installed | eligible | blocked |",
+            "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for row in ledger.get("cache_coverage", []):
+        lines.append(
+            "| `{semantic}` | `{shape}` | `{backend}` | `{target}` | {entries} | {installed} | {eligible} | {blocked} |".format(
+                semantic=row["semantic_contract"],
+                shape=row["shape_family"],
+                backend=row["backend"],
+                target=row["target_id"],
+                entries=row["entry_count"],
+                installed=row["installed_count"],
+                eligible=row["eligible_count"],
+                blocked=row["blocked_count"],
             )
         )
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -250,10 +388,17 @@ def main() -> int:
         default=[],
         help="perf_variance_report.py output that proves the win clears observed repeatability noise",
     )
+    parser.add_argument(
+        "--target-validation-report",
+        type=Path,
+        action="append",
+        default=[],
+        help="target_validation_report.py output that proves matching OS/target/toolchain cache eligibility",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    ledger = build_ledger(args.captures, args.cache, args.review_report, args.variance_report)
+    ledger = build_ledger(args.captures, args.cache, args.review_report, args.variance_report, args.target_validation_report)
     if args.json:
         print(json.dumps(ledger, indent=2, sort_keys=True))
     else:

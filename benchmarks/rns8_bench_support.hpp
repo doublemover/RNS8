@@ -25,6 +25,14 @@ std::string command_line(int argc, char** argv);
 
 std::string trim_ascii_whitespace(std::string value);
 
+std::string environment_value(const char* name);
+
+uint32_t visible_device_count_from_environment();
+
+uint32_t runtime_hip_device_count();
+
+uint32_t benchmark_node_gpu_count();
+
 std::string runtime_git_commit();
 
 std::string compiler_id();
@@ -34,6 +42,8 @@ std::string compiler_version();
 void print_nullable_string(const char* value);
 
 void print_json_string_or_null(const char* value);
+
+void print_json_string_or_null(const std::string& value);
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label);
 

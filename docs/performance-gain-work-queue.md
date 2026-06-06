@@ -726,8 +726,8 @@ June 4-5, 2026 updates:
 | 52 | Finite generic modulus family map | Generic finite-u8 wins now exist, but the modulus family is sparse and partly duplicated in old queue rows | Release map for prime/composite/hot/non-hot moduli, field/ring semantics, 128/512/1024/2048, and backend-specific reducer identities | Promote only exact modulus/semantic/shape keys with CPU/direct baselines and required accelerator events |
 | 59 | Advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads | `tools/shape_family_shadow_report.py` now reads reviewed cache entries, groups them into conservative semantic/finite-modulus/layout/target shape families, and emits non-routing recommendations with exact-hit, missing-family, and family-policy blockers; remaining work is tying recommendations to reviewed representative matrices and selector explanations for real query workloads | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
 | 57 | Workspace arena implementation lane | Allocation metadata is visible but not yet an allocation-reduction mechanism | Device workspace arena with plan/workspace fingerprints, suballocation, stream-safe reuse, and measured allocation deltas after warmup | Promote only if allocation counters prove zero measured-repeat allocation without hiding stale workspace bugs |
-| 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | Batch reports that join HIP events, ISA, RGA/LLVM resources, rocprofiler counters, VGPR/SGPR/LDS, occupancy, waits, stores, and roofline group | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |
-| 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | Real Linux ROCm/RDNA/CDNA host runs plus per-target build, CTest, smoke, release capture, profiler, and `target_validation_report.py` gates | Claim only the targets that pass on real supported hosts |
+| 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | `tools/gpu_counter_report.py --batch` now joins captures, event medians, ISA summaries, counter exports, resource signals, and roofline groups with fixture coverage; remaining proof is real profiler exports from target hosts | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |
+| 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | `tools/target_validation_report.py` now emits per OS/target/toolchain readiness groups for build, CTest, smoke, release capture, profiler, accelerator availability, and cache eligibility, with Windows/RDNA/CDNA fixtures; remaining gate is real supported-host evidence | Claim only the targets that pass on real supported hosts |
 | 44 | Persistent resident matrix lifetime implementation | Persistent RNS/native matrices are the core representation, but benchmark-owned lifetimes still hide routing semantics | Public/benchmark contract for resident A/B/C lifetimes, source versions, workspace binding, and output currentness across repeated calls | Promote only when lifetime identity prevents accidental reuse across changed descriptors, data, semantics, target, or plan |
 | 20 | Direct-HIP reuse-A/reuse-B expansion beyond uniform-small bounded cases | Direct-HIP reuse has chain and bounded evidence, but non-bounded profiles remain thin | Classify Direct-HIP reuse captures through the setup gate with same-backend and fastest-baseline controls | Keep per-profile routing explicit; do not infer reuse from C++ type or backend alone |
 | 30 | HIP Graph replay release-size validation | Repeated resident workflows may remove per-call launch overhead without changing math or public API semantics | Compare `--hip-graph-replay` against the same non-graph Direct-HIP resident RNS chain with graph capture/instantiate setup cost included | Keep benchmark-only until release-size comparisons prove ordinary-call parity and a real setup-inclusive win |
@@ -738,14 +738,14 @@ June 4-5, 2026 updates:
 | 36 | AUTO cache shape-family recommendation layer | Exact-shape cache hits are too narrow for real workloads | Reviewed shape-family policy layered above exact-shape entries | Keep disabled until family recommendations cannot cross semantic/layout/target boundaries |
 | 38 | Verification-cost reduction for repeated exact workloads | Exact checks can dominate validation of repeated scenarios | Validation modes that reuse CPU/reference structure without reducing correctness | Keep tooling-only unless every promoted capture still has exact CPU differential coverage |
 | 39 | Error-detecting exact fast path with explicit metadata | Probabilistic or checked fast paths are research-only but may unlock workloads | Research captures with verification metadata and false-negative policy | Never make default exact API probabilistic; keep explicitly research-marked |
-| 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | Compare current v2, scratch/reducer variants, reuse variants, export variants, and setup-inclusive Direct-HIP baselines | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |
+| 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | `tools/bounded_i64_1024_review.py` now produces keep/replace/experimental/drop dispositions from setup-inclusive timings, target validation, variance, counter/resource evidence, and promotion ledger rows; scenario coverage now includes Direct HIP, vector, hipBLASLt, CK, rocWMMA, and A/B/A+B reuse roles | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |
 | 51 | Direct-HIP resident matrix redesign after colpair rejection | Resident selected-prefix colpair lost end-to-end despite a narrower GEMM signal | Redesign resident kernels around data layout, tile shape, export interaction, schedule upload, and register/LDS pressure instead of retrying the rejected route | Route only if median end-to-end improves with stable events across fixed-prefix and selected-prefix cases |
 | 53 | Modulus-set search and residue-count autotuning | Default modulus order/count may not be optimal for every semantic, target, or export path | Search candidate RNS ladders, modulus ordering, prefix counts, reducer cost, CRT constants, NTT-friendly/FHE-inspired primes, and exact range products | Never change a default modulus set without spec, cache, schema, and proof updates |
 | 54 | Adaptive prefix grouped scheduler | Adaptive prefix schedules delete residue work but can add launch/scheduling overhead | Group per-prefix/per-tile work into fewer launches with compact schedule metadata, per-group events, and CPU/direct baselines | Promote only when grouping beats independent scheduled launches including queue/setup overhead |
 | 55 | Streaming pack/compute/export overlap | Repeated workflows can pipeline pack-next, compute-current, export-previous | Multi-stream benchmark with double/triple-buffered workspaces, pinned/compact transfers, explicit stream dependencies, and per-stage events | Keep disabled until status/error behavior matches the serial path and overlap is visible in events |
 | 56 | Tile-shape autotuning | Current tile sizes are conservative and may not match each backend/resource envelope | Generate and benchmark tile M/N/K/block/group variants with target id, occupancy, LDS, VGPR/SGPR, event phases, and cache keys | Promote only per target/backend/semantic when tile identity is encoded in selected kernel and autotune key |
 | 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | The first graph path deliberately excludes pack, export, finite-u8, wrap64, and mixed-backend work | Prove explicit-stream capture, status/error equivalence, currentness, and setup accounting for each broader path | Do not expand until rank 30 survives release-size same-contract review |
-| 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/install_autotune_cache.py` now accepts `--promotion-ledger` and rejects source entries without unblocked ledger rows; `--require-variance-gate` additionally requires a ready variance report row from the ledger. Remaining work is replacement-history reporting and durable installed-cache coverage summaries | Do not install or replace cache entries without ledger consistency and claim validation |
+| 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/promotion_ledger.py` now records target-validation group, target/cache eligibility, stale invalidation reasons, variance state, and coverage summaries; `tools/install_autotune_cache.py` now records add/replace history, cache coverage, `--require-target-validation-gate`, and automatic CDNA target-gate enforcement | Do not install or replace cache entries without ledger consistency, target validation where required, variance gates for narrow lanes, and claim validation |
 | 63 | Verification amortization and real FHE/lattice workload suite | Exact repeated validation and FHE/lattice-inspired workloads need realistic contracts | Add CKKS/BFV/BGV-like NTT, key-switch, relinearization, rotation, ModUp/ModDown/rescale, bootstrapping-stage, tower reuse proxies, and safe verification amortization | Keep as workload/proxy evidence, not cryptographic correctness or library support claims |
 | 68 | Strict wrap64 Direct-HIP v4 carry/byte-limb tuning | Direct-HIP v4 is the only reviewed strict wrap64 performance path | Release A/B for byte-limb carry propagation, pack/export policy, accumulator tiling, u32 store shape, and event/ISA evidence at 512, 1024, 2048, and exploratory 4096 | Promote only Direct-HIP same-contract wins; keep matrix-engine wrap64 paths experimental until they beat v4 end-to-end |
 | 69 | CPU small-shape optimized fallback and selector thresholds | The many-small review shows CPU wins several tiny exact workloads | CPU microbench and selector A/B for bounded-i64 32, bounded-u64 64, finite-u8 64, cache locality, threading policy, vectorized host paths, and cutoff thresholds versus GPU paths | Route to CPU only when same-contract release evidence beats GPU paths and selector explanations stay explicit |
@@ -3721,6 +3721,17 @@ Promotion gate:
 The current bounded-i64 1024 hipBLASLt win is narrow. It is valuable enough to
 protect, but not wide enough to stop tuning.
 
+Implementation status, 2026-06-06:
+
+- `tools/bounded_i64_1024_review.py` is the focused disposition path. It joins
+  setup-inclusive 1024 bounded-i64 captures with target validation, variance,
+  counter/resource evidence, and promotion-ledger rows, then reports
+  `keep cache`, `replace cache`, `keep experimental`, `drop/deprioritize`, or
+  `unsupported accelerator`.
+- `benchmarks/scenarios/hipblaslt_bounded_i64_1024_ab.json` now covers the
+  required comparator set plus stable-A, stable-B, and stable-A+B reuse roles.
+  This is CDNA-ready infrastructure, not CDNA evidence.
+
 Technical direction:
 
 - Compare current specialized reducer against scratch layout, pack layout,
@@ -4017,6 +4028,16 @@ surface. The ledger and installer can now work together; the remaining
 performance-control work is making that path routine for every cache
 replacement and stale-entry review.
 
+Implementation status, 2026-06-06:
+
+- `tools/promotion_ledger.py` records target-validation groups, target/cache
+  eligibility, target class/family, variance state, stale invalidation reasons,
+  and cache coverage summaries.
+- `tools/install_autotune_cache.py` records add/replace history and installed
+  cache coverage summaries. It can require target-validation ledger gates, and
+  CDNA target ids require matching target-validation proof when installed
+  through the promotion-ledger path.
+
 Technical direction:
 
 - Use `tools/promotion_ledger.py` to join installed cache entries to evidence summaries,
@@ -4050,6 +4071,16 @@ Promotion gate:
 Event timing tells which phase is large. Resource and counter data should
 explain whether the kernel is limited by occupancy, memory, stores, LDS, waits,
 or instruction mix.
+
+Implementation status, 2026-06-06:
+
+- `tools/gpu_counter_report.py` keeps the original per-capture report and now
+  also emits batch reports grouped by target, roofline target, and semantic.
+  The report joins event medians, profiler counters, ISA summaries, resource
+  signals, bottleneck classification, and estimated work metrics.
+- Fixture coverage proves present counters, ISA attachment, resource summaries,
+  and batch output without requiring CDNA hardware. Real CDNA profiler exports
+  remain pending.
 
 Technical direction:
 
@@ -4088,6 +4119,15 @@ Promotion gate:
 
 Windows `gfx1100` is the local bring-up target. It is not Linux ROCm, RDNA4, or
 Instinct evidence.
+
+Implementation status, 2026-06-06:
+
+- `tools/target_validation_report.py` now emits per OS/target/toolchain groups
+  with build, CTest, smoke, release-capture, profiler, accelerator-status, and
+  cache-eligibility phases. Windows, Linux RDNA, and Linux CDNA fixture coverage
+  prevents accidental cross-target promotion.
+- This closes the repository-side readiness infrastructure only. Public Linux,
+  RDNA4, or CDNA claims still require real supported-host runs.
 
 Technical direction:
 

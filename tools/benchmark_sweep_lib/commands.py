@@ -31,6 +31,58 @@ from .execution import cli_backend, normalize_semantics, parse_backend_bench
 from .parsing import parse_case
 from .scenarios import load_scenario_data_catalog
 
+VISIBILITY_ENV_OPTIONS = {
+    "hip_visible_devices": "HIP_VISIBLE_DEVICES",
+    "rocr_visible_devices": "ROCR_VISIBLE_DEVICES",
+    "gpu_device_ordinal": "GPU_DEVICE_ORDINAL",
+}
+
+
+def _device_list(value: str) -> list[str]:
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def visibility_env_overrides(args: argparse.Namespace) -> dict[str, str]:
+    env: dict[str, str] = {}
+    for attr, env_name in VISIBILITY_ENV_OPTIONS.items():
+        value = getattr(args, attr, None)
+        if value:
+            env[env_name] = value
+    return env
+
+
+def apply_visibility_environment(args: argparse.Namespace, entries: list[SweepCommand]) -> list[SweepCommand]:
+    base_env = visibility_env_overrides(args)
+    shard_spec = getattr(args, "gpu_shards", None)
+    if not shard_spec:
+        if not base_env:
+            return entries
+        return [
+            SweepCommand(entry.name, entry.command, entry.output, entry.scenario, dict(base_env))
+            for entry in entries
+        ]
+
+    sharded: list[SweepCommand] = []
+    for shard in _device_list(shard_spec):
+        env = dict(base_env)
+        env["HIP_VISIBLE_DEVICES"] = shard
+        for entry in entries:
+            scenario = dict(entry.scenario) if entry.scenario is not None else None
+            if scenario is not None:
+                scenario["gpu_shard"] = shard
+                scenario["visibility_environment"] = env
+            sharded.append(
+                SweepCommand(
+                    f"gpu{shard}-{entry.name}",
+                    entry.command,
+                    entry.output.parent / f"gpu{shard}" / entry.output.name,
+                    scenario,
+                    dict(env),
+                )
+            )
+    return sharded
+
+
 def default_cases(args: argparse.Namespace) -> list[SweepCase]:
     if args.case:
         return [parse_case(value) for value in args.case]
@@ -758,11 +810,12 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
 
 
 def sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
-    return (
+    entries = (
         scenario_sweep_command_entries(args)
         if getattr(args, "scenario", None)
         else default_sweep_command_entries(args)
     )
+    return apply_visibility_environment(args, entries)
 
 
 def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]]:

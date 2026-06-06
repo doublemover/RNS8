@@ -116,6 +116,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(gpu_counter_report_self_test PROPERTIES LABELS "benchmark;evidence;gpu-counters")
 
   add_test(
+    NAME target_validation_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_target_validation_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(target_validation_report_self_test PROPERTIES LABELS "benchmark;evidence;targets")
+
+  add_test(
+    NAME bounded_i64_1024_review_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bounded_i64_1024_review.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(bounded_i64_1024_review_self_test PROPERTIES LABELS "benchmark;evidence;autotune")
+
+  add_test(
     NAME starfoundry_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_starfoundry_reports.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -495,8 +509,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Catch2 3 CONFIG REQUIRED)
   rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2)
   rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2WithMain)
-  add_executable(
-    rns8_tests
+  set(
+    RNS8_TEST_SOURCES
     tests/unit/test_moduli.cpp
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
@@ -508,11 +522,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp
-    tests/differential/test_hip_direct.cpp
-    tests/differential/test_hipblaslt.cpp
-    tests/differential/test_ck.cpp
-    tests/differential/test_rocwmma.cpp
   )
+  if(RNS8_ENABLE_HIP)
+    list(APPEND RNS8_TEST_SOURCES tests/differential/test_hip_direct.cpp)
+  endif()
+  if(RNS8_ENABLE_HIPBLASLT)
+    list(APPEND RNS8_TEST_SOURCES tests/differential/test_hipblaslt.cpp)
+  endif()
+  if(RNS8_ENABLE_CK)
+    list(APPEND RNS8_TEST_SOURCES tests/differential/test_ck.cpp)
+  endif()
+  if(RNS8_ENABLE_ROCWMMA)
+    list(APPEND RNS8_TEST_SOURCES tests/differential/test_rocwmma.cpp)
+  endif()
+  add_executable(rns8_tests ${RNS8_TEST_SOURCES})
   target_include_directories(
     rns8_tests
     PRIVATE

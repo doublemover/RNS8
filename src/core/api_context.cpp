@@ -2,6 +2,14 @@
 
 using namespace rns8::detail::api;
 
+namespace {
+
+int default_visible_hip_context_device(int requested_device_id) {
+  return requested_device_id < 0 ? 0 : requested_device_id;
+}
+
+}  // namespace
+
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
   return guard_api([&]() -> rns8_status {
     if (!out) {
@@ -31,7 +39,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       ctx->auto_backend_selection = true;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       ctx->backend = RNS8_BACKEND_HIP_DIRECT;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status hip_status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
@@ -61,7 +69,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 
     if (requested == RNS8_BACKEND_HIP_DIRECT) {
       ctx->backend = RNS8_BACKEND_HIP_DIRECT;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
@@ -76,7 +84,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     if (requested == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       ctx->backend = RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::vector_alu_probe(ctx->device_id, ctx->device_info);
@@ -96,7 +104,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     if (requested == RNS8_BACKEND_HIPBLASLT) {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
       ctx->backend = RNS8_BACKEND_HIPBLASLT;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::hipblaslt_create_context(
@@ -116,7 +124,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     if (requested == RNS8_BACKEND_CK) {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
       ctx->backend = RNS8_BACKEND_CK;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::ck_probe(ctx->device_id, ctx->device_info);
@@ -135,7 +143,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
     if (requested == RNS8_BACKEND_ROCWMMA) {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
       ctx->backend = RNS8_BACKEND_ROCWMMA;
-      ctx->device_id = device_id < 0 ? 0 : device_id;
+      ctx->device_id = default_visible_hip_context_device(device_id);
       ctx->device_info.struct_size = sizeof(ctx->device_info);
       ctx->device_info.abi_version = RNS8_ABI_VERSION;
       const rns8_status status = rns8::detail::rocwmma_probe(ctx->device_id, ctx->device_info);

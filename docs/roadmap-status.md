@@ -153,6 +153,9 @@ Windows `gfx1100` proof does not validate Linux ROCm, Linux Radeon, Instinct
 CDNA, profiling, power, or cluster production gates. Dependency discovery does
 not validate correctness backends. Accelerator probes remain candidate evidence
 until a dedicated preset builds real kernels and exact differentials pass.
+The June 6, 2026 CDNA-readiness tooling pass adds target-validation,
+counter/resource, promotion-ledger, cache-history, and bounded-i64 1024 review
+control surfaces, but it does not add Linux/CDNA validation evidence.
 
 Raw captures, historical smoke files, and review scratch output stay under
 ignored `temp/` paths. Durable docs summarize only reviewed facts.

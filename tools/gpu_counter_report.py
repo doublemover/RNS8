@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from evidence_database_lib.work_model import classify_bottleneck, estimate_work, roofline_target_for_row
 
 
 COUNTER_REPORT_POLICY = (
@@ -63,6 +64,20 @@ def _capture_identity(capture: dict[str, Any], path: Path) -> dict[str, Any]:
     }
 
 
+def _event_medians(capture: dict[str, Any]) -> dict[str, float]:
+    summary = capture.get("gpu_event_timing_summary_us")
+    if not isinstance(summary, dict):
+        return {}
+    medians: dict[str, float] = {}
+    for name, value in summary.items():
+        if not isinstance(value, dict):
+            continue
+        median = _number(value.get("median"))
+        if median is not None:
+            medians[str(name)] = median
+    return medians
+
+
 def _top_numeric_metrics(metrics: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     rows = []
     for name, value in metrics.items():
@@ -72,6 +87,98 @@ def _top_numeric_metrics(metrics: dict[str, Any], limit: int) -> list[dict[str, 
         rows.append({"metric": str(name), "value": number})
     rows.sort(key=lambda row: abs(float(row["value"])), reverse=True)
     return rows[: max(limit, 0)]
+
+
+def _first_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float | None:
+    lowered = {key.lower(): value for key, value in metrics.items()}
+    for pattern in patterns:
+        regex = re.compile(pattern, re.IGNORECASE)
+        for key, value in lowered.items():
+            if regex.search(key):
+                return value
+    return None
+
+
+def _max_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float | None:
+    values: list[float] = []
+    for pattern in patterns:
+        regex = re.compile(pattern, re.IGNORECASE)
+        values.extend(value for key, value in metrics.items() if regex.search(key))
+    return max(values) if values else None
+
+
+def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, float]:
+    merged: dict[str, list[float]] = {}
+    for report in counter_reports:
+        averages = report.get("numeric_metric_average")
+        if not isinstance(averages, dict):
+            continue
+        for key, value in averages.items():
+            number = _number(value)
+            if number is not None:
+                merged.setdefault(str(key), []).append(number)
+    return {key: sum(values) / len(values) for key, values in sorted(merged.items()) if values}
+
+
+def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
+    totals = {
+        "global_store": 0,
+        "lds_mentions": 0,
+        "wait_instructions": 0,
+        "wmma": 0,
+        "mfma": 0,
+    }
+    for item in isa_reports:
+        instruction_totals = item.get("instruction_totals") or {}
+        if not isinstance(instruction_totals, dict):
+            continue
+        for key in totals:
+            value = _number(instruction_totals.get(key))
+            if value is not None:
+                totals[key] += int(value)
+    return totals
+
+
+def _counter_resource_summary(
+    capture: dict[str, Any],
+    counter_reports: list[dict[str, Any]],
+    isa_reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    metrics = _merged_counter_metrics(counter_reports)
+    isa_totals = _isa_resource_summary(isa_reports)
+    bottleneck = classify_bottleneck(capture)
+    work = estimate_work(capture)
+    row = {
+        **bottleneck,
+        "scenario_family": capture.get("scenario_family") or capture.get("benchmark"),
+        "semantics": capture.get("semantics"),
+        "target_id": (capture.get("target_variant") or {}).get("target_id")
+        if isinstance(capture.get("target_variant"), dict)
+        else (capture.get("device") or {}).get("gcn_arch")
+        if isinstance(capture.get("device"), dict)
+        else None,
+    }
+    return {
+        "vgpr": _first_metric(metrics, (r"\bvgpr\b", r"vgpr_count", r"num_vgprs")),
+        "sgpr": _first_metric(metrics, (r"\bsgpr\b", r"sgpr_count", r"num_sgprs")),
+        "lds_bytes": _first_metric(metrics, (r"lds.*bytes", r"lds_size", r"group_segment")),
+        "scratch_bytes": _max_metric(metrics, (r"scratch.*bytes", r"scratch_size", r"private_segment")),
+        "occupancy": _first_metric(metrics, (r"occupancy", r"achieved_occupancy", r"wavefronts_per_cu")),
+        "wait_signal": _max_metric(metrics, (r"wait", r"stall", r"idle")),
+        "memory_pressure_signal": _max_metric(metrics, (r"tcc.*req", r"tcp.*req", r"dram", r"mem_", r"write_req")),
+        "global_store_instruction_count": isa_totals["global_store"],
+        "lds_instruction_mentions": isa_totals["lds_mentions"],
+        "wait_instruction_count": isa_totals["wait_instructions"],
+        "matrix_instruction_count": isa_totals["wmma"] + isa_totals["mfma"],
+        "bottleneck_class": bottleneck.get("bottleneck_class"),
+        "bottleneck_phase": bottleneck.get("bottleneck_phase"),
+        "event_bottleneck_class": bottleneck.get("event_bottleneck_class"),
+        "roofline_target": roofline_target_for_row(row),
+        "arithmetic_intensity_ops_per_byte": work.get("arithmetic_intensity_ops_per_byte"),
+        "measured_gops": work.get("measured_gops"),
+        "pack_bandwidth_gbs": work.get("pack_bandwidth_gbs"),
+        "export_bandwidth_gbs": work.get("export_bandwidth_gbs"),
+    }
 
 
 def _json_counter_records(path: Path) -> list[dict[str, Any]]:
@@ -162,12 +269,15 @@ def report_for_capture(
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
     isa_reports = [load_isa_summary(path) for path in isa_paths]
+    resource_summary = _counter_resource_summary(capture, counter_reports, isa_reports)
     return {
         "schema_version": 1,
         "capture": _capture_identity(capture, capture_path),
         "policy": COUNTER_REPORT_POLICY,
+        "gpu_event_medians_us": _event_medians(capture),
         "counter_inputs": counter_reports,
         "isa_summaries": isa_reports,
+        "resource_summary": resource_summary,
         "review_notes": [
             "Counters and ISA summaries explain likely bottlenecks but do not replace exact CPU reference checks.",
             "Use host timings and HIP event timings for release comparisons; use counters to choose the next kernel experiment.",
@@ -250,11 +360,109 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
     else:
         lines.extend(["No ISA summaries were attached.", ""])
 
+    summary = report.get("resource_summary") or {}
+    lines.extend(
+        [
+            "## Resource Summary",
+            "",
+            "| roofline target | bottleneck | event bottleneck | VGPR | SGPR | LDS bytes | scratch bytes | occupancy | memory signal | wait signal |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| `{roofline}` | `{bottleneck}` | `{event}` | {vgpr} | {sgpr} | {lds} | {scratch} | {occupancy} | {memory} | {wait} |".format(
+                roofline=summary.get("roofline_target"),
+                bottleneck=summary.get("bottleneck_class"),
+                event=summary.get("event_bottleneck_class"),
+                vgpr=summary.get("vgpr"),
+                sgpr=summary.get("sgpr"),
+                lds=summary.get("lds_bytes"),
+                scratch=summary.get("scratch_bytes"),
+                occupancy=summary.get("occupancy"),
+                memory=summary.get("memory_pressure_signal"),
+                wait=summary.get("wait_signal"),
+            ),
+            "",
+        ]
+    )
+
     lines.extend(["## Review Notes", ""])
     for note in report["review_notes"]:
         lines.append(f"- {note}")
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out_path
+
+
+def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for report in reports:
+        capture = report["capture"]
+        summary = report.get("resource_summary") or {}
+        key = (
+            str(capture.get("target_id") or "unknown"),
+            str(summary.get("roofline_target") or "unclassified"),
+            str(capture.get("semantics") or "unknown"),
+        )
+        groups.setdefault(key, []).append(report)
+    group_rows = []
+    for (target_id, roofline, semantics), rows in sorted(groups.items()):
+        group_rows.append(
+            {
+                "target_id": target_id,
+                "roofline_target": roofline,
+                "semantics": semantics,
+                "capture_count": len(rows),
+                "backends": sorted({str(row["capture"].get("backend_selected")) for row in rows}),
+                "selected_kernels": sorted({str(row["capture"].get("selected_kernel")) for row in rows}),
+                "bottleneck_classes": sorted(
+                    {str((row.get("resource_summary") or {}).get("bottleneck_class")) for row in rows}
+                ),
+                "event_bottlenecks": sorted(
+                    {str((row.get("resource_summary") or {}).get("event_bottleneck_class")) for row in rows}
+                ),
+                "counter_evidence": "present"
+                if any(row.get("counter_inputs") for row in rows)
+                else "missing",
+                "isa_evidence": "present" if any(row.get("isa_summaries") for row in rows) else "missing",
+                "example_captures": [str(row["capture"].get("path")) for row in rows[:3]],
+            }
+        )
+    return {
+        "schema_version": 1,
+        "policy": COUNTER_REPORT_POLICY,
+        "report_count": len(reports),
+        "group_count": len(group_rows),
+        "groups": group_rows,
+        "reports": reports,
+    }
+
+
+def write_batch_reports(batch: dict[str, Any], out_dir: Path) -> dict[str, str]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "gpu-counter-batch-report.json"
+    md_path = out_dir / "gpu-counter-batch-report.md"
+    json_path.write_text(json.dumps(batch, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    lines = [
+        "# RNS8 GPU Counter Batch Report",
+        "",
+        f"- Policy: `{batch['policy']}`",
+        f"- Capture reports: `{batch['report_count']}`",
+        "",
+        "| target | roofline target | semantics | captures | backends | counter evidence | ISA evidence | bottlenecks |",
+        "| --- | --- | --- | ---: | --- | --- | --- | --- |",
+    ]
+    for group in batch["groups"]:
+        lines.append(
+            "| `{target}` | `{roofline}` | `{semantics}` | {count} | `{backends}` | `{counters}` | `{isa}` | `{bottlenecks}` |".format(
+                target=group["target_id"],
+                roofline=group["roofline_target"],
+                semantics=group["semantics"],
+                count=group["capture_count"],
+                backends=", ".join(group["backends"]),
+                counters=group["counter_evidence"],
+                isa=group["isa_evidence"],
+                bottlenecks=", ".join(group["bottleneck_classes"]),
+            )
+        )
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(md_path)}
 
 
 def parse_args() -> argparse.Namespace:
@@ -266,6 +474,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top", type=int, default=20, help="top numeric counter metrics to include")
     parser.add_argument("--json", action="store_true", help="print combined JSON report to stdout")
     parser.add_argument("--no-markdown", action="store_true", help="write only JSON report files")
+    parser.add_argument("--batch", action="store_true", help="also write a batch report grouped by target/roofline/semantic")
     return parser.parse_args()
 
 
@@ -281,9 +490,12 @@ def main() -> int:
         outputs.append(write_json_report(report, args.out_dir, stem))
         if not args.no_markdown:
             outputs.append(write_markdown_report(report, args.out_dir, stem))
+    batch = build_batch_report(reports)
+    if args.batch:
+        outputs.extend(Path(path) for path in write_batch_reports(batch, args.out_dir).values())
 
     if args.json:
-        print(json.dumps({"valid": True, "reports": reports, "outputs": [str(path) for path in outputs]}, indent=2, sort_keys=True))
+        print(json.dumps({"valid": True, "batch": batch, "reports": reports, "outputs": [str(path) for path in outputs]}, indent=2, sort_keys=True))
     else:
         print("GPU counter report: PASS")
         for out_path in outputs:

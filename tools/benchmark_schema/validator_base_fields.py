@@ -350,9 +350,21 @@ class ValidatorBaseFieldsMixin:
             for key in ["device_id", "hip_available", "hip_runtime_version", "hip_driver_version", "global_mem_bytes"]:
                 if not _is_int(device.get(key)):
                     self._error(f"device.{key} must be an integer")
+            for key in ["device_index", "visible_device_count", "node_gpu_count"]:
+                if key in device and not _is_int(device.get(key)):
+                    self._error(f"device.{key} must be an integer")
             for key in ["name", "gcn_arch"]:
                 if not isinstance(device.get(key), str):
                     self._error(f"device.{key} must be a string")
+            for key in ["device_name", "target_arch", "target_cache_key", "target_instance_id"]:
+                if key in device and not isinstance(device.get(key), str):
+                    self._error(f"device.{key} must be a string")
+            if "device_index" in device and device.get("device_index") != device.get("device_id"):
+                self._error("device.device_index must match device.device_id")
+            if "device_name" in device and device.get("device_name") != device.get("name"):
+                self._error("device.device_name must match device.name")
+            if "target_arch" in device and device.get("target_arch") != device.get("gcn_arch"):
+                self._error("device.target_arch must match device.gcn_arch")
             if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
                 if not _has_concrete_gpu_target_id(device.get("gcn_arch")):
                     self._error("HIP backend captures must include non-placeholder device.gcn_arch")
@@ -361,6 +373,25 @@ class ValidatorBaseFieldsMixin:
                 device_id = device.get("device_id")
                 if _is_int(device_id) and device_id < 0:
                     self._error("HIP backend captures must use a nonnegative device.device_id")
+                for key in ["visible_device_count", "node_gpu_count"]:
+                    if key in device and _is_int(device.get(key)) and device.get(key) < 0:
+                        self._error(f"HIP backend captures must use a nonnegative device.{key}")
+        runtime_environment = self.data.get("runtime_environment")
+        if runtime_environment is not None:
+            if not isinstance(runtime_environment, dict):
+                self._error("runtime_environment must be an object")
+            else:
+                for key in [
+                    "HIP_VISIBLE_DEVICES",
+                    "ROCR_VISIBLE_DEVICES",
+                    "GPU_DEVICE_ORDINAL",
+                    "ROCM_PATH",
+                    "HIP_PATH",
+                    "LD_LIBRARY_PATH",
+                ]:
+                    value = runtime_environment.get(key)
+                    if value is not None and not isinstance(value, str):
+                        self._error(f"runtime_environment.{key} must be a string or null")
         metadata = self._require("timing_metadata", "dict")
         if isinstance(metadata, dict):
             if metadata.get("unit") != "microseconds":

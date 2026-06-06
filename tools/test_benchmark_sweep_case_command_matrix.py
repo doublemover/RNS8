@@ -105,6 +105,28 @@ assert [name for name, _command, _output in exact_commands] == [
 assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
 assert all("--exact-wide-limbs" in command and "4" in command for _name, command, _output in exact_commands)
 
+for mask in ["0", "0,1", "0,1,2,3", "0,1,2,3,4,5,6,7"]:
+    visible_args = copy.copy(exact_args)
+    visible_args.hip_visible_devices = mask
+    visible_args.rocr_visible_devices = None
+    visible_args.gpu_device_ordinal = None
+    visible_args.gpu_shards = None
+    visible_entries = benchmark_sweep.sweep_command_entries(visible_args)
+    assert visible_entries
+    assert all(entry.env == {"HIP_VISIBLE_DEVICES": mask} for entry in visible_entries)
+    assert [entry.output for entry in visible_entries] == [Path(output) for _name, _command, output in exact_commands]
+
+sharded_args = copy.copy(exact_args)
+sharded_args.hip_visible_devices = None
+sharded_args.rocr_visible_devices = None
+sharded_args.gpu_device_ordinal = None
+sharded_args.gpu_shards = "0,1,2,3"
+sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
+assert len(sharded_entries) == len(exact_commands) * 4
+assert {entry.env["HIP_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
+assert {entry.output.parent.name for entry in sharded_entries} == {"gpu0", "gpu1", "gpu2", "gpu3"}
+assert all(entry.name.startswith("gpu") for entry in sharded_entries)
+
 exact_variant_args = copy.copy(exact_args)
 exact_variant_args.backends = ["cpu"]
 exact_variant_args.include_exact_wide_limb_variants = True
