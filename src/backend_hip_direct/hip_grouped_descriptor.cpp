@@ -202,6 +202,66 @@ rns8_status validate_grouped_resources_for_descriptor(
 
 }  // namespace
 
+rns8_status hip_direct_build_same_shape_grouped_bucket_plan(
+    const rns8_plan* plan,
+    const hip_direct_grouped_gemm_task* tasks,
+    uint32_t task_count,
+    rns8_semantics semantics,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint32_t prefix,
+    hip_direct_grouped_gemm_bucket_plan* out) {
+  if (!out) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  hip_direct_grouped_gemm_descriptor descriptor{};
+  descriptor.plan = plan;
+  descriptor.tasks = tasks;
+  descriptor.task_count = task_count;
+  descriptor.semantics = semantics;
+  descriptor.m = m;
+  descriptor.n = n;
+  descriptor.k = k;
+  descriptor.prefix = prefix;
+
+  rns8_status status = hip_direct_validate_grouped_gemm_descriptor_setup(descriptor);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+
+  hip_direct_grouped_gemm_bucket bucket{};
+  bucket.descriptor = descriptor;
+  bucket.task_offset = 0;
+  bucket.task_count = task_count;
+
+  hip_direct_grouped_gemm_bucket_plan next{};
+  next.plan = plan;
+  next.tasks = tasks;
+  next.task_count = task_count;
+  next.bucket_count = 1;
+  next.semantics = semantics;
+  next.m = m;
+  next.n = n;
+  next.k = k;
+  next.prefix = prefix;
+  next.same_shape_required = true;
+  next.buckets.push_back(bucket);
+
+  *out = std::move(next);
+  return RNS8_SUCCESS;
+}
+
+const hip_direct_grouped_gemm_descriptor* hip_direct_single_bucket_descriptor(
+    const hip_direct_grouped_gemm_bucket_plan& bucket_plan) {
+  if (bucket_plan.bucket_count != 1 || bucket_plan.buckets.size() != 1 ||
+      bucket_plan.buckets.front().task_offset != 0 ||
+      bucket_plan.buckets.front().task_count != bucket_plan.task_count) {
+    return nullptr;
+  }
+  return &bucket_plan.buckets.front().descriptor;
+}
+
 hip_direct_grouped_device_buffer::hip_direct_grouped_device_buffer(
     hip_direct_grouped_device_buffer&& other) noexcept {
   move_from(other);

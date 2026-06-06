@@ -70,8 +70,10 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   auto& grouped_resources = grouped_batch.device_resources;
-  const auto grouped_descriptor =
-      make_grouped_dispatch_descriptor(args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix);
+  const auto grouped_bucket_plan =
+      make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix);
+  const auto& grouped_descriptor =
+      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide signed execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {
@@ -249,8 +251,10 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   auto& grouped_resources = grouped_batch.device_resources;
-  const auto grouped_descriptor =
-      make_grouped_dispatch_descriptor(args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix);
+  const auto grouped_bucket_plan =
+      make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix);
+  const auto& grouped_descriptor =
+      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide unsigned execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {

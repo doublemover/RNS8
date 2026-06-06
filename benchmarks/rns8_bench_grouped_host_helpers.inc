@@ -62,22 +62,37 @@ std::vector<HostApiBatchTask> create_host_api_batch_tasks(
   return tasks;
 }
 
-rns8::detail::hip_direct_grouped_gemm_descriptor make_grouped_dispatch_descriptor(
+rns8::detail::hip_direct_grouped_gemm_bucket_plan make_grouped_dispatch_bucket_plan(
     const Args& args,
     const rns8_plan* plan,
     const std::vector<HostApiBatchTask>& tasks,
     rns8_semantics semantics,
     uint32_t matrix_prefix) {
-  rns8::detail::hip_direct_grouped_gemm_descriptor descriptor{};
-  descriptor.plan = plan;
-  descriptor.tasks = tasks.data();
-  descriptor.task_count = static_cast<uint32_t>(tasks.size());
-  descriptor.semantics = semantics;
-  descriptor.m = args.m;
-  descriptor.n = args.n;
-  descriptor.k = args.k;
-  descriptor.prefix = matrix_prefix;
-  return descriptor;
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan{};
+  const rns8_status status = rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+      plan,
+      tasks.data(),
+      static_cast<uint32_t>(tasks.size()),
+      semantics,
+      args.m,
+      args.n,
+      args.k,
+      matrix_prefix,
+      &bucket_plan);
+  if (status != RNS8_SUCCESS) {
+    fail_status("hip_direct_build_same_shape_grouped_bucket_plan", status);
+  }
+  return bucket_plan;
+}
+
+const rns8::detail::hip_direct_grouped_gemm_descriptor& single_grouped_dispatch_descriptor(
+    const rns8::detail::hip_direct_grouped_gemm_bucket_plan& bucket_plan,
+    const char* label) {
+  const auto* descriptor = rns8::detail::hip_direct_single_bucket_descriptor(bucket_plan);
+  if (!descriptor) {
+    usage_error(std::string(label) + " grouped bucket plan is not a single same-shape bucket");
+  }
+  return *descriptor;
 }
 
 void enforce_grouped_dispatch_task_setup_contract(
@@ -95,7 +110,9 @@ void enforce_grouped_dispatch_task_setup_contract(
     usage_error(std::string(label) + " grouped descriptor task count mismatch");
   }
   const rns8_status status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(
-      make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix));
+      single_grouped_dispatch_descriptor(
+          make_grouped_dispatch_bucket_plan(args, plan, tasks, semantics, matrix_prefix),
+          label));
   if (status != RNS8_SUCCESS) {
     usage_error(std::string(label) + " violates grouped descriptor plan/shape contract");
   }
@@ -122,7 +139,10 @@ void enforce_grouped_dispatch_pack_source_versions(
   }
   const uint64_t first_source_version = host_api_batch_source_version(repeat_source_version, 0);
   const rns8_status status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(
-      make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix), first_source_version);
+      single_grouped_dispatch_descriptor(
+          make_grouped_dispatch_bucket_plan(args, plan, tasks, semantics, matrix_prefix),
+          label),
+      first_source_version);
   if (status != RNS8_SUCCESS) {
     usage_error(std::string(label) + " violates grouped per-task source-version repack contract");
   }
@@ -143,7 +163,9 @@ void enforce_grouped_dispatch_gemm_output_contract(
     usage_error(std::string(label) + " grouped output task count mismatch");
   }
   const rns8_status status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(
-      make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix));
+      single_grouped_dispatch_descriptor(
+          make_grouped_dispatch_bucket_plan(args, plan, tasks, semantics, matrix_prefix),
+          label));
   if (status != RNS8_SUCCESS) {
     usage_error(std::string(label) + " violates grouped device-current output contract");
   }
@@ -298,7 +320,8 @@ void initialize_grouped_native_rns_batch(
   const std::size_t a_slab_bytes = checked_bytes(total_a_elements, sizeof(NativeT), label);
   const std::size_t b_slab_bytes = checked_bytes(total_b_elements, sizeof(NativeT), label);
   const std::size_t c_slab_bytes = checked_bytes(total_c_elements, sizeof(NativeT), label);
-  auto descriptor = make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix);
+  auto bucket_plan = make_grouped_dispatch_bucket_plan(args, plan, tasks, semantics, matrix_prefix);
+  const auto& descriptor = single_grouped_dispatch_descriptor(bucket_plan, label);
   rns8_status status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(
       descriptor,
       a_slab_bytes,
@@ -353,7 +376,8 @@ void initialize_grouped_exact_wide_rns_batch(
       checked_task_slab_limb_elements(task_count, compact_limb_elements, label);
   const std::size_t c_slab_bytes = checked_bytes(total_limb_elements, sizeof(uint64_t), label);
 
-  auto descriptor = make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix);
+  auto bucket_plan = make_grouped_dispatch_bucket_plan(args, plan, tasks, semantics, matrix_prefix);
+  const auto& descriptor = single_grouped_dispatch_descriptor(bucket_plan, label);
   rns8_status status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(
       descriptor,
       a_slab_bytes,

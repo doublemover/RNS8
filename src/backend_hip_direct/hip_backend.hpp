@@ -39,6 +39,26 @@ struct hip_direct_grouped_gemm_descriptor {
   uint32_t prefix = 0;
 };
 
+struct hip_direct_grouped_gemm_bucket {
+  hip_direct_grouped_gemm_descriptor descriptor{};
+  uint32_t task_offset = 0;
+  uint32_t task_count = 0;
+};
+
+struct hip_direct_grouped_gemm_bucket_plan {
+  const rns8_plan* plan = nullptr;
+  const hip_direct_grouped_gemm_task* tasks = nullptr;
+  uint32_t task_count = 0;
+  uint32_t bucket_count = 0;
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  int64_t m = 0;
+  int64_t n = 0;
+  int64_t k = 0;
+  uint32_t prefix = 0;
+  bool same_shape_required = true;
+  std::vector<hip_direct_grouped_gemm_bucket> buckets;
+};
+
 struct hip_direct_grouped_device_buffer {
   int device_id = -1;
   void* ptr = nullptr;
@@ -112,6 +132,18 @@ rns8_status hip_direct_copy_compact_matrix_device_to_host(
     int64_t cols,
     std::size_t cell_bytes,
     bool default_padded_staging = true);
+rns8_status hip_direct_build_same_shape_grouped_bucket_plan(
+    const rns8_plan* plan,
+    const hip_direct_grouped_gemm_task* tasks,
+    uint32_t task_count,
+    rns8_semantics semantics,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint32_t prefix,
+    hip_direct_grouped_gemm_bucket_plan* out);
+const hip_direct_grouped_gemm_descriptor* hip_direct_single_bucket_descriptor(
+    const hip_direct_grouped_gemm_bucket_plan& bucket_plan);
 rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
     const hip_direct_grouped_gemm_descriptor& descriptor,
     int* out_device_id = nullptr);

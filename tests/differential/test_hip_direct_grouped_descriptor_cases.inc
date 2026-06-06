@@ -37,15 +37,26 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
       {a0, b0, c0, workspace0},
       {a1, b1, c1, workspace1},
   };
-  rns8::detail::hip_direct_grouped_gemm_descriptor descriptor{};
-  descriptor.plan = plan;
-  descriptor.tasks = tasks;
-  descriptor.task_count = 2;
-  descriptor.semantics = RNS8_BOUNDED_U64;
-  descriptor.m = 2;
-  descriptor.n = 2;
-  descriptor.k = 2;
-  descriptor.prefix = plan->prefix;
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan;
+  REQUIRE(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+              plan,
+              tasks,
+              2,
+              RNS8_BOUNDED_U64,
+              2,
+              2,
+              2,
+              plan->prefix,
+              &bucket_plan) == RNS8_SUCCESS);
+  CHECK(bucket_plan.task_count == 2);
+  CHECK(bucket_plan.bucket_count == 1);
+  CHECK(bucket_plan.same_shape_required);
+  CHECK(bucket_plan.buckets.size() == 1);
+  CHECK(bucket_plan.buckets.front().task_offset == 0);
+  CHECK(bucket_plan.buckets.front().task_count == 2);
+  const auto* descriptor_ptr = rns8::detail::hip_direct_single_bucket_descriptor(bucket_plan);
+  REQUIRE(descriptor_ptr != nullptr);
+  const auto& descriptor = *descriptor_ptr;
 
   int descriptor_device = -1;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(descriptor, &descriptor_device) ==
@@ -115,6 +126,17 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
       {a0, b0, c0, workspace0},
       {a1, b1, c1, workspace0},
   };
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan invalid_bucket_plan;
+  CHECK(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+            plan,
+            shared_workspace_tasks,
+            2,
+            RNS8_BOUNDED_U64,
+            2,
+            2,
+            2,
+            plan->prefix,
+            &invalid_bucket_plan) == RNS8_INVALID_ARGUMENT);
   auto shared_workspace_descriptor = descriptor;
   shared_workspace_descriptor.tasks = shared_workspace_tasks;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(shared_workspace_descriptor, nullptr) ==
