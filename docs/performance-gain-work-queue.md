@@ -44,6 +44,8 @@ active table below now contains 33 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
+Detailed backlog and research notes live in
+[performance-gain-research-backlog.md](performance-gain-research-backlog.md).
 Status history and dated implementation notes have moved to
 [performance-gain-work-log.md](performance-gain-work-log.md). Keep this file
 focused on the active execution queue only.
