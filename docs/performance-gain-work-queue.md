@@ -110,6 +110,20 @@ June 6, 2026 queue-triage update:
   tiled metadata requirement, and all-zero tiled-output state. Rank 48 remains
   active for compact/padded D2H variants, cache/stale-entry integration,
   final-output/chain selection, and release-size A/B evidence.
+- Pending local-validation and multi-GPU readiness tooling now exists without
+  changing README/cache/evidence claims. `tools/gfx1100_pending_validation.py`
+  drives the Windows release scenario set for exact-wide export selectors,
+  export-bound limb variants, workspace-arena residency, and K-block/tile-K
+  candidates under `temp/gfx1100-pending-validation-20260606/`, then writes a
+  conservative decision table that defaults to experimental unless captures
+  are release-reviewed, schema-valid, correct, event-complete,
+  setup-inclusive, and same-target. Linux multi-GPU readiness now has
+  `tools/multigpu_shard_report.py`; `scripts/cdna_env_probe.sh` emits a
+  `physical_devices` topology array, and `scripts/cdna_multigpu_smoke.sh`
+  maps shard records by physical device id for lists such as `4,5,6,7`.
+  This is infrastructure only: Windows `gfx1100` validation remains local
+  RDNA3 evidence, and Linux/CDNA multi-GPU performance validation still waits
+  for a real ROCm host.
 
 June 4-5, 2026 updates:
 

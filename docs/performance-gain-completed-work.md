@@ -29,6 +29,15 @@ ROCm CDNA host captures, profiler exports, and target-specific cache
 eligibility reports exist. These notes are not counted as closed production
 speedups and do not imply Instinct readiness.
 
+The June 6 pending-validation follow-up adds `tools/gfx1100_pending_validation.py`
+for the Windows `gfx1100` release-control pass and
+`tools/multigpu_shard_report.py` for independent CDNA shard aggregation.
+`scripts/cdna_env_probe.sh` now emits physical-device topology records and
+`scripts/cdna_multigpu_smoke.sh` records shard status by physical GPU id, so
+partial lists such as `4,5,6,7` do not inherit rank-zero metadata. This is
+readiness/reporting infrastructure only; no closed-rank count, installed cache
+entry, README claim, or CDNA performance status changes from it.
+
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
 | 1 | Closed analysis lane: evidence database and roofline priority summary | The repo needed a compact analysis layer that ranks where corpus time is going | `tools/evidence_database.py` validates schema-v4 captures, can skip/report stale temp captures, joins review/scenario/ISA inputs, writes ignored JSON/CSV/Markdown, and ranks global plus GPU-only roofline priority groups by measured bottleneck time | Closed as planning infrastructure; continue using it to choose release A/B work, not as a speedup claim |

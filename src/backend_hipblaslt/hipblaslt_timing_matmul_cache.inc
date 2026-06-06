@@ -391,3 +391,4 @@ hipblasStatus_t run_matmul_block(
   });
 }
 
+#endif

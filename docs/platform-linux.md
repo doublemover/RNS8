@@ -91,8 +91,19 @@ The scripts always run `scripts/cdna_env_probe.sh` first and write raw logs plus
 `cdna-env-summary.json`. The summary records `HIP_VISIBLE_DEVICES`,
 `ROCR_VISIBLE_DEVICES`, `GPU_DEVICE_ORDINAL`, `ROCM_PATH`, `HIP_PATH`,
 `LD_LIBRARY_PATH`, rocminfo `gfx*` targets, SMI device names, ROCm/HIP versions,
-visible and node GPU counts, NUMA/BDF data where available, `rocprofv3`
-readiness, RCCL readiness, and `rccl-tests` readiness.
+visible and node GPU counts, a `physical_devices` array keyed by physical GPU
+index with target arch/name/BDF/NUMA/visibility metadata where discoverable,
+`rocprofv3` readiness, RCCL readiness, and `rccl-tests` readiness.
+
+The multi-GPU smoke remains embarrassingly parallel: one process per physical
+device with `ROCR_VISIBLE_DEVICES=<physical_id>` and mirrored
+`HIP_VISIBLE_DEVICES=<physical_id>`. `scripts/cdna_multigpu_smoke.sh` writes
+per-shard captures under `shards/gpu*/` and then runs
+`tools/multigpu_shard_report.py`; the report lists rank, world size, physical
+device id, target arch, device name, BDF, NUMA node, schema status, checksum,
+timing outliers, missing shards, profiler readiness, and RCCL/`rccl-tests`
+readiness. Partial lists such as `--devices 4,5,6,7` are recorded by physical
+device id, not by rank position.
 
 `scripts/cdna_smoke.sh` is the minimal single-device smoke wrapper:
 

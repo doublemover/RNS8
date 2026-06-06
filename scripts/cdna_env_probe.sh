@@ -77,6 +77,22 @@ def split_visible(value: str | None) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+def parse_device_list(values: list[str]) -> list[int]:
+    parsed: list[int] = []
+    for value in values:
+        if re.fullmatch(r"[0-9]+", value):
+            parsed.append(int(value, 10))
+    return parsed
+
+
+def value_for_device(values: list, device_index: int):
+    if 0 <= device_index < len(values):
+        return values[device_index]
+    if len(values) == 1:
+        return values[0]
+    return None
+
+
 rocminfo = read("rocminfo")
 hipconfig = read("hipconfig_full")
 hipcc = read("hipcc_version")
@@ -119,6 +135,23 @@ if not visible_values:
 
 node_gpu_count = len(device_names) or len(bdfs) or len(gfx_targets) or len(visible_values) or None
 visible_gpu_count = len(visible_values) if visible_values else node_gpu_count
+requested_device_ids = parse_device_list(visible_values)
+inventory_count = node_gpu_count or 0
+inventory_ids = set(range(inventory_count))
+inventory_ids.update(requested_device_ids)
+physical_devices = []
+for device_index in sorted(inventory_ids):
+    physical_devices.append(
+        {
+            "physical_device_id": device_index,
+            "target_arch": value_for_device(gfx_targets, device_index),
+            "device_name": value_for_device(device_names, device_index),
+            "bdf": value_for_device(bdfs, device_index),
+            "numa_node": value_for_device(numa_nodes, device_index) if numa_nodes else None,
+            "visible": device_index in requested_device_ids if requested_device_ids else None,
+            "visibility_index": requested_device_ids.index(device_index) if device_index in requested_device_ids else None,
+        }
+    )
 rocm_version = first_match(
     hipconfig,
     [
@@ -164,6 +197,7 @@ summary = {
     "hip_version": hip_version,
     "visible_gpu_count": visible_gpu_count,
     "node_gpu_count": node_gpu_count,
+    "physical_devices": physical_devices,
     "numa_nodes": numa_nodes,
     "pci_bdf_ids": bdfs,
     "rocprofv3_ready": shutil.which("rocprofv3") is not None and shutil.which("rocprofv3-avail") is not None,

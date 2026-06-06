@@ -24,6 +24,7 @@ WORLD_SIZE="${#DEVICE_LIST[@]}"
 ENV_DIR="${CDNA_OUT_DIR}/env"
 STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
+SHARD_REPORT_DIR="${CDNA_OUT_DIR}/multigpu-shard-report"
 BENCH_BIN="$(cdna_binary_path "${PRESET}" "rns8-bench")"
 BUILD_STATUS="not_run"
 CTEST_STATUS="not_run"
@@ -124,25 +125,43 @@ targets = summary.get("rocminfo_gfx_targets") or []
 names = summary.get("smi_device_names") or []
 bdfs = summary.get("pci_bdf_ids") or []
 numa_nodes = summary.get("numa_nodes") or []
+physical_devices = {
+    str(item.get("physical_device_id")): item
+    for item in summary.get("physical_devices", [])
+    if isinstance(item, dict) and item.get("physical_device_id") is not None
+}
+
+
+def by_rank_or_first(values, rank):
+    if rank < len(values):
+        return values[rank]
+    return values[0] if values else None
+
+
 records = []
 for rank, device in enumerate(devices):
+    physical = physical_devices.get(str(device), {})
+    physical_device_id = int(device) if device.isdigit() else device
     records.append(
         {
             "host_os": "linux",
-            "target_id": targets[rank] if rank < len(targets) else (targets[0] if targets else None),
+            "target_id": physical.get("target_arch") or by_rank_or_first(targets, rank),
             "rocm_version": summary.get("rocm_version"),
             "hip_sdk_or_rocm_version": summary.get("rocm_version"),
             "hip_runtime_version": summary.get("hip_version"),
-            "gpu_name": names[rank] if rank < len(names) else (names[0] if names else None),
-            "device_index": int(device) if device.isdigit() else device,
+            "gpu_name": physical.get("device_name") or by_rank_or_first(names, rank),
+            "device_index": physical_device_id,
+            "physical_device_id": physical_device_id,
             "visible_device_count": 1,
             "visible_gpu_count": 1,
             "node_gpu_count": summary.get("node_gpu_count") or world_size,
             "multi_gpu_mode": "embarrassingly_parallel_shards",
             "rank": rank,
             "world_size": world_size,
-            "device_bdf": bdfs[rank] if rank < len(bdfs) else None,
-            "numa_node": numa_nodes[rank % len(numa_nodes)] if numa_nodes else None,
+            "device_bdf": physical.get("bdf") or by_rank_or_first(bdfs, rank),
+            "numa_node": physical.get("numa_node")
+            if physical.get("numa_node") is not None
+            else (numa_nodes[rank % len(numa_nodes)] if numa_nodes else None),
             "rocprofv3_ready": summary.get("rocprofv3_ready"),
             "rccl_ready": summary.get("rccl_ready"),
             "rccl_tests_ready": summary.get("rccl_tests_ready"),
@@ -171,5 +190,16 @@ else
   cdna_note_command target_validation python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}"
   (cd "${CDNA_REPO_ROOT}" && python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}")
 fi
+
+cdna_note_command multigpu_shard_report python tools/multigpu_shard_report.py \
+  --env-summary "${ENV_DIR}/cdna-env-summary.json" \
+  --target-status "${STATUS_JSON}" \
+  --shards-dir "${CDNA_OUT_DIR}/shards" \
+  --out-dir "${SHARD_REPORT_DIR}"
+(cd "${CDNA_REPO_ROOT}" && python tools/multigpu_shard_report.py \
+  --env-summary "${ENV_DIR}/cdna-env-summary.json" \
+  --target-status "${STATUS_JSON}" \
+  --shards-dir "${CDNA_OUT_DIR}/shards" \
+  --out-dir "${SHARD_REPORT_DIR}")
 
 echo "CDNA multi-GPU smoke output: ${CDNA_OUT_DIR}"

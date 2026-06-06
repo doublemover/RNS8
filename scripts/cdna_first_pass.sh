@@ -104,22 +104,30 @@ names = summary.get("smi_device_names") or []
 bdfs = summary.get("pci_bdf_ids") or []
 numa_nodes = summary.get("numa_nodes") or []
 device = os.environ["CDNA_DEVICE"]
+physical_devices = {
+    str(item.get("physical_device_id")): item
+    for item in summary.get("physical_devices", [])
+    if isinstance(item, dict) and item.get("physical_device_id") is not None
+}
+physical = physical_devices.get(str(device), {})
+physical_device_id = int(device) if device.isdigit() else device
 record = {
     "host_os": "linux",
-    "target_id": targets[0] if targets else None,
+    "target_id": physical.get("target_arch") or (targets[0] if targets else None),
     "rocm_version": summary.get("rocm_version"),
     "hip_sdk_or_rocm_version": summary.get("rocm_version"),
     "hip_runtime_version": summary.get("hip_version"),
-    "gpu_name": names[0] if names else None,
-    "device_index": int(device) if device.isdigit() else device,
+    "gpu_name": physical.get("device_name") or (names[0] if names else None),
+    "device_index": physical_device_id,
+    "physical_device_id": physical_device_id,
     "visible_device_count": 1,
     "visible_gpu_count": 1,
     "node_gpu_count": summary.get("node_gpu_count"),
     "multi_gpu_mode": "single_device_smoke",
     "rank": 0,
     "world_size": 1,
-    "device_bdf": bdfs[0] if bdfs else None,
-    "numa_node": numa_nodes[0] if numa_nodes else None,
+    "device_bdf": physical.get("bdf") or (bdfs[0] if bdfs else None),
+    "numa_node": physical.get("numa_node") if physical.get("numa_node") is not None else (numa_nodes[0] if numa_nodes else None),
     "rocprofv3_ready": summary.get("rocprofv3_ready"),
     "rccl_ready": summary.get("rccl_ready"),
     "rccl_tests_ready": summary.get("rccl_tests_ready"),
