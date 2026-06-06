@@ -77,6 +77,10 @@ def write_isa_summary(path: Path) -> None:
                     "global_store": 4,
                     "lds_mentions": 1,
                     "wait_instructions": 2,
+                    "vgpr_count": 64,
+                    "sgpr_count": 48,
+                    "lds_bytes": 2048,
+                    "scratch_bytes": 0,
                 },
             }
         ),
@@ -158,6 +162,13 @@ def main() -> int:
         partial_report = gpu_counter_report.report_for_capture(capture, [counter_csv], [partial_isa_summary], 3)
         assert partial_report["evidence_status"]["isa_resource_status"] == "partial"
         assert "partial_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
+
+        isa_only_report = gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
+        assert isa_only_report["resource_summary"]["vgpr"] == 64
+        assert isa_only_report["resource_summary"]["sgpr"] == 48
+        assert isa_only_report["resource_summary"]["lds_bytes"] == 2048
+        assert isa_only_report["evidence_status"]["isa_resource_status"] == "present"
+        assert "missing_occupancy_signal" in isa_only_report["evidence_status"]["missing_evidence"]
 
         multi_batch = gpu_counter_report.build_batch_report([report, missing_report])
         assert multi_batch["report_count"] == 2

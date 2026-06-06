@@ -142,6 +142,13 @@ def _max_metric(metrics: dict[str, float], patterns: tuple[str, ...]) -> float |
     return max(values) if values else None
 
 
+def _first_available(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, float]:
     merged: dict[str, list[float]] = {}
     for report in counter_reports:
@@ -162,15 +169,25 @@ def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
         "wait_instructions": 0,
         "wmma": 0,
         "mfma": 0,
+        "vgpr_count": None,
+        "sgpr_count": None,
+        "lds_bytes": None,
+        "scratch_bytes": None,
+        "occupancy": None,
     }
+    max_keys = ["vgpr_count", "sgpr_count", "lds_bytes", "scratch_bytes", "occupancy"]
     for item in isa_reports:
         instruction_totals = item.get("instruction_totals") or {}
         if not isinstance(instruction_totals, dict):
             continue
-        for key in totals:
+        for key in ["global_store", "lds_mentions", "wait_instructions", "wmma", "mfma"]:
             value = _number(instruction_totals.get(key))
             if value is not None:
                 totals[key] += int(value)
+        for key in max_keys:
+            value = _number(instruction_totals.get(key))
+            if value is not None:
+                totals[key] = value if totals[key] is None else max(float(totals[key]), value)
     return totals
 
 
@@ -194,11 +211,26 @@ def _counter_resource_summary(
         else None,
     }
     return {
-        "vgpr": _first_metric(metrics, (r"\bvgpr\b", r"vgpr_count", r"num_vgprs")),
-        "sgpr": _first_metric(metrics, (r"\bsgpr\b", r"sgpr_count", r"num_sgprs")),
-        "lds_bytes": _first_metric(metrics, (r"lds.*bytes", r"lds_size", r"group_segment")),
-        "scratch_bytes": _max_metric(metrics, (r"scratch.*bytes", r"scratch_size", r"private_segment")),
-        "occupancy": _first_metric(metrics, (r"occupancy", r"achieved_occupancy", r"wavefronts_per_cu")),
+        "vgpr": _first_available(
+            _first_metric(metrics, (r"\bvgpr\b", r"vgpr_count", r"num_vgprs")),
+            isa_totals.get("vgpr_count"),
+        ),
+        "sgpr": _first_available(
+            _first_metric(metrics, (r"\bsgpr\b", r"sgpr_count", r"num_sgprs")),
+            isa_totals.get("sgpr_count"),
+        ),
+        "lds_bytes": _first_available(
+            _first_metric(metrics, (r"lds.*bytes", r"lds_size", r"group_segment")),
+            isa_totals.get("lds_bytes"),
+        ),
+        "scratch_bytes": _first_available(
+            _max_metric(metrics, (r"scratch.*bytes", r"scratch_size", r"private_segment")),
+            isa_totals.get("scratch_bytes"),
+        ),
+        "occupancy": _first_available(
+            _first_metric(metrics, (r"occupancy", r"achieved_occupancy", r"wavefronts_per_cu")),
+            isa_totals.get("occupancy"),
+        ),
         "wait_signal": _max_metric(metrics, (r"wait", r"stall", r"idle")),
         "memory_pressure_signal": _max_metric(metrics, (r"tcc.*req", r"tcp.*req", r"dram", r"mem_", r"write_req")),
         "global_store_instruction_count": isa_totals["global_store"],
@@ -230,7 +262,11 @@ def _evidence_status(
     resource_summary: dict[str, Any],
 ) -> dict[str, Any]:
     isa_totals = _isa_resource_summary(isa_reports)
-    isa_total_count = sum(int(value) for value in isa_totals.values())
+    isa_total_count = sum(
+        int(value)
+        for value in isa_totals.values()
+        if _number(value) is not None
+    )
     isa_status = "missing"
     if isa_reports and isa_total_count > 0:
         isa_status = "present"

@@ -104,6 +104,8 @@ CSV_FIELDS = [
     "isa_instruction_lines",
     "isa_vgpr_count",
     "isa_sgpr_count",
+    "isa_lds_bytes",
+    "isa_scratch_bytes",
     "isa_occupancy",
     "isa_rga_statuses",
     "promotable",
@@ -120,6 +122,8 @@ ISA_COUNT_FIELDS = {
 ISA_MAX_FIELDS = {
     "vgpr_count": "isa_vgpr_count",
     "sgpr_count": "isa_sgpr_count",
+    "lds_bytes": "isa_lds_bytes",
+    "scratch_bytes": "isa_scratch_bytes",
     "occupancy": "isa_occupancy",
 }
 BACKEND_ALIASES = {

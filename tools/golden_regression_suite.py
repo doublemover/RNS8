@@ -90,6 +90,7 @@ DEFAULT_CASES = [
     ),
     SuiteCase("perf_variance_report", "performance_evidence_drift", [sys.executable, "tools/test_perf_variance_report.py"]),
     SuiteCase("gpu_counter_report", "performance_evidence_drift", [sys.executable, "tools/test_gpu_counter_report.py"]),
+    SuiteCase("gpu_isa_report", "performance_evidence_drift", [sys.executable, "tools/test_gpu_isa_report.py"]),
     SuiteCase("target_validation_report", "target_readiness", [sys.executable, "tools/test_target_validation_report.py"]),
     SuiteCase("multigpu_shard_report", "target_readiness", [sys.executable, "tools/test_multigpu_shard_report.py"]),
     SuiteCase("cdna_scripts", "target_readiness", [sys.executable, "tools/test_cdna_scripts.py"]),
@@ -98,6 +99,7 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_bounded_i64_1024_review.py"],
     ),
+    SuiteCase("tile_shape_report", "performance_evidence_drift", [sys.executable, "tools/test_tile_shape_report.py"]),
     SuiteCase(
         "zero_skip_expansion_report",
         "performance_evidence_drift",

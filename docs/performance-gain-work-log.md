@@ -7,6 +7,34 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-56 tile-shape autotuning gate closeout:
+
+- Rank 56 moved from the active queue to the completed-work archive after the
+  tile-shape lane gained release-mode CPU/default Direct-HIP anchor scenarios
+  and an enforceable report gate. `tile_shape_sweeps.json` now covers
+  bounded-i64 512/1024, bounded-u64 1024, exact-wide signed 1024, and
+  finite-ring u8 2048 with CPU anchors, default 128x128 Direct-HIP anchors, and
+  non-default Direct-HIP tile candidates. `tools/tile_shape_report.py` now
+  requires schema-valid release captures, same-contract CPU and default
+  Direct-HIP baselines, required GPU events, selected-kernel/resource identity,
+  tile-aware autotune keys, and counter or ISA resource signals before a local
+  tile-shape candidate can promote. This is scenario/report infrastructure and
+  does not add a README claim, installed cache entry, AUTO route, Linux
+  readiness claim, or CDNA performance claim.
+- The Windows `gfx1100` release sweep under
+  `temp/rank56-tile-shape-release-20260606/` produced 20 schema-valid captures
+  with zero deferrals: 10 non-default candidates, five CPU anchors, and five
+  default 128x128 Direct-HIP anchors. Required GPU events passed for every
+  GPU capture, and `tools/gpu_isa_report.py` now extracts VGPR/SGPR/LDS/scratch
+  resource fields from AMDGPU metadata via `llvm-readobj` instead of leaving
+  them null when disassembly omits them. RGA binary-analysis parsing failed on
+  the extracted code object, so occupancy/profiler evidence remains missing on
+  Windows. The final tile report deprioritized seven slower candidates and kept
+  three near/faster candidates experimental: exact-wide signed 1024 64x128
+  at 1.011x, finite-ring u8 2048 64x64 at 1.069x, and finite-ring u8 2048
+  256x128 at 1.083x versus their default Direct-HIP tile anchors. No tile-shape
+  variant promoted locally because the occupancy/profiler gate remains intact.
+
 June 6, 2026 rank-55 streaming overlap gate closeout:
 
 - Rank 55 moved from the active queue to the completed-work archive after the

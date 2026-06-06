@@ -380,10 +380,9 @@ def main() -> int:
         assert shadow_entry["shape_family_shadow_query_count"] == 1
         assert "exact_query_not_reviewed" in shadow_entry["shape_family_shadow_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
-        tile_row = tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]
-        assert tile_row["variant_name"]
-        assert tile_row["k_block_policy"] == "auto"
-        assert tile_row["accumulator_safety_key"]
+        tile_report = tile_shape_report.build_report([capture_path])
+        assert tile_report["capture_count"] == 1
+        assert tile_report["candidate_count"] == 0
         assert many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"] == "grouped_dispatch"
         assert fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"] == "fhe_lattice_proxy"
         resident_report = resident_workspace_report.build_report([capture_path])

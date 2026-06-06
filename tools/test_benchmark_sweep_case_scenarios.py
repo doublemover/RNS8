@@ -140,7 +140,7 @@ modulus_command = benchmark_sweep.command_for(
     modulus_args,
 )
 assert "--modulus-set" in modulus_command and "experimental:prefix5-byte-ladder-search" in modulus_command
-tile_item = catalog["tile-shape-sweeps"][0]
+tile_item = next(item for item in catalog["tile-shape-sweeps"] if item.tile_shape_variant == "direct-hip-bounded-512-64x64")
 tile_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, tile_item)
 tile_command = benchmark_sweep.command_for(
     Path("rns8-bench"),

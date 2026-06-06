@@ -116,6 +116,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(gpu_counter_report_self_test PROPERTIES LABELS "benchmark;evidence;gpu-counters")
 
   add_test(
+    NAME gpu_isa_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_gpu_isa_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(gpu_isa_report_self_test PROPERTIES LABELS "benchmark;evidence;isa")
+
+  add_test(
     NAME target_validation_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_target_validation_report.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -128,6 +135,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(bounded_i64_1024_review_self_test PROPERTIES LABELS "benchmark;evidence;autotune")
+
+  add_test(
+    NAME tile_shape_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_tile_shape_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(tile_shape_report_self_test PROPERTIES LABELS "benchmark;evidence;perf")
 
   add_test(
     NAME starfoundry_report_self_test

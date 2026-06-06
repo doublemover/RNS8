@@ -179,8 +179,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 "",
                 "## ISA Resources",
                 "",
-                "| backend | target | captures | reports | WMMA | MFMA | global stores | LDS | waits | instructions | VGPR | SGPR | occupancy |",
-                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "| backend | target | captures | reports | WMMA | MFMA | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -189,7 +189,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         for (backend, target), grouped_rows in sorted(groups.items()):
             representative = grouped_rows[0]
             lines.append(
-                "| {backend} | {target} | {captures} | {reports} | {wmma} | {mfma} | {stores} | {lds} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
+                "| {backend} | {target} | {captures} | {reports} | {wmma} | {mfma} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
                     backend=backend,
                     target=target,
                     captures=len(grouped_rows),
@@ -198,6 +198,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                     mfma=format_number(representative.get("isa_mfma_count")),
                     stores=format_number(representative.get("isa_global_store_count")),
                     lds=format_number(representative.get("isa_lds_mentions")),
+                    lds_bytes=format_number(representative.get("isa_lds_bytes")),
+                    scratch=format_number(representative.get("isa_scratch_bytes")),
                     waits=format_number(representative.get("isa_wait_instructions")),
                     instructions=format_number(representative.get("isa_instruction_lines")),
                     vgpr=format_number(representative.get("isa_vgpr_count")),
