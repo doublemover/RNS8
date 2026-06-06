@@ -55,6 +55,121 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
 #endif
 }
 
+rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
+    int device_id,
+    rns8_matrix* const* a_matrices,
+    rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs,
+    const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint16_t modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!a_matrices || !b_matrices || !c_matrices || task_count == 0 || !device_a_residue_ptrs ||
+      !device_b_residue_ptrs || !device_c_residue_ptrs ||
+      !valid_finite_modulus_for_semantics(expected_semantics, modulus) ||
+      m <= 0 || n <= 0 || k <= 0 || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  int a_device_id = -1;
+  int b_device_id = -1;
+  int c_device_id = -1;
+  uint32_t a_prefix = 0;
+  uint32_t b_prefix = 0;
+  uint32_t c_prefix = 0;
+  rns8_status status = validate_grouped_rns_matrices(
+      a_matrices, task_count, expected_semantics, m, k, true, &a_device_id, &a_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = validate_grouped_rns_matrices(
+      b_matrices, task_count, expected_semantics, k, n, true, &b_device_id, &b_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = validate_grouped_rns_matrices(
+      c_matrices, task_count, expected_semantics, m, n, false, &c_device_id, &c_prefix, nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != 0 || b_prefix != 0 || c_prefix != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (device_id < 0) {
+    device_id = a_device_id;
+  } else if (device_id != a_device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  for (uint32_t index = 0; index < task_count; ++index) {
+    if (a_matrices[index]->finite_modulus != modulus || b_matrices[index]->finite_modulus != modulus) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+  }
+
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const auto* a_ptrs = static_cast<const int8_t* const*>(device_a_residue_ptrs);
+  const auto* b_ptrs = static_cast<const int8_t* const*>(device_b_residue_ptrs);
+  auto* c_ptrs = static_cast<int8_t* const*>(const_cast<void*>(device_c_residue_ptrs));
+  const hipError_t err = timed_hip_operation("finite_resident_gemm_kernel", [&]() {
+    const int code = rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
+        a_ptrs,
+        b_ptrs,
+        c_ptrs,
+        static_cast<int>(task_count),
+        static_cast<int>(m),
+        static_cast<int>(n),
+        static_cast<int>(k),
+        static_cast<int>(k),
+        static_cast<int>(n),
+        static_cast<int>(n),
+        static_cast<int>(modulus),
+        modulus_reciprocal_u32(modulus),
+        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  for (uint32_t index = 0; index < task_count; ++index) {
+    rns8_matrix* matrix = c_matrices[index];
+    mark_device_residue_output_current(matrix);
+    matrix->finite_modulus = modulus;
+    matrix->source_version = api::gemm_output_source_version_values(
+        a_matrices[index]->source_version,
+        b_matrices[index]->source_version);
+  }
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)a_matrices;
+  (void)b_matrices;
+  (void)c_matrices;
+  (void)task_count;
+  (void)expected_semantics;
+  (void)device_a_residue_ptrs;
+  (void)device_b_residue_ptrs;
+  (void)device_c_residue_ptrs;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_gemm_finite_u8_native_device(
     int device_id,
     const void* device_a_native,

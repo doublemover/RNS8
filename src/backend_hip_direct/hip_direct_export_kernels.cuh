@@ -16,6 +16,24 @@ __global__ void rns8_export_u8_modulus_kernel(
       static_cast<uint8_t>(rns8_canonical_from_centered_device(residues[idx], modulus));
 }
 
+__global__ void rns8_export_u8_grouped_modulus_kernel(
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus) {
+  const int task = blockIdx.y;
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  if (task >= task_count || idx >= elements) {
+    return;
+  }
+  const int8_t* residues = residue_ptrs[task];
+  uint8_t* task_dst = dst + static_cast<int64_t>(task) * elements;
+  task_dst[idx] = static_cast<uint8_t>(rns8_canonical_from_centered_device(residues[idx], modulus));
+}
+
 template <int Modulus>
 __global__ void rns8_export_u8_fixed_modulus_kernel(
     const int8_t* residues,
@@ -32,6 +50,24 @@ __global__ void rns8_export_u8_fixed_modulus_kernel(
   const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
   dst[static_cast<int64_t>(row) * ld + col] =
       static_cast<uint8_t>(rns8_canonical_from_centered_fixed_modulus_device<Modulus>(residues[idx]));
+}
+
+template <int Modulus>
+__global__ void rns8_export_u8_grouped_fixed_modulus_kernel(
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  if (task >= task_count || idx >= elements) {
+    return;
+  }
+  const int8_t* residues = residue_ptrs[task];
+  uint8_t* task_dst = dst + static_cast<int64_t>(task) * elements;
+  task_dst[idx] = static_cast<uint8_t>(rns8_canonical_from_centered_fixed_modulus_device<Modulus>(residues[idx]));
 }
 
 __device__ void rns8_export_i64_cell_device(

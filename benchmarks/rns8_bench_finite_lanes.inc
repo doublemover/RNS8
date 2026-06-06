@@ -85,6 +85,13 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
+  const bool grouped_pack_gemm_export_enabled =
+      grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
+  if (grouped_dispatch_requested(args)) {
+    result.grouped_dispatch_execution_strategy =
+        grouped_pack_gemm_export_enabled ? "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h"
+                                         : "host_phase_loop_per_task_export";
+  }
 
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -95,10 +102,62 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
   enforce_grouped_dispatch_task_setup_contract(
       args, plan, tasks, c_semantics(args.semantics), matrix_prefix, "grouped finite-u8 setup");
+  GroupedNativeRnsBatch<uint8_t> grouped_batch;
+  if (grouped_pack_gemm_export_enabled) {
+    initialize_grouped_native_rns_batch(
+        args,
+        c_semantics(args.semantics),
+        matrix_prefix,
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        "grouped finite-u8");
+    result.grouped_dispatch_batched_export_enabled = true;
+    result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(grouped_batch.c_device_slab.bytes);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.a_device_slab.ptr,
+            grouped_batch.a_device_slab.bytes,
+            grouped_batch.a_matrices.data(),
+            task_count,
+            c_semantics(args.semantics),
+            grouped_batch.a_residue_ptrs.ptr,
+            args.m,
+            args.k,
+            args.k,
+            static_cast<uint32_t>(args.finite_modulus),
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_finite_u8_grouped_matrices_device(grouped finite A)", status);
+        status = hip_direct_pack_grouped_native_matrices_device(
+            grouped_batch.b_device_slab.device_id,
+            grouped_batch.b_host_slab.data(),
+            grouped_batch.b_device_slab.ptr,
+            grouped_batch.b_device_slab.bytes,
+            grouped_batch.b_matrices.data(),
+            task_count,
+            c_semantics(args.semantics),
+            grouped_batch.b_residue_ptrs.ptr,
+            args.k,
+            args.n,
+            args.n,
+            static_cast<uint32_t>(args.finite_modulus),
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_finite_u8_grouped_matrices_device(grouped finite B)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_pack_finite_u8(
         ctx, task.a, args.finite_modulus, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch A)", status);
@@ -106,11 +165,43 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         ctx, task.b, args.finite_modulus, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_finite_u8_grouped_matrices_device(
+            grouped_batch.a_device_slab.device_id,
+            grouped_batch.a_matrices.data(),
+            grouped_batch.b_matrices.data(),
+            grouped_batch.c_matrices.data(),
+            task_count,
+            c_semantics(args.semantics),
+            grouped_batch.a_residue_ptrs.ptr,
+            grouped_batch.b_residue_ptrs.ptr,
+            grouped_batch.c_residue_ptrs.ptr,
+            args.m,
+            args.n,
+            args.k,
+            static_cast<uint16_t>(args.finite_modulus));
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_finite_u8_grouped_matrices_device(grouped finite)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8(host API batch)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        export_finite_grouped_dispatch_slab(
+            args,
+            c_semantics(args.semantics),
+            grouped_batch,
+            "hip_direct_export_finite_u8_grouped_matrices_to_device(grouped finite)");
+      }
+      (void)task;
+      return;
+    }
     status = rns8_export_finite_u8(
         ctx, plan, args.finite_modulus, task.c, batch_c[task_index].data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8(host API batch)", status);
@@ -146,6 +237,9 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         pack_task,
         gemm_task,
         export_task);
+  }
+  if (grouped_pack_gemm_export_enabled) {
+    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped finite-u8 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {

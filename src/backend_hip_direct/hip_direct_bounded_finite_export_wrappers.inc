@@ -68,6 +68,76 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
+    const int8_t* const* d_residue_ptrs,
+    uint8_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus) {
+  if (!d_residue_ptrs || !d_dst || task_count <= 0 || rows <= 0 || cols <= 0 || modulus < 2 || modulus > 256) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int blocks = static_cast<int>((total + threads - 1) / threads);
+  if (modulus == 256) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<256>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 255) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<255>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 251) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<251>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols);
+    return static_cast<int>(hipGetLastError());
+  }
+  hipLaunchKernelGGL(
+      rns8_export_u8_grouped_modulus_kernel,
+      dim3(blocks, task_count),
+      dim3(threads),
+      0,
+      nullptr,
+      d_residue_ptrs,
+      d_dst,
+      task_count,
+      rows,
+      cols,
+      modulus);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_direct_export_i64_device(
     const int8_t* d_residues,
     int64_t* d_dst,

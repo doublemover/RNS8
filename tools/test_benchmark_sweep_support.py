@@ -14,6 +14,7 @@ import benchmark_sweep
 from benchmark_schema import load_capture, validate_capture
 from metadata_registry_constants import (
     GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H,
+    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H,
 )
 from test_benchmark_schema import as_host_api_batch_capture
 

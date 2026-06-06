@@ -9,6 +9,7 @@ from metadata_registry_constants import (
     GRAPH_REPLAY_STATUSES,
     GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES,
     GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES,
+    GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES,
     GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES,
 )
 
@@ -70,6 +71,11 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
                     self._error("grouped_dispatch bounded batched export is only valid for bounded semantics")
                 if self.data.get("exact_wide_export_status_check") is not None:
                     self._error("grouped_dispatch bounded batched export must not declare exact-wide status handling")
+            elif strategy in GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES:
+                if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
+                    self._error("grouped_dispatch finite batched export is only valid for finite-u8 semantics")
+                if self.data.get("exact_wide_export_status_check") is not None:
+                    self._error("grouped_dispatch finite batched export must not declare exact-wide status handling")
             else:
                 self._error("grouped_dispatch batched export requires a registered batched export strategy")
             if not _is_int(slab_bytes) or slab_bytes <= 0:
@@ -77,6 +83,7 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
         elif strategy in (
             GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES
             | GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES
+            | GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES
         ):
             self._error("grouped_dispatch batched export strategy requires batched_export_enabled=true")
         if self.data.get("semantics") == "wrap_u64_mod_2_64":

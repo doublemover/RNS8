@@ -42,6 +42,53 @@ hipError_t launch_finite_ring_fixed_modulus_gemm(
   return err;
 }
 
+template <int Modulus>
+hipError_t launch_finite_ring_grouped_fixed_modulus_gemm(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block,
+    dim3 grid,
+    dim3 block) {
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_finite_ring_gemm_i8_i32_grouped_fixed_modulus_kernel<Modulus>),
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a_ptrs,
+        d_b_ptrs,
+        d_c_ptrs,
+        task_count,
+        m,
+        n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return err;
+}
+
 extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -91,6 +138,74 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
         d_c,
         m,
         n,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        modulus,
+        modulus_reciprocal,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block) {
+  if (!d_a_ptrs || !d_b_ptrs || !d_c_ptrs || task_count <= 0 || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || modulus < 2 || modulus > 256 ||
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y, task_count);
+  if (modulus == 256) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<256>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  if (modulus == 255) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<255>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  if (modulus == 251) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<251>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+  }
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_finite_ring_gemm_i8_i32_grouped_modulus_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a_ptrs,
+        d_b_ptrs,
+        d_c_ptrs,
+        task_count,
+        m,
+        n,
+        k,
         k_offset,
         k_block,
         lda,

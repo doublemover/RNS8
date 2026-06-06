@@ -151,6 +151,20 @@ rns8_status hip_direct_pack_finite_u8_device(
     int64_t cols,
     int64_t ld,
     uint16_t modulus);
+rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
+    int device_id,
+    const uint8_t* src_slab,
+    void* device_src_slab,
+    std::size_t device_src_slab_bytes,
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_residue_ptrs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint16_t modulus,
+    uint64_t first_source_version);
 rns8_status hip_direct_ring_gemm_i8_device(
     int device_id,
     const void* device_a_residues,
@@ -514,6 +528,20 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus);
+rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
+    int device_id,
+    rns8_matrix* const* a_matrices,
+    rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs,
+    const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint16_t modulus);
 rns8_status hip_direct_gemm_finite_u8_native_device(
     int device_id,
     const void* device_a_native,
@@ -611,6 +639,14 @@ rns8_status hip_direct_export_u64_grouped_matrices_to_device(
     int64_t rows,
     int64_t cols,
     uint64_t bound);
+rns8_status hip_direct_export_finite_u8_grouped_matrices_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    void* device_dst,
+    int64_t rows,
+    int64_t cols,
+    uint16_t modulus);
 rns8_status hip_direct_export_u64_tiled_device(
     int device_id,
     const void* device_residues,

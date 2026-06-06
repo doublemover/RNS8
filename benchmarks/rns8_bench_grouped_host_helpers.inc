@@ -330,7 +330,7 @@ rns8_status hip_direct_pack_grouped_native_matrices_device(
         ld,
         prefix,
         first_source_version);
-  } else {
+  } else if constexpr (std::is_same_v<NativeT, uint64_t>) {
     return rns8::detail::hip_direct_pack_u64_grouped_matrices_device(
         device_id,
         src_slab,
@@ -344,6 +344,21 @@ rns8_status hip_direct_pack_grouped_native_matrices_device(
         cols,
         ld,
         prefix,
+        first_source_version);
+  } else {
+    return rns8::detail::hip_direct_pack_finite_u8_grouped_matrices_device(
+        device_id,
+        src_slab,
+        device_src_slab,
+        device_src_slab_bytes,
+        matrices,
+        task_count,
+        expected_semantics,
+        device_residue_ptrs,
+        rows,
+        cols,
+        ld,
+        static_cast<uint16_t>(prefix),
         first_source_version);
   }
 }
@@ -523,6 +538,50 @@ void export_bounded_grouped_dispatch_slab(
       false);
   if (copy_status != RNS8_SUCCESS) {
     fail_status("hip_direct_copy_compact_matrix_device_to_host(grouped bounded export slab)", copy_status);
+  }
+}
+
+void export_finite_grouped_dispatch_slab(
+    const Args& args,
+    rns8_semantics semantics,
+    GroupedNativeRnsBatch<uint8_t>& grouped,
+    const char* label) {
+  const uint32_t task_count = measured_task_count(args);
+  const std::size_t compact_elements = checked_elements(args.m, args.n, label);
+  const std::size_t total_elements = checked_task_slab_elements(task_count, compact_elements, label);
+  if (!grouped.c_device_slab.ptr || !grouped.c_residue_ptrs.ptr ||
+      grouped.c_matrices.size() != task_count || grouped.c_host_slab.size() != total_elements) {
+    usage_error(std::string(label) + " grouped finite export slab is not initialized for the current task count");
+  }
+  if (semantics != RNS8_FINITE_RING_U8 && semantics != RNS8_FINITE_FIELD_U8) {
+    usage_error(std::string(label) + " expected finite-u8 export semantics");
+  }
+
+  const rns8_status export_status = rns8::detail::hip_direct_export_finite_u8_grouped_matrices_to_device(
+      grouped.c_matrices.data(),
+      task_count,
+      grouped.c_residue_ptrs.ptr,
+      grouped.c_device_slab.ptr,
+      args.m,
+      args.n,
+      static_cast<uint16_t>(args.finite_modulus));
+  if (export_status != RNS8_SUCCESS) {
+    fail_status(label, export_status);
+  }
+
+  const int64_t total_extent = checked_int64_extent(total_elements, label);
+  const rns8_status copy_status = rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
+      grouped.c_device_slab.device_id,
+      "finite_export_d2h",
+      grouped.c_host_slab.data(),
+      total_extent,
+      grouped.c_device_slab.ptr,
+      1,
+      total_extent,
+      sizeof(uint8_t),
+      false);
+  if (copy_status != RNS8_SUCCESS) {
+    fail_status("hip_direct_copy_compact_matrix_device_to_host(grouped finite export slab)", copy_status);
   }
 }
 

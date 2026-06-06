@@ -62,6 +62,16 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
     int ld,
     int modulus);
 
+extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
+    const uint8_t* d_src,
+    int8_t* const* d_residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int modulus);
+
 extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -292,6 +302,21 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     uint32_t modulus_reciprocal,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
     const uint8_t* d_a,
     const uint8_t* d_b,
@@ -354,6 +379,14 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
     int rows,
     int cols,
     int ld,
+    int modulus);
+
+extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
+    const int8_t* const* d_residue_ptrs,
+    uint8_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
     int modulus);
 
 extern "C" int rns8_hip_direct_export_i64_device(

@@ -77,7 +77,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small finite-ring grouped-dispatch metadata capture",
+      "evidence_scope": "many-small finite-ring grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "keeps finite-u8 grouped-dispatch evidence separate from bounded exact paths",
       "backends": [
@@ -91,7 +91,8 @@
       "grouped_dispatch_tasks": 32,
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
-        "grouping_role": "same_shape_grouped_descriptor"
+        "grouping_role": "same_shape_grouped_descriptor",
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h"
       }
     },
     {

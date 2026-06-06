@@ -262,6 +262,12 @@ assert any(
     for entry in grouped_dispatch_entries
 )
 assert any(
+    entry.scenario["semantics"] == "finite-u8-ring"
+    and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
+    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H
+    for entry in grouped_dispatch_entries
+)
+assert any(
     entry.scenario.get("metadata", {}).get("prior_host_batch_signal")
     == "direct_hip_exact_wide_signed_64_hostbatch32"
     for entry in grouped_dispatch_entries
