@@ -462,6 +462,15 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
     int limb_count,
     int* d_status);
 
+extern "C" int rns8_hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status);
+
 extern "C" int rns8_hip_direct_export_exact_wide_signed_grouped_limbs_device(
     const int8_t* const* d_residue_ptrs,
     uint64_t* d_dst,
@@ -472,6 +481,15 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_grouped_limbs_device(
     int limb_count);
 
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status);
+
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
     int rows,

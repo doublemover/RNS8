@@ -629,6 +629,45 @@ __global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel(
   rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
 }
 
+template <int Prefix>
+__global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_limbs_device(dst, cell, x, limb_count, status);
+}
+
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+}
+
 __device__ void rns8_export_exact_wide_signed_limbs_device(
     uint64_t* dst,
     int cell,
@@ -715,6 +754,45 @@ __global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_limbs_device(dst, cell, x, product, limb_count, status);
+}
+
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
   rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
 }
 

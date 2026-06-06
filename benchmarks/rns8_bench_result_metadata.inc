@@ -224,6 +224,13 @@ void apply_benchmark_export_selector_overlay(const Args& args, const rns8_plan& 
       args.export_variant == "tree-crt-export-candidate" || args.reconstruction_variant != "default_garner") {
     result.export_plan_source = "benchmark_export_selector_variant_overlay";
     result.export_cache_visibility = "selector_visible_reconstruction_variant_candidate";
+    if (args.reconstruction_variant == "tree_crt_candidate" && result.export_backend == "hip-direct") {
+      const std::string signedness = exact_wide_benchmark_semantics(args.semantics)
+                                         ? (args.semantics == BenchSemantics::ExactWideSigned ? "signed" : "unsigned")
+                                         : std::string("unknown");
+      result.export_selected_kernel =
+          "hip_direct_export_exact_wide_" + signedness + "_tree_crt_limbs_device";
+    }
     result.export_stale_entry_reason =
         "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_reconstruction_variant";
     selector_key_needs_refresh = true;

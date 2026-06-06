@@ -147,6 +147,126 @@ int launch_rns8_exact_wide_unsigned_fixed_prefix(
   return static_cast<int>(hipGetLastError());
 }
 
+template <int Prefix>
+int launch_rns8_exact_wide_unsigned_tree_crt_fixed_prefix(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* d_status,
+    int blocks,
+    int threads) {
+  switch (limb_count) {
+    case 1:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 1>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 2:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 2>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 3:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 3>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 4:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 4>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 8:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 8>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 16:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 16>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    case 32:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel<Prefix, 32>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          d_status);
+      break;
+    default:
+      hipLaunchKernelGGL(
+          HIP_KERNEL_NAME(rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_kernel<Prefix>),
+          dim3(blocks),
+          dim3(threads),
+          0,
+          nullptr,
+          d_residues,
+          d_dst,
+          rows,
+          cols,
+          limb_count,
+          d_status);
+      break;
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
 void launch_rns8_exact_wide_unsigned_grouped_generic(
     const int8_t* const* d_residue_ptrs,
     uint64_t* d_dst,
@@ -238,6 +358,28 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
   launch_rns8_exact_wide_unsigned_generic(
       d_residues, d_dst, rows, cols, prefix, limb_count, d_status, blocks, threads);
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status) {
+  const int threads = 256;
+  const int elements = rows * cols;
+  const int blocks = (elements + threads - 1) / threads;
+  if (prefix == kRns8ExactWideUnsignedExportPrefix18) {
+    return launch_rns8_exact_wide_unsigned_tree_crt_fixed_prefix<kRns8ExactWideUnsignedExportPrefix18>(
+        d_residues, d_dst, rows, cols, limb_count, d_status, blocks, threads);
+  }
+  if (prefix == kRns8MaxSupportedPrefix) {
+    return launch_rns8_exact_wide_unsigned_tree_crt_fixed_prefix<kRns8MaxSupportedPrefix>(
+        d_residues, d_dst, rows, cols, limb_count, d_status, blocks, threads);
+  }
+  return static_cast<int>(hipErrorInvalidValue);
 }
 
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_grouped_limbs_device(

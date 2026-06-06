@@ -288,6 +288,7 @@ cross-backend AUTO winners.
 | Public exact-wide unsigned 4-limb export | 1024 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.22x | 1.24x | 6.42x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide signed 4-limb export | 2048 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.09x | 1.09x | 1.61x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide unsigned 4-limb export | 2048 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.21x | 1.22x | 5.92x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Benchmark exact-wide signed 4-limb tree/CRT export | 1024 | `hip_direct_export_exact_wide_signed_tree_crt_limbs_device` | 1.08x | 1.09x | 2.05x export phase | Local Windows `gfx1100` benchmark-only selector A/B; schema/event-valid with CPU-reference comparison, not README/cache/default-route/CDNA claim material |
 
 The colpair one-shot kernel is now routed for bounded i64 and bounded u64 when
 `m/n/k >= 512`. Smaller bounded one-shot shapes keep the prior v1 native-input
@@ -300,6 +301,14 @@ export launch path against the immediately previous Direct-HIP export path with
 the same public shape, selected prefix, limb count, signedness, and target. They
 also include the removal of a redundant host-side device synchronization before
 the already-synchronizing export copy/status phase.
+
+The tree/CRT row is a benchmark-only reconstruction selector result, not a
+public default route. The same June 6 follow-up showed that unsigned tree/CRT at
+1024 improved the GPU export event but lost slightly end-to-end, and that the
+prefix20 fixed-export selector was too marginal to call a durable win because
+its export-kernel event did not improve. Those dispositions are recorded in
+[reviewed-local-evidence.md](reviewed-local-evidence.md) and stay out of cache,
+README, and default routing claims.
 
 ## Planner And Prepass Wins
 

@@ -171,6 +171,36 @@
       }
     },
     {
+      "name": "exact-wide-prefix20-default-export-1024",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-prefix20-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "prefix-20 fixed export selector candidate",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "same-prefix default baseline for judging prefix-20 fixed export candidates",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "exact_wide_limb_counts": [8],
+      "export_variant": "default",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "prefix20_default_baseline_for_selector_review_only"
+      }
+    },
+    {
       "name": "exact-wide-prefix20-fixed-export-1024",
       "semantics": "exact-wide-signed",
       "case": {
@@ -201,6 +231,94 @@
       }
     },
     {
+      "name": "exact-wide-unsigned-prefix20-default-export-1024",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-prefix20-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "prefix-20 fixed export selector candidate",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "same-prefix unsigned default baseline for judging prefix-20 fixed export candidates",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "exact_wide_limb_counts": [8],
+      "export_variant": "default",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "prefix20_default_baseline_for_selector_review_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-prefix20-fixed-export-1024",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-prefix20-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "prefix-20 fixed export selector candidate",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "checks whether unsigned prefix-20 fixed export behaves differently from signed",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "exact_wide_limb_counts": [8],
+      "export_variant": "prefix20-fixed-export-candidate",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "prefix20_fixed_export_requires_same_prefix_release_ab"
+      }
+    },
+    {
+      "name": "exact-wide-tree-crt-default-1024",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-tree-crt-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "tree/CRT reconstruction selector candidate",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "same-prefix default Garner baseline for judging tree/CRT reconstruction candidates",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "default",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "tree_crt_default_baseline_for_selector_review_only"
+      }
+    },
+    {
       "name": "exact-wide-tree-crt-1024",
       "semantics": "exact-wide-signed",
       "case": {
@@ -217,7 +335,64 @@
       },
       "evidence_scope": "tree/CRT reconstruction selector candidate",
       "output_domain": "exact_wide_signed_limbs",
-      "rationale": "tracks tree reconstruction as an explicit selector candidate instead of a default change",
+      "rationale": "runs a real benchmark-only tree-pair CRT export kernel instead of a metadata-only reconstruction label",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "tree-crt-export-candidate",
+      "reconstruction_variant": "tree_crt_candidate",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "tree_crt_requires_exact_contract_release_ab"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-tree-crt-default-1024",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-tree-crt-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "tree/CRT reconstruction selector candidate",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "same-prefix unsigned default Garner baseline for judging tree/CRT reconstruction candidates",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "export_variant": "default",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "tree_crt_default_baseline_for_selector_review_only"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-tree-crt-1024",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "exact-wide-tree-crt-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "tree/CRT reconstruction selector candidate",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "runs the unsigned tree-pair CRT export kernel as an explicit selector candidate",
       "backends": ["cpu", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "export_variant_evidence_only",

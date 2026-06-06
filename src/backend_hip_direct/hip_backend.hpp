@@ -829,6 +829,19 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
     uint64_t* dst,
     int64_t ld,
     uint32_t limb_count);
+rns8_status hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+    int device_id,
+    const void* device_residues,
+    void** export_buffer,
+    std::size_t* export_bytes,
+    void** status_buffer,
+    std::size_t* status_bytes,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
 rns8_status hip_direct_export_exact_wide_signed_limbs_to_device(
     int device_id,
     const void* device_residues,
@@ -870,6 +883,19 @@ rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
     int64_t cols,
     uint32_t limb_count);
 rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
+    int device_id,
+    const void* device_residues,
+    void** export_buffer,
+    std::size_t* export_bytes,
+    void** status_buffer,
+    std::size_t* status_bytes,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix,
+    uint64_t* dst,
+    int64_t ld,
+    uint32_t limb_count);
+rns8_status hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
     int device_id,
     const void* device_residues,
     void** export_buffer,

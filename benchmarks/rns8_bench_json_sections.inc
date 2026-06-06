@@ -528,7 +528,13 @@ void print_reconstruction_variant_json(
   std::cout << "    \"kernel_identity\": ";
   print_nullable_std_string(export_kernel);
   std::cout << ",\n";
-  std::cout << "    \"controller\": \"benchmark_metadata_only\",\n";
+  std::cout << "    \"controller\": \""
+            << (default_variant
+                    ? "public_export_api"
+                    : (args.reconstruction_variant == "tree_crt_candidate"
+                           ? "benchmark_internal_tree_crt_export_kernel"
+                           : "benchmark_metadata_only"))
+            << "\",\n";
   std::cout << "    \"promotion_eligible\": " << (default_variant ? "true" : "false") << ",\n";
   std::cout << "    \"promotion_blocker\": ";
   print_nullable_std_string(default_variant ? std::string() : std::string("experimental_reconstruction_variant"));

@@ -12,6 +12,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   const bool compact_d2h_export_candidate =
       args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
+  const bool tree_crt_export_candidate =
+      args.export_variant == "tree-crt-export-candidate" && args.reconstruction_variant == "tree_crt_candidate";
   std::vector<uint64_t> compact_export_C(
       compact_d2h_export_candidate
           ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide signed export")
@@ -85,6 +87,23 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
   const auto export_signed_limbs = [&](rns8_matrix* matrix, const char* label) {
+    if (tree_crt_export_candidate && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      status = rns8::detail::hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+          matrix->hip_device_id,
+          matrix->hip_residues,
+          &matrix->hip_export_buffer,
+          &matrix->hip_export_bytes,
+          &matrix->hip_status_buffer,
+          &matrix->hip_status_bytes,
+          args.m,
+          args.n,
+          matrix->prefix,
+          C.data(),
+          ldc,
+          args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status(label, status);
+      return;
+    }
     if (compact_d2h_export_candidate) {
       status = rns8_export_exact_wide_signed_limbs(
           ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
@@ -258,6 +277,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
   const bool compact_d2h_export_candidate =
       args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
+  const bool tree_crt_export_candidate =
+      args.export_variant == "tree-crt-export-candidate" && args.reconstruction_variant == "tree_crt_candidate";
   std::vector<uint64_t> compact_export_C(
       compact_d2h_export_candidate
           ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide unsigned export")
@@ -331,6 +352,23 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
   const auto export_unsigned_limbs = [&](rns8_matrix* matrix, const char* label) {
+    if (tree_crt_export_candidate && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      status = rns8::detail::hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
+          matrix->hip_device_id,
+          matrix->hip_residues,
+          &matrix->hip_export_buffer,
+          &matrix->hip_export_bytes,
+          &matrix->hip_status_buffer,
+          &matrix->hip_status_bytes,
+          args.m,
+          args.n,
+          matrix->prefix,
+          C.data(),
+          ldc,
+          args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status(label, status);
+      return;
+    }
     if (compact_d2h_export_candidate) {
       status = rns8_export_exact_wide_unsigned_limbs(
           ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
