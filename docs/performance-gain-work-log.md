@@ -82,6 +82,14 @@ June 6, 2026 queue-triage update:
   prefix20 remains experimental. The resulting Direct-HIP default route is
   intentionally narrow: signed prefix18, four requested limbs, and large
   outputs only. This is Windows `gfx1100` evidence, not Linux/CDNA proof.
+- Rank 45 public grouped-dispatch contract introspection now distinguishes the
+  public resident-GEMM surface from benchmark-owned pack/export experiments.
+  `rns8_get_grouped_dispatch_contract_info` reports caller-owned unique task
+  triplets, call-return lifetime, explicit caller pack/export phases, generic
+  bucketing unavailable, and AUTO routing disabled through stable flag bits and
+  policy strings. This does not broaden grouped routing; it makes the current
+  ABI/lifetime contract mechanically visible before generic bucketing or public
+  grouped pack/export work can be promoted.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,

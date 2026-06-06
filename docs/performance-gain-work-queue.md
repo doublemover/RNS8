@@ -30,13 +30,8 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
 
 ## Active Performance Queue
 
-Use this table as the working control panel. Long-form archive material lives
-in [performance-gain-research-backlog.md](performance-gain-research-backlog.md),
-imported triage notes live in
-[performance-gain-imported-research-notes.md](performance-gain-imported-research-notes.md),
-and non-active dispositions live in
-[performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
-The next implementation chunks should pull from this ranked list first.
+Use this table as the working control panel. The next implementation chunks
+should pull from this ranked list first.
 
 Evidence sources for current promotion state are
 [performance-wins.md](performance-wins.md),
@@ -46,10 +41,8 @@ Evidence sources for current promotion state are
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
 active table below now contains 37 ranks. Rank IDs are historical/stable
-references; row order is the current execution priority. Folded duplicate rows,
-completed evidence surfaces, future platform scouts, validation-debt notes, and
-no-promotion dispositions live outside this file so the control panel stays
-execution-focused.
+references; row order is the current execution priority. Non-active material
+lives outside this file so the control panel stays execution-focused.
 
 Status history and dated implementation notes have moved to
 [performance-gain-work-log.md](performance-gain-work-log.md). Keep this file
@@ -57,7 +50,7 @@ focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are still the highest-value structural wins after export-selector productionization, but part of the path remains benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, bounded compact export, backend-owned grouped A/B/C device-resource setup, descriptor-backed grouped pack/GEMM/export execution, and a backend-built same-shape bucket-plan surface for bounded, finite, and exact-wide benchmark lanes. Public read-only contract introspection exists through `rns8_get_grouped_dispatch_contract_info`, and narrow same-shape resident grouped GEMM is exposed through `rns8_gemm_rns_grouped` and `rns8_gemm_finite_u8_grouped`; remaining proof is public grouped pack/export policy, generic descriptor bucketing, AUTO/routing policy, and broader release-family grouped evidence | Do not route generic grouped dispatch until public descriptor lifetime, output, status, pack/export, and routing contracts are mechanically enforced outside benchmark-only lanes |
+| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are still the highest-value structural wins after export-selector productionization, but part of the path remains benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, bounded compact export, backend-owned grouped A/B/C device-resource setup, descriptor-backed grouped pack/GEMM/export execution, and a backend-built same-shape bucket-plan surface for bounded, finite, and exact-wide benchmark lanes. Public read-only contract introspection exists through `rns8_get_grouped_dispatch_contract_info`, narrow same-shape resident grouped GEMM is exposed through `rns8_gemm_rns_grouped` and `rns8_gemm_finite_u8_grouped`, and the public contract now explicitly marks caller-owned task triplets, call-return lifetime, pack/export as caller phases, generic bucketing unavailable, and AUTO routing disabled. Remaining proof is generic descriptor bucketing plus broader release-family grouped evidence | Do not route generic grouped dispatch until public descriptor lifetime, output, status, pack/export, and routing contracts are mechanically enforced outside benchmark-only lanes |
 | 8 | Advanced many-small persistent/grouped workload path | Many 64/128/skinny jobs as one grouped workload remains more valuable than isolated single-GEMM tuning | Keep exact-wide signed/unsigned 64 and 128 group32, bounded-i64/u64 64 group32, bounded-i64 128 group64, bounded-u64 128x1x1024 group128, and finite-ring u8 64 group32 release controls with fastest-independent baselines, same-task-count checksum parity, and complete GPU events in `many_small_grouped_report.py` | Promote only explicit grouped workload families that beat fastest independent and host-batch controls, not one-off grouped smokes |
 | 9 | RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is a structural win | Broaden final-output chain matrices beyond current bounded/exact-wide controls, keep independent export/repack baselines, exact CPU final-output checks, and required events | Keep active until reuse/setup policy, output lifetime, and public or benchmark currentness semantics prevent accidental cross-workload reuse |
 | 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy exact-wide residue-current chains avoid per-repeat CRT, but need same-output proof and API semantics | Extend exact-wide chain length/shape/semantic controls, pair residue-current and final-output captures, and draft residue-current output lifetime rules | Keep benchmark-only until broader exact final CPU comparison, release-size speedup, and public lifetime semantics are explicit |

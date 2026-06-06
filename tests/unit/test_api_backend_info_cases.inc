@@ -305,7 +305,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
   CHECK(rns8_get_plan_backend_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
 }
 
-TEST_CASE("public grouped dispatch contract info reports benchmark-only requirements") {
+TEST_CASE("public grouped dispatch contract info reports explicit grouped requirements") {
   rns8_context* cpu = create_cpu_context();
   auto desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 4, 4, 4);
   rns8_plan* plan = nullptr;
@@ -335,16 +335,20 @@ TEST_CASE("public grouped dispatch contract info reports benchmark-only requirem
   CHECK(info.checksum_policy_required == 1);
   CHECK(info.descriptor_reuse_validated == 1);
   CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_PACK_EXPLICIT) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_EXPORT_EXPLICIT) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_GENERIC_BUCKETING_UNAVAILABLE) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_AUTO_ROUTING_DISABLED) != 0);
   CHECK(std::string(info.descriptor_layout) == "same_shape_resident_task_triplets_v1");
   CHECK(std::string(info.bucket_policy) == "single_same_shape_bucket");
   CHECK(std::string(info.source_version_policy) == "per_task_monotonic_source_version_repack");
   CHECK(std::string(info.workspace_policy) == "one_workspace_per_task_shared_plan");
-  CHECK(std::string(info.matrix_ownership_policy) == "benchmark_owns_all_task_triplets_until_capture_end");
+  CHECK(std::string(info.matrix_ownership_policy) == "caller_owns_unique_task_triplets_until_grouped_call_returns");
   CHECK(std::string(info.descriptor_reuse_policy) == "reuse_after_shape_workspace_source_validation");
   CHECK(std::string(info.stride_policy) == "matrix_ld_matches_logical_shape_host_output_ld_explicit");
   CHECK(std::string(info.output_currentness_policy) ==
         "device_residue_current_after_grouped_gemm_host_output_after_export");
-  CHECK(std::string(info.lifetime_policy) == "task_matrices_and_workspaces_destroyed_after_capture");
+  CHECK(std::string(info.lifetime_policy) == "task_matrices_and_workspaces_valid_until_grouped_call_returns");
   CHECK(std::string(info.checksum_policy) == "combined_per_task_checksum_u64");
   CHECK(std::string(info.status_policy) == "fail_fast_per_task_operation_status");
   CHECK(std::string(info.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");

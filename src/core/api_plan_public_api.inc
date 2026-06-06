@@ -287,7 +287,11 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
                  RNS8_GROUPED_DISPATCH_CONTRACT_ONE_WORKSPACE_PER_TASK_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_SAME_DEVICE_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_PER_TASK_SOURCE_VERSION_REQUIRED |
-                 RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED;
+                 RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_PACK_EXPLICIT |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_EXPORT_EXPLICIT |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_GENERIC_BUCKETING_UNAVAILABLE |
+                 RNS8_GROUPED_DISPATCH_CONTRACT_AUTO_ROUTING_DISABLED;
     set_text(out->descriptor_layout, sizeof(out->descriptor_layout), "same_shape_resident_task_triplets_v1");
     set_text(out->bucket_policy, sizeof(out->bucket_policy), "single_same_shape_bucket");
     set_text(
@@ -298,7 +302,7 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
     set_text(
         out->matrix_ownership_policy,
         sizeof(out->matrix_ownership_policy),
-        "benchmark_owns_all_task_triplets_until_capture_end");
+        "caller_owns_unique_task_triplets_until_grouped_call_returns");
     set_text(
         out->descriptor_reuse_policy,
         sizeof(out->descriptor_reuse_policy),
@@ -311,7 +315,10 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
         out->output_currentness_policy,
         sizeof(out->output_currentness_policy),
         "device_residue_current_after_grouped_gemm_host_output_after_export");
-    set_text(out->lifetime_policy, sizeof(out->lifetime_policy), "task_matrices_and_workspaces_destroyed_after_capture");
+    set_text(
+        out->lifetime_policy,
+        sizeof(out->lifetime_policy),
+        "task_matrices_and_workspaces_valid_until_grouped_call_returns");
     set_text(out->checksum_policy, sizeof(out->checksum_policy), "combined_per_task_checksum_u64");
     set_text(out->status_policy, sizeof(out->status_policy), "fail_fast_per_task_operation_status");
     set_text(
@@ -342,13 +349,13 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
       set_text(
           out->detail,
           sizeof(out->detail),
-          "Direct-HIP same-shape grouped resident GEMM is public for this plan when callers provide distinct current resident A/B/C matrices and workspaces per task; grouped pack and export remain explicit caller phases.");
+          "Direct-HIP same-shape grouped resident GEMM is public for this plan; callers must pack inputs before the grouped call and export outputs after it; generic bucketing and AUTO routing remain disabled.");
     } else {
       out->flags |= RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION;
       set_text(
           out->detail,
           sizeof(out->detail),
-          "Grouped dispatch remains a Direct-HIP benchmark/internal path for supported same-shape resident RNS plans; this plan cannot form that descriptor contract.");
+          "Grouped dispatch remains unavailable for this plan; public pack/export batching, generic bucketing, and AUTO routing are not exposed.");
     }
     return RNS8_SUCCESS;
   });
