@@ -29,6 +29,7 @@ def main() -> int:
                             "gpu_name": "AMD Instinct MI300X",
                             "device_index": 0,
                             "visible_device_count": 1,
+                            "visible_gpu_count": 1,
                             "node_gpu_count": 8,
                             "multi_gpu_mode": "single_device_smoke",
                             "rank": 0,
@@ -58,6 +59,7 @@ def main() -> int:
                                 "gpu_name": "AMD Instinct MI300X",
                                 "device_index": rank,
                                 "visible_device_count": 1,
+                                "visible_gpu_count": 1,
                                 "node_gpu_count": 4,
                                 "multi_gpu_mode": "embarrassingly_parallel_shards",
                                 "rank": rank,
@@ -80,6 +82,7 @@ def main() -> int:
                                 "gpu_name": "AMD Instinct MI350X",
                                 "device_index": rank,
                                 "visible_device_count": 1,
+                                "visible_gpu_count": 1,
                                 "node_gpu_count": 8,
                                 "multi_gpu_mode": "embarrassingly_parallel_shards",
                                 "rank": rank,
@@ -124,6 +127,7 @@ def main() -> int:
         assert cdna["multi_gpu_modes"] == ["embarrassingly_parallel_shards", "single_device_smoke"]
         assert cdna["world_sizes"] == ["1", "4"]
         assert cdna["ranks"] == ["0", "1", "2", "3"]
+        assert cdna["visible_gpu_counts"] == ["1"]
         assert cdna["device_bdfs"] == [
             "0000:01:00.0",
             "0000:02:00.0",

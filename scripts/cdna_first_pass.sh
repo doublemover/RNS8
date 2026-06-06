@@ -113,6 +113,7 @@ record = {
     "gpu_name": names[0] if names else None,
     "device_index": int(device) if device.isdigit() else device,
     "visible_device_count": 1,
+    "visible_gpu_count": 1,
     "node_gpu_count": summary.get("node_gpu_count"),
     "multi_gpu_mode": "single_device_smoke",
     "rank": 0,

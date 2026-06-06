@@ -136,6 +136,7 @@ for rank, device in enumerate(devices):
             "gpu_name": names[rank] if rank < len(names) else (names[0] if names else None),
             "device_index": int(device) if device.isdigit() else device,
             "visible_device_count": 1,
+            "visible_gpu_count": 1,
             "node_gpu_count": summary.get("node_gpu_count") or world_size,
             "multi_gpu_mode": "embarrassingly_parallel_shards",
             "rank": rank,

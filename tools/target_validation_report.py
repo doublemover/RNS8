@@ -253,7 +253,14 @@ def capture_target(path: Path) -> dict[str, Any]:
         **family,
         "device_index": device_index,
         "device_name": device.get("name"),
-        "visible_device_count": target.get("visible_device_count", device.get("visible_device_count")),
+        "visible_device_count": target.get(
+            "visible_device_count",
+            device.get("visible_device_count", target.get("visible_gpu_count", device.get("visible_gpu_count"))),
+        ),
+        "visible_gpu_count": target.get(
+            "visible_gpu_count",
+            device.get("visible_gpu_count", target.get("visible_device_count", device.get("visible_device_count"))),
+        ),
         "node_gpu_count": target.get("node_gpu_count", device.get("node_gpu_count")),
         **_optional_topology_fields({**device, **target, **runtime_env}),
         "target_cache_key": cache_key,
@@ -325,7 +332,8 @@ def status_target(path: Path, record: dict[str, Any], index: int) -> dict[str, A
         **family,
         "device_index": device_index,
         "device_name": record.get("device_name") or record.get("gpu_name"),
-        "visible_device_count": record.get("visible_device_count"),
+        "visible_device_count": record.get("visible_device_count", record.get("visible_gpu_count")),
+        "visible_gpu_count": record.get("visible_gpu_count", record.get("visible_device_count")),
         "node_gpu_count": record.get("node_gpu_count"),
         **_optional_topology_fields(record),
         "target_cache_key": cache_key,
@@ -432,6 +440,9 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                 "device_indices": sorted({str(row.get("device_index")) for row in value if row.get("device_index") is not None}),
                 "visible_device_counts": sorted(
                     {str(row.get("visible_device_count")) for row in value if row.get("visible_device_count") is not None}
+                ),
+                "visible_gpu_counts": sorted(
+                    {str(row.get("visible_gpu_count")) for row in value if row.get("visible_gpu_count") is not None}
                 ),
                 "node_gpu_counts": sorted(
                     {str(row.get("node_gpu_count")) for row in value if row.get("node_gpu_count") is not None}
