@@ -195,14 +195,18 @@ many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
 many_small_args.scenario = ["many-small"]
 many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-assert len(many_small_entries) == 14
+assert len(many_small_entries) == 18
 assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
 assert {entry.scenario["name"] for entry in many_small_entries} == {
     "bounded-i64-32-proxy",
     "bounded-i64-32-host-batch64",
     "bounded-i64-32-oneshot-proxy",
+    "bounded-i64-64-proxy",
+    "bounded-i64-64-host-batch32",
     "bounded-i64-128-proxy",
+    "bounded-i64-128-host-batch64",
     "bounded-u64-64-proxy",
+    "bounded-u64-64-host-batch32",
     "bounded-u64-skinny-n1-host-batch128",
     "bounded-u64-skinny-n1-proxy",
     "exact-wide-signed-64-proxy",
@@ -245,20 +249,35 @@ grouped_dispatch_entries = benchmark_sweep.sweep_command_entries(grouped_dispatc
 assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
     "bounded-i64-64-group32",
     "bounded-u64-64-group32",
+    "bounded-i64-128-group64",
+    "bounded-u64-skinny-n1-group128",
     "finite-ring-64-group32",
     "exact-wide-signed-64-group32",
     "exact-wide-unsigned-64-group32",
 ]
 assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
-assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
+assert {entry.scenario["grouped_dispatch_tasks"] for entry in grouped_dispatch_entries} == {32, 64, 128}
 assert all(entry.scenario["review_mode_expectation"] == "smoke" for entry in grouped_dispatch_entries)
 assert all(entry.scenario["promotion_eligibility"] for entry in grouped_dispatch_entries)
-assert all("--grouped-dispatch" in entry.command and "32" in entry.command for entry in grouped_dispatch_entries)
+assert all("--grouped-dispatch" in entry.command for entry in grouped_dispatch_entries)
 assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
 assert any(
     entry.scenario["semantics"] == "bounded-u64"
+    and entry.scenario["shape"]["n"] == 64
     and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
     == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "bounded-i64"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 64
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "bounded-u64"
+    and entry.scenario["shape"]["n"] == 1
+    and entry.scenario["grouped_dispatch_tasks"] == 128
     for entry in grouped_dispatch_entries
 )
 assert any(

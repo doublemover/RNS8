@@ -434,6 +434,28 @@ and 22.95x faster than Direct-HIP hostbatch32 at 1222.19 us per task. This is
 still benchmark-owned same-shape grouped evidence, not a public grouped API,
 generic descriptor queue, AUTO cache entry, or Linux/Instinct claim.
 
+The broader grouped matrix closeout under
+`temp/perf-queue-grouped-broader-release/` reruns the current grouped-dispatch
+family with scenario-owned CPU/Direct-HIP independent controls and matching
+same-task-count Direct-HIP hostbatch controls. It uses seed `20260606`, three
+warmups, nine repeats, schema v4, required Direct-HIP GPU events, and
+`tools/many_small_grouped_report.py` checksum parity. All five grouped rows are
+candidate wins with no missing baselines: bounded-i64 64 group32 is
+57.41 us per task, 20.02x faster than the best independent baseline and
+19.98x faster than hostbatch32; bounded-i64 128 group64 is 55.88 us per task,
+26.59x faster than best independent and 23.09x faster than hostbatch64;
+bounded-u64 64 group32 is 59.38 us per task, 16.62x faster than best
+independent and 15.87x faster than hostbatch32; bounded-u64 128x1x1024
+group128 is 100.76 us per task, 16.14x faster than best independent and
+14.62x faster than hostbatch128; finite-ring u8 mod251 64 group32 is
+33.53 us per task, 2.33x faster than the best independent CPU baseline and
+26.41x faster than Direct-HIP hostbatch32. The finite row is the first
+release-reviewed grouped finite pack+GEMM+export path: it uses grouped finite
+pack, grouped finite GEMM, grouped finite canonical export, and one compact
+output D2H. These rows supersede narrower grouped smokes for the same contracts
+but remain benchmark-owned same-shape workload evidence, not public grouped
+ABI, AUTO routing, cache entries, or Linux/Instinct proof.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized
