@@ -70,13 +70,19 @@ June 6, 2026 queue-triage update:
   shared Direct-HIP plan, unique workspace and resident A/B/C triplet ownership
   per task, same-shape descriptors, device-resident lifetimes, explicit stride
   policy, per-task source-version repack, device-current outputs, and bounded C
-  source-version binding through `hip_direct_grouped_gemm_descriptor`. Schema
-  and report validation require the matching ownership, descriptor-reuse,
-  stride, output-currentness, and lifetime policy fields. Debug smokes under
-  `temp/perf-queue-grouped-contract-smoke/` and
-  `temp/perf-queue-grouped-descriptor-smoke/` validate bounded, exact-wide, and
-  finite grouped captures as schema v4 with required Direct-HIP GPU events.
-  Public/generic grouped dispatch remains active.
+  source-version binding through `hip_direct_grouped_gemm_descriptor`. The
+  current branch now also routes benchmark grouped A/B/C slabs, optional status
+  storage, residue pointer tables, and A/B/C matrix vectors through an internal
+  Direct-HIP grouped resource helper instead of duplicating allocation and
+  pointer-table setup in each benchmark lane. Schema and report validation
+  require the matching ownership, descriptor-reuse, stride, output-currentness,
+  and lifetime policy fields. Debug smokes under
+  `temp/perf-queue-grouped-contract-smoke/`,
+  `temp/perf-queue-grouped-descriptor-smoke/`,
+  `temp/grouped-resource-helper-smoke/`, and
+  `temp/grouped-resource-helper-smoke-unsigned/` validate bounded, exact-wide
+  signed/unsigned, and finite grouped captures as schema v4 with required
+  Direct-HIP GPU events. Public/generic grouped dispatch remains active.
 
 June 4-5, 2026 updates:
 
@@ -681,7 +687,7 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are the strongest branch-local wins, but the current path is still benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, and bounded compact export; remaining proof is a public/generic descriptor ABI plus broader release-family grouped evidence | Do not expose or route generic grouped dispatch until the public descriptor ABI, lifetime, output, and status contracts are mechanically enforced outside benchmark-only lanes |
+| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are the strongest branch-local wins, but the current path is still benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, bounded compact export, and backend-owned grouped A/B/C device-resource setup for benchmark lanes; remaining proof is a public/generic descriptor ABI plus broader release-family grouped evidence | Do not expose or route generic grouped dispatch until the public descriptor ABI, lifetime, output, and status contracts are mechanically enforced outside benchmark-only lanes |
 | 8 | Advanced many-small persistent/grouped workload path | Many 64/128/skinny jobs as one grouped workload is higher value than more isolated single-GEMM tuning | Keep exact-wide signed/unsigned 64 and 128 group32, bounded-i64/u64 64 group32, bounded-i64 128 group64, bounded-u64 128x1x1024 group128, and finite-ring u8 64 group32 release controls with fastest-independent baselines, same-task-count checksum parity, and complete GPU events in `many_small_grouped_report.py` | Promote only explicit grouped workload families that beat fastest independent and host-batch controls, not one-off grouped smokes |
 | 48 | Export/reconstruction selector backend | CRT/export drives exact-wide and bounded timings, so export choice needs to be selected like a backend | Key selection by semantic, prefix, limb count, signedness, output layout, status policy, target, compact/padded D2H policy, and final-output/chain mode; require selected-kernel, schema, cache, and stale-entry visibility | Keep every reconstruction/export variant inspectable and promote only setup-inclusive same-contract wins |
 | 9 | RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is a structural win | Broaden final-output chain matrices beyond current bounded/exact-wide controls, keep independent export/repack baselines, exact CPU final-output checks, and required events | Keep active until reuse/setup policy, output lifetime, and public or benchmark currentness semantics prevent accidental cross-workload reuse |

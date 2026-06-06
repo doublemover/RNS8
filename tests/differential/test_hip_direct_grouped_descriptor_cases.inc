@@ -72,31 +72,28 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_SUCCESS);
 
-  void* grouped_residue_ptrs = nullptr;
-  void* grouped_output = nullptr;
-  void* grouped_status = nullptr;
-  REQUIRE(rns8::detail::hip_direct_allocate(0, 2 * sizeof(const void*), &grouped_residue_ptrs) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_allocate(0, 8 * sizeof(uint64_t), &grouped_output) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_allocate(0, sizeof(int), &grouped_status) == RNS8_SUCCESS);
-  rns8_matrix* c_matrices[2] = {c0, c1};
+  rns8::detail::hip_direct_grouped_device_resources grouped_resources;
+  REQUIRE(rns8::detail::hip_direct_allocate_grouped_task_device_resources(
+              descriptor,
+              0,
+              0,
+              8 * sizeof(uint64_t),
+              sizeof(int),
+              &grouped_resources) == RNS8_SUCCESS);
   int pointer_device = -1;
-  uint32_t pointer_prefix = 0;
-  REQUIRE(rns8::detail::hip_direct_prepare_grouped_matrix_residue_pointers(
-              c_matrices,
-              2,
-              RNS8_BOUNDED_U64,
-              grouped_residue_ptrs,
-              2 * sizeof(const void*),
-              &pointer_device,
-              &pointer_prefix) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+              descriptor,
+              grouped_resources,
+              &pointer_device) == RNS8_SUCCESS);
   CHECK(pointer_device == 0);
-  CHECK(pointer_prefix == plan->prefix);
+  CHECK(grouped_resources.device_id == 0);
+  REQUIRE(grouped_resources.c_matrices.size() == 2);
   REQUIRE(rns8::detail::hip_direct_export_u64_grouped_matrices_to_device(
-              c_matrices,
+              grouped_resources.c_matrices.data(),
               2,
-              grouped_residue_ptrs,
-              grouped_output,
-              grouped_status,
+              grouped_resources.c_residue_ptrs.ptr,
+              grouped_resources.c_slab.ptr,
+              grouped_resources.status.ptr,
               2,
               2,
               static_cast<uint64_t>(desc.bound)) == RNS8_SUCCESS);
@@ -107,7 +104,7 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
               "test_grouped_bounded_export_d2h",
               grouped_export.data(),
               8,
-              grouped_output,
+              grouped_resources.c_slab.ptr,
               1,
               8,
               sizeof(uint64_t),
@@ -118,9 +115,7 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   REQUIRE(rns8_export_u64(ctx, plan, c1, expected1.data(), 2) == RNS8_SUCCESS);
   CHECK(std::equal(expected0.begin(), expected0.end(), grouped_export.begin()));
   CHECK(std::equal(expected1.begin(), expected1.end(), grouped_export.begin() + 4));
-  CHECK(rns8::detail::hip_direct_free(0, grouped_status) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_free(0, grouped_output) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_free(0, grouped_residue_ptrs) == RNS8_SUCCESS);
+  CHECK(grouped_resources.reset() == RNS8_SUCCESS);
 
   ++c1->source_version;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==

@@ -142,6 +142,7 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   if (grouped_pack_gemm_export_enabled) {
     initialize_grouped_native_rns_batch(
         args,
+        plan,
         RNS8_BOUNDED_I64,
         matrix_prefix,
         tasks,
@@ -152,23 +153,25 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         grouped_batch,
         "grouped bounded i64");
     result.grouped_dispatch_batched_export_enabled = true;
-    result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(grouped_batch.c_device_slab.bytes);
+    result.grouped_dispatch_device_output_slab_bytes =
+        static_cast<uint64_t>(grouped_batch.device_resources.c_slab.bytes);
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  auto& grouped_resources = grouped_batch.device_resources;
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_batch.a_device_slab.device_id,
+            grouped_resources.a_slab.device_id,
             grouped_batch.a_host_slab.data(),
-            grouped_batch.a_device_slab.ptr,
-            grouped_batch.a_device_slab.bytes,
-            grouped_batch.a_matrices.data(),
+            grouped_resources.a_slab.ptr,
+            grouped_resources.a_slab.bytes,
+            grouped_resources.a_matrices.data(),
             task_count,
             RNS8_BOUNDED_I64,
-            grouped_batch.a_residue_ptrs.ptr,
+            grouped_resources.a_residue_ptrs.ptr,
             args.m,
             args.k,
             args.k,
@@ -176,14 +179,14 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
             source_version);
         if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_i64_grouped_matrices_device(grouped bounded A)", status);
         status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_batch.b_device_slab.device_id,
+            grouped_resources.b_slab.device_id,
             grouped_batch.b_host_slab.data(),
-            grouped_batch.b_device_slab.ptr,
-            grouped_batch.b_device_slab.bytes,
-            grouped_batch.b_matrices.data(),
+            grouped_resources.b_slab.ptr,
+            grouped_resources.b_slab.bytes,
+            grouped_resources.b_matrices.data(),
             task_count,
             RNS8_BOUNDED_I64,
-            grouped_batch.b_residue_ptrs.ptr,
+            grouped_resources.b_residue_ptrs.ptr,
             args.k,
             args.n,
             args.n,
@@ -203,15 +206,15 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_gemm_rns_grouped_matrices_device(
-            grouped_batch.a_device_slab.device_id,
-            grouped_batch.a_matrices.data(),
-            grouped_batch.b_matrices.data(),
-            grouped_batch.c_matrices.data(),
+            grouped_resources.a_slab.device_id,
+            grouped_resources.a_matrices.data(),
+            grouped_resources.b_matrices.data(),
+            grouped_resources.c_matrices.data(),
             task_count,
             RNS8_BOUNDED_I64,
-            grouped_batch.a_residue_ptrs.ptr,
-            grouped_batch.b_residue_ptrs.ptr,
-            grouped_batch.c_residue_ptrs.ptr,
+            grouped_resources.a_residue_ptrs.ptr,
+            grouped_resources.b_residue_ptrs.ptr,
+            grouped_resources.c_residue_ptrs.ptr,
             args.m,
             args.n,
             args.k,
@@ -338,6 +341,7 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   if (grouped_pack_gemm_export_enabled) {
     initialize_grouped_native_rns_batch(
         args,
+        plan,
         RNS8_BOUNDED_U64,
         matrix_prefix,
         tasks,
@@ -348,23 +352,25 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         grouped_batch,
         "grouped bounded u64");
     result.grouped_dispatch_batched_export_enabled = true;
-    result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(grouped_batch.c_device_slab.bytes);
+    result.grouped_dispatch_device_output_slab_bytes =
+        static_cast<uint64_t>(grouped_batch.device_resources.c_slab.bytes);
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  auto& grouped_resources = grouped_batch.device_resources;
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_batch.a_device_slab.device_id,
+            grouped_resources.a_slab.device_id,
             grouped_batch.a_host_slab.data(),
-            grouped_batch.a_device_slab.ptr,
-            grouped_batch.a_device_slab.bytes,
-            grouped_batch.a_matrices.data(),
+            grouped_resources.a_slab.ptr,
+            grouped_resources.a_slab.bytes,
+            grouped_resources.a_matrices.data(),
             task_count,
             RNS8_BOUNDED_U64,
-            grouped_batch.a_residue_ptrs.ptr,
+            grouped_resources.a_residue_ptrs.ptr,
             args.m,
             args.k,
             args.k,
@@ -372,14 +378,14 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
             source_version);
         if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_u64_grouped_matrices_device(grouped bounded A)", status);
         status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_batch.b_device_slab.device_id,
+            grouped_resources.b_slab.device_id,
             grouped_batch.b_host_slab.data(),
-            grouped_batch.b_device_slab.ptr,
-            grouped_batch.b_device_slab.bytes,
-            grouped_batch.b_matrices.data(),
+            grouped_resources.b_slab.ptr,
+            grouped_resources.b_slab.bytes,
+            grouped_resources.b_matrices.data(),
             task_count,
             RNS8_BOUNDED_U64,
-            grouped_batch.b_residue_ptrs.ptr,
+            grouped_resources.b_residue_ptrs.ptr,
             args.k,
             args.n,
             args.n,
@@ -399,15 +405,15 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_gemm_rns_grouped_matrices_device(
-            grouped_batch.a_device_slab.device_id,
-            grouped_batch.a_matrices.data(),
-            grouped_batch.b_matrices.data(),
-            grouped_batch.c_matrices.data(),
+            grouped_resources.a_slab.device_id,
+            grouped_resources.a_matrices.data(),
+            grouped_resources.b_matrices.data(),
+            grouped_resources.c_matrices.data(),
             task_count,
             RNS8_BOUNDED_U64,
-            grouped_batch.a_residue_ptrs.ptr,
-            grouped_batch.b_residue_ptrs.ptr,
-            grouped_batch.c_residue_ptrs.ptr,
+            grouped_resources.a_residue_ptrs.ptr,
+            grouped_resources.b_residue_ptrs.ptr,
+            grouped_resources.c_residue_ptrs.ptr,
             args.m,
             args.n,
             args.k,

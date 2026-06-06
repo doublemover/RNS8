@@ -39,6 +39,47 @@ struct hip_direct_grouped_gemm_descriptor {
   uint32_t prefix = 0;
 };
 
+struct hip_direct_grouped_device_buffer {
+  int device_id = -1;
+  void* ptr = nullptr;
+  std::size_t bytes = 0;
+
+  hip_direct_grouped_device_buffer() = default;
+  hip_direct_grouped_device_buffer(const hip_direct_grouped_device_buffer&) = delete;
+  hip_direct_grouped_device_buffer& operator=(const hip_direct_grouped_device_buffer&) = delete;
+  hip_direct_grouped_device_buffer(hip_direct_grouped_device_buffer&& other) noexcept;
+  hip_direct_grouped_device_buffer& operator=(hip_direct_grouped_device_buffer&& other) noexcept;
+  ~hip_direct_grouped_device_buffer();
+
+  rns8_status allocate(int requested_device_id, std::size_t requested_bytes);
+  rns8_status reset() noexcept;
+
+ private:
+  void move_from(hip_direct_grouped_device_buffer& other) noexcept;
+};
+
+struct hip_direct_grouped_device_resources {
+  int device_id = -1;
+  hip_direct_grouped_device_buffer a_slab;
+  hip_direct_grouped_device_buffer b_slab;
+  hip_direct_grouped_device_buffer c_slab;
+  hip_direct_grouped_device_buffer status;
+  hip_direct_grouped_device_buffer a_residue_ptrs;
+  hip_direct_grouped_device_buffer b_residue_ptrs;
+  hip_direct_grouped_device_buffer c_residue_ptrs;
+  std::vector<rns8_matrix*> a_matrices;
+  std::vector<rns8_matrix*> b_matrices;
+  std::vector<rns8_matrix*> c_matrices;
+
+  hip_direct_grouped_device_resources() = default;
+  hip_direct_grouped_device_resources(const hip_direct_grouped_device_resources&) = delete;
+  hip_direct_grouped_device_resources& operator=(const hip_direct_grouped_device_resources&) = delete;
+  hip_direct_grouped_device_resources(hip_direct_grouped_device_resources&&) noexcept = default;
+  hip_direct_grouped_device_resources& operator=(hip_direct_grouped_device_resources&&) noexcept = default;
+
+  rns8_status reset() noexcept;
+};
+
 bool hip_direct_compiled();
 void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
@@ -79,6 +120,17 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_pack(
     uint64_t first_source_version);
 rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
     const hip_direct_grouped_gemm_descriptor& descriptor);
+rns8_status hip_direct_allocate_grouped_task_device_resources(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    std::size_t a_slab_bytes,
+    std::size_t b_slab_bytes,
+    std::size_t c_slab_bytes,
+    std::size_t status_bytes,
+    hip_direct_grouped_device_resources* out);
+rns8_status hip_direct_prepare_grouped_task_residue_pointers(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    int* out_device_id = nullptr);
 rns8_status hip_direct_pack_i64_device(
     int device_id,
     const int64_t* src,

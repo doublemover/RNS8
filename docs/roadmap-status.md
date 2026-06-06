@@ -72,7 +72,10 @@ contract-metadata, helper/output-policy, and backend metadata validators split
 into focused modules and CTest-backed self-tests. Shared benchmark support,
 argument parsing, backend selection, grouped-dispatch descriptor contracts, and
 large semantic lane bodies have been moved behind internal helpers or include
-units while preserving `rns8-bench` flags and schema output.
+units while preserving `rns8-bench` flags and schema output. Grouped-dispatch
+benchmark lanes now share an internal Direct-HIP grouped resource helper for
+A/B/C slabs, optional status storage, residue pointer tables, and descriptor
+matrix vectors instead of duplicating device-resource assembly per semantic.
 
 Core currentness transitions for output setup, benchmark exact-wide pack
 materialization, Direct-HIP output stamping, native-to-RNS bridge paths, and

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <utility>
 
 namespace rns8::detail {
 namespace {
@@ -86,7 +87,104 @@ bool task_reuses_prior_objects(
   return false;
 }
 
+void keep_first_grouped_error(rns8_status& first, rns8_status next) {
+  if (first == RNS8_SUCCESS && next != RNS8_SUCCESS) {
+    first = next;
+  }
+}
+
+rns8_status checked_grouped_pointer_table_bytes(uint32_t task_count, std::size_t* out_bytes) {
+  if (!out_bytes ||
+      static_cast<std::size_t>(task_count) >
+          std::numeric_limits<std::size_t>::max() / sizeof(const void*)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  *out_bytes = static_cast<std::size_t>(task_count) * sizeof(const void*);
+  return RNS8_SUCCESS;
+}
+
 }  // namespace
+
+hip_direct_grouped_device_buffer::hip_direct_grouped_device_buffer(
+    hip_direct_grouped_device_buffer&& other) noexcept {
+  move_from(other);
+}
+
+hip_direct_grouped_device_buffer& hip_direct_grouped_device_buffer::operator=(
+    hip_direct_grouped_device_buffer&& other) noexcept {
+  if (this != &other) {
+    (void)reset();
+    move_from(other);
+  }
+  return *this;
+}
+
+hip_direct_grouped_device_buffer::~hip_direct_grouped_device_buffer() {
+  (void)reset();
+}
+
+rns8_status hip_direct_grouped_device_buffer::allocate(
+    int requested_device_id,
+    std::size_t requested_bytes) {
+  rns8_status status = reset();
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (requested_device_id < 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  device_id = requested_device_id;
+  bytes = requested_bytes;
+  if (requested_bytes == 0) {
+    return RNS8_SUCCESS;
+  }
+  void* allocated = nullptr;
+  status = hip_direct_allocate(requested_device_id, requested_bytes, &allocated);
+  if (status != RNS8_SUCCESS) {
+    device_id = -1;
+    bytes = 0;
+    return status;
+  }
+  ptr = allocated;
+  return RNS8_SUCCESS;
+}
+
+rns8_status hip_direct_grouped_device_buffer::reset() noexcept {
+  rns8_status status = RNS8_SUCCESS;
+  if (ptr) {
+    status = hip_direct_free(device_id, ptr);
+  }
+  device_id = -1;
+  ptr = nullptr;
+  bytes = 0;
+  return status;
+}
+
+void hip_direct_grouped_device_buffer::move_from(
+    hip_direct_grouped_device_buffer& other) noexcept {
+  device_id = other.device_id;
+  ptr = other.ptr;
+  bytes = other.bytes;
+  other.device_id = -1;
+  other.ptr = nullptr;
+  other.bytes = 0;
+}
+
+rns8_status hip_direct_grouped_device_resources::reset() noexcept {
+  rns8_status first_status = RNS8_SUCCESS;
+  keep_first_grouped_error(first_status, c_residue_ptrs.reset());
+  keep_first_grouped_error(first_status, b_residue_ptrs.reset());
+  keep_first_grouped_error(first_status, a_residue_ptrs.reset());
+  keep_first_grouped_error(first_status, status.reset());
+  keep_first_grouped_error(first_status, c_slab.reset());
+  keep_first_grouped_error(first_status, b_slab.reset());
+  keep_first_grouped_error(first_status, a_slab.reset());
+  c_matrices.clear();
+  b_matrices.clear();
+  a_matrices.clear();
+  device_id = -1;
+  return first_status;
+}
 
 rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
     const hip_direct_grouped_gemm_descriptor& descriptor,
@@ -126,6 +224,117 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
 
   if (out_device_id) {
     *out_device_id = device_id;
+  }
+  return RNS8_SUCCESS;
+}
+
+rns8_status hip_direct_allocate_grouped_task_device_resources(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    std::size_t a_slab_bytes,
+    std::size_t b_slab_bytes,
+    std::size_t c_slab_bytes,
+    std::size_t status_bytes,
+    hip_direct_grouped_device_resources* out) {
+  if (!out) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  int device_id = -1;
+  rns8_status status = hip_direct_validate_grouped_gemm_descriptor_setup(descriptor, &device_id);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  std::size_t pointer_table_bytes = 0;
+  status = checked_grouped_pointer_table_bytes(descriptor.task_count, &pointer_table_bytes);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+
+  status = out->reset();
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  out->device_id = device_id;
+
+  auto allocate_or_reset = [&](hip_direct_grouped_device_buffer& buffer,
+                               std::size_t bytes) -> rns8_status {
+    const rns8_status allocate_status = buffer.allocate(device_id, bytes);
+    if (allocate_status != RNS8_SUCCESS) {
+      (void)out->reset();
+    }
+    return allocate_status;
+  };
+
+  status = allocate_or_reset(out->a_slab, a_slab_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  status = allocate_or_reset(out->b_slab, b_slab_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  status = allocate_or_reset(out->c_slab, c_slab_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  status = allocate_or_reset(out->status, status_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  status = allocate_or_reset(out->a_residue_ptrs, pointer_table_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  status = allocate_or_reset(out->b_residue_ptrs, pointer_table_bytes);
+  if (status != RNS8_SUCCESS) return status;
+  return allocate_or_reset(out->c_residue_ptrs, pointer_table_bytes);
+}
+
+rns8_status hip_direct_prepare_grouped_task_residue_pointers(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    int* out_device_id) {
+  int descriptor_device_id = -1;
+  rns8_status status = hip_direct_validate_grouped_gemm_descriptor_setup(descriptor, &descriptor_device_id);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (resources.device_id != descriptor_device_id || !resources.a_residue_ptrs.ptr ||
+      !resources.b_residue_ptrs.ptr || !resources.c_residue_ptrs.ptr) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  resources.a_matrices.clear();
+  resources.b_matrices.clear();
+  resources.c_matrices.clear();
+  resources.a_matrices.reserve(descriptor.task_count);
+  resources.b_matrices.reserve(descriptor.task_count);
+  resources.c_matrices.reserve(descriptor.task_count);
+  for (uint32_t index = 0; index < descriptor.task_count; ++index) {
+    resources.a_matrices.push_back(descriptor.tasks[index].a);
+    resources.b_matrices.push_back(descriptor.tasks[index].b);
+    resources.c_matrices.push_back(descriptor.tasks[index].c);
+  }
+
+  auto prepare_table = [&](const std::vector<rns8_matrix*>& matrices,
+                           hip_direct_grouped_device_buffer& pointer_table) -> rns8_status {
+    int pointer_device_id = -1;
+    uint32_t pointer_prefix = 0;
+    const rns8_status prepare_status = hip_direct_prepare_grouped_matrix_residue_pointers(
+        matrices.data(),
+        static_cast<uint32_t>(matrices.size()),
+        descriptor.semantics,
+        pointer_table.ptr,
+        pointer_table.bytes,
+        &pointer_device_id,
+        &pointer_prefix);
+    if (prepare_status != RNS8_SUCCESS) {
+      return prepare_status;
+    }
+    if (pointer_device_id != descriptor_device_id || pointer_prefix != descriptor.prefix) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return RNS8_SUCCESS;
+  };
+
+  status = prepare_table(resources.a_matrices, resources.a_residue_ptrs);
+  if (status != RNS8_SUCCESS) return status;
+  status = prepare_table(resources.b_matrices, resources.b_residue_ptrs);
+  if (status != RNS8_SUCCESS) return status;
+  status = prepare_table(resources.c_matrices, resources.c_residue_ptrs);
+  if (status != RNS8_SUCCESS) return status;
+
+  if (out_device_id) {
+    *out_device_id = descriptor_device_id;
   }
   return RNS8_SUCCESS;
 }

@@ -258,46 +258,20 @@ int64_t checked_int64_extent(std::size_t value, const char* label) {
   return static_cast<int64_t>(value);
 }
 
-void prepare_grouped_matrix_residue_pointer_table(
-    const std::vector<rns8_matrix*>& matrices,
-    rns8_semantics expected_semantics,
-    DeviceBuffer& device_residue_ptrs,
-    uint32_t expected_prefix,
-    const char* operation_label,
-    const char* metadata_label) {
-  int pointer_device_id = -1;
-  uint32_t pointer_prefix = 0;
-  const rns8_status status = rns8::detail::hip_direct_prepare_grouped_matrix_residue_pointers(
-      matrices.data(),
-      static_cast<uint32_t>(matrices.size()),
-      expected_semantics,
-      device_residue_ptrs.ptr,
-      device_residue_ptrs.bytes,
-      &pointer_device_id,
-      &pointer_prefix);
-  if (status != RNS8_SUCCESS) {
-    fail_status(operation_label, status);
-  }
-  if (pointer_device_id != device_residue_ptrs.device_id || pointer_prefix != expected_prefix) {
-    usage_error(std::string(metadata_label) + " metadata does not match benchmark storage");
-  }
-}
-
 template <typename NativeT>
 struct GroupedNativeRnsBatch {
-  DeviceBuffer a_device_slab;
-  DeviceBuffer b_device_slab;
-  DeviceBuffer c_device_slab;
-  DeviceBuffer status_buffer;
-  DeviceBuffer a_residue_ptrs;
-  DeviceBuffer b_residue_ptrs;
-  DeviceBuffer c_residue_ptrs;
+  rns8::detail::hip_direct_grouped_device_resources device_resources;
   std::vector<NativeT> a_host_slab;
   std::vector<NativeT> b_host_slab;
   std::vector<NativeT> c_host_slab;
-  std::vector<rns8_matrix*> a_matrices;
-  std::vector<rns8_matrix*> b_matrices;
-  std::vector<rns8_matrix*> c_matrices;
+};
+
+template <typename NativeT>
+struct GroupedExactWideRnsBatch {
+  rns8::detail::hip_direct_grouped_device_resources device_resources;
+  std::vector<NativeT> a_host_slab;
+  std::vector<NativeT> b_host_slab;
+  std::vector<uint64_t> export_host_slab;
 };
 
 template <typename NativeT>
@@ -366,6 +340,7 @@ rns8_status hip_direct_pack_grouped_native_matrices_device(
 template <typename NativeT>
 void initialize_grouped_native_rns_batch(
     const Args& args,
+    const rns8_plan* plan,
     rns8_semantics semantics,
     uint32_t matrix_prefix,
     const std::vector<HostApiBatchTask>& tasks,
@@ -386,63 +361,88 @@ void initialize_grouped_native_rns_batch(
   const std::size_t a_slab_bytes = checked_bytes(total_a_elements, sizeof(NativeT), label);
   const std::size_t b_slab_bytes = checked_bytes(total_b_elements, sizeof(NativeT), label);
   const std::size_t c_slab_bytes = checked_bytes(total_c_elements, sizeof(NativeT), label);
-  const std::size_t pointer_bytes = checked_bytes(task_count, sizeof(const void*), label);
-  const int device_id = args.device_id < 0 ? 0 : args.device_id;
-
-  const std::string a_slab_label = std::string("hip_direct_allocate(") + label + " A slab)";
-  const std::string b_slab_label = std::string("hip_direct_allocate(") + label + " B slab)";
-  const std::string c_slab_label = std::string("hip_direct_allocate(") + label + " C output slab)";
-  const std::string status_label = std::string("hip_direct_allocate(") + label + " export status)";
-  const std::string a_ptr_label = std::string("hip_direct_allocate(") + label + " A ptrs)";
-  const std::string b_ptr_label = std::string("hip_direct_allocate(") + label + " B ptrs)";
-  const std::string c_ptr_label = std::string("hip_direct_allocate(") + label + " C ptrs)";
-  grouped.a_device_slab.allocate(device_id, a_slab_bytes, a_slab_label.c_str());
-  grouped.b_device_slab.allocate(device_id, b_slab_bytes, b_slab_label.c_str());
-  grouped.c_device_slab.allocate(device_id, c_slab_bytes, c_slab_label.c_str());
-  grouped.status_buffer.allocate(device_id, sizeof(int), status_label.c_str());
-  grouped.a_residue_ptrs.allocate(device_id, pointer_bytes, a_ptr_label.c_str());
-  grouped.b_residue_ptrs.allocate(device_id, pointer_bytes, b_ptr_label.c_str());
-  grouped.c_residue_ptrs.allocate(device_id, pointer_bytes, c_ptr_label.c_str());
-
-  grouped.a_matrices.reserve(task_count);
-  grouped.b_matrices.reserve(task_count);
-  grouped.c_matrices.reserve(task_count);
-  for (const auto& task : tasks) {
-    grouped.a_matrices.push_back(task.a);
-    grouped.b_matrices.push_back(task.b);
-    grouped.c_matrices.push_back(task.c);
+  auto descriptor = make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix);
+  rns8_status status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(
+      descriptor,
+      a_slab_bytes,
+      b_slab_bytes,
+      c_slab_bytes,
+      sizeof(int),
+      &grouped.device_resources);
+  if (status != RNS8_SUCCESS) {
+    const std::string allocate_label =
+        std::string("hip_direct_allocate_grouped_task_device_resources(") + label + ")";
+    fail_status(allocate_label.c_str(), status);
   }
-  const std::string a_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " A)";
-  const std::string b_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " B)";
-  const std::string c_prepare_label = std::string("hip_direct_prepare_grouped_matrix_residue_pointers(") + label + " C)";
-  const std::string a_metadata_label = std::string(label) + " A residue pointer table";
-  const std::string b_metadata_label = std::string(label) + " B residue pointer table";
-  const std::string c_metadata_label = std::string(label) + " C residue pointer table";
-  prepare_grouped_matrix_residue_pointer_table(
-      grouped.a_matrices,
-      semantics,
-      grouped.a_residue_ptrs,
-      matrix_prefix,
-      a_prepare_label.c_str(),
-      a_metadata_label.c_str());
-  prepare_grouped_matrix_residue_pointer_table(
-      grouped.b_matrices,
-      semantics,
-      grouped.b_residue_ptrs,
-      matrix_prefix,
-      b_prepare_label.c_str(),
-      b_metadata_label.c_str());
-  prepare_grouped_matrix_residue_pointer_table(
-      grouped.c_matrices,
-      semantics,
-      grouped.c_residue_ptrs,
-      matrix_prefix,
-      c_prepare_label.c_str(),
-      c_metadata_label.c_str());
+  status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+      descriptor,
+      grouped.device_resources);
+  if (status != RNS8_SUCCESS) {
+    const std::string prepare_label =
+        std::string("hip_direct_prepare_grouped_task_residue_pointers(") + label + ")";
+    fail_status(prepare_label.c_str(), status);
+  }
 
   grouped.a_host_slab = flatten_grouped_pack_slab(batch_a, a_elements, label);
   grouped.b_host_slab = flatten_grouped_pack_slab(batch_b, b_elements, label);
   grouped.c_host_slab.assign(total_c_elements, NativeT{});
+}
+
+template <typename NativeT>
+void initialize_grouped_exact_wide_rns_batch(
+    const Args& args,
+    const rns8_plan* plan,
+    rns8_semantics semantics,
+    uint32_t matrix_prefix,
+    const std::vector<HostApiBatchTask>& tasks,
+    const std::vector<std::vector<NativeT>>& batch_a,
+    const std::vector<std::vector<NativeT>>& batch_b,
+    std::size_t a_elements,
+    std::size_t b_elements,
+    GroupedExactWideRnsBatch<NativeT>& grouped,
+    BenchmarkResult& result,
+    const char* label) {
+  const uint32_t task_count = measured_task_count(args);
+  if (tasks.size() != task_count || batch_a.size() != task_count || batch_b.size() != task_count) {
+    usage_error(std::string(label) + " grouped batch task count mismatch");
+  }
+  const std::size_t total_a_elements = checked_task_slab_elements(task_count, a_elements, label);
+  const std::size_t total_b_elements = checked_task_slab_elements(task_count, b_elements, label);
+  const std::size_t a_slab_bytes = checked_bytes(total_a_elements, sizeof(NativeT), label);
+  const std::size_t b_slab_bytes = checked_bytes(total_b_elements, sizeof(NativeT), label);
+  const std::size_t compact_limb_elements =
+      checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, label);
+  const std::size_t total_limb_elements =
+      checked_task_slab_limb_elements(task_count, compact_limb_elements, label);
+  const std::size_t c_slab_bytes = checked_bytes(total_limb_elements, sizeof(uint64_t), label);
+
+  auto descriptor = make_grouped_dispatch_descriptor(args, plan, tasks, semantics, matrix_prefix);
+  rns8_status status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(
+      descriptor,
+      a_slab_bytes,
+      b_slab_bytes,
+      c_slab_bytes,
+      0,
+      &grouped.device_resources);
+  if (status != RNS8_SUCCESS) {
+    const std::string allocate_label =
+        std::string("hip_direct_allocate_grouped_task_device_resources(") + label + ")";
+    fail_status(allocate_label.c_str(), status);
+  }
+  status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+      descriptor,
+      grouped.device_resources);
+  if (status != RNS8_SUCCESS) {
+    const std::string prepare_label =
+        std::string("hip_direct_prepare_grouped_task_residue_pointers(") + label + ")";
+    fail_status(prepare_label.c_str(), status);
+  }
+
+  grouped.a_host_slab = flatten_grouped_pack_slab(batch_a, a_elements, label);
+  grouped.b_host_slab = flatten_grouped_pack_slab(batch_b, b_elements, label);
+  grouped.export_host_slab.assign(total_limb_elements, UINT64_C(0x5a5a5a5a5a5a5a5a));
+  result.grouped_dispatch_batched_export_enabled = true;
+  result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(c_slab_bytes);
 }
 
 template <typename NativeT>
@@ -488,8 +488,9 @@ void export_bounded_grouped_dispatch_slab(
   const uint32_t task_count = measured_task_count(args);
   const std::size_t compact_elements = checked_elements(args.m, args.n, label);
   const std::size_t total_elements = checked_task_slab_elements(task_count, compact_elements, label);
-  if (!grouped.c_device_slab.ptr || !grouped.status_buffer.ptr || !grouped.c_residue_ptrs.ptr ||
-      grouped.c_matrices.size() != task_count || grouped.c_host_slab.size() != total_elements) {
+  auto& resources = grouped.device_resources;
+  if (!resources.c_slab.ptr || !resources.status.ptr || !resources.c_residue_ptrs.ptr ||
+      resources.c_matrices.size() != task_count || grouped.c_host_slab.size() != total_elements) {
     usage_error(std::string(label) + " grouped bounded export slab is not initialized for the current task count");
   }
 
@@ -499,11 +500,11 @@ void export_bounded_grouped_dispatch_slab(
       usage_error(std::string(label) + " expected bounded-i64 export semantics");
     }
     export_status = rns8::detail::hip_direct_export_i64_grouped_matrices_to_device(
-        grouped.c_matrices.data(),
+        resources.c_matrices.data(),
         task_count,
-        grouped.c_residue_ptrs.ptr,
-        grouped.c_device_slab.ptr,
-        grouped.status_buffer.ptr,
+        resources.c_residue_ptrs.ptr,
+        resources.c_slab.ptr,
+        resources.status.ptr,
         args.m,
         args.n,
         bound);
@@ -512,11 +513,11 @@ void export_bounded_grouped_dispatch_slab(
       usage_error(std::string(label) + " expected bounded-u64 export semantics");
     }
     export_status = rns8::detail::hip_direct_export_u64_grouped_matrices_to_device(
-        grouped.c_matrices.data(),
+        resources.c_matrices.data(),
         task_count,
-        grouped.c_residue_ptrs.ptr,
-        grouped.c_device_slab.ptr,
-        grouped.status_buffer.ptr,
+        resources.c_residue_ptrs.ptr,
+        resources.c_slab.ptr,
+        resources.status.ptr,
         args.m,
         args.n,
         bound);
@@ -527,11 +528,11 @@ void export_bounded_grouped_dispatch_slab(
 
   const int64_t total_extent = checked_int64_extent(total_elements, label);
   const rns8_status copy_status = rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
-      grouped.c_device_slab.device_id,
+      resources.c_slab.device_id,
       "crt_export_d2h",
       grouped.c_host_slab.data(),
       total_extent,
-      grouped.c_device_slab.ptr,
+      resources.c_slab.ptr,
       1,
       total_extent,
       sizeof(NativeT),
@@ -549,8 +550,9 @@ void export_finite_grouped_dispatch_slab(
   const uint32_t task_count = measured_task_count(args);
   const std::size_t compact_elements = checked_elements(args.m, args.n, label);
   const std::size_t total_elements = checked_task_slab_elements(task_count, compact_elements, label);
-  if (!grouped.c_device_slab.ptr || !grouped.c_residue_ptrs.ptr ||
-      grouped.c_matrices.size() != task_count || grouped.c_host_slab.size() != total_elements) {
+  auto& resources = grouped.device_resources;
+  if (!resources.c_slab.ptr || !resources.c_residue_ptrs.ptr ||
+      resources.c_matrices.size() != task_count || grouped.c_host_slab.size() != total_elements) {
     usage_error(std::string(label) + " grouped finite export slab is not initialized for the current task count");
   }
   if (semantics != RNS8_FINITE_RING_U8 && semantics != RNS8_FINITE_FIELD_U8) {
@@ -558,10 +560,10 @@ void export_finite_grouped_dispatch_slab(
   }
 
   const rns8_status export_status = rns8::detail::hip_direct_export_finite_u8_grouped_matrices_to_device(
-      grouped.c_matrices.data(),
+      resources.c_matrices.data(),
       task_count,
-      grouped.c_residue_ptrs.ptr,
-      grouped.c_device_slab.ptr,
+      resources.c_residue_ptrs.ptr,
+      resources.c_slab.ptr,
       args.m,
       args.n,
       static_cast<uint16_t>(args.finite_modulus));
@@ -571,11 +573,11 @@ void export_finite_grouped_dispatch_slab(
 
   const int64_t total_extent = checked_int64_extent(total_elements, label);
   const rns8_status copy_status = rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
-      grouped.c_device_slab.device_id,
+      resources.c_slab.device_id,
       "finite_export_d2h",
       grouped.c_host_slab.data(),
       total_extent,
-      grouped.c_device_slab.ptr,
+      resources.c_slab.ptr,
       1,
       total_extent,
       sizeof(uint8_t),
@@ -609,9 +611,7 @@ void scatter_compact_limb_output(
 
 void export_exact_wide_grouped_dispatch_slab(
     const Args& args,
-    const std::vector<rns8_matrix*>& c_matrices,
-    DeviceBuffer& device_slab,
-    const DeviceBuffer& device_residue_ptrs,
+    rns8::detail::hip_direct_grouped_device_resources& resources,
     std::vector<uint64_t>& host_slab,
     bool signed_output) {
   const uint32_t task_count = measured_task_count(args);
@@ -619,7 +619,7 @@ void export_exact_wide_grouped_dispatch_slab(
       checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "grouped export compact task");
   const std::size_t total_limb_elements =
       checked_task_slab_limb_elements(task_count, compact_limb_elements, "grouped export slab");
-  if (!device_slab.ptr || !device_residue_ptrs.ptr || c_matrices.size() != task_count ||
+  if (!resources.c_slab.ptr || !resources.c_residue_ptrs.ptr || resources.c_matrices.size() != task_count ||
       host_slab.size() != total_limb_elements) {
     usage_error("grouped exact-wide export slab is not initialized for the current task count");
   }
@@ -627,18 +627,18 @@ void export_exact_wide_grouped_dispatch_slab(
   const rns8_status export_status =
       signed_output
           ? rns8::detail::hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
-                c_matrices.data(),
+                resources.c_matrices.data(),
                 task_count,
-                device_residue_ptrs.ptr,
-                device_slab.ptr,
+                resources.c_residue_ptrs.ptr,
+                resources.c_slab.ptr,
                 args.m,
                 args.n,
                 args.exact_wide_limb_count)
           : rns8::detail::hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
-                c_matrices.data(),
+                resources.c_matrices.data(),
                 task_count,
-                device_residue_ptrs.ptr,
-                device_slab.ptr,
+                resources.c_residue_ptrs.ptr,
+                resources.c_slab.ptr,
                 args.m,
                 args.n,
                 args.exact_wide_limb_count);
@@ -650,11 +650,11 @@ void export_exact_wide_grouped_dispatch_slab(
   }
 
   const rns8_status copy_status = rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
-      device_slab.device_id,
+      resources.c_slab.device_id,
       "exact_wide_export_d2h",
       host_slab.data(),
       checked_int64_extent(total_limb_elements, "grouped exact-wide export slab D2H"),
-      device_slab.ptr,
+      resources.c_slab.ptr,
       1,
       checked_int64_extent(total_limb_elements, "grouped exact-wide export slab D2H"),
       sizeof(uint64_t),
