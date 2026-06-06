@@ -25,7 +25,15 @@ def add_optional_contracts(capture: dict) -> dict:
         "buffering": "two_stage_host_device_ring",
         "dependency_contract": "same_stream_ordered_pack_gemm_export",
         "transfer_policy": "async_h2d_d2h_with_host_sync_at_repeat_boundary",
+        "stream_count": 0,
+        "buffer_count": 0,
+        "measured_repeat_count": 0,
+        "batch_wall_us": 0,
+        "per_repeat_pipeline_us": 0,
+        "explicit_dependency_events": False,
+        "stage_event_scope": "not_available",
         "capture_status": "metadata_only_unsupported_for_execution_path",
+        "unsupported_reason": "streaming_overlap_not_executed_by_fixture",
         "promotion_eligible": False,
     }
     contracted["workload_proxy"] = {
@@ -369,6 +377,32 @@ def main() -> int:
     stale_overlap = copy.deepcopy(optional)
     stale_overlap["streaming_overlap"]["capture_status"] = "stale_overlap_status"
     expect_invalid(stale_overlap, "streaming_overlap.capture_status must be one of")
+
+    stale_overlap_no_reason = copy.deepcopy(optional)
+    stale_overlap_no_reason["streaming_overlap"]["unsupported_reason"] = None
+    expect_invalid(
+        stale_overlap_no_reason,
+        "requested non-executed streaming_overlap captures must include unsupported_reason",
+    )
+
+    stale_overlap_executed_scope = copy.deepcopy(optional)
+    stale_overlap_executed_scope["streaming_overlap"].update(
+        {
+            "capture_status": "executed",
+            "stream_count": 3,
+            "buffer_count": 2,
+            "measured_repeat_count": stale_overlap_executed_scope.get("repeats", 0),
+            "batch_wall_us": 100,
+            "per_repeat_pipeline_us": 10,
+            "explicit_dependency_events": True,
+            "stage_event_scope": "direct_hip_default_stream_backend_operation_groups",
+            "unsupported_reason": None,
+        }
+    )
+    expect_invalid(
+        stale_overlap_executed_scope,
+        "executed streaming_overlap captures must use stage_event_scope",
+    )
 
     stale_proxy = copy.deepcopy(optional)
     stale_proxy["workload_proxy"]["family"] = "linux_instinct_readiness"

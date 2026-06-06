@@ -118,6 +118,7 @@ def validate_semantic_contract(self) -> None:
             and not self._is_host_api_batch_capture()
             and not self._is_grouped_dispatch_capture()
             and not self._is_hip_graph_replay_capture()
+            and not self._is_streaming_overlap_capture()
             and self.data.get("backend_selected") != "hip-vector-alu-int64"
         )
         if applicable != expected_applicable:

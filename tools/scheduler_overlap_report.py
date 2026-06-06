@@ -54,6 +54,12 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "graph_status": graph.get("capture_status"),
                 "overlap_requested": overlap.get("requested", False),
                 "overlap_status": overlap.get("capture_status"),
+                "overlap_stream_count": overlap.get("stream_count"),
+                "overlap_buffer_count": overlap.get("buffer_count"),
+                "overlap_measured_repeat_count": overlap.get("measured_repeat_count"),
+                "overlap_batch_wall_us": overlap.get("batch_wall_us"),
+                "overlap_per_repeat_pipeline_us": overlap.get("per_repeat_pipeline_us"),
+                "overlap_stage_event_scope": overlap.get("stage_event_scope"),
                 "promotion_eligible": False,
             }
         )

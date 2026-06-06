@@ -25,6 +25,9 @@ const char* benchmark_name(const Args& args) {
   if (hip_graph_replay_requested(args)) {
     return "rns8_hip_graph_replay_resident_rns_chain";
   }
+  if (args.streaming_overlap) {
+    return "rns8_streaming_overlap_resident_b_pipeline";
+  }
   if (residue_chain_independent_final_export_requested(args)) {
     return "rns8_residue_chain_independent_final_host_export";
   }

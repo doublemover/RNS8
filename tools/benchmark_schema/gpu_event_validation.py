@@ -125,6 +125,35 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     "direct-HIP bounded uniform-small transient GPU event phase order must match the operation order"
                 )
         return
+    if self._is_streaming_overlap_capture():
+        expected = [
+            "pack_h2d",
+            "pack_kernel",
+            "pack",
+            "rns_gemm_kernel_group",
+            "rns_gemm",
+            "crt_export_status_memset",
+            "crt_export_kernel",
+            "crt_export_status_d2h",
+            "crt_export_d2h",
+            "crt_export",
+        ]
+        if phases != expected:
+            missing = [phase for phase in expected if phase not in phases]
+            extra = [phase for phase in phases if phase not in expected]
+            if missing:
+                self._error(
+                    "direct-HIP streaming-overlap GPU event phase set is incomplete; "
+                    f"missing {', '.join(missing)}"
+                )
+            if extra:
+                self._error(
+                    "direct-HIP streaming-overlap GPU event phase set contains undeclared phases: "
+                    f"{', '.join(extra)}"
+                )
+            if not missing and not extra:
+                self._error("direct-HIP streaming-overlap GPU event phase order must match the pipeline stage order")
+        return
     if self._is_direct_hip_bounded_native_a_reuse_b_capture():
         gemm_event = (
             "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group"

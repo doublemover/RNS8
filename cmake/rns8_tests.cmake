@@ -144,6 +144,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(adaptive_grouped_scheduler_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
   add_test(
+    NAME streaming_overlap_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_overlap_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(streaming_overlap_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
+
+  add_test(
     NAME perf_variance_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_perf_variance_report.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

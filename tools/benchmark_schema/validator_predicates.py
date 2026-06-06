@@ -157,6 +157,14 @@ class ValidatorPredicatesMixin:
     def _is_hip_graph_replay_capture(self) -> bool:
         return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
 
+    def _is_streaming_overlap_capture(self) -> bool:
+        overlap = self.data.get("streaming_overlap")
+        return (
+            isinstance(overlap, dict)
+            and overlap.get("requested") is True
+            and overlap.get("capture_status") == "executed"
+        )
+
     def _is_residue_chain_final_export_capture(self) -> bool:
         return (
             self._residue_chain_length() > 1

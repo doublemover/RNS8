@@ -191,6 +191,7 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
 void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult& result) {
   const bool residency = args.resident_lifetime || args.reuse_packed_inputs || args.residue_chain_length > 1;
   const bool arena = args.workspace_arena;
+  const bool streaming_executed = result.streaming_overlap_executed;
   const uint64_t arena_size =
       result.workspace_arena_info_available ? result.workspace_arena_size_bytes : result.backend_info.workspace_required_bytes;
   const uint64_t arena_high_water =
@@ -248,16 +249,35 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"streaming_overlap\": {\n";
   std::cout << "    \"requested\": " << (args.streaming_overlap ? "true" : "false") << ",\n";
   std::cout << "    \"pipeline\": \""
-            << (args.streaming_overlap ? "pack_next_gemm_current_export_previous" : "serial_default_stream")
+            << (streaming_executed ? "pack_next_gemm_current_export_previous" : args.streaming_overlap
+                          ? "pack_next_gemm_current_export_previous"
+                          : "serial_default_stream")
             << "\",\n";
-  std::cout << "    \"buffering\": \"" << (args.streaming_overlap ? "double_buffered_benchmark_only" : "none") << "\",\n";
+  std::cout << "    \"buffering\": \"" << (streaming_executed ? "double_buffered_benchmark_only"
+                                              : args.streaming_overlap ? "requested_but_not_executed"
+                                                                       : "none")
+            << "\",\n";
   std::cout << "    \"dependency_contract\": \"pack_before_gemm;gemm_before_export;status_before_host_read;final_sync_before_checksum\",\n";
   std::cout << "    \"transfer_policy\": \"compact_or_padded_output_policy_declared_by_output_policy\",\n";
+  std::cout << "    \"stream_count\": " << result.streaming_overlap_stream_count << ",\n";
+  std::cout << "    \"buffer_count\": " << result.streaming_overlap_buffer_count << ",\n";
+  std::cout << "    \"measured_repeat_count\": " << result.streaming_overlap_measured_repeat_count << ",\n";
+  std::cout << "    \"batch_wall_us\": " << result.streaming_overlap_batch_wall_us << ",\n";
+  std::cout << "    \"per_repeat_pipeline_us\": " << result.streaming_overlap_per_repeat_pipeline_us << ",\n";
+  std::cout << "    \"explicit_dependency_events\": " << (streaming_executed ? "true" : "false") << ",\n";
+  std::cout << "    \"stage_event_scope\": \""
+            << (streaming_executed ? "direct_hip_streaming_overlap_multistream_operation_groups"
+                                   : "not_available")
+            << "\",\n";
   std::cout << "    \"capture_status\": \""
-            << (args.streaming_overlap ? "metadata_only_unsupported_for_execution_path" : "not_requested") << "\",\n";
+            << (streaming_executed ? "executed"
+                                   : args.streaming_overlap ? "metadata_only_unsupported_for_execution_path"
+                                                            : "not_requested")
+            << "\",\n";
   std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(args.streaming_overlap ? std::string("streaming_overlap_not_executed_by_current_path")
-                                                   : std::string());
+  print_nullable_std_string(args.streaming_overlap && !streaming_executed
+                                ? std::string("streaming_overlap_not_executed_by_current_path")
+                                : std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";

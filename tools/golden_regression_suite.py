@@ -67,6 +67,11 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_adaptive_grouped_scheduler_report.py"],
     ),
     SuiteCase(
+        "streaming_overlap_report",
+        "scheduler_overlap",
+        [sys.executable, "tools/test_streaming_overlap_report.py"],
+    ),
+    SuiteCase(
         "modulus_set_search",
         "performance_evidence_drift",
         [sys.executable, "tools/test_modulus_set_search.py"],

@@ -3,7 +3,7 @@
   "family": "streaming-overlap",
   "items": [
     {
-      "name": "bounded-i64-512-reuse-b-overlap",
+      "name": "bounded-i64-512-cpu-baseline",
       "semantics": "bounded-i64",
       "case": {
         "name": "layout-512",
@@ -15,15 +15,78 @@
         "bound_mode": "global",
         "input_profile": "uniform-small",
         "require_adaptive": false,
-        "promotable": true
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
       },
-      "evidence_scope": "Direct-HIP repeated-B pack/compute/export overlap evidence",
+      "evidence_scope": "CPU correctness baseline for Direct-HIP streaming overlap",
       "output_domain": "host_export",
-      "rationale": "declares double-buffered stream dependency contracts before overlap routing",
+      "rationale": "same-shape exact CPU reference required before overlap speedup claims",
+      "backends": [
+        "cpu"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-i64-512-serial-direct-reuse-b-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
+      },
+      "evidence_scope": "serial Direct-HIP repeated-B baseline for streaming overlap",
+      "output_domain": "host_export",
+      "rationale": "establishes setup-inclusive reuse-B baseline without multi-stream overlap",
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-i64-512-reuse-b-streaming-overlap",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP repeated-B pack/compute/export overlap evidence",
+      "output_domain": "host_export",
+      "rationale": "executes benchmark-only pack-next/GEMM-current/export-previous pipeline",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "streaming_overlap_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "resident_lifetime": true,
@@ -35,38 +98,98 @@
       }
     },
     {
-      "name": "exact-wide-signed-chain3-overlap",
-      "semantics": "exact-wide-signed",
+      "name": "bounded-u64-512-cpu-baseline",
+      "semantics": "bounded-u64",
       "case": {
-        "name": "chain-256",
-        "m": 256,
-        "n": 256,
-        "k": 256,
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
         "tile_m": 128,
         "tile_n": 128,
         "bound_mode": "global",
         "input_profile": "uniform-small",
         "require_adaptive": false,
-        "promotable": true
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
       },
-      "evidence_scope": "exact-wide chain plus final export overlap evidence",
-      "output_domain": "residue_current_then_final_limb_export",
-      "rationale": "tests whether final export can overlap with next pack without changing output contract",
+      "evidence_scope": "CPU correctness baseline for Direct-HIP streaming overlap",
+      "output_domain": "host_export",
+      "rationale": "same-shape exact CPU reference required before overlap speedup claims",
+      "backends": [
+        "cpu"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-u64-512-serial-direct-reuse-b-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
+      },
+      "evidence_scope": "serial Direct-HIP repeated-B baseline for streaming overlap",
+      "output_domain": "host_export",
+      "rationale": "establishes setup-inclusive reuse-B baseline without multi-stream overlap",
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "streaming_overlap_evidence_only",
-      "exact_wide_limb_counts": [
-        4
+      "pack_mode": "prepacked_reuse_b",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "streaming_overlap_evidence_only"
+      }
+    },
+    {
+      "name": "bounded-u64-512-reuse-b-streaming-overlap",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "prefix_policy": "fixed-requested",
+        "max_prefix": 9,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP repeated-B pack/compute/export overlap evidence",
+      "output_domain": "host_export",
+      "rationale": "executes benchmark-only pack-next/GEMM-current/export-previous pipeline",
+      "backends": [
+        "hip-direct"
       ],
-      "residue_chain_length": 3,
-      "next_op_hint": "rns-gemm",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "streaming_overlap_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
       "resident_lifetime": true,
       "workspace_arena": true,
       "streaming_overlap": true,
       "metadata": {
-        "promotion_scope": "streaming_overlap_evidence_only"
+        "promotion_scope": "streaming_overlap_evidence_only",
+        "dependency_contract": "pack_before_gemm_gemm_before_export_status_before_host_read"
       }
     }
   ]

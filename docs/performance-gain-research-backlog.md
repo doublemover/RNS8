@@ -1,4 +1,4 @@
-# Performance Gain Detailed Backlog And Research Notes
+# Performance Gain Research Backlog
 
 This document preserves the long-form research backlog that used to live in
 [performance-gain-work-queue.md](performance-gain-work-queue.md). Use the work

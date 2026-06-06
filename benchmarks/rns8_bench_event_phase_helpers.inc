@@ -114,6 +114,19 @@ std::vector<std::string> gpu_event_phase_order(
     const BenchmarkResult& result,
     rns8_backend_kind selected_backend,
     bool use_prepacked_b_cache) {
+  if (result.streaming_overlap_executed) {
+    return {
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export"};
+  }
   if (args.oneshot && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     if (finite_benchmark_semantics(args.semantics)) {
       return {

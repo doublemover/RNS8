@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -212,6 +213,7 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 #include "rns8_bench_backend_path_metadata.inc"
 #include "rns8_bench_event_phase_helpers.inc"
 #include "rns8_bench_event_collection.inc"
+#include "rns8_bench_streaming_overlap.inc"
 #include "rns8_bench_grouped_host_helpers.inc"
 #include "rns8_bench_vector_lanes.inc"
 #include "rns8_bench_vector_chain_helpers.inc"

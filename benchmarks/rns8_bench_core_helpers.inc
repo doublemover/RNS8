@@ -177,7 +177,7 @@ std::string benchmark_key_target_id(const BenchmarkResult& result) {
 
 bool bounded_native_a_reuse_b_requested(const Args& args) {
   return !args.oneshot && bounded_benchmark_semantics(args.semantics) && args.reuse_packed_b &&
-         !args.reuse_packed_a && args.backend == RNS8_BACKEND_HIP_DIRECT &&
+         !args.reuse_packed_a && !args.streaming_overlap && args.backend == RNS8_BACKEND_HIP_DIRECT &&
          args.bound_mode == BoundMode::Global && args.residue_chain_length == 1;
 }
 
@@ -337,6 +337,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
   }
   if (hip_graph_replay_requested(args)) {
     return "hip_graph_replay_resident_rns_chain";
+  }
+  if (args.streaming_overlap) {
+    return "benchmark_streaming_overlap_resident_b_pipeline";
   }
   if (residue_chain_independent_final_export_requested(args)) {
     return "residue_chain_independent_final_host_export";

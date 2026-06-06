@@ -44,13 +44,12 @@ Archived research notes, dated execution updates, and non-active disposition
 tables live in [performance-gain-research-backlog.md](performance-gain-research-backlog.md),
 [performance-gain-work-log.md](performance-gain-work-log.md), and
 [performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
-The active table below now contains 12 ranks. Rank IDs are historical/stable
+The active table below now contains 11 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 55 | Streaming pack/compute/export overlap | Repeated workflows can pipeline pack-next, compute-current, export-previous | Multi-stream benchmark with double/triple-buffered workspaces, pinned/compact transfers, explicit stream dependencies, and per-stage events | Keep disabled until status/error behavior matches the serial path and overlap is visible in events |
 | 56 | Tile-shape autotuning | Current tile sizes are conservative and may not match each backend/resource envelope | Generate and benchmark tile M/N/K/block/group variants with target id, occupancy, LDS, VGPR/SGPR, event phases, and cache keys | Promote only per target/backend/semantic when tile identity is encoded in selected kernel and autotune key |
 | 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | Rank 30 proved the narrow resident-chain graph lane is worth keeping for some 512/1024 workflows, but it still excludes pack, export, finite-u8, wrap64, and mixed-backend work | Prove explicit-stream capture, status/error equivalence, currentness, setup accounting, and same-contract non-graph baselines for each broader path | Expand only path-by-path; keep every graph variant benchmark-only until setup-inclusive release review beats the ordinary path |
 | 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/promotion_ledger.py` now records target-validation group, target/cache eligibility, stale invalidation reasons, variance state, and coverage summaries; `tools/install_autotune_cache.py` now records add/replace history, cache coverage, `--require-target-validation-gate`, and automatic CDNA target-gate enforcement | Do not install or replace cache entries without ledger consistency, target validation where required, variance gates for narrow lanes, and claim validation |

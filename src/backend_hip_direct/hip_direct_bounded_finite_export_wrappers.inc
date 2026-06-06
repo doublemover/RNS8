@@ -138,14 +138,16 @@ extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_i64_device(
+extern "C" int rns8_hip_direct_export_i64_device_on_stream(
     const int8_t* d_residues,
     int64_t* d_dst,
     int rows,
     int cols,
     int prefix,
     uint64_t bound,
-    int* d_status) {
+    int* d_status,
+    void* stream) {
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
@@ -155,7 +157,7 @@ extern "C" int rns8_hip_direct_export_i64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -168,7 +170,7 @@ extern "C" int rns8_hip_direct_export_i64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -181,7 +183,7 @@ extern "C" int rns8_hip_direct_export_i64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -191,6 +193,18 @@ extern "C" int rns8_hip_direct_export_i64_device(
         d_status);
   }
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_i64_device(
+    const int8_t* d_residues,
+    int64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  return rns8_hip_direct_export_i64_device_on_stream(
+      d_residues, d_dst, rows, cols, prefix, bound, d_status, nullptr);
 }
 
 extern "C" int rns8_hip_direct_export_i64_grouped_device(
@@ -298,14 +312,16 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_u64_device(
+extern "C" int rns8_hip_direct_export_u64_device_on_stream(
     const int8_t* d_residues,
     uint64_t* d_dst,
     int rows,
     int cols,
     int prefix,
     uint64_t bound,
-    int* d_status) {
+    int* d_status,
+    void* stream) {
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
@@ -315,7 +331,7 @@ extern "C" int rns8_hip_direct_export_u64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -328,7 +344,7 @@ extern "C" int rns8_hip_direct_export_u64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -341,7 +357,7 @@ extern "C" int rns8_hip_direct_export_u64_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -351,6 +367,18 @@ extern "C" int rns8_hip_direct_export_u64_device(
         d_status);
   }
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_u64_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  return rns8_hip_direct_export_u64_device_on_stream(
+      d_residues, d_dst, rows, cols, prefix, bound, d_status, nullptr);
 }
 
 extern "C" int rns8_hip_direct_export_u64_grouped_device(

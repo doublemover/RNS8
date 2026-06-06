@@ -10,6 +10,7 @@
     "vector_native_to_direct_rns_chain",
     "benchmark_host_api_batch",
     "hip_graph_replay_resident_rns_chain",
+    "benchmark_streaming_overlap_resident_b_pipeline",
     "residue_current_rns_chain",
     "residue_chain_final_host_export",
     "residue_chain_independent_final_host_export",

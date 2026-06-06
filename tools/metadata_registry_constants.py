@@ -7,6 +7,7 @@ BENCHMARK_EXECUTION_MODES = {
     'benchmark_hip_graph_replay_evidence',
     'benchmark_host_api_batch',
     'benchmark_owned_vector_alu_native_buffers',
+    'benchmark_streaming_overlap_resident_b_pipeline',
     'hip_graph_replay_resident_rns_chain',
     'internal_wrap64_rocwmma_candidate',
     'persistent_resident_matrices',
@@ -363,6 +364,7 @@ GPU_EVENT_SOURCE_SCOPES = {
     'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_streaming_overlap_multistream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
     'hipblaslt_baseline_default_stream_backend_operation_groups',
@@ -375,6 +377,7 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_streaming_overlap_multistream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
 }

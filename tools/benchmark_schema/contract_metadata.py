@@ -660,10 +660,48 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["pipeline", "buffering", "dependency_contract", "transfer_policy"]:
                 if not isinstance(overlap.get(key), str):
                     self._error(f"streaming_overlap.{key} must be a string")
+            for key in ["stream_count", "buffer_count", "measured_repeat_count", "batch_wall_us", "per_repeat_pipeline_us"]:
+                value = overlap.get(key)
+                if not _is_int(value) or value < 0:
+                    self._error(f"streaming_overlap.{key} must be a nonnegative integer")
+            if not isinstance(overlap.get("explicit_dependency_events"), bool):
+                self._error("streaming_overlap.explicit_dependency_events must be a boolean")
+            if not isinstance(overlap.get("stage_event_scope"), str):
+                self._error("streaming_overlap.stage_event_scope must be a string")
             if overlap.get("capture_status") not in STREAMING_OVERLAP_STATUSES:
                 self._error(f"streaming_overlap.capture_status must be one of {sorted(STREAMING_OVERLAP_STATUSES)}")
             if overlap.get("requested") is True and overlap.get("promotion_eligible") is not False:
                 self._error("streaming_overlap requested captures must set promotion_eligible=false")
+            if overlap.get("capture_status") == "executed":
+                stream_count = overlap.get("stream_count")
+                buffer_count = overlap.get("buffer_count")
+                measured_repeat_count = overlap.get("measured_repeat_count")
+                batch_wall_us = overlap.get("batch_wall_us")
+                per_repeat_pipeline_us = overlap.get("per_repeat_pipeline_us")
+                if overlap.get("requested") is not True:
+                    self._error("executed streaming_overlap captures must set requested=true")
+                if _is_int(stream_count) and stream_count < 3:
+                    self._error("executed streaming_overlap captures must use at least three streams")
+                if _is_int(buffer_count) and buffer_count < 2:
+                    self._error("executed streaming_overlap captures must use at least two buffers")
+                if _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
+                    self._error("streaming_overlap.measured_repeat_count must match repeats when executed")
+                if _is_int(batch_wall_us) and batch_wall_us <= 0:
+                    self._error("executed streaming_overlap captures must record batch_wall_us > 0")
+                if _is_int(per_repeat_pipeline_us) and per_repeat_pipeline_us <= 0:
+                    self._error("executed streaming_overlap captures must record per_repeat_pipeline_us > 0")
+                if overlap.get("explicit_dependency_events") is not True:
+                    self._error("executed streaming_overlap captures must set explicit_dependency_events=true")
+                if overlap.get("stage_event_scope") != "direct_hip_streaming_overlap_multistream_operation_groups":
+                    self._error(
+                        "executed streaming_overlap captures must use "
+                        "stage_event_scope=direct_hip_streaming_overlap_multistream_operation_groups"
+                    )
+                if overlap.get("unsupported_reason") is not None:
+                    self._error("executed streaming_overlap captures must set unsupported_reason=null")
+            elif overlap.get("requested") is True:
+                if not isinstance(overlap.get("unsupported_reason"), str) or not overlap.get("unsupported_reason"):
+                    self._error("requested non-executed streaming_overlap captures must include unsupported_reason")
 
     proxy = self.data.get("workload_proxy")
     if proxy is not None:

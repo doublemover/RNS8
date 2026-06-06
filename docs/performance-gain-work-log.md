@@ -7,6 +7,27 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-55 streaming overlap gate closeout:
+
+- Rank 55 moved from the active queue to the completed-work archive after the
+  streaming-overlap lane became an executed Direct-HIP bounded capture
+  contract instead of metadata-only bookkeeping. `--streaming-overlap` now
+  routes fixed-prefix bounded i64/u64 reuse-B captures through a benchmark-only
+  pack-next/GEMM-current/export-previous pipeline with pinned host staging,
+  double-buffered A/C matrices, three nonblocking streams, explicit HIP
+  dependency events, per-repeat export status checks, schema-visible stream and
+  buffer counts, and the
+  `direct_hip_streaming_overlap_multistream_operation_groups` event scope. The
+  `streaming-overlap` scenario family now includes CPU and serial Direct-HIP
+  reuse-B baselines plus fixed-prefix streaming candidates, and
+  `tools/streaming_overlap_report.py` requires those baselines, release
+  warmups/repeats, correctness, and required GPU events before local promotion.
+  The Windows `gfx1100` smoke under
+  `temp/rank55-streaming-overlap-smoke-20260606/` produced schema-valid,
+  event-complete bounded i64/u64 streaming captures. This does not add a README
+  headline claim, installed cache entry, AUTO route, Linux readiness claim, or
+  CDNA performance claim.
+
 June 6, 2026 rank-54 adaptive grouped scheduler gate closeout:
 
 - Rank 54 moved from the active queue to the completed-work archive after the

@@ -166,6 +166,12 @@ struct BenchmarkResult {
   uint32_t adaptive_grouped_active_prefix_count = 0;
   uint64_t adaptive_grouped_independent_launch_count = 0;
   uint64_t adaptive_grouped_aggregate_launch_count = 0;
+  bool streaming_overlap_executed = false;
+  uint32_t streaming_overlap_stream_count = 0;
+  uint32_t streaming_overlap_buffer_count = 0;
+  uint32_t streaming_overlap_measured_repeat_count = 0;
+  uint64_t streaming_overlap_batch_wall_us = 0;
+  uint64_t streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
   std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};

@@ -249,7 +249,7 @@ adaptive_group_command = benchmark_sweep.command_for(
     adaptive_group_args,
 )
 assert "--adaptive-grouped-scheduler" in adaptive_group_command
-overlap_item = catalog["streaming-overlap"][0]
+overlap_item = next(item for item in catalog["streaming-overlap"] if item.streaming_overlap)
 overlap_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, overlap_item)
 overlap_command = benchmark_sweep.command_for(
     Path("rns8-bench"),

@@ -19,6 +19,7 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
     metadata = ctx['metadata']
     oneshot_capture = self._is_bounded_oneshot_capture()
     native_a_reuse_b_capture = self._is_direct_hip_bounded_native_a_reuse_b_capture()
+    streaming_overlap_capture = self._is_streaming_overlap_capture()
     if oneshot_capture:
         if self.data.get("benchmark") != "rns8_bounded_gemm_public_oneshot":
             self._error("one-shot captures must use benchmark=rns8_bounded_gemm_public_oneshot")
@@ -378,6 +379,36 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
                 self._error(
                     "vector-to-RNS chain captures must keep timing_metadata.prepack_reuse_strategy in sync"
                 )
+    if streaming_overlap_capture:
+        metadata = self.data.get("timing_metadata")
+        if self.data.get("benchmark") != "rns8_streaming_overlap_resident_b_pipeline":
+            self._error(
+                "streaming-overlap captures must use benchmark=rns8_streaming_overlap_resident_b_pipeline"
+            )
+        if self.data.get("benchmark_execution_mode") != "benchmark_streaming_overlap_resident_b_pipeline":
+            self._error(
+                "streaming-overlap captures must use "
+                "benchmark_execution_mode=benchmark_streaming_overlap_resident_b_pipeline"
+            )
+        if self.data.get("backend_selected") != "hip-direct" or self.data.get("backend_requested") != "hip-direct":
+            self._error("streaming-overlap captures must request and select hip-direct")
+        if bound_mode != "global":
+            self._error("streaming-overlap captures must use bound_mode=global")
+        if residue_chain_length != 1 or residue_output_mode != "host_export":
+            self._error("streaming-overlap captures must use host_export residue_chain_length=1")
+        if self.data.get("pack_mode") != "prepacked_reuse_b":
+            self._error("streaming-overlap captures must use pack_mode=prepacked_reuse_b")
+        operands = self.data.get("prepack_reuse_operands")
+        if self.data.get("reuse_packed_inputs") is not True or operands != ["B"]:
+            self._error("streaming-overlap captures must reuse packed B")
+        if isinstance(operands, list) and "A" in operands:
+            self._error("streaming-overlap captures must not reuse packed A")
+        if self.data.get("prepack_reuse_strategy") != "persistent_matrix_residency":
+            self._error("streaming-overlap captures must keep B resident through persistent_matrix_residency")
+        if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
+            expected_scope = "direct_hip_streaming_overlap_multistream_operation_groups"
+            if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
     if residue_chain_length > 1:
         if residue_output_mode == "residue_current_rns":
             expected_epilogue_type = "residue_current_rns_output"
@@ -415,7 +446,9 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
         if self.data.get("backend_selected") == "hip-direct" and not oneshot_capture:
             metadata = self.data.get("timing_metadata")
             if isinstance(metadata, dict) and metadata.get("gpu_event_timing") is True:
-                if self._is_direct_hip_native_to_rns_bridge_capture():
+                if streaming_overlap_capture:
+                    expected_scope = "direct_hip_streaming_overlap_multistream_operation_groups"
+                elif self._is_direct_hip_native_to_rns_bridge_capture():
                     expected_scope = "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
                 elif self._is_direct_hip_vector_to_rns_chain_capture():
                     expected_scope = "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"

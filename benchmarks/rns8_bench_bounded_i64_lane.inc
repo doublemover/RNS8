@@ -59,6 +59,8 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* a_stream_matrix = nullptr;
+  rns8_matrix* c_stream_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
   DeviceBuffer native_a;
@@ -100,10 +102,20 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
-  const auto alloc_end = std::chrono::steady_clock::now();
-  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   const bool skip_all_zero_direct_hip_input_pack =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend);
+  const bool streaming_overlap_path =
+      streaming_overlap_supported(args, result, selected_backend, ldc) && !use_native_a_reuse_b &&
+      !use_uniform_small_i8_ab_transient && !use_uniform_small_i8_ab_reuse_a &&
+      !use_uniform_small_i8_ab_reuse_b && !skip_all_zero_direct_hip_input_pack;
+  if (streaming_overlap_path) {
+    status = rns8_create_matrix(ctx, &a_desc, &a_stream_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A streaming buffer)", status);
+    status = rns8_create_matrix(ctx, &c_desc, &c_stream_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C streaming buffer)", status);
+  }
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_transient) {
@@ -383,6 +395,42 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (hip_graph_replay_requested(args)) {
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else if (streaming_overlap_path) {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_bounded_streaming_overlap_pipeline(
+          args,
+          result,
+          plan,
+          a_matrix,
+          a_stream_matrix,
+          b_matrix,
+          c_matrix,
+          c_stream_matrix,
+          A,
+          C,
+          bound,
+          static_cast<uint64_t>(r) + 1,
+          1,
+          false);
+    }
+    record_allocation_after_warmups(result);
+    run_bounded_streaming_overlap_pipeline(
+        args,
+        result,
+        plan,
+        a_matrix,
+        a_stream_matrix,
+        b_matrix,
+        c_matrix,
+        c_stream_matrix,
+        A,
+        C,
+        bound,
+        static_cast<uint64_t>(args.warmups) + 1,
+        args.repeats,
+        result.gpu_events.requested);
+    record_allocation_after_repeats(result);
+    latest_output_matrix = c_matrix;
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
@@ -406,9 +454,15 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);
   }
+  if (c_stream_matrix) {
+    rns8_destroy_matrix(c_stream_matrix);
+  }
   rns8_destroy_matrix(c_matrix);
   if (b_matrix) {
     rns8_destroy_matrix(b_matrix);
+  }
+  if (a_stream_matrix) {
+    rns8_destroy_matrix(a_stream_matrix);
   }
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);
