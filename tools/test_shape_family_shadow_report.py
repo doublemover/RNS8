@@ -37,11 +37,15 @@ def main() -> int:
         exact, family, missing = report["recommendations"]
         assert exact["would_recommend"] is True
         assert exact["recommendation_is_exact_cache_hit"] is True
+        assert exact["runtime_routing_allowed"] is False
+        assert exact["recommendation_boundary_status"] == "exact_reviewed_cache_entry"
         assert "exact_cache_hit_already_owned_by_current_AUTO_cache" in exact["promotion_blockers"]
 
         assert family["would_recommend"] is True
         assert family["recommendation_is_exact_cache_hit"] is False
         assert family["recommended_backend"] == "ck"
+        assert family["runtime_routing_allowed"] is False
+        assert family["recommendation_boundary_status"] == "same_boundary_family_shadow_representative"
         assert family["selector_explanation"] == "nearest same-family reviewed cache entry"
         assert family["representative_matrix"]["reviewed_entry_count"] == 1
         assert "exact_query_not_reviewed" in family["promotion_blockers"]
@@ -49,7 +53,11 @@ def main() -> int:
         assert family["promotion_eligible"] is False
 
         assert missing["would_recommend"] is False
+        assert missing["recommendation_boundary_status"] == "missing_same_boundary_family_reviewed_entry"
         assert "missing_same_family_reviewed_entry" in missing["promotion_blockers"]
+        assert "same_family_entries_rejected_by_boundary" in missing["promotion_blockers"]
+        assert missing["rejected_boundary_candidates"]
+        assert "boundary_finite_modulus_mismatch" in missing["rejected_boundary_candidates"][0]["boundary_blockers"]
 
         cross_contract_query = shape_family_shadow_report.parse_query(
             "semantics=bounded_i64;m=768;n=768;k=768;target_id=gfx1100;layout=row_major;"
@@ -58,6 +66,10 @@ def main() -> int:
         cross_contract = shape_family_shadow_report.build_report(cache, [cross_contract_query])["recommendations"][0]
         assert cross_contract["would_recommend"] is False
         assert "missing_same_family_reviewed_entry" in cross_contract["promotion_blockers"]
+        assert "same_family_entries_rejected_by_boundary" in cross_contract["promotion_blockers"]
+        assert "boundary_output_contract_mismatch" in cross_contract["rejected_boundary_candidates"][0][
+            "boundary_blockers"
+        ]
 
         output = tmp / "report.json"
         output.write_text(json.dumps(report), encoding="utf-8")

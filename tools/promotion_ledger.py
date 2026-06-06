@@ -84,6 +84,70 @@ def load_target_validation_groups(paths: list[Path]) -> dict[str, dict[str, Any]
     return groups
 
 
+def load_shape_family_shadow_reports(paths: list[Path]) -> list[dict[str, Any]]:
+    reports = []
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            reports.append(data)
+    return reports
+
+
+def shape_family_shadow_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    recommendations = []
+    boundary_fields: set[str] = set()
+    for report in reports:
+        for field in report.get("boundary_fields", []):
+            if isinstance(field, str) and field:
+                boundary_fields.add(field)
+        for recommendation in report.get("recommendations", []):
+            if isinstance(recommendation, dict):
+                recommendations.append(recommendation)
+    exact_hits = [
+        item for item in recommendations if item.get("recommendation_is_exact_cache_hit") is True
+    ]
+    non_exact = [
+        item
+        for item in recommendations
+        if item.get("would_recommend") is True and item.get("recommendation_is_exact_cache_hit") is not True
+    ]
+    missing = [item for item in recommendations if item.get("would_recommend") is not True]
+    blocked = [
+        item
+        for item in recommendations
+        if item.get("promotion_eligible") is not True or item.get("runtime_routing_allowed") is not True
+    ]
+    boundary_rejected = [
+        item
+        for item in recommendations
+        if item.get("rejected_boundary_candidates")
+        or "same_family_entries_rejected_by_boundary" in (item.get("promotion_blockers") or [])
+    ]
+    return {
+        "report_count": len(reports),
+        "recommendation_count": len(recommendations),
+        "exact_cache_hit_count": len(exact_hits),
+        "non_exact_recommendation_count": len(non_exact),
+        "missing_same_family_count": len(missing),
+        "blocked_recommendation_count": len(blocked),
+        "boundary_rejected_recommendation_count": len(boundary_rejected),
+        "boundary_fields": sorted(boundary_fields),
+        "policy": "shape_family_shadow_non_routing_blocking_metadata_only",
+    }
+
+
+def shape_family_recommendation_index(reports: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    by_basis: dict[str, list[dict[str, Any]]] = {}
+    for report in reports:
+        for recommendation in report.get("recommendations", []):
+            if not isinstance(recommendation, dict):
+                continue
+            key = recommendation.get("basis_cache_key")
+            if isinstance(key, str) and key:
+                by_basis.setdefault(key, []).append(recommendation)
+    return by_basis
+
+
 def feature_lane_requested(item: dict[str, Any]) -> bool:
     if item.get("requested") is True or item.get("enabled") is True or item.get("used") is True:
         return True
@@ -106,6 +170,7 @@ def capture_entry(
     variance_gate_required: bool = False,
     target_validation_entry: dict[str, Any] | None = None,
     target_validation_report_supplied: bool = False,
+    shape_family_recommendations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
@@ -228,6 +293,20 @@ def capture_entry(
             blockers.append("workspace_arena_repeat_allocation_delta_nonzero")
     if cache_scope != "runtime_exact_autotune":
         blockers.append("selector_review_only_not_runtime_cache_route")
+    shape_recommendations = shape_family_recommendations or []
+    shape_family_status = (
+        "exact_cache_entry_shadow_basis_non_routing"
+        if shape_recommendations
+        else "exact_cache_only_no_family_routing"
+    )
+    shape_family_blockers = sorted(
+        {
+            str(blocker)
+            for recommendation in shape_recommendations
+            for blocker in recommendation.get("promotion_blockers", [])
+            if isinstance(blocker, str) and blocker
+        }
+    )
     return {
         "path": str(path),
         "autotune_key": key,
@@ -261,7 +340,9 @@ def capture_entry(
         "export_cache_visibility": export_variant.get("cache_visibility"),
         "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
         "cache_scope": cache_scope,
-        "shape_family_recommendation_status": "exact_cache_only_no_family_routing",
+        "shape_family_recommendation_status": shape_family_status,
+        "shape_family_shadow_query_count": len(shape_recommendations),
+        "shape_family_shadow_blockers": shape_family_blockers,
     }
 
 
@@ -342,12 +423,23 @@ def build_ledger(
     review_reports: list[Path] | None = None,
     variance_reports: list[Path] | None = None,
     target_validation_reports: list[Path] | None = None,
+    shape_family_shadow_reports: list[Path] | None = None,
     *,
     require_variance_gate: bool = False,
 ) -> dict[str, Any]:
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
     target_groups = load_target_validation_groups(target_validation_reports or [])
+    shape_reports = load_shape_family_shadow_reports(shape_family_shadow_reports or [])
+    shape_recommendations = shape_family_recommendation_index(shape_reports)
+    shape_recommendations_by_path: dict[str, list[dict[str, Any]]] = {}
+    for path in captures:
+        capture = load_capture(path)
+        metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+        autotune_key = metadata.get("autotune_key")
+        shape_recommendations_by_path[path_key(path)] = (
+            shape_recommendations.get(autotune_key, []) if isinstance(autotune_key, str) else []
+        )
     variance_report_supplied = bool(variance_reports)
     entries = [
         (
@@ -359,6 +451,7 @@ def build_ledger(
                 variance_gate_required=require_variance_gate,
                 target_validation_entry=target_groups.get(str(target_row.get("target_validation_group"))),
                 target_validation_report_supplied=bool(target_validation_reports),
+                shape_family_recommendations=shape_recommendations_by_path.get(path_key(path), []),
             )
         )(target_validation_report.capture_target(path))
         for path in captures
@@ -379,6 +472,8 @@ def build_ledger(
         "variance_report_count": len(variance_reports or []),
         "require_variance_gate": require_variance_gate,
         "target_validation_report_count": len(target_validation_reports or []),
+        "shape_family_shadow_report_count": len(shape_family_shadow_reports or []),
+        "shape_family_shadow_summary": shape_family_shadow_summary(shape_reports),
         "cache_entry_count": len(cache_entries),
         "entries": entries,
         "cache_coverage": cache_coverage(entries),
@@ -397,19 +492,21 @@ def write_outputs(ledger: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Policy: `{ledger['policy']}`",
         f"- Cache entries: `{ledger['cache_entry_count']}`",
         f"- Blocked entries: `{ledger['blocked_count']}`",
+        f"- Shape-family shadow reports: `{ledger.get('shape_family_shadow_report_count', 0)}`",
         "",
-        "| capture | backend | target | cache entry | variance gate | target gate | required speedup | blockers |",
-        "| --- | --- | --- | --- | --- | --- | ---: | --- |",
+        "| capture | backend | target | cache entry | variance gate | target gate | shape-family status | required speedup | blockers |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for entry in ledger["entries"]:
         lines.append(
-            "| `{path}` | `{backend}` | `{target}` | `{cache}` | `{variance}` | `{target_gate}` | `{required}` | `{blockers}` |".format(
+            "| `{path}` | `{backend}` | `{target}` | `{cache}` | `{variance}` | `{target_gate}` | `{shape_status}` | `{required}` | `{blockers}` |".format(
                 path=entry["path"],
                 backend=entry.get("backend_selected"),
                 target=entry.get("target_validation_group"),
                 cache=entry.get("installed_cache_entry"),
                 variance=entry.get("variance_gate_ready"),
                 target_gate=entry.get("target_validation_gate_ready"),
+                shape_status=entry.get("shape_family_recommendation_status"),
                 required=entry.get("variance_required_speedup_margin"),
                 blockers=", ".join(entry.get("promotion_blockers") or []),
             )
@@ -472,6 +569,13 @@ def main() -> int:
         default=[],
         help="target_validation_report.py output that proves matching OS/target/toolchain cache eligibility",
     )
+    parser.add_argument(
+        "--shape-family-shadow-report",
+        type=Path,
+        action="append",
+        default=[],
+        help="shape_family_shadow_report.py output; recorded as non-routing recommendation/blocker metadata",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -481,6 +585,7 @@ def main() -> int:
         args.review_report,
         args.variance_report,
         args.target_validation_report,
+        args.shape_family_shadow_report,
         require_variance_gate=args.require_variance_gate,
     )
     if args.json:

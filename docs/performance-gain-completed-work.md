@@ -14,7 +14,7 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 41 closed/completed ranks.
+Current count: 42 closed/completed ranks.
 
 ## CDNA-Ready Infrastructure Notes
 
@@ -24,15 +24,21 @@ and local: signed prefix18, four requested limbs, and large outputs use the
 tree/CRT export path; compact-D2H, unsigned tree/CRT, and prefix20 fixed-export
 variants remain experimental or deprioritized.
 
-Ranks 50, 59, 60, 61, 62, and 74 remain repository-side control
+Ranks 50, 60, 61, 62, and 74 remain repository-side control
 surfaces for a later CDNA validation run:
-bounded-i64 1024 hipBLASLt disposition reporting, shape-family shadow
-recommendations, promotion-ledger/cache replacement history, batch
+bounded-i64 1024 hipBLASLt disposition reporting, promotion-ledger/cache
+replacement history, batch
 counter/resource reporting, per-target validation reports, and K-block/tile-K
 scenario/report metadata. They remain active evidence gates until real Linux
 ROCm CDNA host captures, profiler exports, and target-specific cache
 eligibility reports exist. These notes are not counted as closed production
 speedups and do not imply Instinct readiness.
+
+Rank 59 is closed as non-routing shape-family shadow infrastructure:
+recommendations can explain exact hits, nearest same-boundary representatives,
+and rejected cross-boundary candidates, and promotion-ledger output can carry
+that blocker metadata. It does not change AUTO routing, cache entries,
+README claims, or CDNA readiness.
 
 Rank 57 is now closed for the repository-side Direct-HIP workspace arena
 surface and local Windows `gfx1100` measured-repeat allocation evidence. Future
@@ -93,4 +99,5 @@ entry, README claim, or CDNA performance status changes from it.
 | 49 | Completed budgeted 4096 release-reference gate | 4096 throughput classification needed required CPU/reference baselines without pretending GPU-only rows were promotional | `large-release-validation-4096-budgeted` now has bounded i64/u64 CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA rows; finite hot CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; exact-wide signed/unsigned CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; and strict wrap64 byte-limb plus Direct HIP rows. The current signed exact-wide closeout completed same-commit CPU/GPU evidence with hipBLASLt at 176943 us, Direct HIP at 639360 us, CPU reference at 113085000 us, and checksum `5508849193854467465`; strict wrap64 `wrap64-byte-limb` remains 102905000 us with checksum `13518998852724169131`; exact-wide unsigned completed with hipBLASLt at 162382 us, Direct HIP at 614116 us, CPU reference at 105462000 us, and checksum `9643325300233475427`. Required GPU events, pairwise result comparisons, candidate caches, and installed promotion-ledger reports are available under `temp/perf-work-queue/large-4096-release-reference-current/`, `temp/perf-work-queue/large-4096-unsigned-budgeted-release-current/`, `temp/perf-work-queue/large-4096-signed-cache-closeout-current/`, `temp/perf-work-queue/large-4096-signed-cpu-current/`, and `temp/perf-work-queue/large-4096-cache-closeout-current/` | Closed as validation and promotion evidence: historical timeout rows remain visible but are superseded by completed release-reference rows; eight eligible non-reuse 4096 entries are installed, while strict wrap64 and repeated-B remain outside AUTO cache promotion |
 | 52 | Completed finite generic modulus family map | Generic finite-u8 had hot-modulus wins and scattered generic rows, but no current shape/modulus family map | The June 6 Windows `gfx1100` release sweep under `temp/rank52-finite-modulus-map-release-20260606/` produced 200 schema-v4 captures covering finite ring moduli 127, 241, 243, 251, 253, 255, and 256 plus finite field moduli 127, 241, and 251 at 128, 512, 1024, and 2048 across CPU, Direct HIP, hipBLASLt, CK, and rocWMMA. `tools/finite_modulus_map_report.py --require-complete-map` reports 40/40 ready release groups, zero missing expected groups, zero missing backends, zero missing GPU events, and zero non-release-ready groups. The generic sweep review has 40 release-satisfied groups, no missing required baselines, no duplicate backend records, and the scenario scope now blocks autotune promotion as `non_promoting_modulus_map`. Winner distribution is CPU reference for all 128 rows, mixed Direct HIP/CK/rocWMMA/hipBLASLt at 512 and 1024, and hipBLASLt for all 2048 rows | Closed as local Windows `gfx1100` non-promoting modulus-family evidence. No README headline claim, installed cache entry, default AUTO route, or Linux/CDNA claim changes; future finite routing still needs exact semantic/modulus/shape/target cache review and variance gates |
 | 57 | Closed Direct-HIP workspace arena allocation gate | The branch needed to prove workspace-owned buffers were not allocating/freeing inside measured repeats before arena evidence could be used in future residency/reuse decisions | The Direct-HIP arena surface ties scratch/staging/grouped/reuse buffers to plan, target, stream/device, semantic, prefix, output policy, and backend identity. The June 6 `gfx1100` closeout reran 13 resident-lifetime arena captures under `temp/gfx1100-pending-validation-20260606/`; every row in `workspace-arena/resident-workspace-report.json` reports measured-repeat allocation delta `{allocate_calls: 0, free_calls: 0, allocated_bytes: 0}` after the benchmark lanes started recording the repeat snapshot before final checksum export and teardown | Closed as infrastructure/evidence, not a speedup claim. Keep future arena optimization under active residency, reuse, chain, grouped-dispatch, or export-selector lanes with setup-inclusive timing proof |
+| 59 | Closed advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads, but broad shape-family routing would be unsafe without strict target/layout/contract boundaries | `tools/shape_family_shadow_report.py` now emits non-routing workload-query recommendations with exact-hit, same-boundary representative, and missing-same-boundary statuses; boundary fields include target, target family, semantic, signedness, finite modulus, layout, output contract, export selector, and limb count. Rejected same-family candidates now report explicit boundary mismatch blockers, and `tools/promotion_ledger.py --shape-family-shadow-report` surfaces the recommendations as blocking metadata on matching cache-basis rows | Closed as explanatory and promotion-control infrastructure only. AUTO routing remains exact-cache based, no installed cache entries or README claims change, and real shape-family routing remains active under rank 36 until same-target/layout/contract review can prove it safely |
 | 70 | Completed release variance and golden performance regression gate | Narrow reuse/export/cache wins needed a mandatory repeatability gate instead of an advisory report that promotion passes could skip | `tools/perf_variance_report.py` already validates schema-v4 captures, groups same-contract reruns, derives required speedup margins, and runs in the golden regression suite. The closeout adds `promotion_ledger.py --require-variance-gate`, blocks ledger rows that lack matching variance entries, and makes `tools/install_autotune_cache.py` require a promotion ledger with a ready variance gate for every real cache write or replacement. Dry-runs remain available for cache JSON validation, but cache promotion cannot bypass variance evidence. Regression tests cover missing variance, variance-blocked narrow speedups, variance-ready installs, and no-ledger write rejection | Closed as promotion-control infrastructure only. No performance claim, README row, installed cache entry, or Linux/CDNA readiness change is made by this rank |

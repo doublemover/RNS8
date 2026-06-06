@@ -14,6 +14,17 @@ import install_autotune_cache
 
 
 DEFAULT_OUT_DIR = Path("temp") / "shape-family-shadow"
+BOUNDARY_FIELDS = [
+    "target_id",
+    "target_family",
+    "semantic_contract",
+    "signedness",
+    "finite_modulus",
+    "layout",
+    "output_contract",
+    "export_selector",
+    "limb_count",
+]
 
 
 @dataclass(frozen=True)
@@ -168,6 +179,20 @@ def boundary_matches(query: ShapeQuery, basis: ShapeQuery) -> bool:
     )
 
 
+def boundary_differences(query: ShapeQuery, basis: ShapeQuery) -> list[dict[str, Any]]:
+    differences = []
+    for field in BOUNDARY_FIELDS:
+        query_value = getattr(query, field)
+        basis_value = getattr(basis, field)
+        if query_value != basis_value:
+            differences.append({"field": field, "query": query_value, "basis": basis_value})
+    return differences
+
+
+def boundary_blockers(differences: list[dict[str, Any]]) -> list[str]:
+    return [f"boundary_{item['field']}_mismatch" for item in differences]
+
+
 def exact_cache_key_for(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
     return boundary_matches(query, basis) and basis.m == query.m and basis.n == query.n and basis.k == query.k
@@ -176,6 +201,14 @@ def exact_cache_key_for(query: ShapeQuery, entry: dict[str, Any]) -> bool:
 def same_family(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
     return boundary_matches(query, basis) and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
+
+
+def loose_family_candidate(query: ShapeQuery, entry: dict[str, Any]) -> bool:
+    basis = entry_query(entry)
+    return (
+        basis.semantic_contract == query.semantic_contract
+        and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
+    )
 
 
 def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
@@ -188,6 +221,34 @@ def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
     median = entry.get("measured_medians_us", {}).get("end_to_end")
     timing_bias = float(median) * 1e-9 if isinstance(median, (int, float)) else 0.0
     return sum(ratios) + timing_bias
+
+
+def rejected_boundary_candidates(query: ShapeQuery, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rejected = []
+    for entry in entries:
+        if not loose_family_candidate(query, entry):
+            continue
+        basis = entry_query(entry)
+        differences = boundary_differences(query, basis)
+        if not differences:
+            continue
+        rejected.append(
+            {
+                "basis_cache_key": entry.get("key"),
+                "basis_backend": entry.get("selected_backend"),
+                "basis_kernel": entry.get("selected_kernel"),
+                "basis_shape": {
+                    "m": basis.m,
+                    "n": basis.n,
+                    "k": basis.k,
+                    "shape_bucket": shape_bucket(basis.m, basis.n, basis.k),
+                },
+                "boundary_differences": differences,
+                "boundary_blockers": boundary_blockers(differences),
+                "distance": entry_distance(query, entry),
+            }
+        )
+    return sorted(rejected, key=lambda item: float(item["distance"]))[:8]
 
 
 def query_payload(query: ShapeQuery) -> dict[str, Any]:
@@ -224,11 +285,23 @@ def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict
     if query.target_family == "unknown":
         blockers.append("target_family_not_classified")
     basis = entry_query(candidate) if candidate else None
+    rejected = rejected_boundary_candidates(query, entries)
+    if candidate is None and rejected:
+        blockers.append("same_family_entries_rejected_by_boundary")
+    boundary_status = (
+        "exact_reviewed_cache_entry"
+        if exact
+        else "same_boundary_family_shadow_representative"
+        if candidate
+        else "missing_same_boundary_family_reviewed_entry"
+    )
     return {
         "query": query_payload(query),
         "family_key": query_key(query),
         "would_recommend": candidate is not None,
         "recommendation_is_exact_cache_hit": bool(exact),
+        "runtime_routing_allowed": False,
+        "recommendation_boundary_status": boundary_status,
         "selector_explanation": "exact reviewed cache hit"
         if exact
         else ("nearest same-family reviewed cache entry" if candidate else "no same-family reviewed cache entry"),
@@ -254,6 +327,7 @@ def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict
         if basis
         else None,
         "basis_end_to_end_median_us": candidate.get("measured_medians_us", {}).get("end_to_end") if candidate else None,
+        "rejected_boundary_candidates": rejected,
         "promotion_eligible": False,
         "promotion_blockers": blockers,
     }
@@ -286,17 +360,7 @@ def build_report(cache_path: Path, queries: list[ShapeQuery]) -> dict[str, Any]:
         "cache_path": str(cache_path),
         "reviewed_cache_entry_count": len(entries),
         "family_count": len(families),
-        "boundary_fields": [
-            "target_id",
-            "target_family",
-            "semantic_contract",
-            "signedness",
-            "finite_modulus",
-            "layout",
-            "output_contract",
-            "export_selector",
-            "limb_count",
-        ],
+        "boundary_fields": BOUNDARY_FIELDS,
         "families": families,
         "recommendations": [recommendation_for(query, entries) for query in queries],
     }

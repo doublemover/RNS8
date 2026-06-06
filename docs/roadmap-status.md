@@ -108,10 +108,11 @@ the minimum speedup margin needed to clear observed repeatability noise, and
 feeds `tools/promotion_ledger.py` through `--variance-report`; promotion
 ledgers can now require the variance gate directly, and cache installs with a
 promotion ledger require a ready variance row by default.
-The non-routing `tools/shape_family_shadow_report.py` can now explain which
-reviewed exact cache entry a shape-family AUTO policy would choose and which
-blocker prevents that advisory recommendation from changing routing. Future
-CDNA validation infrastructure now also includes schema-visible export selector
+The non-routing `tools/shape_family_shadow_report.py` can now explain exact
+hits, nearest same-boundary representatives, and rejected same-family
+candidates with explicit target/layout/contract boundary blockers, and
+promotion ledgers can carry that blocker metadata without changing routing.
+Future CDNA validation infrastructure now also includes schema-visible export selector
 keys, export selector reports, Direct-HIP workspace arena allocation-delta
 gates, and K-block/tile-K scenario/report metadata; these are readiness
 surfaces only, not Linux/CDNA performance claims.

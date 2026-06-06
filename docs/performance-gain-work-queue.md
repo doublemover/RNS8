@@ -40,19 +40,17 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 29 ranks. Rank IDs are historical/stable
+active table below now contains 28 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
-Detailed backlog and research notes live in
-[performance-gain-research-backlog.md](performance-gain-research-backlog.md).
-Status history and dated implementation notes have moved to
-[performance-gain-work-log.md](performance-gain-work-log.md). Keep this file
-focused on the active execution queue only.
+Archive material lives in
+[performance-gain-research-backlog.md](performance-gain-research-backlog.md)
+and [performance-gain-work-log.md](performance-gain-work-log.md). Keep this
+file focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 59 | Advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads, especially after selector variants create more shape/layout dimensions | `tools/shape_family_shadow_report.py` now emits non-routing workload-query recommendations with selector explanations, representative reviewed-shape matrices, and hard boundaries for target, target family, semantic, signedness, finite modulus, layout, output contract, export selector, and limb count; promotion/cache reports surface these as blockers, not routing inputs | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
 | 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | `tools/gpu_counter_report.py --batch` now joins captures, event medians, ISA summaries, counter exports, resource signals, and roofline groups with fixture coverage; remaining proof is real profiler exports from target hosts | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |
 | 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | `tools/target_validation_report.py` now emits per OS/target/toolchain readiness groups for build, CTest, smoke, release capture, profiler, accelerator availability, and cache eligibility, with Windows/RDNA/CDNA fixtures; remaining gate is real supported-host evidence | Claim only the targets that pass on real supported hosts |
 | 44 | Persistent resident matrix lifetime implementation | Persistent RNS/native matrices are the core representation, but benchmark-owned lifetimes still hide routing semantics | Public/benchmark contract for resident A/B/C lifetimes, source versions, workspace binding, and output currentness across repeated calls | Promote only when lifetime identity prevents accidental reuse across changed descriptors, data, semantics, target, or plan |

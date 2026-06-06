@@ -304,6 +304,61 @@ def main() -> int:
         ledger_entry = promotion_ledger.build_ledger([capture_path], cache_path)["entries"][0]
         assert ledger_entry["installed_cache_entry"] is True
         assert "hip_graph_replay_non_promoting" not in ledger_entry["promotion_blockers"]
+        shape_shadow_path = tmp / "shape-family-shadow-report.json"
+        shape_shadow_path.write_text(
+            json.dumps(
+                {
+                    "schema": "rns8_shape_family_shadow_report_v2",
+                    "policy": "non_routing_shape_family_recommendations_require_exact_review_before_AUTO",
+                    "boundary_fields": [
+                        "target_id",
+                        "target_family",
+                        "semantic_contract",
+                        "signedness",
+                        "finite_modulus",
+                        "layout",
+                        "output_contract",
+                        "export_selector",
+                        "limb_count",
+                    ],
+                    "recommendations": [
+                        {
+                            "basis_cache_key": capture["backend_metadata"]["autotune_key"],
+                            "would_recommend": True,
+                            "recommendation_is_exact_cache_hit": False,
+                            "runtime_routing_allowed": False,
+                            "promotion_eligible": False,
+                            "promotion_blockers": [
+                                "shape_family_shadow_only_no_routing_change",
+                                "exact_query_not_reviewed",
+                                "representative_matrix_requires_same_target_layout_contract_review",
+                            ],
+                            "rejected_boundary_candidates": [
+                                {
+                                    "basis_cache_key": capture["backend_metadata"]["autotune_key"],
+                                    "boundary_blockers": ["boundary_output_contract_mismatch"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        shadow_ledger = promotion_ledger.build_ledger(
+            [capture_path],
+            cache_path,
+            shape_family_shadow_reports=[shape_shadow_path],
+        )
+        shadow_entry = shadow_ledger["entries"][0]
+        assert shadow_ledger["shape_family_shadow_report_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["non_exact_recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["blocked_recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["boundary_rejected_recommendation_count"] == 1
+        assert shadow_entry["shape_family_recommendation_status"] == "exact_cache_entry_shadow_basis_non_routing"
+        assert shadow_entry["shape_family_shadow_query_count"] == 1
+        assert "exact_query_not_reviewed" in shadow_entry["shape_family_shadow_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
         tile_row = tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]
         assert tile_row["variant_name"]
