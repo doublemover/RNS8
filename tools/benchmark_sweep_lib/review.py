@@ -49,6 +49,7 @@ def required_baselines(semantics: Any) -> list[str]:
 
 
 REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
+GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
 
 
 def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
@@ -62,6 +63,9 @@ def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
 
 def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) -> list[str]:
     if reuse_evidence_group(items):
+        return []
+    scopes = {capture_scenario_promotion_scope(item) for item in items}
+    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES:
         return []
     return required_baselines(semantics)
 

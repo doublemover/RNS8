@@ -512,6 +512,27 @@ assert "missing_required_baselines" not in reuse_evidence_blockers
 assert "prepacked_reuse_not_autotune_promotable" in reuse_evidence_blockers
 assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
 
+graph_evidence_direct = mark_reused_a_pack(direct)
+graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+graph_evidence_direct["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+graph_evidence_direct["scenario_metadata"] = {
+    "family": "hip-graph-replay",
+    "name": "bounded-i64-chain3-512-graph",
+    "promotion_eligibility": "hip_graph_replay_evidence_only",
+    "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "graph_role": "graph_replay_candidate",
+    },
+}
+graph_evidence_report = benchmark_sweep.review_captures([graph_evidence_direct], review_mode="release")
+graph_evidence_group = graph_evidence_report["groups"][0]
+assert graph_evidence_group["required_baselines"] == []
+assert graph_evidence_group["missing_required_baselines"] == []
+graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]
+assert "missing_required_baselines" not in graph_evidence_blockers
+assert "hip_graph_replay_not_autotune_promotable" in graph_evidence_blockers
+assert "scenario_scope_not_autotune_promotable" in graph_evidence_blockers
+
 variant_direct_a = exact_wide_capture("hip-direct", 3000)
 variant_direct_b = copy.deepcopy(variant_direct_a)
 variant_direct_a["export_variant"] = {

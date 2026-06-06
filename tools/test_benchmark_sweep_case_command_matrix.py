@@ -221,6 +221,20 @@ assert any(entry.scenario["residue_chain_length"] == 3 for entry in direct_reuse
 assert any(entry.scenario["backend"] == "wrap64-byte-limb" for entry in direct_reuse_entries)
 assert all("scenarios" in entry.output.parts and "direct-hip-reuse-expansion" in entry.output.parts for entry in direct_reuse_entries)
 
+graph_args = copy.copy(scenario_args)
+graph_args.backends = None
+graph_args.scenario = ["hip-graph-replay"]
+graph_entries = benchmark_sweep.sweep_command_entries(graph_args)
+assert len(graph_entries) == 16
+assert {entry.scenario["family"] for entry in graph_entries} == {"hip-graph-replay"}
+assert {entry.scenario["review_mode_expectation"] for entry in graph_entries} == {"release"}
+assert {entry.scenario["promotion_eligibility"] for entry in graph_entries} == {"hip_graph_replay_evidence_only"}
+assert {entry.scenario["shape"]["m"] for entry in graph_entries} == {512, 1024}
+assert sum(1 for entry in graph_entries if "--hip-graph-replay" in entry.command) == 8
+assert all("--reuse-packed-inputs" in entry.command for entry in graph_entries)
+assert all("--residue-chain-length" in entry.command and "3" in entry.command for entry in graph_entries)
+assert all("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in graph_entries)
+
 skinny_args = copy.copy(scenario_args)
 skinny_args.backends = ["hip-vector-alu-int64"]
 skinny_args.scenario = ["skinny-gemv"]

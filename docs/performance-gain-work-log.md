@@ -7,6 +7,24 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-30 HIP Graph replay release-size closeout:
+
+- Rank 30 moved from the active queue to the completed-work archive after a
+  release-size Windows `gfx1100` same-contract graph-vs-ordinary chain
+  validation under `temp/rank30-hip-graph-replay-release-20260606/`. The
+  refreshed `hip-graph-replay` scenario family now covers bounded-i64,
+  bounded-u64, exact-wide signed, and exact-wide unsigned residue-current
+  chain3 workflows at 512 and 1024. The sweep produced 16 schema-v4 captures,
+  eight release-satisfied generic review groups, zero duplicate backend records,
+  zero missing required baselines, required GPU events for all ordinary
+  non-graph baselines, and schema-valid wall-clock graph timing for all graph
+  captures. `tools/hip_graph_replay_report.py` classified eight checksum-matched
+  graph comparisons with prepack setup plus graph capture and instantiate cost
+  amortized into the per-repeat decision: four candidate workload wins and four
+  deprioritized rows. This closes release-size graph replay classification only;
+  no public async API, AUTO/cache entry, README claim, default route, or
+  Linux/CDNA claim changes.
+
 June 6, 2026 rank-20 Direct-HIP reuse expansion closeout:
 
 - Rank 20 moved from the active queue to the completed-work archive after a
@@ -299,11 +317,11 @@ June 4-5, 2026 updates:
   Direct-HIP resident RNS GEMM chains with `--reuse-packed-inputs`,
   `--residue-chain-length > 1`, and `--next-op-hint rns-gemm`, where graph
   replay captures only the resident GEMM launches while A/B prepack and final
-  checksum export remain outside the graph. Schema/sweep coverage, Windows
-  release build, and a tiny `gfx1100` same-contract smoke comparison now pass
-  under `temp/perf-work-queue/hip-graph-replay-smoke/`; this is still not a
-  promoted performance claim until release-size setup-inclusive comparisons
-  pass.
+  checksum export remain outside the graph. The older tiny smoke under
+  `temp/perf-work-queue/hip-graph-replay-smoke/` has since been superseded by
+  the rank-30 release-size closeout above; graph replay remains benchmark-only
+  evidence, not a public async API, cache entry, default route, README claim, or
+  Linux/CDNA claim.
 - PR #10 closes the helper/evidence infrastructure for ranks 23, 25, 26, 27,
   32, 34, 35, 37, 40, and 41. Those closures add benchmark/schema/tooling
   surfaces for generated reducer identities, residue-channel fusion metadata,

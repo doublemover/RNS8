@@ -552,6 +552,22 @@ and exact-wide residue-current chain reuse-B at the 9-repeat release gate. These
 are explicit workload-contract classifications only: no AUTO/cache entry,
 README headline claim, default route, or Linux/CDNA claim changes.
 
+HIP Graph replay now has release-size benchmark-only evidence for resident
+RNS-chain workloads. Under
+`temp/rank30-hip-graph-replay-release-20260606/`, the graph path compares one
+`hipGraphLaunch` of a captured Direct-HIP residue-current chain against the
+same ordinary Direct-HIP chain. The fair decision metric folds A/B prepack setup
+into both sides and also amortizes graph capture plus graph instantiate cost
+into the graph side. Four local Windows `gfx1100` rows win setup-inclusively:
+bounded-i64 1024 is 14901.56 us graph versus 15250.78 us ordinary, 1.02x;
+bounded-u64 512 is 4708.22 us versus 5194.89 us, 1.10x; bounded-u64 1024 is
+14439.11 us versus 14824.78 us, 1.03x; exact-wide signed 512 is 6148.67 us
+versus 6652.78 us, 1.08x. Bounded-i64 512, exact-wide signed 1024, and
+exact-wide unsigned 512/1024 are deprioritized after setup cost. These are
+benchmark-only graph replay classifications, not README headline claims,
+installed cache entries, public async APIs, default routes, or Linux/CDNA
+claims.
+
 The large-shape release-validation follow-up on June 5, 2026 covered strict
 wrap64 2048x2048x2048 with the same-contract byte-limb CPU reference and Direct
 HIP v4. The review had no missing required baselines, duplicate backends, target

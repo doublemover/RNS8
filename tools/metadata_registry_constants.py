@@ -510,6 +510,7 @@ PROMOTION_SCOPES = {
     'final_output_chain_evidence_only',
     'final_output_chain_reuse_evidence_only',
     'grouped_dispatch_evidence_only',
+    'hip_graph_replay_evidence_only',
     'independent_export_repack_control_only',
     'larger_final_output_chain_evidence_only',
     'layout_comparison_only',
