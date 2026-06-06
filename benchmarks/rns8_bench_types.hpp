@@ -194,6 +194,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
+  bool allocation_after_repeats_available = false;
   bool workspace_arena_info_available = false;
   uint64_t workspace_arena_size_bytes = 0;
   uint64_t workspace_arena_high_water_mark_bytes = 0;

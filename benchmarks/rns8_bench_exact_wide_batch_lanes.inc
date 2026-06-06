@@ -164,6 +164,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
@@ -345,6 +346,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);

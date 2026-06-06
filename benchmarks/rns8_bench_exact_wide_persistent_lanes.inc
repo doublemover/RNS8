@@ -209,6 +209,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     for (uint32_t r = 0; r < args.repeats; ++r) {
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
+    record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_signed_limbs(
@@ -443,6 +444,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     for (uint32_t r = 0; r < args.repeats; ++r) {
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
+    record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
     status = rns8_export_exact_wide_unsigned_limbs(

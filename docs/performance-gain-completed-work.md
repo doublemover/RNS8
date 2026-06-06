@@ -14,14 +14,14 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 30 closed/completed ranks.
+Current count: 31 closed/completed ranks.
 
 ## CDNA-Ready Infrastructure Notes
 
-Ranks 47, 48, 50, 57, 59, 60, 61, 62, and 74 now have repository-side control
+Ranks 47, 48, 50, 59, 60, 61, 62, and 74 now have repository-side control
 surfaces for a later CDNA validation run: exact-wide/export selector scenarios,
 export/reconstruction selector reports, bounded-i64 1024 hipBLASLt disposition
-reporting, Direct-HIP workspace arena allocation gates, shape-family shadow
+reporting, shape-family shadow
 recommendations, promotion-ledger/cache replacement history, batch
 counter/resource reporting, per-target validation reports, and K-block/tile-K
 scenario/report metadata. They remain active evidence gates until real Linux
@@ -29,8 +29,16 @@ ROCm CDNA host captures, profiler exports, and target-specific cache
 eligibility reports exist. These notes are not counted as closed production
 speedups and do not imply Instinct readiness.
 
-The June 6 pending-validation follow-up adds `tools/gfx1100_pending_validation.py`
-for the Windows `gfx1100` release-control pass and
+Rank 57 is now closed for the repository-side Direct-HIP workspace arena
+surface and local Windows `gfx1100` measured-repeat allocation evidence. Future
+arena-related speedup work should flow through the active residency, reuse,
+chain, grouped, or export-selector lanes instead of keeping a standalone arena
+rank open.
+
+The June 6 pending-validation follow-up adds `tools/pending_validation.py` as a
+target-generic command-planning, review-indexing, post-report, and summary core;
+`tools/gfx1100_pending_validation.py` is now the Windows `gfx1100`
+release-control wrapper.
 `tools/multigpu_shard_report.py` for independent CDNA shard aggregation.
 `scripts/cdna_env_probe.sh` now emits physical-device topology records and
 `scripts/cdna_multigpu_smoke.sh` records shard status by physical GPU id, so
@@ -70,3 +78,4 @@ entry, README claim, or CDNA performance status changes from it.
 | 41 | Closed helper lane: architecture-specific kernel namespaces and target-keyed variants | PR #10 adds target-id, namespace, configured target, runtime version, and review grouping metadata | Target-specific cache entries still need real host evidence | Closed as schema/tooling; promote non-`gfx1100` only after evidence on that target |
 | 42 | Folded duplicate: Linux/Instinct/toolchain matrix gates | The active queue had two non-Windows platform validation rows | Active rank 62 owns the broader Linux/RDNA/CDNA validation matrix and target-report gate, including `tools/target_validation_report.py` and real-host release evidence requirements | Closed as a duplicate control-panel row; Windows `gfx1100` evidence remains local |
 | 49 | Completed budgeted 4096 release-reference gate | 4096 throughput classification needed required CPU/reference baselines without pretending GPU-only rows were promotional | `large-release-validation-4096-budgeted` now has bounded i64/u64 CPU, Direct HIP, runtime vector, hipBLASLt, CK, and rocWMMA rows; finite hot CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; exact-wide signed/unsigned CPU, Direct HIP, hipBLASLt, CK, and rocWMMA rows; and strict wrap64 byte-limb plus Direct HIP rows. The current signed exact-wide closeout completed same-commit CPU/GPU evidence with hipBLASLt at 176943 us, Direct HIP at 639360 us, CPU reference at 113085000 us, and checksum `5508849193854467465`; strict wrap64 `wrap64-byte-limb` remains 102905000 us with checksum `13518998852724169131`; exact-wide unsigned completed with hipBLASLt at 162382 us, Direct HIP at 614116 us, CPU reference at 105462000 us, and checksum `9643325300233475427`. Required GPU events, pairwise result comparisons, candidate caches, and installed promotion-ledger reports are available under `temp/perf-work-queue/large-4096-release-reference-current/`, `temp/perf-work-queue/large-4096-unsigned-budgeted-release-current/`, `temp/perf-work-queue/large-4096-signed-cache-closeout-current/`, `temp/perf-work-queue/large-4096-signed-cpu-current/`, and `temp/perf-work-queue/large-4096-cache-closeout-current/` | Closed as validation and promotion evidence: historical timeout rows remain visible but are superseded by completed release-reference rows; eight eligible non-reuse 4096 entries are installed, while strict wrap64 and repeated-B remain outside AUTO cache promotion |
+| 57 | Closed Direct-HIP workspace arena allocation gate | The branch needed to prove workspace-owned buffers were not allocating/freeing inside measured repeats before arena evidence could be used in future residency/reuse decisions | The Direct-HIP arena surface ties scratch/staging/grouped/reuse buffers to plan, target, stream/device, semantic, prefix, output policy, and backend identity. The June 6 `gfx1100` closeout reran 13 resident-lifetime arena captures under `temp/gfx1100-pending-validation-20260606/`; every row in `workspace-arena/resident-workspace-report.json` reports measured-repeat allocation delta `{allocate_calls: 0, free_calls: 0, allocated_bytes: 0}` after the benchmark lanes started recording the repeat snapshot before final checksum export and teardown | Closed as infrastructure/evidence, not a speedup claim. Keep future arena optimization under active residency, reuse, chain, grouped-dispatch, or export-selector lanes with setup-inclusive timing proof |

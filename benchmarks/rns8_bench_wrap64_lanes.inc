@@ -122,6 +122,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
@@ -246,6 +247,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   rns8_destroy_matrix(c_matrix);

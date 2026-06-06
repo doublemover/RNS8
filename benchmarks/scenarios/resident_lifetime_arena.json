@@ -21,6 +21,8 @@
       "output_domain": "host_export",
       "rationale": "proves resident source-version and arena allocation-free repeat metadata before public lifetime APIs",
       "backends": [
+        "cpu",
+        "hip-vector-alu-int64",
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
@@ -53,6 +55,7 @@
       "output_domain": "residue_current_then_final_limb_export",
       "rationale": "ties lazy exact-wide output to explicit resident currentness and workspace identity",
       "backends": [
+        "cpu",
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
@@ -87,7 +90,7 @@
       "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 1024",
       "output_domain": "host_export",
       "rationale": "checks that workspace arena identity and allocation counters scale beyond 512",
-      "backends": ["hip-direct"],
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "resident_lifetime_arena_evidence_only",
       "pack_mode": "prepacked_reuse_b",
@@ -116,7 +119,7 @@
       "evidence_scope": "exact-wide CDNA-prep arena evidence with residue-current chain at 1024",
       "output_domain": "residue_current_then_final_limb_export",
       "rationale": "ties exact-wide lazy-output arena identity to a larger review shape",
-      "backends": ["hip-direct"],
+      "backends": ["cpu", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "resident_lifetime_arena_evidence_only",
       "exact_wide_limb_counts": [4],
@@ -147,7 +150,7 @@
       "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 2048",
       "output_domain": "host_export",
       "rationale": "large-shape arena allocation counter gate before CDNA validation",
-      "backends": ["hip-direct"],
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "resident_lifetime_arena_evidence_only",
       "resident_lifetime": true,

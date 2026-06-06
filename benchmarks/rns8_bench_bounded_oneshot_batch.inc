@@ -41,6 +41,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -88,6 +89,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -252,6 +254,7 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   if (grouped_pack_gemm_export_enabled) {
     scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded i64 export");
   }
@@ -426,6 +429,7 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   if (grouped_pack_gemm_export_enabled) {
     scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded u64 export");
   }

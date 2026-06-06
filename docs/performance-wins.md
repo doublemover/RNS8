@@ -252,6 +252,21 @@ replacing existing bounded or finite-u8 entries.
 | exact-wide signed | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 59074 us | 131794 us | 2.23x | Current reviewed v2 cache entry installed locally |
 | exact-wide unsigned | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 124570 us | 3.04x | Current reviewed v2 cache entry installed locally |
 
+The June 6, 2026 `gfx1100` closeout reran the benchmark-only exact-wide fixed
+limb export selector under
+`temp/gfx1100-pending-validation-20260606/`. These rows are local
+export-selector evidence only: they are release-reviewed, schema-valid, and
+event-valid, but the selector variant is still marked experimental and is not a
+README headline claim, installed cache entry, default route, or Linux/CDNA
+claim.
+
+| Contract | Shape | Export selector winner | Winner median end-to-end | Direct HIP median | CPU reference median | Speedup vs Direct HIP | Status |
+|---|---:|---|---:|---:|---:|---:|---|
+| exact-wide signed, 4 limbs | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 14659 us | 17634 us | 3261790 us | 1.20x | Local export-selector candidate only |
+| exact-wide unsigned, 4 limbs | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 15337 us | 16137 us | 2512390 us | 1.05x | Local export-selector candidate only |
+| exact-wide signed, 4 limbs | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 49161 us | 103762 us | 19073800 us | 2.11x | Local export-selector candidate only |
+| exact-wide unsigned, 4 limbs | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 44964 us | 101018 us | 15714000 us | 2.25x | Local export-selector candidate only |
+
 Exact-wide signed 64, signed 128, unsigned 128, and unsigned 512 remain on
 Direct HIP in the current v2 matrix. The signed 512 win is narrow and should be
 watched in future reruns, but it is release-reviewed, event-valid, and beats the

@@ -120,6 +120,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
@@ -247,6 +248,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif

@@ -391,6 +391,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     for (uint32_t r = 0; r < args.repeats; ++r) {
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
+    record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
     status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), ldc);

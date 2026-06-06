@@ -164,6 +164,7 @@ bool grouped_task_executor_requested(const Args& args);
 uint32_t measured_task_count(const Args& args);
 bool hip_graph_replay_requested(const Args& args);
 void record_allocation_after_warmups(BenchmarkResult& result);
+void record_allocation_after_repeats(BenchmarkResult& result);
 struct HipGraphReplayState {
 #if RNS8_CONFIGURED_HIP_ENABLED
   rns8::detail::hip_unique_stream stream;
@@ -340,7 +341,10 @@ int main(int argc, char** argv) {
       break;
   }
   result.allocation_before = allocation_before;
-  result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+  if (!result.allocation_after_repeats_available) {
+    result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+    result.allocation_after_repeats_available = true;
+  }
   result.allocation_tracking_available = true;
   if (!result.allocation_after_warmups_available) {
     result.allocation_after_warmups = result.allocation_after_repeats;

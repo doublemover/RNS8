@@ -678,6 +678,7 @@ void run_hip_graph_replay_resident_chain(
     result.samples.export_us.push_back(0);
     result.samples.end_to_end_us.push_back(elapsed);
   }
+  record_allocation_after_repeats(result);
   result.hip_graph_launch_count = graph_state.launch_count;
   destroy_hip_graph_replay_state(graph_state);
 }

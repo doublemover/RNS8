@@ -468,3 +468,25 @@ reuse_a_blockers = {
 }
 assert "prepacked_reuse_not_autotune_promotable" in reuse_a_blockers["ck"]
 
+variant_direct_a = exact_wide_capture("hip-direct", 3000)
+variant_direct_b = copy.deepcopy(variant_direct_a)
+variant_direct_a["export_variant"] = {
+    "name": "compact-d2h-export-candidate",
+}
+variant_direct_b["export_variant"] = {
+    "name": "tree-crt-export-candidate",
+}
+variant_direct_b["reconstruction_variant"] = {
+    "name": "tree_crt_candidate",
+}
+variant_report = benchmark_sweep.review_captures(
+    [variant_direct_a, variant_direct_b],
+    review_mode="release",
+)
+assert variant_report["group_count"] == 2
+assert all(group["duplicate_backends"] == [] for group in variant_report["groups"])
+assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
+    "compact-d2h-export-candidate",
+    "tree-crt-export-candidate",
+]
+

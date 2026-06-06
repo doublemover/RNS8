@@ -113,12 +113,14 @@ CDNA validation infrastructure now also includes schema-visible export selector
 keys, export selector reports, Direct-HIP workspace arena allocation-delta
 gates, and K-block/tile-K scenario/report metadata; these are readiness
 surfaces only, not Linux/CDNA performance claims.
-Windows pending-validation infrastructure now also includes
-`tools/gfx1100_pending_validation.py` for the local `gfx1100` release-control
-pass. Multi-GPU readiness infrastructure includes physical-device topology
-records in `cdna-env-summary.json` and `tools/multigpu_shard_report.py` for
-independent per-GPU shard aggregation. These do not change AUTO routing,
-installed cache entries, or durable performance claims.
+Pending-validation infrastructure now uses `tools/pending_validation.py` as the
+target-generic command-planning, review-indexing, post-report, and summary core;
+`tools/gfx1100_pending_validation.py` is the local Windows `gfx1100`
+release-control wrapper. Multi-GPU readiness infrastructure includes
+physical-device topology records in `cdna-env-summary.json` and
+`tools/multigpu_shard_report.py` for independent per-GPU shard aggregation.
+These do not change AUTO routing, installed cache entries, or durable
+performance claims.
 
 Remaining cleanup is now mostly validation and follow-through: run the full
 final gate on the current host, fix any sanitizer/fuzzer/HIP failures it
