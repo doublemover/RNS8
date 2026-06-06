@@ -54,29 +54,14 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
         RNS8_INVALID_ARGUMENT);
 
-  const uint64_t a_input0[] = {1, 2, 3, 4};
-  const uint64_t b_input0[] = {5, 6, 7, 8};
-  const uint64_t a_input1[] = {9, 10, 11, 12};
-  const uint64_t b_input1[] = {13, 14, 15, 16};
-  REQUIRE(rns8_pack_u64(ctx, a0, a_input0, 2, 101) == RNS8_SUCCESS);
-  REQUIRE(rns8_pack_u64(ctx, b0, b_input0, 2, 101) == RNS8_SUCCESS);
-  REQUIRE(rns8_pack_u64(ctx, a1, a_input1, 2, 102) == RNS8_SUCCESS);
-  REQUIRE(rns8_pack_u64(ctx, b1, b_input1, 2, 102) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
-        RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
-        RNS8_INVALID_ARGUMENT);
-
-  REQUIRE(rns8_gemm_rns(ctx, plan, a0, b0, c0, workspace0) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_rns(ctx, plan, a1, b1, c1, workspace1) == RNS8_SUCCESS);
-  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
-        RNS8_SUCCESS);
+  const uint64_t grouped_a_slab[] = {1, 2, 3, 4, 9, 10, 11, 12};
+  const uint64_t grouped_b_slab[] = {5, 6, 7, 8, 13, 14, 15, 16};
 
   rns8::detail::hip_direct_grouped_device_resources grouped_resources;
   REQUIRE(rns8::detail::hip_direct_allocate_grouped_task_device_resources(
               descriptor,
-              0,
-              0,
+              8 * sizeof(uint64_t),
+              8 * sizeof(uint64_t),
               8 * sizeof(uint64_t),
               sizeof(int),
               &grouped_resources) == RNS8_SUCCESS);
@@ -88,27 +73,31 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(pointer_device == 0);
   CHECK(grouped_resources.device_id == 0);
   REQUIRE(grouped_resources.c_matrices.size() == 2);
-  REQUIRE(rns8::detail::hip_direct_export_u64_grouped_matrices_to_device(
-              grouped_resources.c_matrices.data(),
+  REQUIRE(rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
+              descriptor,
+              grouped_resources,
+              grouped_a_slab,
+              grouped_b_slab,
               2,
-              grouped_resources.c_residue_ptrs.ptr,
-              grouped_resources.c_slab.ptr,
-              grouped_resources.status.ptr,
               2,
-              2,
-              static_cast<uint64_t>(desc.bound)) == RNS8_SUCCESS);
+              101) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
+        RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
+              descriptor,
+              grouped_resources) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_SUCCESS);
 
   std::vector<uint64_t> grouped_export(8, UINT64_C(0xdeadbeefdeadbeef));
-  REQUIRE(rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
-              0,
-              "test_grouped_bounded_export_d2h",
+  REQUIRE(rns8::detail::hip_direct_export_grouped_u64_task_outputs_to_host(
+              descriptor,
+              grouped_resources,
+              static_cast<uint64_t>(desc.bound),
               grouped_export.data(),
-              8,
-              grouped_resources.c_slab.ptr,
-              1,
-              8,
-              sizeof(uint64_t),
-              false) == RNS8_SUCCESS);
+              grouped_export.size()) == RNS8_SUCCESS);
   std::vector<uint64_t> expected0(4);
   std::vector<uint64_t> expected1(4);
   REQUIRE(rns8_export_u64(ctx, plan, c0, expected0.data(), 2) == RNS8_SUCCESS);

@@ -123,40 +123,22 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   auto& grouped_resources = grouped_batch.device_resources;
+  const auto grouped_descriptor =
+      make_grouped_dispatch_descriptor(args, plan, tasks, c_semantics(args.semantics), matrix_prefix);
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
-        status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_resources.a_slab.device_id,
+        status = rns8::detail::hip_direct_pack_grouped_finite_u8_task_inputs(
+            grouped_descriptor,
+            grouped_resources,
             grouped_batch.a_host_slab.data(),
-            grouped_resources.a_slab.ptr,
-            grouped_resources.a_slab.bytes,
-            grouped_resources.a_matrices.data(),
-            task_count,
-            c_semantics(args.semantics),
-            grouped_resources.a_residue_ptrs.ptr,
-            args.m,
-            args.k,
-            args.k,
-            static_cast<uint32_t>(args.finite_modulus),
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_finite_u8_grouped_matrices_device(grouped finite A)", status);
-        status = hip_direct_pack_grouped_native_matrices_device(
-            grouped_resources.b_slab.device_id,
             grouped_batch.b_host_slab.data(),
-            grouped_resources.b_slab.ptr,
-            grouped_resources.b_slab.bytes,
-            grouped_resources.b_matrices.data(),
-            task_count,
-            c_semantics(args.semantics),
-            grouped_resources.b_residue_ptrs.ptr,
             args.k,
             args.n,
-            args.n,
-            static_cast<uint32_t>(args.finite_modulus),
+            static_cast<uint16_t>(args.finite_modulus),
             source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_finite_u8_grouped_matrices_device(grouped finite B)", status);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_finite_u8_task_inputs(grouped finite)", status);
       }
       (void)task;
       return;
@@ -171,21 +153,11 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_finite_u8_grouped_matrices_device(
-            grouped_resources.a_slab.device_id,
-            grouped_resources.a_matrices.data(),
-            grouped_resources.b_matrices.data(),
-            grouped_resources.c_matrices.data(),
-            task_count,
-            c_semantics(args.semantics),
-            grouped_resources.a_residue_ptrs.ptr,
-            grouped_resources.b_residue_ptrs.ptr,
-            grouped_resources.c_residue_ptrs.ptr,
-            args.m,
-            args.n,
-            args.k,
+        status = rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
+            grouped_descriptor,
+            grouped_resources,
             static_cast<uint16_t>(args.finite_modulus));
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_finite_u8_grouped_matrices_device(grouped finite)", status);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_grouped_finite_u8_task_outputs(grouped finite)", status);
       }
       (void)task;
       return;
@@ -196,11 +168,15 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
-        export_finite_grouped_dispatch_slab(
-            args,
-            c_semantics(args.semantics),
-            grouped_batch,
-            "hip_direct_export_finite_u8_grouped_matrices_to_device(grouped finite)");
+        status = rns8::detail::hip_direct_export_grouped_finite_u8_task_outputs_to_host(
+            grouped_descriptor,
+            grouped_resources,
+            static_cast<uint16_t>(args.finite_modulus),
+            grouped_batch.c_host_slab.data(),
+            grouped_batch.c_host_slab.size());
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_export_grouped_finite_u8_task_outputs_to_host(grouped finite)", status);
+        }
       }
       (void)task;
       return;

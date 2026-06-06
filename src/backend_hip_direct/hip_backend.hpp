@@ -131,6 +131,63 @@ rns8_status hip_direct_prepare_grouped_task_residue_pointers(
     const hip_direct_grouped_gemm_descriptor& descriptor,
     hip_direct_grouped_device_resources& resources,
     int* out_device_id = nullptr);
+rns8_status hip_direct_pack_grouped_i64_task_inputs(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    const int64_t* a_slab,
+    const int64_t* b_slab,
+    int64_t lda,
+    int64_t ldb,
+    uint64_t first_source_version);
+rns8_status hip_direct_pack_grouped_u64_task_inputs(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    const uint64_t* a_slab,
+    const uint64_t* b_slab,
+    int64_t lda,
+    int64_t ldb,
+    uint64_t first_source_version);
+rns8_status hip_direct_pack_grouped_finite_u8_task_inputs(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    const uint8_t* a_slab,
+    const uint8_t* b_slab,
+    int64_t lda,
+    int64_t ldb,
+    uint16_t modulus,
+    uint64_t first_source_version);
+rns8_status hip_direct_gemm_grouped_rns_task_outputs(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources);
+rns8_status hip_direct_gemm_grouped_finite_u8_task_outputs(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    uint16_t modulus);
+rns8_status hip_direct_export_grouped_i64_task_outputs_to_host(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    uint64_t bound,
+    int64_t* dst,
+    std::size_t dst_elements);
+rns8_status hip_direct_export_grouped_u64_task_outputs_to_host(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    uint64_t bound,
+    uint64_t* dst,
+    std::size_t dst_elements);
+rns8_status hip_direct_export_grouped_finite_u8_task_outputs_to_host(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    uint16_t modulus,
+    uint8_t* dst,
+    std::size_t dst_elements);
+rns8_status hip_direct_export_grouped_exact_wide_task_outputs_to_host(
+    const hip_direct_grouped_gemm_descriptor& descriptor,
+    hip_direct_grouped_device_resources& resources,
+    uint32_t limb_count,
+    bool signed_output,
+    uint64_t* dst,
+    std::size_t dst_limb_elements);
 rns8_status hip_direct_pack_i64_device(
     int device_id,
     const int64_t* src,

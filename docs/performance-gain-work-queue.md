@@ -71,18 +71,22 @@ June 6, 2026 queue-triage update:
   per task, same-shape descriptors, device-resident lifetimes, explicit stride
   policy, per-task source-version repack, device-current outputs, and bounded C
   source-version binding through `hip_direct_grouped_gemm_descriptor`. The
-  current branch now also routes benchmark grouped A/B/C slabs, optional status
-  storage, residue pointer tables, and A/B/C matrix vectors through an internal
-  Direct-HIP grouped resource helper instead of duplicating allocation and
-  pointer-table setup in each benchmark lane. Schema and report validation
-  require the matching ownership, descriptor-reuse, stride, output-currentness,
-  and lifetime policy fields. Debug smokes under
+  current branch now also routes benchmark grouped pack, GEMM, and export
+  phases through descriptor-backed Direct-HIP helpers that consume the grouped
+  descriptor and the internal grouped resource aggregate; A/B/C slabs, optional
+  status storage, residue pointer tables, and A/B/C matrix vectors no longer
+  get assembled independently inside each benchmark lane. Schema and report
+  validation require the matching ownership, descriptor-reuse, stride,
+  output-currentness, and lifetime policy fields. Debug smokes under
   `temp/perf-queue-grouped-contract-smoke/`,
   `temp/perf-queue-grouped-descriptor-smoke/`,
   `temp/grouped-resource-helper-smoke/`, and
-  `temp/grouped-resource-helper-smoke-unsigned/` validate bounded, exact-wide
-  signed/unsigned, and finite grouped captures as schema v4 with required
-  Direct-HIP GPU events. Public/generic grouped dispatch remains active.
+  `temp/grouped-resource-helper-smoke-unsigned/`, plus the descriptor-backed
+  execution smokes under `temp/grouped-execution-helper-smoke/` and
+  `temp/grouped-execution-helper-smoke-unsigned/`, validate bounded,
+  exact-wide signed/unsigned, and finite grouped captures as schema v4 with
+  required Direct-HIP GPU events. Public/generic grouped dispatch remains
+  active.
 
 June 4-5, 2026 updates:
 
@@ -687,7 +691,7 @@ June 4-5, 2026 updates:
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are the strongest branch-local wins, but the current path is still benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, bounded compact export, and backend-owned grouped A/B/C device-resource setup for benchmark lanes; remaining proof is a public/generic descriptor ABI plus broader release-family grouped evidence | Do not expose or route generic grouped dispatch until the public descriptor ABI, lifetime, output, and status contracts are mechanically enforced outside benchmark-only lanes |
+| 45 | Grouped dispatch ABI/lifetime contract | Grouped exact-wide and bounded results are the strongest branch-local wins, but the current path is still benchmark-owned | Internal Direct-HIP descriptor enforcement now covers unique descriptor ownership, validated descriptor reuse, explicit stride policy, output domains, per-task source-version repack, device-current outputs, bounded C source-version binding, workspace identity, per-task status/checksum policy, capture lifetime, exact-wide compact export, bounded compact export, backend-owned grouped A/B/C device-resource setup, and descriptor-backed grouped pack/GEMM/export execution for bounded, finite, and exact-wide benchmark lanes; remaining proof is a public/generic descriptor ABI plus broader release-family grouped evidence | Do not expose or route generic grouped dispatch until the public descriptor ABI, lifetime, output, and status contracts are mechanically enforced outside benchmark-only lanes |
 | 8 | Advanced many-small persistent/grouped workload path | Many 64/128/skinny jobs as one grouped workload is higher value than more isolated single-GEMM tuning | Keep exact-wide signed/unsigned 64 and 128 group32, bounded-i64/u64 64 group32, bounded-i64 128 group64, bounded-u64 128x1x1024 group128, and finite-ring u8 64 group32 release controls with fastest-independent baselines, same-task-count checksum parity, and complete GPU events in `many_small_grouped_report.py` | Promote only explicit grouped workload families that beat fastest independent and host-batch controls, not one-off grouped smokes |
 | 48 | Export/reconstruction selector backend | CRT/export drives exact-wide and bounded timings, so export choice needs to be selected like a backend | Key selection by semantic, prefix, limb count, signedness, output layout, status policy, target, compact/padded D2H policy, and final-output/chain mode; require selected-kernel, schema, cache, and stale-entry visibility | Keep every reconstruction/export variant inspectable and promote only setup-inclusive same-contract wins |
 | 9 | RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is a structural win | Broaden final-output chain matrices beyond current bounded/exact-wide controls, keep independent export/repack baselines, exact CPU final-output checks, and required events | Keep active until reuse/setup policy, output lifetime, and public or benchmark currentness semantics prevent accidental cross-workload reuse |
@@ -3465,6 +3469,14 @@ Current status:
   155.88 us per task. The 128 rows keep the same grouped pack, same-shape
   grouped Direct-HIP RNS GEMM, grouped exact-wide export kernel, and compact
   output D2H contract as the 64 rows.
+- The descriptor-backed execution helper closeout moved bounded, finite, and
+  exact-wide benchmark grouped lanes onto internal Direct-HIP helpers that
+  validate the grouped descriptor/resource aggregate before pack, GEMM, and
+  export. Debug smokes under `temp/grouped-execution-helper-smoke/` and
+  `temp/grouped-execution-helper-smoke-unsigned/` produced seven schema-v4
+  captures with required Direct-HIP GPU events across bounded i64, finite-ring
+  u8, exact-wide signed, and exact-wide unsigned grouped paths. This is
+  structural cleanup evidence, not a new release performance claim.
 - The remaining performance work is now the broader dispatcher and contract
   work: public or mechanically routed task descriptors, descriptor/lifetime
   validation beyond benchmark metadata, release-size comparisons against
@@ -3481,17 +3493,17 @@ Technical direction:
   not one fully generic dispatcher.
 - Keep per-task exact checksums and per-task status. A single failed task must
   not mask successful neighboring tasks.
-- The benchmark-side descriptor contract is now explicit. The next
-  implementation step is turning it from capture metadata plus exact-wide
-  and bounded pointer/slab descriptors into public or mechanically routed
-  device-readable compact records: A/B/C storage offsets, leading dimensions,
-  source versions, selected prefix/modulus, output policy, and checksum/export
-  mode.
+- The benchmark-side descriptor contract is now explicit and internally routed
+  through descriptor-backed grouped phase helpers. The next implementation step
+  is turning it into public or generic device-readable compact records: A/B/C
+  storage offsets, leading dimensions, source versions, selected
+  prefix/modulus, output policy, and checksum/export mode.
 
 Likely first slices:
 
-- Public or internal descriptor dispatcher for the benchmark-owned exact-wide,
-  bounded, and finite paths instead of benchmark-side pointer/slab assembly.
+- Public or generic descriptor dispatcher for the benchmark-owned exact-wide,
+  bounded, and finite paths now that internal descriptor-backed phase execution
+  has replaced per-lane pointer/slab assembly.
 - Bucketed same-semantic grouped descriptors so same-shape task batches stop
   being the only executable grouped form.
 
