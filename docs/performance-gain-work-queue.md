@@ -30,9 +30,10 @@ single GEMM fastest?" RNS8 has to ask more structural questions:
 
 ## Active Performance Queue
 
-Use this table as the working control panel. The detailed backlog and research
-notes are archived separately in
-[performance-gain-research-backlog.md](performance-gain-research-backlog.md);
+Use this table as the working control panel. Long-form archive material lives
+in [performance-gain-research-backlog.md](performance-gain-research-backlog.md)
+and imported triage notes live in
+[performance-gain-imported-research-notes.md](performance-gain-imported-research-notes.md);
 the next implementation chunks should pull from this ranked list first.
 
 Evidence sources for current promotion state are
