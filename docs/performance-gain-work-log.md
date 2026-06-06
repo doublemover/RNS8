@@ -112,6 +112,19 @@ June 6, 2026 queue-triage update:
   parity. This is benchmark-owned same-shape grouped workload evidence only,
   not a public generic grouped ABI, AUTO/cache entry, README headline claim, or
   Linux/CDNA claim.
+- Rank 9 is closed as the current RNS-chain final-output matrix. A new
+  release sweep under `temp/rank9-rns-chain-broader-release/` adds 24
+  schema-v4 captures for bounded-i64/u64 and exact-wide signed/unsigned at 512
+  and 1024, each with CPU final-output baseline, Direct-HIP resident chain, and
+  same-backend Direct-HIP independent export/repack control. The regenerated
+  `tools/rns_chain_report.py` output reports eight candidate final-output chain
+  wins, zero missing baselines, zero experimental rows, zero deprioritized rows,
+  and required GPU events for every Direct-HIP capture. The report now filters
+  benchmark-sweep sidecars and excludes backend-specific export selector keys
+  from the same-output contract key so CPU and GPU chain captures group
+  correctly. This is local Windows `gfx1100` benchmark evidence only, not a
+  public lazy-output API, AUTO/cache route, README headline claim, or
+  Linux/CDNA claim.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,

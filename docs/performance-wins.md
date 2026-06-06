@@ -569,6 +569,30 @@ chain3 is 2842 us versus 30687 us, 10.80x faster. This closes the focused
 exact-wide same-output control gap, but it is still benchmark evidence only:
 no AUTO/cache entry, no public lazy-output API, and no Linux/Instinct claim.
 
+The broader rank-9 release matrix under
+`temp/rank9-rns-chain-broader-release/` extends the same final-output contract
+to 512 and 1024 for bounded-i64, bounded-u64, exact-wide signed, and
+exact-wide unsigned. Each group has CPU final-output baseline, Direct-HIP
+resident-chain capture, and same-backend Direct-HIP independent export/repack
+control. `tools/rns_chain_report.py` reports eight candidate wins, zero missing
+baselines, zero experimental rows, and required GPU events for every Direct-HIP
+row:
+
+| Contract | Shape | Resident Chain Median | Independent Export/Repack Median | Speedup Vs Independent |
+|---|---:|---:|---:|---:|
+| bounded-i64 chain3 final output | 512 | 3696 us | 5630 us | 1.52x |
+| bounded-i64 chain3 final output | 1024 | 14610 us | 19097 us | 1.31x |
+| bounded-u64 chain3 final output | 512 | 3497 us | 6022 us | 1.72x |
+| bounded-u64 chain3 final output | 1024 | 14090 us | 18435 us | 1.31x |
+| exact-wide signed chain3 final output | 512 | 6475 us | 228670 us | 35.32x |
+| exact-wide signed chain3 final output | 1024 | 32339 us | 1116390 us | 34.52x |
+| exact-wide unsigned chain3 final output | 512 | 5817 us | 113142 us | 19.45x |
+| exact-wide unsigned chain3 final output | 1024 | 30178 us | 472985 us | 15.67x |
+
+These rows close the current benchmark-owned RNS-chain final-output matrix.
+They do not install cache entries, change AUTO routing, expose a public lazy
+output API, or imply Linux/CDNA behavior.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend

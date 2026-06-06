@@ -40,7 +40,7 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 35 ranks. Rank IDs are historical/stable
+active table below now contains 34 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
@@ -50,7 +50,6 @@ focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 9 | RNS-chain internal path with residue-current and final-output contracts | `RNS GEMM -> RNS GEMM -> final export` can skip intermediate reconstruction and is a structural win | Broaden final-output chain matrices beyond current bounded/exact-wide controls, keep independent export/repack baselines, exact CPU final-output checks, and required events | Keep active until reuse/setup policy, output lifetime, and public or benchmark currentness semantics prevent accidental cross-workload reuse |
 | 46 | Exact-wide final-output chain matrix and RNS output API draft | Lazy exact-wide residue-current chains avoid per-repeat CRT, but need same-output proof and API semantics | Extend exact-wide chain length/shape/semantic controls, pair residue-current and final-output captures, and draft residue-current output lifetime rules | Keep benchmark-only until broader exact final CPU comparison, release-size speedup, and public lifetime semantics are explicit |
 | 43 | Reuse contract ledger and persistent matrix policy | Reuse/prepack wins compare different workload contracts and need caller-visible lifetime rules | Use `tools/reuse_contract_report.py` for setup-inclusive per-repeat time, same-backend and fastest-non-reuse speedups, break-even repeats, event availability, source identity, stale-source rejection, and selector eligibility | Keep reuse out of AUTO until the ledger proves a same workload family and stale-source rejection |
 | 70 | Advanced release variance and golden performance regression gate | Export noise and narrow colpair/reuse wins can disappear under rerun variance | `tools/perf_variance_report.py` now validates schema-v4 captures, groups same-contract reruns by backend/kernel/export selector, reports within-capture and run-to-run spread, derives the required speedup margin, runs in the golden regression suite, and can be consumed by `tools/promotion_ledger.py --variance-report`; remaining gate is making variance reports mandatory for cache/evidence-doc promotion passes | Do not promote rows whose margin is inside measured noise or whose event bottlenecks shift unpredictably |

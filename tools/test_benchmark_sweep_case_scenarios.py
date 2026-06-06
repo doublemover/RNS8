@@ -53,6 +53,7 @@ for scenario_name in [
     "reconstruction-zoo",
     "hip-graph-replay",
     "rns-chain-final-output",
+    "rns-chain-final-output-broader",
     "grouped-dispatch",
     "resident-lifetime-arena",
     "adaptive-grouped-scheduler",
@@ -215,4 +216,28 @@ release_command = benchmark_sweep.command_for(
     release_args,
 )
 assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
+
+broader_chain_items = catalog["rns-chain-final-output-broader"]
+assert len(broader_chain_items) == 16
+assert {
+    (item.semantics, item.case.m, item.residue_chain_independent_final_export)
+    for item in broader_chain_items
+} == {
+    (semantics, shape, independent)
+    for semantics in ["bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"]
+    for shape in [512, 1024]
+    for independent in [False, True]
+}
+broader_chain_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, broader_chain_items[0])
+broader_chain_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    broader_chain_items[0].semantics,
+    broader_chain_items[0].case,
+    None,
+    None,
+    broader_chain_args,
+)
+assert "--residue-chain-length" in broader_chain_command and "3" in broader_chain_command
+assert "--residue-chain-final-export" in broader_chain_command
 
