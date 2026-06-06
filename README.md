@@ -108,19 +108,31 @@ Exactness rules are explicit:
 - Finite-u8 rows are keyed by explicit ring or prime-field modulus.
 - Strict `mod 2^64` uses byte limbs, not odd-modulus CRT.
 
-Current local Windows `gfx1100` release-reviewed snapshot:
+Current local Windows `gfx1100` release-reviewed cache snapshot:
 
-| Family | Best local evidence | Boundary |
-|---|---:|---|
-| Bounded exact | i64 4096 hipBLASLt: 35.3 ms, 3.65x vs Direct HIP.<br/>u64 4096 hipBLASLt: 37.5 ms, 3.16x. | Cache entries installed for selected 1024-4096 keys; i64 512 stays Direct HIP. |
-| Finite u8 | 4096 field-251 hipBLASLt: 6.4 ms, 5.25x.<br/>1024 ring-256 hipBLASLt: 1.8 ms, 7.05x. | Cache entries installed for selected 128-4096 modulus/shape keys, including generic 127/253 coverage. |
-| Exact-wide | 4096 signed hipBLASLt: 176.9 ms, 3.61x.<br/>4096 unsigned hipBLASLt: 162.4 ms, 3.78x. | Cache entries installed for selected semantic/shape/limb keys. |
-| Strict wrap64 | Direct HIP 2048: 58.3 ms, 230.1x vs CPU byte-limb.<br/>Direct HIP 4096: 295.7 ms, 348.1x. | Correctness path only; no AUTO cache entry or matrix-engine promotion. |
-| Reusable operands | 2048 bounded-u64 hipBLASLt A+B: 9.2 ms per repeat, 2.35x vs same-run fastest non-reuse. | Explicit workload evidence; not AUTO-promoted. |
-| Many-small grouped | Exact-wide signed group32: 66.5 us/task, 58.4x.<br/>Unsigned group32: 79.1 us/task, 18.7x. | Benchmark-owned grouped-dispatch evidence; no public grouped API yet. |
-| RNS chains | Exact-wide signed 128 chain3: 1.77 ms, 9.80x.<br/>Unsigned 256 chain3: 2.84 ms, 10.80x. | Benchmark-only lazy-output evidence; no AUTO cache entry. |
-| Shape-specialized paths | Vector N=1 i64: 7.41x vs old vector path.<br/>Direct-HIP one-shot i64 512: 3.07x vs prior Direct-HIP kernel. | Active explicit routes; not cross-backend cache claims. |
-| Planner/prepass | Adaptive bounded-u64 tile scan: 557.6 ms to 414.4 ms, 1.35x. | Setup-path win; full bound-discovery routing stayed out of promotion. |
+| Family | Case | Winner | Median | vs Direct HIP | vs CPU/ref | Disposition |
+|---|---|---|---:|---:|---:|---|
+| Bounded exact | i64 4096 | hipBLASLt | 35.3 ms | 3.65x | 601.8x | Installed cache key |
+| Bounded exact | u64 4096 | hipBLASLt | 37.5 ms | 3.16x | 441.9x | Installed cache key |
+| Finite u8 | field-251 4096 | hipBLASLt | 6.4 ms | 5.25x | 747.8x | Installed cache key |
+| Finite u8 | ring-256 4096 | hipBLASLt | 6.9 ms | 4.73x | 680.9x | Installed cache key |
+| Exact-wide | signed 4096 | hipBLASLt | 176.9 ms | 3.61x | 639.1x | Installed cache key |
+| Exact-wide | unsigned 4096 | hipBLASLt | 162.4 ms | 3.78x | 649.5x | Installed cache key |
+| Strict wrap64 | 2048 | Direct HIP | 58.3 ms | n/a | 230.1x | Correctness path |
+| Strict wrap64 | 4096 | Direct HIP | 295.7 ms | n/a | 348.1x | Correctness path |
+
+Explicit workload and implementation wins:
+
+| Area | Case | Path | Median | Same-path gain | Control gain | Boundary |
+|---|---|---|---:|---:|---:|---|
+| Reusable operands | bounded-u64 2048 A+B | hipBLASLt | 9.2 ms/repeat | 3.99x vs non-reuse | 2.35x vs fastest | Workload contract only |
+| Many-small grouped | exact-wide signed 64 group32 | Direct HIP grouped | 66.5 us/task | 3.43x vs prior grouped | 58.4x vs independent | Benchmark evidence |
+| Many-small grouped | exact-wide unsigned 64 group32 | Direct HIP grouped | 79.1 us/task | 13.5x vs hostbatch | 18.7x vs independent | Benchmark evidence |
+| RNS chains | exact-wide signed 128 chain3 | Direct HIP final-output | 1.77 ms | 9.80x vs independent | n/a | Benchmark evidence |
+| RNS chains | exact-wide unsigned 256 chain3 | Direct HIP final-output | 2.84 ms | 10.80x vs independent | n/a | Benchmark evidence |
+| Shape-specialized | vector N=1 i64 | Vector ALU | n/a | 7.41x vs old path | 35.9x kernel | Active explicit route |
+| Shape-specialized | one-shot i64 512 | Direct HIP colpair | n/a | 3.07x vs old path | 3.02x API event | Active explicit route |
+| Planner/prepass | bounded-u64 adaptive scan | Direct HIP setup | 414.4 ms | 1.35x vs old scan | n/a | Not promoted |
 
 The installed reviewed cache currently contains 39 validated exact-key entries.
 The table above is intentionally compact; long kernel identities, per-row
