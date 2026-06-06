@@ -10,6 +10,13 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint64_t> C(
       output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
+  const bool compact_d2h_export_candidate =
+      args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
+  std::vector<uint64_t> compact_export_C(
+      compact_d2h_export_candidate
+          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide signed export")
+          : 0,
+      UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -77,6 +84,18 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
+  const auto export_signed_limbs = [&](rns8_matrix* matrix, const char* label) {
+    if (compact_d2h_export_candidate) {
+      status = rns8_export_exact_wide_signed_limbs(
+          ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status(label, status);
+      copy_compact_limb_output(
+          compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count, "compact exact-wide signed export");
+      return;
+    }
+    status = rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, C.data(), ldc, args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS) fail_status(label, status);
+  };
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
@@ -102,11 +121,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
         gemm_total_us += elapsed_us(phase_start, phase_end);
 
         phase_start = std::chrono::steady_clock::now();
-        status = rns8_export_exact_wide_signed_limbs(
-            ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
-        if (status != RNS8_SUCCESS) {
-          fail_status("rns8_export_exact_wide_signed_limbs(independent final-output chain)", status);
-        }
+        export_signed_limbs(c_matrix, "rns8_export_exact_wide_signed_limbs(independent final-output chain)");
         phase_end = std::chrono::steady_clock::now();
         export_total_us += elapsed_us(phase_start, phase_end);
 
@@ -180,9 +195,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_exact_wide_signed_limbs(
-          ctx, plan, final_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs", status);
+      export_signed_limbs(final_output_matrix, "rns8_export_exact_wide_signed_limbs");
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
@@ -212,9 +225,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
-    status = rns8_export_exact_wide_signed_limbs(
-        ctx, plan, latest_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_signed_limbs(final chain checksum)", status);
+    export_signed_limbs(latest_output_matrix, "rns8_export_exact_wide_signed_limbs(final chain checksum)");
   }
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
 
@@ -245,6 +256,13 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint64_t> C(
       output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
+  const bool compact_d2h_export_candidate =
+      args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
+  std::vector<uint64_t> compact_export_C(
+      compact_d2h_export_candidate
+          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide unsigned export")
+          : 0,
+      UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
 
@@ -312,6 +330,18 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
+  const auto export_unsigned_limbs = [&](rns8_matrix* matrix, const char* label) {
+    if (compact_d2h_export_candidate) {
+      status = rns8_export_exact_wide_unsigned_limbs(
+          ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
+      if (status != RNS8_SUCCESS) fail_status(label, status);
+      copy_compact_limb_output(
+          compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count, "compact exact-wide unsigned export");
+      return;
+    }
+    status = rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, C.data(), ldc, args.exact_wide_limb_count);
+    if (status != RNS8_SUCCESS) fail_status(label, status);
+  };
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
@@ -337,11 +367,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
         gemm_total_us += elapsed_us(phase_start, phase_end);
 
         phase_start = std::chrono::steady_clock::now();
-        status = rns8_export_exact_wide_unsigned_limbs(
-            ctx, plan, c_matrix, C.data(), ldc, args.exact_wide_limb_count);
-        if (status != RNS8_SUCCESS) {
-          fail_status("rns8_export_exact_wide_unsigned_limbs(independent final-output chain)", status);
-        }
+        export_unsigned_limbs(c_matrix, "rns8_export_exact_wide_unsigned_limbs(independent final-output chain)");
         phase_end = std::chrono::steady_clock::now();
         export_total_us += elapsed_us(phase_start, phase_end);
 
@@ -415,9 +441,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     if (!chain_residue_output) {
       export_start = std::chrono::steady_clock::now();
       begin_gpu_event_phase(collect_gpu_events);
-      status = rns8_export_exact_wide_unsigned_limbs(
-          ctx, plan, final_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs", status);
+      export_unsigned_limbs(final_output_matrix, "rns8_export_exact_wide_unsigned_limbs");
       if (collect_gpu_events) {
         collect_export_gpu_events(args, selected_backend, result, result.gpu_events);
       }
@@ -447,9 +471,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
-    status = rns8_export_exact_wide_unsigned_limbs(
-        ctx, plan, latest_output_matrix, C.data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_exact_wide_unsigned_limbs(final chain checksum)", status);
+    export_unsigned_limbs(latest_output_matrix, "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");
   }
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
 

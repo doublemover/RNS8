@@ -457,3 +457,25 @@ void copy_compact_to_output(
   }
 }
 
+void copy_compact_limb_output(
+    const std::vector<uint64_t>& compact,
+    std::vector<uint64_t>& output,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t limb_count,
+    const char* label) {
+  if (ld == cols) {
+    std::copy(compact.begin(), compact.end(), output.begin());
+    return;
+  }
+  const auto limbs = static_cast<std::size_t>(limb_count);
+  for (int64_t row = 0; row < rows; ++row) {
+    const std::size_t source = row_major_index(row, 0, cols, label) * limbs;
+    const std::size_t destination = row_major_index(row, 0, ld, label) * limbs;
+    const std::size_t count = static_cast<std::size_t>(cols) * limbs;
+    std::copy(compact.begin() + static_cast<std::ptrdiff_t>(source),
+              compact.begin() + static_cast<std::ptrdiff_t>(source + count),
+              output.begin() + static_cast<std::ptrdiff_t>(destination));
+  }
+}

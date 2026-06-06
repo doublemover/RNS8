@@ -137,6 +137,13 @@ def main() -> int:
     reviewable_fixed_limb["export_variant"]["promotion_blocker"] = None
     validate_capture(reviewable_fixed_limb)
 
+    reviewable_compact_fixed_limb = copy.deepcopy(reviewable_fixed_limb)
+    reviewable_compact_fixed_limb["export_variant"]["selector_key"] = reviewable_compact_fixed_limb[
+        "export_variant"
+    ]["selector_key"].replace("d2h_policy=host_ld_padded", "d2h_policy=compact_contiguous")
+    reviewable_compact_fixed_limb["export_variant"]["d2h_policy"] = "compact_contiguous"
+    validate_capture(reviewable_compact_fixed_limb)
+
     stale_reviewable_status_reason = copy.deepcopy(reviewable_fixed_limb)
     stale_reviewable_status_reason["export_variant"]["status_elision_reason"] = None
     expect_invalid(

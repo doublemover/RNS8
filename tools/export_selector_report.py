@@ -56,7 +56,7 @@ def _reviewable_export_variant(capture: dict[str, Any], export: dict[str, Any]) 
         and export.get("output_layout") == "fixed_u64_limbs"
         and isinstance(export.get("limb_count"), int)
         and status_reviewable
-        and export.get("d2h_policy") == "host_ld_padded"
+        and export.get("d2h_policy") in {"host_ld_padded", "compact_contiguous"}
         and export.get("final_output_mode") == "final_host_output"
     )
 

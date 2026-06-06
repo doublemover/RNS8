@@ -85,6 +85,35 @@
       }
     },
     {
+      "name": "exact-wide-signed-padded-default-1024",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "exact-wide-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "exact-wide padded-output default D2H baseline",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "provides the same-output padded baseline needed before judging compact D2H staging candidates",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "output_ld_padding": 32,
+      "exact_wide_limb_counts": [4],
+      "export_variant": "default",
+      "metadata": {
+        "promotion_scope": "export_variant_evidence_only",
+        "cache_promotion_blocker": "padded_output_baseline_for_compact_d2h_review_only"
+      }
+    },
+    {
       "name": "exact-wide-signed-compact-d2h-1024",
       "semantics": "exact-wide-signed",
       "case": {
@@ -101,15 +130,16 @@
       },
       "evidence_scope": "exact-wide compact D2H selector candidate",
       "output_domain": "exact_wide_signed_limbs",
-      "rationale": "checks whether compact host transfer is worth implementing for export-bound exact-wide runs",
+      "rationale": "checks whether compact host transfer plus host scatter beats padded-output D2H for export-bound exact-wide runs",
       "backends": ["cpu", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "export_variant_evidence_only",
+      "output_ld_padding": 32,
       "exact_wide_limb_counts": [4],
       "export_variant": "compact-d2h-export-candidate",
       "metadata": {
         "promotion_scope": "export_variant_evidence_only",
-        "cache_promotion_blocker": "compact_d2h_selector_implementation_and_release_ab_required"
+        "cache_promotion_blocker": "compact_d2h_padded_output_release_ab_required"
       }
     },
     {

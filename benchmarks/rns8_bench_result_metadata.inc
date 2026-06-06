@@ -166,6 +166,15 @@ std::string export_selector_key_for_capture(const Args& args, const rns8_plan& p
 
 void apply_benchmark_export_selector_overlay(const Args& args, const rns8_plan& plan, BenchmarkResult& result) {
   bool selector_key_needs_refresh = false;
+  if (exact_wide_benchmark_semantics(args.semantics) && !residue_current_output_mode(args) &&
+      args.output_ld_padding == 0) {
+    result.export_plan_source = "rns8_internal_export_plan_with_runtime_output_ld";
+    result.export_d2h_policy = "compact_contiguous";
+    result.export_cache_visibility = "selector_visible_runtime_contiguous_output";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_runtime_ld";
+    selector_key_needs_refresh = true;
+  }
   if (residue_current_output_mode(args)) {
     result.export_plan_source = "benchmark_residue_current_output_selector_overlay";
     result.export_d2h_policy = "device_residue_current";
@@ -179,10 +188,15 @@ void apply_benchmark_export_selector_overlay(const Args& args, const rns8_plan& 
   }
   if (args.export_variant == "compact-d2h-export-candidate" && exact_wide_benchmark_semantics(args.semantics)) {
     result.export_plan_source = "benchmark_export_selector_variant_overlay";
-    result.export_d2h_policy = "compact_contiguous";
     result.export_cache_visibility = "selector_visible_compact_d2h_candidate";
-    result.export_stale_entry_reason =
-        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_d2h_policy";
+    if (args.output_ld_padding == 0) {
+      result.export_stale_entry_reason =
+          "compact_d2h_candidate_matches_runtime_contiguous_default_no_policy_delta";
+    } else {
+      result.export_d2h_policy = "compact_contiguous";
+      result.export_stale_entry_reason =
+          "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_d2h_policy";
+    }
     selector_key_needs_refresh = true;
   } else if (
       args.export_variant == "status-elided-exact-proof-export-candidate" &&

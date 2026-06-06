@@ -110,6 +110,20 @@ def main() -> int:
         assert reviewable_row["selector_promotion_eligible"] is True
         assert reviewable_row["promotion_blockers"] == []
 
+        reviewable_compact = copy.deepcopy(reviewable)
+        reviewable_compact["export_variant"]["selector_key"] = reviewable_compact["export_variant"][
+            "selector_key"
+        ].replace("d2h_policy=host_ld_padded", "d2h_policy=compact_contiguous")
+        reviewable_compact["export_variant"]["d2h_policy"] = "compact_contiguous"
+        reviewable_compact_path = tmp / "reviewable-fixed-limb-compact.json"
+        write_capture(reviewable_compact_path, reviewable_compact)
+        reviewable_compact_report = export_selector_report.build_report([reviewable_compact_path])
+        reviewable_compact_row = reviewable_compact_report["groups"][0]["rows"][0]
+        assert reviewable_compact_row["export_variant"] == "exact-wide-fixed-limb-export"
+        assert reviewable_compact_row["promotion_eligible"] is True
+        assert reviewable_compact_row["selector_promotion_eligible"] is True
+        assert reviewable_compact_row["promotion_blockers"] == []
+
         blocked = copy.deepcopy(reviewable)
         blocked["export_variant"]["name"] = "compact-d2h-export-candidate"
         blocked["export_variant"]["promotion_eligible"] = False

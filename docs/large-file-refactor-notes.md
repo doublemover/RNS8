@@ -7,7 +7,7 @@ The remaining over-target files are source-of-truth documents:
 
 | File | Reason It Remains Whole |
 |---|---|
-| `docs/performance-gain-work-queue.md` | Active performance execution queue plus retained backlog/archive notes; splitting it would make the queue harder to scan as the working control panel. |
+| `docs/performance-gain-work-queue.md` | Active performance execution queue plus compact validation and disposition tables; long-form backlog, imported research, and dated status notes now live in sibling docs. |
 | `docs/RNS8_RESEARCH_SPEC.md` | Architecture and roadmap source of truth per `AGENTS.md`; keeping it single-file preserves reviewability of semantic and platform policy. |
 | `docs/performance-model.md` | End-to-end performance model with connected assumptions, formulas, and evidence notes; the sections depend on shared notation. |
 

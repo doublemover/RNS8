@@ -213,7 +213,7 @@ def validate_contract_metadata(self: Any) -> None:
                         and bool(export_variant.get("status_elision_reason"))
                     )
                 )
-                and export_variant.get("d2h_policy") == "host_ld_padded"
+                and export_variant.get("d2h_policy") in {"host_ld_padded", "compact_contiguous"}
                 and final_output_mode == "final_host_output"
             )
             if export_variant.get("promotion_eligible") is True:
