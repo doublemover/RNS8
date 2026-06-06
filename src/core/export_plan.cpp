@@ -68,13 +68,52 @@ const char* finite_export_kernel(const rns8_plan& plan) {
   return export_backend_is_hip_rns(plan.backend) ? "hip_direct_export_finite_u8_device" : "finite_reference_export_u8";
 }
 
-const char* exact_wide_export_kernel(const rns8_plan& plan, rns8_semantics semantics) {
-  if (semantics == RNS8_EXACT_WIDE_UNSIGNED) {
-    return export_backend_is_hip_rns(plan.backend) ? "hip_direct_export_exact_wide_unsigned_limbs_device"
-                                                   : "cpu_reference_export_exact_wide_unsigned_limbs";
+bool exact_wide_common_fixed_limb_count(uint32_t limb_count) {
+  switch (limb_count) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+      return true;
+    default:
+      return false;
   }
-  return export_backend_is_hip_rns(plan.backend) ? "hip_direct_export_exact_wide_signed_limbs_device"
-                                                 : "cpu_reference_export_exact_wide_signed_limbs";
+}
+
+const char* exact_wide_export_kernel(const rns8_plan& plan, rns8_semantics semantics, uint32_t limb_count) {
+  if (semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+    if (!export_backend_is_hip_rns(plan.backend)) {
+      return "cpu_reference_export_exact_wide_unsigned_limbs";
+    }
+    if (plan.prefix == 18) {
+      return exact_wide_common_fixed_limb_count(limb_count)
+                 ? "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device"
+                 : "hip_direct_export_exact_wide_unsigned_fixed_prefix18_variable_limbs_device";
+    }
+    if (plan.prefix == RNS8_MAX_SUPPORTED_PREFIX) {
+      return exact_wide_common_fixed_limb_count(limb_count)
+                 ? "hip_direct_export_exact_wide_unsigned_fixed_prefix20_fixed_limbs_device"
+                 : "hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device";
+    }
+    return "hip_direct_export_exact_wide_unsigned_limbs_device";
+  }
+  if (!export_backend_is_hip_rns(plan.backend)) {
+    return "cpu_reference_export_exact_wide_signed_limbs";
+  }
+  if (plan.prefix == 18) {
+    return exact_wide_common_fixed_limb_count(limb_count)
+               ? "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+               : "hip_direct_export_exact_wide_signed_fixed_prefix18_variable_limbs_device";
+  }
+  if (plan.prefix == RNS8_MAX_SUPPORTED_PREFIX) {
+    return exact_wide_common_fixed_limb_count(limb_count)
+               ? "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device"
+               : "hip_direct_export_exact_wide_signed_fixed_prefix20_variable_limbs_device";
+  }
+  return "hip_direct_export_exact_wide_signed_limbs_device";
 }
 
 bool exact_wide_export_requires_status(uint32_t limb_count) {
@@ -184,7 +223,7 @@ export_reconstruction_plan make_export_plan(
       export_plan.status_policy = export_status_policy::none;
       export_plan.status_elision_reason = "exact_wide_requested_limb_count_covers_range_status";
     }
-    export_plan.selected_export_kernel = exact_wide_export_kernel(plan, semantics);
+    export_plan.selected_export_kernel = exact_wide_export_kernel(plan, semantics, limb_count);
   }
   if (export_plan.status_policy == export_status_policy::none && export_plan.status_elision_reason.empty()) {
     export_plan.status_elision_reason = "status_policy_none_for_selected_semantics";

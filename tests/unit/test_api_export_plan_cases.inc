@@ -97,7 +97,8 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   const auto exact_signed_cpu_export =
       rns8_api::make_export_plan(exact_signed_cpu, RNS8_EXACT_WIDE_SIGNED, 3);
   CHECK(exact_signed_cpu_export.output_layout == rns8_api::export_output_layout::fixed_u64_limbs);
-  CHECK(exact_signed_cpu_export.status_policy == rns8_api::export_status_policy::range_checked_status_buffer);
+  CHECK(exact_signed_cpu_export.status_policy == rns8_api::export_status_policy::none);
+  CHECK(exact_signed_cpu_export.status_elision_reason == "exact_wide_requested_limb_count_covers_range_status");
   CHECK(exact_signed_cpu_export.limb_count == 3);
   CHECK(std::string(exact_signed_cpu_export.selected_export_kernel) ==
         "cpu_reference_export_exact_wide_signed_limbs");
@@ -105,11 +106,16 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
         "fixed_u64_limbs");
 
   auto exact_unsigned_hip = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_UNSIGNED);
+  exact_unsigned_hip.prefix = 18;
   const auto exact_unsigned_hip_export =
       rns8_api::make_export_plan(exact_unsigned_hip, RNS8_EXACT_WIDE_UNSIGNED, 4);
   CHECK(exact_unsigned_hip_export.output_layout == rns8_api::export_output_layout::fixed_u64_limbs);
-  CHECK(exact_unsigned_hip_export.status_policy == rns8_api::export_status_policy::range_checked_status_buffer);
+  CHECK(exact_unsigned_hip_export.status_policy == rns8_api::export_status_policy::none);
+  CHECK(exact_unsigned_hip_export.status_elision_reason == "exact_wide_requested_limb_count_covers_range_status");
   CHECK(exact_unsigned_hip_export.limb_count == 4);
   CHECK(std::string(exact_unsigned_hip_export.selected_export_kernel) ==
-        "hip_direct_export_exact_wide_unsigned_limbs_device");
+        "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device");
+  CHECK(exact_unsigned_hip_export.selector_key.find(
+            "selected_kernel=hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device") !=
+        std::string::npos);
 }

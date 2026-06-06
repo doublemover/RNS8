@@ -52,7 +52,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
-    return hipDeviceSynchronize();
+    return hipSuccess;
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -311,7 +311,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
-    return hipDeviceSynchronize();
+    return hipSuccess;
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;

@@ -280,16 +280,26 @@ These rows compare one Direct-HIP implementation against the previous
 Direct-HIP implementation for the same public API and shape. They are not
 cross-backend AUTO winners.
 
-| Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event GEMM speedup | Status |
+| Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event phase speedup | Status |
 |---|---:|---|---:|---:|---:|---|
 | Public bounded-i64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 2.72x | 3.07x | 1.04x median | Routed only for Direct-HIP bounded-i64 `m/n/k >= 512`; persistent resident Direct-HIP remains faster for non-one-shot workflows |
 | Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; smaller u64 remains on v1 |
+| Public exact-wide signed 4-limb export | 1024 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.12x | 1.13x | 1.64x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide unsigned 4-limb export | 1024 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.22x | 1.24x | 6.42x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide signed 4-limb export | 2048 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.09x | 1.09x | 1.61x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide unsigned 4-limb export | 2048 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.21x | 1.22x | 5.92x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 
 The colpair one-shot kernel is now routed for bounded i64 and bounded u64 when
 `m/n/k >= 512`. Smaller bounded one-shot shapes keep the prior v1 native-input
 grouped kernel because 64/128 evidence was noisy or not favorable on Windows
 `gfx1100`. These are public one-shot implementation wins only; they are not
 evidence that one-shot beats resident matrix reuse for repeated calls.
+
+The exact-wide export rows compare the new Direct-HIP fixed-prefix18 fixed-limb
+export launch path against the immediately previous Direct-HIP export path with
+the same public shape, selected prefix, limb count, signedness, and target. They
+also include the removal of a redundant host-side device synchronization before
+the already-synchronizing export copy/status phase.
 
 ## Planner And Prepass Wins
 
