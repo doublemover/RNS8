@@ -718,7 +718,7 @@ June 4-5, 2026 updates:
 | 47 | Export-bound exact-wide optimization and limb variants | Large exact-wide accelerator wins are export-bound after GEMM acceleration | Limb-count, compact D2H, status-elision, prefix-20 constants, tree/CRT, and final-output A/B captures for signed/unsigned 64/128/512/1024/2048 | Promote only for the caller-requested limb contract; never substitute a narrower output claim |
 | 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT remain practical wins | Direct-HIP prefix-20 fixed-limb export, status-elided full-width exports, and three-limb/four-limb Direct-HIP A/B captures must stay schema/event-valid | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements |
 | 52 | Finite generic modulus family map | Generic finite-u8 wins now exist, but the modulus family is sparse and partly duplicated in old queue rows | Release map for prime/composite/hot/non-hot moduli, field/ring semantics, 128/512/1024/2048, and backend-specific reducer identities | Promote only exact modulus/semantic/shape keys with CPU/direct baselines and required accelerator events |
-| 59 | Shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads | Non-routing selector report that says what a shape-family policy would pick, why, and which blocker prevents promotion | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
+| 59 | Advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads | `tools/shape_family_shadow_report.py` now reads reviewed cache entries, groups them into conservative semantic/finite-modulus/layout/target shape families, and emits non-routing recommendations with exact-hit, missing-family, and family-policy blockers; remaining work is tying recommendations to reviewed representative matrices and selector explanations for real query workloads | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
 | 57 | Workspace arena implementation lane | Allocation metadata is visible but not yet an allocation-reduction mechanism | Device workspace arena with plan/workspace fingerprints, suballocation, stream-safe reuse, and measured allocation deltas after warmup | Promote only if allocation counters prove zero measured-repeat allocation without hiding stale workspace bugs |
 | 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | Batch reports that join HIP events, ISA, RGA/LLVM resources, rocprofiler counters, VGPR/SGPR/LDS, occupancy, waits, stores, and roofline group | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |
 | 62 | Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence cannot imply Linux, RDNA4, or Instinct readiness | Real Linux ROCm/RDNA/CDNA host runs plus per-target build, CTest, smoke, release capture, profiler, and `target_validation_report.py` gates | Claim only the targets that pass on real supported hosts |
@@ -3980,10 +3980,10 @@ observable long before it routes.
 
 Technical direction:
 
-- Add a shadow selector report that proposes a family recommendation and lists
-  blockers: semantic mismatch, target mismatch, output policy mismatch, missing
-  direct baseline, missing CPU baseline, insufficient margin, stale kernel, or
-  family boundary crossing.
+- Use `tools/shape_family_shadow_report.py` to propose a family recommendation
+  from reviewed exact cache entries and list blockers such as exact-shape cache
+  ownership, missing same-family evidence, advisory-only routing, or family
+  policy not being mechanically enforced.
 - Use conservative family boundaries: semantic, backend, target namespace,
   finite modulus class, prefix policy, output domain, reuse contract, and shape
   bucket.
@@ -3992,10 +3992,12 @@ Technical direction:
 
 Likely first slices:
 
+- Extend the report from cache-entry-only queries to reviewed capture matrices
+  with CPU/direct baselines, variance margin, and release representative counts.
 - `rns8-inspect --selector-shadow` JSON/text mode.
 - Benchmark metadata `auto_selector.shadow_recommendation`.
-- Report that shows how many current captures would have matched the shadow
-  policy and why they are blocked.
+- Report how many current captures would have matched the shadow policy and why
+  they are blocked.
 
 Promotion gate:
 

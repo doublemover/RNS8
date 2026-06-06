@@ -50,6 +50,9 @@ Cleanup and drift-control helpers:
 - `tools/perf_variance_report.py`: groups reviewed captures by same
   contract/backend/kernel and reports whether observed timing variance leaves a
   claimed speedup outside the repeatability margin.
+- `tools/shape_family_shadow_report.py`: builds non-routing AUTO
+  shape-family recommendations from reviewed exact cache entries and records
+  why each recommendation remains advisory.
 
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under
