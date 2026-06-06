@@ -247,12 +247,18 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         report_path = tmp_path / "many-small-grouped-report.json"
+        review_path = tmp_path / "review_report.json"
+        manifest_path = tmp_path / "scenario_manifest.json"
         capture_path = tmp_path / "capture.json"
         report_path.write_text("{}", encoding="utf-8")
+        review_path.write_text("{}", encoding="utf-8")
+        manifest_path.write_text("{}", encoding="utf-8")
         capture_path.write_text("{}", encoding="utf-8")
         expanded = many_small_grouped_report.expand_inputs([tmp_path])
         assert capture_path in expanded
         assert report_path not in expanded
+        assert review_path not in expanded
+        assert manifest_path not in expanded
 
     print("many-small grouped report self-test: PASS")
     return 0

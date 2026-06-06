@@ -97,6 +97,21 @@ June 6, 2026 queue-triage update:
   `gfx1100` grouped candidate wins with no missing baselines. Generic public
   pack/export, AUTO/cache routing, README claims, and Linux/CDNA validation
   remain outside this closed rank.
+- Rank 8 is closed as the current many-small grouped workload matrix. A fresh
+  combined `tools/many_small_grouped_report.py` run over
+  `temp/perf-queue-grouped-broader-release/` and
+  `temp/perf-queue-grouped-exact128-release/` writes
+  `temp/rank8-many-small-closeout/many-small-grouped-report.json` and reports
+  nine candidate wins, zero missing baselines, zero experimental rows, and zero
+  deprioritized grouped rows. The closed matrix covers exact-wide
+  signed/unsigned 64 and 128 group32, bounded-i64/u64 64 group32,
+  bounded-i64 128 group64, bounded-u64 128x1x1024 group128, and finite-ring u8
+  mod251 64 group32. Every grouped row has required GPU events, a valid grouped
+  task descriptor, fastest-independent comparison, same-task-count Direct-HIP
+  hostbatch comparison, matching hostbatch task count, and hostbatch checksum
+  parity. This is benchmark-owned same-shape grouped workload evidence only,
+  not a public generic grouped ABI, AUTO/cache entry, README headline claim, or
+  Linux/CDNA claim.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,
