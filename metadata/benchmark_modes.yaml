@@ -82,6 +82,26 @@
       "not_requested",
       "one_workspace_per_task_shared_plan"
     ],
+    "matrix_ownership_policies": [
+      "not_requested",
+      "benchmark_owns_all_task_triplets_until_capture_end"
+    ],
+    "descriptor_reuse_policies": [
+      "not_requested",
+      "reuse_after_shape_workspace_source_validation"
+    ],
+    "stride_policies": [
+      "not_requested",
+      "matrix_ld_matches_logical_shape_host_output_ld_explicit"
+    ],
+    "output_currentness_policies": [
+      "not_requested",
+      "device_residue_current_after_grouped_gemm_host_output_after_export"
+    ],
+    "lifetime_policies": [
+      "not_requested",
+      "task_matrices_and_workspaces_destroyed_after_capture"
+    ],
     "checksum_policies": [
       "not_requested",
       "combined_per_task_checksum_u64"

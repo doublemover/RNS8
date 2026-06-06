@@ -135,6 +135,8 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_BOUNDED_I64, matrix_prefix, "grouped bounded i64 setup");
   GroupedNativeRnsBatch<int64_t> grouped_batch;
   if (grouped_pack_gemm_enabled) {
     initialize_grouped_native_rns_batch(
@@ -297,6 +299,8 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_BOUNDED_U64, matrix_prefix, "grouped bounded u64 setup");
   GroupedNativeRnsBatch<uint64_t> grouped_batch;
   if (grouped_pack_gemm_enabled) {
     initialize_grouped_native_rns_batch(

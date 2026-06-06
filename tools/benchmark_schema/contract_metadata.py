@@ -11,10 +11,15 @@ from metadata_registry_constants import (
     GROUPED_DISPATCH_STATUSES,
     GROUPED_TASK_BUCKET_POLICIES,
     GROUPED_TASK_CHECKSUM_POLICIES,
+    GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES,
     GROUPED_TASK_DESCRIPTOR_LAYOUTS,
     GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES,
+    GROUPED_TASK_LIFETIME_POLICIES,
+    GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES,
+    GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES,
     GROUPED_TASK_SOURCE_VERSION_POLICIES,
     GROUPED_TASK_STATUS_POLICIES,
+    GROUPED_TASK_STRIDE_POLICIES,
     GROUPED_TASK_WORKSPACE_POLICIES,
     OUTPUT_CONTRACT_DOMAINS,
     RELEASE_GATE_REVIEW_STATUSES,
@@ -257,6 +262,22 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error("grouped_dispatch.task_descriptor_contract.source_version_policy must be known")
                     if task_descriptor.get("workspace_policy") not in GROUPED_TASK_WORKSPACE_POLICIES:
                         self._error("grouped_dispatch.task_descriptor_contract.workspace_policy must be known")
+                    if task_descriptor.get("matrix_ownership_policy") not in GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES:
+                        self._error(
+                            "grouped_dispatch.task_descriptor_contract.matrix_ownership_policy must be known"
+                        )
+                    if task_descriptor.get("descriptor_reuse_policy") not in GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES:
+                        self._error(
+                            "grouped_dispatch.task_descriptor_contract.descriptor_reuse_policy must be known"
+                        )
+                    if task_descriptor.get("stride_policy") not in GROUPED_TASK_STRIDE_POLICIES:
+                        self._error("grouped_dispatch.task_descriptor_contract.stride_policy must be known")
+                    if task_descriptor.get("output_currentness_policy") not in GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES:
+                        self._error(
+                            "grouped_dispatch.task_descriptor_contract.output_currentness_policy must be known"
+                        )
+                    if task_descriptor.get("lifetime_policy") not in GROUPED_TASK_LIFETIME_POLICIES:
+                        self._error("grouped_dispatch.task_descriptor_contract.lifetime_policy must be known")
                     if task_descriptor.get("checksum_policy") not in GROUPED_TASK_CHECKSUM_POLICIES:
                         self._error("grouped_dispatch.task_descriptor_contract.checksum_policy must be known")
                     if task_descriptor.get("status_policy") not in GROUPED_TASK_STATUS_POLICIES:

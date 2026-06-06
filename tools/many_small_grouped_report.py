@@ -135,6 +135,12 @@ def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
         and contract.get("output_domain") == expected_grouped_output_domain(capture)
         and contract.get("source_version_policy") == "per_task_monotonic_source_version_repack"
         and contract.get("workspace_policy") == "one_workspace_per_task_shared_plan"
+        and contract.get("matrix_ownership_policy") == "benchmark_owns_all_task_triplets_until_capture_end"
+        and contract.get("descriptor_reuse_policy") == "reuse_after_shape_workspace_source_validation"
+        and contract.get("stride_policy") == "matrix_ld_matches_logical_shape_host_output_ld_explicit"
+        and contract.get("output_currentness_policy")
+        == "device_residue_current_after_grouped_gemm_host_output_after_export"
+        and contract.get("lifetime_policy") == "task_matrices_and_workspaces_destroyed_after_capture"
         and contract.get("checksum_policy") == "combined_per_task_checksum_u64"
         and contract.get("status_policy") == "fail_fast_per_task_operation_status"
         and contract.get("device_descriptor_policy") == expected_grouped_device_descriptor_policy(capture)

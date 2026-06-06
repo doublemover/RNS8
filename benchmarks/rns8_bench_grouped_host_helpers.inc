@@ -67,8 +67,106 @@ std::vector<HostApiBatchTask> create_host_api_batch_tasks(
   return tasks;
 }
 
+bool grouped_task_matrix_shape_matches(
+    const rns8_matrix* matrix,
+    rns8_semantics semantics,
+    int64_t rows,
+    int64_t cols,
+    uint32_t prefix) {
+  return matrix && matrix->desc.rows == rows && matrix->desc.cols == cols && matrix->desc.logical_ld == cols &&
+         matrix->desc.semantics == semantics && matrix->desc.logical_layout == RNS8_LAYOUT_ROW_MAJOR &&
+         matrix->prefix == prefix;
+}
+
+void enforce_grouped_dispatch_task_setup_contract(
+    const Args& args,
+    const rns8_plan* plan,
+    const std::vector<HostApiBatchTask>& tasks,
+    rns8_semantics semantics,
+    uint32_t matrix_prefix,
+    const char* label) {
+  if (!grouped_dispatch_requested(args)) {
+    return;
+  }
+  const uint32_t task_count = measured_task_count(args);
+  if (!plan || tasks.size() != task_count || task_count <= 1 || plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+      plan->desc.semantics != semantics || plan->desc.m != args.m || plan->desc.n != args.n ||
+      plan->desc.k != args.k || plan->prefix != matrix_prefix) {
+    usage_error(std::string(label) + " violates grouped descriptor plan/shape contract");
+  }
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    const HostApiBatchTask& task = tasks[task_index];
+    if (!task.a || !task.b || !task.c || !task.workspace) {
+      usage_error(std::string(label) + " has an incomplete grouped task triplet");
+    }
+    if (!grouped_task_matrix_shape_matches(task.a, semantics, args.m, args.k, matrix_prefix) ||
+        !grouped_task_matrix_shape_matches(task.b, semantics, args.k, args.n, matrix_prefix) ||
+        !grouped_task_matrix_shape_matches(task.c, semantics, args.m, args.n, matrix_prefix)) {
+      usage_error(std::string(label) + " violates grouped same-shape matrix descriptor contract");
+    }
+    if (task.workspace->backend != RNS8_BACKEND_HIP_DIRECT || task.workspace->semantics != semantics ||
+        task.workspace->m != args.m || task.workspace->n != args.n || task.workspace->k != args.k ||
+        task.workspace->prefix != matrix_prefix) {
+      usage_error(std::string(label) + " violates grouped workspace identity contract");
+    }
+    if (!task.a->hip_residues || !task.b->hip_residues || !task.c->hip_residues ||
+        task.a->hip_device_id != task.b->hip_device_id || task.a->hip_device_id != task.c->hip_device_id) {
+      usage_error(std::string(label) + " violates grouped device-resident matrix lifetime contract");
+    }
+  }
+}
+
 uint64_t host_api_batch_source_version(uint64_t repeat_source_version, uint32_t task_index) {
   return repeat_source_version * UINT64_C(104729) + static_cast<uint64_t>(task_index) + UINT64_C(1);
+}
+
+void enforce_grouped_dispatch_pack_source_versions(
+    const Args& args,
+    const std::vector<HostApiBatchTask>& tasks,
+    uint64_t repeat_source_version,
+    const char* label) {
+  if (!grouped_dispatch_requested(args)) {
+    return;
+  }
+  const uint32_t task_count = measured_task_count(args);
+  if (tasks.size() != task_count) {
+    usage_error(std::string(label) + " grouped source-version task count mismatch");
+  }
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    const uint64_t expected = host_api_batch_source_version(repeat_source_version, task_index);
+    const HostApiBatchTask& task = tasks[task_index];
+    if (!task.a || !task.b || task.a->source_version != expected || task.b->source_version != expected ||
+        !task.a->device_residues_current || !task.b->device_residues_current) {
+      usage_error(std::string(label) + " violates grouped per-task source-version repack contract");
+    }
+  }
+}
+
+void enforce_grouped_dispatch_gemm_output_contract(
+    const Args& args,
+    const std::vector<HostApiBatchTask>& tasks,
+    const char* label) {
+  if (!grouped_dispatch_requested(args)) {
+    return;
+  }
+  const uint32_t task_count = measured_task_count(args);
+  if (tasks.size() != task_count) {
+    usage_error(std::string(label) + " grouped output task count mismatch");
+  }
+  const bool bounded_output =
+      args.semantics == BenchSemantics::BoundedI64 || args.semantics == BenchSemantics::BoundedU64;
+  for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    const HostApiBatchTask& task = tasks[task_index];
+    if (!task.a || !task.b || !task.c || !task.c->device_residues_current) {
+      usage_error(std::string(label) + " violates grouped device-current output contract");
+    }
+    if (bounded_output) {
+      const uint64_t expected = rns8::detail::api::gemm_output_source_version(*task.a, *task.b);
+      if (task.c->source_version != expected) {
+        usage_error(std::string(label) + " violates grouped bounded output source-version contract");
+      }
+    }
+  }
 }
 
 template <typename PackTask, typename GemmTask, typename ExportTask>
@@ -91,6 +189,7 @@ void run_host_api_batch_iteration(
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     pack_task(tasks[task_index], task_index, host_api_batch_source_version(repeat_source_version, task_index));
   }
+  enforce_grouped_dispatch_pack_source_versions(args, tasks, repeat_source_version, "grouped dispatch pack phase");
   if (collect_gpu_events) {
     collect_pack_gpu_events(args, selected_backend, result.gpu_events);
   }
@@ -102,6 +201,7 @@ void run_host_api_batch_iteration(
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     gemm_task(tasks[task_index], task_index);
   }
+  enforce_grouped_dispatch_gemm_output_contract(args, tasks, "grouped dispatch rns_gemm phase");
   if (collect_gpu_events) {
     collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
   }

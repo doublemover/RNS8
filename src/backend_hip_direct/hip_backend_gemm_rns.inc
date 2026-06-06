@@ -237,6 +237,10 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = c_matrices[index];
     mark_device_residue_output_current(matrix);
+    if (expected_semantics == RNS8_BOUNDED_I64 || expected_semantics == RNS8_BOUNDED_U64) {
+      matrix->source_version = api::gemm_output_source_version_values(
+          a_matrices[index]->source_version, b_matrices[index]->source_version);
+    }
   }
   return RNS8_SUCCESS;
 #else

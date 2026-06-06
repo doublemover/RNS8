@@ -124,6 +124,19 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
                 self._error("grouped task descriptor source_version_policy must require per-task repack versions")
             if task_descriptor.get("workspace_policy") != "one_workspace_per_task_shared_plan":
                 self._error("grouped task descriptor workspace_policy must be one workspace per task")
+            if task_descriptor.get("matrix_ownership_policy") != "benchmark_owns_all_task_triplets_until_capture_end":
+                self._error("grouped task descriptor matrix_ownership_policy must be benchmark-owned")
+            if task_descriptor.get("descriptor_reuse_policy") != "reuse_after_shape_workspace_source_validation":
+                self._error("grouped task descriptor descriptor_reuse_policy must require validated reuse")
+            if task_descriptor.get("stride_policy") != "matrix_ld_matches_logical_shape_host_output_ld_explicit":
+                self._error("grouped task descriptor stride_policy must declare explicit matrix/output strides")
+            if (
+                task_descriptor.get("output_currentness_policy")
+                != "device_residue_current_after_grouped_gemm_host_output_after_export"
+            ):
+                self._error("grouped task descriptor output_currentness_policy must bind device-current outputs")
+            if task_descriptor.get("lifetime_policy") != "task_matrices_and_workspaces_destroyed_after_capture":
+                self._error("grouped task descriptor lifetime_policy must describe capture lifetime")
             if task_descriptor.get("checksum_policy") != "combined_per_task_checksum_u64":
                 self._error("grouped task descriptor checksum_policy must combine per-task checksums")
             if task_descriptor.get("status_policy") != "fail_fast_per_task_operation_status":

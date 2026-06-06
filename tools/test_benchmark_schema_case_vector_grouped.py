@@ -295,6 +295,45 @@ expect_invalid(
     "grouped task descriptor device_descriptor_policy must match execution strategy",
 )
 
+grouped_missing_ownership_policy = copy.deepcopy(grouped_dispatch)
+del grouped_missing_ownership_policy["grouped_dispatch"]["task_descriptor_contract"]["matrix_ownership_policy"]
+expect_invalid(
+    grouped_missing_ownership_policy,
+    "grouped_dispatch.task_descriptor_contract.matrix_ownership_policy must be known",
+)
+
+grouped_bad_reuse_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_reuse_policy["grouped_dispatch"]["task_descriptor_contract"][
+    "descriptor_reuse_policy"
+] = "not_requested"
+expect_invalid(
+    grouped_bad_reuse_policy,
+    "grouped task descriptor descriptor_reuse_policy must require validated reuse",
+)
+
+grouped_bad_stride_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_stride_policy["grouped_dispatch"]["task_descriptor_contract"]["stride_policy"] = "not_requested"
+expect_invalid(
+    grouped_bad_stride_policy,
+    "grouped task descriptor stride_policy must declare explicit matrix/output strides",
+)
+
+grouped_bad_currentness_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_currentness_policy["grouped_dispatch"]["task_descriptor_contract"][
+    "output_currentness_policy"
+] = "not_requested"
+expect_invalid(
+    grouped_bad_currentness_policy,
+    "grouped task descriptor output_currentness_policy must bind device-current outputs",
+)
+
+grouped_bad_lifetime_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_lifetime_policy["grouped_dispatch"]["task_descriptor_contract"]["lifetime_policy"] = "not_requested"
+expect_invalid(
+    grouped_bad_lifetime_policy,
+    "grouped task descriptor lifetime_policy must describe capture lifetime",
+)
+
 grouped_bad_batched_strategy = copy.deepcopy(grouped_dispatch)
 grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = True
 grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True

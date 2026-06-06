@@ -61,6 +61,8 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix, "grouped exact-wide signed setup");
   if (grouped_export_slab_enabled) {
     const std::size_t total_a_elements =
         checked_task_slab_elements(task_count, a_elements, "grouped exact-wide signed slab A");
@@ -308,6 +310,8 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix, "grouped exact-wide unsigned setup");
   if (grouped_export_slab_enabled) {
     const std::size_t total_a_elements =
         checked_task_slab_elements(task_count, a_elements, "grouped exact-wide unsigned slab A");

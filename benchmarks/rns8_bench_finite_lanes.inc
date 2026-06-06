@@ -93,6 +93,8 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, c_semantics(args.semantics), matrix_prefix, "grouped finite-u8 setup");
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 

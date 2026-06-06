@@ -194,6 +194,26 @@ GROUPED_TASK_WORKSPACE_POLICIES = {
     'not_requested',
     'one_workspace_per_task_shared_plan',
 }
+GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES = {
+    'benchmark_owns_all_task_triplets_until_capture_end',
+    'not_requested',
+}
+GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES = {
+    'not_requested',
+    'reuse_after_shape_workspace_source_validation',
+}
+GROUPED_TASK_STRIDE_POLICIES = {
+    'matrix_ld_matches_logical_shape_host_output_ld_explicit',
+    'not_requested',
+}
+GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES = {
+    'device_residue_current_after_grouped_gemm_host_output_after_export',
+    'not_requested',
+}
+GROUPED_TASK_LIFETIME_POLICIES = {
+    'not_requested',
+    'task_matrices_and_workspaces_destroyed_after_capture',
+}
 GROUPED_TASK_CHECKSUM_POLICIES = {
     'combined_per_task_checksum_u64',
     'not_requested',

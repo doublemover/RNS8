@@ -20,6 +20,11 @@ struct GroupedDispatchDescriptorContract {
   std::string output_domain;
   std::string source_version_policy = "not_requested";
   std::string workspace_policy = "not_requested";
+  std::string matrix_ownership_policy = "not_requested";
+  std::string descriptor_reuse_policy = "not_requested";
+  std::string stride_policy = "not_requested";
+  std::string output_currentness_policy = "not_requested";
+  std::string lifetime_policy = "not_requested";
   std::string checksum_policy = "not_requested";
   std::string status_policy = "not_requested";
   std::string device_descriptor_policy = "not_requested";
@@ -62,6 +67,11 @@ GroupedDispatchDescriptorContract make_grouped_dispatch_descriptor_contract(
   contract.same_shape_required = true;
   contract.source_version_policy = "per_task_monotonic_source_version_repack";
   contract.workspace_policy = "one_workspace_per_task_shared_plan";
+  contract.matrix_ownership_policy = "benchmark_owns_all_task_triplets_until_capture_end";
+  contract.descriptor_reuse_policy = "reuse_after_shape_workspace_source_validation";
+  contract.stride_policy = "matrix_ld_matches_logical_shape_host_output_ld_explicit";
+  contract.output_currentness_policy = "device_residue_current_after_grouped_gemm_host_output_after_export";
+  contract.lifetime_policy = "task_matrices_and_workspaces_destroyed_after_capture";
   contract.checksum_policy = "combined_per_task_checksum_u64";
   contract.status_policy = "fail_fast_per_task_operation_status";
   contract.device_descriptor_policy =
@@ -106,6 +116,14 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
   std::cout << "      \"source_version_policy\": \""
             << json_escape(grouped_contract.source_version_policy) << "\",\n";
   std::cout << "      \"workspace_policy\": \"" << json_escape(grouped_contract.workspace_policy) << "\",\n";
+  std::cout << "      \"matrix_ownership_policy\": \""
+            << json_escape(grouped_contract.matrix_ownership_policy) << "\",\n";
+  std::cout << "      \"descriptor_reuse_policy\": \""
+            << json_escape(grouped_contract.descriptor_reuse_policy) << "\",\n";
+  std::cout << "      \"stride_policy\": \"" << json_escape(grouped_contract.stride_policy) << "\",\n";
+  std::cout << "      \"output_currentness_policy\": \""
+            << json_escape(grouped_contract.output_currentness_policy) << "\",\n";
+  std::cout << "      \"lifetime_policy\": \"" << json_escape(grouped_contract.lifetime_policy) << "\",\n";
   std::cout << "      \"checksum_policy\": \"" << json_escape(grouped_contract.checksum_policy) << "\",\n";
   std::cout << "      \"status_policy\": \"" << json_escape(grouped_contract.status_policy) << "\",\n";
   std::cout << "      \"device_descriptor_policy\": \""
