@@ -62,6 +62,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--streaming-overlap]\n"
       << "                  [--release-gate NAME]\n"
       << "                  [--verification-amortization NAME]\n"
+      << "                  [--error-detection-policy NAME]\n"
       << "                  [--require-adaptive-execution]\n"
       << "                  [--residue-channel-fusion]\n"
       << "                  [--oneshot]\n"

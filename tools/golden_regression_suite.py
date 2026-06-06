@@ -84,6 +84,11 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_verification_amortization_report.py"],
     ),
     SuiteCase(
+        "error_detection_policy_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_error_detection_policy_report.py"],
+    ),
+    SuiteCase(
         "finite_modulus_map_report",
         "performance_evidence_drift",
         [sys.executable, "tools/test_finite_modulus_map_report.py"],

@@ -256,6 +256,8 @@ Args parse_args(int argc, char** argv) {
       args.release_gate = argv[++i];
     } else if (arg == "--verification-amortization" && i + 1 < argc) {
       args.verification_amortization = argv[++i];
+    } else if (arg == "--error-detection-policy" && i + 1 < argc) {
+      args.error_detection_policy = argv[++i];
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--residue-channel-fusion") {
@@ -313,6 +315,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--k-block-policy NAME]\n"
           << "                  [--release-gate NAME]\n"
           << "                  [--verification-amortization NAME]\n"
+          << "                  [--error-detection-policy NAME]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
@@ -548,6 +551,9 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.verification_amortization.empty()) {
     usage_error("--verification-amortization must not be empty");
+  }
+  if (args.error_detection_policy.empty()) {
+    usage_error("--error-detection-policy must not be empty");
   }
   if (args.k_block_policy.empty()) {
     usage_error("--k-block-policy must not be empty");

@@ -57,6 +57,22 @@ def add_optional_contracts(capture: dict) -> dict:
         "final_exact_comparison_status": "passed",
         "promotion_eligible": False,
     }
+    contracted["error_detection_policy"] = {
+        "enabled": True,
+        "policy": "freivalds_two_round_product_check_research",
+        "mode": "probabilistic_product_check",
+        "verification_basis": "same_shape_same_seed_fixture_cpu_reference_final_compare",
+        "false_negative_policy": "bounded_by_recorded_rounds_seed_and_reference_field_not_default_exact_api",
+        "verification_rounds": 2,
+        "rng_seed_recorded": True,
+        "final_exact_comparison_required": True,
+        "final_exact_comparison_status": "checksum_recorded_reference_required",
+        "research_only": True,
+        "default_exact_api_unchanged": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
+        "promotion_eligible": False,
+    }
     return contracted
 
 
@@ -221,6 +237,38 @@ def main() -> int:
     stale_release_gate = copy.deepcopy(optional)
     stale_release_gate["release_gate"]["review_status"] = "claimed_ready"
     expect_invalid(stale_release_gate, "release_gate.review_status must be one of")
+
+    stale_error_detection_mode = copy.deepcopy(optional)
+    stale_error_detection_mode["error_detection_policy"]["mode"] = "silent_fast_path"
+    expect_invalid(stale_error_detection_mode, "error_detection_policy.mode must be one of")
+
+    stale_error_detection_false_negative = copy.deepcopy(optional)
+    stale_error_detection_false_negative["error_detection_policy"]["false_negative_policy"] = "none"
+    expect_invalid(
+        stale_error_detection_false_negative,
+        "enabled error_detection_policy.false_negative_policy must describe false-negative policy",
+    )
+
+    stale_error_detection_default = copy.deepcopy(optional)
+    stale_error_detection_default["error_detection_policy"]["default_exact_api_unchanged"] = False
+    expect_invalid(
+        stale_error_detection_default,
+        "enabled error_detection_policy captures must keep default_exact_api_unchanged=true",
+    )
+
+    stale_error_detection_promotable = copy.deepcopy(optional)
+    stale_error_detection_promotable["error_detection_policy"]["promotion_eligible"] = True
+    expect_invalid(
+        stale_error_detection_promotable,
+        "enabled error_detection_policy captures must set promotion_eligible=false",
+    )
+
+    stale_error_detection_unseeded = copy.deepcopy(optional)
+    stale_error_detection_unseeded["error_detection_policy"]["rng_seed_recorded"] = False
+    expect_invalid(
+        stale_error_detection_unseeded,
+        "probabilistic error_detection_policy captures must set rng_seed_recorded=true",
+    )
 
     print("benchmark schema contract metadata self-test: PASS")
     return 0

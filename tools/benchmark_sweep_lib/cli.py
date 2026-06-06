@@ -200,6 +200,11 @@ def parse_args() -> argparse.Namespace:
         help="benchmark-only verification amortization policy label",
     )
     parser.add_argument(
+        "--error-detection-policy",
+        default="none",
+        help="benchmark-only research error-detection policy label; never changes exact API semantics",
+    )
+    parser.add_argument(
         "--include-exact-wide-limb-variants",
         action="store_true",
         help="include exact-wide output limb counts 1, 2, 3, 4, 8, 16, and 32",
@@ -290,6 +295,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--release-gate must not be empty")
     if not args.verification_amortization:
         parser.error("--verification-amortization must not be empty")
+    if not args.error_detection_policy:
+        parser.error("--error-detection-policy must not be empty")
     return args
 
 

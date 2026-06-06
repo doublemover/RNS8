@@ -144,6 +144,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(perf_variance_report_self_test PROPERTIES LABELS "benchmark;evidence;perf")
 
   add_test(
+    NAME error_detection_policy_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_error_detection_policy_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(error_detection_policy_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
+
+  add_test(
     NAME shape_family_shadow_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_shape_family_shadow_report.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

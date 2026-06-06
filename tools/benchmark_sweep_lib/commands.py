@@ -207,6 +207,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.verification_amortization = item.verification_amortization or getattr(
         args, "verification_amortization", "none"
     )
+    scenario_args.error_detection_policy = item.error_detection_policy or getattr(args, "error_detection_policy", "none")
     return scenario_args
 
 
@@ -269,6 +270,7 @@ def scenario_metadata(
         "k_block_policy": item.k_block_policy,
         "release_gate": item.release_gate,
         "verification_amortization": item.verification_amortization,
+        "error_detection_policy": item.error_detection_policy,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -475,6 +477,9 @@ def command_for(
     verification_amortization = getattr(args, "verification_amortization", "none")
     if verification_amortization and verification_amortization != "none":
         command.extend(["--verification-amortization", verification_amortization])
+    error_detection_policy = getattr(args, "error_detection_policy", "none")
+    if error_detection_policy and error_detection_policy != "none":
+        command.extend(["--error-detection-policy", error_detection_policy])
     return command
 
 
@@ -739,6 +744,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "k_block_policy", "auto") != "auto",
             getattr(args, "release_gate", "none") != "none",
             getattr(args, "verification_amortization", "none") != "none",
+            getattr(args, "error_detection_policy", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
             int(getattr(args, "host_api_batch_size", 1) or 1) != 1,

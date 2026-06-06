@@ -40,13 +40,12 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 17 ranks. Rank IDs are historical/stable
+active table below now contains 16 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 39 | Error-detecting exact fast path with explicit metadata | Probabilistic or checked fast paths are research-only but may unlock workloads | Research captures with verification metadata and false-negative policy | Never make default exact API probabilistic; keep explicitly research-marked |
 | 50 | hipBLASLt bounded-i64 1024 A/B lane | The current bounded-i64 1024 hipBLASLt win is narrow versus Direct HIP | `tools/bounded_i64_1024_review.py` now produces keep/replace/experimental/drop dispositions from setup-inclusive timings, target validation, variance, counter/resource evidence, and promotion ledger rows; scenario coverage now includes Direct HIP, vector, hipBLASLt, CK, rocWMMA, and A/B/A+B reuse roles | Keep the cache entry only while required events and same-contract release review continue to beat Direct HIP |
 | 51 | Direct-HIP resident matrix redesign after colpair rejection | Resident selected-prefix colpair lost end-to-end despite a narrower GEMM signal | Redesign resident kernels around data layout, tile shape, export interaction, schedule upload, and register/LDS pressure instead of retrying the rejected route | Route only if median end-to-end improves with stable events across fixed-prefix and selected-prefix cases |
 | 53 | Modulus-set search and residue-count autotuning | Default modulus order/count may not be optimal for every semantic, target, or export path | Search candidate RNS ladders, modulus ordering, prefix counts, reducer cost, CRT constants, NTT-friendly/FHE-inspired primes, and exact range products | Never change a default modulus set without spec, cache, schema, and proof updates |

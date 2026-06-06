@@ -240,6 +240,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
             "workload_proxy",
             "release_gate",
             "verification_amortization",
+            "error_detection_policy",
         ]
     )
     if (

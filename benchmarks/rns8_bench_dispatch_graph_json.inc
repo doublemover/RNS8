@@ -257,6 +257,12 @@ void print_workload_proxy_json(const Args& args) {
 void print_release_and_verification_json(const Args& args, const BenchmarkResult& result) {
   const bool gate_requested = args.release_gate != "none";
   const bool amortized = args.verification_amortization != "none";
+  const bool error_detecting = args.error_detection_policy != "none";
+  const bool probabilistic =
+      error_detecting &&
+      (args.error_detection_policy.find("freivalds") != std::string::npos ||
+       args.error_detection_policy.find("probabilistic") != std::string::npos ||
+       args.error_detection_policy.find("cra") != std::string::npos);
   std::cout << "  \"release_gate\": {\n";
   std::cout << "    \"name\": \"" << json_escape(args.release_gate) << "\",\n";
   std::cout << "    \"requested\": " << (gate_requested ? "true" : "false") << ",\n";
@@ -282,6 +288,33 @@ void print_release_and_verification_json(const Args& args, const BenchmarkResult
   std::cout << "    \"final_exact_comparison_required\": true,\n";
   std::cout << "    \"final_exact_comparison_status\": \""
             << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required") << "\",\n";
+  std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "  },\n";
+  std::cout << "  \"error_detection_policy\": {\n";
+  std::cout << "    \"enabled\": " << (error_detecting ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.error_detection_policy) << "\",\n";
+  std::cout << "    \"mode\": \""
+            << (probabilistic ? "probabilistic_product_check"
+                              : (error_detecting ? "deterministic_error_check" : "not_requested"))
+            << "\",\n";
+  std::cout << "    \"verification_basis\": \""
+            << (error_detecting ? "benchmark_metadata_only_final_exact_cpu_reference_required" : "none")
+            << "\",\n";
+  std::cout << "    \"false_negative_policy\": \""
+            << (probabilistic ? "bounded_by_recorded_rounds_seed_and_reference_field_not_default_exact_api"
+                              : (error_detecting ? "deterministic_check_no_probabilistic_false_negative_claim"
+                                                 : "none"))
+            << "\",\n";
+  std::cout << "    \"verification_rounds\": " << (probabilistic ? 2 : 0) << ",\n";
+  std::cout << "    \"rng_seed_recorded\": " << (probabilistic ? "true" : "false") << ",\n";
+  std::cout << "    \"final_exact_comparison_required\": true,\n";
+  std::cout << "    \"final_exact_comparison_status\": \""
+            << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required")
+            << "\",\n";
+  std::cout << "    \"research_only\": " << (error_detecting ? "true" : "false") << ",\n";
+  std::cout << "    \"default_exact_api_unchanged\": true,\n";
+  std::cout << "    \"runtime_routing_allowed\": false,\n";
+  std::cout << "    \"cache_eligible\": false,\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
 }

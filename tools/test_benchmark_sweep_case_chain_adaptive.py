@@ -29,6 +29,7 @@ for attr, value in [
     ("k_block_policy", "fixed-safe-kblock-cdna-candidate"),
     ("release_gate", "golden_regression_required"),
     ("verification_amortization", "repeat_window"),
+    ("error_detection_policy", "freivalds_two_round_product_check_research"),
 ]:
     bad_scenario_args = copy.copy(scenario_args)
     setattr(bad_scenario_args, attr, value)

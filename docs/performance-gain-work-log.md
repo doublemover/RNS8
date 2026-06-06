@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-39 error-detection policy closeout:
+
+- Rank 39 moved from the active queue to the completed-work archive after
+  `error_detection_policy` became a schema-visible benchmark/sweep metadata
+  surface and `tools/error_detection_policy_report.py` added a dedicated
+  research-only safety gate. Enabled captures must declare verification basis,
+  false-negative policy, final exact comparison, research-only scope,
+  non-promotable/cache-ineligible status, no runtime routing, and unchanged
+  deterministic default exact API behavior. Probabilistic product-check rows
+  must also record positive verification rounds and RNG seed status. The
+  `error-detecting-fast-path` scenario family includes CPU, Direct-HIP, and CK
+  research rows, and the closeout under
+  `temp/rank39-error-detection-policy-closeout-20260606/` validates one
+  Freivalds-style proxy row with zero blockers. This is not a probabilistic
+  correctness mode, cache claim, AUTO route, README speedup, or platform
+  performance claim.
+
 June 6, 2026 rank-38 verification amortization closeout:
 
 - Rank 38 moved from the active queue to the completed-work archive after

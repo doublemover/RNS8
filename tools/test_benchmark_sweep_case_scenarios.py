@@ -61,6 +61,7 @@ for scenario_name in [
     "streaming-overlap",
     "release-gate-closeout",
     "fhe-lattice-proxy-starfoundry",
+    "error-detecting-fast-path",
 ]:
     assert scenario_name in catalog
     assert catalog[scenario_name]
@@ -69,6 +70,8 @@ for family, items in catalog.items():
     for item in items:
         if item.verification_amortization != "none":
             assert "cpu" in item.backends, f"{family}/{item.name} verification amortization requires CPU baseline"
+        if item.error_detection_policy != "none":
+            assert "cpu" in item.backends, f"{family}/{item.name} error detection policy requires CPU baseline"
 
 with tempfile.TemporaryDirectory() as temp_dir:
     scenario_path = Path(temp_dir) / "bad_scenario.json"
@@ -226,6 +229,19 @@ release_command = benchmark_sweep.command_for(
     release_args,
 )
 assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
+error_detection_item = catalog["error-detecting-fast-path"][0]
+error_detection_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, error_detection_item)
+error_detection_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    error_detection_item.semantics,
+    error_detection_item.case,
+    None,
+    None,
+    error_detection_args,
+)
+assert "--error-detection-policy" in error_detection_command
+assert "freivalds_two_round_product_check_research" in error_detection_command
 
 with tempfile.TemporaryDirectory() as temp_dir:
     capture_path = Path(temp_dir) / "capture.json"

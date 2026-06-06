@@ -104,6 +104,7 @@ struct Args {
   std::string k_block_policy = "auto";
   std::string release_gate = "none";
   std::string verification_amortization = "none";
+  std::string error_detection_policy = "none";
 };
 
 struct TimingSamples {

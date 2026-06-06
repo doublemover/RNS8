@@ -53,6 +53,9 @@ Cleanup and drift-control helpers:
 - `tools/verification_amortization_report.py`: verifies benchmark-only
   verification-amortized exact workloads still have final exact CPU/reference
   coverage and remain non-promotable.
+- `tools/error_detection_policy_report.py`: verifies research-only
+  error-detecting exact fast-path captures declare false-negative policy,
+  preserve deterministic default exact APIs, and remain non-promotable.
 - `tools/shape_family_shadow_report.py`: builds non-routing AUTO
   shape-family recommendations from reviewed exact cache entries and records
   why each recommendation remains advisory.

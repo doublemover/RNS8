@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "family": "error-detecting-fast-path",
+  "items": [
+    {
+      "name": "freivalds-product-check-research",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "freivalds-research-512x512x512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Research-only error-detecting exact fast-path metadata with final exact comparison still required",
+      "output_domain": "host_export",
+      "rationale": "keeps Freivalds-style product-check experiments explicit without changing deterministic exact API behavior",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "ck"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "proxy_evidence_only",
+      "workload_proxy": "dense_exact:error_detecting_fast_path",
+      "error_detection_policy": "freivalds_two_round_product_check_research",
+      "metadata": {
+        "source_role": "error_detecting_exact_fast_path_research",
+        "algorithm_family": "freivalds_product_verification",
+        "verification_role": "research_only_error_detection",
+        "false_negative_policy": "bounded_by_recorded_rounds_seed_and_reference_field_not_default_exact_api",
+        "promotion_scope": "proxy_evidence_only"
+      }
+    }
+  ]
+}

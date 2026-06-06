@@ -54,6 +54,9 @@ def build_row(
         if isinstance(capture.get("verification_amortization"), dict)
         else {}
     )
+    error_detection_policy = (
+        capture.get("error_detection_policy") if isinstance(capture.get("error_detection_policy"), dict) else {}
+    )
     workload_proxy = capture.get("workload_proxy") if isinstance(capture.get("workload_proxy"), dict) else {}
     row = {
         "capture_path": capture.get("_path"),
@@ -114,6 +117,9 @@ def build_row(
         "release_gate": release_gate.get("name"),
         "release_gate_review_status": release_gate.get("review_status"),
         "verification_amortization_policy": verification_amortization.get("policy"),
+        "error_detection_policy": error_detection_policy.get("policy"),
+        "error_detection_mode": error_detection_policy.get("mode"),
+        "error_detection_false_negative_policy": error_detection_policy.get("false_negative_policy"),
         "workload_proxy_family": workload_proxy.get("family"),
         "workload_proxy_label": workload_proxy.get("label"),
         "output_domain": scenario.get("output_domain") or capture.get("residue_output_mode"),

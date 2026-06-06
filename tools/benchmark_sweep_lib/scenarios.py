@@ -235,6 +235,9 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 verification_amortization=_required_string(raw, "verification_amortization", label=label)
                 if "verification_amortization" in raw
                 else "none",
+                error_detection_policy=_required_string(raw, "error_detection_policy", label=label)
+                if "error_detection_policy" in raw
+                else "none",
                 include_wrap64_candidate=_bool_or_default(
                     raw,
                     "include_wrap64_candidate",

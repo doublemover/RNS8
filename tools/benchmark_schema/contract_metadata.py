@@ -61,6 +61,21 @@ REVIEWABLE_EXPORT_VARIANTS = {
     "exact-wide-fixed-limb-export",
 }
 
+ERROR_DETECTION_MODES = {
+    "not_requested",
+    "deterministic_error_check",
+    "probabilistic_product_check",
+    "redundant_residue_check",
+    "certificate_check",
+}
+
+ERROR_DETECTION_FINAL_STATUSES = {
+    "checksum_recorded_reference_required",
+    "reference_required",
+    "exact_cpu_reference_compared",
+    "passed",
+}
+
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -588,3 +603,62 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("verification_amortization.final_exact_comparison_required must be true")
             if amortization.get("promotion_eligible") is not False:
                 self._error("verification_amortization captures must set promotion_eligible=false")
+
+    error_detection = self.data.get("error_detection_policy")
+    if error_detection is not None:
+        if not isinstance(error_detection, dict):
+            self._error("error_detection_policy must be an object")
+        else:
+            if not isinstance(error_detection.get("enabled"), bool):
+                self._error("error_detection_policy.enabled must be a boolean")
+            for key in ["policy", "mode", "verification_basis", "false_negative_policy", "final_exact_comparison_status"]:
+                if not isinstance(error_detection.get(key), str):
+                    self._error(f"error_detection_policy.{key} must be a string")
+            if error_detection.get("mode") not in ERROR_DETECTION_MODES:
+                self._error(f"error_detection_policy.mode must be one of {sorted(ERROR_DETECTION_MODES)}")
+            rounds = error_detection.get("verification_rounds")
+            if not _is_int(rounds) or rounds < 0:
+                self._error("error_detection_policy.verification_rounds must be a nonnegative integer")
+            for key in [
+                "rng_seed_recorded",
+                "final_exact_comparison_required",
+                "research_only",
+                "default_exact_api_unchanged",
+                "runtime_routing_allowed",
+                "cache_eligible",
+                "promotion_eligible",
+            ]:
+                if not isinstance(error_detection.get(key), bool):
+                    self._error(f"error_detection_policy.{key} must be a boolean")
+            if error_detection.get("enabled") is True:
+                if not error_detection.get("policy") or error_detection.get("policy") == "none":
+                    self._error("enabled error_detection_policy.policy must be a nonempty non-none string")
+                if error_detection.get("mode") == "not_requested":
+                    self._error("enabled error_detection_policy.mode must not be not_requested")
+                if error_detection.get("verification_basis") in {"", "none"}:
+                    self._error("enabled error_detection_policy.verification_basis must describe the verification basis")
+                if error_detection.get("false_negative_policy") in {"", "none"}:
+                    self._error("enabled error_detection_policy.false_negative_policy must describe false-negative policy")
+                if error_detection.get("final_exact_comparison_required") is not True:
+                    self._error("error_detection_policy.final_exact_comparison_required must be true")
+                if error_detection.get("final_exact_comparison_status") not in ERROR_DETECTION_FINAL_STATUSES:
+                    self._error(
+                        "error_detection_policy.final_exact_comparison_status must record exact/reference status"
+                    )
+                if error_detection.get("research_only") is not True:
+                    self._error("enabled error_detection_policy captures must set research_only=true")
+                if error_detection.get("default_exact_api_unchanged") is not True:
+                    self._error("enabled error_detection_policy captures must keep default_exact_api_unchanged=true")
+                if error_detection.get("runtime_routing_allowed") is not False:
+                    self._error("enabled error_detection_policy captures must set runtime_routing_allowed=false")
+                if error_detection.get("cache_eligible") is not False:
+                    self._error("enabled error_detection_policy captures must set cache_eligible=false")
+                if error_detection.get("promotion_eligible") is not False:
+                    self._error("enabled error_detection_policy captures must set promotion_eligible=false")
+                if error_detection.get("mode") == "probabilistic_product_check":
+                    if error_detection.get("rng_seed_recorded") is not True:
+                        self._error("probabilistic error_detection_policy captures must set rng_seed_recorded=true")
+                    if not _is_int(rounds) or rounds <= 0:
+                        self._error(
+                            "probabilistic error_detection_policy captures must set positive verification_rounds"
+                        )

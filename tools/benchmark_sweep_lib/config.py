@@ -96,6 +96,7 @@ class ScenarioItem:
     k_block_policy: str = "auto"
     release_gate: str = "none"
     verification_amortization: str = "none"
+    error_detection_policy: str = "none"
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
 
