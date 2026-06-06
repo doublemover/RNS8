@@ -833,7 +833,12 @@ continuation, conversion, transient packing, and prepack reuse decisions.
 Matrix handles expose the companion source version, finite modulus, host/device
 currentness flags, byte counts, and persistent layout version through
 `rns8_get_matrix_storage_info`; reusable cache tooling must include that
-matrix-side state in cache keys and mismatch rejection.
+matrix-side state in cache keys and mismatch rejection. The stronger
+`rns8_get_resident_lifetime_info` inspection surface binds that same matrix
+state to an optional plan/workspace and A/B/C role: it reports source-version
+validity, current output domain, plan and workspace fingerprints, workspace
+identity/schedule/backend matches, device-id match, next-operation eligibility,
+and the deterministic mismatch policy used to reject stale resident reuse.
 `rns8_get_prepack_cache_key_info` is the current validator for plan/operand
 cache-key material. Its serialized `prepack-v2` key names the backend, target
 id, selected kernel, B prepack kernel variant, semantic, prefix-schedule hash,

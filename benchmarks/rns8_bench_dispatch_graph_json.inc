@@ -177,11 +177,15 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"resident_lifetime\": {\n";
   std::cout << "    \"enabled\": " << (residency ? "true" : "false") << ",\n";
   std::cout << "    \"matrix_roles\": \"" << (residency ? "A/B/C explicit benchmark resident roles" : "transient") << "\",\n";
-  std::cout << "    \"source_version_policy\": \"monotonic_per_import_or_pack\",\n";
+  std::cout << "    \"source_version_policy\": \"monotonic_per_import_pack_or_gemm_output_hash\",\n";
   std::cout << "    \"current_storage_state\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
   std::cout << "    \"output_domain\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
+  std::cout << "    \"contract_api\": \"rns8_get_resident_lifetime_info\",\n";
+  std::cout << "    \"role_binding_policy\": \"A=m_by_k;B=k_by_n;C=m_by_n\",\n";
   std::cout << "    \"workspace_identity\": \"" << result.backend_info.workspace_required_bytes
             << "B:" << json_escape(result.backend_info.workspace_mode) << "\",\n";
+  std::cout << "    \"workspace_binding_policy\": \"plan_fingerprint_plus_workspace_identity_schedule_backend\",\n";
+  std::cout << "    \"output_currentness_policy\": \"explicit_host_or_device_current_domain_no_implicit_semantic_inference\",\n";
   std::cout << "    \"stale_source_rejection\": \"source_version_descriptor_semantic_prefix_target_workspace_mismatch\",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";

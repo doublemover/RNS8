@@ -165,9 +165,29 @@ class Matrix final {
     return info;
   }
 
+  rns8_resident_lifetime_info resident_lifetime_info(
+      rns8_resident_matrix_role role = RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN) const {
+    rns8_resident_lifetime_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_resident_lifetime_info(handle_, nullptr, nullptr, role, &info));
+    return info;
+  }
+
  private:
   rns8_matrix* handle_ = nullptr;
 };
+
+inline rns8_resident_lifetime_info resident_lifetime_info(
+    const Matrix& matrix,
+    const Plan& plan,
+    rns8_resident_matrix_role role) {
+  rns8_resident_lifetime_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  check(rns8_get_resident_lifetime_info(matrix.get(), plan.get(), nullptr, role, &info));
+  return info;
+}
 
 inline rns8_prepack_cache_key_info prepack_cache_key_info(
     const Plan& plan,
@@ -239,6 +259,18 @@ class Workspace final {
  private:
   rns8_workspace* handle_ = nullptr;
 };
+
+inline rns8_resident_lifetime_info resident_lifetime_info(
+    const Matrix& matrix,
+    const Plan& plan,
+    const Workspace& workspace,
+    rns8_resident_matrix_role role) {
+  rns8_resident_lifetime_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  check(rns8_get_resident_lifetime_info(matrix.get(), plan.get(), workspace.get(), role, &info));
+  return info;
+}
 
 inline rns8_grouped_gemm_task grouped_gemm_task(
     const Matrix& a,

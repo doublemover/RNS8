@@ -187,7 +187,7 @@ def starfoundry_capture() -> dict:
     capture["resident_lifetime"] = {
         "enabled": True,
         "matrix_roles": "A/B/C explicit benchmark resident roles",
-        "source_version_policy": "monotonic_per_import_or_pack",
+        "source_version_policy": "monotonic_per_import_pack_or_gemm_output_hash",
         "current_storage_state": "native_i64_u64_host",
         "output_domain": "native_i64_u64_host",
         "workspace_identity": "0B:resident_device_buffers",

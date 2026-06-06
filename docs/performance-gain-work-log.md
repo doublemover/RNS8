@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-44 resident lifetime contract closeout:
+
+- Rank 44 moved from the active queue to the completed-work archive after the
+  general resident matrix contract became a public, read-only inspection
+  surface. `rns8_get_resident_lifetime_info` now reports A/B/C role binding,
+  source-version validity, current output domain, host/device currentness,
+  device residency, plan fingerprint, workspace fingerprint, workspace
+  identity/schedule/backend matches, device-id match, next-operation
+  eligibility, and deterministic mismatch policy. The C++ wrapper exposes the
+  same matrix-only and plan/workspace-bound checks. Benchmark resident-lifetime
+  JSON now names the contract API, A/B/C role shape policy, workspace binding
+  policy, and output-currentness policy. CPU unit tests cover matching resident
+  A/workspace contracts, wrong-role rejection, mismatched-workspace rejection,
+  zero-version C output reporting, invalid ABI rejection, and wrapper coverage.
+  This is lifetime-contract infrastructure only; it does not add a speed claim,
+  cache entry, default route, README row, or Linux/CDNA evidence.
+
 June 6, 2026 rank-11 export-specialization cleanup:
 
 - Rank 11 moved from the active queue to the completed-work archive as a

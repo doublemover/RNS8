@@ -378,6 +378,57 @@ typedef struct rns8_matrix_storage_info {
   char detail[256];
 } rns8_matrix_storage_info;
 
+typedef enum rns8_resident_matrix_role {
+  RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN = 0,
+  RNS8_RESIDENT_MATRIX_ROLE_A = 1,
+  RNS8_RESIDENT_MATRIX_ROLE_B = 2,
+  RNS8_RESIDENT_MATRIX_ROLE_C = 3
+} rns8_resident_matrix_role;
+
+typedef struct rns8_resident_lifetime_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_layout logical_layout;
+  rns8_bound_kind bound_kind;
+  rns8_resident_matrix_role matrix_role;
+  rns8_output_domain current_output_domain;
+  int64_t rows;
+  int64_t cols;
+  int64_t logical_ld;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t source_version;
+  uint64_t plan_fingerprint;
+  uint64_t workspace_fingerprint;
+  int32_t hip_device_id;
+  uint32_t source_version_valid;
+  uint32_t host_current;
+  uint32_t device_current;
+  uint32_t device_resident;
+  uint32_t plan_binding_available;
+  uint32_t plan_binding_matches;
+  uint32_t workspace_binding_available;
+  uint32_t workspace_identity_matches;
+  uint32_t workspace_schedule_matches;
+  uint32_t workspace_backend_matches;
+  uint32_t workspace_binding_matches;
+  uint32_t device_id_matches;
+  uint32_t can_feed_rns_gemm;
+  uint32_t can_feed_native_gemm;
+  uint32_t can_feed_final_export;
+  uint32_t flags;
+  char current_domain[64];
+  char matrix_role_name[32];
+  char source_version_policy[96];
+  char workspace_binding_policy[128];
+  char output_currentness_policy[128];
+  char lifetime_policy[128];
+  char mismatch_policy[160];
+  char detail[256];
+} rns8_resident_lifetime_info;
+
 typedef enum rns8_operand_role {
   RNS8_OPERAND_A = 1,
   RNS8_OPERAND_B = 2
@@ -525,6 +576,20 @@ RNS8_API rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
 RNS8_API rns8_status rns8_get_matrix_storage_info(
     const rns8_matrix* matrix,
     rns8_matrix_storage_info* out);
+
+/*
+ * Report the resident lifetime contract for a matrix role, optionally bound to
+ * a plan and workspace. This read-only inspection API exposes source-version,
+ * plan/workspace fingerprint, current output domain, and deterministic
+ * mismatch policy before callers attempt persistent reuse. Passing a workspace
+ * requires passing the plan it was created for.
+ */
+RNS8_API rns8_status rns8_get_resident_lifetime_info(
+    const rns8_matrix* matrix,
+    const rns8_plan* plan,
+    const rns8_workspace* workspace,
+    rns8_resident_matrix_role matrix_role,
+    rns8_resident_lifetime_info* out);
 
 /*
  * Validate and report deterministic key material for a future reusable prepack
