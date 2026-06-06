@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-38 verification amortization closeout:
+
+- Rank 38 moved from the active queue to the completed-work archive after
+  `tools/verification_amortization_report.py` added a focused safety gate for
+  repeated exact workloads that reuse CPU/reference structure. The report
+  consumes schema-valid captures and release review sidecars, requires final
+  exact comparison to remain required and explicit, blocks any amortized row
+  that becomes promotable or cache-eligible, requires tooling/proxy-only
+  scenario scope, and requires CPU/reference coverage in the review group. The
+  FHE/lattice key-switch proxy scenario now schedules a CPU backend, and the
+  benchmark-sweep self-test rejects future verification-amortized scenarios
+  that omit CPU. The closeout under
+  `temp/rank38-verification-amortization-closeout-20260606/` validates one
+  schema-v4 amortized proxy row with CPU-reference, Direct-HIP, and hipBLASLt
+  review candidates and zero blockers. This does not add probabilistic
+  correctness, cache promotion, AUTO routing, or platform performance claims.
+
 June 6, 2026 rank-36 AUTO shape-family gate closeout:
 
 - Rank 36 moved from the active queue to the completed-work archive after

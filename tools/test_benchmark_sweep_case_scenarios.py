@@ -65,6 +65,11 @@ for scenario_name in [
     assert scenario_name in catalog
     assert catalog[scenario_name]
 
+for family, items in catalog.items():
+    for item in items:
+        if item.verification_amortization != "none":
+            assert "cpu" in item.backends, f"{family}/{item.name} verification amortization requires CPU baseline"
+
 with tempfile.TemporaryDirectory() as temp_dir:
     scenario_path = Path(temp_dir) / "bad_scenario.json"
     payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "grouped_dispatch.json").read_text(encoding="utf-8"))

@@ -21,6 +21,7 @@
       "output_domain": "residue_current_then_final_export",
       "rationale": "groups tower/reuse/output-domain metadata without claiming compatibility with an FHE library",
       "backends": [
+        "cpu",
         "hip-direct",
         "ck",
         "rocwmma"
