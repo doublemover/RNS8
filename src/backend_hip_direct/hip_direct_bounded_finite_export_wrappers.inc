@@ -123,6 +123,69 @@ extern "C" int rns8_hip_direct_export_i64_device(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_direct_export_i64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    int64_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  if (!d_residue_ptrs || !d_dst || !d_status || task_count <= 0 || rows <= 0 || cols <= 0 ||
+      prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int elements = rows * cols;
+  const int blocks = (elements + threads - 1) / threads;
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_i64_grouped_kernel,
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols,
+        prefix,
+        bound,
+        d_status);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     const int8_t* d_residues,
     int64_t* d_dst,
@@ -211,6 +274,69 @@ extern "C" int rns8_hip_direct_export_u64_device(
         nullptr,
         d_residues,
         d_dst,
+        rows,
+        cols,
+        prefix,
+        bound,
+        d_status);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_u64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    uint64_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status) {
+  if (!d_residue_ptrs || !d_dst || !d_status || task_count <= 0 || rows <= 0 || cols <= 0 ||
+      prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int elements = rows * cols;
+  const int blocks = (elements + threads - 1) / threads;
+  if (prefix == kRns8DefaultBoundedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else if (prefix == kRns8MaxSupportedPrefix) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
+        rows,
+        cols,
+        bound,
+        d_status);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_export_u64_grouped_kernel,
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_residue_ptrs,
+        d_dst,
+        task_count,
         rows,
         cols,
         prefix,

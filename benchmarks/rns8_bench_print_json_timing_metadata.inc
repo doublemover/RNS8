@@ -194,7 +194,11 @@
         std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for fixed-width exact-wide limb export of every grouped task\",\n";
       }
     } else {
-      std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task\",\n";
+      if (result.grouped_dispatch_batched_export_enabled) {
+        std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for bounded CRT export kernels into one shared device slab plus one compact D2H copy for every grouped task\",\n";
+      } else {
+        std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task\",\n";
+      }
     }
   } else if (host_batch) {
     std::cout << "      \"pack\": \"per-repeat aggregate host timing for packing A and B for "

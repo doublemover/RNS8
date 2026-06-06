@@ -35,9 +35,10 @@ inline constexpr std::array<std::string_view, 3> grouped_dispatch_statuses{{
     "not_requested"
 }};
 
-inline constexpr std::array<std::string_view, 7> grouped_dispatch_execution_strategies{{
+inline constexpr std::array<std::string_view, 8> grouped_dispatch_execution_strategies{{
     "device_grouped_exact_wide_export_kernel_batched_d2h",
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+    "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h",
     "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
     "device_grouped_pack_gemm_host_exports",
     "host_phase_loop_batched_exact_wide_export_d2h",

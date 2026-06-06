@@ -118,6 +118,10 @@ def _strategy_ids(registry: Registry) -> list[str]:
             raise MetadataRegistryError(
                 f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_exact_wide_export must be boolean"
             )
+        if not isinstance(item.get("batched_bounded_export"), bool):
+            raise MetadataRegistryError(
+                f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_bounded_export must be boolean"
+            )
         policy = item.get("device_descriptor_policy")
         if not isinstance(policy, str) or not policy:
             raise MetadataRegistryError(
@@ -140,6 +144,14 @@ def _batched_exact_wide_strategies(registry: Registry) -> list[str]:
         item["id"]
         for item in registry.benchmark_modes()["grouped_dispatch_execution_strategies"]
         if item["batched_exact_wide_export"]
+    ]
+
+
+def _batched_bounded_strategies(registry: Registry) -> list[str]:
+    return [
+        item["id"]
+        for item in registry.benchmark_modes()["grouped_dispatch_execution_strategies"]
+        if item["batched_bounded_export"]
     ]
 
 
@@ -318,6 +330,7 @@ def render_python_constants(registry: Registry) -> str:
         f"GROUPED_DISPATCH_STATUSES = {_python_repr_set(benchmark['grouped_dispatch_statuses'])}",
         f"GROUPED_DISPATCH_EXECUTION_STRATEGIES = {_python_repr_set(strategies)}",
         f"GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {_python_repr_set(_batched_exact_wide_strategies(registry))}",
+        f"GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES = {_python_repr_set(_batched_bounded_strategies(registry))}",
         f"GROUPED_TASK_DESCRIPTOR_LAYOUTS = {_python_repr_set(descriptor['descriptor_layouts'])}",
         f"GROUPED_TASK_BUCKET_POLICIES = {_python_repr_set(descriptor['bucket_policies'])}",
         f"GROUPED_TASK_SOURCE_VERSION_POLICIES = {_python_repr_set(descriptor['source_version_policies'])}",

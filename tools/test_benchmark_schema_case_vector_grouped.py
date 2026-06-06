@@ -339,7 +339,7 @@ grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = Tru
 grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
 expect_invalid(
     grouped_bad_batched_strategy,
-    "grouped_dispatch batched export requires the batched exact-wide export strategy",
+    "grouped_dispatch batched export requires a registered batched export strategy",
 )
 
 helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))

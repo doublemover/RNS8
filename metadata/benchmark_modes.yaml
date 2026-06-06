@@ -32,36 +32,49 @@
     {
       "id": "not_requested",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "not_requested"
     },
     {
       "id": "host_phase_loop_per_task_export",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "host_resident_task_loop"
     },
     {
       "id": "host_phase_loop_batched_exact_wide_export_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "host_resident_task_loop"
     },
     {
       "id": "device_grouped_pack_gemm_host_exports",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h",
+      "batched_exact_wide_export": false,
+      "batched_bounded_export": true,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_exact_wide_export_kernel_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     }
   ],

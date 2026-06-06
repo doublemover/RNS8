@@ -365,6 +365,16 @@ extern "C" int rns8_hip_direct_export_i64_device(
     uint64_t bound,
     int* d_status);
 
+extern "C" int rns8_hip_direct_export_i64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    int64_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status);
+
 extern "C" int rns8_hip_direct_export_i64_scheduled_device(
     const int8_t* d_residues,
     int64_t* d_dst,
@@ -381,6 +391,16 @@ extern "C" int rns8_hip_direct_export_i64_scheduled_device(
 extern "C" int rns8_hip_direct_export_u64_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status);
+
+extern "C" int rns8_hip_direct_export_u64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    uint64_t* d_dst,
+    int task_count,
     int rows,
     int cols,
     int prefix,

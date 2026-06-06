@@ -82,10 +82,19 @@ endfunction()
 
 if(RNS8_ENABLE_HIP)
   find_package(RNS8HIP REQUIRED)
+  file(
+    GLOB
+    RNS8_HIP_DIRECT_KERNEL_DEPENDS
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.cuh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.inc"
+  )
+  set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
   rns8_compile_hip_source(
     RNS8_HIP_DIRECT_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
+  unset(RNS8_HIP_SOURCE_DEPENDS)
   rns8_compile_hip_source(
     RNS8_WRAP64_HIP_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/wrap64_hip_kernels.hip"

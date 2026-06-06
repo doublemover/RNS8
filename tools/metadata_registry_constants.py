@@ -166,6 +166,7 @@ GROUPED_DISPATCH_STATUSES = {
 GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
     'device_grouped_exact_wide_export_kernel_batched_d2h',
     'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h',
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h',
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h',
     'device_grouped_pack_gemm_host_exports',
     'host_phase_loop_batched_exact_wide_export_d2h',
@@ -177,6 +178,9 @@ GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
     'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h',
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h',
     'host_phase_loop_batched_exact_wide_export_d2h',
+}
+GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES = {
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h',
 }
 GROUPED_TASK_DESCRIPTOR_LAYOUTS = {
     'not_requested',
@@ -230,6 +234,7 @@ GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES = {
 GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES = {
     'device_grouped_exact_wide_export_kernel_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_gemm_host_exports': 'device_pointer_tables_and_compact_slabs',
     'host_phase_loop_batched_exact_wide_export_d2h': 'host_resident_task_loop',
@@ -535,6 +540,7 @@ TARGET_CLAIM_LABELS = {
 
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_EXACT_WIDE_EXPORT_KERNEL_BATCHED_D2H = 'device_grouped_exact_wide_export_kernel_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_AND_EXACT_WIDE_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h'
+GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_EXACT_WIDE_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS = 'device_grouped_pack_gemm_host_exports'
 GROUPED_DISPATCH_STRATEGY_HOST_PHASE_LOOP_BATCHED_EXACT_WIDE_EXPORT_D2H = 'host_phase_loop_batched_exact_wide_export_d2h'

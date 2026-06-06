@@ -41,6 +41,7 @@ def main() -> int:
         {
             "id": "device_grouped_unregistered_descriptor_policy",
             "batched_exact_wide_export": False,
+            "batched_bounded_export": False,
             "device_descriptor_policy": "unregistered_device_policy",
         }
     )

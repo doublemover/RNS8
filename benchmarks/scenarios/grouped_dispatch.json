@@ -17,7 +17,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small bounded i64 grouped pack+GEMM with per-task host export",
+      "evidence_scope": "many-small bounded i64 grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "host_export",
       "rationale": "checks whether the same device grouped task-prefix path helps bounded signed workloads before public resident API work",
       "backends": [
@@ -29,7 +29,7 @@
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
         "grouping_role": "same_shape_grouped_descriptor",
-        "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports"
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
       }
     },
     {
@@ -47,7 +47,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small bounded u64 grouped pack+GEMM with per-task host export",
+      "evidence_scope": "many-small bounded u64 grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "host_export",
       "rationale": "extends grouped task-prefix coverage to the unsigned bounded contract",
       "backends": [
@@ -59,7 +59,7 @@
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
         "grouping_role": "same_shape_grouped_descriptor",
-        "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports"
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
       }
     },
     {

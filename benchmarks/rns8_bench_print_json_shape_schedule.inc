@@ -322,7 +322,7 @@
                  "triplet per task; raw_timings_us values are aggregate grouped totals, avg_*_per_task_us fields "
                  "divide those totals by grouped_dispatch.task_count";
     if (result.grouped_dispatch_batched_export_enabled) {
-      std::cout << "; exact-wide export kernels write into one shared device output slab before one compact D2H copy";
+      std::cout << "; grouped export kernels write into one shared device output slab before one compact D2H copy";
     }
     std::cout << ", and this capture remains non-promotable until a real device grouped dispatcher exists\",\n";
   } else if (host_batch) {

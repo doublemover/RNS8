@@ -282,6 +282,102 @@ __global__ void rns8_export_u64_fixed_prefix_kernel(
   rns8_export_u64_fixed_prefix_cell_device<Prefix>(residues, dst, cell, elements, bound, status);
 }
 
+__global__ void rns8_export_i64_grouped_kernel(
+    const int8_t* const* residue_ptrs,
+    int64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  int64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_i64_cell_device(residues, task_dst, cell, elements, prefix, bound, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_i64_grouped_fixed_prefix_kernel(
+    const int8_t* const* residue_ptrs,
+    int64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  int64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_i64_fixed_prefix_cell_device<Prefix>(residues, task_dst, cell, elements, bound, status);
+}
+
+__global__ void rns8_export_u64_grouped_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_u64_cell_device(residues, task_dst, cell, elements, prefix, bound, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_u64_grouped_fixed_prefix_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_u64_fixed_prefix_cell_device<Prefix>(residues, task_dst, cell, elements, bound, status);
+}
+
 __global__ void rns8_export_i64_scheduled_kernel(
     const int8_t* residues,
     int64_t* dst,

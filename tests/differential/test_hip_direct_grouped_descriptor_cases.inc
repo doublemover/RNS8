@@ -72,6 +72,56 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_SUCCESS);
 
+  void* grouped_residue_ptrs = nullptr;
+  void* grouped_output = nullptr;
+  void* grouped_status = nullptr;
+  REQUIRE(rns8::detail::hip_direct_allocate(0, 2 * sizeof(const void*), &grouped_residue_ptrs) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_allocate(0, 8 * sizeof(uint64_t), &grouped_output) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_allocate(0, sizeof(int), &grouped_status) == RNS8_SUCCESS);
+  rns8_matrix* c_matrices[2] = {c0, c1};
+  int pointer_device = -1;
+  uint32_t pointer_prefix = 0;
+  REQUIRE(rns8::detail::hip_direct_prepare_grouped_matrix_residue_pointers(
+              c_matrices,
+              2,
+              RNS8_BOUNDED_U64,
+              grouped_residue_ptrs,
+              2 * sizeof(const void*),
+              &pointer_device,
+              &pointer_prefix) == RNS8_SUCCESS);
+  CHECK(pointer_device == 0);
+  CHECK(pointer_prefix == plan->prefix);
+  REQUIRE(rns8::detail::hip_direct_export_u64_grouped_matrices_to_device(
+              c_matrices,
+              2,
+              grouped_residue_ptrs,
+              grouped_output,
+              grouped_status,
+              2,
+              2,
+              static_cast<uint64_t>(desc.bound)) == RNS8_SUCCESS);
+
+  std::vector<uint64_t> grouped_export(8, UINT64_C(0xdeadbeefdeadbeef));
+  REQUIRE(rns8::detail::hip_direct_copy_compact_matrix_device_to_host(
+              0,
+              "test_grouped_bounded_export_d2h",
+              grouped_export.data(),
+              8,
+              grouped_output,
+              1,
+              8,
+              sizeof(uint64_t),
+              false) == RNS8_SUCCESS);
+  std::vector<uint64_t> expected0(4);
+  std::vector<uint64_t> expected1(4);
+  REQUIRE(rns8_export_u64(ctx, plan, c0, expected0.data(), 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c1, expected1.data(), 2) == RNS8_SUCCESS);
+  CHECK(std::equal(expected0.begin(), expected0.end(), grouped_export.begin()));
+  CHECK(std::equal(expected1.begin(), expected1.end(), grouped_export.begin() + 4));
+  CHECK(rns8::detail::hip_direct_free(0, grouped_status) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_free(0, grouped_output) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_free(0, grouped_residue_ptrs) == RNS8_SUCCESS);
+
   ++c1->source_version;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_INVALID_ARGUMENT);

@@ -128,6 +128,7 @@ Explicit workload and implementation wins:
 | Reusable operands | bounded-u64 2048 A+B | hipBLASLt | 9.2 ms/repeat | 3.99x vs non-reuse | 2.35x vs fastest | Workload contract only |
 | Many-small grouped | exact-wide signed 64 group32 | Direct HIP grouped | 66.5 us/task | 3.43x vs prior grouped | 58.4x vs independent | Benchmark evidence |
 | Many-small grouped | exact-wide unsigned 64 group32 | Direct HIP grouped | 79.1 us/task | 13.5x vs hostbatch | 18.7x vs independent | Benchmark evidence |
+| Many-small grouped | bounded i64/u64 64 group32 | Direct HIP grouped | 53-54 us/task | 23x vs hostbatch | 11-20x vs best independent | Benchmark evidence |
 | RNS chains | exact-wide signed 128 chain3 | Direct HIP final-output | 1.77 ms | 9.80x vs independent | n/a | Benchmark evidence |
 | RNS chains | exact-wide unsigned 256 chain3 | Direct HIP final-output | 2.84 ms | 10.80x vs independent | n/a | Benchmark evidence |
 | Shape-specialized | vector N=1 i64 | Vector ALU | n/a | 7.41x vs old path | 35.9x kernel | Active explicit route |

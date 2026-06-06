@@ -415,6 +415,25 @@ baseline, with matching combined checksum `666386315613239916`. This remains
 benchmark-owned persistent-task evidence, not a public grouped API, generic
 descriptor queue, AUTO cache entry, or Linux/Instinct claim.
 
+The bounded grouped export closeout under
+`temp/perf-queue-grouped-bounded-export-release/` removes the per-task bounded
+CRT export loop from the same bounded-i64/u64 64 group32 benchmark contract.
+The strategy is now
+`device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h`: grouped
+pack kernels build resident RNS inputs for the task batch, the same-shape
+Direct-HIP grouped GEMM covers all tasks, grouped bounded CRT export kernels
+write one compact device output slab, and a single compact D2H copy returns the
+native output. The release controls use seed `20260606`, three warmups, nine
+repeats, CPU and Direct-HIP independent baselines, Direct-HIP hostbatch32
+baselines, schema v4, required Direct-HIP GPU events, and same-task-count
+checksum parity. Bounded-i64 64 group32 is now 53.625 us per task, 19.97x
+faster than the 1071 us best independent CPU baseline and 23.32x faster than
+Direct-HIP hostbatch32 at 1250.59 us per task. Bounded-u64 64 group32 is now
+53.25 us per task, 10.95x faster than the 583 us best independent CPU baseline
+and 22.95x faster than Direct-HIP hostbatch32 at 1222.19 us per task. This is
+still benchmark-owned same-shape grouped evidence, not a public grouped API,
+generic descriptor queue, AUTO cache entry, or Linux/Instinct claim.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized

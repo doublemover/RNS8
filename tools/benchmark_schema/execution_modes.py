@@ -7,6 +7,7 @@ from typing import Any
 
 from metadata_registry_constants import (
     GRAPH_REPLAY_STATUSES,
+    GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES,
     GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES,
     GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES,
 )
@@ -59,15 +60,24 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
         if strategy is not None and strategy == "not_requested":
             self._error("benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy")
         if batched_export is True:
-            if strategy not in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
-                self._error("grouped_dispatch batched export requires the batched exact-wide export strategy")
-            if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
-                self._error("grouped_dispatch batched export is only valid for exact-wide semantics")
-            if self.data.get("exact_wide_export_status_check") != "elided_full_width_device_reconstruction":
-                self._error("grouped_dispatch batched export requires structurally elided exact-wide status")
+            if strategy in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
+                if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
+                    self._error("grouped_dispatch exact-wide batched export is only valid for exact-wide semantics")
+                if self.data.get("exact_wide_export_status_check") != "elided_full_width_device_reconstruction":
+                    self._error("grouped_dispatch exact-wide batched export requires structurally elided exact-wide status")
+            elif strategy in GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES:
+                if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
+                    self._error("grouped_dispatch bounded batched export is only valid for bounded semantics")
+                if self.data.get("exact_wide_export_status_check") is not None:
+                    self._error("grouped_dispatch bounded batched export must not declare exact-wide status handling")
+            else:
+                self._error("grouped_dispatch batched export requires a registered batched export strategy")
             if not _is_int(slab_bytes) or slab_bytes <= 0:
                 self._error("grouped_dispatch batched export requires a positive device_output_slab_bytes")
-        elif strategy in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
+        elif strategy in (
+            GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES
+            | GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES
+        ):
             self._error("grouped_dispatch batched export strategy requires batched_export_enabled=true")
         if self.data.get("semantics") == "wrap_u64_mod_2_64":
             self._error("benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64")

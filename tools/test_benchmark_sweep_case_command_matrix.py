@@ -258,7 +258,7 @@ assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped
 assert any(
     entry.scenario["semantics"] == "bounded-u64"
     and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
-    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H
     for entry in grouped_dispatch_entries
 )
 assert any(

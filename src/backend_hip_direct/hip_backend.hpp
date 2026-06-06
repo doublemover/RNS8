@@ -562,6 +562,15 @@ rns8_status hip_direct_export_i64_device(
     uint64_t bound,
     int64_t* dst,
     int64_t ld);
+rns8_status hip_direct_export_i64_grouped_matrices_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    void* device_dst,
+    void* device_status,
+    int64_t rows,
+    int64_t cols,
+    uint64_t bound);
 rns8_status hip_direct_export_i64_tiled_device(
     int device_id,
     const void* device_residues,
@@ -593,6 +602,15 @@ rns8_status hip_direct_export_u64_device(
     uint64_t bound,
     uint64_t* dst,
     int64_t ld);
+rns8_status hip_direct_export_u64_grouped_matrices_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    void* device_dst,
+    void* device_status,
+    int64_t rows,
+    int64_t cols,
+    uint64_t bound);
 rns8_status hip_direct_export_u64_tiled_device(
     int device_id,
     const void* device_residues,
