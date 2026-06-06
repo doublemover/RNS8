@@ -405,6 +405,52 @@ ROCWMMA_DEEP_GPU_EVENT_LABELS = {
     'rocwmma_pack_b_kernel',
     'rocwmma_zero_output_tile_memset',
 }
+EPILOGUE_TYPES = {
+    'canonical_u8_export',
+    'crt_export',
+    'low64_wrap_export',
+    'residue_current_rns_output',
+}
+BACKEND_EPILOGUE_MODES = {
+    'ck_fused_i32_to_centered_residue_rns_output',
+    'ck_fused_i32_to_centered_residue_then_canonical_u8_export',
+    'ck_fused_i32_to_centered_residue_then_crt_export',
+    'direct_int64_export',
+    'fused_centered_residue_then_crt_export',
+    'low64_wrap_export',
+    'native_i64_u64_export',
+    'native_input_centered_residue_rns_output',
+    'native_input_centered_residue_then_crt_export',
+    'rocwmma_fused_i32_to_centered_residue_rns_output',
+    'rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export',
+    'rocwmma_fused_i32_to_centered_residue_then_crt_export',
+    'separate_i32_scratch_reduce_rns_output',
+    'separate_i32_scratch_reduce_then_canonical_u8_export',
+    'separate_i32_scratch_reduce_then_crt_export',
+}
+GENERATED_REDUCER_IDENTITIES = {
+    'direct_hip_finite_modulus_251_fixed_reducer_v1',
+    'direct_hip_finite_modulus_255_fixed_reducer_v1',
+    'direct_hip_finite_modulus_256_fixed_reducer_v1',
+    'direct_hip_fixed_prefix_1_generated_reducer_v1',
+    'direct_hip_fixed_prefix_20_generated_reducer_v1',
+    'direct_hip_fixed_prefix_2_generated_reducer_v1',
+    'direct_hip_fixed_prefix_3_generated_reducer_v1',
+    'direct_hip_fixed_prefix_4_generated_reducer_v1',
+    'direct_hip_fixed_prefix_5_generated_reducer_v1',
+    'direct_hip_fixed_prefix_6_generated_reducer_v1',
+    'direct_hip_fixed_prefix_7_generated_reducer_v1',
+    'direct_hip_fixed_prefix_8_generated_reducer_v1',
+    'direct_hip_fixed_prefix_9_generated_reducer_v1',
+    'not_applicable',
+}
+GENERATED_REDUCER_IDENTITY_PATTERNS = {
+    'direct_hip_finite_modulus_[0-9]+_fixed_reducer_v1',
+}
+REDUCER_FAMILIES = {
+    'finite_u8_centered_canonical_export',
+    'rns_prefix_centered_crt_export',
+}
 SELECTED_KERNELS = {
     'ck_wmma_cshuffle_finite_u8_centered_epilogue_v1',
     'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',

@@ -16,6 +16,8 @@ from metadata_registry_constants import (
     COMPARISON_BASELINE_STATUSES,
     CONTRACT_PREFIX_POLICIES,
     DIRECT_HIP_GPU_EVENT_SCOPES,
+    GENERATED_REDUCER_IDENTITIES,
+    GENERATED_REDUCER_IDENTITY_PATTERNS,
     HIPBLASLT_GPU_EVENT_SCOPES,
     HIP_RESIDENT_BACKENDS,
     NON_RNS_PREFIX_SEMANTICS,
@@ -82,8 +84,12 @@ def output_destination_layout(padding: Any) -> str:
 
 
 GENERATED_REDUCER_RE = re.compile(
-    r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
-    r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
+    r"^(?:"
+    + "|".join(
+        [re.escape(identity) for identity in sorted(GENERATED_REDUCER_IDENTITIES)]
+        + [f"(?:{pattern})" for pattern in sorted(GENERATED_REDUCER_IDENTITY_PATTERNS)]
+    )
+    + r")$"
 )
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],

@@ -7,6 +7,20 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-24 reducer/epilogue registry closeout:
+
+- Rank 24 moved from the active queue to the completed-work archive after
+  reducer and epilogue identity validation became registry-backed.
+  `metadata/epilogues.yaml` now declares generated reducer identities,
+  finite-modulus identity patterns, and reducer families that point at known
+  selected kernels, generated helpers, and ISA evidence. The metadata generator
+  emits Python/C++ constants for epilogue modes and generated reducer
+  identities, and benchmark schema helper metadata validates
+  `timing_metadata.generated_reducer_identity` through those generated
+  constants instead of duplicated regexes. This is registry/schema
+  infrastructure only: no runtime hot path parses the registry, no default
+  route or cache entry changes, and no new speed claim is made.
+
 June 6, 2026 rank-22 zero-skip expansion closeout:
 
 - Rank 22 moved from the active queue to the completed-work archive after

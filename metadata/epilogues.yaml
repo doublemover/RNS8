@@ -22,5 +22,55 @@
     "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
     "rocwmma_fused_i32_to_centered_residue_rns_output",
     "rocwmma_fused_i32_to_centered_residue_then_crt_export"
+  ],
+  "generated_reducer_identities": [
+    "not_applicable",
+    "direct_hip_fixed_prefix_1_generated_reducer_v1",
+    "direct_hip_fixed_prefix_2_generated_reducer_v1",
+    "direct_hip_fixed_prefix_3_generated_reducer_v1",
+    "direct_hip_fixed_prefix_4_generated_reducer_v1",
+    "direct_hip_fixed_prefix_5_generated_reducer_v1",
+    "direct_hip_fixed_prefix_6_generated_reducer_v1",
+    "direct_hip_fixed_prefix_7_generated_reducer_v1",
+    "direct_hip_fixed_prefix_8_generated_reducer_v1",
+    "direct_hip_fixed_prefix_9_generated_reducer_v1",
+    "direct_hip_fixed_prefix_20_generated_reducer_v1",
+    "direct_hip_finite_modulus_251_fixed_reducer_v1",
+    "direct_hip_finite_modulus_255_fixed_reducer_v1",
+    "direct_hip_finite_modulus_256_fixed_reducer_v1"
+  ],
+  "generated_reducer_identity_patterns": [
+    "direct_hip_finite_modulus_[0-9]+_fixed_reducer_v1"
+  ],
+  "reducer_families": [
+    {
+      "id": "rns_prefix_centered_crt_export",
+      "epilogue_type": "crt_export",
+      "backend_epilogue_mode": "fused_centered_residue_then_crt_export",
+      "generated_reducer_identity": "direct_hip_fixed_prefix_9_generated_reducer_v1",
+      "generated_reducer_identity_pattern": "direct_hip_fixed_prefix_{1..9,20}_generated_reducer_v1",
+      "selected_kernel_examples": [
+        "direct_hip_tiled_active_prefix_rns_gemm_v2",
+        "direct_hip_prefix9_grouped_rns_gemm_v1",
+        "direct_hip_prefix20_grouped_rns_gemm_v1"
+      ],
+      "generated_helper": "src/backend_hip_direct/hip_direct_gemm_kernels.cuh",
+      "isa_evidence": "tools/check_generated_reducer_isa.py"
+    },
+    {
+      "id": "finite_u8_centered_canonical_export",
+      "epilogue_type": "canonical_u8_export",
+      "backend_epilogue_mode": "separate_i32_scratch_reduce_then_canonical_u8_export",
+      "generated_reducer_identity": "direct_hip_finite_modulus_251_fixed_reducer_v1",
+      "generated_reducer_identity_pattern": "direct_hip_finite_modulus_N_fixed_reducer_v1",
+      "selected_kernel_examples": [
+        "direct_hip_tiled_finite_u8_gemm_v1",
+        "direct_hip_tiled_finite_u8_gemm_mod251_v1",
+        "direct_hip_tiled_finite_u8_gemm_mod255_v1",
+        "direct_hip_tiled_finite_u8_gemm_mod256_v1"
+      ],
+      "generated_helper": "src/backend_common/finite_u8_reducer.hpp",
+      "isa_evidence": "tools/check_generated_reducer_isa.py"
+    }
   ]
 }

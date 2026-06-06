@@ -99,6 +99,48 @@ inline constexpr std::array<std::string_view, 12> gpu_event_source_scopes{{
     "vector_alu_default_stream_native_int64_operation_groups"
 }};
 
+inline constexpr std::array<std::string_view, 4> epilogue_types{{
+    "canonical_u8_export",
+    "crt_export",
+    "low64_wrap_export",
+    "residue_current_rns_output"
+}};
+
+inline constexpr std::array<std::string_view, 15> backend_epilogue_modes{{
+    "ck_fused_i32_to_centered_residue_rns_output",
+    "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "ck_fused_i32_to_centered_residue_then_crt_export",
+    "direct_int64_export",
+    "fused_centered_residue_then_crt_export",
+    "low64_wrap_export",
+    "native_i64_u64_export",
+    "native_input_centered_residue_rns_output",
+    "native_input_centered_residue_then_crt_export",
+    "rocwmma_fused_i32_to_centered_residue_rns_output",
+    "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+    "separate_i32_scratch_reduce_rns_output",
+    "separate_i32_scratch_reduce_then_canonical_u8_export",
+    "separate_i32_scratch_reduce_then_crt_export"
+}};
+
+inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
+    "direct_hip_finite_modulus_251_fixed_reducer_v1",
+    "direct_hip_finite_modulus_255_fixed_reducer_v1",
+    "direct_hip_finite_modulus_256_fixed_reducer_v1",
+    "direct_hip_fixed_prefix_1_generated_reducer_v1",
+    "direct_hip_fixed_prefix_20_generated_reducer_v1",
+    "direct_hip_fixed_prefix_2_generated_reducer_v1",
+    "direct_hip_fixed_prefix_3_generated_reducer_v1",
+    "direct_hip_fixed_prefix_4_generated_reducer_v1",
+    "direct_hip_fixed_prefix_5_generated_reducer_v1",
+    "direct_hip_fixed_prefix_6_generated_reducer_v1",
+    "direct_hip_fixed_prefix_7_generated_reducer_v1",
+    "direct_hip_fixed_prefix_8_generated_reducer_v1",
+    "direct_hip_fixed_prefix_9_generated_reducer_v1",
+    "not_applicable"
+}};
+
 inline constexpr std::array<std::string_view, 51> selected_kernels{{
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",

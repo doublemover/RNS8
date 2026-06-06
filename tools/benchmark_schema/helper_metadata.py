@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from metadata_registry_constants import (
@@ -18,11 +17,7 @@ from metadata_registry_constants import (
     TARGET_NAMESPACES,
 )
 
-
-GENERATED_REDUCER_RE = re.compile(
-    r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
-    r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
-)
+from .core_shared import GENERATED_REDUCER_RE
 
 
 def _is_int(value: Any) -> bool:
