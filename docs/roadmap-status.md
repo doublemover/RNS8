@@ -125,6 +125,9 @@ target-generic command-planning, review-indexing, post-report, and summary core;
 release-control wrapper. Multi-GPU readiness infrastructure includes
 physical-device topology records in `cdna-env-summary.json` and
 `tools/multigpu_shard_report.py` for independent per-GPU shard aggregation.
+Target-validation reports now include runtime/driver coverage summaries and
+block unsupported targets even if a status record incorrectly marks them
+cache-eligible.
 These do not change AUTO routing, installed cache entries, or durable
 performance claims.
 

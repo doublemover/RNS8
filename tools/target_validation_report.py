@@ -385,10 +385,23 @@ def _merge_accelerators(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     return {name: sorted(values) for name, values in sorted(merged.items())}
 
 
+def _phase_status_counts(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for phase in VALIDATION_PHASES:
+        phase_counts: dict[str, int] = {}
+        for row in rows:
+            status = str((row.get("validation_phases") or {}).get(phase) or "missing")
+            phase_counts[status] = phase_counts.get(status, 0) + 1
+        counts[phase] = phase_counts
+    return counts
+
+
 def _group_cache_eligibility(rows: list[dict[str, Any]], phases: dict[str, str]) -> dict[str, Any]:
     blockers: list[str] = []
     if not any((row.get("cache_eligibility") or {}).get("eligible") is True for row in rows):
         blockers.append("no_cache_eligible_capture_or_status")
+    if not any(row.get("supported_target") is True for row in rows):
+        blockers.append("unsupported_target")
     for phase in VALIDATION_PHASES:
         if not _phase_ready(phases.get(phase, "missing")):
             blockers.append(f"{phase}_not_ready")
@@ -409,6 +422,33 @@ def _group_cache_eligibility(rows: list[dict[str, Any]], phases: dict[str, str])
     }
 
 
+def _coverage_summary(groups: list[dict[str, Any]]) -> dict[str, Any]:
+    host_counts: dict[str, int] = defaultdict(int)
+    target_class_counts: dict[str, int] = defaultdict(int)
+    target_counts: dict[str, int] = defaultdict(int)
+    cache_eligible_groups = []
+    incomplete_groups = []
+    for group in groups:
+        host_counts[str(group.get("host_os") or "unknown")] += 1
+        target_class_counts[str(group.get("target_class") or "unknown")] += 1
+        target_counts[str(group.get("target_id") or "unknown")] += 1
+        if (group.get("cache_eligibility") or {}).get("eligible") is True:
+            cache_eligible_groups.append(group.get("target_validation_group"))
+        else:
+            incomplete_groups.append(group.get("target_validation_group"))
+    return {
+        "host_os_group_counts": dict(sorted(host_counts.items())),
+        "target_class_group_counts": dict(sorted(target_class_counts.items())),
+        "target_id_group_counts": dict(sorted(target_counts.items())),
+        "cache_eligible_group_count": len(cache_eligible_groups),
+        "cache_eligible_groups": sorted(str(item) for item in cache_eligible_groups if item),
+        "incomplete_group_count": len(incomplete_groups),
+        "incomplete_groups": sorted(str(item) for item in incomplete_groups if item),
+        "cross_target_promotion_allowed": False,
+        "policy": "summarizes_groups_without_merging_evidence_across_os_target_or_toolchain",
+    }
+
+
 def build_report(captures: list[Path], status_paths: list[Path] | None = None) -> dict[str, Any]:
     rows = [capture_target(path) for path in captures]
     rows.extend(load_status_targets(status_paths or []))
@@ -420,6 +460,7 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
     for key, value in sorted(groups.items()):
         phases = {phase: _merge_phase_status(value, phase) for phase in VALIDATION_PHASES}
         representative = value[0] if value else {}
+        phase_counts = _phase_status_counts(value)
         report_groups.append(
             {
                 "target_validation_group": key,
@@ -435,6 +476,15 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                         for row in value
                         if row.get("hip_sdk_or_rocm_version") is not None
                     }
+                ),
+                "hip_runtime_versions": sorted(
+                    {str(row.get("hip_runtime_version")) for row in value if row.get("hip_runtime_version") is not None}
+                ),
+                "hip_driver_versions": sorted(
+                    {str(row.get("hip_driver_version")) for row in value if row.get("hip_driver_version") is not None}
+                ),
+                "global_mem_bytes_values": sorted(
+                    {str(row.get("global_mem_bytes")) for row in value if row.get("global_mem_bytes") is not None}
                 ),
                 "device_names": sorted({str(row.get("device_name")) for row in value if row.get("device_name")}),
                 "device_indices": sorted({str(row.get("device_index")) for row in value if row.get("device_index") is not None}),
@@ -473,14 +523,17 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
                     {str(row.get("configured_amdgpu_targets")) for row in value if row.get("configured_amdgpu_targets")}
                 ),
                 "validation_phases": phases,
+                "phase_status_counts": phase_counts,
                 "accelerator_status": _merge_accelerators(value),
                 "cache_eligibility": _group_cache_eligibility(value, phases),
                 "capture_count": sum(1 for row in value if row.get("source_kind") == "capture"),
                 "status_record_count": sum(1 for row in value if row.get("source_kind") == "target_status"),
                 "cross_target_promotion_allowed": False,
+                "source_kinds": sorted({str(row.get("source_kind")) for row in value if row.get("source_kind")}),
                 "rows": value,
             }
         )
+    coverage = _coverage_summary(report_groups)
     return {
         "schema_version": 2,
         "policy": TARGET_POLICY,
@@ -488,6 +541,7 @@ def build_report(captures: list[Path], status_paths: list[Path] | None = None) -
         "capture_count": len(captures),
         "status_record_count": len(rows) - len(captures),
         "group_count": len(report_groups),
+        "coverage_summary": coverage,
         "groups": report_groups,
     }
 
@@ -504,6 +558,8 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
         f"- Cross-target policy: `{report['cross_target_policy']}`",
         f"- Capture rows: `{report['capture_count']}`",
         f"- Status rows: `{report['status_record_count']}`",
+        f"- Cache-eligible groups: `{(report.get('coverage_summary') or {}).get('cache_eligible_group_count', 0)}`",
+        f"- Incomplete groups: `{(report.get('coverage_summary') or {}).get('incomplete_group_count', 0)}`",
         "",
         "| group | OS | target | family | modes | ranks | visible | node GPUs | build | ctest | smoke | release | profiler | cache eligible | blockers |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",

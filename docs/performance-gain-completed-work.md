@@ -14,7 +14,7 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 43 closed/completed ranks.
+Current count: 44 closed/completed ranks.
 
 ## CDNA-Ready Infrastructure Notes
 
@@ -24,14 +24,13 @@ and local: signed prefix18, four requested limbs, and large outputs use the
 tree/CRT export path; compact-D2H, unsigned tree/CRT, and prefix20 fixed-export
 variants remain experimental or deprioritized.
 
-Ranks 50, 60, 62, and 74 remain repository-side control
+Ranks 50, 60, and 74 remain repository-side control
 surfaces for a later CDNA validation run:
 bounded-i64 1024 hipBLASLt disposition reporting, promotion-ledger/cache
-replacement history, per-target validation reports, and K-block/tile-K
-scenario/report metadata. They remain active evidence gates until real Linux
-ROCm CDNA host captures and target-specific cache eligibility reports exist.
-These notes are not counted as closed production speedups and do not imply
-Instinct readiness.
+replacement history, and K-block/tile-K scenario/report metadata. They remain
+active evidence gates until real Linux ROCm CDNA host captures and
+target-specific cache eligibility reports exist. These notes are not counted
+as closed production speedups and do not imply Instinct readiness.
 
 Rank 59 is closed as non-routing shape-family shadow infrastructure:
 recommendations can explain exact hits, nearest same-boundary representatives,
@@ -45,6 +44,14 @@ resource signals, bottleneck groups, and evidence-status diagnostics with
 fixture coverage for present, missing, partial, and multi-capture cases. Real
 target profiler exports are still required before any target-specific tuning
 claim, cache change, or CDNA readiness statement.
+
+Rank 62 is closed as repository-side target-validation gate infrastructure:
+reports now separate OS, target id, target family, toolchain version, device
+instance, runtime/driver versions, accelerator availability, validation phases,
+and cache eligibility, with fixtures for Windows `gfx1100`, Linux RDNA,
+CDNA2 `gfx90a`, CDNA3 `gfx942`, CDNA4 `gfx950`, multi-GPU shard topology, and
+unsupported targets. Real Linux ROCm/RDNA/CDNA host runs are still required for
+platform claims.
 
 Rank 57 is now closed for the repository-side Direct-HIP workspace arena
 surface and local Windows `gfx1100` measured-repeat allocation evidence. Future
@@ -107,4 +114,5 @@ entry, README claim, or CDNA performance status changes from it.
 | 57 | Closed Direct-HIP workspace arena allocation gate | The branch needed to prove workspace-owned buffers were not allocating/freeing inside measured repeats before arena evidence could be used in future residency/reuse decisions | The Direct-HIP arena surface ties scratch/staging/grouped/reuse buffers to plan, target, stream/device, semantic, prefix, output policy, and backend identity. The June 6 `gfx1100` closeout reran 13 resident-lifetime arena captures under `temp/gfx1100-pending-validation-20260606/`; every row in `workspace-arena/resident-workspace-report.json` reports measured-repeat allocation delta `{allocate_calls: 0, free_calls: 0, allocated_bytes: 0}` after the benchmark lanes started recording the repeat snapshot before final checksum export and teardown | Closed as infrastructure/evidence, not a speedup claim. Keep future arena optimization under active residency, reuse, chain, grouped-dispatch, or export-selector lanes with setup-inclusive timing proof |
 | 59 | Closed advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads, but broad shape-family routing would be unsafe without strict target/layout/contract boundaries | `tools/shape_family_shadow_report.py` now emits non-routing workload-query recommendations with exact-hit, same-boundary representative, and missing-same-boundary statuses; boundary fields include target, target family, semantic, signedness, finite modulus, layout, output contract, export selector, and limb count. Rejected same-family candidates now report explicit boundary mismatch blockers, and `tools/promotion_ledger.py --shape-family-shadow-report` surfaces the recommendations as blocking metadata on matching cache-basis rows | Closed as explanatory and promotion-control infrastructure only. AUTO routing remains exact-cache based, no installed cache entries or README claims change, and real shape-family routing remains active under rank 36 until same-target/layout/contract review can prove it safely |
 | 61 | Closed counter-driven occupancy/resource audit batch | Event timing identifies large phases, but kernel work needs counter and resource evidence to explain occupancy, memory, stores, LDS, waits, or instruction mix | `tools/gpu_counter_report.py --batch` now validates captures, accepts optional per-capture attachment manifests, joins HIP event medians, JSON/CSV profiler counter exports, ISA/resource summaries, evidence-database bottleneck and roofline groups, and emits per-capture plus batch JSON/Markdown. Batch rows now summarize VGPR, SGPR, LDS, scratch, occupancy, memory-pressure, wait/stall, store, matrix-instruction, and work-intensity signals, with evidence-status diagnostics for missing counters, missing/partial ISA, and missing event medians. Regression fixtures cover present counters, missing counters, partial ISA data, multi-capture batch output, and per-capture manifest attachment | Closed as explanation/reporting infrastructure only. Counter/resource findings prioritize kernel experiments; they never replace exact correctness, release timing, required GPU events, same-contract baselines, target validation, variance gates, or claim validation |
+| 62 | Closed Linux/RDNA/CDNA validation matrix and target report gate | Windows `gfx1100` evidence must not satisfy Linux, RDNA4, CDNA, or Instinct readiness | `tools/target_validation_report.py` now emits per-OS/target/toolchain groups with target family/class/tier, supported-target status, device names, device indices, target cache keys, target instance ids, visible and node GPU counts, BDF/NUMA topology, runtime/driver versions, configured AMDGPU targets, accelerator availability, validation phase counts, cache eligibility, and coverage summaries. Cache eligibility is scoped to the matching OS/target/toolchain group, cross-target promotion is always false, unsupported targets are blocked, and fixtures cover Windows `gfx1100`, Linux RDNA, CDNA2 `gfx90a`, CDNA3 `gfx942`, CDNA4 `gfx950`, 4-GPU and 8-GPU shard metadata, partial profiler/RCCL readiness, and unsupported targets | Closed as validation-gate infrastructure only. Real supported-host build/CTest/smoke/release/profiler evidence is still required before any Linux, RDNA4, CDNA, Instinct, cache, or README claim |
 | 70 | Completed release variance and golden performance regression gate | Narrow reuse/export/cache wins needed a mandatory repeatability gate instead of an advisory report that promotion passes could skip | `tools/perf_variance_report.py` already validates schema-v4 captures, groups same-contract reruns, derives required speedup margins, and runs in the golden regression suite. The closeout adds `promotion_ledger.py --require-variance-gate`, blocks ledger rows that lack matching variance entries, and makes `tools/install_autotune_cache.py` require a promotion ledger with a ready variance gate for every real cache write or replacement. Dry-runs remain available for cache JSON validation, but cache promotion cannot bypass variance evidence. Regression tests cover missing variance, variance-blocked narrow speedups, variance-ready installs, and no-ledger write rejection | Closed as promotion-control infrastructure only. No performance claim, README row, installed cache entry, or Linux/CDNA readiness change is made by this rank |

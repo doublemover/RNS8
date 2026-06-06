@@ -3086,6 +3086,11 @@ Implementation status, 2026-06-06:
   with build, CTest, smoke, release-capture, profiler, accelerator-status, and
   cache-eligibility phases. Windows, Linux RDNA, and Linux CDNA fixture coverage
   prevents accidental cross-target promotion.
+- The report also records device indices, target cache keys, target instance
+  ids, visible/node GPU counts, BDF/NUMA topology, HIP runtime and driver
+  versions, configured AMDGPU targets, validation phase counts, and a coverage
+  summary. Unsupported targets are blocked even if a status record mistakenly
+  marks them cache-eligible.
 - This closes the repository-side readiness infrastructure only. Public Linux,
   RDNA4, or CDNA claims still require real supported-host runs.
 
