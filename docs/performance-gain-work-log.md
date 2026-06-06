@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-22 zero-skip expansion closeout:
+
+- Rank 22 moved from the active queue to the completed-work archive after
+  `tools/zero_skip_expansion_report.py` made the backend support boundary
+  explicit. The closeout report under
+  `temp/rank22-zero-skip-closeout-20260606/` reuses the 51 schema-valid
+  `bound-discovery` captures. It finds 15 row/column proof-product captures,
+  15 zero-output tile captures, three Direct-HIP row/column skip rows that are
+  all scan-derived, six CK/rocWMMA rows that are correct full-tile fallbacks
+  rather than row/column product skips, six CPU/vector rows unsupported for the
+  scheduled proof-mask contract, and zero caller-provided or naturally sparse
+  proof captures. This closes rank 22 as no-expansion evidence: Direct-HIP
+  remains the only backend with row/column product mask execution, CK/rocWMMA
+  keep whole zero-output tile handling only, hipBLASLt remains unsupported for
+  scheduled/adaptive tiled RNS plans, and scan-derived proof masks stay out of
+  default routing.
+
 June 6, 2026 rank-10 Direct-HIP prefix fusion closeout:
 
 - Rank 10 moved from the active queue to the completed-work archive after
