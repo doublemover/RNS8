@@ -29,7 +29,7 @@ def reviewable_fixed_limb_capture() -> dict:
     capture["exact_output_contract"] = {
         "requested_final_output": "exact_wide_limb_host",
         "limb_count": 4,
-        "status_policy": "required",
+        "status_policy": "structurally_elided",
         "output_domain_after_measured_repeats": "exact_wide_limb_host",
         "final_checksum_export_after_repeats": False,
     }
@@ -40,7 +40,7 @@ def reviewable_fixed_limb_capture() -> dict:
         "selector_key": (
             "semantics=exact_wide_signed;backend=ck;target_id=gfx1100;prefix=9;"
             "limb_count=4;signedness=signed;output_layout=fixed_u64_limbs;"
-            "status_policy=range_checked_status_buffer;d2h_policy=host_ld_padded;"
+            "status_policy=none;d2h_policy=host_ld_padded;"
             f"final_output_mode=final_host_output;selected_kernel={selected_kernel}"
         ),
         "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
@@ -52,12 +52,12 @@ def reviewable_fixed_limb_capture() -> dict:
         "output_layout": "fixed_u64_limbs",
         "limb_count": 4,
         "status_policy": "required",
-        "selector_status_policy": "range_checked_status_buffer",
+        "selector_status_policy": "none",
         "d2h_policy": "host_ld_padded",
         "final_output_mode": "final_host_output",
         "cache_visibility": "exact_shape_selector_metadata_only",
         "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
-        "status_elision_reason": None,
+        "status_elision_reason": "exact_wide_requested_limb_count_covers_range_status",
         "requires_tile_metadata": False,
         "all_zero_tiled_output": False,
         "selected_kernel": selected_kernel,

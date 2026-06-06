@@ -77,6 +77,10 @@ const char* exact_wide_export_kernel(const rns8_plan& plan, rns8_semantics seman
                                                  : "cpu_reference_export_exact_wide_signed_limbs";
 }
 
+bool exact_wide_export_requires_status(uint32_t limb_count) {
+  return limb_count < 3;
+}
+
 std::string export_backend_name(rns8_backend_kind backend) {
   switch (backend) {
     case RNS8_BACKEND_CPU_REFERENCE:
@@ -174,7 +178,12 @@ export_reconstruction_plan make_export_plan(
     export_plan.status_elision_reason = "finite_u8_canonical_output_has_no_range_status";
   } else if (semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     export_plan.output_layout = export_output_layout::fixed_u64_limbs;
-    export_plan.status_policy = export_status_policy::range_checked_status_buffer;
+    if (exact_wide_export_requires_status(limb_count)) {
+      export_plan.status_policy = export_status_policy::range_checked_status_buffer;
+    } else {
+      export_plan.status_policy = export_status_policy::none;
+      export_plan.status_elision_reason = "exact_wide_requested_limb_count_covers_range_status";
+    }
     export_plan.selected_export_kernel = exact_wide_export_kernel(plan, semantics);
   }
   if (export_plan.status_policy == export_status_policy::none && export_plan.status_elision_reason.empty()) {

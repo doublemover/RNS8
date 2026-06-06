@@ -205,7 +205,14 @@ def validate_contract_metadata(self: Any) -> None:
                 and export_variant.get("semantic_contract") == self.data.get("semantics")
                 and output_layout == "fixed_u64_limbs"
                 and _is_int(limb_count)
-                and export_variant.get("selector_status_policy") == "range_checked_status_buffer"
+                and (
+                    export_variant.get("selector_status_policy") == "range_checked_status_buffer"
+                    or (
+                        export_variant.get("selector_status_policy") == "none"
+                        and isinstance(export_variant.get("status_elision_reason"), str)
+                        and bool(export_variant.get("status_elision_reason"))
+                    )
+                )
                 and export_variant.get("d2h_policy") == "host_ld_padded"
                 and final_output_mode == "final_host_output"
             )

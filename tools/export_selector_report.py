@@ -43,13 +43,19 @@ def _reviewable_export_variant(capture: dict[str, Any], export: dict[str, Any]) 
     name = export.get("name")
     if name == "default":
         return True
+    status_policy = export.get("selector_status_policy")
+    status_reviewable = status_policy == "range_checked_status_buffer" or (
+        status_policy == "none"
+        and isinstance(export.get("status_elision_reason"), str)
+        and bool(export.get("status_elision_reason"))
+    )
     return (
         name == "exact-wide-fixed-limb-export"
         and capture.get("semantics") in {"exact_wide_signed", "exact_wide_unsigned"}
         and export.get("semantic_contract") == capture.get("semantics")
         and export.get("output_layout") == "fixed_u64_limbs"
         and isinstance(export.get("limb_count"), int)
-        and export.get("selector_status_policy") == "range_checked_status_buffer"
+        and status_reviewable
         and export.get("d2h_policy") == "host_ld_padded"
         and export.get("final_output_mode") == "final_host_output"
     )
