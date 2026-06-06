@@ -40,7 +40,7 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 31 ranks. Rank IDs are historical/stable
+active table below now contains 30 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
@@ -52,7 +52,6 @@ focused on the active execution queue only.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 11 | Exact-wide export specialization | Fixed limb counts, compact D2H, status elision when impossible, and prefix-specialized CRT remain practical wins after the fixed-limb selector closeout | Direct-HIP prefix-20 fixed-limb export, status-elided full-width exports, and three-limb/four-limb Direct-HIP A/B captures must stay schema/event-valid; use rank 48's selector metadata and review grouping so these variants do not collapse into duplicate backend records | Promote only setup-inclusive export path wins for the requested limb contract, not isolated copy improvements |
 | 52 | Finite generic modulus family map | Generic finite-u8 wins now exist, but the modulus family is sparse and partly duplicated in old queue rows | Release map for prime/composite/hot/non-hot moduli, field/ring semantics, 128/512/1024/2048, and backend-specific reducer identities | Promote only exact modulus/semantic/shape keys with CPU/direct baselines and required accelerator events |
 | 59 | Advanced shape-family AUTO shadow mode | Exact-shape reviewed cache keys are too narrow for practical workloads, especially after selector variants create more shape/layout dimensions | `tools/shape_family_shadow_report.py` now emits non-routing workload-query recommendations with selector explanations, representative reviewed-shape matrices, and hard boundaries for target, target family, semantic, signedness, finite modulus, layout, output contract, export selector, and limb count; promotion/cache reports surface these as blockers, not routing inputs | Do not route on shape-family recommendations until semantic/layout/target boundaries are mechanically enforced |
 | 61 | Counter-driven occupancy/resource audit batch | Event timing says where time went, but not why kernels are limited | `tools/gpu_counter_report.py --batch` now joins captures, event medians, ISA summaries, counter exports, resource signals, and roofline groups with fixture coverage; remaining proof is real profiler exports from target hosts | Use as explanation evidence only; never replace exact correctness, timing, or claim-validation gates |

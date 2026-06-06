@@ -7,6 +7,17 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-11 export-specialization cleanup:
+
+- Rank 11 moved from the active queue to the completed-work archive as a
+  covered duplicate. The active row still asked for exact-wide fixed-limb,
+  compact-D2H, status-elision, prefix20, tree/CRT, and three-limb/four-limb
+  Direct-HIP A/B coverage, but ranks 47 and 48 already closed that selector and
+  export-bound implementation surface with schema-valid Windows `gfx1100`
+  evidence. Future new export/reconstruction candidates now belong under rank
+  33 with a fresh same-contract CPU/event/selector gate instead of a broad
+  duplicate exact-wide export row.
+
 June 6, 2026 rank-70 variance gate closeout:
 
 - Rank 70 moved from the active queue to the completed-work archive after the
