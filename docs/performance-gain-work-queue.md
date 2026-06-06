@@ -40,18 +40,12 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md). The
-active table below now contains 23 ranks. Rank IDs are historical/stable
+active table below now contains 22 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
-Archive material lives in
-[performance-gain-research-backlog.md](performance-gain-research-backlog.md)
-and [performance-gain-work-log.md](performance-gain-work-log.md). Keep this
-file focused on the active execution queue only.
-
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 10 | Direct-HIP prefix-9/prefix-20 fusion | Prefix-specific work remains useful but is behind grouping/export/RNS/reuse work in current priority | Keep the proven one-shot prefix-9 colpair route and prefix-20 exact-wide export evidence; rerun only paired end-to-end A/B captures | Keep variants only when prefix-specific end-to-end wins beat current grouped/generic paths |
 | 22 | Zero-tile and zero-row/column skip expansion beyond Direct-HIP | Direct-HIP has proof-mask execution skips, but scan-derived proof masks lost the setup-inclusive gate | Test only caller-provided proof metadata or naturally sparse workloads, with CPU/CK/rocWMMA/hipBLASLt correctness and event evidence | Do not chase scan-derived proof masks as default routing unless a cheaper persistent bound contract changes the economics |
 | 24 | Generated reducer/epilogue registry | Reducer specialization is duplicated across accelerators, but a free-form language project would be a distraction | Shared reducer definitions, generated backend helpers, selected-kernel identity, schema/cache metadata, fixtures, and ISA reports | Adopt only if generated names, metadata, cache keys, and ISA reports remain inspectable |
 | 33 | Reconstruction backend variants for GPU CRT/export | Current wins often move with export/status timing | Release A/B for GPU CRT, compact export, status handling, and host scatter variants | Promote only setup-inclusive export path wins, not isolated copy improvements |

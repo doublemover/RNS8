@@ -7,6 +7,21 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-10 Direct-HIP prefix fusion closeout:
+
+- Rank 10 moved from the active queue to the completed-work archive after
+  `tools/direct_hip_prefix_fusion_report.py` consolidated the prefix-specific
+  implementation evidence. The closeout report under
+  `temp/rank10-prefix-fusion-closeout-20260606/prefix-fusion-report/` compares
+  current schema-valid/event-valid public one-shot colpair captures against the
+  legacy v1 before-captures: bounded-i64 512 improves from 9368 us to 3048 us
+  median end-to-end, `3.07x`, and bounded-u64 512 improves from 4353 us to
+  2841 us, `1.53x`. The same report keeps the resident selected-prefix colpair
+  attempt deprioritized at 4010 us versus 2434 us median and imports the
+  prefix20 fixed-export selector rows as experimental. This closes the rank as
+  classified implementation evidence only; no installed cache entry, README
+  headline claim, default resident route, or Linux/CDNA claim changes.
+
 June 6, 2026 rank-30 HIP Graph replay release-size closeout:
 
 - Rank 30 moved from the active queue to the completed-work archive after a

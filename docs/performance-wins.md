@@ -295,7 +295,7 @@ cross-backend AUTO winners.
 | Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event phase speedup | Status |
 |---|---:|---|---:|---:|---:|---|
 | Public bounded-i64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 2.72x | 3.07x | 1.04x median | Routed only for Direct-HIP bounded-i64 `m/n/k >= 512`; persistent resident Direct-HIP remains faster for non-one-shot workflows |
-| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; smaller u64 remains on v1 |
+| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.53x | 1.53x | 1.53x median | Current schema-valid candidate rerun versus legacy v1 before-capture; routed only for Direct-HIP bounded-u64 fixed-prefix `m/n/k >= 512`; smaller u64 remains on v1 |
 | Public exact-wide signed 4-limb export | 1024 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.12x | 1.13x | 1.64x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide unsigned 4-limb export | 1024 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.22x | 1.24x | 6.42x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide signed 4-limb export | 2048 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.09x | 1.09x | 1.61x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
@@ -308,6 +308,9 @@ The colpair one-shot kernel is now routed for bounded i64 and bounded u64 when
 grouped kernel because 64/128 evidence was noisy or not favorable on Windows
 `gfx1100`. These are public one-shot implementation wins only; they are not
 evidence that one-shot beats resident matrix reuse for repeated calls.
+The current rank-10 closeout report keeps the current candidate captures
+schema-valid and event-valid while treating the older v1 before-captures as
+legacy A/B baselines, not promotable cache evidence.
 
 The exact-wide export rows compare the new Direct-HIP fixed-prefix18 fixed-limb
 export launch path against the immediately previous Direct-HIP export path with
