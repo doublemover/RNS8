@@ -281,15 +281,13 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
     out->per_task_status_required = 1;
     out->checksum_policy_required = 1;
     out->descriptor_reuse_validated = 1;
-    out->public_execution_available = 0;
     out->flags = RNS8_GROUPED_DISPATCH_CONTRACT_SAME_SHAPE_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_COMPACT_ROW_MAJOR_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_UNIQUE_TASK_HANDLES_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_ONE_WORKSPACE_PER_TASK_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_SAME_DEVICE_REQUIRED |
                  RNS8_GROUPED_DISPATCH_CONTRACT_PER_TASK_SOURCE_VERSION_REQUIRED |
-                 RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED |
-                 RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION;
+                 RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED;
     set_text(out->descriptor_layout, sizeof(out->descriptor_layout), "same_shape_resident_task_triplets_v1");
     set_text(out->bucket_policy, sizeof(out->bucket_policy), "single_same_shape_bucket");
     set_text(
@@ -337,18 +335,16 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
       set_text(out->unsupported_reason, sizeof(out->unsupported_reason), "invalid_plan_shape");
     } else {
       out->descriptor_contract_supported = 1;
-      set_text(
-          out->unsupported_reason,
-          sizeof(out->unsupported_reason),
-          "public_grouped_execution_not_available");
+      out->public_execution_available = 1;
     }
 
     if (out->descriptor_contract_supported) {
       set_text(
           out->detail,
           sizeof(out->detail),
-          "Internal Direct-HIP same-shape grouped descriptors are contract-valid for this plan when callers provide distinct resident A/B/C matrices and workspaces per task; public grouped execution is not exposed.");
+          "Direct-HIP same-shape grouped resident GEMM is public for this plan when callers provide distinct current resident A/B/C matrices and workspaces per task; grouped pack and export remain explicit caller phases.");
     } else {
+      out->flags |= RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION;
       set_text(
           out->detail,
           sizeof(out->detail),

@@ -63,8 +63,11 @@ same-shape grouped descriptor contract for a created plan: task count,
 shape/stride policy, unique matrix and workspace ownership, source-version
 repack policy, device-current output, host-output export requirement,
 status/checksum policy, descriptor reuse, and device descriptor layout. This is
-read-only contract metadata; public grouped execution remains unavailable until
-a real grouped executor ABI exists.
+contract metadata for `rns8_gemm_rns_grouped` and
+`rns8_gemm_finite_u8_grouped`, the narrow public resident grouped GEMM entry
+points. Those calls require already-current resident task inputs and do not
+perform grouped host packing, native-to-RNS conversion, final host export, or
+AUTO routing.
 
 `rns8-inspect` derives an internal plan-lowering description for autotune
 exact-hit plans from the same backend, packing, and schedule metadata. The

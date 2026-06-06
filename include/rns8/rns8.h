@@ -330,6 +330,15 @@ typedef struct rns8_grouped_dispatch_contract_info {
   char detail[256];
 } rns8_grouped_dispatch_contract_info;
 
+typedef struct rns8_grouped_gemm_task {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  const rns8_matrix* a;
+  const rns8_matrix* b;
+  rns8_matrix* c;
+  rns8_workspace* workspace;
+} rns8_grouped_gemm_task;
+
 typedef struct rns8_matrix_storage_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -593,6 +602,18 @@ RNS8_API rns8_status rns8_gemm_rns(
     rns8_workspace* workspace);
 
 /*
+ * Execute a same-shape group of resident RNS GEMMs through the Direct-HIP
+ * grouped descriptor path. Inputs must already be packed/current resident
+ * matrices for this plan; the grouped call does not perform host packing,
+ * native-to-RNS conversion, final host export, or AUTO routing.
+ */
+RNS8_API rns8_status rns8_gemm_rns_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count);
+
+/*
  * GEMM variant that consumes a reusable B prepack cache created from the same
  * plan and source-versioned B matrix. Currently implemented for the narrow
  * rocWMMA non-tiled RNS B-cache path only.
@@ -631,6 +652,19 @@ RNS8_API rns8_status rns8_gemm_finite_u8(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace);
+
+/*
+ * Execute a same-shape group of resident finite-u8 GEMMs through the Direct-HIP
+ * grouped descriptor path. The modulus stays explicit as in
+ * rns8_gemm_finite_u8. Inputs must already be packed/current for the same
+ * modulus; the grouped call does not perform host packing or final export.
+ */
+RNS8_API rns8_status rns8_gemm_finite_u8_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count);
 
 RNS8_API rns8_status rns8_export_i64(
     rns8_context* ctx,

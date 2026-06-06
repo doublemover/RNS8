@@ -203,6 +203,110 @@ rns8_status ensure_logically_const_rns_input_current(
       ctx, plan, *const_cast<rns8_matrix*>(&matrix));
 }
 
+rns8_status build_public_grouped_gemm_descriptor(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count,
+    std::vector<rns8::detail::hip_direct_grouped_gemm_task>& internal_tasks,
+    rns8::detail::hip_direct_grouped_gemm_bucket_plan& bucket_plan,
+    const rns8::detail::hip_direct_grouped_gemm_descriptor** out_descriptor) {
+  if (!tasks || !out_descriptor || task_count <= 1) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  *out_descriptor = nullptr;
+  internal_tasks.clear();
+  internal_tasks.reserve(task_count);
+  for (uint32_t index = 0; index < task_count; ++index) {
+    const rns8_grouped_gemm_task& task = tasks[index];
+    if (!rns8::detail::valid_abi(task.struct_size, task.abi_version, sizeof(task)) ||
+        !task.a || !task.b || !task.c || !task.workspace) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const rns8_status workspace_status = validate_plan_context_workspace(ctx, plan, *task.workspace);
+    if (workspace_status != RNS8_SUCCESS) {
+      return workspace_status;
+    }
+    internal_tasks.push_back(
+        {const_cast<rns8_matrix*>(task.a), const_cast<rns8_matrix*>(task.b), task.c, task.workspace});
+  }
+  if (plan.backend != RNS8_BACKEND_HIP_DIRECT || !direct_hip_compiled()) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  if (!context_accepts_backend(ctx, plan.backend)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_status status = rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+      &plan,
+      internal_tasks.data(),
+      task_count,
+      plan.desc.semantics,
+      plan.desc.m,
+      plan.desc.n,
+      plan.desc.k,
+      plan.prefix,
+      &bucket_plan);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  const auto* descriptor = rns8::detail::hip_direct_single_bucket_descriptor(bucket_plan);
+  if (!descriptor) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  int descriptor_device_id = -1;
+  status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(*descriptor, &descriptor_device_id);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (descriptor_device_id != ctx.device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  *out_descriptor = descriptor;
+  return RNS8_SUCCESS;
+}
+
+rns8_status execute_public_grouped_gemm(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count,
+    bool finite_u8,
+    uint16_t modulus) {
+  if ((finite_u8 && (!uses_finite_storage(plan.desc.semantics) || plan.desc.finite_modulus != modulus ||
+                     !rns8::detail::valid_finite_modulus_for_semantics(plan.desc.semantics, modulus))) ||
+      (!finite_u8 && !uses_rns_storage(plan.desc.semantics))) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  std::vector<rns8::detail::hip_direct_grouped_gemm_task> internal_tasks;
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan;
+  const rns8::detail::hip_direct_grouped_gemm_descriptor* descriptor = nullptr;
+  rns8_status status =
+      build_public_grouped_gemm_descriptor(ctx, plan, tasks, task_count, internal_tasks, bucket_plan, &descriptor);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+
+  rns8::detail::hip_direct_grouped_device_resources resources;
+  status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(*descriptor, 0, 0, 0, 0, &resources);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
+  if (status == RNS8_SUCCESS) {
+    status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
+                             *descriptor,
+                             resources,
+                             modulus)
+                       : rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(*descriptor, resources);
+  }
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(*descriptor);
+  }
+  const rns8_status reset_status = resources.reset();
+  return status != RNS8_SUCCESS ? status : reset_status;
+}
+
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
@@ -482,6 +586,19 @@ rns8_status rns8_gemm_rns(
   });
 }
 
+rns8_status rns8_gemm_rns_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return execute_public_grouped_gemm(*ctx, *plan, tasks, task_count, false, 0);
+  });
+}
+
 rns8_status rns8_gemm_rns_prepacked_b(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -525,6 +642,20 @@ rns8_status rns8_gemm_rns_prepacked_b(
       C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
     }
     return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_gemm_finite_u8_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !plan) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return execute_public_grouped_gemm(*ctx, *plan, tasks, task_count, true, modulus);
   });
 }
 

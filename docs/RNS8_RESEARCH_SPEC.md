@@ -1765,8 +1765,8 @@ Deliverables:
 - per-tile bounds,
 - prefix selection,
 - grouped scheduler,
-- read-only grouped descriptor/lifetime contract metadata before public
-  grouped execution,
+- read-only grouped descriptor/lifetime contract metadata plus narrow resident
+  grouped GEMM before broader public grouped pack/export dispatch,
 - adaptive skip,
 - CK path where supported.
 

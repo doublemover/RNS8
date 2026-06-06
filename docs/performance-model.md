@@ -926,8 +926,11 @@ called out explicitly below.
   loop or device-readable pointer/slab descriptors. Current captures may report
   deterministic unsupported metadata instead of pretending a graph or grouped
   path ran. `rns8_get_grouped_dispatch_contract_info` exposes the current
-  grouped descriptor and lifetime rules for a created plan, but reports public
-  grouped execution as unavailable until a real executor ABI is added.
+  grouped descriptor and lifetime rules for a created plan. Public
+  `rns8_gemm_rns_grouped` and `rns8_gemm_finite_u8_grouped` calls now expose
+  the narrow resident grouped GEMM executor for already-current Direct-HIP task
+  matrices; grouped pack/export and broader generic dispatch remain benchmark
+  or caller phases.
 - `resident_lifetime` and `workspace_arena` make resident A/B/C currentness,
   source-version policy, workspace identity, arena high-water mark,
   suballocation count, stream-safety contract, and allocation-free repeat proof

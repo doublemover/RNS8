@@ -16,7 +16,7 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(public_contract.semantics == RNS8_BOUNDED_U64);
   CHECK(public_contract.task_count == 2);
   CHECK(public_contract.descriptor_contract_supported == 1);
-  CHECK(public_contract.public_execution_available == 0);
+  CHECK(public_contract.public_execution_available == 1);
   CHECK(public_contract.same_shape_required == 1);
   CHECK(public_contract.unique_matrix_handles_required == 1);
   CHECK(public_contract.unique_workspace_handles_required == 1);
@@ -24,7 +24,7 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(public_contract.same_device_required == 1);
   CHECK(public_contract.device_resident_inputs_required == 1);
   CHECK(public_contract.produces_device_current_output == 1);
-  CHECK(std::string(public_contract.unsupported_reason) == "public_grouped_execution_not_available");
+  CHECK(std::string(public_contract.unsupported_reason).empty());
   CHECK(std::string(public_contract.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
 
   rns8_workspace* workspace0 = nullptr;
@@ -115,6 +115,15 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
         RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_INVALID_ARGUMENT);
+
+  rns8_grouped_gemm_task public_tasks[2] = {
+      {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a0, b0, c0, workspace0},
+      {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a1, b1, c1, workspace1},
+  };
+  REQUIRE(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_SUCCESS);
+
   REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
               descriptor,
               grouped_resources) == RNS8_SUCCESS);

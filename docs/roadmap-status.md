@@ -120,7 +120,10 @@ validation boundaries. Grouped
 benchmark lanes now also route bounded, finite, and exact-wide pack/GEMM/export
 phase execution through the internal Direct-HIP grouped descriptor/resource
 helpers. `rns8_get_grouped_dispatch_contract_info` exposes the read-only
-contract surface, while public/generic grouped execution remains unexposed.
+contract surface, and `rns8_gemm_rns_grouped` plus
+`rns8_gemm_finite_u8_grouped` expose narrow same-shape Direct-HIP resident
+grouped GEMM. Public grouped pack/export, AUTO routing, and broader generic
+dispatch remain unexposed.
 
 After PR #12, the active performance queue was refreshed so grouping, export,
 residency, reuse policy, variance gates, and target validation drive the next

@@ -350,6 +350,7 @@ TEST_CASE("public grouped dispatch contract info reports benchmark-only requirem
   CHECK(std::string(info.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
   CHECK(std::string(info.output_domain) == "native_i64_u64_host");
   CHECK(std::string(info.unsupported_reason) == "backend_not_hip_direct");
+  CHECK(rns8_gemm_rns_grouped(cpu, plan, nullptr, 32) == RNS8_INVALID_ARGUMENT);
 
   rns8_grouped_dispatch_contract_info bad_abi{};
   bad_abi.struct_size = sizeof(bad_abi) - 1;

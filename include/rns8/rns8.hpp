@@ -1,7 +1,9 @@
 #ifndef RNS8_RNS8_HPP
 #define RNS8_RNS8_HPP
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -237,6 +239,45 @@ class Workspace final {
  private:
   rns8_workspace* handle_ = nullptr;
 };
+
+inline rns8_grouped_gemm_task grouped_gemm_task(
+    const Matrix& a,
+    const Matrix& b,
+    Matrix& c,
+    Workspace& workspace) {
+  return {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a.get(), b.get(), c.get(), workspace.get()};
+}
+
+inline uint32_t checked_grouped_task_count(std::size_t size) {
+  if (size > static_cast<std::size_t>(std::numeric_limits<uint32_t>::max())) {
+    throw Error(RNS8_INVALID_ARGUMENT);
+  }
+  return static_cast<uint32_t>(size);
+}
+
+inline void gemm_rns_grouped(
+    Context& context,
+    const Plan& plan,
+    const std::vector<rns8_grouped_gemm_task>& tasks) {
+  check(rns8_gemm_rns_grouped(
+      context.get(),
+      plan.get(),
+      tasks.data(),
+      checked_grouped_task_count(tasks.size())));
+}
+
+inline void gemm_finite_u8_grouped(
+    Context& context,
+    const Plan& plan,
+    uint16_t modulus,
+    const std::vector<rns8_grouped_gemm_task>& tasks) {
+  check(rns8_gemm_finite_u8_grouped(
+      context.get(),
+      plan.get(),
+      modulus,
+      tasks.data(),
+      checked_grouped_task_count(tasks.size())));
+}
 
 inline void gemm_rns_prepacked_b(
     Context& context,
