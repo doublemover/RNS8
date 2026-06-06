@@ -95,11 +95,43 @@ def main() -> int:
         "output_domain_after_measured_repeats": "exact_wide_limb_host",
         "final_checksum_export_after_repeats": False,
     }
+    exact["export_variant"] = {
+        "name": "default",
+        "source": "current_backend_export_path",
+        "selector_source": "rns8_internal_export_plan",
+        "output_layout": "fixed_u64_limbs",
+        "limb_count": 4,
+        "status_policy": "required",
+        "selector_status_policy": "range_checked_status_buffer",
+        "d2h_policy": "host_ld_padded",
+        "requires_tile_metadata": False,
+        "all_zero_tiled_output": False,
+        "selected_kernel": "hip_direct_export_exact_wide_signed_limbs_device",
+        "constants_placement": "backend_default",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
     validate_capture(exact)
 
     stale_exact_domain = copy.deepcopy(exact)
     stale_exact_domain["exact_output_contract"]["requested_final_output"] = "linux_instinct_claim"
     expect_invalid(stale_exact_domain, "exact_output_contract.requested_final_output must be one of")
+
+    stale_export_layout = copy.deepcopy(exact)
+    stale_export_layout["export_variant"]["output_layout"] = "device_magic"
+    expect_invalid(stale_export_layout, "export_variant.output_layout must be one of")
+
+    stale_export_status = copy.deepcopy(exact)
+    stale_export_status["export_variant"]["selector_status_policy"] = "host_assumed_ok"
+    expect_invalid(stale_export_status, "export_variant.selector_status_policy must be one of")
+
+    stale_export_d2h = copy.deepcopy(exact)
+    stale_export_d2h["export_variant"]["d2h_policy"] = "compact_unproven"
+    expect_invalid(stale_export_d2h, "export_variant.d2h_policy must be one of")
+
+    stale_export_tile_flag = copy.deepcopy(exact)
+    stale_export_tile_flag["export_variant"]["requires_tile_metadata"] = "false"
+    expect_invalid(stale_export_tile_flag, "export_variant.requires_tile_metadata must be a boolean")
 
     grouped = as_grouped_dispatch_capture(base)
     validate_capture(grouped)

@@ -21,7 +21,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
@@ -254,7 +254,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;

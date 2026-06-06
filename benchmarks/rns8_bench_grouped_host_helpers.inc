@@ -511,7 +511,7 @@ void capture_vector_alu_schedule(rns8_context* ctx, const Args& args, uint64_t b
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-alu schedule)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   enforce_per_tile_capture_contract(args, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);

@@ -87,7 +87,7 @@
   print_device_allocation_json(args, result);
   print_reuse_contract_json(args, result, selected_backend, selected_kernel);
   print_exact_output_contract_json(args, result, output_ld, selected_kernel);
-  print_export_variant_json(args, selected_kernel);
+  print_export_variant_json(args, result, selected_kernel);
   print_reconstruction_variant_json(args, result, selected_kernel);
   print_modulus_and_residue_policy_json(args, result);
   print_tile_shape_variant_json(args, result, selected_kernel);

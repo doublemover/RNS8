@@ -29,6 +29,25 @@ from metadata_registry_constants import (
     WORKLOAD_PROXY_FAMILIES,
 )
 
+EXPORT_OUTPUT_LAYOUTS = {
+    "unknown",
+    "scalar_i64",
+    "scalar_u64",
+    "finite_u8",
+    "fixed_u64_limbs",
+}
+
+EXPORT_SELECTOR_STATUS_POLICIES = {
+    "unknown",
+    "none",
+    "range_checked_status_buffer",
+}
+
+EXPORT_D2H_POLICIES = {
+    "unknown",
+    "host_ld_padded",
+}
+
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -110,6 +129,26 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error(f"export_variant.{key} must be a string")
             if export_variant.get("status_policy") not in STATUS_HANDLING:
                 self._error(f"export_variant.status_policy must be one of {sorted(STATUS_HANDLING)}")
+            selector_source = export_variant.get("selector_source")
+            if selector_source is not None and not isinstance(selector_source, str):
+                self._error("export_variant.selector_source must be a string when present")
+            output_layout = export_variant.get("output_layout")
+            if output_layout is not None and output_layout not in EXPORT_OUTPUT_LAYOUTS:
+                self._error(f"export_variant.output_layout must be one of {sorted(EXPORT_OUTPUT_LAYOUTS)}")
+            selector_status = export_variant.get("selector_status_policy")
+            if selector_status is not None and selector_status not in EXPORT_SELECTOR_STATUS_POLICIES:
+                self._error(
+                    f"export_variant.selector_status_policy must be one of {sorted(EXPORT_SELECTOR_STATUS_POLICIES)}"
+                )
+            d2h_policy = export_variant.get("d2h_policy")
+            if d2h_policy is not None and d2h_policy not in EXPORT_D2H_POLICIES:
+                self._error(f"export_variant.d2h_policy must be one of {sorted(EXPORT_D2H_POLICIES)}")
+            selected_export_kernel = export_variant.get("selected_kernel")
+            if selected_export_kernel is not None and not isinstance(selected_export_kernel, str):
+                self._error("export_variant.selected_kernel must be a string or null")
+            for key in ["requires_tile_metadata", "all_zero_tiled_output"]:
+                if key in export_variant and not isinstance(export_variant.get(key), bool):
+                    self._error(f"export_variant.{key} must be a boolean when present")
             limb_count = export_variant.get("limb_count")
             if limb_count is not None and (not _is_int(limb_count) or not 1 <= limb_count <= 32):
                 self._error("export_variant.limb_count must be in [1, 32] or null")

@@ -86,7 +86,10 @@ teardown now flow through named internal helpers while keeping the public
 `rns8_workspace*` handle unchanged. Export/reconstruction paths now use a
 shared internal selector module that records output layout, limb count, status
 policy, D2H policy, selected export kernel, and tiled/all-zero metadata needs
-before touching the documented mutable export cache.
+before touching the documented mutable export cache; benchmark captures expose
+the same selector source, layout, D2H policy, status policy, selected export
+kernel, and tiled/all-zero decisions through schema-validated
+`export_variant` fields.
 
 HIP event/stream/pinned-staging/temporary-device-buffer ownership uses internal
 RAII wrappers, including CK/rocWMMA event timing helpers. Direct-HIP host code

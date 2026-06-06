@@ -27,7 +27,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);

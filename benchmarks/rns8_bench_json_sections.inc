@@ -385,6 +385,9 @@ void print_exact_output_contract_json(
     const BenchmarkResult& result,
     int64_t output_ld,
     const char* selected_kernel) {
+  const std::string export_kernel =
+      result.export_plan_info_available ? result.export_selected_kernel
+                                        : (selected_kernel ? std::string(selected_kernel) : std::string());
   std::cout << "  \"exact_output_contract\": {\n";
   std::cout << "    \"requested_final_output\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
   std::cout << "    \"limb_count\": ";
@@ -397,11 +400,7 @@ void print_exact_output_contract_json(
   std::cout << "    \"output_logical_ld\": " << output_ld << ",\n";
   std::cout << "    \"status_policy\": \"" << output_status_handling(args) << "\",\n";
   std::cout << "    \"kernel_identity\": ";
-  if (selected_kernel) {
-    std::cout << "\"" << json_escape(selected_kernel) << "\"";
-  } else {
-    std::cout << "null";
-  }
+  print_nullable_std_string(export_kernel);
   std::cout << ",\n";
   std::cout << "    \"output_domain_after_measured_repeats\": \""
             << (residue_current_output_mode(args) ? "rns_residue_current" : json_escape(output_domain_contract_name(args)))
@@ -414,25 +413,43 @@ void print_exact_output_contract_json(
 
 void print_export_variant_json(
     const Args& args,
+    const BenchmarkResult& result,
     const char* selected_kernel) {
   const bool default_variant = args.export_variant == "default";
+  const std::string export_kernel =
+      result.export_plan_info_available ? result.export_selected_kernel
+                                        : (selected_kernel ? std::string(selected_kernel) : std::string());
   std::cout << "  \"export_variant\": {\n";
   std::cout << "    \"name\": \"" << json_escape(args.export_variant) << "\",\n";
   std::cout << "    \"source\": \"" << (default_variant ? "current_backend_export_path" : "benchmark_cli_evidence_mode") << "\",\n";
+  std::cout << "    \"selector_source\": \""
+            << json_escape(result.export_plan_info_available ? result.export_plan_source : "legacy_selected_kernel")
+            << "\",\n";
+  std::cout << "    \"output_layout\": \""
+            << json_escape(result.export_plan_info_available ? result.export_output_layout : "unknown") << "\",\n";
   std::cout << "    \"limb_count\": ";
-  if (exact_wide_benchmark_semantics(args.semantics)) {
+  if (result.export_plan_info_available && result.export_limb_count != 0) {
+    std::cout << result.export_limb_count;
+  } else if (exact_wide_benchmark_semantics(args.semantics)) {
     std::cout << args.exact_wide_limb_count;
   } else {
     std::cout << "null";
   }
   std::cout << ",\n";
   std::cout << "    \"status_policy\": \"" << output_status_handling(args) << "\",\n";
+  std::cout << "    \"selector_status_policy\": \""
+            << json_escape(result.export_plan_info_available ? result.export_selector_status_policy : "unknown")
+            << "\",\n";
+  std::cout << "    \"d2h_policy\": \""
+            << json_escape(result.export_plan_info_available ? result.export_d2h_policy : "unknown") << "\",\n";
+  std::cout << "    \"requires_tile_metadata\": "
+            << (result.export_plan_info_available && result.export_requires_tile_metadata ? "true" : "false")
+            << ",\n";
+  std::cout << "    \"all_zero_tiled_output\": "
+            << (result.export_plan_info_available && result.export_all_zero_tiled_output ? "true" : "false")
+            << ",\n";
   std::cout << "    \"selected_kernel\": ";
-  if (selected_kernel) {
-    std::cout << "\"" << json_escape(selected_kernel) << "\"";
-  } else {
-    std::cout << "null";
-  }
+  print_nullable_std_string(export_kernel);
   std::cout << ",\n";
   std::cout << "    \"constants_placement\": \"backend_default\",\n";
   std::cout << "    \"promotion_eligible\": " << (default_variant ? "true" : "false") << ",\n";
@@ -447,16 +464,15 @@ void print_reconstruction_variant_json(
     const BenchmarkResult& result,
     const char* selected_kernel) {
   const bool default_variant = args.reconstruction_variant == "default_garner";
+  const std::string export_kernel =
+      result.export_plan_info_available ? result.export_selected_kernel
+                                        : (selected_kernel ? std::string(selected_kernel) : std::string());
   std::cout << "  \"reconstruction_variant\": {\n";
   std::cout << "    \"name\": \"" << json_escape(args.reconstruction_variant) << "\",\n";
   std::cout << "    \"family\": \"" << (default_variant ? "garner_fixed_prefix" : "benchmark_reconstruction_zoo") << "\",\n";
   std::cout << "    \"prefix_count\": " << selected_execution_prefix(args, result) << ",\n";
   std::cout << "    \"kernel_identity\": ";
-  if (selected_kernel) {
-    std::cout << "\"" << json_escape(selected_kernel) << "\"";
-  } else {
-    std::cout << "null";
-  }
+  print_nullable_std_string(export_kernel);
   std::cout << ",\n";
   std::cout << "    \"controller\": \"benchmark_metadata_only\",\n";
   std::cout << "    \"promotion_eligible\": " << (default_variant ? "true" : "false") << ",\n";

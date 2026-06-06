@@ -148,7 +148,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;

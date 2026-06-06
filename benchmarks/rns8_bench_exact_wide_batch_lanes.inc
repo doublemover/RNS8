@@ -24,7 +24,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide signed)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
@@ -205,7 +205,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide unsigned)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();

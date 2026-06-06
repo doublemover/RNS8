@@ -97,6 +97,7 @@ BenchmarkResult run_vector_to_rns_chain(
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-to-RNS consumer)", status);
   capture_schedule_info(direct_plan, result);
   capture_backend_info(direct_plan, result);
+  capture_export_plan_info(direct_args, direct_plan, result);
   enforce_per_tile_capture_contract(direct_args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
@@ -253,7 +254,7 @@ BenchmarkResult initialize_bounded_oneshot_result(
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(oneshot metadata)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   apply_bounded_oneshot_backend_metadata(args, result);
   apply_finite_oneshot_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);

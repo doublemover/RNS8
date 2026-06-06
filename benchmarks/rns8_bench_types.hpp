@@ -166,6 +166,15 @@ struct BenchmarkResult {
   bool packing_info_available = false;
   rns8::detail::PlanLoweringDescription lowering_info{};
   bool lowering_info_available = false;
+  bool export_plan_info_available = false;
+  std::string export_plan_source = "rns8_internal_export_plan";
+  std::string export_output_layout = "unknown";
+  std::string export_selector_status_policy = "unknown";
+  std::string export_d2h_policy = "unknown";
+  std::string export_selected_kernel{};
+  uint32_t export_limb_count = 0;
+  bool export_requires_tile_metadata = false;
+  bool export_all_zero_tiled_output = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
   rns8::detail::hip_direct_allocation_counters allocation_before{};

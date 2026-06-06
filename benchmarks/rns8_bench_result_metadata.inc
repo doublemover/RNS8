@@ -145,7 +145,23 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
   update_result_target_id_from_key(result);
 }
 
-void capture_packing_and_lowering_info(rns8_plan* plan, BenchmarkResult& result) {
+void capture_export_plan_info(const Args& args, rns8_plan* plan, BenchmarkResult& result) {
+  const uint32_t limb_count = exact_wide_benchmark_semantics(args.semantics) ? args.exact_wide_limb_count : 0;
+  const rns8::detail::api::export_reconstruction_plan export_plan =
+      rns8::detail::api::make_export_plan(*plan, c_semantics(args.semantics), limb_count);
+  result.export_plan_info_available = true;
+  result.export_plan_source = "rns8_internal_export_plan";
+  result.export_output_layout = rns8::detail::api::export_output_layout_name(export_plan.output_layout);
+  result.export_selector_status_policy =
+      rns8::detail::api::export_status_policy_name(export_plan.status_policy);
+  result.export_d2h_policy = rns8::detail::api::export_d2h_policy_name(export_plan.d2h_policy);
+  result.export_selected_kernel = export_plan.selected_export_kernel ? export_plan.selected_export_kernel : "";
+  result.export_limb_count = export_plan.limb_count;
+  result.export_requires_tile_metadata = export_plan.requires_hip_tile_metadata;
+  result.export_all_zero_tiled_output = export_plan.all_zero_tiled_output;
+}
+
+void capture_packing_and_lowering_info(const Args& args, rns8_plan* plan, BenchmarkResult& result) {
   result.packing_info.struct_size = sizeof(result.packing_info);
   result.packing_info.abi_version = RNS8_ABI_VERSION;
   const rns8_status packing_status = rns8_get_plan_packing_info(plan, &result.packing_info);
@@ -158,6 +174,7 @@ void capture_packing_and_lowering_info(rns8_plan* plan, BenchmarkResult& result)
         rns8::detail::describe_plan_lowering(result.backend_info, result.packing_info, result.schedule_info);
     result.lowering_info_available = true;
   }
+  capture_export_plan_info(args, plan, result);
 }
 
 void append_accumulator_key_fields(std::ostringstream& out, const rns8_plan_backend_info& info) {
