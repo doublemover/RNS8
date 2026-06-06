@@ -53,6 +53,8 @@ CSV_FIELDS = [
     "grouped_dispatch_status",
     "adaptive_grouped_scheduler_requested",
     "adaptive_grouped_scheduler_status",
+    "adaptive_grouped_scheduler_active_entries",
+    "adaptive_grouped_scheduler_launch_ratio",
     "resident_lifetime_enabled",
     "resident_lifetime_output_domain",
     "workspace_arena_enabled",

@@ -7,6 +7,26 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-54 adaptive grouped scheduler gate closeout:
+
+- Rank 54 moved from the active queue to the completed-work archive after the
+  adaptive scheduler surface became an executed Direct-HIP capture contract
+  instead of metadata-only bookkeeping. `--adaptive-grouped-scheduler` now
+  reports executed status when the capture uses
+  `direct_hip_grouped_active_prefix_schedule_rns_gemm_v3`, records active
+  prefix count, active entry count, independent-launch model, aggregate launch
+  model, launch-reduction ratio, and aggregate `rns_gemm_kernel_group` event
+  scope, and schema rejects requested Direct-HIP grouped-kernel captures that
+  still claim unsupported status. `tools/adaptive_grouped_scheduler_report.py`
+  now requires CPU and non-requested Direct-HIP same-contract baselines,
+  release warmups/repeats, required GPU events, adaptive execution, and
+  launch-reduction metadata before a candidate can promote locally. The
+  `adaptive-grouped-scheduler` scenario family now includes bounded-i64 and
+  bounded-u64 1024 uniform-small adaptive-prefix candidates plus CPU/direct
+  baselines. This
+  does not add a README headline claim, installed cache entry, AUTO route,
+  Linux readiness claim, or CDNA performance claim.
+
 June 6, 2026 rank-53 modulus-set and residue-count gate closeout:
 
 - Rank 53 moved from the active queue to the completed-work archive after the

@@ -62,6 +62,11 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_direct_hip_resident_redesign_report.py"],
     ),
     SuiteCase(
+        "adaptive_grouped_scheduler_report",
+        "scheduler_overlap",
+        [sys.executable, "tools/test_adaptive_grouped_scheduler_report.py"],
+    ),
+    SuiteCase(
         "modulus_set_search",
         "performance_evidence_drift",
         [sys.executable, "tools/test_modulus_set_search.py"],

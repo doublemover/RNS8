@@ -106,6 +106,8 @@ def build_row(
         "grouped_dispatch_status": grouped_dispatch.get("capture_status"),
         "adaptive_grouped_scheduler_requested": adaptive_grouped_scheduler.get("requested"),
         "adaptive_grouped_scheduler_status": adaptive_grouped_scheduler.get("capture_status"),
+        "adaptive_grouped_scheduler_active_entries": adaptive_grouped_scheduler.get("active_entry_count"),
+        "adaptive_grouped_scheduler_launch_ratio": adaptive_grouped_scheduler.get("launch_reduction_ratio"),
         "resident_lifetime_enabled": resident_lifetime.get("enabled"),
         "resident_lifetime_output_domain": resident_lifetime.get("output_domain"),
         "workspace_arena_enabled": workspace_arena.get("enabled"),

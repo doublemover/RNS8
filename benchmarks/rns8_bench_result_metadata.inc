@@ -122,8 +122,22 @@ void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
         if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
           ++result.zero_output_tile_count;
           result.zero_output_selected_residue_plane_count += entry.selected_prefix;
+          continue;
+        }
+        result.adaptive_grouped_independent_launch_count += entry.selected_prefix;
+      }
+      if (result.schedule_info.max_selected_prefix != 0) {
+        result.adaptive_grouped_active_prefix_count = result.schedule_info.max_selected_prefix;
+        for (uint32_t p = 0; p < result.schedule_info.max_selected_prefix; ++p) {
+          for (const auto& entry : entries) {
+            if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+              ++result.adaptive_grouped_active_entry_count;
+            }
+          }
         }
       }
+      result.adaptive_grouped_aggregate_launch_count =
+          result.adaptive_grouped_active_entry_count == 0 ? 0 : 1;
     }
   }
   const auto end = std::chrono::steady_clock::now();

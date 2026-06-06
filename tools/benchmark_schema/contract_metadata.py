@@ -514,16 +514,59 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["strategy", "descriptor_identity", "selected_prefix_histogram"]:
                 if not isinstance(adaptive.get(key), str):
                     self._error(f"adaptive_grouped_scheduler.{key} must be a string")
-            for key in ["group_count", "active_tile_count", "zero_tile_count"]:
+            for key in [
+                "group_count",
+                "active_prefix_count",
+                "active_tile_count",
+                "active_entry_count",
+                "zero_tile_count",
+                "independent_launch_count_model",
+                "aggregate_launch_count_model",
+            ]:
                 value = adaptive.get(key)
                 if not _is_int(value) or value < 0:
                     self._error(f"adaptive_grouped_scheduler.{key} must be a nonnegative integer")
+            if not _is_number(adaptive.get("launch_reduction_ratio")) or adaptive.get("launch_reduction_ratio") < 0:
+                self._error("adaptive_grouped_scheduler.launch_reduction_ratio must be a nonnegative number")
+            if not isinstance(adaptive.get("event_scope"), str):
+                self._error("adaptive_grouped_scheduler.event_scope must be a string")
             if adaptive.get("capture_status") not in GROUPED_DISPATCH_STATUSES:
                 self._error(
                     f"adaptive_grouped_scheduler.capture_status must be one of {sorted(GROUPED_DISPATCH_STATUSES)}"
                 )
             if adaptive.get("requested") is True and adaptive.get("promotion_eligible") is not False:
                 self._error("adaptive_grouped_scheduler requested captures must set promotion_eligible=false")
+            if adaptive.get("requested") is True:
+                if adaptive.get("strategy") != "prefix_tile_zero_mask_grouped_descriptors":
+                    self._error("adaptive_grouped_scheduler requested captures must declare the grouped descriptor strategy")
+                if adaptive.get("group_count", 0) <= 0:
+                    self._error("adaptive_grouped_scheduler requested captures must have a positive group_count")
+                if adaptive.get("active_tile_count", 0) <= 0:
+                    self._error("adaptive_grouped_scheduler requested captures must have a positive active_tile_count")
+                if self.data.get("backend_selected") == "hip-direct" and self.data.get(
+                    "selected_kernel"
+                ) == "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3":
+                    if adaptive.get("capture_status") != "executed":
+                        self._error(
+                            "adaptive_grouped_scheduler direct-HIP grouped-kernel captures must set "
+                            "capture_status=executed"
+                        )
+                    if adaptive.get("unsupported_reason") is not None:
+                        self._error(
+                            "adaptive_grouped_scheduler executed captures must set unsupported_reason=null"
+                        )
+                    if adaptive.get("active_entry_count", 0) <= 0:
+                        self._error(
+                            "adaptive_grouped_scheduler executed captures must have a positive active_entry_count"
+                        )
+                    if adaptive.get("aggregate_launch_count_model") != 1:
+                        self._error(
+                            "adaptive_grouped_scheduler executed captures must model one aggregate GEMM event group"
+                        )
+                    if adaptive.get("event_scope") != "aggregate_rns_gemm_kernel_group_per_measured_repeat":
+                        self._error(
+                            "adaptive_grouped_scheduler executed captures must declare the aggregate GEMM event scope"
+                        )
 
     resident_redesign = self.data.get("resident_redesign")
     if resident_redesign is not None:

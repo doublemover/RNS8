@@ -162,6 +162,10 @@ struct BenchmarkResult {
   bool schedule_info_available = false;
   uint64_t zero_output_tile_count = 0;
   uint64_t zero_output_selected_residue_plane_count = 0;
+  uint64_t adaptive_grouped_active_entry_count = 0;
+  uint32_t adaptive_grouped_active_prefix_count = 0;
+  uint64_t adaptive_grouped_independent_launch_count = 0;
+  uint64_t adaptive_grouped_aggregate_launch_count = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
   std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};

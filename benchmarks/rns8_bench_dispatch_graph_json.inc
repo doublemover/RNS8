@@ -84,6 +84,12 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
       make_grouped_dispatch_descriptor_contract(args, result);
   const bool grouped = grouped_contract.requested;
   const bool adaptive_grouped = args.adaptive_grouped_scheduler;
+  const bool adaptive_grouped_executed =
+      adaptive_grouped && result.backend_info_available &&
+      result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT && result.schedule_info_available &&
+      result.schedule_info.tile_count != 0 &&
+      std::string(result.backend_info.selected_kernel) ==
+          "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3";
   std::cout << "  \"grouped_dispatch\": {\n";
   std::cout << "    \"requested\": " << (grouped ? "true" : "false") << ",\n";
   std::cout << "    \"task_count\": " << grouped_contract.task_count << ",\n";
@@ -143,15 +149,40 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
             << ";zero_tiles=" << result.zero_output_tile_count << "\",\n";
   std::cout << "    \"group_count\": "
             << (adaptive_grouped ? std::max<uint64_t>(1, result.schedule_info.prefix_group_count) : 0) << ",\n";
+  std::cout << "    \"active_prefix_count\": "
+            << (adaptive_grouped ? result.adaptive_grouped_active_prefix_count : 0) << ",\n";
   std::cout << "    \"active_tile_count\": " << result.schedule_info.tile_count << ",\n";
+  std::cout << "    \"active_entry_count\": "
+            << (adaptive_grouped ? result.adaptive_grouped_active_entry_count : 0) << ",\n";
   std::cout << "    \"zero_tile_count\": " << result.zero_output_tile_count << ",\n";
+  std::cout << "    \"independent_launch_count_model\": "
+            << (adaptive_grouped ? result.adaptive_grouped_independent_launch_count : 0) << ",\n";
+  std::cout << "    \"aggregate_launch_count_model\": "
+            << (adaptive_grouped ? result.adaptive_grouped_aggregate_launch_count : 0) << ",\n";
+  std::cout << "    \"launch_reduction_ratio\": ";
+  if (adaptive_grouped && result.adaptive_grouped_aggregate_launch_count != 0) {
+    std::cout << static_cast<double>(result.adaptive_grouped_independent_launch_count) /
+                     static_cast<double>(result.adaptive_grouped_aggregate_launch_count);
+  } else {
+    std::cout << 0.0;
+  }
+  std::cout << ",\n";
+  std::cout << "    \"event_scope\": \""
+            << (adaptive_grouped_executed ? "aggregate_rns_gemm_kernel_group_per_measured_repeat"
+                                          : "not_available")
+            << "\",\n";
   std::cout << "    \"selected_prefix_histogram\": \"min=" << result.schedule_info.min_selected_prefix
             << ";max=" << result.schedule_info.max_selected_prefix << "\",\n";
   std::cout << "    \"capture_status\": \""
-            << (adaptive_grouped ? "metadata_only_unsupported_for_execution_path" : "not_requested") << "\",\n";
+            << (adaptive_grouped_executed ? "executed"
+                                          : adaptive_grouped ? "metadata_only_unsupported_for_execution_path"
+                                                             : "not_requested")
+            << "\",\n";
   std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(adaptive_grouped ? std::string("adaptive_grouped_scheduler_not_executed_by_current_path")
-                                             : std::string());
+  print_nullable_std_string(
+      adaptive_grouped && !adaptive_grouped_executed
+          ? std::string("adaptive_grouped_scheduler_not_executed_by_current_path")
+          : std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";

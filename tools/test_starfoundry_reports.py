@@ -180,11 +180,21 @@ def starfoundry_capture() -> dict:
         "strategy": "prefix_tile_zero_mask_grouped_descriptors",
         "descriptor_identity": "prefix=9;tile_m=128;tile_n=128;zero_tiles=0",
         "group_count": 1,
+        "active_prefix_count": capture["schedule_metadata"]["max_selected_prefix"],
         "active_tile_count": capture["schedule_metadata"]["tile_count"],
+        "active_entry_count": capture["schedule_metadata"]["tile_count"]
+        * capture["schedule_metadata"]["max_selected_prefix"],
         "zero_tile_count": 0,
+        "independent_launch_count_model": capture["schedule_metadata"]["tile_count"]
+        * capture["schedule_metadata"]["max_selected_prefix"],
+        "aggregate_launch_count_model": 1,
+        "launch_reduction_ratio": float(
+            capture["schedule_metadata"]["tile_count"] * capture["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat",
         "selected_prefix_histogram": "min=9;max=9",
-        "capture_status": "metadata_only_unsupported_for_execution_path",
-        "unsupported_reason": "adaptive_grouped_scheduler_not_executed_by_current_path",
+        "capture_status": "executed",
+        "unsupported_reason": None,
         "promotion_eligible": False,
     }
     capture["resident_lifetime"] = {

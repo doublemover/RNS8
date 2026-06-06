@@ -223,6 +223,48 @@ def main() -> int:
     stale_graph_status["hip_graph_replay"]["capture_status"] = "stale_graph_status"
     expect_invalid(stale_graph_status, "hip_graph_replay.capture_status must be one of")
 
+    adaptive_grouped = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
+    adaptive_grouped["adaptive_grouped_scheduler"] = {
+        "requested": True,
+        "strategy": "prefix_tile_zero_mask_grouped_descriptors",
+        "descriptor_identity": "prefix=4;tile_m=64;tile_n=64;zero_tiles=0",
+        "group_count": adaptive_grouped["schedule_metadata"]["prefix_group_count"],
+        "active_prefix_count": adaptive_grouped["schedule_metadata"]["max_selected_prefix"],
+        "active_tile_count": adaptive_grouped["schedule_metadata"]["tile_count"],
+        "active_entry_count": (
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "zero_tile_count": adaptive_grouped["schedule_metadata"].get("zero_output_tile_count", 0),
+        "independent_launch_count_model": (
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "aggregate_launch_count_model": 1,
+        "launch_reduction_ratio": float(
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat",
+        "selected_prefix_histogram": "min=1;max=4",
+        "capture_status": "executed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+    }
+    validate_capture(adaptive_grouped)
+
+    stale_adaptive_status = copy.deepcopy(adaptive_grouped)
+    stale_adaptive_status["adaptive_grouped_scheduler"]["capture_status"] = (
+        "metadata_only_unsupported_for_execution_path"
+    )
+    stale_adaptive_status["adaptive_grouped_scheduler"][
+        "unsupported_reason"
+    ] = "adaptive_grouped_scheduler_not_executed_by_current_path"
+    expect_invalid(
+        stale_adaptive_status,
+        "adaptive_grouped_scheduler direct-HIP grouped-kernel captures must set capture_status=executed",
+    )
+
     resident_redesign = copy.deepcopy(direct_hip_base)
     resident_redesign["resident_redesign"] = {
         "enabled": True,
