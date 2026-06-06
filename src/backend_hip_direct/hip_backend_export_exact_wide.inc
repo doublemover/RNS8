@@ -1,3 +1,13 @@
+bool use_exact_wide_signed_tree_crt_export_route(int64_t rows, int64_t cols, uint32_t prefix, uint32_t limb_count) {
+  if (prefix != 18 || limb_count != 4 || rows <= 0 || cols <= 0) {
+    return false;
+  }
+  constexpr uint64_t kMinTreeCrtOutputCells = 1024ull * 1024ull;
+  const auto urows = static_cast<uint64_t>(rows);
+  const auto ucols = static_cast<uint64_t>(cols);
+  return urows <= std::numeric_limits<uint64_t>::max() / ucols && urows * ucols >= kMinTreeCrtOutputCells;
+}
+
 rns8_status hip_direct_export_exact_wide_signed_limbs_device(
     int device_id,
     const void* device_residues,
@@ -16,6 +26,21 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_device(
       ld < cols || !checked_matrix_elements_i32(rows, cols) || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       limb_count == 0 || limb_count > 32 || !checked_limb_export_pitch(ld, limb_count)) {
     return RNS8_INVALID_ARGUMENT;
+  }
+  if (use_exact_wide_signed_tree_crt_export_route(rows, cols, prefix, limb_count)) {
+    return hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+        device_id,
+        device_residues,
+        export_buffer,
+        export_bytes,
+        status_buffer,
+        status_bytes,
+        rows,
+        cols,
+        prefix,
+        dst,
+        ld,
+        limb_count);
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {

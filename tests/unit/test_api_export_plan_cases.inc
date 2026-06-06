@@ -118,4 +118,41 @@ TEST_CASE("internal export reconstruction plan exposes selector metadata") {
   CHECK(exact_unsigned_hip_export.selector_key.find(
             "selected_kernel=hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device") !=
         std::string::npos);
+
+  auto exact_signed_hip_512 = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_SIGNED);
+  exact_signed_hip_512.prefix = 18;
+  exact_signed_hip_512.desc.m = 512;
+  exact_signed_hip_512.desc.n = 512;
+  const auto exact_signed_hip_512_export =
+      rns8_api::make_export_plan(exact_signed_hip_512, RNS8_EXACT_WIDE_SIGNED, 4);
+  CHECK(std::string(exact_signed_hip_512_export.selected_export_kernel) ==
+        "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device");
+
+  auto exact_signed_hip_1024 = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_SIGNED);
+  exact_signed_hip_1024.prefix = 18;
+  exact_signed_hip_1024.desc.m = 1024;
+  exact_signed_hip_1024.desc.n = 1024;
+  const auto exact_signed_hip_1024_export =
+      rns8_api::make_export_plan(exact_signed_hip_1024, RNS8_EXACT_WIDE_SIGNED, 4);
+  CHECK(std::string(exact_signed_hip_1024_export.selected_export_kernel) ==
+        "hip_direct_export_exact_wide_signed_tree_crt_limbs_device");
+  CHECK(exact_signed_hip_1024_export.selector_key.find(
+            "selected_kernel=hip_direct_export_exact_wide_signed_tree_crt_limbs_device") != std::string::npos);
+
+  auto exact_signed_hip_rect = exact_signed_hip_1024;
+  exact_signed_hip_rect.desc.m = 512;
+  exact_signed_hip_rect.desc.n = 2048;
+  const auto exact_signed_hip_rect_export =
+      rns8_api::make_export_plan(exact_signed_hip_rect, RNS8_EXACT_WIDE_SIGNED, 4);
+  CHECK(std::string(exact_signed_hip_rect_export.selected_export_kernel) ==
+        "hip_direct_export_exact_wide_signed_tree_crt_limbs_device");
+
+  auto exact_unsigned_hip_large = export_plan_fixture(RNS8_BACKEND_HIP_DIRECT, RNS8_EXACT_WIDE_UNSIGNED);
+  exact_unsigned_hip_large.prefix = 18;
+  exact_unsigned_hip_large.desc.m = 2048;
+  exact_unsigned_hip_large.desc.n = 2048;
+  const auto exact_unsigned_hip_large_export =
+      rns8_api::make_export_plan(exact_unsigned_hip_large, RNS8_EXACT_WIDE_UNSIGNED, 4);
+  CHECK(std::string(exact_unsigned_hip_large_export.selected_export_kernel) ==
+        "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device");
 }

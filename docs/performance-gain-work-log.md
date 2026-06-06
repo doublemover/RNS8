@@ -68,6 +68,20 @@ June 6, 2026 queue-triage update:
   tiled metadata requirement, and all-zero tiled-output state. Rank 48 remains
   active for compact/padded D2H variants, cache/stale-entry integration,
   final-output/chain selection, and release-size A/B evidence.
+- The rank 47 Direct-HIP tree/CRT export follow-up narrowed the production
+  route instead of promoting every selector candidate. The fixed-prefix export
+  pass under `temp/rank47-exact-wide-prefix18-fixed-20260606/` showed local
+  `gfx1100` 4-limb exact-wide Direct-HIP wins at 1024/2048 after the concrete
+  prefix18 fixed-limb kernels and redundant export sync removal. The compact
+  D2H selector under `temp/rank47-compact-d2h-20260606/` lost to the padded
+  default. The tree/CRT captures under `temp/rank47-tree-crt-20260606/` and
+  `temp/rank47-tree-crt-followup-20260606/` show signed prefix18 1024 and 2048
+  wins, with roughly 2x export-event improvement versus fixed-prefix Garner
+  export; 64 is favorable but too small to drive a default route, 128 and 512
+  do not pass the end-to-end gate, unsigned tree/CRT is not worth routing, and
+  prefix20 remains experimental. The resulting Direct-HIP default route is
+  intentionally narrow: signed prefix18, four requested limbs, and large
+  outputs only. This is Windows `gfx1100` evidence, not Linux/CDNA proof.
 - Pending local-validation and multi-GPU readiness tooling now exists without
   changing README/cache/evidence claims. `tools/pending_validation.py` now owns
   the reusable command-planning, capture discovery, review-report indexing,

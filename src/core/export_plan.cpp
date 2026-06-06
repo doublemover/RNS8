@@ -1,5 +1,7 @@
 #include "core/api_internal.hpp"
 
+#include <limits>
+
 namespace rns8::detail::api {
 
 const char* export_output_layout_name(export_output_layout layout) {
@@ -83,6 +85,17 @@ bool exact_wide_common_fixed_limb_count(uint32_t limb_count) {
   }
 }
 
+bool exact_wide_signed_tree_crt_export_route(const rns8_plan& plan, uint32_t limb_count) {
+  if (!export_backend_is_hip_rns(plan.backend) || plan.prefix != 18 || limb_count != 4 ||
+      plan.desc.m <= 0 || plan.desc.n <= 0) {
+    return false;
+  }
+  constexpr uint64_t kMinTreeCrtOutputCells = 1024ull * 1024ull;
+  return static_cast<uint64_t>(plan.desc.m) <=
+             std::numeric_limits<uint64_t>::max() / static_cast<uint64_t>(plan.desc.n) &&
+         static_cast<uint64_t>(plan.desc.m) * static_cast<uint64_t>(plan.desc.n) >= kMinTreeCrtOutputCells;
+}
+
 const char* exact_wide_export_kernel(const rns8_plan& plan, rns8_semantics semantics, uint32_t limb_count) {
   if (semantics == RNS8_EXACT_WIDE_UNSIGNED) {
     if (!export_backend_is_hip_rns(plan.backend)) {
@@ -102,6 +115,9 @@ const char* exact_wide_export_kernel(const rns8_plan& plan, rns8_semantics seman
   }
   if (!export_backend_is_hip_rns(plan.backend)) {
     return "cpu_reference_export_exact_wide_signed_limbs";
+  }
+  if (exact_wide_signed_tree_crt_export_route(plan, limb_count)) {
+    return "hip_direct_export_exact_wide_signed_tree_crt_limbs_device";
   }
   if (plan.prefix == 18) {
     return exact_wide_common_fixed_limb_count(limb_count)
