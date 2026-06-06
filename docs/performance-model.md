@@ -109,9 +109,12 @@ installer accepts `hip-vector-alu-int64` only for bounded i64/u64 reviewed
 entries with native final/export epilogues; finite, exact-wide, and wrap64
 entries still require their explicit residue or byte-limb backend contracts.
 For cache replacement reviews, pass `--promotion-ledger <promotion-ledger.json>`
-so every source entry must have an unblocked ledger row; add
-`--require-variance-gate` when the reviewed lane also needs a
-`perf_variance_report.py` repeatability gate before install.
+so every source entry must have an unblocked ledger row. Cache writes now
+require that ledger to carry a ready `perf_variance_report.py` variance gate;
+dry-runs may still validate cache JSON without a ledger, but real installs and
+replacements do not bypass repeatability evidence. Use
+`promotion_ledger.py --require-variance-gate` when generating evidence-review
+ledgers so missing variance rows are blocked before cache-install review.
 
 ## Windows `gfx1100` release-smoke snapshot
 

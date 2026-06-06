@@ -270,12 +270,26 @@ def main() -> int:
             "end_to_end"
         ] == 4.0
 
-        summary = install_autotune_cache.install_cache([source_a, source_b], destination)
+        try:
+            install_autotune_cache.install_cache([source_a, source_b], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_required_for_cache_install" in str(exc)
+        else:
+            raise AssertionError("cache install accepted a write without a promotion ledger")
+
+        install_ledger = root / "install-promotion-ledger.json"
+        write_ledger(install_ledger, [replacement, finite, vector, vector_gemv], variance=True, variance_ready=True)
+        summary = install_autotune_cache.install_cache(
+            [source_a, source_b],
+            destination,
+            promotion_ledgers=[install_ledger],
+        )
         assert summary["source_entries"] == 4
         assert summary["existing_entries"] == 1
         assert summary["installed_entries"] == 4
         assert summary["added_entries"] == 3
         assert summary["replaced_entries"] == 1
+        assert summary["require_variance_gate"] is True
         assert any(item["action"] == "replace" for item in summary["replacement_history"])
         assert any(item["target_class"] == "rdna" for item in summary["replacement_history"])
         assert summary["cache_coverage"]
@@ -360,14 +374,17 @@ def main() -> int:
 
         ledger = root / "promotion-ledger.json"
         write_ledger(ledger, [replacement])
-        ledger_summary = install_autotune_cache.install_cache(
-            [source_a],
-            destination,
-            dry_run=True,
-            promotion_ledgers=[ledger],
-        )
-        assert ledger_summary["promotion_ledgers"] == [str(ledger)]
-        assert ledger_summary["require_variance_gate"] is False
+        try:
+            install_autotune_cache.install_cache(
+                [source_a],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[ledger],
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_variance_gate" in str(exc)
+        else:
+            raise AssertionError("promotion ledger without variance gate was accepted")
 
         missing_ledger = root / "missing-promotion-ledger.json"
         write_ledger(missing_ledger, [finite])
@@ -407,12 +424,11 @@ def main() -> int:
             destination,
             dry_run=True,
             promotion_ledgers=[variance_ledger],
-            require_variance_gate=True,
         )
         assert variance_summary["require_variance_gate"] is True
 
         target_ledger = root / "target-promotion-ledger.json"
-        write_ledger(target_ledger, [replacement], target_gate=True, target_ready=True)
+        write_ledger(target_ledger, [replacement], variance=True, variance_ready=True, target_gate=True, target_ready=True)
         target_summary = install_autotune_cache.install_cache(
             [source_a],
             destination,
@@ -646,7 +662,12 @@ def main() -> int:
         else:
             raise AssertionError("stale destination cache was silently preserved")
 
-        replaced = install_autotune_cache.install_cache([source_a], stale, replace_existing=True)
+        replaced = install_autotune_cache.install_cache(
+            [source_a],
+            stale,
+            replace_existing=True,
+            promotion_ledgers=[variance_ledger],
+        )
         assert replaced["replace_existing"] is True
         assert replaced["existing_entries"] == 0
         assert replaced["installed_entries"] == 1

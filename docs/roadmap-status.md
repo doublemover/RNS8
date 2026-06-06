@@ -105,7 +105,9 @@ Performance evidence hardening now also includes
 `tools/perf_variance_report.py`, which groups same-contract capture reruns by
 backend/kernel, records within-capture and run-to-run timing spread, derives
 the minimum speedup margin needed to clear observed repeatability noise, and
-can feed `tools/promotion_ledger.py` through `--variance-report`.
+feeds `tools/promotion_ledger.py` through `--variance-report`; promotion
+ledgers can now require the variance gate directly, and cache installs with a
+promotion ledger require a ready variance row by default.
 The non-routing `tools/shape_family_shadow_report.py` can now explain which
 reviewed exact cache entry a shape-family AUTO policy would choose and which
 blocker prevents that advisory recommendation from changing routing. Future

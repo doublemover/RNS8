@@ -103,6 +103,7 @@ def capture_entry(
     variance_entry: dict[str, Any] | None = None,
     *,
     variance_report_supplied: bool = False,
+    variance_gate_required: bool = False,
     target_validation_entry: dict[str, Any] | None = None,
     target_validation_report_supplied: bool = False,
 ) -> dict[str, Any]:
@@ -159,7 +160,7 @@ def capture_entry(
     variance_required_margin = None
     variance_observed_noise = None
     variance_ready = None
-    if variance_report_supplied and variance_entry is None:
+    if (variance_gate_required or variance_report_supplied) and variance_entry is None:
         blockers.append("missing_variance_gate_entry")
     elif variance_entry is not None:
         variance_ready = variance_entry.get("promotion_ready") is True
@@ -341,6 +342,8 @@ def build_ledger(
     review_reports: list[Path] | None = None,
     variance_reports: list[Path] | None = None,
     target_validation_reports: list[Path] | None = None,
+    *,
+    require_variance_gate: bool = False,
 ) -> dict[str, Any]:
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
@@ -353,6 +356,7 @@ def build_ledger(
                 reviewed.get(path_key(path)),
                 variance.get(path_key(path)),
                 variance_report_supplied=variance_report_supplied,
+                variance_gate_required=require_variance_gate,
                 target_validation_entry=target_groups.get(str(target_row.get("target_validation_group"))),
                 target_validation_report_supplied=bool(target_validation_reports),
             )
@@ -373,6 +377,7 @@ def build_ledger(
         "cache_path": str(cache_path) if cache_path else None,
         "review_report_count": len(review_reports or []),
         "variance_report_count": len(variance_reports or []),
+        "require_variance_gate": require_variance_gate,
         "target_validation_report_count": len(target_validation_reports or []),
         "cache_entry_count": len(cache_entries),
         "entries": entries,
@@ -456,6 +461,11 @@ def main() -> int:
         help="perf_variance_report.py output that proves the win clears observed repeatability noise",
     )
     parser.add_argument(
+        "--require-variance-gate",
+        action="store_true",
+        help="block every promotion ledger row that does not have a matching ready perf_variance_report entry",
+    )
+    parser.add_argument(
         "--target-validation-report",
         type=Path,
         action="append",
@@ -465,7 +475,14 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    ledger = build_ledger(args.captures, args.cache, args.review_report, args.variance_report, args.target_validation_report)
+    ledger = build_ledger(
+        args.captures,
+        args.cache,
+        args.review_report,
+        args.variance_report,
+        args.target_validation_report,
+        require_variance_gate=args.require_variance_gate,
+    )
     if args.json:
         print(json.dumps(ledger, indent=2, sort_keys=True))
     else:

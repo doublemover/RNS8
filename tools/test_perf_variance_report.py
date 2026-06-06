@@ -146,6 +146,15 @@ def main() -> int:
         clear_ledger = promotion_ledger.build_ledger([stable_a], cache_path, [clear_review], [variance_path])
         assert clear_ledger["entries"][0]["promotion_blockers"] == []
 
+        missing_variance_ledger = promotion_ledger.build_ledger(
+            [stable_a],
+            cache_path,
+            [clear_review],
+            [],
+            require_variance_gate=True,
+        )
+        assert "missing_variance_gate_entry" in missing_variance_ledger["entries"][0]["promotion_blockers"]
+
     print("perf variance report self-test: PASS")
     return 0
 

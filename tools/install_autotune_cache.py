@@ -517,14 +517,17 @@ def install_cache(
                 raise AutotuneCacheInstallError(
                     "selector_review_only_cache_entry_not_runtime_installable:" + str(entry.get("key") or "<missing>")
                 )
+    effective_require_variance_gate = require_variance_gate or bool(promotion_ledgers)
+    if not dry_run and not promotion_ledgers:
+        raise AutotuneCacheInstallError("promotion_ledger_required_for_cache_install")
     if promotion_ledgers:
         validate_promotion_ledger_gate(
             reviewed_source_entries,
             promotion_ledgers,
-            require_variance_gate=require_variance_gate,
+            require_variance_gate=effective_require_variance_gate,
             require_target_validation_gate=require_target_validation_gate,
         )
-    elif require_variance_gate:
+    elif effective_require_variance_gate:
         raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
     elif require_target_validation_gate:
         raise AutotuneCacheInstallError("--require-target-validation-gate requires at least one --promotion-ledger")
@@ -567,7 +570,7 @@ def install_cache(
         "replace_existing": replace_existing,
         "sources": [str(source) for source in sources],
         "promotion_ledgers": [str(path) for path in (promotion_ledgers or [])],
-        "require_variance_gate": require_variance_gate,
+        "require_variance_gate": effective_require_variance_gate,
         "require_target_validation_gate": require_target_validation_gate,
         "allow_selector_review_cache": allow_selector_review_cache,
         "source_entries": source_entries,
@@ -600,7 +603,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--require-variance-gate",
         action="store_true",
-        help="require supplied promotion ledger rows to include a ready perf_variance_report gate",
+        help=(
+            "require supplied promotion ledger rows to include a ready perf_variance_report gate; "
+            "this is now the default whenever --promotion-ledger is supplied"
+        ),
     )
     parser.add_argument(
         "--require-target-validation-gate",

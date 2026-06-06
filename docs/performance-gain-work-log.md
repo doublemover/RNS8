@@ -7,6 +7,19 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-70 variance gate closeout:
+
+- Rank 70 moved from the active queue to the completed-work archive after the
+  variance gate became enforceable instead of advisory. `promotion_ledger.py`
+  now has `--require-variance-gate`, which blocks otherwise promotable rows
+  that do not have a matching `perf_variance_report.py` entry. Real
+  `install_autotune_cache.py` writes and replacements now require a promotion
+  ledger, and any supplied promotion ledger must include a ready variance gate;
+  dry-runs remain available for cache JSON validation without writing. Tests
+  cover missing variance rows, variance-blocked narrow wins, variance-ready
+  installs, and the new no-ledger write rejection. This closes the cache/evidence
+  promotion-control surface only; it does not add new performance claims.
+
 June 6, 2026 rank-43 reuse contract closeout:
 
 - Rank 43 moved from the active queue to the completed-work archive after a
