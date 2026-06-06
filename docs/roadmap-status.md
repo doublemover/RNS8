@@ -102,6 +102,10 @@ modules, currentness helpers, descriptor contracts, and export plan surface.
 These changes preserve public ABI, reviewed cache behavior, existing benchmark
 CLI compatibility, and Windows `gfx1100` validation boundaries.
 
+After PR #12, the active performance queue was refreshed so grouping, export,
+residency, reuse policy, variance gates, and target validation drive the next
+work before narrower kernel-tuning lanes.
+
 ## Not Yet Implemented
 
 - Linux ROCm direct-HIP parity on a real supported Linux host.
