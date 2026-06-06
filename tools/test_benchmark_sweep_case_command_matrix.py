@@ -124,6 +124,7 @@ sharded_args.gpu_shards = "0,1,2,3"
 sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
 assert len(sharded_entries) == len(exact_commands) * 4
 assert {entry.env["HIP_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
+assert {entry.env["ROCR_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
 assert {entry.output.parent.name for entry in sharded_entries} == {"gpu0", "gpu1", "gpu2", "gpu3"}
 assert all(entry.name.startswith("gpu") for entry in sharded_entries)
 

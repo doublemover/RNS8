@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import check_dependencies as deps
 
@@ -31,6 +32,13 @@ def main() -> int:
     expect("numactl" in linux_commands and "lstopo" in linux_commands, "Linux topology commands missing")
     expect("all_reduce_perf" in linux_commands, "rccl-tests discovery command missing")
     expect(deps.rccl_discovery_report()["required_for_single_device_smoke"] is False, "RCCL must not block CDNA smoke")
+    with patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"):
+        linux_ck_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("ck")]
+        linux_rocwmma_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("rocwmma")]
+    expect(
+        all("windows-gfx1100" not in path for path in linux_ck_roots + linux_rocwmma_roots),
+        "Linux dependency discovery must not inspect Windows-gfx1100 generated accelerator roots",
+    )
 
     ck = deps.repo_local_dependency_report("ck")
     expect(ck["relative_path"] == "third_party/rocm/composable_kernel", "CK submodule path changed")

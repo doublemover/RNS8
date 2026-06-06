@@ -272,8 +272,11 @@ def parse_args() -> argparse.Namespace:
         parts = [part.strip() for part in value.split(",")]
         if not parts or any(not part.isdecimal() for part in parts):
             parser.error(f"--{option_name.replace('_', '-')} must be a comma-separated list of nonnegative device indices")
-    if args.gpu_shards and args.hip_visible_devices:
-        parser.error("--gpu-shards sets HIP_VISIBLE_DEVICES per shard and cannot be combined with --hip-visible-devices")
+    if args.gpu_shards and (args.hip_visible_devices or args.rocr_visible_devices):
+        parser.error(
+            "--gpu-shards sets HIP_VISIBLE_DEVICES and ROCR_VISIBLE_DEVICES per shard and cannot be combined "
+            "with --hip-visible-devices or --rocr-visible-devices"
+        )
     if args.grouped_dispatch_tasks <= 0:
         parser.error("--grouped-dispatch-tasks must be positive")
     if args.modulus_set != "default" and not args.modulus_set.startswith("experimental:"):

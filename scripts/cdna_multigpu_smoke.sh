@@ -25,6 +25,8 @@ ENV_DIR="${CDNA_OUT_DIR}/env"
 STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
 BENCH_BIN="$(cdna_binary_path "${PRESET}" "rns8-bench")"
+BUILD_STATUS="not_run"
+CTEST_STATUS="not_run"
 
 ENV_PROBE_ARGS=(--out-dir "${ENV_DIR}" --devices "${DEVICES}")
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
@@ -35,10 +37,21 @@ if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
 fi
 cdna_repo_run env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
-if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
+if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
+  BUILD_STATUS="skipped"
+  CTEST_STATUS="skipped"
+elif [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   cdna_repo_run configure cmake --preset "${PRESET}"
   cdna_repo_run build cmake --build --preset "${PRESET}"
   cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  BUILD_STATUS="planned"
+  CTEST_STATUS="planned"
+else
+  cdna_repo_run configure cmake --preset "${PRESET}"
+  cdna_repo_run build cmake --build --preset "${PRESET}"
+  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  BUILD_STATUS="pass"
+  CTEST_STATUS="pass"
 fi
 
 cdna_default_bench_command "${BENCH_BIN}"
@@ -89,6 +102,8 @@ CDNA_STATUS_JSON="${STATUS_JSON}" \
 CDNA_DEVICES_VALUE="${DEVICES}" \
 CDNA_WORLD_SIZE="${WORLD_SIZE}" \
 CDNA_DRY_RUN_VALUE="${CDNA_DRY_RUN}" \
+CDNA_BUILD_STATUS="${BUILD_STATUS}" \
+CDNA_CTEST_STATUS="${CTEST_STATUS}" \
 python - <<'PY'
 from __future__ import annotations
 
@@ -132,8 +147,8 @@ for rank, device in enumerate(devices):
             "rccl_tests_ready": summary.get("rccl_tests_ready"),
             "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
             "validation": {
-                "build": "not_run",
-                "ctest": "not_run",
+                "build": os.environ["CDNA_BUILD_STATUS"],
+                "ctest": os.environ["CDNA_CTEST_STATUS"],
                 "smoke": "planned" if os.environ["CDNA_DRY_RUN_VALUE"] == "1" else "pass",
                 "release_capture": "planned" if os.environ["CDNA_DRY_RUN_VALUE"] == "1" else "pass",
                 "profiler": "pass" if summary.get("rocprofv3_ready") else "missing",

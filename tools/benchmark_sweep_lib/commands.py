@@ -66,6 +66,7 @@ def apply_visibility_environment(args: argparse.Namespace, entries: list[SweepCo
     for shard in _device_list(shard_spec):
         env = dict(base_env)
         env["HIP_VISIBLE_DEVICES"] = shard
+        env["ROCR_VISIBLE_DEVICES"] = shard
         for entry in entries:
             scenario = dict(entry.scenario) if entry.scenario is not None else None
             if scenario is not None:

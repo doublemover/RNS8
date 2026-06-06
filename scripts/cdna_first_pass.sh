@@ -45,19 +45,25 @@ BUILD_STATUS="not_run"
 CTEST_STATUS="not_run"
 SMOKE_STATUS="not_run"
 CAPTURE_STATUS="not_run"
-if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
+if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
+  BUILD_STATUS="skipped"
+  CTEST_STATUS="skipped"
+elif [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+  cdna_repo_run configure cmake --preset "${PRESET}"
+  cdna_repo_run build cmake --build --preset "${PRESET}"
+  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  BUILD_STATUS="planned"
+  CTEST_STATUS="planned"
+else
   cdna_repo_run configure cmake --preset "${PRESET}"
   cdna_repo_run build cmake --build --preset "${PRESET}"
   BUILD_STATUS="pass"
   cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
   CTEST_STATUS="pass"
-else
-  BUILD_STATUS="skipped"
-  CTEST_STATUS="skipped"
 fi
 
 cdna_repo_run hip_smoke env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${VERIFY_BIN}" --hip-smoke
-SMOKE_STATUS="pass"
+SMOKE_STATUS=$([[ "${CDNA_DRY_RUN}" -eq 1 ]] && printf '%s' "planned" || printf '%s' "pass")
 
 cdna_default_bench_command "${BENCH_BIN}"
 cdna_note_command rns8_bench_capture env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"

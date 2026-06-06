@@ -50,17 +50,29 @@ def vcpkg_roots() -> list[Path]:
 def repo_local_accelerator_roots(name: str) -> list[Path]:
     root = repo_root()
     if name == "ck":
-        return [
+        roots = [
             root / "third_party" / "rocm" / "composable_kernel",
-            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
-            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
         ]
+        if platform.system() == "Windows":
+            roots.extend(
+                [
+                    root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+                    root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
+                ]
+            )
+        return roots
     if name == "rocwmma":
-        return [
+        roots = [
             root / "third_party" / "rocm" / "rocWMMA",
-            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
-            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "rocWMMA",
         ]
+        if platform.system() == "Windows":
+            roots.extend(
+                [
+                    root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+                    root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "rocWMMA",
+                ]
+            )
+        return roots
     return []
 
 
