@@ -111,6 +111,61 @@ def vector_entry(
     }
 
 
+def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -> dict:
+    selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+    epilogue = "ck_fused_i32_to_centered_residue_rns_output"
+    target_id = f"gfx1100{key_suffix}"
+    key = (
+        f"backend=ck;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
+        "semantics=exact_wide_unsigned;m=1024;n=1024;k=1024;layout=row_major;"
+        f"k_block_size=1024;tile_m=128;tile_n=128;kernel={selected_kernel};epilogue={epilogue}"
+    )
+    cache_scope = "runtime_exact_autotune"
+    selector_key = None
+    selector_hash = None
+    if export_variant != "default":
+        selector_key = (
+            "semantic=exact_wide_unsigned;prefix=20;limb_count=16;signedness=unsigned;"
+            "output_layout=fixed_u64_limbs;status_policy=range_checked_status_buffer;"
+            "d2h_policy=host_ld_padded;backend=ck;target_id=gfx1100;"
+            f"selected_kernel={selected_kernel}"
+        )
+        selector_hash = install_autotune_cache.selector_key_hash(selector_key)
+        key = (
+            f"{key};export_variant={export_variant};reconstruction_variant=default_garner;"
+            f"export_selector_hash={selector_hash}"
+        )
+        cache_scope = "selector_review_only_non_default"
+    return {
+        "key": key,
+        "selected_backend": "ck",
+        "selected_kernel": selected_kernel,
+        "target_id": target_id,
+        "hip_sdk_or_library_version": "repo-local release/rocm-rel-7.1",
+        "semantic_contract": "exact_wide_unsigned",
+        "finite_modulus": 0,
+        "shape": {"m": 1024, "n": 1024, "k": 1024},
+        "layout": "row_major",
+        "prefix_schedule_hash": "groups=1;adaptive_prefix=0;adaptive_skip=0",
+        "k_block_size": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "epilogue": epilogue,
+        "kernel_family": selected_kernel,
+        "workspace_bytes": 4096,
+        "export_variant": export_variant,
+        "reconstruction_variant": "default_garner",
+        "export_selector_key": selector_key,
+        "export_selector_hash": selector_hash,
+        "cache_scope": cache_scope,
+        "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
+        "performance_validated": True,
+        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "schema_version": 1,
+        "updated_utc": "2026-06-03T00:00:00Z",
+    }
+
+
 def write_cache(path: Path, entries: list[dict]) -> None:
     path.write_text(json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8")
 
@@ -230,6 +285,61 @@ def main() -> int:
         assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
         assert any(item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1" for item in installed)
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
+
+        exact_default = exact_wide_entry("-exact")
+        exact_fixed_limb = exact_wide_entry(
+            "-exact", export_variant="exact-wide-fixed-limb-export"
+        )
+        exact_selector_source = root / "exact-selector-cache.json"
+        write_cache(exact_selector_source, [exact_default, exact_fixed_limb])
+        exact_selector_summary = install_autotune_cache.install_cache(
+            [exact_selector_source], destination, dry_run=True
+        )
+        assert exact_default["key"] != exact_fixed_limb["key"]
+        assert exact_default["key"] in exact_fixed_limb["key"] or "export_selector_hash" in exact_fixed_limb["key"]
+        assert any(
+            item["cache_scope"] == "selector_review_only_non_default"
+            and item["export_variant"] == "exact-wide-fixed-limb-export"
+            for item in exact_selector_summary["replacement_history"]
+        )
+        assert any(
+            row["export_variant"] == "exact-wide-fixed-limb-export"
+            and row["reconstruction_variant"] == "default_garner"
+            for row in exact_selector_summary["cache_coverage"]
+        )
+
+        missing_selector_key_field = copy.deepcopy(exact_fixed_limb)
+        missing_selector_key_field["key"] = exact_default["key"]
+        missing_selector_source = root / "missing-selector-key-field.json"
+        write_cache(missing_selector_source, [missing_selector_key_field])
+        try:
+            install_autotune_cache.install_cache([missing_selector_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "key_export_variant_mismatch" in str(exc)
+        else:
+            raise AssertionError("non-default export selector without selector key fields was accepted")
+
+        stale_selector_hash = copy.deepcopy(exact_fixed_limb)
+        stale_selector_hash["export_selector_hash"] = "badbadbadbadbad0"
+        stale_selector_hash_source = root / "stale-selector-hash.json"
+        write_cache(stale_selector_hash_source, [stale_selector_hash])
+        try:
+            install_autotune_cache.install_cache([stale_selector_hash_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "export_selector_hash_mismatch" in str(exc)
+        else:
+            raise AssertionError("stale export selector hash was accepted")
+
+        default_with_selector_key = copy.deepcopy(exact_default)
+        default_with_selector_key["key"] += ";export_selector_hash=0000000000000000"
+        default_selector_source = root / "default-with-selector-key.json"
+        write_cache(default_selector_source, [default_with_selector_key])
+        try:
+            install_autotune_cache.install_cache([default_selector_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unexpected_default_export_selector_hash_key" in str(exc)
+        else:
+            raise AssertionError("default export cache key with selector hash was accepted")
 
         ledger = root / "promotion-ledger.json"
         write_ledger(ledger, [replacement])

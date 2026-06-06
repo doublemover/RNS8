@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -90,6 +91,12 @@ def feature_lane_requested(item: dict[str, Any]) -> bool:
     return isinstance(status, str) and status not in {"not_requested", "not_applicable"}
 
 
+def selector_key_hash(selector_key: Any) -> str | None:
+    if not isinstance(selector_key, str) or not selector_key:
+        return None
+    return hashlib.sha256(selector_key.encode("utf-8")).hexdigest()[:16]
+
+
 def capture_entry(
     path: Path,
     reviewed_entry: dict[str, Any] | None = None,
@@ -104,6 +111,13 @@ def capture_entry(
     target_row = target_validation_report.capture_target(path)
     metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
     baseline = capture.get("comparison_baseline") if isinstance(capture.get("comparison_baseline"), dict) else {}
+    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    reconstruction_variant = (
+        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+    )
+    export_variant_name = str(export_variant.get("name") or "default")
+    reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
+    export_selector_key = export_variant.get("selector_key")
     shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
     blockers: list[str] = []
     key = metadata.get("autotune_key")
@@ -231,9 +245,16 @@ def capture_entry(
         "variance_required_speedup_margin": variance_required_margin,
         "variance_observed_max_relative_noise": variance_observed_noise,
         "promotion_blockers": sorted(set(blockers)),
-        "export_selector_key": (capture.get("export_variant") or {}).get("selector_key")
-        if isinstance(capture.get("export_variant"), dict)
-        else None,
+        "export_variant": export_variant_name,
+        "reconstruction_variant": reconstruction_variant_name,
+        "export_selector_key": export_selector_key,
+        "export_selector_hash": selector_key_hash(export_selector_key),
+        "export_selector_policy": export_variant.get("selector_policy"),
+        "export_cache_visibility": export_variant.get("cache_visibility"),
+        "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
+        "cache_scope": "runtime_exact_autotune"
+        if export_variant_name == "default" and reconstruction_variant_name == "default_garner"
+        else "selector_review_only_non_default",
         "shape_family_recommendation_status": "exact_cache_only_no_family_routing",
     }
 
@@ -252,6 +273,8 @@ def stale_invalidation_reasons(entry: dict[str, Any]) -> list[str]:
             reasons.append("epilogue_mismatch")
         elif "workspace" in text:
             reasons.append("workspace_mismatch")
+        elif "export_selector" in text or "export_variant" in text or "reconstruction_variant" in text:
+            reasons.append("export_selector_contract_mismatch")
         elif "schema" in text:
             reasons.append("schema_mismatch")
         elif "review" in text or "evidence" in text or "performance" in text:
@@ -262,7 +285,7 @@ def stale_invalidation_reasons(entry: dict[str, Any]) -> list[str]:
 
 
 def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
+    groups: dict[tuple[str, str, str, str, str, str, str], list[dict[str, Any]]] = {}
     for entry in entries:
         shape = entry.get("shape") if isinstance(entry.get("shape"), dict) else {}
         shape_family = "unknown"
@@ -276,10 +299,14 @@ def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
             str(entry.get("backend_selected") or "unknown"),
             str(entry.get("target_class") or "unknown"),
             str(entry.get("target_id") or "unknown"),
+            str(entry.get("export_variant") or "default"),
+            str(entry.get("reconstruction_variant") or "default_garner"),
         )
         groups.setdefault(key, []).append(entry)
     rows: list[dict[str, Any]] = []
-    for (semantic, shape_family, backend, target_class, target_id), grouped in sorted(groups.items()):
+    for (semantic, shape_family, backend, target_class, target_id, export_variant, reconstruction_variant), grouped in sorted(
+        groups.items()
+    ):
         rows.append(
             {
                 "semantic_contract": semantic,
@@ -287,6 +314,8 @@ def cache_coverage(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "backend": backend,
                 "target_class": target_class,
                 "target_id": target_id,
+                "export_variant": export_variant,
+                "reconstruction_variant": reconstruction_variant,
                 "entry_count": len(grouped),
                 "installed_count": sum(1 for item in grouped if item.get("installed_cache_entry") is True),
                 "eligible_count": sum(1 for item in grouped if not item.get("promotion_blockers")),
@@ -375,17 +404,19 @@ def write_outputs(ledger: dict[str, Any], out_dir: Path) -> dict[str, str]:
             "",
             "## Cache Coverage",
             "",
-            "| semantic | shape family | backend | target | entries | installed | eligible | blocked |",
-            "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+            "| semantic | shape family | backend | target | export variant | reconstruction | entries | installed | eligible | blocked |",
+            "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
         ]
     )
     for row in ledger.get("cache_coverage", []):
         lines.append(
-            "| `{semantic}` | `{shape}` | `{backend}` | `{target}` | {entries} | {installed} | {eligible} | {blocked} |".format(
+            "| `{semantic}` | `{shape}` | `{backend}` | `{target}` | `{export}` | `{reconstruction}` | {entries} | {installed} | {eligible} | {blocked} |".format(
                 semantic=row["semantic_contract"],
                 shape=row["shape_family"],
                 backend=row["backend"],
                 target=row["target_id"],
+                export=row.get("export_variant", "default"),
+                reconstruction=row.get("reconstruction_variant", "default_garner"),
                 entries=row["entry_count"],
                 installed=row["installed_count"],
                 eligible=row["eligible_count"],

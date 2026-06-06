@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -515,6 +516,19 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     medians = capture.get("timing_summary_us") if isinstance(capture.get("timing_summary_us"), dict) else {}
     schedule = capture.get("schedule_metadata") if isinstance(capture.get("schedule_metadata"), dict) else {}
     tile_bounds = capture.get("tile_bounds_u64") if isinstance(capture.get("tile_bounds_u64"), dict) else {}
+    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    reconstruction_variant = (
+        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+    )
+    export_variant_name = str(export_variant.get("name") or "default")
+    reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
+    export_selector_key = export_variant.get("selector_key")
+    export_selector_hash = (
+        hashlib.sha256(export_selector_key.encode("utf-8")).hexdigest()[:16]
+        if isinstance(export_selector_key, str) and export_selector_key
+        else None
+    )
+    default_export_contract = export_variant_name == "default" and reconstruction_variant_name == "default_garner"
     selected_prefix = capture.get("selected_prefix", schedule.get("max_selected_prefix"))
     requested_max_prefix = capture.get("requested_max_prefix", capture.get("prefix"))
     prefix_policy = capture.get("contract_prefix_policy", "legacy_v4_unspecified")
@@ -536,6 +550,13 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     hip_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
     version = metadata.get("accelerator_version") or hip_toolchain.get("hip_sdk_or_rocm_version") or "unknown"
+    key = metadata.get("autotune_key")
+    if isinstance(key, str) and key and not default_export_contract and export_selector_hash:
+        key = (
+            f"{key};export_variant={export_variant_name};"
+            f"reconstruction_variant={reconstruction_variant_name};"
+            f"export_selector_hash={export_selector_hash}"
+        )
 
     def median(phase: str) -> float:
         item = medians.get(phase) if isinstance(medians, dict) else None
@@ -544,7 +565,7 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         return 0.0
 
     return {
-        "key": metadata.get("autotune_key"),
+        "key": key,
         "selected_backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "target_id": normalized_target_id(device.get("gcn_arch")) or "cpu",
@@ -560,6 +581,14 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "epilogue": metadata.get("epilogue_mode"),
         "kernel_family": metadata.get("selected_kernel") or capture.get("selected_kernel"),
         "workspace_bytes": metadata.get("workspace_required_bytes", 0),
+        "export_variant": export_variant_name,
+        "reconstruction_variant": reconstruction_variant_name,
+        "export_selector_key": export_selector_key,
+        "export_selector_hash": export_selector_hash,
+        "export_selector_policy": export_variant.get("selector_policy"),
+        "export_cache_visibility": export_variant.get("cache_visibility"),
+        "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
+        "cache_scope": "runtime_exact_autotune" if default_export_contract else "selector_review_only_non_default",
         "measured_medians_us": {
             "pack": median("pack"),
             "rns_gemm": median("rns_gemm"),

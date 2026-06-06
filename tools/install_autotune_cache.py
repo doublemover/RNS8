@@ -81,6 +81,10 @@ def entry_fingerprint(entry: dict[str, Any] | None) -> str | None:
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
+def selector_key_hash(selector_key: str) -> str:
+    return hashlib.sha256(selector_key.encode("utf-8")).hexdigest()[:16]
+
+
 def target_class_for_id(target_id: str | None) -> str:
     target = (target_id or "").lower()
     if target in LINUX_CDNA_TARGETS:
@@ -288,6 +292,36 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
         optional_key_field(fields, "hip_sdk_or_library_version", version)
         optional_key_field(fields, "layout", layout)
 
+        export_variant = entry.get("export_variant", "default")
+        reconstruction_variant = entry.get("reconstruction_variant", "default_garner")
+        if not isinstance(export_variant, str) or not export_variant:
+            raise AutotuneCacheInstallError("export_variant must be a nonempty string")
+        if not isinstance(reconstruction_variant, str) or not reconstruction_variant:
+            raise AutotuneCacheInstallError("reconstruction_variant must be a nonempty string")
+        default_export_contract = export_variant == "default" and reconstruction_variant == "default_garner"
+        cache_scope = entry.get("cache_scope", "runtime_exact_autotune")
+        if not isinstance(cache_scope, str) or not cache_scope:
+            raise AutotuneCacheInstallError("cache_scope must be a nonempty string")
+        if default_export_contract:
+            if cache_scope != "runtime_exact_autotune":
+                raise AutotuneCacheInstallError("default_export_contract_cache_scope_mismatch")
+            for stale_field in ("export_variant", "reconstruction_variant", "export_selector_hash"):
+                if stale_field in fields:
+                    raise AutotuneCacheInstallError(f"unexpected_default_{stale_field}_key")
+        else:
+            if cache_scope != "selector_review_only_non_default":
+                raise AutotuneCacheInstallError("non_default_export_contract_cache_scope_mismatch")
+            export_selector_key = entry.get("export_selector_key")
+            if not isinstance(export_selector_key, str) or not export_selector_key:
+                raise AutotuneCacheInstallError("missing_export_selector_key")
+            export_selector_hash = entry.get("export_selector_hash")
+            expected_selector_hash = selector_key_hash(export_selector_key)
+            if export_selector_hash != expected_selector_hash:
+                raise AutotuneCacheInstallError("export_selector_hash_mismatch")
+            require_key_field(fields, "export_variant", export_variant)
+            require_key_field(fields, "reconstruction_variant", reconstruction_variant)
+            require_key_field(fields, "export_selector_hash", expected_selector_hash)
+
         finite_contract = semantic_contract in {"finite_ring_u8", "finite_field_u8"}
         raw_finite_modulus = entry.get("finite_modulus", 0)
         finite_modulus = 0 if raw_finite_modulus is None else raw_finite_modulus
@@ -410,7 +444,7 @@ def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
 
 
 def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str, str, str], int] = {}
+    groups: dict[tuple[str, str, str, str, str, str], int] = {}
     for entry in entries:
         shape = entry.get("shape") if isinstance(entry.get("shape"), dict) else {}
         if all(isinstance(shape.get(key), int) for key in ("m", "n", "k")):
@@ -424,6 +458,8 @@ def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]
             shape_family,
             str(entry.get("selected_backend") or "unknown"),
             target_class_for_id(target_id),
+            str(entry.get("export_variant") or "default"),
+            str(entry.get("reconstruction_variant") or "default_garner"),
         )
         groups[key] = groups.get(key, 0) + 1
     return [
@@ -432,9 +468,13 @@ def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]
             "shape_family": shape_family,
             "backend": backend,
             "target_class": target_class,
+            "export_variant": export_variant,
+            "reconstruction_variant": reconstruction_variant,
             "entry_count": count,
         }
-        for (semantic, shape_family, backend, target_class), count in sorted(groups.items())
+        for (semantic, shape_family, backend, target_class, export_variant, reconstruction_variant), count in sorted(
+            groups.items()
+        )
     ]
 
 
@@ -496,6 +536,10 @@ def install_cache(
                     "semantic_contract": entry.get("semantic_contract"),
                     "target_id": entry.get("target_id"),
                     "target_class": target_class_for_id(entry.get("target_id")),
+                    "export_variant": entry.get("export_variant", "default"),
+                    "reconstruction_variant": entry.get("reconstruction_variant", "default_garner"),
+                    "export_selector_hash": entry.get("export_selector_hash"),
+                    "cache_scope": entry.get("cache_scope", "runtime_exact_autotune"),
                     "evidence_source": source_by_key.get(entry["key"]),
                     "updated_utc": entry.get("updated_utc"),
                     "validation_status": entry.get("validation_status"),
