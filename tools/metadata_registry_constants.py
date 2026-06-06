@@ -459,6 +459,7 @@ SELECTED_KERNELS = {
     'ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2',
     'ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2',
     'cpu_reference',
+    'direct_hip_grouped_active_prefix_schedule_rns_gemm_v3',
     'direct_hip_native_a_finite_u8_gemm_mod251_v1',
     'direct_hip_native_a_finite_u8_gemm_mod255_v1',
     'direct_hip_native_a_finite_u8_gemm_mod256_v1',

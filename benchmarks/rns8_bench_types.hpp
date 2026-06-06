@@ -102,6 +102,8 @@ struct Args {
   bool adaptive_grouped_scheduler = false;
   bool streaming_overlap = false;
   std::string k_block_policy = "auto";
+  std::string resident_redesign_candidate;
+  std::vector<std::string> resident_redesign_dimensions;
   std::string release_gate = "none";
   std::string verification_amortization = "none";
   std::string error_detection_policy = "none";

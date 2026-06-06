@@ -203,6 +203,7 @@ DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
 DIRECT_HIP_ADAPTIVE_KERNEL_V2 = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3 = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
 DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3 = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
 DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1 = "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
 DIRECT_HIP_ADAPTIVE_ZERO_TILE_ROW_COL_SKIP_KERNEL_V1 = (

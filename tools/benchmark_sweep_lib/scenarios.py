@@ -25,6 +25,14 @@ def _tuple_or_default(value: Any, *, label: str, default: tuple[Any, ...]) -> tu
     return default if converted is None else converted
 
 
+def _string_tuple_or_default(value: Any, *, label: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    values = _tuple_or_default(value, label=label, default=default)
+    for item in values:
+        if not isinstance(item, str) or not item:
+            raise SystemExit(f"{label} must contain nonempty strings")
+    return tuple(values)
+
+
 def _required_string(raw: dict[str, Any], key: str, *, label: str) -> str:
     value = raw.get(key)
     if not isinstance(value, str) or not value:
@@ -152,6 +160,20 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
         grouped_tasks = raw.get("grouped_dispatch_tasks", 1)
         if not isinstance(grouped_tasks, int) or isinstance(grouped_tasks, bool) or grouped_tasks <= 0:
             raise SystemExit(f"{label}.grouped_dispatch_tasks must be a positive integer")
+        resident_candidate = (
+            _required_string(raw, "resident_redesign_candidate", label=label)
+            if "resident_redesign_candidate" in raw
+            else ""
+        )
+        resident_dimensions = _string_tuple_or_default(
+            raw.get("resident_redesign_dimensions"),
+            label=f"{label}.resident_redesign_dimensions",
+            default=(),
+        )
+        if resident_dimensions and not resident_candidate:
+            raise SystemExit(f"{label}.resident_redesign_dimensions requires resident_redesign_candidate")
+        if resident_candidate and not resident_dimensions:
+            raise SystemExit(f"{label}.resident_redesign_candidate requires resident_redesign_dimensions")
         items.append(
             ScenarioItem(
                 family,
@@ -231,6 +253,8 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 k_block_policy=_required_string(raw, "k_block_policy", label=label)
                 if "k_block_policy" in raw
                 else "auto",
+                resident_redesign_candidate=resident_candidate,
+                resident_redesign_dimensions=resident_dimensions,
                 release_gate=_required_string(raw, "release_gate", label=label) if "release_gate" in raw else "none",
                 verification_amortization=_required_string(raw, "verification_amortization", label=label)
                 if "verification_amortization" in raw

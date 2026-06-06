@@ -56,6 +56,11 @@ DEFAULT_CASES = [
         "reuse_contract",
         [sys.executable, "tools/test_direct_hip_reuse_expansion_report.py"],
     ),
+    SuiteCase(
+        "direct_hip_resident_redesign_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_direct_hip_resident_redesign_report.py"],
+    ),
     SuiteCase("hip_graph_replay_report", "scheduler_overlap", [sys.executable, "tools/test_hip_graph_replay_report.py"]),
     SuiteCase("rns_chain_report", "residue_chain", [sys.executable, "tools/test_rns_chain_report.py"]),
     SuiteCase(

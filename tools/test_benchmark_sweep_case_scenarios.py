@@ -193,6 +193,50 @@ resident_command = benchmark_sweep.command_for(
 )
 assert "--resident-lifetime" in resident_command
 assert "--workspace-arena" in resident_command
+resident_redesign_item = benchmark_sweep.ScenarioItem(
+    "direct-hip-resident-redesign",
+    "grouped-active-schedule",
+    "bounded-i64",
+    benchmark_sweep.SweepCase(
+        "adaptive-redesign",
+        512,
+        512,
+        512,
+        tile_m=64,
+        tile_n=64,
+        bound_mode="per-tile",
+        input_profile="adaptive-bands",
+        require_adaptive=True,
+    ),
+    "resident-redesign-candidate",
+    "rns_residue_current",
+    "rank-51 grouped active-schedule candidate",
+    "release",
+    "benchmark_evidence_only",
+    backends=("hip-direct",),
+    resident_redesign_candidate="grouped_active_schedule_v3",
+    resident_redesign_dimensions=(
+        "data_layout",
+        "tile_shape",
+        "export_interaction",
+        "schedule_upload",
+        "workspace_reuse",
+    ),
+)
+resident_redesign_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_redesign_item)
+resident_redesign_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    resident_redesign_item.semantics,
+    resident_redesign_item.case,
+    None,
+    None,
+    resident_redesign_args,
+)
+assert "--resident-redesign-candidate" in resident_redesign_command
+assert "grouped_active_schedule_v3" in resident_redesign_command
+assert "--resident-redesign-dimensions" in resident_redesign_command
+assert "data_layout,tile_shape,export_interaction,schedule_upload,workspace_reuse" in resident_redesign_command
 adaptive_group_item = catalog["adaptive-grouped-scheduler"][0]
 adaptive_group_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, adaptive_group_item)
 adaptive_group_command = benchmark_sweep.command_for(

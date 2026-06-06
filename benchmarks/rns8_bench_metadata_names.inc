@@ -153,7 +153,7 @@ const char* selected_kernel_name(
     if (result.zero_output_tile_count != 0) {
       return "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
     }
-    return "direct_hip_tiled_active_prefix_rns_gemm_v2";
+    return "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return rns8::detail::wrap64_hip_selected_kernel_for_shape(args.m, args.n, args.k);

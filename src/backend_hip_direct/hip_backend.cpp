@@ -365,6 +365,23 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     int selected_prefix,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_active_schedule_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_active_schedule,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
+    int active_entry_count,
+    int max_tile_row_blocks,
+    int max_tile_col_blocks,
+    int m,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_zero_scheduled_residue_tiles_device(
     int8_t* d_c,
     const rns8_plan_tile_schedule_entry* d_schedule,

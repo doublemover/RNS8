@@ -296,6 +296,7 @@ cross-backend AUTO winners.
 |---|---:|---|---:|---:|---:|---|
 | Public bounded-i64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 2.72x | 3.07x | 1.04x median | Routed only for Direct-HIP bounded-i64 `m/n/k >= 512`; persistent resident Direct-HIP remains faster for non-one-shot workflows |
 | Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.53x | 1.53x | 1.53x median | Current schema-valid candidate rerun versus legacy v1 before-capture; routed only for Direct-HIP bounded-u64 fixed-prefix `m/n/k >= 512`; smaller u64 remains on v1 |
+| Resident selected-prefix bounded-i64 | 512 | `direct_hip_grouped_active_prefix_schedule_rns_gemm_v3` | not recorded | 13.98x | 12.35x GEMM, 15.41x export | Local Windows `gfx1100` route candidate after selected-prefix colpair rejection; schema/event/checksum valid, not README/cache/CDNA claim material |
 | Public exact-wide signed 4-limb export | 1024 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.12x | 1.13x | 1.64x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide unsigned 4-limb export | 1024 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.22x | 1.24x | 6.42x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
 | Public exact-wide signed 4-limb export | 2048 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.09x | 1.09x | 1.61x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
@@ -311,6 +312,14 @@ evidence that one-shot beats resident matrix reuse for repeated calls.
 The current rank-10 closeout report keeps the current candidate captures
 schema-valid and event-valid while treating the older v1 before-captures as
 legacy A/B baselines, not promotable cache evidence.
+
+The resident selected-prefix row replaces the rejected resident colpair
+experiment with a grouped active-schedule launch path. The rank-51 closeout
+keeps the comparison local to Direct-HIP bounded-i64 512 on Windows `gfx1100`:
+the new route reports 2082 us median end-to-end versus 29116 us for the prior
+selected-prefix resident default, with matching checksum and required GPU
+events. It is not evidence for Linux/CDNA, cross-backend AUTO routing, or an
+installed accelerator cache entry.
 
 The exact-wide export rows compare the new Direct-HIP fixed-prefix18 fixed-limb
 export launch path against the immediately previous Direct-HIP export path with

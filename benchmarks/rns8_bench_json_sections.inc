@@ -615,3 +615,30 @@ void print_tile_shape_variant_json(
   (void)default_variant;
 }
 
+void print_resident_redesign_json(const Args& args) {
+  const bool enabled = !args.resident_redesign_candidate.empty();
+  std::cout << "  \"resident_redesign\": {\n";
+  std::cout << "    \"enabled\": " << (enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"candidate\": ";
+  if (enabled) {
+    std::cout << "\"" << json_escape(args.resident_redesign_candidate) << "\"";
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
+  std::cout << "    \"dimensions\": [";
+  for (std::size_t index = 0; index < args.resident_redesign_dimensions.size(); ++index) {
+    if (index != 0) {
+      std::cout << ", ";
+    }
+    std::cout << "\"" << json_escape(args.resident_redesign_dimensions[index]) << "\"";
+  }
+  std::cout << "],\n";
+  std::cout << "    \"policy\": \"benchmark_only_resident_route_candidate_requires_rank51_report\",\n";
+  std::cout << "    \"resource_evidence_required\": true,\n";
+  std::cout << "    \"promotion_eligible\": false,\n";
+  std::cout << "    \"cache_promotion_blocker\": ";
+  print_nullable_std_string(enabled ? std::string("resident_redesign_candidate_not_reviewed") : std::string());
+  std::cout << "\n";
+  std::cout << "  },\n";
+}

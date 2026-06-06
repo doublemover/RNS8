@@ -309,9 +309,10 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   adaptive_info.struct_size = sizeof(adaptive_info);
   adaptive_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(adaptive_plan, &adaptive_info) == RNS8_SUCCESS);
-  CHECK(std::string(adaptive_info.selected_kernel) == "direct_hip_tiled_active_prefix_rns_gemm_v2");
-  CHECK(std::string(adaptive_info.autotune_key).find("kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;") !=
-        std::string::npos);
+  CHECK(std::string(adaptive_info.selected_kernel) ==
+        "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3");
+  CHECK(std::string(adaptive_info.autotune_key).find(
+            "kernel=direct_hip_grouped_active_prefix_schedule_rns_gemm_v3;") != std::string::npos);
   CHECK(std::string(adaptive_info.workspace_mode) ==
         "resident_device_buffers_with_active_prefix_tiled_schedule");
   std::vector<rns8_plan_tile_schedule_entry> adaptive_entries(adaptive_plan->tile_schedule.size());

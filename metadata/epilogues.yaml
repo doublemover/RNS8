@@ -51,6 +51,7 @@
       "generated_reducer_identity_pattern": "direct_hip_fixed_prefix_{1..9,20}_generated_reducer_v1",
       "selected_kernel_examples": [
         "direct_hip_tiled_active_prefix_rns_gemm_v2",
+        "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
         "direct_hip_prefix9_grouped_rns_gemm_v1",
         "direct_hip_prefix20_grouped_rns_gemm_v1"
       ],

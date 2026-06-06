@@ -4,6 +4,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include "rns8_bench_modes.hpp"
 #include "rns8_bench_support.hpp"
@@ -167,6 +168,27 @@ NextOpHint parse_next_op_hint(const std::string& value) {
   usage_error("unknown next-op hint: " + value);
 }
 
+std::vector<std::string> parse_string_list(const std::string& value, const char* label) {
+  std::vector<std::string> items;
+  std::size_t start = 0;
+  while (start <= value.size()) {
+    const std::size_t comma = value.find(',', start);
+    const std::size_t end = comma == std::string::npos ? value.size() : comma;
+    std::string item = trim_ascii_whitespace(value.substr(start, end - start));
+    if (!item.empty()) {
+      items.push_back(item);
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  if (items.empty()) {
+    usage_error(std::string(label) + " must contain at least one nonempty item");
+  }
+  return items;
+}
+
 Args parse_args(int argc, char** argv) {
   Args args;
   bool tile_m_set = false;
@@ -252,6 +274,10 @@ Args parse_args(int argc, char** argv) {
       args.streaming_overlap = true;
     } else if (arg == "--k-block-policy" && i + 1 < argc) {
       args.k_block_policy = argv[++i];
+    } else if (arg == "--resident-redesign-candidate" && i + 1 < argc) {
+      args.resident_redesign_candidate = argv[++i];
+    } else if (arg == "--resident-redesign-dimensions" && i + 1 < argc) {
+      args.resident_redesign_dimensions = parse_string_list(argv[++i], "--resident-redesign-dimensions");
     } else if (arg == "--release-gate" && i + 1 < argc) {
       args.release_gate = argv[++i];
     } else if (arg == "--verification-amortization" && i + 1 < argc) {
@@ -313,6 +339,8 @@ Args parse_args(int argc, char** argv) {
           << "                  [--adaptive-grouped-scheduler]\n"
           << "                  [--streaming-overlap]\n"
           << "                  [--k-block-policy NAME]\n"
+          << "                  [--resident-redesign-candidate NAME]\n"
+          << "                  [--resident-redesign-dimensions a,b,c]\n"
           << "                  [--release-gate NAME]\n"
           << "                  [--verification-amortization NAME]\n"
           << "                  [--error-detection-policy NAME]\n"
@@ -536,6 +564,12 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.tile_shape_variant.empty()) {
     usage_error("--tile-shape-variant must not be empty");
+  }
+  if (args.resident_redesign_candidate.empty() && !args.resident_redesign_dimensions.empty()) {
+    usage_error("--resident-redesign-dimensions requires --resident-redesign-candidate");
+  }
+  if (!args.resident_redesign_candidate.empty() && args.resident_redesign_dimensions.empty()) {
+    usage_error("--resident-redesign-candidate requires --resident-redesign-dimensions");
   }
   if (args.export_variant.empty()) {
     usage_error("--export-variant must not be empty");

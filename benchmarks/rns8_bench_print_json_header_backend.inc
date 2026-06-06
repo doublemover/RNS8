@@ -91,6 +91,7 @@
   print_reconstruction_variant_json(args, result, selected_kernel);
   print_modulus_and_residue_policy_json(args, result);
   print_tile_shape_variant_json(args, result, selected_kernel);
+  print_resident_redesign_json(args);
   print_dispatch_and_graph_json(args, result);
   print_residency_arena_overlap_json(args, result);
   print_workload_proxy_json(args);

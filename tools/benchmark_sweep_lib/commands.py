@@ -201,6 +201,12 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     )
     scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
     scenario_args.k_block_policy = item.k_block_policy or getattr(args, "k_block_policy", "auto")
+    scenario_args.resident_redesign_candidate = item.resident_redesign_candidate or getattr(
+        args, "resident_redesign_candidate", ""
+    )
+    scenario_args.resident_redesign_dimensions = item.resident_redesign_dimensions or getattr(
+        args, "resident_redesign_dimensions", ()
+    )
     scenario_args.release_gate = (
         item.release_gate if item.release_gate and item.release_gate != "none" else getattr(args, "release_gate", "none")
     )
@@ -268,6 +274,8 @@ def scenario_metadata(
         "adaptive_grouped_scheduler": item.adaptive_grouped_scheduler,
         "streaming_overlap": item.streaming_overlap,
         "k_block_policy": item.k_block_policy,
+        "resident_redesign_candidate": item.resident_redesign_candidate,
+        "resident_redesign_dimensions": list(item.resident_redesign_dimensions),
         "release_gate": item.release_gate,
         "verification_amortization": item.verification_amortization,
         "error_detection_policy": item.error_detection_policy,
@@ -471,6 +479,12 @@ def command_for(
     k_block_policy = getattr(args, "k_block_policy", "auto")
     if k_block_policy and k_block_policy != "auto":
         command.extend(["--k-block-policy", k_block_policy])
+    resident_redesign_candidate = getattr(args, "resident_redesign_candidate", "")
+    if resident_redesign_candidate:
+        command.extend(["--resident-redesign-candidate", resident_redesign_candidate])
+        dimensions = getattr(args, "resident_redesign_dimensions", ())
+        if dimensions:
+            command.extend(["--resident-redesign-dimensions", ",".join(str(item) for item in dimensions)])
     release_gate = getattr(args, "release_gate", "none")
     if release_gate and release_gate != "none":
         command.extend(["--release-gate", release_gate])

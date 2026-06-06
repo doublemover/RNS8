@@ -244,7 +244,7 @@ def write_isa(path: Path) -> None:
 def make_capture(tmp: Path, backend: str, median: float, suffix: str, *, pack_mode: str = "per_repeat_repack") -> Path:
     kernels = {
         "cpu-reference": "cpu_reference_scalar_rns_gemm_v1",
-        "hip-direct": "direct_hip_tiled_active_prefix_rns_gemm_v2",
+        "hip-direct": "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
         "hip-vector-alu-int64": "hip_vector_alu_i64_exact_192b_v1",
         "hipblaslt": HIPBLASLT_KERNEL,
         "ck": "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",

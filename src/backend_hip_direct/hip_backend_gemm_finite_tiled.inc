@@ -552,42 +552,22 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     return RNS8_SUCCESS;
   }
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    for (uint32_t p = 0; p < max_selected_prefix; ++p) {
-      const uint64_t active_count = active_counts[p];
-      if (active_count == 0) {
-        continue;
-      }
-      if (active_offsets[p] > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
-        return hipErrorInvalidValue;
-      }
-      const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                   static_cast<std::size_t>(lda);
-      const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
-                                   static_cast<std::size_t>(ldb);
-      const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                   static_cast<std::size_t>(ldc);
-      const hipError_t launch_status = launch_rns_scheduled_modulus_gemm({
-          a_base + a_offset,
-          b_base + b_offset,
-          c_base + c_offset,
-          active_schedule_base + static_cast<std::size_t>(active_offsets[p]),
-          zero_a_rows_base,
-          zero_b_cols_base,
-          active_count,
-          max_tile_row_blocks,
-          max_tile_col_blocks,
-          k,
-          lda,
-          ldb,
-          ldc,
-          kDefaultModuli[p],
-          p,
-          max_selected_prefix});
-      if (launch_status != hipSuccess) {
-        return launch_status;
-      }
-    }
-    return hipDeviceSynchronize();
+    const hipError_t launch_status = launch_rns_grouped_active_schedule_gemm({
+        a_base,
+        b_base,
+        c_base,
+        active_schedule_base,
+        zero_a_rows_base,
+        zero_b_cols_base,
+        running_offset,
+        max_tile_row_blocks,
+        max_tile_col_blocks,
+        m,
+        k,
+        lda,
+        ldb,
+        ldc});
+    return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else

@@ -76,6 +76,14 @@ ERROR_DETECTION_FINAL_STATUSES = {
     "passed",
 }
 
+RESIDENT_REDESIGN_DIMENSIONS = {
+    "data_layout",
+    "tile_shape",
+    "export_interaction",
+    "schedule_upload",
+    "workspace_reuse",
+}
+
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -492,6 +500,44 @@ def validate_contract_metadata(self: Any) -> None:
                 )
             if adaptive.get("requested") is True and adaptive.get("promotion_eligible") is not False:
                 self._error("adaptive_grouped_scheduler requested captures must set promotion_eligible=false")
+
+    resident_redesign = self.data.get("resident_redesign")
+    if resident_redesign is not None:
+        if not isinstance(resident_redesign, dict):
+            self._error("resident_redesign must be an object")
+        else:
+            enabled = resident_redesign.get("enabled")
+            if not isinstance(enabled, bool):
+                self._error("resident_redesign.enabled must be a boolean")
+            candidate = resident_redesign.get("candidate")
+            if enabled is True:
+                if not isinstance(candidate, str) or not candidate:
+                    self._error("resident_redesign.candidate must be a nonempty string when enabled")
+            elif candidate is not None:
+                self._error("resident_redesign.candidate must be null when disabled")
+            dimensions = resident_redesign.get("dimensions")
+            if not isinstance(dimensions, list) or not all(isinstance(item, str) and item for item in dimensions):
+                self._error("resident_redesign.dimensions must be an array of nonempty strings")
+            else:
+                unknown = sorted(set(dimensions) - RESIDENT_REDESIGN_DIMENSIONS)
+                if unknown:
+                    self._error(f"resident_redesign.dimensions contains unknown values: {unknown}")
+                if enabled is True and not dimensions:
+                    self._error("resident_redesign.dimensions must be nonempty when enabled")
+                if enabled is False and dimensions:
+                    self._error("resident_redesign.dimensions must be empty when disabled")
+            if not isinstance(resident_redesign.get("policy"), str) or not resident_redesign.get("policy"):
+                self._error("resident_redesign.policy must be a nonempty string")
+            if resident_redesign.get("resource_evidence_required") is not True:
+                self._error("resident_redesign.resource_evidence_required must be true")
+            if resident_redesign.get("promotion_eligible") is not False:
+                self._error("resident_redesign captures must set promotion_eligible=false")
+            blocker = resident_redesign.get("cache_promotion_blocker")
+            if enabled is True:
+                if not isinstance(blocker, str) or not blocker:
+                    self._error("resident_redesign.cache_promotion_blocker must be a nonempty string when enabled")
+            elif blocker is not None:
+                self._error("resident_redesign.cache_promotion_blocker must be null when disabled")
 
     resident = self.data.get("resident_lifetime")
     if resident is not None:

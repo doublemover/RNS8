@@ -7,6 +7,26 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-51 Direct-HIP resident redesign closeout:
+
+- Rank 51 moved from the active queue to the completed-work archive after the
+  rejected selected-prefix colpair route was replaced by
+  `direct_hip_grouped_active_prefix_schedule_rns_gemm_v3`, a grouped
+  active-schedule resident RNS launch path for arbitrary selected prefixes.
+  The implementation keeps public plan schedule entries unchanged while using
+  internal active-schedule entries to carry the modulus plane, adds benchmark
+  `resident_redesign` metadata, schema validation, scenario plumbing, and
+  `tools/direct_hip_resident_redesign_report.py`. The Windows `gfx1100`
+  closeout compared the new route against the previous selected-prefix
+  resident default at bounded-i64 512 with seed `20260605`, three warmups, nine
+  repeats, schema-valid captures, required GPU events, matching checksum, and
+  ISA/counter resource explanation. The report classifies the new route as a
+  `route_candidate`: 2082 us median end-to-end versus 29116 us before
+  (`13.98x`), 523 us versus 6460 us RNS GEMM (`12.35x`), and 743 us versus
+  11450 us export (`15.41x`). This is local Windows `gfx1100` Direct-HIP route
+  evidence only; profiler counters were not present, and no Linux/CDNA,
+  installed-cache, or README headline claim changes from the closeout.
+
 June 6, 2026 rank-50 bounded-i64 1024 hipBLASLt review-gate closeout:
 
 - Rank 50 moved from the active queue to the completed-work archive after

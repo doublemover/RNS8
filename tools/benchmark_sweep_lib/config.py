@@ -94,6 +94,8 @@ class ScenarioItem:
     adaptive_grouped_scheduler: bool = False
     streaming_overlap: bool = False
     k_block_policy: str = "auto"
+    resident_redesign_candidate: str = ""
+    resident_redesign_dimensions: tuple[str, ...] = ()
     release_gate: str = "none"
     verification_amortization: str = "none"
     error_detection_policy: str = "none"

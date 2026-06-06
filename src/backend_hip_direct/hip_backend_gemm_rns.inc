@@ -72,35 +72,7 @@ hipError_t launch_direct_rns_gemm_no_sync(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX || prefix == RNS8_MAX_SUPPORTED_PREFIX) {
-    return launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix, stream);
-  }
-  for (uint32_t p = 0; p < prefix; ++p) {
-    const std::size_t a_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                 static_cast<std::size_t>(lda);
-    const std::size_t b_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(k) *
-                                 static_cast<std::size_t>(ldb);
-    const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(m) *
-                                 static_cast<std::size_t>(ldc);
-    const hipError_t launch_status = launch_rns_modulus_gemm({
-        a_base + a_offset,
-        b_base + b_offset,
-        c_base + c_offset,
-        m,
-        n,
-        k,
-        lda,
-        ldb,
-        ldc,
-        kDefaultModuli[p],
-        p,
-        prefix,
-        stream});
-    if (launch_status != hipSuccess) {
-      return launch_status;
-    }
-  }
-  return hipSuccess;
+  return launch_rns_grouped_prefix_gemm(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix, stream);
 }
 #endif
 
@@ -133,14 +105,6 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  if (prefix == RNS8_DEFAULT_BOUNDED_PREFIX || prefix == RNS8_MAX_SUPPORTED_PREFIX) {
-    const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-      const hipError_t launch_status =
-          launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
-      return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
-    });
-    return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-  }
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
     const hipError_t launch_status =
         launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);

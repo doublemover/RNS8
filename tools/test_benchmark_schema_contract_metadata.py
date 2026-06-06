@@ -223,6 +223,31 @@ def main() -> int:
     stale_graph_status["hip_graph_replay"]["capture_status"] = "stale_graph_status"
     expect_invalid(stale_graph_status, "hip_graph_replay.capture_status must be one of")
 
+    resident_redesign = copy.deepcopy(direct_hip_base)
+    resident_redesign["resident_redesign"] = {
+        "enabled": True,
+        "candidate": "grouped_active_schedule_v3",
+        "dimensions": [
+            "data_layout",
+            "tile_shape",
+            "export_interaction",
+            "schedule_upload",
+            "workspace_reuse",
+        ],
+        "policy": "benchmark_only_resident_route_candidate_requires_rank51_report",
+        "resource_evidence_required": True,
+        "promotion_eligible": False,
+        "cache_promotion_blocker": "resident_redesign_candidate_not_reviewed",
+    }
+    validate_capture(resident_redesign)
+
+    stale_resident_redesign_dimension = copy.deepcopy(resident_redesign)
+    stale_resident_redesign_dimension["resident_redesign"]["dimensions"] = ["magic_layout"]
+    expect_invalid(
+        stale_resident_redesign_dimension,
+        "resident_redesign.dimensions contains unknown values",
+    )
+
     optional = add_optional_contracts(add_helper_lane_fields(copy.deepcopy(base)))
     validate_capture(optional)
 
