@@ -117,6 +117,13 @@ CONTRACT_KEYS = [
     "seed",
     "input_distribution",
 ]
+EXPORT_SELECTOR_REVIEW_DIFF_KEYS = {
+    "export_variant.name",
+    "export_variant.selector_status_policy",
+    "export_variant.d2h_policy",
+    "export_variant.selector_key",
+    "reconstruction_variant.name",
+}
 GPU_COMPATIBILITY_KEYS = [
     "compiler.id",
     "compiler.version",
@@ -435,12 +442,20 @@ def compare_gpu_events(
     }
 
 
-def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: Path, candidate_path: Path) -> dict[str, Any]:
+def compare(
+    baseline: dict[str, Any],
+    candidate: dict[str, Any],
+    baseline_path: Path,
+    candidate_path: Path,
+    *,
+    allow_export_selector_diff: bool = False,
+) -> dict[str, Any]:
     contract = {
         key: {
             "baseline": contract_value(baseline, key),
             "candidate": contract_value(candidate, key),
             "match": contract_value(baseline, key) == contract_value(candidate, key),
+            "ignored_for_contract": allow_export_selector_diff and key in EXPORT_SELECTOR_REVIEW_DIFF_KEYS,
         }
         for key in CONTRACT_KEYS
     }
@@ -490,7 +505,8 @@ def compare(baseline: dict[str, Any], candidate: dict[str, Any], baseline_path: 
             "baseline_version": schema_version(baseline),
             "candidate_version": schema_version(candidate),
         },
-        "matching_contract": all(item["match"] for item in contract.values()),
+        "comparison_mode": "export_selector_review" if allow_export_selector_diff else "strict_contract",
+        "matching_contract": all(item["match"] or item["ignored_for_contract"] for item in contract.values()),
         "gpu_compatible": gpu_compatible,
         "gpu_compatibility_required": gpu_compatibility_required,
         "contract": contract,
@@ -512,11 +528,12 @@ def print_human(report: dict[str, Any]) -> None:
         f"candidate=v{report['schema']['candidate_version']}"
     )
     print(f"matching contract: {report['matching_contract']}")
+    print(f"comparison mode:   {report['comparison_mode']}")
     print(f"gpu compatible:   {report['gpu_compatible']} (required={report['gpu_compatibility_required']})")
     print()
     print("Contract")
     for key, item in report["contract"].items():
-        status = "OK" if item["match"] else "DIFF"
+        status = "OK" if item["match"] else ("VARIANT" if item["ignored_for_contract"] else "DIFF")
         print(f"[{status}] {key}: {item['baseline']} -> {item['candidate']}")
     print()
     print("GPU Compatibility")
@@ -561,11 +578,25 @@ def main() -> int:
     parser.add_argument("baseline", type=Path, help="baseline rns8-bench JSON file")
     parser.add_argument("candidate", type=Path, help="candidate rns8-bench JSON file")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--allow-export-selector-diff",
+        action="store_true",
+        help=(
+            "compare benchmark-only export/reconstruction selector A/B captures "
+            "while still enforcing the same semantic, shape, limb, signedness, layout, target, and backend contract"
+        ),
+    )
     args = parser.parse_args()
 
     baseline = load_result(args.baseline)
     candidate = load_result(args.candidate)
-    report = compare(baseline, candidate, args.baseline, args.candidate)
+    report = compare(
+        baseline,
+        candidate,
+        args.baseline,
+        args.candidate,
+        allow_export_selector_diff=args.allow_export_selector_diff,
+    )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
