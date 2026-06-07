@@ -3,18 +3,42 @@
   "family": "k-block-tile-variants",
   "items": [
     {
+      "name": "bounded-i64-1024-default-anchors",
+      "semantics": "bounded-i64",
+      "case": {"name": "kblock-bounded-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP bounded i64 default K-block anchors at 1024",
+      "output_domain": "host_export",
+      "rationale": "anchors the K-block candidate against CPU, vector, and default Direct-HIP timing",
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
+    },
+    {
       "name": "bounded-i64-1024-cdna-kblock",
       "semantics": "bounded-i64",
       "case": {"name": "kblock-bounded-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
       "evidence_scope": "Direct-HIP bounded i64 K-block policy candidate at 1024",
       "output_domain": "host_export",
       "rationale": "CDNA-oriented tile-K control for bounded throughput and resource reports",
-      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-bounded-i64-1024-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "bounded-i64-2048-default-anchors",
+      "semantics": "bounded-i64",
+      "case": {"name": "kblock-bounded-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP bounded i64 default K-block anchors at 2048",
+      "output_domain": "host_export",
+      "rationale": "checks whether larger bounded shapes are throughput-bound before non-default K-block policies are considered",
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "bounded-i64-2048-cdna-kblock",
@@ -22,27 +46,52 @@
       "case": {"name": "kblock-bounded-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
       "evidence_scope": "Direct-HIP bounded i64 K-block policy candidate at 2048",
       "output_domain": "host_export",
-      "rationale": "checks whether larger bounded shapes become resource/throughput-bound",
-      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "rationale": "checks whether larger bounded shapes become resource/throughput-bound under a fixed safe K-block policy",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-bounded-i64-2048-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "bounded-i64-4096-default-anchor",
+      "semantics": "bounded-i64",
+      "case": {"name": "kblock-bounded-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP bounded i64 exploratory default K-block anchor at 4096",
+      "output_domain": "host_export",
+      "rationale": "keeps 4096 GPU timing current without making this candidate promotional in the absence of a local closeout reference matrix",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor", "cpu_baseline_deferred": "4096 closeout uses existing large-shape evidence; this scenario keeps the local run bounded"}
     },
     {
       "name": "bounded-i64-4096-cdna-kblock",
       "semantics": "bounded-i64",
       "case": {"name": "kblock-bounded-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
-      "evidence_scope": "Direct-HIP bounded i64 K-block policy candidate at 4096",
+      "evidence_scope": "Direct-HIP bounded i64 exploratory K-block policy candidate at 4096",
       "output_domain": "host_export",
       "rationale": "large-shape tile-K policy and counter readiness for CDNA",
-      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-bounded-i64-4096-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate", "cpu_baseline_deferred": "4096 closeout uses existing large-shape evidence; this scenario keeps the local run bounded"}
+    },
+    {
+      "name": "exact-wide-signed-1024-default-anchors",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "kblock-exact-wide-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP exact-wide default K-block anchors at 1024",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "anchors exact-wide K-block candidates to same-contract CPU and default Direct-HIP timing",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "exact_wide_limb_counts": [4],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "exact-wide-signed-1024-cdna-kblock",
@@ -51,13 +100,26 @@
       "evidence_scope": "Direct-HIP exact-wide K-block policy candidate at 1024",
       "output_domain": "exact_wide_signed_limbs",
       "rationale": "keeps exact-wide export and K-block policy coupled in one review path",
-      "backends": ["cpu", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "exact_wide_limb_counts": [4],
       "tile_shape_variant": "cdna-exact-wide-1024-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "exact-wide-signed-2048-default-anchors",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "kblock-exact-wide-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP exact-wide default K-block anchors at 2048",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "large exact-wide K-block/export balance needs a default Direct-HIP anchor before CDNA counters",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "exact_wide_limb_counts": [4],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "exact-wide-signed-2048-cdna-kblock",
@@ -66,28 +128,54 @@
       "evidence_scope": "Direct-HIP exact-wide K-block policy candidate at 2048",
       "output_domain": "exact_wide_signed_limbs",
       "rationale": "large exact-wide K-block/export balance for CDNA counters",
-      "backends": ["cpu", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "exact_wide_limb_counts": [4],
       "tile_shape_variant": "cdna-exact-wide-2048-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "exact-wide-signed-4096-default-anchor",
+      "semantics": "exact-wide-signed",
+      "case": {"name": "kblock-exact-wide-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP exact-wide exploratory default K-block anchor at 4096",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "very large exact-wide default timing remains GPU-only in the local Windows closeout",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "exact_wide_limb_counts": [4],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
     },
     {
       "name": "exact-wide-signed-4096-cdna-kblock",
       "semantics": "exact-wide-signed",
       "case": {"name": "kblock-exact-wide-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
-      "evidence_scope": "Direct-HIP exact-wide K-block policy candidate at 4096",
+      "evidence_scope": "Direct-HIP exact-wide exploratory K-block policy candidate at 4096",
       "output_domain": "exact_wide_signed_limbs",
       "rationale": "very large exact-wide tile-K policy and counter readiness",
       "backends": ["hip-direct"],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "exact_wide_limb_counts": [4],
       "tile_shape_variant": "cdna-exact-wide-4096-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
+    },
+    {
+      "name": "finite-u8-1024-default-anchors",
+      "semantics": "finite-u8-ring",
+      "case": {"name": "kblock-finite-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP finite-u8 default K-block anchors at 1024",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "anchors finite-u8 K-block candidates to same-modulus CPU and default Direct-HIP timing",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "finite_moduli": [251],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "finite-u8-1024-cdna-kblock",
@@ -96,13 +184,26 @@
       "evidence_scope": "Direct-HIP finite-u8 K-block policy candidate at 1024",
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "keeps finite-u8 K-block behavior separate from RNS bounded semantics",
-      "backends": ["cpu", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "finite_moduli": [251],
       "tile_shape_variant": "cdna-finite-u8-1024-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "finite-u8-2048-default-anchors",
+      "semantics": "finite-u8-ring",
+      "case": {"name": "kblock-finite-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP finite-u8 default K-block anchors at 2048",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "finite-u8 large shape K-block/resource review path needs same-modulus anchors",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "finite_moduli": [251],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "finite-u8-2048-cdna-kblock",
@@ -111,28 +212,53 @@
       "evidence_scope": "Direct-HIP finite-u8 K-block policy candidate at 2048",
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "finite-u8 large shape K-block/resource review path",
-      "backends": ["cpu", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "finite_moduli": [251],
       "tile_shape_variant": "cdna-finite-u8-2048-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "finite-u8-4096-default-anchor",
+      "semantics": "finite-u8-ring",
+      "case": {"name": "kblock-finite-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP finite-u8 exploratory default K-block anchor at 4096",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "finite-u8 very large shape K-block/resource review path without extra local CPU reference cost",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "finite_moduli": [251],
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
     },
     {
       "name": "finite-u8-4096-cdna-kblock",
       "semantics": "finite-u8-ring",
       "case": {"name": "kblock-finite-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
-      "evidence_scope": "Direct-HIP finite-u8 K-block policy candidate at 4096",
+      "evidence_scope": "Direct-HIP finite-u8 exploratory K-block policy candidate at 4096",
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "finite-u8 very large shape K-block/resource review path",
       "backends": ["hip-direct"],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "finite_moduli": [251],
       "tile_shape_variant": "cdna-finite-u8-4096-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate", "cpu_baseline_deferred": "4096 local CPU reference is intentionally not part of the Windows closeout run"}
+    },
+    {
+      "name": "wrap-u64-1024-default-anchors",
+      "semantics": "wrap-u64",
+      "case": {"name": "kblock-wrap64-1024", "m": 1024, "n": 1024, "k": 1024, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP wrap64 default K-block anchors at 1024",
+      "output_domain": "native_u64_host",
+      "rationale": "byte-limb wrap64 K-block/resource review path needs same-contract anchors",
+      "backends": ["wrap64-byte-limb", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "wrap-u64-1024-cdna-kblock",
@@ -141,12 +267,24 @@
       "evidence_scope": "Direct-HIP wrap64 K-block policy candidate at 1024",
       "output_domain": "native_u64_host",
       "rationale": "byte-limb wrap64 K-block/resource review path",
-      "backends": ["wrap64-byte-limb", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-wrap64-1024-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "wrap-u64-2048-default-anchors",
+      "semantics": "wrap-u64",
+      "case": {"name": "kblock-wrap64-2048", "m": 2048, "n": 2048, "k": 2048, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP wrap64 default K-block anchors at 2048",
+      "output_domain": "native_u64_host",
+      "rationale": "byte-limb wrap64 large-shape K-block/resource review path needs same-contract anchors",
+      "backends": ["wrap64-byte-limb", "hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor"}
     },
     {
       "name": "wrap-u64-2048-cdna-kblock",
@@ -155,26 +293,38 @@
       "evidence_scope": "Direct-HIP wrap64 K-block policy candidate at 2048",
       "output_domain": "native_u64_host",
       "rationale": "byte-limb wrap64 large shape K-block/resource review path",
-      "backends": ["wrap64-byte-limb", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-wrap64-2048-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate"}
+    },
+    {
+      "name": "wrap-u64-4096-default-anchor",
+      "semantics": "wrap-u64",
+      "case": {"name": "kblock-wrap64-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "Direct-HIP wrap64 exploratory default K-block anchor at 4096",
+      "output_domain": "native_u64_host",
+      "rationale": "byte-limb wrap64 very large shape K-block/resource review path without the impractical release-repeat byte-limb reference",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "baseline_only",
+      "metadata": {"resource_report_required": "event_and_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "default_anchor", "cpu_baseline_deferred": "4096 wrap64 byte-limb reference is intentionally not part of this Windows closeout run"}
     },
     {
       "name": "wrap-u64-4096-cdna-kblock",
       "semantics": "wrap-u64",
       "case": {"name": "kblock-wrap64-4096", "m": 4096, "n": 4096, "k": 4096, "tile_m": 128, "tile_n": 128, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
-      "evidence_scope": "Direct-HIP wrap64 K-block policy candidate at 4096",
+      "evidence_scope": "Direct-HIP wrap64 exploratory K-block policy candidate at 4096",
       "output_domain": "native_u64_host",
       "rationale": "byte-limb wrap64 very large shape K-block/resource review path",
-      "backends": ["wrap64-byte-limb", "hip-direct"],
-      "review_mode_expectation": "smoke",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "tile_shape_evidence_only",
       "tile_shape_variant": "cdna-wrap64-4096-kblock",
       "k_block_policy": "fixed-safe-kblock-cdna-candidate",
-      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only"}
+      "metadata": {"resource_report_required": "rocprofv3_or_isa", "multi_gpu_scope": "single_gpu_only", "k_block_role": "candidate", "cpu_baseline_deferred": "4096 wrap64 byte-limb reference is intentionally not part of this Windows closeout run"}
     }
   ]
 }

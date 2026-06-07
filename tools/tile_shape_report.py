@@ -148,12 +148,14 @@ def _is_default_tile_anchor(capture: dict[str, Any]) -> bool:
 
 def _is_tile_candidate(capture: dict[str, Any]) -> bool:
     variant = _tile_variant(capture)
+    k_block_policy = variant.get("k_block_policy", "auto")
+    non_default_tile = capture.get("tile_m") != DEFAULT_TILE_M or capture.get("tile_n") != DEFAULT_TILE_N
+    non_default_k_block = k_block_policy not in {"", "auto"}
     return (
         _backend(capture) == "hip-direct"
         and bool(variant)
         and variant.get("name") not in {None, "", "default", "direct-hip-default-128x128"}
-        and (capture.get("tile_m") != DEFAULT_TILE_M or capture.get("tile_n") != DEFAULT_TILE_N)
-        and variant.get("k_block_policy", "auto") == "auto"
+        and (non_default_tile or non_default_k_block)
     )
 
 
@@ -349,7 +351,7 @@ def _baseline_maps(captures: list[dict[str, Any]]) -> tuple[dict[tuple[Any, ...]
     for capture in captures:
         key = _contract_key(capture)
         backend = _backend(capture)
-        if backend in {"cpu-reference", "cpu"}:
+        if backend in {"cpu-reference", "cpu", "wrap64-byte-limb"}:
             cpu.setdefault(key, capture)
         elif _is_default_tile_anchor(capture):
             direct[(key, _target_id(capture))] = capture
@@ -394,6 +396,13 @@ def row_for_candidate(
         core_blockers.append("autotune_key_missing_tile_identity")
     if not _selected_kernel_has_tile_report_identity(candidate):
         core_blockers.append("selected_kernel_missing_tile_report_identity")
+    if variant.get("k_block_policy", "auto") not in {"", "auto"}:
+        if variant.get("split_k_mode") != "single_gpu_no_split_k":
+            core_blockers.append("k_block_split_mode_not_single_gpu")
+        if not isinstance(variant.get("accumulator_safety_key"), str) or not variant.get("accumulator_safety_key"):
+            core_blockers.append("missing_accumulator_safety_key")
+        if not isinstance(variant.get("resource_report_required"), str) or not variant.get("resource_report_required"):
+            core_blockers.append("missing_resource_report_requirement")
     if not resource_status["resource_evidence_present"]:
         resource_blockers.append("missing_counter_or_isa_resource_evidence")
     if not resource_status["register_pressure_present"]:

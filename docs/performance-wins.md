@@ -870,5 +870,7 @@ CRT export timing was lower in these captures.
   lifetime/source policy before AUTO selection. The mechanism split is
   summarized in [reviewed-local-evidence.md](reviewed-local-evidence.md).
 - Deprioritize for now: vector 1024 repeated-A/full-reuse, hipBLASLt 1024
-  repeated-A/full-reuse, and rocWMMA 1024 repeated-B, which lose the latest
-  setup-inclusive workload gate.
+  repeated-A/full-reuse, rocWMMA 1024 repeated-B, and rank-74 finite-u8 1024
+  K-block policy, which lose their latest setup-inclusive workload gates.
+  Other rank-74 K-block rows remain experimental pending profiler occupancy
+  and counter evidence, so they are not durable wins.

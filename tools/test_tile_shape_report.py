@@ -113,6 +113,28 @@ def set_tile_variant(capture: dict, name: str, tile_m: int, tile_n: int, kernel:
     }
 
 
+def set_k_block_variant(capture: dict, name: str, kernel: str) -> None:
+    capture["tile_shape_variant"] = {
+        "name": name,
+        "tile_m": capture["tile_m"],
+        "tile_n": capture["tile_n"],
+        "tile_k": capture["k_block_size"],
+        "k_block_policy": "fixed-safe-kblock-cdna-candidate",
+        "split_k_mode": "single_gpu_no_split_k",
+        "accumulator_safety_key": (
+            f"k_block_size={capture['k_block_size']};k_block_cap=65536;safe_for_k_block=true"
+        ),
+        "selected_kernel_identity": kernel,
+        "resource_report_key": (
+            f"tile_m={capture['tile_m']};tile_n={capture['tile_n']};"
+            f"tile_k={capture['k_block_size']};kernel={kernel}"
+        ),
+        "shape_family_bucket": "tiny",
+        "resource_report_required": "isa_or_counter_for_non_default_k_block_policy",
+        "stale_kernel_rejection": "selected_kernel_identity_must_match_capture",
+    }
+
+
 def make_base_capture() -> dict:
     return add_helper_lane_fields(expect_valid("v4_bounded_i64_hipblaslt.json"))
 
@@ -154,6 +176,21 @@ def make_direct_capture(tile_m: int, tile_n: int, variant: str, end_to_end_us: i
     )
     set_direct_gpu_events(capture)
     set_host_timings(capture, {"end_to_end": end_to_end_us})
+    return capture
+
+
+def make_k_block_capture(variant: str, end_to_end_us: int) -> dict:
+    capture = make_direct_capture(128, 128, "direct-hip-default-128x128", end_to_end_us)
+    set_k_block_variant(capture, variant, DIRECT_KERNEL)
+    metadata = capture["backend_metadata"]
+    metadata["autotune_key"] = with_accumulator_key_fields(
+        "backend=hip-direct;"
+        f"semantics={capture['semantics']};m={capture['m']};n={capture['n']};k={capture['k']};"
+        f"prefix={capture['prefix']};tile_m={capture['tile_m']};tile_n={capture['tile_n']};"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;"
+        f"kernel={DIRECT_KERNEL};epilogue=fused_centered_residue_then_crt_export",
+        capture,
+    )
     return capture
 
 
@@ -203,9 +240,11 @@ def main() -> int:
         cpu_path = tmp / "cpu.json"
         default_path = tmp / "direct-default.json"
         candidate_path = tmp / "direct-64x64.json"
+        kblock_path = tmp / "direct-kblock.json"
         write_capture(cpu_path, make_cpu_capture(200))
         write_capture(default_path, make_direct_capture(128, 128, "direct-hip-default-128x128", 100))
         write_capture(candidate_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80))
+        write_capture(kblock_path, make_k_block_capture("direct-hip-bounded-fixture-kblock", 85))
 
         manifest_path = tmp / "resource-manifest.json"
         manifest_path.write_text(
@@ -225,7 +264,21 @@ def main() -> int:
                                 "isa_resource_status": "present",
                                 "missing_evidence": ["missing_profiler_counter_export"],
                             },
-                        }
+                        },
+                        {
+                            "capture": kblock_path.name,
+                            "resource_summary": {
+                                "vgpr": 42,
+                                "sgpr": 38,
+                                "lds_instruction_mentions": 2,
+                                "occupancy": 0.625,
+                            },
+                            "evidence_status": {
+                                "profiler_counter_status": "missing",
+                                "isa_resource_status": "present",
+                                "missing_evidence": ["missing_profiler_counter_export"],
+                            },
+                        },
                     ]
                 }
             ),
@@ -233,25 +286,37 @@ def main() -> int:
         )
 
         report = tile_shape_report.build_report(
-            [cpu_path, default_path, candidate_path],
+            [cpu_path, default_path, candidate_path, kblock_path],
             tile_shape_report.load_resource_manifest(manifest_path),
         )
         assert report["schema"] == "rns8_tile_shape_report_v2"
-        assert report["candidate_count"] == 1
+        assert report["candidate_count"] == 2
         assert report["cpu_anchor_count"] == 1
         assert report["default_direct_hip_anchor_count"] == 1
-        row = report["rows"][0]
+        rows = {row["variant_name"]: row for row in report["rows"]}
+        row = rows["direct-hip-bounded-fixture-64x64"]
         assert row["decision"] == "promote locally"
         assert row["promotion_eligible"] is True
         assert row["speedup_vs_default_direct_hip_tile"] == 1.25
         assert row["promotion_blockers"] == []
         assert row["resource_status"]["resource_evidence_present"] is True
         assert row["resource_status"]["complete_for_promotion"] is True
+        kblock_row = rows["direct-hip-bounded-fixture-kblock"]
+        assert kblock_row["decision"] == "promote locally"
+        assert kblock_row["k_block_policy"] == "fixed-safe-kblock-cdna-candidate"
+        assert kblock_row["split_k_mode"] == "single_gpu_no_split_k"
+        assert kblock_row["tile_m"] == 128
+        assert kblock_row["tile_n"] == 128
+        assert kblock_row["promotion_blockers"] == []
 
-        no_resource = tile_shape_report.build_report([cpu_path, default_path, candidate_path])
-        no_resource_row = no_resource["rows"][0]
+        no_resource = tile_shape_report.build_report([cpu_path, default_path, candidate_path, kblock_path])
+        no_resource_rows = {row["variant_name"]: row for row in no_resource["rows"]}
+        no_resource_row = no_resource_rows["direct-hip-bounded-fixture-64x64"]
         assert no_resource_row["decision"] == "keep experimental"
         assert "missing_counter_or_isa_resource_evidence" in no_resource_row["promotion_blockers"]
+        no_resource_kblock = no_resource_rows["direct-hip-bounded-fixture-kblock"]
+        assert no_resource_kblock["decision"] == "keep experimental"
+        assert "missing_counter_or_isa_resource_evidence" in no_resource_kblock["promotion_blockers"]
 
         losing_path = tmp / "direct-64x64-loser.json"
         write_capture(losing_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 130))

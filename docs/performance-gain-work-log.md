@@ -7,6 +7,23 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-74 K-block/tile-K large-shape closeout:
+
+- Rank 74 moved from the active queue to the completed-work archive after the
+  single-GPU K-block policy surface gained full scenario, schema, report, and
+  local Windows `gfx1100` evidence. `k_block_tile_variants.json` now covers
+  bounded-i64, exact-wide-signed, finite-ring u8, and strict wrap64 at
+  1024/2048/4096 with default anchors and explicit benchmark-only K-block
+  candidates. Multi-GPU split-K and distributed GEMM remain out of scope.
+- The closeout under `temp/rank74-k-block-tile-variants-20260606/` produced
+  34 schema-valid release captures, required GPU events for GPU rows, a
+  Direct-HIP ISA sidecar, and a tile-shape report with 12 K-block candidates.
+  The report finds no local promotions: 11 candidates stay experimental because
+  profiler occupancy/counter evidence is still missing, and finite-u8 1024 is
+  deprioritized because the K-block policy is slower than the default
+  Direct-HIP anchor. The 4096 rows stay non-promotional where CPU/reference
+  anchors are intentionally omitted to avoid impractical local runtime.
+
 June 6, 2026 rank-68 strict wrap64 Direct-HIP v4 tuning closeout:
 
 - Rank 68 moved from the active queue to the completed-work archive after the
