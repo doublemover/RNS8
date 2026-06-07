@@ -110,6 +110,23 @@ const char* input_distribution(const Args& args) {
     return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
                                                         : "unsigned_adaptive_bands_0_16";
   }
+  if (finite_benchmark_semantics(args.semantics)) {
+    switch (args.input_profile) {
+      case InputProfile::FiniteBinary:
+        return "u8_binary_0_1";
+      case InputProfile::FiniteSparse:
+        return "u8_sparse_90pct_zero_uniform_nonzero";
+      case InputProfile::FiniteLowHamming:
+        return "u8_low_hamming_powers_of_two_mod_q";
+      case InputProfile::FiniteSmallCentered:
+        return "u8_small_centered_minus2_2_mod_q";
+      case InputProfile::FiniteFullUniform:
+      case InputProfile::UniformSmall:
+        return "u8_full_uniform_0_modulus_minus_1";
+      case InputProfile::AdaptiveBands:
+        return "invalid_finite_adaptive_bands";
+    }
+  }
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
     case BenchSemantics::ExactWideSigned:

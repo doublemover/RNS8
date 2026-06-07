@@ -47,6 +47,17 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
         self._error("finite-u8 captures must use packed_layout_version=null")
     if self.data.get("epilogue_type") != "canonical_u8_export":
         self._error("finite-u8 captures must use canonical_u8_export epilogue")
+    distribution = self.data.get("input_distribution")
+    allowed_distributions = {
+        "u8_binary_0_1",
+        "u8_sparse_90pct_zero_uniform_nonzero",
+        "u8_low_hamming_powers_of_two_mod_q",
+        "u8_small_centered_minus2_2_mod_q",
+        "u8_full_uniform_0_modulus_minus_1",
+        "u8_uniform_0_modulus_minus_1",
+    }
+    if distribution not in allowed_distributions:
+        self._error("finite-u8 captures must use a registered finite input_distribution")
     modulus = self.data.get("finite_modulus")
     if not _is_int(modulus):
         self._error("finite-u8 captures must include integer finite_modulus")

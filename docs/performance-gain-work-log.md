@@ -7,6 +7,25 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-73 finite-u8 data-distribution closeout:
+
+- Rank 73 moved from the active queue to the completed-work archive after the
+  finite-distribution lane gained real benchmark input profiles and a dedicated
+  report gate. `--input-profile` now accepts finite-only binary, sparse,
+  low-Hamming, small-centered, and full-uniform profiles, and benchmark JSON
+  records registered `input_distribution` labels so review keys never infer
+  workload structure from modulus alone. Schema validation rejects stale
+  finite-u8 distribution labels.
+- The Windows `gfx1100` closeout under
+  `temp/rank73-finite-distributions-20260606/` produced 160 schema-valid
+  release captures: CPU and Direct-HIP for finite ring/field u8 at
+  128/512/1024/2048, representative hot/generic moduli, and all five
+  distributions. Required GPU events passed for Direct-HIP captures.
+  `tools/finite_distribution_report.py` reports 80 groups: 16 full-uniform
+  baselines, 48 experimental distribution-sensitive rows, and 16
+  deprioritized rows. This is non-promoting workload evidence only; no cache,
+  README, default routing, Linux, or CDNA claim changes.
+
 June 6, 2026 rank-77 layout implementation search closeout:
 
 - Rank 77 moved from the active queue to the completed-work archive after the

@@ -652,3 +652,36 @@ assert all(
     for entry in layout_entries
 )
 
+finite_distribution_args = copy.copy(scenario_args)
+finite_distribution_args.backends = ["hip-direct"]
+finite_distribution_args.scenario = ["finite-distributions"]
+finite_distribution_entries = benchmark_sweep.sweep_command_entries(finite_distribution_args)
+assert len(finite_distribution_entries) == 80
+assert {entry.scenario["family"] for entry in finite_distribution_entries} == {"finite-distributions"}
+assert {entry.scenario["input_profile"] for entry in finite_distribution_entries} == {
+    "finite-binary",
+    "finite-sparse",
+    "finite-low-hamming",
+    "finite-small-centered",
+    "finite-full-uniform",
+}
+assert {entry.scenario["shape"]["m"] for entry in finite_distribution_entries} == {128, 512, 1024, 2048}
+assert sorted(
+    {
+        (entry.scenario["semantics"], entry.scenario["modulus"])
+        for entry in finite_distribution_entries
+        if entry.scenario["shape"]["m"] == 2048
+    }
+) == [
+    ("finite-u8-field", 241),
+    ("finite-u8-field", 251),
+    ("finite-u8-ring", 251),
+    ("finite-u8-ring", 253),
+]
+assert all("--input-profile" in entry.command for entry in finite_distribution_entries)
+assert any(
+    entry.scenario.get("metadata", {}).get("workflow_name") == "finite_distribution_release_matrix"
+    and entry.scenario.get("metadata", {}).get("distribution_role") == "sparse"
+    for entry in finite_distribution_entries
+)
+

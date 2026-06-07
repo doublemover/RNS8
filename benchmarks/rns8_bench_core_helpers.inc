@@ -228,7 +228,23 @@ bool bounded_residue_channel_fusion_requested(const Args& args) {
 }
 
 const char* input_profile_name(const Args& args) {
-  return args.input_profile == InputProfile::UniformSmall ? "uniform-small" : "adaptive-bands";
+  switch (args.input_profile) {
+    case InputProfile::UniformSmall:
+      return "uniform-small";
+    case InputProfile::AdaptiveBands:
+      return "adaptive-bands";
+    case InputProfile::FiniteBinary:
+      return "finite-binary";
+    case InputProfile::FiniteSparse:
+      return "finite-sparse";
+    case InputProfile::FiniteLowHamming:
+      return "finite-low-hamming";
+    case InputProfile::FiniteSmallCentered:
+      return "finite-small-centered";
+    case InputProfile::FiniteFullUniform:
+      return "finite-full-uniform";
+  }
+  return "unknown";
 }
 
 const char* bound_source_name(const Args& args) {

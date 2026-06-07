@@ -53,6 +53,7 @@ for scenario_name in [
     "export-bound-limb-variants",
     "reconstruction-zoo",
     "hip-graph-replay",
+    "finite-distributions",
     "rns-chain-final-output",
     "rns-chain-final-output-broader",
     "grouped-dispatch",

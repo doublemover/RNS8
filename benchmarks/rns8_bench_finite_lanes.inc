@@ -1,14 +1,56 @@
+uint8_t sample_finite_u8_input(std::mt19937_64& rng, const Args& args) {
+  const uint32_t modulus = args.finite_modulus == 256 ? 256u : static_cast<uint32_t>(args.finite_modulus);
+  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
+  switch (args.input_profile) {
+    case InputProfile::FiniteBinary: {
+      std::uniform_int_distribution<uint32_t> dist(0, 1);
+      return static_cast<uint8_t>(dist(rng) % modulus);
+    }
+    case InputProfile::FiniteSparse: {
+      std::uniform_int_distribution<uint32_t> zero_gate(0, 9);
+      if (zero_gate(rng) < 9) {
+        return 0;
+      }
+      std::uniform_int_distribution<uint32_t> nonzero(1, high);
+      return static_cast<uint8_t>(nonzero(rng));
+    }
+    case InputProfile::FiniteLowHamming: {
+      static constexpr uint32_t kChoices[] = {0u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u};
+      std::uniform_int_distribution<std::size_t> index(0, (sizeof(kChoices) / sizeof(kChoices[0])) - 1);
+      return static_cast<uint8_t>(kChoices[index(rng)] % modulus);
+    }
+    case InputProfile::FiniteSmallCentered: {
+      std::uniform_int_distribution<int32_t> dist(-2, 2);
+      const int32_t value = dist(rng);
+      const int32_t mod = static_cast<int32_t>(modulus);
+      return static_cast<uint8_t>((value % mod + mod) % mod);
+    }
+    case InputProfile::FiniteFullUniform:
+    case InputProfile::UniformSmall: {
+      std::uniform_int_distribution<uint32_t> dist(0, high);
+      return static_cast<uint8_t>(dist(rng));
+    }
+    case InputProfile::AdaptiveBands:
+      usage_error("finite-u8 lanes do not support adaptive-bands input profile");
+  }
+  return 0;
+}
+
+void fill_finite_u8_input(std::mt19937_64& rng, const Args& args, std::vector<uint8_t>& values) {
+  for (auto& value : values) {
+    value = sample_finite_u8_input(rng, args);
+  }
+}
+
 BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
-  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
-  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+  fill_finite_u8_input(rng, args, A);
+  fill_finite_u8_input(rng, args, B);
 
   auto desc = gemm_desc(args, 0);
   BenchmarkResult result = initialize_bounded_oneshot_result(ctx, args, 0, desc);
@@ -58,8 +100,6 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch finite A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch finite B");
   const int64_t ldc = output_logical_ld(args);
@@ -69,8 +109,8 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   std::vector<std::vector<uint8_t>> batch_c(
       task_count, std::vector<uint8_t>(c_elements, 0x5au));
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    for (auto& value : batch_a[task_index]) value = static_cast<uint8_t>(dist(rng));
-    for (auto& value : batch_b[task_index]) value = static_cast<uint8_t>(dist(rng));
+    fill_finite_u8_input(rng, args, batch_a[task_index]);
+    fill_finite_u8_input(rng, args, batch_b[task_index]);
   }
 
   BenchmarkResult result{};
@@ -244,14 +284,12 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   }
   (void)bound;
   std::mt19937_64 rng(args.seed);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
-  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
-  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+  fill_finite_u8_input(rng, args, A);
+  fill_finite_u8_input(rng, args, B);
 
   BenchmarkResult result{};
   auto desc = gemm_desc(args, 0);

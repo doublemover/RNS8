@@ -32,6 +32,12 @@ bool grouped_task_executor_requested_for_args(const Args& args) {
   return host_api_batch_requested_for_args(args) || grouped_dispatch_requested_for_args(args);
 }
 
+bool finite_input_profile(InputProfile profile) {
+  return profile == InputProfile::FiniteBinary || profile == InputProfile::FiniteSparse ||
+         profile == InputProfile::FiniteLowHamming || profile == InputProfile::FiniteSmallCentered ||
+         profile == InputProfile::FiniteFullUniform;
+}
+
 }  // namespace
 
 int64_t parse_i64(const char* text, const char* label) {
@@ -135,6 +141,24 @@ BoundMode parse_bound_mode(const std::string& value) {
 InputProfile parse_input_profile(const std::string& value) {
   if (value == "uniform-small" || value == "uniform_small") return InputProfile::UniformSmall;
   if (value == "adaptive-bands" || value == "adaptive_bands") return InputProfile::AdaptiveBands;
+  if (value == "finite-binary" || value == "finite_binary" || value == "binary") {
+    return InputProfile::FiniteBinary;
+  }
+  if (value == "finite-sparse" || value == "finite_sparse" || value == "sparse") {
+    return InputProfile::FiniteSparse;
+  }
+  if (value == "finite-low-hamming" || value == "finite_low_hamming" || value == "low-hamming" ||
+      value == "low_hamming") {
+    return InputProfile::FiniteLowHamming;
+  }
+  if (value == "finite-small-centered" || value == "finite_small_centered" || value == "small-centered" ||
+      value == "small_centered") {
+    return InputProfile::FiniteSmallCentered;
+  }
+  if (value == "finite-full-uniform" || value == "finite_full_uniform" || value == "full-uniform" ||
+      value == "full_uniform") {
+    return InputProfile::FiniteFullUniform;
+  }
   usage_error("unknown input profile: " + value);
 }
 
@@ -318,7 +342,8 @@ Args parse_args(int argc, char** argv) {
           << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
-          << "                  [--input-profile uniform-small|adaptive-bands]\n"
+          << "                  [--input-profile uniform-small|adaptive-bands|finite-binary|finite-sparse|\n"
+          << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
@@ -515,8 +540,15 @@ Args parse_args(int argc, char** argv) {
       usage_error("--oneshot currently requires --backend cpu or --backend hip-direct");
     }
   }
-  if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
+  if (args.input_profile == InputProfile::AdaptiveBands && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  if (finite_input_profile(args.input_profile) && !finite_benchmark_semantics(args.semantics)) {
+    usage_error("--input-profile finite-* values are only valid for finite-u8 semantics");
+  }
+  if (args.input_profile != InputProfile::UniformSmall && args.input_profile != InputProfile::AdaptiveBands &&
+      !finite_input_profile(args.input_profile)) {
+    usage_error("unsupported input profile");
   }
   if (args.bound_source == BoundSource::InputScan) {
     if (!bounded_benchmark_semantics(args.semantics)) {

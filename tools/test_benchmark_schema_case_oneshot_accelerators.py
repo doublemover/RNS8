@@ -395,6 +395,10 @@ bad_finite_epilogue = copy.deepcopy(v4_finite_field_rocwmma)
 bad_finite_epilogue["epilogue_type"] = "crt_export"
 expect_invalid(bad_finite_epilogue, "canonical_u8_export")
 
+bad_finite_distribution = copy.deepcopy(v4_finite_ring_ck)
+bad_finite_distribution["input_distribution"] = "u8_modulus_inferred_from_hot_path"
+expect_invalid(bad_finite_distribution, "registered finite input_distribution")
+
 direct_finite_specialized = as_direct_hip_finite_capture(
     v4_finite_ring_ck,
     255,

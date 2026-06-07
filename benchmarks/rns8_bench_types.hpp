@@ -32,6 +32,11 @@ enum class BoundMode {
 enum class InputProfile {
   UniformSmall,
   AdaptiveBands,
+  FiniteBinary,
+  FiniteSparse,
+  FiniteLowHamming,
+  FiniteSmallCentered,
+  FiniteFullUniform,
 };
 
 enum class BoundSource {
