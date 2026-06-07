@@ -168,10 +168,32 @@ cdna_accept_cmake_pair() {
   return 0
 }
 
+cdna_pip_target_cmake_bin() {
+  local python_bin="$1"
+  local target_dir="$2"
+  [[ -d "${target_dir}" ]] || return 1
+  "${python_bin}" - "${target_dir}" <<'PY'
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+try:
+    import cmake
+except Exception:
+    raise SystemExit(1)
+
+print(Path(cmake.CMAKE_BIN_DIR) / "cmake")
+PY
+}
+
 cdna_resolve_cmake_tools() {
   local python_bin="$1"
   local tool_root="${CDNA_REPO_ROOT}/temp/cdna-tools/cmake-${CDNA_CMAKE_MIN_VERSION}"
+  local target_site="${tool_root}/python-packages"
   local candidate
+  local target_candidate
   local candidates=()
 
   if [[ -n "${CDNA_CMAKE:-}" ]]; then
@@ -181,6 +203,10 @@ cdna_resolve_cmake_tools() {
     candidates+=("$(command -v cmake)")
   fi
   candidates+=("${tool_root}/bin/cmake")
+  target_candidate="$(cdna_pip_target_cmake_bin "${python_bin}" "${target_site}" 2>/dev/null || true)"
+  if [[ -n "${target_candidate}" ]]; then
+    candidates+=("${target_candidate}")
+  fi
 
   for candidate in "${candidates[@]}"; do
     if [[ -x "${candidate}" ]] && cdna_accept_cmake_pair "${python_bin}" "${candidate}"; then
@@ -197,17 +223,29 @@ cdna_resolve_cmake_tools() {
 
   mkdir -p "$(dirname "${tool_root}")"
   cdna_note_command bootstrap_cmake_venv "${python_bin}" -m venv "${tool_root}"
-  "${python_bin}" -m venv "${tool_root}"
+  if "${python_bin}" -m venv "${tool_root}"; then
+    local venv_python="${tool_root}/bin/python"
+    cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+    "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+    if cdna_accept_cmake_pair "${python_bin}" "${tool_root}/bin/cmake"; then
+      export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+      return 0
+    fi
+  else
+    printf 'warning: python venv bootstrap failed; falling back to pip --target under temp/cdna-tools.\n' >&2
+  fi
 
-  local venv_python="${tool_root}/bin/python"
-  cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
-  "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+  mkdir -p "${target_site}"
+  cdna_note_command bootstrap_cmake_pip_target "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+  "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
 
-  if ! cdna_accept_cmake_pair "${python_bin}" "${tool_root}/bin/cmake"; then
+  target_candidate="$(cdna_pip_target_cmake_bin "${python_bin}" "${target_site}")"
+  if ! cdna_accept_cmake_pair "${python_bin}" "${target_candidate}"; then
     {
       printf 'error: CMake %s or newer is required, but no usable cmake was found.\n' "${CDNA_CMAKE_MIN_VERSION}"
       printf '       System cmake: %s\n' "$(command -v cmake || printf 'not found')"
-      printf '       Bootstrapped cmake: %s\n' "${tool_root}/bin/cmake"
+      printf '       Venv cmake: %s\n' "${tool_root}/bin/cmake"
+      printf '       Pip-target cmake: %s\n' "${target_candidate}"
     } >&2
     return 1
   fi
