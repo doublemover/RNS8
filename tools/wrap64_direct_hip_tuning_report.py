@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "wrap64-direct-hip-tuning-reports"
@@ -18,13 +18,6 @@ RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 DIRECT_V4_KERNEL = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4"
 GRAPH_EXECUTION_MODE = "hip_graph_replay_wrap64_pack_gemm_export"
-SKIP_JSON_NAMES = {
-    "review_report.json",
-    "scenario_manifest.json",
-    "wrap64-direct-hip-tuning-report.json",
-}
-
-
 def _number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
@@ -196,23 +189,6 @@ def _candidate_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str]:
     return (_role(capture), _backend_id(capture), str(capture.get("selected_kernel") or "unknown"), variant_name, policy)
 
 
-def _expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(_expand_inputs(sorted(path.rglob("*.json"))))
-        elif path.suffix.lower() == ".json" and path.name not in SKIP_JSON_NAMES and not path.name.endswith("-report.json"):
-            expanded.append(path)
-    return expanded
-
-
-def _load(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
-
-
 def _capture_row(capture: dict[str, Any]) -> dict[str, Any]:
     return {
         "path": capture.get("_path"),
@@ -361,7 +337,7 @@ def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [_load(path) for path in _expand_inputs(paths)]
+    captures = load_report_captures(paths)
     return build_report_from_captures(captures)
 
 

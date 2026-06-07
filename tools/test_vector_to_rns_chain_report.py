@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import vector_to_rns_chain_report
+from report_capture_inputs import load_report_captures
 from test_benchmark_schema_support_core import as_vector_to_rns_chain_capture, expect_valid
 
 
@@ -59,11 +60,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
     root = Path(temp_dir)
     (root / "review_report.json").write_text('{"schema_version": 3, "groups": []}\n', encoding="utf-8")
     (root / "capture.json").write_text(json.dumps(expect_valid("v4_bounded_i64_adaptive_hip.json")) + "\n", encoding="utf-8")
-    loaded = [
-        capture
-        for path in vector_to_rns_chain_report.expand_inputs([root])
-        if (capture := vector_to_rns_chain_report.load_validated_capture(path)) is not None
-    ]
+    loaded = load_report_captures([root])
     assert len(loaded) == 1
     assert loaded[0]["benchmark"] == "rns8_bounded_gemm_persistent_rns"
 

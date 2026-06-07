@@ -116,6 +116,11 @@ timing outliers, missing shards, profiler readiness, and RCCL/`rccl-tests`
 readiness. Partial lists such as `--devices 4,5,6,7` are recorded by physical
 device id, not by rank position.
 
+Raw `rns8-bench` captures also record optional `RNS8_MULTI_GPU_MODE`,
+`RNS8_RANK`, and `RNS8_WORLD_SIZE` runtime environment fields when a shard
+launcher sets them. The `target-status.json` sidecar remains the richer source
+for BDF, NUMA, profiler, RCCL, and physical-device topology.
+
 `scripts/cdna_smoke.sh` is the minimal single-device smoke wrapper:
 
 ```bash

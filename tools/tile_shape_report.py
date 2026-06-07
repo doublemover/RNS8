@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "tile-shape-reports"
@@ -196,13 +196,6 @@ def _selected_kernel_has_tile_report_identity(capture: dict[str, Any]) -> bool:
         and f"tile_n={capture.get('tile_n')}" in resource_key
         and f"tile_k={variant.get('tile_k', capture.get('k_block_size'))}" in resource_key
     )
-
-
-def _load(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
 
 
 def _path_lookup_keys(path: Path) -> list[str]:
@@ -467,7 +460,7 @@ def row_for_candidate(
 
 def build_report(paths: list[Path], resource_manifest: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     resources = resource_manifest or {}
-    captures = [_load(path) for path in paths]
+    captures = load_report_captures(paths)
     candidates = [capture for capture in captures if _is_tile_candidate(capture)]
     cpu_map, direct_map = _baseline_maps(captures)
     rows = [

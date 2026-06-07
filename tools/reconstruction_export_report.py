@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_capture_inputs import expand_report_inputs, load_report_capture
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -56,19 +56,9 @@ def _json_inputs(inputs: list[Path]) -> list[Path]:
 def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]], list[str]]:
     captures: list[tuple[Path, dict[str, Any]]] = []
     skipped: list[str] = []
-    for path in _json_inputs(inputs):
-        if path.name.endswith(".failed.json") or path.name in {
-            "review_report.json",
-            "scenario_manifest.json",
-            "command-plan.json",
-            "validation-summary.json",
-        }:
-            continue
-        try:
-            capture = load_capture(path)
-            validate_capture(capture, path)
-        except BenchmarkSchemaError as exc:
-            skipped.append(f"{_relative(path)}: {exc}")
+    for path, from_directory in expand_report_inputs(inputs):
+        capture = load_report_capture(path, from_directory=from_directory)
+        if capture is None:
             continue
         if isinstance(capture.get("export_variant"), dict) or isinstance(capture.get("reconstruction_variant"), dict):
             captures.append((path, capture))

@@ -184,9 +184,11 @@ def _bool_or_none(value: Any) -> bool | None:
 
 def _optional_topology_fields(source: dict[str, Any]) -> dict[str, Any]:
     return {
-        "multi_gpu_mode": _clean_string(source.get("multi_gpu_mode")),
-        "rank": _int_or_none(source.get("rank")),
-        "world_size": _int_or_none(source.get("world_size")),
+        "multi_gpu_mode": _clean_string(source.get("multi_gpu_mode") or source.get("RNS8_MULTI_GPU_MODE")),
+        "rank": _int_or_none(source.get("rank") if source.get("rank") is not None else source.get("RNS8_RANK")),
+        "world_size": _int_or_none(
+            source.get("world_size") if source.get("world_size") is not None else source.get("RNS8_WORLD_SIZE")
+        ),
         "device_bdf": _clean_string(source.get("device_bdf") or source.get("pci_bdf") or source.get("pci_bus_id")),
         "numa_node": _int_or_none(source.get("numa_node")),
         "xgmi_peers": source.get("xgmi_peers") if isinstance(source.get("xgmi_peers"), list) else None,

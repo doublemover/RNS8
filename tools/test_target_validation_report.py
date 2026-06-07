@@ -223,6 +223,29 @@ def main() -> int:
         assert Path(outputs["json"]).exists()
         assert Path(outputs["markdown"]).exists()
 
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        capture_with_shard = json.loads(capture.read_text(encoding="utf-8"))
+        capture_with_shard["runtime_environment"] = {
+            "HIP_VISIBLE_DEVICES": "4",
+            "ROCR_VISIBLE_DEVICES": "4",
+            "GPU_DEVICE_ORDINAL": None,
+            "ROCM_PATH": "/opt/rocm",
+            "HIP_PATH": "/opt/rocm",
+            "LD_LIBRARY_PATH": "/opt/rocm/lib",
+            "RNS8_MULTI_GPU_MODE": "embarrassingly_parallel_shards",
+            "RNS8_RANK": "3",
+            "RNS8_WORLD_SIZE": "4",
+        }
+        capture_path = tmp / "capture-shard.json"
+        capture_path.write_text(json.dumps(capture_with_shard, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        report = target_validation_report.build_report([capture_path], [])
+        groups = {group["target_validation_group"]: group for group in report["groups"]}
+        windows = groups["os=windows;target=gfx1100;toolchain=7.1"]
+        assert windows["multi_gpu_modes"] == ["embarrassingly_parallel_shards"]
+        assert windows["ranks"] == ["3"]
+        assert windows["world_sizes"] == ["4"]
+
     print("target validation report self-test: PASS")
     return 0
 

@@ -9,17 +9,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "export-selector-reports"
-
-
-def _load(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
 
 
 def _timing_median(capture: dict[str, Any], phase: str) -> float | None:
@@ -87,15 +80,14 @@ def _blockers(capture: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def row_for_capture(path: Path) -> dict[str, Any]:
-    capture = _load(path)
+def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
     export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
     reconstruction = (
         capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
     )
     target_id = _target_id(capture, export)
     return {
-        "capture_path": str(path),
+        "capture_path": capture.get("_path"),
         "semantics": capture.get("semantics"),
         "backend": capture.get("backend_selected"),
         "target_id": target_id,
@@ -123,7 +115,7 @@ def row_for_capture(path: Path) -> dict[str, Any]:
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    rows = [row_for_capture(path) for path in paths]
+    rows = [row_for_capture(capture) for capture in load_report_captures(paths)]
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         shape = row["shape"]

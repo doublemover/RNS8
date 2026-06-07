@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 DIRECT_HIP_ROW_COL_KERNELS = {
@@ -38,26 +38,6 @@ BACKEND_CAPABILITIES: dict[str, BackendCapability] = {
     "ck": BackendCapability(True, True, False, "CK only handles whole zero-output tiles today"),
     "rocwmma": BackendCapability(True, True, False, "rocWMMA only handles whole zero-output tiles today"),
 }
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
-        else:
-            expanded.append(path)
-    return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        data = load_capture(path)
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def backend_id(capture: dict[str, Any]) -> str:
@@ -329,8 +309,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    paths = expand_inputs(args.captures)
-    captures = [load_validated_capture(path) for path in paths]
+    captures = load_report_captures(args.captures)
     report = compare_zero_skip_expansion(captures)
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)

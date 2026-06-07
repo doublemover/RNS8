@@ -49,6 +49,7 @@ DEFAULT_CASES = [
     SuiteCase("benchmark_schema", "metadata_drift", [sys.executable, "tools/test_benchmark_schema.py"]),
     SuiteCase("benchmark_sweep", "scenario_drift", [sys.executable, "tools/test_benchmark_sweep.py"]),
     SuiteCase("result_compare", "correctness_report", [sys.executable, "tools/test_result_compare.py"]),
+    SuiteCase("report_capture_inputs", "metadata_drift", [sys.executable, "tools/test_report_capture_inputs.py"]),
     SuiteCase("many_small_grouped_report", "grouped_dispatch", [sys.executable, "tools/test_many_small_grouped_report.py"]),
     SuiteCase("reuse_contract_report", "reuse_contract", [sys.executable, "tools/test_reuse_contract_report.py"]),
     SuiteCase(
@@ -98,6 +99,7 @@ DEFAULT_CASES = [
     SuiteCase("gpu_isa_report", "performance_evidence_drift", [sys.executable, "tools/test_gpu_isa_report.py"]),
     SuiteCase("target_validation_report", "target_readiness", [sys.executable, "tools/test_target_validation_report.py"]),
     SuiteCase("multigpu_shard_report", "target_readiness", [sys.executable, "tools/test_multigpu_shard_report.py"]),
+    SuiteCase("cdna_env_summary", "target_readiness", [sys.executable, "tools/test_cdna_env_summary.py"]),
     SuiteCase("cdna_scripts", "target_readiness", [sys.executable, "tools/test_cdna_scripts.py"]),
     SuiteCase(
         "bounded_i64_1024_review",

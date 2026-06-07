@@ -8,17 +8,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 DEFAULT_OUT_DIR = Path("temp") / "resident-workspace-reports"
-
-
-def _load(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
 
 
 def _counter_nonzero(counter: Any) -> bool:
@@ -66,14 +59,13 @@ def arena_blockers(capture: dict[str, Any], arena: dict[str, Any], resident: dic
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
-    for path in paths:
-        capture = _load(path)
+    for capture in load_report_captures(paths):
         resident = capture.get("resident_lifetime") if isinstance(capture.get("resident_lifetime"), dict) else {}
         arena = capture.get("workspace_arena") if isinstance(capture.get("workspace_arena"), dict) else {}
         blockers = arena_blockers(capture, arena, resident)
         rows.append(
             {
-                "capture_path": str(path),
+                "capture_path": capture.get("_path"),
                 "backend": capture.get("backend_selected"),
                 "semantics": capture.get("semantics"),
                 "target_id": _target_id(capture),

@@ -388,6 +388,9 @@ class ValidatorBaseFieldsMixin:
                     "ROCM_PATH",
                     "HIP_PATH",
                     "LD_LIBRARY_PATH",
+                    "RNS8_MULTI_GPU_MODE",
+                    "RNS8_RANK",
+                    "RNS8_WORLD_SIZE",
                 ]:
                     value = runtime_environment.get(key)
                     if value is not None and not isinstance(value, str):

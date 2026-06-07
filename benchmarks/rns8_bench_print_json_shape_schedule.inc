@@ -250,6 +250,15 @@
   std::cout << ",\n";
   std::cout << "    \"LD_LIBRARY_PATH\": ";
   print_json_string_or_null(environment_value("LD_LIBRARY_PATH"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_MULTI_GPU_MODE\": ";
+  print_json_string_or_null(environment_value("RNS8_MULTI_GPU_MODE"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_RANK\": ";
+  print_json_string_or_null(environment_value("RNS8_RANK"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_WORLD_SIZE\": ";
+  print_json_string_or_null(environment_value("RNS8_WORLD_SIZE"));
   std::cout << "\n";
   std::cout << "  },\n";
   const uint32_t visible_device_count = visible_device_count_from_environment();

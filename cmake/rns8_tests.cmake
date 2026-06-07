@@ -130,6 +130,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(target_validation_report_self_test PROPERTIES LABELS "benchmark;evidence;targets")
 
   add_test(
+    NAME cdna_env_summary_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cdna_env_summary.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(cdna_env_summary_self_test PROPERTIES LABELS "benchmark;evidence;targets")
+
+  add_test(
+    NAME report_capture_inputs_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_report_capture_inputs.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(report_capture_inputs_self_test PROPERTIES LABELS "benchmark;evidence;schema")
+
+  add_test(
     NAME bounded_i64_1024_review_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bounded_i64_1024_review.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

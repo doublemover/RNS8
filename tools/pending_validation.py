@@ -735,6 +735,21 @@ def previous_command_results(out_dir: Path) -> list[dict[str, Any]]:
     return [item for item in results if isinstance(item, dict)] if isinstance(results, list) else []
 
 
+def _result_item_passed(item: dict[str, Any]) -> bool:
+    if item.get("returncode") is None:
+        return item.get("passed") is True and bool(item.get("skipped_reason"))
+    return item.get("passed") is True
+
+
+def validation_run_passed(
+    command_results: list[dict[str, Any]],
+    report_results: list[dict[str, Any]],
+) -> bool:
+    return all(_result_item_passed(item) for item in command_results) and all(
+        _result_item_passed(item) for item in report_results
+    )
+
+
 def build_arg_parser(config: PendingValidationConfig, description: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--out-dir", type=Path, default=config.default_out_dir)
@@ -776,4 +791,4 @@ def run_cli(config: PendingValidationConfig, description: str | None = None) -> 
     report_results = run_post_reports(config, captures, args.out_dir, args.shape_family_cache)
     outputs = write_summary(config, args.out_dir, command_results, captures, report_results)
     print(outputs["markdown"])
-    return 0 if all(item.get("passed", False) for item in command_results if item.get("returncode") is not None) else 1
+    return 0 if validation_run_passed(command_results, report_results) else 1

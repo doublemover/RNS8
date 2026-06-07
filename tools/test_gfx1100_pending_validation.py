@@ -229,6 +229,19 @@ def main() -> int:
         assert "missing_required_baseline:cpu-reference" in row["blockers"]
         assert "review_blocker:missing_required_baselines" in row["blockers"]
 
+    assert pending_validation.validation_run_passed(
+        [{"name": "sweep", "returncode": 0, "passed": True}],
+        [{"name": "shape_family_shadow_report", "returncode": None, "passed": True, "skipped_reason": "not provided"}],
+    )
+    assert not pending_validation.validation_run_passed(
+        [{"name": "sweep", "returncode": 0, "passed": True}],
+        [{"name": "benchmark_schema", "returncode": 1, "passed": False}],
+    )
+    assert not pending_validation.validation_run_passed(
+        [{"name": "sweep", "returncode": 0, "passed": True}],
+        [{"name": "unknown", "returncode": None, "passed": True}],
+    )
+
     print("gfx1100 pending validation planner self-test: PASS")
     return 0
 

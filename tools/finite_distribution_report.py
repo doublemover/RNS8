@@ -6,22 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
-from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
 from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
+from report_capture_inputs import load_report_captures
 
 
 FINITE_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
-SIDECAR_NAMES = {
-    "review_report.json",
-    "scenario_manifest.json",
-    "command-plan.json",
-    "finite-distribution-report.json",
-}
 FULL_UNIFORM_DISTRIBUTIONS = {
     "u8_full_uniform_0_modulus_minus_1",
     "u8_uniform_0_modulus_minus_1",
@@ -99,33 +92,6 @@ def _target_id(capture: dict[str, Any]) -> str | None:
                 if isinstance(value, str) and value and value not in {"none", "unknown"}:
                     return value
     return None
-
-
-def _iter_paths(inputs: list[Path]) -> list[tuple[Path, bool]]:
-    paths: list[tuple[Path, bool]] = []
-    for item in inputs:
-        if item.is_dir():
-            for path in sorted(item.rglob("*.json")):
-                if path.name in SIDECAR_NAMES:
-                    continue
-                paths.append((path, True))
-        else:
-            paths.append((item, False))
-    return paths
-
-
-def _load_capture(path: Path, *, from_directory: bool) -> dict[str, Any] | None:
-    try:
-        capture = load_capture(path)
-        validate_capture(capture, path)
-    except (BenchmarkSchemaError, OSError, JSONDecodeError):
-        if from_directory:
-            return None
-        raise
-    if capture.get("semantics") not in FINITE_SEMANTICS:
-        return None
-    capture["_path"] = str(path)
-    return capture
 
 
 def _row(capture: dict[str, Any]) -> dict[str, Any]:
@@ -260,11 +226,7 @@ def _classification(
 
 
 def build_report(inputs: list[Path]) -> dict[str, Any]:
-    loaded = [
-        capture
-        for path, from_directory in _iter_paths(inputs)
-        if (capture := _load_capture(path, from_directory=from_directory)) is not None
-    ]
+    loaded = [capture for capture in load_report_captures(inputs) if capture.get("semantics") in FINITE_SEMANTICS]
     grouped: dict[tuple[str, int, int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
         grouped[_group_key(capture)].append(_row(capture))

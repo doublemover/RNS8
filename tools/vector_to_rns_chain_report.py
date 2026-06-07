@@ -8,38 +8,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
-        else:
-            expanded.append(path)
-    return expanded
-
-
-def looks_like_capture(data: dict[str, Any]) -> bool:
-    return data.get("schema_version") == 4 and isinstance(data.get("benchmark"), str)
-
-
-def load_validated_capture(path: Path) -> dict[str, Any] | None:
-    try:
-        data = load_capture(path)
-        if not looks_like_capture(data):
-            return None
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def timing_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -284,8 +258,7 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    paths = expand_inputs(args.captures)
-    captures = [capture for path in paths if (capture := load_validated_capture(path)) is not None]
+    captures = load_report_captures(args.captures)
     report = build_report(captures)
     write_outputs(report, args.out_dir)
     if args.json:

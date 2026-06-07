@@ -8,30 +8,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_capture_inputs import load_report_captures
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
-        else:
-            expanded.append(path)
-    return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        data = load_capture(path)
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def scenario_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -331,7 +311,7 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--json", action="store_true", dest="print_json")
     args = parser.parse_args()
-    captures = [load_validated_capture(path) for path in expand_inputs(args.captures)]
+    captures = load_report_captures(args.captures)
     report = build_report(captures)
     if args.out_dir:
         args.out_dir.mkdir(parents=True, exist_ok=True)
