@@ -130,6 +130,23 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
     int safe_k_block,
     void* stream);
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
+    int grouped_prefix,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_task_prefix_device(
     const int8_t* const* d_a_ptrs,
     const int8_t* const* d_b_ptrs,
@@ -298,6 +315,24 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     int lda,
     int ldb,
     int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block);
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
     int modulus,
     uint32_t modulus_reciprocal,
     int safe_k_block);

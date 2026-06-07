@@ -263,10 +263,16 @@ std::vector<std::string> gpu_event_phase_order(
         "finite_pack_h2d",
         "finite_pack_kernel",
         "pack",
-        finite_native_a_reuse_b_path(args, result)
-            ? "finite_native_a_gemm_kernel"
-            : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group",
     };
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("finite_resident_gemm_region_kernel");
+    } else {
+      phases.push_back(
+          finite_native_a_reuse_b_path(args, result)
+              ? "finite_native_a_gemm_kernel"
+              : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group");
+    }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
     phases.push_back("finite_export_kernel");
@@ -296,8 +302,13 @@ std::vector<std::string> gpu_event_phase_order(
         "pack_h2d",
         "pack_kernel",
         "pack",
-        use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group",
     };
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("rns_gemm_region_kernel_group");
+    } else {
+      phases.push_back(use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group");
+    }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
     if (residue_current_output_mode(args)) {
@@ -350,7 +361,12 @@ std::vector<std::string> gpu_event_phase_order(
     if (native_to_rns_bridge_path(args, result, selected_backend)) {
       phases.push_back(native_to_rns_bridge_event_label(args));
     }
-    phases.push_back(gemm_phase);
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("rns_gemm_region_kernel_group");
+    } else {
+      phases.push_back(gemm_phase);
+    }
   }
   if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {
     phases.push_back("direct_hip_zero_output_tile_memset");

@@ -160,6 +160,27 @@ rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void*
 #endif
 }
 
+rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src, std::size_t bytes) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!dst || !src || bytes == 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const hipError_t err =
+      timed_hip_operation("residue_d2d_sync", [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice); });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  (void)dst;
+  (void)src;
+  (void)bytes;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_copy_compact_matrix_device_to_host(
     int device_id,
     const char* timing_label,

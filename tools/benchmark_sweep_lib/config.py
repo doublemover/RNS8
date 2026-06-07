@@ -7,7 +7,7 @@ from typing import Any
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
-HOST_API_BATCH_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
+HOST_API_BATCH_BACKENDS = ["hip-direct"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
@@ -100,6 +100,8 @@ class ScenarioItem:
     release_gate: str = "none"
     verification_amortization: str = "none"
     error_detection_policy: str = "none"
+    cpu_small_shape_selector: str = "none"
+    incremental_result_cache: str = "none"
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
 

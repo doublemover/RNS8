@@ -9,7 +9,8 @@ Scope:
 
 - Platform: Windows HIP SDK on Radeon RX 7900 XTX / `gfx1100`.
 - Semantics: bounded i64/u64 and finite-u8 square GEMM for the latest post-fix
-  validation passes, plus same-backend strict wrap64 Direct-HIP implementation
+  validation passes, small-shape selector thresholds, dense RNS workload
+  profiles, plus same-backend strict wrap64 Direct-HIP implementation
   comparisons.
 - Evidence standard: release builds, fixed seeds, three warmups, nine measured
   repeats, schema-valid captures, CPU reference checks, and required GPU event
@@ -20,6 +21,73 @@ Scope:
   records the curated platform, command family, seed, shape, backend, result,
   review status, caveat, and reproduction command families. Raw captures stay
   ignored and are not durable docs.
+
+## Selector And Workload-Profile Wins
+
+The June 7, 2026 remaining-ranks closeout under
+`temp/remaining-ranks-captures-20260607/` produced 93 schema-valid captures:
+21 CPU captures and 72 Windows `gfx1100` GPU captures. Required GPU events were
+available for all GPU captures. The corrected rank reports now distinguish
+promotable local recommendations from cache/default-route claims.
+
+Rank 69 now has five promotable local selector-threshold recommendations. These
+are routing-policy evidence for explicit shape/semantic boundaries, not
+installed cache entries.
+
+| Workload | Shape | Promoted recommendation | Median comparison | Speedup | Status |
+|---|---:|---|---:|---:|---|
+| bounded-i64 CPU cutoff | 32x32x32 | CPU reference | 273 us vs fastest GPU 1165 us | 4.27x CPU-favored | Promotable local selector threshold |
+| bounded-u64 CPU cutoff | 64x64x64 | CPU reference | 636 us vs fastest GPU 1659 us | 2.61x CPU-favored | Promotable local selector threshold |
+| finite ring u8 CPU cutoff | 64x64x64 | CPU reference | 79 us vs fastest GPU 1720 us | 21.77x CPU-favored | Promotable local selector threshold |
+| many-small bounded-i64 batch32 boundary | 64x64x64 | CPU reference | 1079 us vs fastest non-CPU GPU 1265 us | 1.17x CPU-favored | Promotable local selector threshold |
+| skinny bounded-u64 GEMV-like N=1 | 64x1x4096 | `hip-vector-alu-int64` | 2061 us vs CPU 6126 us | 2.97x GPU-favored | Promotable local selector threshold |
+
+Rank 63 now has thirteen promotable local dense-RNS workload-profile wins. They
+are named after FHE/lattice-inspired proxy operations because that is how the
+workloads are organized, but the promotion scope is deliberately narrower:
+local dense RNS workload profiles only. They are not cryptographic correctness
+claims and do not claim compatibility with SEAL, OpenFHE, Lattigo, HElib, or
+any FHE library.
+
+| Workload profile | Output contract | Promoted backend | Speedup vs CPU | Status |
+|---|---|---|---:|---|
+| bootstrapping-stage pressure | exact-wide limb host | Direct HIP | 49.24x | Promotable local workload profile |
+| CKKS rescale chain-current profile | RNS residue-current | Direct HIP | 20.69x | Promotable local workload profile |
+| CKKS rescale dense GEMM-adjacent profile | RNS residue-current | Direct HIP | 27.19x | Promotable local workload profile |
+| dense linear transform, repeated-B profile | native i64/u64 host | Direct HIP | 112.01x | Promotable local workload profile |
+| dense linear transform, finite-u8 profile | finite-u8 host | Direct HIP | 33.21x | Promotable local workload profile |
+| dense linear transform, single-call profile | native i64/u64 host | Direct HIP | 34.82x | Promotable local workload profile |
+| key-switch digit aggregation, key-material profile | native i64/u64 host | rocWMMA | 54.59x | Promotable local workload profile |
+| key-switch digit aggregation, repeated-B profile | native i64/u64 host | Direct HIP | 198.40x | Promotable local workload profile |
+| ModDown/rescale chain-current profile | RNS residue-current | Direct HIP | 91.09x | Promotable local workload profile |
+| ModUp/base-extension profile | native i64/u64 host | Direct HIP | 17.13x | Promotable local workload profile |
+| relinearization key-material profile | native i64/u64 host | Direct HIP | 35.20x | Promotable local workload profile |
+| rotation-batch reuse profile | native i64/u64 host | Direct HIP | 16.54x | Promotable local workload profile |
+| tower-reuse chain profile | RNS residue-current | Direct HIP | 94.77x | Promotable local workload profile |
+
+Rank 78 turns the earlier rank 75 result-cache research lane into an explicit
+opt-in public contract. The v1 contract is intentionally narrow: Direct-HIP
+only, caller-owned `rns8_result_cache`, stable matrix instance IDs, nonzero
+source versions, caller-provided dirty output rectangles, full-K recompute for
+each dirty rectangle, and stale identity/version rejection. Default GEMM and
+AUTO routing are unchanged.
+
+The current Windows `gfx1100` release closeout under
+`temp/result-cache-contract-release-current-20260607/` produced 21 schema-valid
+captures with CPU, Direct-HIP full recompute, Direct-HIP result-cache, and CK
+comparators. Required GPU events were present for every GPU row, and
+`tools/incremental_result_cache_report.py --require-complete` reported two
+local public-contract promotions.
+
+| Workload | Shape | Direct-HIP full recompute | Direct-HIP result cache | Speedup | Status |
+|---|---:|---:|---:|---:|---|
+| bounded-i64 dirty output tile | 512x512x512 | 2697 us | 2226 us | 1.21x | Promotable local explicit result-cache workload |
+| exact-wide signed dirty output, 4 limbs | 512x512x512 | 4629 us | 3307 us | 1.40x | Promotable local explicit result-cache workload |
+| finite ring u8 dirty output, modulus 251 | 512x512x512 | 1931 us | 1886 us | 1.02x | Keep experimental; below 1.10x promotion gate |
+
+These are local Windows `gfx1100` explicit-API wins only. They do not install
+autotune cache entries, change default routing, update README headline claims,
+or prove Linux/CDNA behavior.
 
 ## Current One-Shot Winners
 

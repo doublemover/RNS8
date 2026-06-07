@@ -308,6 +308,10 @@ Args parse_args(int argc, char** argv) {
       args.verification_amortization = argv[++i];
     } else if (arg == "--error-detection-policy" && i + 1 < argc) {
       args.error_detection_policy = argv[++i];
+    } else if (arg == "--cpu-small-shape-selector" && i + 1 < argc) {
+      args.cpu_small_shape_selector = argv[++i];
+    } else if (arg == "--incremental-result-cache" && i + 1 < argc) {
+      args.incremental_result_cache = argv[++i];
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--residue-channel-fusion") {
@@ -373,6 +377,8 @@ Args parse_args(int argc, char** argv) {
           << "                  [--release-gate NAME]\n"
           << "                  [--verification-amortization NAME]\n"
           << "                  [--error-detection-policy NAME]\n"
+          << "                  [--cpu-small-shape-selector NAME]\n"
+          << "                  [--incremental-result-cache NAME]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
@@ -625,6 +631,12 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.error_detection_policy.empty()) {
     usage_error("--error-detection-policy must not be empty");
+  }
+  if (args.cpu_small_shape_selector.empty()) {
+    usage_error("--cpu-small-shape-selector must not be empty");
+  }
+  if (args.incremental_result_cache.empty()) {
+    usage_error("--incremental-result-cache must not be empty");
   }
   if (args.k_block_policy.empty()) {
     usage_error("--k-block-policy must not be empty");

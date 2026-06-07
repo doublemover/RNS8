@@ -113,6 +113,8 @@ struct Args {
   std::string release_gate = "none";
   std::string verification_amortization = "none";
   std::string error_detection_policy = "none";
+  std::string cpu_small_shape_selector = "none";
+  std::string incremental_result_cache = "none";
 };
 
 struct TimingSamples {
@@ -235,6 +237,32 @@ struct BenchmarkResult {
   bool grouped_dispatch_batched_export_enabled = false;
   uint64_t grouped_dispatch_device_output_slab_bytes = 0;
   std::string grouped_dispatch_execution_strategy = "not_requested";
+  bool incremental_result_cache_info_available = false;
+  bool incremental_result_cache_public_contract_available = false;
+  bool incremental_result_cache_stale_rejection_covered = false;
+  std::string incremental_result_cache_candidate_role = "not_requested";
+  std::string incremental_result_cache_status = "not_requested";
+  std::string incremental_result_cache_stale_reason{};
+  std::string incremental_result_cache_fallback_reason{};
+  std::string incremental_result_cache_detail{};
+  uint64_t incremental_result_cache_key_fingerprint = 0;
+  uint64_t incremental_result_cache_a_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_b_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_c_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_a_source_version = 0;
+  uint64_t incremental_result_cache_b_source_version = 0;
+  uint64_t incremental_result_cache_c_source_version = 0;
+  uint64_t incremental_result_cache_copied_from_cache_bytes = 0;
+  uint64_t incremental_result_cache_recomputed_cell_count = 0;
+  uint64_t incremental_result_cache_allocation_bytes = 0;
+  uint64_t incremental_result_cache_snapshot_device_bytes = 0;
+  uint32_t incremental_result_cache_dirty_region_count = 0;
+  uint32_t incremental_result_cache_recomputed_region_count = 0;
+  uint32_t incremental_result_cache_full_fallback = 0;
+  uint32_t incremental_result_cache_last_cache_hit = 0;
+  uint32_t incremental_result_cache_last_cache_miss = 0;
+  uint32_t incremental_result_cache_last_stale_rejection = 0;
+  std::vector<rns8_dirty_region> incremental_result_cache_dirty_regions{};
   uint64_t checksum = 0;
 };
 

@@ -168,6 +168,19 @@ void collect_gemm_gpu_events(
   }
 }
 
+void collect_incremental_result_cache_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const bool finite = finite_benchmark_semantics(args.semantics);
+  const char* region_label = finite ? "finite_resident_gemm_region_kernel" : "rns_gemm_region_kernel_group";
+  const double cache_restore = sum_event_label(events, samples, "rns_gemm", "residue_d2d_sync");
+  const double region_kernel = sum_event_label(events, samples, "rns_gemm", region_label);
+  if (events.complete) {
+    push_gpu_event_value(events, "residue_d2d_sync", cache_restore);
+    push_gpu_event_value(events, region_label, region_kernel);
+    push_gpu_event_value(events, "rns_gemm", cache_restore + region_kernel);
+  }
+}
+
 void collect_native_to_rns_bridge_gemm_gpu_events(
     const Args& args,
     GpuEventSamples& events) {

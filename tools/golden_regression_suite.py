@@ -123,6 +123,26 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_error_detection_policy_report.py"],
     ),
     SuiteCase(
+        "cache_promotion_closeout",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_cache_promotion_closeout.py"],
+    ),
+    SuiteCase(
+        "fhe_workload_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_fhe_workload_report.py"],
+    ),
+    SuiteCase(
+        "cpu_small_shape_selector_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_cpu_small_shape_selector_report.py"],
+    ),
+    SuiteCase(
+        "incremental_result_cache_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_incremental_result_cache_report.py"],
+    ),
+    SuiteCase(
         "finite_modulus_map_report",
         "performance_evidence_drift",
         [sys.executable, "tools/test_finite_modulus_map_report.py"],

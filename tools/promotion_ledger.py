@@ -259,12 +259,26 @@ def capture_entry(
         ]
         target_validation_ready = target_cache_eligible and not target_cache_blockers
         blockers.extend(f"target_validation_blocker:{item}" for item in target_cache_blockers)
-    for object_name in ("modulus_set", "export_variant", "reconstruction_variant", "grouped_dispatch", "hip_graph_replay"):
+    feature_scoped_non_promoting = {
+        "grouped_dispatch",
+        "hip_graph_replay",
+        "cpu_small_shape_selector",
+        "incremental_result_cache",
+    }
+    for object_name in (
+        "modulus_set",
+        "export_variant",
+        "reconstruction_variant",
+        "grouped_dispatch",
+        "hip_graph_replay",
+        "cpu_small_shape_selector",
+        "incremental_result_cache",
+    ):
         item = capture.get(object_name)
         if (
             isinstance(item, dict)
             and item.get("promotion_eligible") is False
-            and (object_name not in {"grouped_dispatch", "hip_graph_replay"} or feature_lane_requested(item))
+            and (object_name not in feature_scoped_non_promoting or feature_lane_requested(item))
         ):
             blockers.append(f"{object_name}_non_promoting")
         if object_name == "modulus_set" and isinstance(item, dict) and item.get("cache_promotion_blocker"):

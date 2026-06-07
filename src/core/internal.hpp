@@ -72,6 +72,7 @@ struct rns8_plan {
 struct rns8_matrix {
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  uint64_t matrix_instance_id = 0;
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   uint16_t finite_modulus = 0;
   uint64_t source_version = 0;
@@ -231,6 +232,45 @@ struct rns8_prepack_cache {
   void* device_data = nullptr;
   std::size_t device_bytes = 0;
   std::size_t operand_pack_bytes = 0;
+};
+
+struct rns8_result_cache {
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  rns8_semantics semantics = RNS8_BOUNDED_I64;
+  rns8_bound_kind bound_kind = RNS8_BOUND_NONE;
+  int64_t m = 0;
+  int64_t n = 0;
+  int64_t k = 0;
+  uint32_t prefix = 0;
+  uint32_t finite_modulus = 0;
+  uint32_t max_dirty_regions = 0;
+  uint64_t plan_fingerprint = 0;
+  uint64_t workspace_fingerprint = 0;
+  uint64_t result_cache_key_hash = 0;
+  std::string target_id;
+  std::string selected_kernel;
+  int hip_device_id = -1;
+  bool initialized = false;
+  bool last_cache_hit = false;
+  bool last_cache_miss = false;
+  bool last_full_fallback = false;
+  bool last_stale_rejection = false;
+  uint32_t last_dirty_region_count = 0;
+  uint32_t last_recomputed_region_count = 0;
+  uint64_t a_matrix_instance_id = 0;
+  uint64_t b_matrix_instance_id = 0;
+  uint64_t c_matrix_instance_id = 0;
+  uint64_t a_source_version = 0;
+  uint64_t b_source_version = 0;
+  uint64_t c_source_version = 0;
+  void* hip_snapshot_residues = nullptr;
+  std::size_t hip_snapshot_residue_bytes = 0;
+  uint64_t copied_from_cache_bytes = 0;
+  uint64_t recomputed_cell_count = 0;
+  uint64_t cache_allocation_bytes = 0;
+  std::string stale_reason;
+  std::string fallback_reason;
+  std::string detail;
 };
 
 namespace rns8::detail {

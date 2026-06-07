@@ -217,6 +217,12 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
         args, "verification_amortization", "none"
     )
     scenario_args.error_detection_policy = item.error_detection_policy or getattr(args, "error_detection_policy", "none")
+    scenario_args.cpu_small_shape_selector = item.cpu_small_shape_selector or getattr(
+        args, "cpu_small_shape_selector", "none"
+    )
+    scenario_args.incremental_result_cache = item.incremental_result_cache or getattr(
+        args, "incremental_result_cache", "none"
+    )
     return scenario_args
 
 
@@ -283,6 +289,8 @@ def scenario_metadata(
         "release_gate": item.release_gate,
         "verification_amortization": item.verification_amortization,
         "error_detection_policy": item.error_detection_policy,
+        "cpu_small_shape_selector": item.cpu_small_shape_selector,
+        "incremental_result_cache": item.incremental_result_cache,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -501,6 +509,12 @@ def command_for(
     error_detection_policy = getattr(args, "error_detection_policy", "none")
     if error_detection_policy and error_detection_policy != "none":
         command.extend(["--error-detection-policy", error_detection_policy])
+    cpu_small_shape_selector = getattr(args, "cpu_small_shape_selector", "none")
+    if cpu_small_shape_selector and cpu_small_shape_selector != "none":
+        command.extend(["--cpu-small-shape-selector", cpu_small_shape_selector])
+    incremental_result_cache = getattr(args, "incremental_result_cache", "none")
+    if incremental_result_cache and incremental_result_cache != "none":
+        command.extend(["--incremental-result-cache", incremental_result_cache])
     return command
 
 
@@ -792,6 +806,8 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "release_gate", "none") != "none",
             getattr(args, "verification_amortization", "none") != "none",
             getattr(args, "error_detection_policy", "none") != "none",
+            getattr(args, "cpu_small_shape_selector", "none") != "none",
+            getattr(args, "incremental_result_cache", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
             int(getattr(args, "host_api_batch_size", 1) or 1) != 1,

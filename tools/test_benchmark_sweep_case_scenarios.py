@@ -62,10 +62,29 @@ for scenario_name in [
     "streaming-overlap",
     "release-gate-closeout",
     "fhe-lattice-proxy-starfoundry",
+    "cpu-small-shape-selector",
+    "incremental-result-cache",
     "error-detecting-fast-path",
 ]:
     assert scenario_name in catalog
     assert catalog[scenario_name]
+
+cpu_selector_policies_with_cpu = {
+    item.cpu_small_shape_selector
+    for items in catalog.values()
+    for item in items
+    if item.cpu_small_shape_selector != "none" and "cpu" in item.backends
+}
+result_cache_groups_with_cpu = {
+    (
+        item.metadata.get("result_cache_contract_group", item.name)
+        if isinstance(item.metadata, dict)
+        else item.name
+    )
+    for items in catalog.values()
+    for item in items
+    if item.incremental_result_cache != "none" and item.backends and "cpu" in item.backends
+}
 
 for family, items in catalog.items():
     for item in items:
@@ -73,6 +92,24 @@ for family, items in catalog.items():
             assert "cpu" in item.backends, f"{family}/{item.name} verification amortization requires CPU baseline"
         if item.error_detection_policy != "none":
             assert "cpu" in item.backends, f"{family}/{item.name} error detection policy requires CPU baseline"
+        if item.cpu_small_shape_selector != "none":
+            assert (
+                item.cpu_small_shape_selector in cpu_selector_policies_with_cpu
+            ), f"{family}/{item.name} CPU selector review requires paired CPU baseline"
+            assert item.promotion_eligibility == "cpu_selector_threshold_evidence_only"
+        if item.incremental_result_cache != "none":
+            result_cache_group = (
+                item.metadata.get("result_cache_contract_group", item.name)
+                if isinstance(item.metadata, dict)
+                else item.name
+            )
+            assert (
+                result_cache_group in result_cache_groups_with_cpu
+            ), f"{family}/{item.name} result-cache review group requires CPU baseline"
+            assert item.promotion_eligibility in {
+                "result_cache_research_only",
+                "result_cache_contract_candidate",
+            }
 
 with tempfile.TemporaryDirectory() as temp_dir:
     scenario_path = Path(temp_dir) / "bad_scenario.json"
@@ -287,6 +324,32 @@ error_detection_command = benchmark_sweep.command_for(
 )
 assert "--error-detection-policy" in error_detection_command
 assert "freivalds_two_round_product_check_research" in error_detection_command
+cpu_selector_item = catalog["cpu-small-shape-selector"][0]
+cpu_selector_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, cpu_selector_item)
+cpu_selector_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    cpu_selector_item.semantics,
+    cpu_selector_item.case,
+    None,
+    None,
+    cpu_selector_args,
+)
+assert "--cpu-small-shape-selector" in cpu_selector_command
+assert "bounded_i64_32_cpu_cutoff_review" in cpu_selector_command
+incremental_item = catalog["incremental-result-cache"][0]
+incremental_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, incremental_item)
+incremental_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    incremental_item.semantics,
+    incremental_item.case,
+    None,
+    None,
+    incremental_args,
+)
+assert "--incremental-result-cache" in incremental_command
+assert "bounded_i64_dirty_tile_partial_recompute_research" in incremental_command
 
 with tempfile.TemporaryDirectory() as temp_dir:
     capture_path = Path(temp_dir) / "capture.json"

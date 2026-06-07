@@ -370,3 +370,131 @@ void print_release_and_verification_json(const Args& args, const BenchmarkResult
   std::cout << "  },\n";
 }
 
+void print_cpu_selector_and_incremental_cache_json(
+    const Args& args,
+    const BenchmarkResult& result,
+    const std::string& selected_backend) {
+  const bool cpu_selector_enabled = args.cpu_small_shape_selector != "none";
+  const bool incremental_enabled = args.incremental_result_cache != "none";
+  const bool public_incremental_policy = public_incremental_result_cache_contract_requested(args);
+  const bool public_incremental_available = result.incremental_result_cache_public_contract_available;
+  const bool cpu_backend = selected_backend == "cpu-reference" || selected_backend == "cpu";
+  const std::string incremental_candidate_role =
+      incremental_result_cache_candidate_role(args, result, selected_backend);
+  const std::string boundary_key =
+      std::string("semantics=") + semantics_name(args.semantics) +
+      ";m=" + std::to_string(args.m) +
+      ";n=" + std::to_string(args.n) +
+      ";k=" + std::to_string(args.k) +
+      ";modulus=" + std::to_string(args.finite_modulus) +
+      ";layout=row_major;output=" + output_domain_contract_name(args) +
+      ";target=" + json_escape(result.target_id.empty() ? std::string("unknown") : result.target_id);
+  const std::string checksum_status =
+      result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required";
+  std::cout << "  \"cpu_small_shape_selector\": {\n";
+  std::cout << "    \"enabled\": " << (cpu_selector_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.cpu_small_shape_selector) << "\",\n";
+  std::cout << "    \"candidate_role\": \""
+            << (cpu_selector_enabled ? (cpu_backend ? "cpu_baseline" : "comparison_candidate")
+                                     : "not_requested")
+            << "\",\n";
+  std::cout << "    \"boundary_key\": \"" << json_escape(boundary_key) << "\",\n";
+  std::cout << "    \"threshold_scope\": \""
+            << (cpu_selector_enabled
+                    ? "semantic_layout_output_target_family_explicit_review_only"
+                    : "not_requested")
+            << "\",\n";
+  std::cout << "    \"selector_explanation\": \""
+            << (cpu_selector_enabled
+                    ? "non_routing_auto_explanation_metadata_only"
+                    : "not_requested")
+            << "\",\n";
+  std::cout << "    \"cpu_reference_required\": true,\n";
+  std::cout << "    \"release_review_required\": " << (cpu_selector_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"runtime_routing_allowed\": false,\n";
+  std::cout << "    \"cache_eligible\": false,\n";
+  std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "  },\n";
+  std::cout << "  \"incremental_result_cache\": {\n";
+  std::cout << "    \"enabled\": " << (incremental_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.incremental_result_cache) << "\",\n";
+  std::cout << "    \"candidate_role\": \"" << json_escape(incremental_candidate_role) << "\",\n";
+  std::cout << "    \"source_identity_policy\": \""
+            << incremental_result_cache_source_identity_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"source_version_policy\": \""
+            << incremental_result_cache_source_version_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"dirty_region_policy\": \""
+            << incremental_result_cache_dirty_region_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"result_lifetime_policy\": \""
+            << incremental_result_cache_result_lifetime_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"checksum_policy\": \""
+            << (incremental_enabled ? "final_exact_cpu_comparison_required" : "none") << "\",\n";
+  std::cout << "    \"partial_recompute_policy\": \""
+            << incremental_result_cache_partial_recompute_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"final_exact_comparison_required\": true,\n";
+  std::cout << "    \"final_exact_comparison_status\": \"" << checksum_status << "\",\n";
+  std::cout << "    \"public_contract_available\": "
+            << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"default_gemm_unchanged\": true,\n";
+  std::cout << "    \"runtime_routing_allowed\": "
+            << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"cache_eligible\": " << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"promotion_eligible\": " << (public_incremental_available ? "true" : "false");
+  if (public_incremental_available && result.incremental_result_cache_info_available) {
+    std::cout << ",\n";
+    std::cout << "    \"status\": \"" << json_escape(result.incremental_result_cache_status) << "\",\n";
+    std::cout << "    \"a_matrix_instance_id\": "
+              << result.incremental_result_cache_a_matrix_instance_id << ",\n";
+    std::cout << "    \"b_matrix_instance_id\": "
+              << result.incremental_result_cache_b_matrix_instance_id << ",\n";
+    std::cout << "    \"c_matrix_instance_id\": "
+              << result.incremental_result_cache_c_matrix_instance_id << ",\n";
+    std::cout << "    \"a_source_version\": " << result.incremental_result_cache_a_source_version << ",\n";
+    std::cout << "    \"b_source_version\": " << result.incremental_result_cache_b_source_version << ",\n";
+    std::cout << "    \"c_source_version\": " << result.incremental_result_cache_c_source_version << ",\n";
+    std::cout << "    \"result_cache_key_fingerprint\": "
+              << result.incremental_result_cache_key_fingerprint << ",\n";
+    std::cout << "    \"dirty_region_count\": "
+              << result.incremental_result_cache_dirty_region_count << ",\n";
+    std::cout << "    \"recomputed_region_count\": "
+              << result.incremental_result_cache_recomputed_region_count << ",\n";
+    std::cout << "    \"copied_from_cache_bytes\": "
+              << result.incremental_result_cache_copied_from_cache_bytes << ",\n";
+    std::cout << "    \"recomputed_cell_count\": "
+              << result.incremental_result_cache_recomputed_cell_count << ",\n";
+    std::cout << "    \"cache_allocation_bytes\": "
+              << result.incremental_result_cache_allocation_bytes << ",\n";
+    std::cout << "    \"snapshot_device_bytes\": "
+              << result.incremental_result_cache_snapshot_device_bytes << ",\n";
+    std::cout << "    \"last_full_fallback\": "
+              << (result.incremental_result_cache_full_fallback != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"last_cache_hit\": "
+              << (result.incremental_result_cache_last_cache_hit != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"last_cache_miss\": "
+              << (result.incremental_result_cache_last_cache_miss != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"stale_rejection_covered\": "
+              << (result.incremental_result_cache_stale_rejection_covered ? "true" : "false") << ",\n";
+    std::cout << "    \"stale_reason\": \""
+              << json_escape(result.incremental_result_cache_stale_reason) << "\",\n";
+    std::cout << "    \"fallback_reason\": \""
+              << json_escape(result.incremental_result_cache_fallback_reason) << "\",\n";
+    std::cout << "    \"detail\": \""
+              << json_escape(result.incremental_result_cache_detail) << "\",\n";
+    std::cout << "    \"dirty_regions\": [";
+    for (std::size_t index = 0; index < result.incremental_result_cache_dirty_regions.size(); ++index) {
+      const auto& region = result.incremental_result_cache_dirty_regions[index];
+      if (index != 0) {
+        std::cout << ", ";
+      }
+      std::cout << "{\"row_offset\": " << region.row_offset
+                << ", \"col_offset\": " << region.col_offset
+                << ", \"row_extent\": " << region.row_extent
+                << ", \"col_extent\": " << region.col_extent << "}";
+    }
+    std::cout << "]\n";
+  } else {
+    std::cout << "\n";
+  }
+  std::cout << "  },\n";
+}
+

@@ -21,16 +21,21 @@
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "labels transform-pressure ranking work without claiming RNS8 currently implements an NTT backend",
       "backends": [
+        "cpu",
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "not_promotable",
+      "promotion_eligibility": "proxy_evidence_only",
       "finite_moduli": [
         251
       ],
+      "workload_proxy": "fhe:ntt_intt_pressure",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
       "metadata": {
         "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
         "evidence_role": "proxy_not_ntt_proof",
+        "proxy_operation": "dense_linear_transform",
         "workflow_name": "ntt_intt_pressure",
         "phase_label": "transform_pressure_proxy",
         "ring_dimension": 4096,
@@ -38,7 +43,10 @@
         "coefficient_modulus_count": 1,
         "current_domain": "coefficient_or_ntt_domain_proxy",
         "reuse_profile": "independent_polynomial_channels",
-        "lowering_role": "not_a_dense_gemm_claim"
+        "lowering_role": "not_a_dense_gemm_claim",
+        "output_domain_requirement": "finite_u8_canonical_host_export",
+        "compatibility_claim": false,
+        "promotion_scope": "proxy_evidence_only"
       }
     },
     {
@@ -60,6 +68,7 @@
       "output_domain": "host_export",
       "rationale": "measures repeated read-only B-like operand reuse separately from ordinary one-shot dense GEMM evidence",
       "backends": [
+        "cpu",
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
@@ -67,12 +76,16 @@
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "proxy_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
+      "workload_proxy": "fhe:key_switch_digit_aggregation",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
       "metadata": {
         "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
+        "proxy_operation": "key_switch_digit_aggregation",
         "workflow_name": "key_switch_digit_aggregation",
         "phase_label": "external_product_like_dense_proxy",
         "ring_dimension": 4096,
@@ -83,7 +96,10 @@
         "evaluation_key_count": 8,
         "key_material_reuse": "B_operand_reused",
         "reuse_profile": "large_read_only_key_material",
-        "lowering_role": "dense_gemm_adjacent_proxy"
+        "lowering_role": "dense_gemm_adjacent_proxy",
+        "output_domain_requirement": "host_export",
+        "compatibility_claim": false,
+        "promotion_scope": "proxy_evidence_only"
       }
     },
     {
@@ -105,16 +121,21 @@
       "output_domain": "residue_current_rns",
       "rationale": "keeps chained residue-domain work separate from final native host export timings",
       "backends": [
+        "cpu",
         "hip-direct",
         "hipblaslt",
         "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "proxy_evidence_only",
       "residue_chain_length": 4,
+      "workload_proxy": "fhe:ckks_rescale",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
       "metadata": {
         "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
+        "proxy_operation": "ckks_rescale",
         "workflow_name": "ckks_rescale_mod_drop",
         "phase_label": "residue_chain_proxy",
         "ring_dimension": 8192,
@@ -130,7 +151,9 @@
         "current_domain": "rns_residue_current",
         "reuse_profile": "chain_current_residue_output",
         "output_domain_requirement": "lazy_export",
-        "lowering_role": "not_a_public_fhe_backend"
+        "lowering_role": "not_a_public_fhe_backend",
+        "compatibility_claim": false,
+        "promotion_scope": "proxy_evidence_only"
       }
     },
     {
@@ -152,6 +175,7 @@
       "output_domain": "host_export",
       "rationale": "separates repeated plaintext-matrix reuse from diagonal/rotation and convolution lowerings",
       "backends": [
+        "cpu",
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
@@ -159,12 +183,16 @@
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "proxy_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
+      "workload_proxy": "fhe:dense_linear_transform",
+      "verification_amortization": "reuse_shape_seed_reference_inputs",
       "metadata": {
         "source_role": "fhe_lattice_proxy",
+        "algebra_family": "fhe_lattice",
+        "proxy_operation": "dense_linear_transform",
         "workflow_name": "encrypted_inference_linear_layer",
         "phase_label": "dense_linear_layer_proxy",
         "ring_dimension": 8192,
@@ -173,7 +201,10 @@
         "coefficient_modulus_count": 4,
         "plaintext_matrix_reuse": "B_operand_reused",
         "reuse_profile": "many_encrypted_vectors_same_plaintext_matrix",
-        "lowering_role": "dense_gemm_proxy_not_rotation_method"
+        "lowering_role": "dense_gemm_proxy_not_rotation_method",
+        "output_domain_requirement": "host_export",
+        "compatibility_claim": false,
+        "promotion_scope": "proxy_evidence_only"
       }
     }
   ]

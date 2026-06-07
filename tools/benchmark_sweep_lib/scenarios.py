@@ -268,6 +268,12 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 error_detection_policy=_required_string(raw, "error_detection_policy", label=label)
                 if "error_detection_policy" in raw
                 else "none",
+                cpu_small_shape_selector=_required_string(raw, "cpu_small_shape_selector", label=label)
+                if "cpu_small_shape_selector" in raw
+                else "none",
+                incremental_result_cache=_required_string(raw, "incremental_result_cache", label=label)
+                if "incremental_result_cache" in raw
+                else "none",
                 include_wrap64_candidate=_bool_or_default(
                     raw,
                     "include_wrap64_candidate",

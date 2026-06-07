@@ -314,6 +314,8 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_result_cache* result_cache = nullptr;
+  std::vector<rns8_dirty_region> result_cache_dirty_regions;
   DeviceBuffer native_a;
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -331,6 +333,12 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const bool use_result_cache_candidate =
+      incremental_result_cache_runtime_candidate_requested(args, selected_backend) && !use_native_a_reuse_b;
+  if (use_result_cache_candidate) {
+    result_cache = create_benchmark_result_cache(ctx, plan);
+    result_cache_dirty_regions.push_back(benchmark_incremental_result_cache_dirty_region(args));
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -403,10 +411,30 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
         collect_finite_native_a_gemm_gpu_events(result.gpu_events);
       }
     } else {
-      status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
-      if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8", status);
+      if (result_cache) {
+        status = rns8_gemm_finite_u8_incremental(
+            ctx,
+            plan,
+            args.finite_modulus,
+            a_matrix,
+            b_matrix,
+            c_matrix,
+            workspace,
+            result_cache,
+            result_cache_dirty_regions.data(),
+            static_cast<uint32_t>(result_cache_dirty_regions.size()));
+      } else {
+        status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
+      }
+      if (status != RNS8_SUCCESS) {
+        fail_status(result_cache ? "rns8_gemm_finite_u8_incremental" : "rns8_gemm_finite_u8", status);
+      }
       if (collect_gpu_events) {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        if (result_cache) {
+          collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
+        } else {
+          collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        }
       }
     }
     end_gpu_event_phase(collect_gpu_events);
@@ -443,7 +471,21 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     record_allocation_after_repeats(result);
   }
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
+  if (result_cache) {
+    capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
+    pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
+    const rns8_status stale_status = rns8_gemm_finite_u8_incremental(
+        ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    if (stale_status == RNS8_SUCCESS) {
+      fail_status("rns8_gemm_finite_u8_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
+    }
+    capture_incremental_result_cache_stale_rejection(result, result_cache);
+  }
 
+  if (result_cache) {
+    status = rns8_destroy_result_cache(result_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   if (a_matrix) {

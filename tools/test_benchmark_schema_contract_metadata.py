@@ -81,6 +81,36 @@ def add_optional_contracts(capture: dict) -> dict:
         "cache_eligible": False,
         "promotion_eligible": False,
     }
+    contracted["cpu_small_shape_selector"] = {
+        "enabled": True,
+        "policy": "bounded_i64_32_cpu_cutoff_review",
+        "candidate_role": "comparison_candidate",
+        "boundary_key": "semantics=bounded_i64;m=32;n=32;k=32;layout=row_major;target=gfx1100",
+        "threshold_scope": "semantic_layout_output_target_family_explicit_review_only",
+        "selector_explanation": "non_routing_auto_explanation_metadata_only",
+        "cpu_reference_required": True,
+        "release_review_required": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
+        "promotion_eligible": False,
+    }
+    contracted["incremental_result_cache"] = {
+        "enabled": True,
+        "policy": "dirty_tile_partial_recompute_research",
+        "source_identity_policy": "caller_visible_source_identity_required",
+        "source_version_policy": "monotonic_source_versions_required",
+        "dirty_region_policy": "explicit_dirty_region_shape_required",
+        "result_lifetime_policy": "caller_visible_result_lifetime_required",
+        "checksum_policy": "final_exact_cpu_comparison_required",
+        "partial_recompute_policy": "dirty_region_only_when_version_contract_matches",
+        "final_exact_comparison_required": True,
+        "final_exact_comparison_status": "checksum_recorded_reference_required",
+        "public_contract_available": False,
+        "default_gemm_unchanged": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
+        "promotion_eligible": False,
+    }
     return contracted
 
 
@@ -442,6 +472,78 @@ def main() -> int:
     expect_invalid(
         stale_error_detection_unseeded,
         "probabilistic error_detection_policy captures must set rng_seed_recorded=true",
+    )
+
+    stale_cpu_selector_role = copy.deepcopy(optional)
+    stale_cpu_selector_role["cpu_small_shape_selector"]["candidate_role"] = "magic_gpu"
+    expect_invalid(stale_cpu_selector_role, "cpu_small_shape_selector.candidate_role must be one of")
+
+    stale_cpu_selector_routing = copy.deepcopy(optional)
+    stale_cpu_selector_routing["cpu_small_shape_selector"]["runtime_routing_allowed"] = True
+    expect_invalid(
+        stale_cpu_selector_routing,
+        "enabled cpu_small_shape_selector captures must set runtime_routing_allowed=false",
+    )
+
+    stale_incremental_contract = copy.deepcopy(optional)
+    stale_incremental_contract["incremental_result_cache"]["source_version_policy"] = "none"
+    expect_invalid(
+        stale_incremental_contract,
+        "enabled incremental_result_cache.source_version_policy must describe the contract",
+    )
+
+    stale_incremental_promotable = copy.deepcopy(optional)
+    stale_incremental_promotable["incremental_result_cache"]["promotion_eligible"] = True
+    expect_invalid(
+        stale_incremental_promotable,
+        "research incremental_result_cache captures must set promotion_eligible=false",
+    )
+
+    public_incremental = copy.deepcopy(optional)
+    public_incremental["scenario_metadata"] = {
+        "family": "incremental-result-cache",
+        "name": "bounded-i64-dirty-tile-public-contract",
+        "promotion_eligibility": "result_cache_contract_candidate",
+    }
+    public_incremental["incremental_result_cache"].update(
+        {
+            "policy": "bounded_i64_dirty_tile_public_contract_v1",
+            "source_identity_policy": "matrix_instance_id_exact_match",
+            "source_version_policy": "nonzero_monotonic_source_versions_required",
+            "dirty_region_policy": "caller_provided_output_rectangles_full_k_recompute",
+            "result_lifetime_policy": "explicit_result_cache_handle_lifetime",
+            "partial_recompute_policy": "restore_cached_output_then_recompute_dirty_rectangles_full_k",
+            "public_contract_available": True,
+            "runtime_routing_allowed": True,
+            "cache_eligible": True,
+            "promotion_eligible": True,
+            "a_matrix_instance_id": 101,
+            "b_matrix_instance_id": 102,
+            "a_source_version": 11,
+            "b_source_version": 12,
+            "result_cache_key_fingerprint": 1234,
+            "dirty_region_count": 1,
+            "recomputed_region_count": 1,
+            "copied_from_cache_bytes": 4096,
+            "cache_allocation_bytes": 4096,
+            "stale_rejection_covered": True,
+            "dirty_regions": [
+                {
+                    "row_offset": 0,
+                    "col_offset": 0,
+                    "row_extent": 1,
+                    "col_extent": 1,
+                }
+            ],
+        }
+    )
+    validate_capture(public_incremental)
+
+    public_incremental_no_stale_test = copy.deepcopy(public_incremental)
+    public_incremental_no_stale_test["incremental_result_cache"]["stale_rejection_covered"] = False
+    expect_invalid(
+        public_incremental_no_stale_test,
+        "public incremental_result_cache.stale_rejection_covered must be true",
     )
 
     print("benchmark schema contract metadata self-test: PASS")

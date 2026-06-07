@@ -1,5 +1,7 @@
 #include "core/api_internal.hpp"
 
+#include <atomic>
+
 namespace rns8::detail::api {
 #include "api_matrix_currentness_storage.inc"
 #include "api_matrix_schedule_contracts.inc"

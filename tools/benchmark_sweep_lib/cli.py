@@ -205,6 +205,16 @@ def parse_args() -> argparse.Namespace:
         help="benchmark-only research error-detection policy label; never changes exact API semantics",
     )
     parser.add_argument(
+        "--cpu-small-shape-selector",
+        default="none",
+        help="benchmark-only CPU small-shape selector evidence label; does not change AUTO routing",
+    )
+    parser.add_argument(
+        "--incremental-result-cache",
+        default="none",
+        help="benchmark-only incremental result-cache research label; never enables default routing",
+    )
+    parser.add_argument(
         "--include-exact-wide-limb-variants",
         action="store_true",
         help="include exact-wide output limb counts 1, 2, 3, 4, 8, 16, and 32",
@@ -297,6 +307,10 @@ def parse_args() -> argparse.Namespace:
         parser.error("--verification-amortization must not be empty")
     if not args.error_detection_policy:
         parser.error("--error-detection-policy must not be empty")
+    if not args.cpu_small_shape_selector:
+        parser.error("--cpu-small-shape-selector must not be empty")
+    if not args.incremental_result_cache:
+        parser.error("--incremental-result-cache must not be empty")
     return args
 
 

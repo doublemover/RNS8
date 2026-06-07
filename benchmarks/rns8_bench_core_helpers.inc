@@ -329,6 +329,185 @@ bool hip_graph_replay_requested(const Args& args) {
   return args.hip_graph_replay;
 }
 
+bool incremental_result_cache_requested(const Args& args) {
+  return args.incremental_result_cache != "none";
+}
+
+bool public_incremental_result_cache_contract_requested(const Args& args) {
+  return args.incremental_result_cache.find("public_contract_v1") != std::string::npos;
+}
+
+bool incremental_result_cache_full_recompute_baseline_requested(const Args& args) {
+  return args.incremental_result_cache.find("full_recompute_baseline") != std::string::npos ||
+         args.incremental_result_cache.find("full-recompute-baseline") != std::string::npos;
+}
+
+bool incremental_result_cache_runtime_candidate_requested(const Args& args, rns8_backend_kind selected_backend) {
+  return public_incremental_result_cache_contract_requested(args) &&
+         !incremental_result_cache_full_recompute_baseline_requested(args) &&
+         selected_backend == RNS8_BACKEND_HIP_DIRECT && !args.reuse_packed_inputs &&
+         args.residue_chain_length == 1 && !args.oneshot && !args.streaming_overlap &&
+         !args.hip_graph_replay && !args.native_to_rns_bridge && !args.vector_to_rns_chain &&
+         !args.vector_alu_baseline && !args.wrap64_rocwmma_candidate &&
+         !args.transient_uniform_small_inputs && !args.residue_channel_fusion &&
+         !args.residue_chain_final_export && !args.residue_chain_independent_final_export;
+}
+
+std::string incremental_result_cache_candidate_role(
+    const Args& args,
+    const BenchmarkResult& result,
+    const std::string& selected_backend) {
+  if (!incremental_result_cache_requested(args)) {
+    return "not_requested";
+  }
+  if (selected_backend == "cpu-reference" || selected_backend == "cpu") {
+    return "cpu_reference_baseline";
+  }
+  if (incremental_result_cache_full_recompute_baseline_requested(args) && selected_backend == "hip-direct") {
+    return "same_backend_full_recompute_baseline";
+  }
+  if (result.incremental_result_cache_public_contract_available && selected_backend == "hip-direct") {
+    return "public_result_cache_candidate";
+  }
+  return "comparison_candidate";
+}
+
+const char* incremental_result_cache_source_identity_policy(const Args& args, bool public_contract_policy) {
+  if (!incremental_result_cache_requested(args)) {
+    return "none";
+  }
+  return public_contract_policy ? "matrix_instance_id_exact_match" : "caller_visible_source_identity_required";
+}
+
+const char* incremental_result_cache_source_version_policy(const Args& args, bool public_contract_policy) {
+  if (!incremental_result_cache_requested(args)) {
+    return "none";
+  }
+  return public_contract_policy ? "nonzero_monotonic_source_versions_required" : "monotonic_source_versions_required";
+}
+
+const char* incremental_result_cache_dirty_region_policy(const Args& args, bool public_contract_policy) {
+  if (!incremental_result_cache_requested(args)) {
+    return "none";
+  }
+  return public_contract_policy ? "caller_provided_output_rectangles_full_k_recompute"
+                                : "explicit_dirty_region_shape_required";
+}
+
+const char* incremental_result_cache_result_lifetime_policy(const Args& args, bool public_contract_policy) {
+  if (!incremental_result_cache_requested(args)) {
+    return "none";
+  }
+  return public_contract_policy ? "explicit_result_cache_handle_lifetime"
+                                : "caller_visible_result_lifetime_required";
+}
+
+const char* incremental_result_cache_partial_recompute_policy(const Args& args, bool public_contract_policy) {
+  if (!incremental_result_cache_requested(args)) {
+    return "none";
+  }
+  return public_contract_policy ? "restore_cached_output_then_recompute_dirty_rectangles_full_k"
+                                : "dirty_region_only_when_version_contract_matches";
+}
+
+rns8_dirty_region benchmark_incremental_result_cache_dirty_region(const Args& args) {
+  rns8_dirty_region region{};
+  region.struct_size = sizeof(region);
+  region.abi_version = RNS8_ABI_VERSION;
+  region.row_offset = 0;
+  region.col_offset = 0;
+  const int64_t requested_rows = std::max<int64_t>(1, std::min<int64_t>(args.m, static_cast<int64_t>(args.tile_m)));
+  const int64_t requested_cols = std::max<int64_t>(1, std::min<int64_t>(args.n, static_cast<int64_t>(args.tile_n)));
+  region.row_extent = requested_rows;
+  region.col_extent = requested_cols;
+  return region;
+}
+
+rns8_result_cache* create_benchmark_result_cache(rns8_context* ctx, const rns8_plan* plan) {
+  rns8_result_cache_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.flags = RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES |
+               RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
+               RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE |
+               RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
+  desc.max_dirty_regions = 64;
+  rns8_result_cache* cache = nullptr;
+  const rns8_status status = rns8_create_result_cache(ctx, plan, &desc, &cache);
+  if (status != RNS8_SUCCESS) {
+    fail_status("rns8_create_result_cache", status);
+  }
+  return cache;
+}
+
+void capture_incremental_result_cache_info(
+    BenchmarkResult& result,
+    const rns8_result_cache* cache,
+    const std::vector<rns8_dirty_region>& dirty_regions,
+    bool public_contract_available) {
+  if (!cache) {
+    return;
+  }
+  rns8_result_cache_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status status = rns8_get_result_cache_info(cache, &info);
+  if (status != RNS8_SUCCESS) {
+    fail_status("rns8_get_result_cache_info", status);
+  }
+  result.incremental_result_cache_info_available = true;
+  result.incremental_result_cache_public_contract_available = public_contract_available;
+  result.incremental_result_cache_key_fingerprint = info.result_cache_key_hash;
+  result.incremental_result_cache_a_matrix_instance_id = info.a_matrix_instance_id;
+  result.incremental_result_cache_b_matrix_instance_id = info.b_matrix_instance_id;
+  result.incremental_result_cache_c_matrix_instance_id = info.c_matrix_instance_id;
+  result.incremental_result_cache_a_source_version = info.a_source_version;
+  result.incremental_result_cache_b_source_version = info.b_source_version;
+  result.incremental_result_cache_c_source_version = info.c_source_version;
+  result.incremental_result_cache_copied_from_cache_bytes = info.copied_from_cache_bytes;
+  result.incremental_result_cache_recomputed_cell_count = info.recomputed_cell_count;
+  result.incremental_result_cache_allocation_bytes = info.cache_allocation_bytes;
+  result.incremental_result_cache_snapshot_device_bytes = info.snapshot_device_bytes;
+  result.incremental_result_cache_dirty_region_count = info.last_dirty_region_count;
+  result.incremental_result_cache_recomputed_region_count = info.last_recomputed_region_count;
+  result.incremental_result_cache_full_fallback = info.last_full_fallback;
+  result.incremental_result_cache_last_cache_hit = info.last_cache_hit;
+  result.incremental_result_cache_last_cache_miss = info.last_cache_miss;
+  result.incremental_result_cache_last_stale_rejection = info.last_stale_rejection;
+  result.incremental_result_cache_stale_reason = info.stale_reason;
+  result.incremental_result_cache_fallback_reason = info.fallback_reason;
+  result.incremental_result_cache_detail = info.detail;
+  result.incremental_result_cache_dirty_regions = dirty_regions;
+  if (info.last_full_fallback != 0) {
+    result.incremental_result_cache_status = "full_recompute_fallback";
+  } else if (info.last_recomputed_region_count != 0) {
+    result.incremental_result_cache_status = "partial_recompute";
+  } else if (info.last_cache_hit != 0) {
+    result.incremental_result_cache_status = "cache_hit";
+  } else if (info.last_cache_miss != 0) {
+    result.incremental_result_cache_status = "cache_miss";
+  } else {
+    result.incremental_result_cache_status = "available";
+  }
+}
+
+void capture_incremental_result_cache_stale_rejection(BenchmarkResult& result, const rns8_result_cache* cache) {
+  if (!cache) {
+    return;
+  }
+  rns8_result_cache_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status status = rns8_get_result_cache_info(cache, &info);
+  if (status != RNS8_SUCCESS) {
+    fail_status("rns8_get_result_cache_info(stale probe)", status);
+  }
+  result.incremental_result_cache_stale_rejection_covered = info.last_stale_rejection != 0;
+  if (info.last_stale_rejection != 0) {
+    result.incremental_result_cache_stale_reason = info.stale_reason;
+  }
+}
+
 bool hip_graph_replay_resident_chain_requested(const Args& args) {
   return hip_graph_replay_requested(args) && !hip_graph_replay_full_bounded_pack_export_requested(args) &&
          !hip_graph_replay_full_finite_pack_export_requested(args) &&
@@ -604,7 +783,14 @@ rns8_status run_rns_gemm_with_optional_b_cache(
     const rns8_matrix* b_matrix,
     const rns8_prepack_cache* b_cache,
     rns8_matrix* c_matrix,
-    rns8_workspace* workspace) {
+    rns8_workspace* workspace,
+    rns8_result_cache* result_cache = nullptr,
+    const rns8_dirty_region* dirty_regions = nullptr,
+    uint32_t dirty_region_count = 0) {
+  if (result_cache) {
+    return rns8_gemm_rns_incremental(
+        ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, dirty_regions, dirty_region_count);
+  }
   if (b_cache) {
     return rns8_gemm_rns_prepacked_b(ctx, plan, a_matrix, b_cache, c_matrix, workspace);
   }

@@ -280,6 +280,68 @@ inline rns8_grouped_gemm_task grouped_gemm_task(
   return {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a.get(), b.get(), c.get(), workspace.get()};
 }
 
+struct DirtyRegion {
+  int64_t row_offset = 0;
+  int64_t col_offset = 0;
+  int64_t row_extent = 0;
+  int64_t col_extent = 0;
+
+  rns8_dirty_region c_region() const noexcept {
+    return {
+        sizeof(rns8_dirty_region),
+        RNS8_ABI_VERSION,
+        0,
+        row_offset,
+        col_offset,
+        row_extent,
+        col_extent};
+  }
+};
+
+class ResultCache final {
+ public:
+  ResultCache(Context& context, const Plan& plan, uint32_t max_dirty_regions = 64) {
+    rns8_result_cache_desc desc{};
+    desc.struct_size = sizeof(desc);
+    desc.abi_version = RNS8_ABI_VERSION;
+    desc.flags = RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES |
+                 RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
+                 RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE |
+                 RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
+    desc.max_dirty_regions = max_dirty_regions;
+    check(rns8_create_result_cache(context.get(), plan.get(), &desc, &handle_));
+  }
+
+  ResultCache(const ResultCache&) = delete;
+  ResultCache& operator=(const ResultCache&) = delete;
+
+  ResultCache(ResultCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
+  ResultCache& operator=(ResultCache&& other) noexcept {
+    if (this != &other) {
+      rns8_destroy_result_cache(handle_);
+      handle_ = std::exchange(other.handle_, nullptr);
+    }
+    return *this;
+  }
+
+  ~ResultCache() { rns8_destroy_result_cache(handle_); }
+
+  rns8_result_cache* get() const noexcept { return handle_; }
+
+  rns8_result_cache_info info() const {
+    rns8_result_cache_info out{};
+    out.struct_size = sizeof(out);
+    out.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_result_cache_info(handle_, &out));
+    return out;
+  }
+
+  void invalidate() { check(rns8_invalidate_result_cache(handle_)); }
+
+ private:
+  rns8_result_cache* handle_ = nullptr;
+};
+
 inline uint32_t checked_grouped_task_count(std::size_t size) {
   if (size > static_cast<std::size_t>(std::numeric_limits<uint32_t>::max())) {
     throw Error(RNS8_INVALID_ARGUMENT);
@@ -319,6 +381,68 @@ inline void gemm_rns_prepacked_b(
     Matrix& c,
     Workspace& workspace) {
   check(rns8_gemm_rns_prepacked_b(context.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get()));
+}
+
+inline std::vector<rns8_dirty_region> c_dirty_regions(const std::vector<DirtyRegion>& regions) {
+  std::vector<rns8_dirty_region> out;
+  out.reserve(regions.size());
+  for (const DirtyRegion& region : regions) {
+    out.push_back(region.c_region());
+  }
+  return out;
+}
+
+inline uint32_t checked_dirty_region_count(std::size_t size) {
+  if (size > static_cast<std::size_t>(std::numeric_limits<uint32_t>::max())) {
+    throw Error(RNS8_INVALID_ARGUMENT);
+  }
+  return static_cast<uint32_t>(size);
+}
+
+inline void gemm_rns_incremental(
+    Context& context,
+    const Plan& plan,
+    const Matrix& a,
+    const Matrix& b,
+    Matrix& c,
+    Workspace& workspace,
+    ResultCache& cache,
+    const std::vector<DirtyRegion>& dirty_regions = {}) {
+  std::vector<rns8_dirty_region> regions = c_dirty_regions(dirty_regions);
+  check(rns8_gemm_rns_incremental(
+      context.get(),
+      plan.get(),
+      a.get(),
+      b.get(),
+      c.get(),
+      workspace.get(),
+      cache.get(),
+      regions.empty() ? nullptr : regions.data(),
+      checked_dirty_region_count(regions.size())));
+}
+
+inline void gemm_finite_u8_incremental(
+    Context& context,
+    const Plan& plan,
+    uint16_t modulus,
+    const Matrix& a,
+    const Matrix& b,
+    Matrix& c,
+    Workspace& workspace,
+    ResultCache& cache,
+    const std::vector<DirtyRegion>& dirty_regions = {}) {
+  std::vector<rns8_dirty_region> regions = c_dirty_regions(dirty_regions);
+  check(rns8_gemm_finite_u8_incremental(
+      context.get(),
+      plan.get(),
+      modulus,
+      a.get(),
+      b.get(),
+      c.get(),
+      workspace.get(),
+      cache.get(),
+      regions.empty() ? nullptr : regions.data(),
+      checked_dirty_region_count(regions.size())));
 }
 
 }  // namespace rns8

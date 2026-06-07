@@ -193,6 +193,34 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(error_detection_policy_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
   add_test(
+    NAME cache_promotion_closeout_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cache_promotion_closeout.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(cache_promotion_closeout_self_test PROPERTIES LABELS "tools;autotune;evidence")
+
+  add_test(
+    NAME fhe_workload_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fhe_workload_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(fhe_workload_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
+
+  add_test(
+    NAME cpu_small_shape_selector_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cpu_small_shape_selector_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(cpu_small_shape_selector_report_self_test PROPERTIES LABELS "benchmark;evidence;selector")
+
+  add_test(
+    NAME incremental_result_cache_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_incremental_result_cache_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(incremental_result_cache_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
+
+  add_test(
     NAME shape_family_shadow_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_shape_family_shadow_report.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

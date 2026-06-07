@@ -45,13 +45,16 @@ The former detailed backlog/research-notes material lives in
 dated execution updates and non-active disposition tables live in
 [performance-gain-work-log.md](performance-gain-work-log.md) and
 [performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
-The active table below now contains 4 ranks. Rank IDs are historical/stable
+The active table below now contains 0 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
-| Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
-|---:|---|---|---|---|
-| 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/promotion_ledger.py` now records target-validation group, target/cache eligibility, stale invalidation reasons, variance state, and coverage summaries; `tools/install_autotune_cache.py` now records add/replace history, cache coverage, `--require-target-validation-gate`, and automatic CDNA target-gate enforcement | Do not install or replace cache entries without ledger consistency, target validation where required, variance gates for narrow lanes, and claim validation |
-| 63 | Verification amortization and real FHE/lattice workload suite | Exact repeated validation and FHE/lattice-inspired workloads need realistic contracts | Add CKKS/BFV/BGV-like NTT, key-switch, relinearization, rotation, ModUp/ModDown/rescale, bootstrapping-stage, tower reuse proxies, and safe verification amortization | Keep as workload/proxy evidence, not cryptographic correctness or library support claims |
-| 69 | CPU small-shape optimized fallback and selector thresholds | The many-small review shows CPU wins several tiny exact workloads | CPU microbench and selector A/B for bounded-i64 32, bounded-u64 64, finite-u8 64, cache locality, threading policy, vectorized host paths, and cutoff thresholds versus GPU paths | Route to CPU only when same-contract release evidence beats GPU paths and selector explanations stay explicit |
-| 75 | Result cache and incremental GEMM research lane | Repeated exact workloads may reuse intermediate products or partial results, but that is workload-specific and easy to overclaim | Research-only captures for source identity, dirty-region metadata, partial recompute, result lifetime, and exact final CPU comparison across repeated workloads | Keep out of default GEMM and AUTO until caller-visible mutation/version contracts make reuse exact and auditable |
+No active performance-queue ranks remain before the next real Linux ROCm/CDNA
+validation pass. New performance work should start from fresh evidence produced
+by `scripts/cdna_first_pass.sh`, target-validation reports, profiler/counter
+reports, and same-target release captures, then add a new active row only when
+there is a concrete implementation or validation gap to close.
+
+Rank 78, the public incremental result-cache contract and promotion gate, was
+opened and closed on June 7, 2026; its durable status lives in the completed
+work archive, wins doc, reviewed local evidence, and work log.

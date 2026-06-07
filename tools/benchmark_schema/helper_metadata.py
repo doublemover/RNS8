@@ -241,6 +241,8 @@ def validate_helper_lane_metadata(self: Any) -> None:
             "release_gate",
             "verification_amortization",
             "error_detection_policy",
+            "cpu_small_shape_selector",
+            "incremental_result_cache",
         ]
     )
     if (

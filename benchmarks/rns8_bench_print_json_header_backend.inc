@@ -96,6 +96,7 @@
   print_residency_arena_overlap_json(args, result);
   print_workload_proxy_json(args);
   print_release_and_verification_json(args, result);
+  print_cpu_selector_and_incremental_cache_json(args, result, selected_backend);
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
   std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";

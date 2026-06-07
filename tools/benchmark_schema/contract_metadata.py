@@ -76,6 +76,13 @@ ERROR_DETECTION_FINAL_STATUSES = {
     "passed",
 }
 
+CPU_SELECTOR_ROLES = {
+    "not_requested",
+    "cpu_baseline",
+    "comparison_candidate",
+    "unsupported_accelerator",
+}
+
 RESIDENT_REDESIGN_DIMENSIONS = {
     "data_layout",
     "tile_shape",
@@ -813,3 +820,156 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error(
                             "probabilistic error_detection_policy captures must set positive verification_rounds"
                         )
+
+    cpu_selector = self.data.get("cpu_small_shape_selector")
+    if cpu_selector is not None:
+        if not isinstance(cpu_selector, dict):
+            self._error("cpu_small_shape_selector must be an object")
+        else:
+            if not isinstance(cpu_selector.get("enabled"), bool):
+                self._error("cpu_small_shape_selector.enabled must be a boolean")
+            for key in ["policy", "candidate_role", "boundary_key", "threshold_scope", "selector_explanation"]:
+                if not isinstance(cpu_selector.get(key), str):
+                    self._error(f"cpu_small_shape_selector.{key} must be a string")
+            if cpu_selector.get("candidate_role") not in CPU_SELECTOR_ROLES:
+                self._error(
+                    f"cpu_small_shape_selector.candidate_role must be one of {sorted(CPU_SELECTOR_ROLES)}"
+                )
+            for key in [
+                "cpu_reference_required",
+                "release_review_required",
+                "runtime_routing_allowed",
+                "cache_eligible",
+                "promotion_eligible",
+            ]:
+                if not isinstance(cpu_selector.get(key), bool):
+                    self._error(f"cpu_small_shape_selector.{key} must be a boolean")
+            if cpu_selector.get("enabled") is True:
+                if cpu_selector.get("policy") in {"", "none"}:
+                    self._error("enabled cpu_small_shape_selector.policy must be a nonempty non-none string")
+                if cpu_selector.get("candidate_role") == "not_requested":
+                    self._error("enabled cpu_small_shape_selector.candidate_role must not be not_requested")
+                if not cpu_selector.get("boundary_key"):
+                    self._error("enabled cpu_small_shape_selector.boundary_key must be nonempty")
+                if cpu_selector.get("cpu_reference_required") is not True:
+                    self._error("enabled cpu_small_shape_selector captures must require a CPU reference")
+                if cpu_selector.get("release_review_required") is not True:
+                    self._error("enabled cpu_small_shape_selector captures must require release review")
+                if cpu_selector.get("runtime_routing_allowed") is not False:
+                    self._error("enabled cpu_small_shape_selector captures must set runtime_routing_allowed=false")
+                if cpu_selector.get("cache_eligible") is not False:
+                    self._error("enabled cpu_small_shape_selector captures must set cache_eligible=false")
+                if cpu_selector.get("promotion_eligible") is not False:
+                    self._error("enabled cpu_small_shape_selector captures must set promotion_eligible=false")
+
+    incremental = self.data.get("incremental_result_cache")
+    if incremental is not None:
+        if not isinstance(incremental, dict):
+            self._error("incremental_result_cache must be an object")
+        else:
+            if not isinstance(incremental.get("enabled"), bool):
+                self._error("incremental_result_cache.enabled must be a boolean")
+            for key in [
+                "policy",
+                "source_identity_policy",
+                "source_version_policy",
+                "dirty_region_policy",
+                "result_lifetime_policy",
+                "checksum_policy",
+                "partial_recompute_policy",
+                "final_exact_comparison_status",
+            ]:
+                if not isinstance(incremental.get(key), str):
+                    self._error(f"incremental_result_cache.{key} must be a string")
+            for key in [
+                "final_exact_comparison_required",
+                "public_contract_available",
+                "default_gemm_unchanged",
+                "runtime_routing_allowed",
+                "cache_eligible",
+                "promotion_eligible",
+            ]:
+                if not isinstance(incremental.get(key), bool):
+                    self._error(f"incremental_result_cache.{key} must be a boolean")
+            if incremental.get("enabled") is True:
+                scenario = self.data.get("scenario_metadata") or {}
+                promotion_scope = scenario.get("promotion_eligibility")
+                public_contract = incremental.get("public_contract_available") is True
+                if incremental.get("policy") in {"", "none"}:
+                    self._error("enabled incremental_result_cache.policy must be a nonempty non-none string")
+                for key in [
+                    "source_identity_policy",
+                    "source_version_policy",
+                    "dirty_region_policy",
+                    "result_lifetime_policy",
+                    "checksum_policy",
+                    "partial_recompute_policy",
+                ]:
+                    if incremental.get(key) in {"", "none"}:
+                        self._error(f"enabled incremental_result_cache.{key} must describe the contract")
+                if incremental.get("final_exact_comparison_required") is not True:
+                    self._error("incremental_result_cache.final_exact_comparison_required must be true")
+                if incremental.get("final_exact_comparison_status") not in ERROR_DETECTION_FINAL_STATUSES:
+                    self._error("incremental_result_cache.final_exact_comparison_status must record exact/reference status")
+                if incremental.get("default_gemm_unchanged") is not True:
+                    self._error("enabled incremental_result_cache captures must keep default_gemm_unchanged=true")
+                if public_contract:
+                    if promotion_scope != "result_cache_contract_candidate":
+                        self._error(
+                            "public incremental_result_cache captures must use result_cache_contract_candidate eligibility"
+                        )
+                    if incremental.get("runtime_routing_allowed") is not True:
+                        self._error("public incremental_result_cache captures must set runtime_routing_allowed=true")
+                    if incremental.get("cache_eligible") is not True:
+                        self._error("public incremental_result_cache captures must set cache_eligible=true")
+                    if incremental.get("promotion_eligible") is not True:
+                        self._error("public incremental_result_cache captures must set promotion_eligible=true")
+                    for key in [
+                        "a_matrix_instance_id",
+                        "b_matrix_instance_id",
+                        "a_source_version",
+                        "b_source_version",
+                        "result_cache_key_fingerprint",
+                        "dirty_region_count",
+                        "recomputed_region_count",
+                        "copied_from_cache_bytes",
+                        "cache_allocation_bytes",
+                    ]:
+                        if key not in incremental:
+                            self._error(f"public incremental_result_cache.{key} must be present")
+                    if incremental.get("stale_rejection_covered") is not True:
+                        self._error("public incremental_result_cache.stale_rejection_covered must be true")
+                    regions = incremental.get("dirty_regions")
+                    if not isinstance(regions, list) or not regions:
+                        self._error("public incremental_result_cache.dirty_regions must be a nonempty list")
+                    else:
+                        for index, region in enumerate(regions):
+                            if not isinstance(region, dict):
+                                self._error(f"incremental_result_cache.dirty_regions[{index}] must be an object")
+                                continue
+                            for key in ["row_offset", "col_offset", "row_extent", "col_extent"]:
+                                if not isinstance(region.get(key), int):
+                                    self._error(f"incremental_result_cache.dirty_regions[{index}].{key} must be an integer")
+                            row_offset = region.get("row_offset")
+                            col_offset = region.get("col_offset")
+                            row_extent = region.get("row_extent")
+                            col_extent = region.get("col_extent")
+                            if (
+                                isinstance(row_offset, int)
+                                and isinstance(row_extent, int)
+                                and (row_offset < 0 or row_extent <= 0 or row_offset + row_extent > self.data.get("m", 0))
+                            ):
+                                self._error(f"incremental_result_cache.dirty_regions[{index}] rows out of bounds")
+                            if (
+                                isinstance(col_offset, int)
+                                and isinstance(col_extent, int)
+                                and (col_offset < 0 or col_extent <= 0 or col_offset + col_extent > self.data.get("n", 0))
+                            ):
+                                self._error(f"incremental_result_cache.dirty_regions[{index}] columns out of bounds")
+                else:
+                    if incremental.get("runtime_routing_allowed") is not False:
+                        self._error("research incremental_result_cache captures must set runtime_routing_allowed=false")
+                    if incremental.get("cache_eligible") is not False:
+                        self._error("research incremental_result_cache captures must set cache_eligible=false")
+                    if incremental.get("promotion_eligible") is not False:
+                        self._error("research incremental_result_cache captures must set promotion_eligible=false")

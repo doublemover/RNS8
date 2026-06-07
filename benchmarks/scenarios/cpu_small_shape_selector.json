@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "family": "cpu-small-shape-selector",
+  "items": [
+    {
+      "name": "bounded-i64-32-cutoff",
+      "semantics": "bounded-i64",
+      "case": {"name": "bounded-i64-32", "m": 32, "n": 32, "k": 32, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "small-shape CPU cutoff review surface",
+      "output_domain": "native_i64_u64_host",
+      "rationale": "records when launch/setup overhead can make CPU preferable without changing AUTO routing",
+      "backends": ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "cpu_small_shape_selector": "bounded_i64_32_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_layout_output_target_family"}
+    },
+    {
+      "name": "bounded-u64-64-cutoff",
+      "semantics": "bounded-u64",
+      "case": {"name": "bounded-u64-64", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "small bounded-u64 CPU/GPU selector boundary",
+      "output_domain": "native_i64_u64_host",
+      "rationale": "keeps bounded-u64 thresholds separate from bounded-i64 and finite-u8",
+      "backends": ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "cpu_small_shape_selector": "bounded_u64_64_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_layout_output_target_family"}
+    },
+    {
+      "name": "finite-ring-u8-64-cutoff",
+      "semantics": "finite-u8-ring",
+      "case": {"name": "finite-u8-64", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "finite-full-uniform", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "finite-u8 small-shape CPU/GPU selector boundary",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "separates finite modulus/distribution effects from bounded exact thresholds",
+      "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "finite_moduli": [251],
+      "cpu_small_shape_selector": "finite_u8_64_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_modulus_distribution_layout_output_target_family"}
+    },
+    {
+      "name": "skinny-gemv-64x1x4096",
+      "semantics": "bounded-u64",
+      "case": {"name": "skinny-gemv-64x1x4096", "m": 64, "n": 1, "k": 4096, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "GEMV-like selector boundary for vector/direct/CPU comparisons",
+      "output_domain": "native_i64_u64_host",
+      "rationale": "keeps N=1/GEMV thresholds from being inferred from square GEMM",
+      "backends": ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "cpu_small_shape_selector": "bounded_u64_gemv_n1_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_shape_family_layout_output_target_family"}
+    },
+    {
+      "name": "many-small-bounded-i64-hostbatch32",
+      "semantics": "bounded-i64",
+      "case": {"name": "many-small-64-batch32-baseline", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "many-small independent baseline for host-batch selector boundary",
+      "output_domain": "native_i64_u64_host",
+      "rationale": "keeps CPU and non-batched GPU comparators beside the Direct-HIP host-batch candidate without pretending host batching is supported by every backend",
+      "backends": ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "cpu_small_shape_selector": "many_small_bounded_i64_batch32_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_batch_size_layout_output_target_family", "baseline_role": "independent_same_shape_comparator"}
+    },
+    {
+      "name": "many-small-bounded-i64-hostbatch32",
+      "semantics": "bounded-i64",
+      "case": {"name": "many-small-64-batch32", "m": 64, "n": 64, "k": 64, "tile_m": 64, "tile_n": 64, "bound_mode": "global", "input_profile": "uniform-small", "require_adaptive": false, "promotable": false},
+      "evidence_scope": "many-small host batch selector boundary",
+      "output_domain": "native_i64_u64_host",
+      "rationale": "tracks CPU cutoff shifts when many small exact jobs can be batched",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "cpu_selector_threshold_evidence_only",
+      "host_api_batch_size": 32,
+      "cpu_small_shape_selector": "many_small_bounded_i64_batch32_cpu_cutoff_review",
+      "metadata": {"promotion_scope": "cpu_selector_threshold_evidence_only", "selector_boundary": "semantic_batch_size_layout_output_target_family"}
+    }
+  ]
+}

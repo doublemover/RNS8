@@ -7,6 +7,62 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 7, 2026 public incremental result-cache contract closeout:
+
+- Rank 78 was opened and closed as the public contract required to make the
+  rank 75 incremental-cache wins promotable. The new API surface adds an
+  explicit `rns8_result_cache` handle, matrix instance identity, source-version
+  enforcement, caller-provided dirty output rectangles, full-K recompute for
+  dirty rectangles, and stale identity/version rejection. The v1 producer is
+  Direct-HIP only; CK and other accelerators remain comparators.
+- The current Windows `gfx1100` release closeout under
+  `temp/result-cache-contract-release-current-20260607/` produced 21
+  schema-valid captures with CPU, Direct-HIP full recompute, Direct-HIP
+  result-cache, and CK comparator rows. Required GPU events were available for
+  every GPU row. `tools/incremental_result_cache_report.py --require-complete`
+  reports two local public-contract promotions: bounded-i64 dirty tile at
+  1.21x versus same-backend full recompute and exact-wide signed dirty output
+  at 1.40x. Finite-u8 remains experimental at 1.02x, below the 1.10x gate.
+- This is explicit opt-in local Windows evidence. Default GEMM, AUTO routing,
+  installed cache entries, README headline claims, Linux readiness, and CDNA
+  performance status remain unchanged.
+
+June 7, 2026 promotion-classification correction:
+
+- The remaining-ranks reports no longer leave measured wins hidden behind
+  broad evidence-only labels. `tools/cpu_small_shape_selector_report.py` now
+  emits promotable local selector-threshold recommendations when CPU or GPU
+  clears the review margin. The current closeout reports five promotable
+  thresholds: four CPU-favored tiny/many-small rows and one vector-ALU skinny
+  N=1 GPU row.
+- `tools/fhe_workload_report.py` now emits promotable local dense-RNS workload
+  profiles separately from FHE/lattice proxy compatibility. The current
+  closeout reports 13 promotable local workload profiles while still forbidding
+  cryptographic correctness or FHE-library compatibility claims.
+- `tools/incremental_result_cache_report.py` now distinguishes rank 75
+  research-only rows from rank 78 public-contract candidates. Research rows
+  stay blocked from promotion; public-contract rows require CPU baseline,
+  same-backend full recompute baseline, exact comparison, required events,
+  stale rejection coverage, and at least 1.10x setup-inclusive speedup.
+
+June 7, 2026 remaining pre-CDNA active-rank closeout:
+
+- Ranks 60, 63, 69, and 75 moved from the active queue to the completed-work
+  archive as infrastructure/control surfaces. Rank 60 adds
+  `tools/cache_promotion_closeout.py` so reviewed captures, variance,
+  target-validation, promotion-ledger, and cache-install dry-run/install gates
+  run through one deterministic path. Rank 63 expands FHE/lattice proxy
+  scenarios and upgrades `tools/fhe_workload_report.py` into a proxy-only
+  closeout gate. Rank 69 adds CPU small-shape selector scenarios plus
+  `tools/cpu_small_shape_selector_report.py` for non-routing CPU/GPU cutoff
+  evidence. Rank 75 adds incremental result-cache research scenarios plus
+  `tools/incremental_result_cache_report.py`.
+- These closures do not change public C ABI, benchmark schema version, default
+  AUTO routing, installed cache entries, README speed claims, Linux readiness,
+  or CDNA performance status. CDNA promotion still requires real Linux ROCm
+  target-validation, profiler/counter, release-review, variance, and cache
+  closeout evidence.
+
 June 6, 2026 rank-72 vector/native-to-RNS chain closeout:
 
 - Rank 72 moved from the active queue to the completed-work archive after the

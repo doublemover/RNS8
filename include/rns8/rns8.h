@@ -17,6 +17,7 @@ typedef struct rns8_plan rns8_plan;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
+typedef struct rns8_result_cache rns8_result_cache;
 
 typedef struct rns8_context_options {
   uint64_t struct_size;
@@ -355,6 +356,7 @@ typedef struct rns8_matrix_storage_info {
   int64_t logical_ld;
   uint32_t max_prefix;
   uint32_t finite_modulus;
+  uint64_t matrix_instance_id;
   uint64_t source_version;
   uint32_t host_residues_current;
   uint32_t device_residues_current;
@@ -377,6 +379,82 @@ typedef struct rns8_matrix_storage_info {
   char storage_scope[96];
   char detail[256];
 } rns8_matrix_storage_info;
+
+#define RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES 0x00000001u
+#define RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY 0x00000002u
+#define RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE 0x00000004u
+#define RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN 0x00000008u
+
+#define RNS8_RESULT_CACHE_FLAG_INITIALIZED 0x00000001u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_HIT 0x00000002u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_MISS 0x00000004u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_PARTIAL_RECOMPUTE 0x00000008u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_FULL_FALLBACK 0x00000010u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_STALE_REJECTED 0x00000020u
+
+typedef struct rns8_result_cache_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  uint32_t max_dirty_regions;
+  uint32_t reserved0;
+} rns8_result_cache_desc;
+
+typedef struct rns8_dirty_region {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  int64_t row_offset;
+  int64_t col_offset;
+  int64_t row_extent;
+  int64_t col_extent;
+} rns8_dirty_region;
+
+typedef struct rns8_result_cache_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_bound_kind bound_kind;
+  int64_t m;
+  int64_t n;
+  int64_t k;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint32_t flags;
+  int32_t hip_device_id;
+  uint32_t initialized;
+  uint32_t max_dirty_regions;
+  uint32_t last_dirty_region_count;
+  uint32_t last_recomputed_region_count;
+  uint32_t last_full_fallback;
+  uint32_t last_cache_hit;
+  uint32_t last_cache_miss;
+  uint32_t last_stale_rejection;
+  uint64_t plan_fingerprint;
+  uint64_t workspace_fingerprint;
+  uint64_t result_cache_key_hash;
+  uint64_t a_matrix_instance_id;
+  uint64_t b_matrix_instance_id;
+  uint64_t c_matrix_instance_id;
+  uint64_t a_source_version;
+  uint64_t b_source_version;
+  uint64_t c_source_version;
+  uint64_t snapshot_device_bytes;
+  uint64_t copied_from_cache_bytes;
+  uint64_t recomputed_cell_count;
+  uint64_t cache_allocation_bytes;
+  char target_id[128];
+  char selected_backend[64];
+  char selected_kernel[128];
+  char dirty_region_contract[128];
+  char source_identity_policy[128];
+  char source_version_policy[128];
+  char result_lifetime_policy[128];
+  char stale_reason[160];
+  char fallback_reason[160];
+  char detail[256];
+} rns8_result_cache_info;
 
 typedef enum rns8_resident_matrix_role {
   RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN = 0,
@@ -630,6 +708,27 @@ RNS8_API rns8_status rns8_get_prepack_cache_info(
 
 RNS8_API rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache);
 
+/*
+ * Create or inspect an explicit result cache for opt-in incremental GEMM.
+ * The v1 public contract is intentionally narrow: Direct-HIP only, full-K
+ * recompute for caller-provided dirty output rectangles, no default AUTO
+ * routing, and no implicit dirty-region inference. Cached inputs must carry
+ * nonzero source versions and stable matrix identities.
+ */
+RNS8_API rns8_status rns8_create_result_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_result_cache_desc* desc,
+    rns8_result_cache** out);
+
+RNS8_API rns8_status rns8_destroy_result_cache(rns8_result_cache* cache);
+
+RNS8_API rns8_status rns8_get_result_cache_info(
+    const rns8_result_cache* cache,
+    rns8_result_cache_info* out);
+
+RNS8_API rns8_status rns8_invalidate_result_cache(rns8_result_cache* cache);
+
 RNS8_API rns8_status rns8_pack_i64(
     rns8_context* ctx,
     rns8_matrix* matrix,
@@ -669,6 +768,25 @@ RNS8_API rns8_status rns8_gemm_rns(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace);
+
+/*
+ * Explicit incremental resident RNS GEMM. Dirty regions are output rectangles
+ * recomputed over the full K dimension. A first call initializes the cache
+ * with a full Direct-HIP GEMM. Later calls either reuse the cached full output
+ * unchanged, or restore it and recompute only the supplied dirty output
+ * rectangles. Stale identity/version mismatches are rejected unless the caller
+ * supplies dirty regions for the changed inputs.
+ */
+RNS8_API rns8_status rns8_gemm_rns_incremental(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    rns8_result_cache* cache,
+    const rns8_dirty_region* dirty_regions,
+    uint32_t dirty_region_count);
 
 /*
  * Execute a same-shape group of resident RNS GEMMs through the Direct-HIP
@@ -721,6 +839,23 @@ RNS8_API rns8_status rns8_gemm_finite_u8(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace);
+
+/*
+ * Explicit incremental resident finite-u8 GEMM. Semantics match
+ * rns8_gemm_rns_incremental, with the finite modulus also bound into the cache
+ * identity and validated on every call.
+ */
+RNS8_API rns8_status rns8_gemm_finite_u8_incremental(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    rns8_result_cache* cache,
+    const rns8_dirty_region* dirty_regions,
+    uint32_t dirty_region_count);
 
 /*
  * Execute a same-shape group of resident finite-u8 GEMMs through the Direct-HIP

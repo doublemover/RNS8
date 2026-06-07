@@ -45,6 +45,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_matrix* c_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
+  rns8_result_cache* result_cache = nullptr;
+  std::vector<rns8_dirty_region> result_cache_dirty_regions;
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
@@ -59,6 +61,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
+  if (incremental_result_cache_runtime_candidate_requested(args, selected_backend)) {
+    result_cache = create_benchmark_result_cache(ctx, plan);
+    result_cache_dirty_regions.push_back(benchmark_incremental_result_cache_dirty_region(args));
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
@@ -193,10 +199,26 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     rns8_matrix* out_matrix = c_matrix;
     rns8_matrix* final_output_matrix = c_matrix;
     for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      const rns8_dirty_region* dirty_regions =
+          result_cache ? result_cache_dirty_regions.data() : nullptr;
+      const uint32_t dirty_region_count =
+          result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
       status = run_rns_gemm_with_optional_b_cache(
-          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+          ctx,
+          plan,
+          lhs_matrix,
+          b_matrix,
+          b_prepack_cache,
+          out_matrix,
+          workspace,
+          result_cache,
+          dirty_regions,
+          dirty_region_count);
       if (status != RNS8_SUCCESS) {
-        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+        fail_status(
+            result_cache ? "rns8_gemm_rns_incremental"
+                         : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+            status);
       }
       final_output_matrix = out_matrix;
       lhs_matrix = out_matrix;
@@ -204,7 +226,11 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     }
     latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+      if (result_cache) {
+        collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
+      } else {
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+      }
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -247,10 +273,24 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     export_signed_limbs(latest_output_matrix, "rns8_export_exact_wide_signed_limbs(final chain checksum)");
   }
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
+  if (result_cache) {
+    capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
+    pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
+    const rns8_status stale_status =
+        rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    if (stale_status == RNS8_SUCCESS) {
+      fail_status("rns8_gemm_rns_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
+    }
+    capture_incremental_result_cache_stale_rejection(result, result_cache);
+  }
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (result_cache) {
+    status = rns8_destroy_result_cache(result_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
   }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);
@@ -310,6 +350,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_matrix* c_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
+  rns8_result_cache* result_cache = nullptr;
+  std::vector<rns8_dirty_region> result_cache_dirty_regions;
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
@@ -324,6 +366,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+  }
+  if (incremental_result_cache_runtime_candidate_requested(args, selected_backend)) {
+    result_cache = create_benchmark_result_cache(ctx, plan);
+    result_cache_dirty_regions.push_back(benchmark_incremental_result_cache_dirty_region(args));
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
@@ -458,10 +504,26 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     rns8_matrix* out_matrix = c_matrix;
     rns8_matrix* final_output_matrix = c_matrix;
     for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+      const rns8_dirty_region* dirty_regions =
+          result_cache ? result_cache_dirty_regions.data() : nullptr;
+      const uint32_t dirty_region_count =
+          result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
       status = run_rns_gemm_with_optional_b_cache(
-          ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+          ctx,
+          plan,
+          lhs_matrix,
+          b_matrix,
+          b_prepack_cache,
+          out_matrix,
+          workspace,
+          result_cache,
+          dirty_regions,
+          dirty_region_count);
       if (status != RNS8_SUCCESS) {
-        fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+        fail_status(
+            result_cache ? "rns8_gemm_rns_incremental"
+                         : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+            status);
       }
       final_output_matrix = out_matrix;
       lhs_matrix = out_matrix;
@@ -469,7 +531,11 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     }
     latest_output_matrix = final_output_matrix;
     if (collect_gpu_events) {
-      collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+      if (result_cache) {
+        collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
+      } else {
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+      }
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();
@@ -512,10 +578,24 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     export_unsigned_limbs(latest_output_matrix, "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");
   }
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
+  if (result_cache) {
+    capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
+    pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
+    const rns8_status stale_status =
+        rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    if (stale_status == RNS8_SUCCESS) {
+      fail_status("rns8_gemm_rns_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
+    }
+    capture_incremental_result_cache_stale_rejection(result, result_cache);
+  }
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+  }
+  if (result_cache) {
+    status = rns8_destroy_result_cache(result_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
   }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);
