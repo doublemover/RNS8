@@ -7,6 +7,26 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-77 layout implementation search closeout:
+
+- Rank 77 moved from the active queue to the completed-work archive after the
+  layout-search lane stopped being scenario prose and gained actual benchmark
+  variants plus a dedicated report gate. `layout-search` now carries default
+  anchors and concrete Direct-HIP variants for bounded residue-channel width3
+  packing, padded host leading dimension, exact-wide residue-current chain
+  final export versus independent export/repack, finite-u8 padded output, and
+  strict wrap64 byte-limb padded output.
+- The Windows `gfx1100` closeout under
+  `temp/rank77-layout-search-20260606/` produced 16 schema-valid release
+  captures with required GPU events. `tools/layout_search_report.py` reports
+  eight candidates: two local benchmark-only wins and six deprioritized rows.
+  Bounded residue-channel width3 is a narrow local win at 1908 us versus
+  2037 us, 1.07x. Exact-wide residue-current chain final export is a large
+  same-chain win at 6529 us versus 230848 us for independent export/repack,
+  35.36x. Bounded padded output, finite padded output, and wrap64 padded output
+  are not promoted. No README claim, cache entry, default route, public layout
+  API, Linux readiness claim, or CDNA performance claim changes from this rank.
+
 June 6, 2026 rank-74 K-block/tile-K large-shape closeout:
 
 - Rank 74 moved from the active queue to the completed-work archive after the

@@ -14,7 +14,7 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 63 closed/completed ranks.
+Current count: 64 closed/completed ranks.
 
 ## CDNA-Ready Infrastructure Notes
 
@@ -77,6 +77,19 @@ and `tools/tile_shape_report.py` classifications for 12 candidates. Eleven
 rows stay experimental pending profiler occupancy/counter evidence; the
 finite-u8 1024 K-block candidate is deprioritized locally. Multi-GPU split-K
 and distributed GEMM remain out of scope.
+
+Rank 77 is closed for the first actual layout-search implementation pass on
+Windows `gfx1100`. The `layout-search` scenario now contains default anchors
+and real benchmark variants for bounded packed residue-channel layout,
+leading-dimension output policy, exact-wide residue-current chain layout,
+finite-u8 output layout, and strict wrap64 byte-limb output layout.
+`tools/layout_search_report.py` rejects metadata-only candidates, requires
+same-workload default-layout anchors, release settings, GPU events, phase/D2H
+attribution, and actual layout deltas, and classifies the closeout under
+`temp/rank77-layout-search-20260606/`. The local report has 16 schema-valid
+captures, eight baselines, eight candidates, two local benchmark-only wins, and
+six deprioritized layouts. No default route, cache entry, README headline
+claim, Linux/CDNA claim, or public layout API change is made.
 
 Rank 57 is now closed for the repository-side Direct-HIP workspace arena
 surface and local Windows `gfx1100` measured-repeat allocation evidence. Future
@@ -160,3 +173,4 @@ entry, README claim, or CDNA performance status changes from it.
 | 68 | Completed strict wrap64 Direct-HIP v4 tuning closeout | Direct-HIP v4 is the only reviewed strict wrap64 performance path, and CDNA prep needed current large-shape and candidate disposition evidence | `wrap64-carry` now covers CPU byte-limb reference plus Direct-HIP v4 at 512/1024/2048, exploratory Direct-HIP 4096 without the pathological CPU reference row, reuse-packed inputs at 512/1024/2048, full-path HIP Graph replay at 512/1024, K-block policy rows at 1024/2048/4096, and rocWMMA matrix-engine candidates at 512/1024/2048. The closeout under `temp/rank68-wrap64-direct-hip-tuning-20260606/` has 18 schema-valid release captures, required GPU events for non-graph GPU captures, Direct-HIP and rocWMMA ISA sidecars, and a wrap64 tuning report with 4 workload wins, 6 deprioritized rows, and one intentionally experimental 4096 K-block row missing the omitted byte-limb reference | Closed as local Windows `gfx1100` classification. Keep Direct-HIP v4 as the strict wrap64 baseline; keep reuse and graph wins as explicit workload/benchmark-only evidence; keep K-block and rocWMMA out of default/cache routing until they beat v4 setup-inclusively with same-contract evidence; do not treat the 4096 exploratory row as promotional evidence |
 | 70 | Completed release variance and golden performance regression gate | Narrow reuse/export/cache wins needed a mandatory repeatability gate instead of an advisory report that promotion passes could skip | `tools/perf_variance_report.py` already validates schema-v4 captures, groups same-contract reruns, derives required speedup margins, and runs in the golden regression suite. The closeout adds `promotion_ledger.py --require-variance-gate`, blocks ledger rows that lack matching variance entries, and makes `tools/install_autotune_cache.py` require a promotion ledger with a ready variance gate for every real cache write or replacement. Dry-runs remain available for cache JSON validation, but cache promotion cannot bypass variance evidence. Regression tests cover missing variance, variance-blocked narrow speedups, variance-ready installs, and no-ledger write rejection | Closed as promotion-control infrastructure only. No performance claim, README row, installed cache entry, or Linux/CDNA readiness change is made by this rank |
 | 74 | Closed split-K/K-block large-shape variants | CDNA prep needed a single-GPU K-block policy review surface before larger Instinct tests could separate accumulator caps, schedule upload, and resource limits from true throughput limits | `k_block_tile_variants.json` now covers bounded-i64, exact-wide-signed, finite-ring u8, and strict wrap64 at 1024/2048/4096 with default anchors and benchmark-only K-block candidates. `tools/tile_shape_report.py` treats non-default K-block policy as candidate identity even when tile M/N are unchanged, requires single-GPU split mode, accumulator-safety metadata, selected-kernel/autotune identity, release settings, CPU/reference and default Direct-HIP anchors where practical, required events, and resource evidence. The closeout under `temp/rank74-k-block-tile-variants-20260606/` produced 34 schema-valid release captures and 12 candidate classifications | Closed as local Windows `gfx1100` and CDNA-ready infrastructure evidence. Eleven candidates remain experimental because profiler occupancy/counter evidence is missing; finite-u8 1024 is deprioritized because it is slower than the default Direct-HIP anchor. No default route, cache entry, README claim, Linux/CDNA claim, multi-GPU split-K, or distributed GEMM is added |
+| 77 | Closed layout implementation search | Layout-search needed actual benchmark variants instead of metadata-only scenario intents | `layout-search` now emits default anchors plus real Direct-HIP benchmark variants for bounded residue-channel width3 packing, padded leading-dimension host output, exact-wide residue-current chain final export versus independent export/repack, finite-u8 padded output, and strict wrap64 padded output. `tools/layout_search_report.py` validates schema-v4 captures, same-workload baseline matching, release settings, required GPU events, pack/GEMM/export/conversion/D2H attribution, and actual capture-level layout deltas before a local row can promote. The closeout under `temp/rank77-layout-search-20260606/` produced 16 schema-valid release captures and eight candidate classifications | Closed as local Windows `gfx1100` benchmark-only layout evidence. Bounded residue-channel width3 wins narrowly at 512, and exact-wide residue-current chain beats independent export/repack strongly at 512; bounded padded output, finite padded output, and wrap64 padded output are deprioritized. No default route, cache entry, README headline claim, Linux/CDNA claim, or public layout API change is made |

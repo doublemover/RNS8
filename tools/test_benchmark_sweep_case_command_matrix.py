@@ -610,28 +610,41 @@ layout_args = copy.copy(scenario_args)
 layout_args.backends = ["hip-direct"]
 layout_args.scenario = ["layout-search"]
 layout_entries = benchmark_sweep.sweep_command_entries(layout_args)
-assert len(layout_entries) == 9
+assert len(layout_entries) == 16
 assert {entry.scenario["family"] for entry in layout_entries} == {"layout-search"}
 assert {entry.scenario["name"] for entry in layout_entries} == {
-    "bounded-i64-prefix9-final-export",
-    "bounded-i64-prefix9-rns-next",
-    "exact-wide-signed-prefix20-final-export",
-    "exact-wide-signed-prefix20-rns-next",
-    "finite-ring-hot-modulus-layout",
-    "finite-field-hot-prime-layout",
-    "wrap64-direct-byte-layout",
+    "bounded-i64-prefix9-default-final-export",
+    "bounded-i64-prefix9-residue-channel-fusion",
+    "bounded-i64-prefix9-padded-ld",
+    "exact-wide-signed-prefix20-default-final-export",
+    "exact-wide-signed-prefix20-independent-export-chain",
+    "exact-wide-signed-prefix20-residue-current-chain",
+    "finite-ring-hot-modulus-default-layout",
+    "finite-ring-hot-modulus-padded-ld",
+    "finite-field-hot-prime-default-layout",
+    "finite-field-hot-prime-padded-ld",
+    "wrap64-direct-byte-default-layout",
+    "wrap64-direct-byte-padded-ld",
 }
 assert sorted(
     entry.scenario["modulus"]
     for entry in layout_entries
-    if entry.scenario["name"] == "finite-ring-hot-modulus-layout"
+    if entry.scenario["name"] == "finite-ring-hot-modulus-default-layout"
 ) == [251, 255, 256]
-assert any("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in layout_entries)
+assert any("--next-op-hint" in entry.command and "final-export" in entry.command for entry in layout_entries)
 assert any("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in layout_entries)
 assert any("--max-prefix" in entry.command and "20" in entry.command for entry in layout_entries)
+assert any("--residue-channel-fusion" in entry.command for entry in layout_entries)
+assert any("--output-ld-padding" in entry.command and "32" in entry.command for entry in layout_entries)
+assert any("--residue-chain-length" in entry.command and "3" in entry.command for entry in layout_entries)
 assert any(entry.scenario["semantics"] == "wrap-u64" for entry in layout_entries)
 assert any(
-    entry.scenario.get("metadata", {}).get("layout_role") == "exact_wide_prefix20_next_rns_gemm"
+    entry.scenario.get("metadata", {}).get("layout_role") == "exact_wide_residue_current_chain_layout"
+    for entry in layout_entries
+)
+assert any(
+    entry.scenario.get("metadata", {}).get("layout_variant_role") == "candidate"
+    and entry.scenario.get("metadata", {}).get("actual_layout_variant") is True
     for entry in layout_entries
 )
 assert all(

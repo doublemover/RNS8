@@ -146,6 +146,11 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_gfx1100_pending_validation.py"],
     ),
+    SuiteCase(
+        "layout_search_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_layout_search_report.py"],
+    ),
     SuiteCase("claim_validation", "documentation_claims", [sys.executable, "tools/test_claim_validation.py"]),
 ]
 

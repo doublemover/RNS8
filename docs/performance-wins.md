@@ -851,6 +851,22 @@ slower than the normal Direct-HIP grouped GEMM, but the path still wins
 setup-inclusively because A packing is removed from the measured repeats and
 CRT export timing was lower in these captures.
 
+## Layout-Search Wins
+
+The rank-77 layout-search closeout under
+`temp/rank77-layout-search-20260606/` is benchmark-only local Windows
+`gfx1100` evidence. It does not install cache entries, change default routing,
+add a public layout API, or imply Linux/CDNA readiness.
+
+| Workload | Layout candidate | Baseline | Median candidate | Median baseline | Speedup | Status |
+|---|---|---|---:|---:|---:|---|
+| bounded-i64 512 prefix9 | residue-channel width3 pack/GEMM layout | default resident RNS residue planes | 1908 us | 2037 us | 1.07x | local benchmark-only layout win |
+| exact-wide signed 512 chain3 | residue-current chain final export | independent export/repack chain | 6529 us | 230848 us | 35.36x | local benchmark-only layout win |
+
+The same closeout deprioritizes padded host-output leading dimension for
+bounded-i64 512, finite-u8 ring/field 512, and strict wrap64 512 because those
+rows lose the setup-inclusive same-layout gate.
+
 ## Promotion Boundaries
 
 - Promote now: the current local default runtime cache includes the reviewed
