@@ -14,6 +14,9 @@ CDNA_SKIP_BUILD=0
 CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
 CDNA_BENCH_ARGV=()
+CDNA_CMAKE_MIN_VERSION="3.28.0"
+CDNA_CMAKE_BIN=""
+CDNA_CTEST_BIN=""
 
 cdna_timestamp() {
   date -u +%Y%m%dT%H%M%SZ
@@ -109,6 +112,107 @@ cdna_python_bin() {
   else
     printf '%s\n' "python3"
   fi
+}
+
+cdna_cmake_version() {
+  local cmake_bin="$1"
+  "${cmake_bin}" --version 2>/dev/null | sed -n '1s/^cmake version //p'
+}
+
+cdna_version_ge() {
+  local python_bin="$1"
+  local actual="$2"
+  local minimum="$3"
+  "${python_bin}" - "${actual}" "${minimum}" <<'PY'
+from __future__ import annotations
+
+import re
+import sys
+
+
+def parse(value: str) -> tuple[int, int, int]:
+    match = re.match(r"^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?", value)
+    if not match:
+        return (0, 0, 0)
+    return tuple(int(part or "0") for part in match.groups())
+
+
+raise SystemExit(0 if parse(sys.argv[1]) >= parse(sys.argv[2]) else 1)
+PY
+}
+
+cdna_accept_cmake_pair() {
+  local python_bin="$1"
+  local cmake_bin="$2"
+  local cmake_version
+  cmake_version="$(cdna_cmake_version "${cmake_bin}")"
+  if [[ -z "${cmake_version}" ]]; then
+    return 1
+  fi
+  if ! cdna_version_ge "${python_bin}" "${cmake_version}" "${CDNA_CMAKE_MIN_VERSION}"; then
+    return 1
+  fi
+
+  local cmake_dir
+  cmake_dir="$(cd "$(dirname "${cmake_bin}")" && pwd)"
+  CDNA_CMAKE_BIN="${cmake_bin}"
+  if [[ -n "${CDNA_CTEST:-}" ]]; then
+    CDNA_CTEST_BIN="${CDNA_CTEST}"
+  elif [[ -x "${cmake_dir}/ctest" ]]; then
+    CDNA_CTEST_BIN="${cmake_dir}/ctest"
+  elif command -v ctest >/dev/null 2>&1; then
+    CDNA_CTEST_BIN="$(command -v ctest)"
+  else
+    CDNA_CTEST_BIN="ctest"
+  fi
+  return 0
+}
+
+cdna_resolve_cmake_tools() {
+  local python_bin="$1"
+  local tool_root="${CDNA_REPO_ROOT}/temp/cdna-tools/cmake-${CDNA_CMAKE_MIN_VERSION}"
+  local candidate
+  local candidates=()
+
+  if [[ -n "${CDNA_CMAKE:-}" ]]; then
+    candidates+=("${CDNA_CMAKE}")
+  fi
+  if command -v cmake >/dev/null 2>&1; then
+    candidates+=("$(command -v cmake)")
+  fi
+  candidates+=("${tool_root}/bin/cmake")
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "${candidate}" ]] && cdna_accept_cmake_pair "${python_bin}" "${candidate}"; then
+      export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+      return 0
+    fi
+  done
+
+  if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    CDNA_CMAKE_BIN="${candidates[0]:-cmake}"
+    CDNA_CTEST_BIN="${CDNA_CTEST:-ctest}"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${tool_root}")"
+  cdna_note_command bootstrap_cmake_venv "${python_bin}" -m venv "${tool_root}"
+  "${python_bin}" -m venv "${tool_root}"
+
+  local venv_python="${tool_root}/bin/python"
+  cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+  "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+
+  if ! cdna_accept_cmake_pair "${python_bin}" "${tool_root}/bin/cmake"; then
+    {
+      printf 'error: CMake %s or newer is required, but no usable cmake was found.\n' "${CDNA_CMAKE_MIN_VERSION}"
+      printf '       System cmake: %s\n' "$(command -v cmake || printf 'not found')"
+      printf '       Bootstrapped cmake: %s\n' "${tool_root}/bin/cmake"
+    } >&2
+    return 1
+  fi
+
+  export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
 }
 
 cdna_command_line() {

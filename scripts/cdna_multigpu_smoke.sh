@@ -15,6 +15,7 @@ mkdir -p "${CDNA_OUT_DIR}/shards"
 
 PRESET="$(cdna_default_preset)"
 PYTHON_BIN="$(cdna_python_bin)"
+cdna_resolve_cmake_tools "${PYTHON_BIN}"
 DEVICES="$(cdna_discover_devices)"
 DEVICE_LIST=()
 cdna_split_devices "${DEVICES}" DEVICE_LIST
@@ -43,15 +44,15 @@ if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
   BUILD_STATUS="skipped"
   CTEST_STATUS="skipped"
 elif [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
-  cdna_repo_run configure cmake --preset "${PRESET}"
-  cdna_repo_run build cmake --build --preset "${PRESET}"
-  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
+  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   BUILD_STATUS="planned"
   CTEST_STATUS="planned"
 else
-  cdna_repo_run configure cmake --preset "${PRESET}"
-  cdna_repo_run build cmake --build --preset "${PRESET}"
-  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
+  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   BUILD_STATUS="pass"
   CTEST_STATUS="pass"
 fi

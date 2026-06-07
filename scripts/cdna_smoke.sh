@@ -15,6 +15,7 @@ mkdir -p "${CDNA_OUT_DIR}"
 
 PRESET="$(cdna_default_preset)"
 PYTHON_BIN="$(cdna_python_bin)"
+cdna_resolve_cmake_tools "${PYTHON_BIN}"
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
 ENV_DIR="${CDNA_OUT_DIR}/env"
@@ -33,9 +34,9 @@ fi
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
 if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
-  cdna_repo_run configure cmake --preset "${PRESET}"
-  cdna_repo_run build cmake --build --preset "${PRESET}"
-  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
+  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
 fi
 
 cdna_repo_run hip_smoke env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${VERIFY_BIN}" --hip-smoke

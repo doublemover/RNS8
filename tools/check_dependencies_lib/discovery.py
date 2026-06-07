@@ -201,6 +201,21 @@ def command_version(name: str, path: str) -> str:
     return first.strip()
 
 
+def parse_version_tuple(value: str) -> tuple[int, int, int]:
+    match = re.search(r"([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?", value)
+    if not match:
+        return (0, 0, 0)
+    return tuple(int(part or "0") for part in match.groups())
+
+
+def command_version_ok(name: str, detail: str) -> tuple[bool, str]:
+    if name != "cmake":
+        return True, detail
+    if parse_version_tuple(detail) >= parse_version_tuple(CMAKE_MINIMUM_VERSION):
+        return True, detail
+    return False, f"{detail}; requires CMake {CMAKE_MINIMUM_VERSION} or newer"
+
+
 def _ldconfig_library_path(name: str) -> str | None:
     if platform.system() != "Linux":
         return None

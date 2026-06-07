@@ -37,12 +37,15 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
             commands[command] = {"ok": False, "required": required, "detail": "not found"}
             missing_required = missing_required or required
             continue
+        detail = command_version(command, path)
+        version_ok, detail = command_version_ok(command, detail)
         commands[command] = {
-            "ok": True,
+            "ok": version_ok,
             "required": required,
             "path": path,
-            "detail": command_version(command, path),
+            "detail": detail,
         }
+        missing_required = missing_required or (required and not version_ok)
 
     packages = python_packages()
     for version in packages.values():

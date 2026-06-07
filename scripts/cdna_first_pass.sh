@@ -15,6 +15,7 @@ mkdir -p "${CDNA_OUT_DIR}"
 
 PRESET="$(cdna_default_preset)"
 PYTHON_BIN="$(cdna_python_bin)"
+cdna_resolve_cmake_tools "${PYTHON_BIN}"
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
 ENV_DIR="${CDNA_OUT_DIR}/env"
@@ -36,10 +37,17 @@ fi
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
 cdna_note_command check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes"
+DEPS_STATUS="not_run"
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   printf '{"dry_run": true, "accelerator_probes": "planned"}\n' >"${DEPS_JSON}"
+  DEPS_STATUS="planned"
 else
-  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"
+  if (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"; then
+    DEPS_STATUS="pass"
+  else
+    DEPS_STATUS="fail"
+    printf 'warning: dependency checker reported not-ready status; continuing with build/smoke. See %s\n' "${DEPS_JSON}" >&2
+  fi
 fi
 
 BUILD_STATUS="not_run"
@@ -50,16 +58,16 @@ if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
   BUILD_STATUS="skipped"
   CTEST_STATUS="skipped"
 elif [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
-  cdna_repo_run configure cmake --preset "${PRESET}"
-  cdna_repo_run build cmake --build --preset "${PRESET}"
-  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
+  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   BUILD_STATUS="planned"
   CTEST_STATUS="planned"
 else
-  cdna_repo_run configure cmake --preset "${PRESET}"
-  cdna_repo_run build cmake --build --preset "${PRESET}"
+  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
   BUILD_STATUS="pass"
-  cdna_repo_run ctest ctest --preset "${PRESET}" --output-on-failure
+  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   CTEST_STATUS="pass"
 fi
 
@@ -86,6 +94,7 @@ CDNA_BUILD_STATUS="${BUILD_STATUS}" \
 CDNA_CTEST_STATUS="${CTEST_STATUS}" \
 CDNA_SMOKE_STATUS="${SMOKE_STATUS}" \
 CDNA_CAPTURE_STATUS="${CAPTURE_STATUS}" \
+CDNA_DEPS_STATUS="${DEPS_STATUS}" \
 "${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
@@ -136,6 +145,7 @@ record = {
     "rccl_tests_ready": summary.get("rccl_tests_ready"),
     "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
     "validation": {
+        "dependency_check": os.environ["CDNA_DEPS_STATUS"],
         "build": os.environ["CDNA_BUILD_STATUS"],
         "ctest": os.environ["CDNA_CTEST_STATUS"],
         "smoke": os.environ["CDNA_SMOKE_STATUS"],

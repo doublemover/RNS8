@@ -25,6 +25,14 @@ def main() -> int:
     expect(deps.vcpkg_required_for_host("Linux") is False, "Linux must not require Windows vcpkg")
     expect(deps.command_required_for_host("vcpkg", "Windows") is True, "vcpkg should be Windows-required")
     expect(deps.command_required_for_host("vcpkg", "Linux") is False, "vcpkg should not be Linux-required")
+    expect(
+        deps.command_version_ok("cmake", "cmake version 3.22.1")[0] is False,
+        "CMake below the project minimum must fail dependency readiness",
+    )
+    expect(
+        deps.command_version_ok("cmake", "cmake version 3.28.0")[0] is True,
+        "CMake at the project minimum should satisfy dependency readiness",
+    )
     linux_commands = deps.command_names_for_host("Linux")
     expect("vcpkg" in linux_commands, "Linux report should still show vcpkg if present")
     expect("hipInfo" not in linux_commands, "Linux report should not require Windows HIP SDK tools")

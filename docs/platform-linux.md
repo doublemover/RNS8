@@ -40,11 +40,30 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug --output-on-failure
 ```
 
-For Ubuntu 24.04 hosts with AMD ROCm package repositories already configured,
-the intended native-package install surface is:
+For Ubuntu hosts with AMD ROCm package repositories already configured, the
+intended native-package install surface is:
 
 ```bash
 sudo apt install cmake ninja-build g++ python3 python3-venv python3-pip catch2 nlohmann-json3-dev libboost-all-dev rocm rocm-hip-sdk rocm-developer-tools rocminfo rocm-smi-lib amd-smi-lib rocprofiler-sdk rocprofiler-compute rocm-bandwidth-test rccl-dev rocwmma-dev hipblaslt-dev composablekernel-dev
+```
+
+RNS8 requires CMake 3.28 or newer. Some hosted Ubuntu images still provide
+older distro CMake packages, for example Ubuntu 22.04's `cmake` package is too
+old for this repo's preset schema and `cmake_minimum_required`. The CDNA
+wrappers resolve a usable CMake before running presets and, when necessary,
+bootstrap a private Python-package CMake under ignored `temp/cdna-tools/`.
+For system-wide CMake instead, install a newer package from Kitware's APT
+repository and verify:
+
+```bash
+cmake --version
+```
+
+If multiple CMake installations are present, point the wrappers at the intended
+one explicitly:
+
+```bash
+CDNA_CMAKE=/path/to/cmake CDNA_CTEST=/path/to/ctest bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
 ```
 
 AMD's relevant readiness surfaces are the ROCm package-manager install flow,
@@ -80,6 +99,10 @@ before any benchmark evidence:
 ```bash
 bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
 ```
+
+The dependency report inside that first pass is evidence only. A not-ready
+dependency report is written to `check-dependencies.json`, but it does not stop
+the configure/build/CTest/HIP-smoke/benchmark sequence from running.
 
 Optional CDNA follow-up scenario groups can be queued after the first smoke
 without making them default smoke blockers. The current CDNA-prep closeout
