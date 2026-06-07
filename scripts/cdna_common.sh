@@ -18,6 +18,7 @@ CDNA_CMAKE_MIN_VERSION="3.28.0"
 CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-v3.5.4}"
 CDNA_CMAKE_BIN=""
 CDNA_CTEST_BIN=""
+CDNA_NINJA_BIN=""
 
 cdna_timestamp() {
   date -u +%Y%m%dT%H%M%SZ
@@ -263,6 +264,44 @@ cdna_resolve_cmake_tools() {
   fi
 
   cdna_prepend_path_dir "$(dirname "${CDNA_CMAKE_BIN}")"
+}
+
+cdna_resolve_ninja() {
+  if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    CDNA_NINJA_BIN="${CDNA_NINJA:-ninja}"
+    return 0
+  fi
+
+  local candidate
+  local candidates=()
+  if [[ -n "${CDNA_NINJA:-}" ]]; then
+    candidates+=("${CDNA_NINJA}")
+  fi
+  if command -v ninja >/dev/null 2>&1; then
+    candidates+=("$(command -v ninja)")
+  fi
+  if command -v ninja-build >/dev/null 2>&1; then
+    candidates+=("$(command -v ninja-build)")
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    local executable=""
+    if [[ -x "${candidate}" ]]; then
+      executable="${candidate}"
+    elif command -v "${candidate}" >/dev/null 2>&1; then
+      executable="$(command -v "${candidate}")"
+    fi
+    if [[ -n "${executable}" ]] && "${executable}" --version >/dev/null 2>&1; then
+      CDNA_NINJA_BIN="${executable}"
+      return 0
+    fi
+  done
+
+  {
+    printf 'error: Ninja is required by the Linux CDNA CMake presets, but no usable ninja executable was found.\n'
+    printf '       Install ninja-build, or set CDNA_NINJA to the ninja executable.\n'
+  } >&2
+  return 1
 }
 
 cdna_prepend_cmake_prefix() {

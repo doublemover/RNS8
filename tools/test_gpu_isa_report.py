@@ -3,10 +3,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import gpu_isa_report
+import isa_common
 
 
 def main() -> int:
+    rocm_candidates = [
+        str(path).replace("\\", "/")
+        for path in isa_common.hip_sdk_tool_candidates(Path("/opt/rocm/bin/hipcc"), "llvm-objcopy")
+    ]
+    assert any(
+        path.endswith("/opt/rocm/llvm/bin/llvm-objcopy") or path.endswith("/opt/rocm/llvm/bin/llvm-objcopy.exe")
+        for path in rocm_candidates
+    )
+
     readobj_output = """
 AMDGPU Metadata: ---
 amdhsa.kernels:

@@ -16,6 +16,7 @@ mkdir -p "${CDNA_OUT_DIR}/shards"
 PRESET="$(cdna_default_preset)"
 PYTHON_BIN="$(cdna_python_bin)"
 cdna_resolve_cmake_tools "${PYTHON_BIN}"
+cdna_resolve_ninja
 DEVICES="$(cdna_discover_devices)"
 DEVICE_LIST=()
 cdna_split_devices "${DEVICES}" DEVICE_LIST
@@ -23,6 +24,11 @@ if [[ "${#DEVICE_LIST[@]}" -eq 0 ]]; then
   DEVICE_LIST=(0)
 fi
 WORLD_SIZE="${#DEVICE_LIST[@]}"
+CTEST_DEVICE="${DEVICE_LIST[0]}"
+CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}")
+if [[ -n "${CDNA_NINJA_BIN}" ]]; then
+  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
+fi
 ENV_DIR="${CDNA_OUT_DIR}/env"
 STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
@@ -46,15 +52,15 @@ if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
   BUILD_STATUS="skipped"
   CTEST_STATUS="skipped"
 elif [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
-  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run configure "${CMAKE_CONFIGURE_CMD[@]}"
   cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
-  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
+  cdna_repo_run ctest env ROCR_VISIBLE_DEVICES="${CTEST_DEVICE}" HIP_VISIBLE_DEVICES="${CTEST_DEVICE}" "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   BUILD_STATUS="planned"
   CTEST_STATUS="planned"
 else
-  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run configure "${CMAKE_CONFIGURE_CMD[@]}"
   cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
-  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
+  cdna_repo_run ctest env ROCR_VISIBLE_DEVICES="${CTEST_DEVICE}" HIP_VISIBLE_DEVICES="${CTEST_DEVICE}" "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
   BUILD_STATUS="pass"
   CTEST_STATUS="pass"
 fi

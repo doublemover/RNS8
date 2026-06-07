@@ -62,13 +62,34 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
         append_tool_dir(root_path / "bin")
         append_tool_dir(root_path / "llvm" / "bin")
 
+    def append_roots_inferred_from_hipcc(hipcc_path: Path) -> None:
+        hipcc_paths = [hipcc_path]
+        try:
+            resolved = hipcc_path.resolve()
+        except OSError:
+            resolved = hipcc_path
+        if resolved != hipcc_path:
+            hipcc_paths.append(resolved)
+
+        for candidate_hipcc in hipcc_paths:
+            parent = candidate_hipcc.parent
+            if parent.name == "bin" and parent.parent.name == "llvm":
+                append_hip_root(str(parent.parent.parent))
+            elif parent.name == "bin":
+                append_hip_root(str(parent.parent))
+
     if hipcc is not None:
         append_tool_dir(hipcc.parent)
+        append_roots_inferred_from_hipcc(hipcc)
     for env_name in ("HIP_PATH", "HIP_ROOT", "ROCM_PATH", "ROCM_ROOT", "ROCM_HOME", "HIP_HOME"):
         append_hip_root(os.environ.get(env_name))
     inferred_hipcc = shutil.which("hipcc.exe") or shutil.which("hipcc")
     if inferred_hipcc:
-        append_tool_dir(Path(inferred_hipcc).parent)
+        inferred_hipcc_path = Path(inferred_hipcc)
+        append_tool_dir(inferred_hipcc_path.parent)
+        append_roots_inferred_from_hipcc(inferred_hipcc_path)
+    if sys.platform != "win32":
+        append_hip_root("/opt/rocm")
     if sys.platform == "win32":
         for root_pattern in (
             r"C:\Program Files\AMD\ROCm\*\bin",

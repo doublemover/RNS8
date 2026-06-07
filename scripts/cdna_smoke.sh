@@ -16,8 +16,13 @@ mkdir -p "${CDNA_OUT_DIR}"
 PRESET="$(cdna_default_preset)"
 PYTHON_BIN="$(cdna_python_bin)"
 cdna_resolve_cmake_tools "${PYTHON_BIN}"
+cdna_resolve_ninja
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
+CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}")
+if [[ -n "${CDNA_NINJA_BIN}" ]]; then
+  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
+fi
 ENV_DIR="${CDNA_OUT_DIR}/env"
 CAPTURE="${CDNA_OUT_DIR}/bounded-i64-hip-direct-smoke.json"
 SCHEMA_LOG="${CDNA_OUT_DIR}/benchmark-schema.log"
@@ -36,9 +41,9 @@ cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${EN
 cdna_resolve_catch2
 
 if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
-  cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
+  cdna_repo_run configure "${CMAKE_CONFIGURE_CMD[@]}"
   cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"
-  cdna_repo_run ctest "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
+  cdna_repo_run ctest env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_CTEST_BIN}" --preset "${PRESET}" --output-on-failure
 fi
 
 cdna_repo_run hip_smoke env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${VERIFY_BIN}" --hip-smoke

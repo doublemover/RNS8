@@ -1,5 +1,7 @@
 include(FindPackageHandleStandardArgs)
 
+set(RNS8_HIP_CMAKE_MODULE "${CMAKE_CURRENT_LIST_FILE}")
+
 set(_RNS8_HIP_HINTS)
 if(RNS8_HIP_ROOT)
   list(APPEND _RNS8_HIP_HINTS "${RNS8_HIP_ROOT}")
@@ -109,7 +111,7 @@ function(rns8_compile_hip_source out_var source)
       ${_source_compile_options}
       -c "${_source_abs}"
       -o "${_object}"
-    DEPENDS "${_source_abs}" ${RNS8_HIP_SOURCE_DEPENDS}
+    DEPENDS "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )
