@@ -75,6 +75,11 @@ function(rns8_compile_hip_source out_var source)
     endif()
   endif()
 
+  set(_pic_args)
+  if(NOT WIN32)
+    list(APPEND _pic_args -fPIC)
+  endif()
+
   set(_include_args)
   foreach(_include_dir IN LISTS RNS8_HIP_SOURCE_INCLUDE_DIRS)
     if(_include_dir)
@@ -96,6 +101,7 @@ function(rns8_compile_hip_source out_var source)
       "${RNS8_HIP_HIPCC}"
       ${_arch_args}
       ${_host_runtime_args}
+      ${_pic_args}
       -std=c++17
       -O2
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
