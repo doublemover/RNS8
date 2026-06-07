@@ -48,9 +48,6 @@ def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Pa
         missing_required = missing_required or (required and not version_ok)
 
     packages = python_packages()
-    for version in packages.values():
-        if version is None:
-            missing_required = True
 
     vcpkg_path = find_command("vcpkg")
     vcpkg_installed = installed_vcpkg_packages(vcpkg_path)

@@ -290,7 +290,56 @@ def parse_hip_info_summary(output: str) -> str:
     return ", ".join(parts) if parts else "no HIP device details parsed"
 
 
+def parse_rocminfo_details(output: str) -> dict[str, str]:
+    target = ""
+    full_arch = ""
+    name = ""
+    for match in re.finditer(r"\bgfx[0-9a-fA-F]+(?::[A-Za-z0-9_:+-]+)?", output):
+        candidate = match.group(0)
+        base = candidate.split(":", 1)[0].lower()
+        if base in SUPPORTED_TARGETS:
+            target = base
+            full_arch = candidate
+            break
+    for pattern in [
+        r"Marketing Name:\s*([^\n\r]+)",
+        r"Device Name:\s*([^\n\r]+)",
+        r"Name:\s*(AMD[^\n\r]+)",
+    ]:
+        match = re.search(pattern, output, flags=re.IGNORECASE)
+        if match:
+            name = match.group(1).strip()
+            break
+    return {
+        "gpu_name": name,
+        "gcn_arch": full_arch or target,
+        "target": target,
+    }
+
+
 def hip_info_report(path: str | None) -> dict[str, object]:
+    if not path and platform.system() == "Linux":
+        rocminfo = find_command("rocminfo")
+        if rocminfo:
+            code, output = run([rocminfo], timeout=30)
+            details = parse_rocminfo_details(output)
+            target = details["target"]
+            return {
+                "ok": code == 0 and bool(target),
+                "detail": (
+                    ", ".join(part for part in [details["gpu_name"], details["gcn_arch"]] if part)
+                    or "no ROCm GPU details parsed"
+                ),
+                "exit_code": code,
+                "gpu_name": details["gpu_name"],
+                "gcn_arch": details["gcn_arch"],
+                "target": target,
+                "target_supported_by_spec": target in SUPPORTED_TARGETS,
+                "target_info": SUPPORTED_TARGETS.get(target),
+                "hip_version": "",
+                "runtime_version": "",
+                "source": "rocminfo",
+            }
     if not path:
         return {
             "ok": False,
@@ -314,6 +363,7 @@ def hip_info_report(path: str | None) -> dict[str, object]:
         "target_info": SUPPORTED_TARGETS.get(target),
         "hip_version": details["hip_version"],
         "runtime_version": details["runtime_version"],
+        "source": "hipInfo",
     }
 
 

@@ -81,18 +81,31 @@ def find_command(name: str) -> str | None:
     if found:
         return found
 
+    if name == "python":
+        for alias in ("python3", "python"):
+            found_alias = shutil.which(alias)
+            if found_alias:
+                return found_alias
+        if sys.executable:
+            candidates.append(Path(sys.executable))
+
     if name == "vcpkg" and platform.system() == "Windows":
         root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
         candidates.append(Path(root) / "vcpkg.exe")
 
     if name in {"hipcc", "hipInfo", "hipconfig"}:
-        hip_root = os.environ.get("HIP_PATH", r"C:\Program Files\AMD\ROCm\7.1")
-        candidates.extend(
-            [
-                Path(hip_root) / "bin" / f"{name}.exe",
-                Path(hip_root) / "bin" / f"{name}.bat",
-            ]
-        )
+        roots = [os.environ.get("HIP_PATH"), os.environ.get("ROCM_PATH")]
+        roots.append(r"C:\Program Files\AMD\ROCm\7.1" if platform.system() == "Windows" else "/opt/rocm")
+        for root in roots:
+            if not root:
+                continue
+            candidates.extend(
+                [
+                    Path(root) / "bin" / name,
+                    Path(root) / "bin" / f"{name}.exe",
+                    Path(root) / "bin" / f"{name}.bat",
+                ]
+            )
 
     if name in set(LINUX_READINESS_COMMANDS):
         rocm_root = os.environ.get("ROCM_PATH", "/opt/rocm")

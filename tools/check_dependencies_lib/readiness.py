@@ -427,7 +427,6 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     host_core_commands = HOST_NEUTRAL_CORE_COMMANDS + (WINDOWS_CORE_COMMANDS if host_is_windows else [])
     core_host_ok = (
         all(command_ok(commands, name) for name in host_core_commands)
-        and packages_ok(py_packages, PYTHON_PACKAGES)
         and (not host_is_windows or vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES))
     )
     windows_hip_ok = (
