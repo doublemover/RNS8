@@ -7,6 +7,28 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-68 strict wrap64 Direct-HIP v4 tuning closeout:
+
+- Rank 68 moved from the active queue to the completed-work archive after the
+  strict wrap64 tuning lane gained a dedicated report gate and current
+  Windows `gfx1100` release evidence. `wrap64-carry` now covers CPU byte-limb
+  reference plus Direct-HIP v4 at 512/1024/2048, exploratory Direct-HIP 4096
+  without the pathological CPU byte-limb release-repeat row, reuse-packed
+  inputs at 512/1024/2048, full-path HIP Graph replay at 512/1024, K-block
+  policy rows at 1024/2048/4096, and rocWMMA matrix-engine candidates at
+  512/1024/2048.
+- The closeout under `temp/rank68-wrap64-direct-hip-tuning-20260606/` produced
+  18 schema-valid release captures. Required GPU events passed for every
+  non-graph GPU capture, and ISA sidecars were generated for Direct-HIP and
+  rocWMMA. `tools/wrap64_direct_hip_tuning_report.py` reports four local
+  workload wins, six deprioritized candidates, zero missing Direct-HIP
+  baselines, and one intentional missing-reference exploratory 4096 group.
+  Reuse-packed inputs win at 512 and 1024; full-path HIP Graph replay wins at
+  512 and 1024; reuse at 2048, K-block policy rows, and rocWMMA candidates are
+  not promoted from this gate. The 4096 K-block row is event-valid but remains
+  experimental because the byte-limb CPU reference is omitted from release
+  sweeps due to impractical runtime.
+
 June 6, 2026 rank-58 HIP Graph replay full-path closeout:
 
 - Rank 58 moved from the active queue to the completed-work archive after the

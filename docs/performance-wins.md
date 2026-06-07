@@ -600,6 +600,22 @@ median end-to-end versus 13423400 us for the CPU byte-limb reference, a 230.1x
 same-contract speedup, with required wrap64 GPU events. This is durable evidence
 for the current Direct-HIP strict wrap64 path, not an AUTO cache entry.
 
+Rank 68 closes the current strict wrap64 v4 tuning gate under
+`temp/rank68-wrap64-direct-hip-tuning-20260606/`. The closeout has 18
+schema-valid release captures, required GPU events for non-graph GPU rows,
+Direct-HIP and rocWMMA ISA sidecars, and a dedicated
+`tools/wrap64_direct_hip_tuning_report.py` decision report. The useful local
+signals are explicit workload/benchmark-only paths: reuse-packed inputs are
+1410 us versus 2812 us at 512, 1.99x faster, and 5042 us versus 6584 us at
+1024, 1.31x faster; full-path HIP Graph replay is 1483 us versus 2812 us at
+512, 1.90x faster, and 5292 us versus 6584 us at 1024, 1.24x faster. The same
+report deprioritizes reuse at 2048 after the corrected baseline, deprioritizes
+K-block and rocWMMA candidates where CPU/reference evidence exists, and keeps
+the 4096 K-block row experimental because the byte-limb reference is omitted
+from release-repeat sweeps due to impractical runtime. No README headline
+claim, installed cache entry, default route, Linux readiness claim, or CDNA
+performance claim changes from this closeout.
+
 ## RNS Chain Evidence
 
 Final-output RNS-chain captures now have a dedicated same-contract report.

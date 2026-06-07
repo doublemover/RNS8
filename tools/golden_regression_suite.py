@@ -57,6 +57,11 @@ DEFAULT_CASES = [
         [sys.executable, "tools/test_direct_hip_reuse_expansion_report.py"],
     ),
     SuiteCase(
+        "wrap64_direct_hip_tuning_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_wrap64_direct_hip_tuning_report.py"],
+    ),
+    SuiteCase(
         "direct_hip_resident_redesign_report",
         "performance_evidence_drift",
         [sys.executable, "tools/test_direct_hip_resident_redesign_report.py"],
