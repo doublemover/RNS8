@@ -33,6 +33,8 @@ if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
 fi
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
+cdna_resolve_catch2
+
 if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
   cdna_repo_run configure "${CDNA_CMAKE_BIN}" --preset "${PRESET}"
   cdna_repo_run build "${CDNA_CMAKE_BIN}" --build --preset "${PRESET}"

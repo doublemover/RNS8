@@ -50,6 +50,8 @@ else
   fi
 fi
 
+cdna_resolve_catch2
+
 BUILD_STATUS="not_run"
 CTEST_STATUS="not_run"
 SMOKE_STATUS="not_run"

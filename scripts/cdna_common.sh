@@ -15,6 +15,7 @@ CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
 CDNA_BENCH_ARGV=()
 CDNA_CMAKE_MIN_VERSION="3.28.0"
+CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-v3.5.4}"
 CDNA_CMAKE_BIN=""
 CDNA_CTEST_BIN=""
 
@@ -251,6 +252,66 @@ cdna_resolve_cmake_tools() {
   fi
 
   export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+}
+
+cdna_prepend_cmake_prefix() {
+  local prefix="$1"
+  if [[ -n "${CMAKE_PREFIX_PATH:-}" ]]; then
+    case ":${CMAKE_PREFIX_PATH}:" in
+      *":${prefix}:"*) ;;
+      *) export CMAKE_PREFIX_PATH="${prefix}:${CMAKE_PREFIX_PATH}" ;;
+    esac
+  else
+    export CMAKE_PREFIX_PATH="${prefix}"
+  fi
+}
+
+cdna_probe_catch2_v3() {
+  local probe_root="${CDNA_REPO_ROOT}/temp/cdna-tools/probes/catch2-v3"
+  local probe_src="${probe_root}/src"
+  local probe_build="${probe_root}/build-$$-${RANDOM}"
+  local probe_log="${probe_root}/probe.log"
+  mkdir -p "${probe_src}" "${probe_build}"
+  cat >"${probe_src}/CMakeLists.txt" <<'EOF'
+cmake_minimum_required(VERSION 3.28)
+project(rns8_catch2_probe LANGUAGES CXX)
+find_package(Catch2 3 CONFIG REQUIRED)
+EOF
+  "${CDNA_CMAKE_BIN}" -S "${probe_src}" -B "${probe_build}" >"${probe_log}" 2>&1
+}
+
+cdna_resolve_catch2() {
+  local install_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/install"
+  local source_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/src"
+  local build_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/build"
+
+  if [[ -d "${install_root}" ]]; then
+    cdna_prepend_cmake_prefix "${install_root}"
+  fi
+  if cdna_probe_catch2_v3; then
+    return 0
+  fi
+  if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${source_root}")"
+  if [[ ! -d "${source_root}/.git" ]]; then
+    cdna_note_command bootstrap_catch2_clone git clone --depth 1 --branch "${CDNA_CATCH2_VERSION}" https://github.com/catchorg/Catch2.git "${source_root}"
+    git clone --depth 1 --branch "${CDNA_CATCH2_VERSION}" https://github.com/catchorg/Catch2.git "${source_root}"
+  fi
+
+  cdna_note_command bootstrap_catch2_configure "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=OFF -DBUILD_TESTING=OFF
+  "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=OFF -DBUILD_TESTING=OFF
+
+  cdna_note_command bootstrap_catch2_install "${CDNA_CMAKE_BIN}" --build "${build_root}" --target install
+  "${CDNA_CMAKE_BIN}" --build "${build_root}" --target install
+
+  cdna_prepend_cmake_prefix "${install_root}"
+  if ! cdna_probe_catch2_v3; then
+    printf 'error: Catch2 3 CMake package is still unavailable after bootstrap. See temp/cdna-tools/probes/catch2-v3/probe.log\n' >&2
+    return 1
+  fi
 }
 
 cdna_command_line() {

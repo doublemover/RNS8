@@ -66,6 +66,12 @@ one explicitly:
 CDNA_CMAKE=/path/to/cmake CDNA_CTEST=/path/to/ctest bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
 ```
 
+Ubuntu 22.04's `catch2` package is Catch2 v2, while RNS8 tests require the
+Catch2 v3 CMake package. The CDNA wrappers probe for Catch2 v3 and, when the
+native package is too old or missing, bootstrap a private pinned Catch2 source
+install under ignored `temp/cdna-tools/`. Override the pinned tag with
+`CDNA_CATCH2_VERSION` only for a deliberate dependency experiment.
+
 AMD's relevant readiness surfaces are the ROCm package-manager install flow,
 HIP visibility variables, `rocprofv3`/`rocprofv3-avail`, AMD SMI,
 hipBLASLt/rocWMMA native packages, and RCCL/`rccl-tests`:
