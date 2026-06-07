@@ -105,6 +105,29 @@ assert [name for name, _command, _output in exact_commands] == [
 assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
 assert all("--exact-wide-limbs" in command and "4" in command for _name, command, _output in exact_commands)
 
+for mask in ["0", "0,1", "0,1,2,3", "0,1,2,3,4,5,6,7"]:
+    visible_args = copy.copy(exact_args)
+    visible_args.hip_visible_devices = mask
+    visible_args.rocr_visible_devices = None
+    visible_args.gpu_device_ordinal = None
+    visible_args.gpu_shards = None
+    visible_entries = benchmark_sweep.sweep_command_entries(visible_args)
+    assert visible_entries
+    assert all(entry.env == {"HIP_VISIBLE_DEVICES": mask} for entry in visible_entries)
+    assert [entry.output for entry in visible_entries] == [Path(output) for _name, _command, output in exact_commands]
+
+sharded_args = copy.copy(exact_args)
+sharded_args.hip_visible_devices = None
+sharded_args.rocr_visible_devices = None
+sharded_args.gpu_device_ordinal = None
+sharded_args.gpu_shards = "0,1,2,3"
+sharded_entries = benchmark_sweep.sweep_command_entries(sharded_args)
+assert len(sharded_entries) == len(exact_commands) * 4
+assert {entry.env["HIP_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
+assert {entry.env["ROCR_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
+assert {entry.output.parent.name for entry in sharded_entries} == {"gpu0", "gpu1", "gpu2", "gpu3"}
+assert all(entry.name.startswith("gpu") for entry in sharded_entries)
+
 exact_variant_args = copy.copy(exact_args)
 exact_variant_args.backends = ["cpu"]
 exact_variant_args.include_exact_wide_limb_variants = True
@@ -171,6 +194,82 @@ assert {
     "stable_ab_candidate",
 }
 
+direct_reuse_args = copy.copy(scenario_args)
+direct_reuse_args.backends = None
+direct_reuse_args.scenario = ["direct-hip-reuse-expansion"]
+direct_reuse_entries = benchmark_sweep.sweep_command_entries(direct_reuse_args)
+assert len(direct_reuse_entries) == 70
+assert {entry.scenario["family"] for entry in direct_reuse_entries} == {"direct-hip-reuse-expansion"}
+assert {
+    entry.scenario["semantics"]
+    for entry in direct_reuse_entries
+} == {"bounded-u64", "finite-u8-ring", "finite-u8-field", "exact-wide-signed", "exact-wide-unsigned", "wrap-u64"}
+assert {
+    entry.scenario.get("metadata", {}).get("workflow_name")
+    for entry in direct_reuse_entries
+} == {"direct_hip_reuse_expansion"}
+assert {
+    entry.scenario.get("metadata", {}).get("reuse_contract_role")
+    for entry in direct_reuse_entries
+} == {"nonreuse_baseline", "stable_a_candidate", "stable_b_candidate", "stable_ab_candidate"}
+assert any("--reuse-packed-a" in entry.command for entry in direct_reuse_entries)
+assert any("--reuse-packed-b" in entry.command for entry in direct_reuse_entries)
+assert any("--reuse-packed-inputs" in entry.command for entry in direct_reuse_entries)
+assert any(entry.scenario["input_profile"] == "adaptive-bands" for entry in direct_reuse_entries)
+assert any(entry.scenario["modulus"] == 255 for entry in direct_reuse_entries)
+assert any(entry.scenario["residue_chain_length"] == 3 for entry in direct_reuse_entries)
+assert any(entry.scenario["backend"] == "wrap64-byte-limb" for entry in direct_reuse_entries)
+assert all("scenarios" in entry.output.parts and "direct-hip-reuse-expansion" in entry.output.parts for entry in direct_reuse_entries)
+
+graph_args = copy.copy(scenario_args)
+graph_args.backends = None
+graph_args.scenario = ["hip-graph-replay"]
+graph_entries = benchmark_sweep.sweep_command_entries(graph_args)
+assert len(graph_entries) == 36
+assert {entry.scenario["family"] for entry in graph_entries} == {"hip-graph-replay"}
+assert {entry.scenario["review_mode_expectation"] for entry in graph_entries} == {"release"}
+assert {entry.scenario["promotion_eligibility"] for entry in graph_entries} == {"hip_graph_replay_evidence_only"}
+assert {entry.scenario["shape"]["m"] for entry in graph_entries} == {512, 1024}
+assert sum(1 for entry in graph_entries if "--hip-graph-replay" in entry.command) == 18
+resident_graph_entries = [
+    entry
+    for entry in graph_entries
+    if "--hip-graph-replay" in entry.command
+    and entry.scenario["metadata"].get("phase_label", "").endswith("reuse_inputs")
+]
+full_path_graph_entries = [
+    entry
+    for entry in graph_entries
+    if "--hip-graph-replay" in entry.command
+    and entry.scenario["metadata"].get("phase_label") == "hip_graph_bounded_full_pack_gemm_export"
+]
+finite_full_path_graph_entries = [
+    entry
+    for entry in graph_entries
+    if "--hip-graph-replay" in entry.command
+    and entry.scenario["metadata"].get("phase_label") == "hip_graph_finite_u8_full_pack_gemm_export"
+]
+wrap64_full_path_graph_entries = [
+    entry
+    for entry in graph_entries
+    if "--hip-graph-replay" in entry.command
+    and entry.scenario["metadata"].get("phase_label") == "hip_graph_wrap64_full_pack_gemm_export"
+]
+assert len(resident_graph_entries) == 8
+assert len(full_path_graph_entries) == 4
+assert len(finite_full_path_graph_entries) == 4
+assert len(wrap64_full_path_graph_entries) == 2
+assert all("--reuse-packed-inputs" in entry.command for entry in resident_graph_entries)
+assert all("--residue-chain-length" in entry.command and "3" in entry.command for entry in resident_graph_entries)
+assert all("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in resident_graph_entries)
+assert all("--reuse-packed-inputs" not in entry.command for entry in full_path_graph_entries)
+assert all("--residue-chain-length" not in entry.command for entry in full_path_graph_entries)
+assert all("--next-op-hint" not in entry.command for entry in full_path_graph_entries)
+assert all("--modulus" in entry.command and "251" in entry.command for entry in finite_full_path_graph_entries)
+assert all("--reuse-packed-inputs" not in entry.command for entry in finite_full_path_graph_entries)
+assert all("--semantics" in entry.command and "wrap-u64" in entry.command for entry in wrap64_full_path_graph_entries)
+assert all("--reuse-packed-inputs" not in entry.command for entry in wrap64_full_path_graph_entries)
+
 skinny_args = copy.copy(scenario_args)
 skinny_args.backends = ["hip-vector-alu-int64"]
 skinny_args.scenario = ["skinny-gemv"]
@@ -195,20 +294,28 @@ many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
 many_small_args.scenario = ["many-small"]
 many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
-assert len(many_small_entries) == 14
+assert len(many_small_entries) == 22
 assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
 assert {entry.scenario["name"] for entry in many_small_entries} == {
     "bounded-i64-32-proxy",
     "bounded-i64-32-host-batch64",
     "bounded-i64-32-oneshot-proxy",
+    "bounded-i64-64-proxy",
+    "bounded-i64-64-host-batch32",
     "bounded-i64-128-proxy",
+    "bounded-i64-128-host-batch64",
     "bounded-u64-64-proxy",
+    "bounded-u64-64-host-batch32",
     "bounded-u64-skinny-n1-host-batch128",
     "bounded-u64-skinny-n1-proxy",
     "exact-wide-signed-64-proxy",
     "exact-wide-signed-64-host-batch32",
+    "exact-wide-signed-128-proxy",
+    "exact-wide-signed-128-host-batch32",
     "exact-wide-unsigned-64-proxy",
     "exact-wide-unsigned-64-host-batch32",
+    "exact-wide-unsigned-128-proxy",
+    "exact-wide-unsigned-128-host-batch32",
     "finite-ring-64-host-batch32",
     "finite-ring-64-proxy",
 }
@@ -245,20 +352,56 @@ grouped_dispatch_entries = benchmark_sweep.sweep_command_entries(grouped_dispatc
 assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
     "bounded-i64-64-group32",
     "bounded-u64-64-group32",
+    "bounded-i64-128-group64",
+    "bounded-u64-skinny-n1-group128",
     "finite-ring-64-group32",
     "exact-wide-signed-64-group32",
     "exact-wide-unsigned-64-group32",
+    "exact-wide-signed-128-group32",
+    "exact-wide-unsigned-128-group32",
 ]
 assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
-assert all(entry.scenario["grouped_dispatch_tasks"] == 32 for entry in grouped_dispatch_entries)
+assert {entry.scenario["grouped_dispatch_tasks"] for entry in grouped_dispatch_entries} == {32, 64, 128}
 assert all(entry.scenario["review_mode_expectation"] == "smoke" for entry in grouped_dispatch_entries)
 assert all(entry.scenario["promotion_eligibility"] for entry in grouped_dispatch_entries)
-assert all("--grouped-dispatch" in entry.command and "32" in entry.command for entry in grouped_dispatch_entries)
+assert all("--grouped-dispatch" in entry.command for entry in grouped_dispatch_entries)
 assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
+assert sum(1 for entry in grouped_dispatch_entries if entry.scenario["semantics"].startswith("exact-wide")) == 4
+assert any(
+    entry.scenario["semantics"] == "exact-wide-signed"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 32
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "exact-wide-unsigned"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 32
+    for entry in grouped_dispatch_entries
+)
 assert any(
     entry.scenario["semantics"] == "bounded-u64"
+    and entry.scenario["shape"]["n"] == 64
     and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
-    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "bounded-i64"
+    and entry.scenario["shape"]["m"] == 128
+    and entry.scenario["grouped_dispatch_tasks"] == 64
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "bounded-u64"
+    and entry.scenario["shape"]["n"] == 1
+    and entry.scenario["grouped_dispatch_tasks"] == 128
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "finite-u8-ring"
+    and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
+    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H
     for entry in grouped_dispatch_entries
 )
 assert any(
@@ -467,32 +610,78 @@ layout_args = copy.copy(scenario_args)
 layout_args.backends = ["hip-direct"]
 layout_args.scenario = ["layout-search"]
 layout_entries = benchmark_sweep.sweep_command_entries(layout_args)
-assert len(layout_entries) == 9
+assert len(layout_entries) == 16
 assert {entry.scenario["family"] for entry in layout_entries} == {"layout-search"}
 assert {entry.scenario["name"] for entry in layout_entries} == {
-    "bounded-i64-prefix9-final-export",
-    "bounded-i64-prefix9-rns-next",
-    "exact-wide-signed-prefix20-final-export",
-    "exact-wide-signed-prefix20-rns-next",
-    "finite-ring-hot-modulus-layout",
-    "finite-field-hot-prime-layout",
-    "wrap64-direct-byte-layout",
+    "bounded-i64-prefix9-default-final-export",
+    "bounded-i64-prefix9-residue-channel-fusion",
+    "bounded-i64-prefix9-padded-ld",
+    "exact-wide-signed-prefix20-default-final-export",
+    "exact-wide-signed-prefix20-independent-export-chain",
+    "exact-wide-signed-prefix20-residue-current-chain",
+    "finite-ring-hot-modulus-default-layout",
+    "finite-ring-hot-modulus-padded-ld",
+    "finite-field-hot-prime-default-layout",
+    "finite-field-hot-prime-padded-ld",
+    "wrap64-direct-byte-default-layout",
+    "wrap64-direct-byte-padded-ld",
 }
 assert sorted(
     entry.scenario["modulus"]
     for entry in layout_entries
-    if entry.scenario["name"] == "finite-ring-hot-modulus-layout"
+    if entry.scenario["name"] == "finite-ring-hot-modulus-default-layout"
 ) == [251, 255, 256]
-assert any("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in layout_entries)
+assert any("--next-op-hint" in entry.command and "final-export" in entry.command for entry in layout_entries)
 assert any("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in layout_entries)
 assert any("--max-prefix" in entry.command and "20" in entry.command for entry in layout_entries)
+assert any("--residue-channel-fusion" in entry.command for entry in layout_entries)
+assert any("--output-ld-padding" in entry.command and "32" in entry.command for entry in layout_entries)
+assert any("--residue-chain-length" in entry.command and "3" in entry.command for entry in layout_entries)
 assert any(entry.scenario["semantics"] == "wrap-u64" for entry in layout_entries)
 assert any(
-    entry.scenario.get("metadata", {}).get("layout_role") == "exact_wide_prefix20_next_rns_gemm"
+    entry.scenario.get("metadata", {}).get("layout_role") == "exact_wide_residue_current_chain_layout"
+    for entry in layout_entries
+)
+assert any(
+    entry.scenario.get("metadata", {}).get("layout_variant_role") == "candidate"
+    and entry.scenario.get("metadata", {}).get("actual_layout_variant") is True
     for entry in layout_entries
 )
 assert all(
     entry.scenario.get("metadata", {}).get("workflow_name") == "end_to_end_layout_search"
     for entry in layout_entries
+)
+
+finite_distribution_args = copy.copy(scenario_args)
+finite_distribution_args.backends = ["hip-direct"]
+finite_distribution_args.scenario = ["finite-distributions"]
+finite_distribution_entries = benchmark_sweep.sweep_command_entries(finite_distribution_args)
+assert len(finite_distribution_entries) == 80
+assert {entry.scenario["family"] for entry in finite_distribution_entries} == {"finite-distributions"}
+assert {entry.scenario["input_profile"] for entry in finite_distribution_entries} == {
+    "finite-binary",
+    "finite-sparse",
+    "finite-low-hamming",
+    "finite-small-centered",
+    "finite-full-uniform",
+}
+assert {entry.scenario["shape"]["m"] for entry in finite_distribution_entries} == {128, 512, 1024, 2048}
+assert sorted(
+    {
+        (entry.scenario["semantics"], entry.scenario["modulus"])
+        for entry in finite_distribution_entries
+        if entry.scenario["shape"]["m"] == 2048
+    }
+) == [
+    ("finite-u8-field", 241),
+    ("finite-u8-field", 251),
+    ("finite-u8-ring", 251),
+    ("finite-u8-ring", 253),
+]
+assert all("--input-profile" in entry.command for entry in finite_distribution_entries)
+assert any(
+    entry.scenario.get("metadata", {}).get("workflow_name") == "finite_distribution_release_matrix"
+    and entry.scenario.get("metadata", {}).get("distribution_role") == "sparse"
+    for entry in finite_distribution_entries
 )
 

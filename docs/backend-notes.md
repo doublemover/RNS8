@@ -58,6 +58,17 @@ next-operation flags for final export, RNS continuation, native continuation,
 native-to-RNS conversion eligibility, and reusable B prepack availability. No
 current backend reports a reusable production prepack cache.
 
+`rns8_get_grouped_dispatch_contract_info` reports the current Direct-HIP
+same-shape grouped descriptor contract for a created plan: task count,
+shape/stride policy, unique matrix and workspace ownership, source-version
+repack policy, device-current output, host-output export requirement,
+status/checksum policy, descriptor reuse, and device descriptor layout. This is
+contract metadata for `rns8_gemm_rns_grouped` and
+`rns8_gemm_finite_u8_grouped`, the narrow public resident grouped GEMM entry
+points. Those calls require already-current resident task inputs and do not
+perform grouped host packing, native-to-RNS conversion, final host export, or
+AUTO routing.
+
 `rns8-inspect` derives an internal plan-lowering description for autotune
 exact-hit plans from the same backend, packing, and schedule metadata. The
 diagnostic explains the `MatMul` semantic contract, backend family, selected

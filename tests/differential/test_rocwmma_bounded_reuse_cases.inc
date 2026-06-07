@@ -124,7 +124,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   REQUIRE(rns8_get_prepack_cache_key_info(rocwmma_plan, rocwmma_b, RNS8_OPERAND_B, &key) == RNS8_SUCCESS);
   CHECK(key.reusable_prepack_cache_available == 1);
   CHECK(key.production_prepack_cache_available == 0);
-  CHECK(key.hip_device_id == 0);
+  CHECK(key.hip_device_id == default_visible_hip_test_device());
   CHECK(key.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   CHECK(std::string(key.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
   CHECK(std::string(key.cache_key).find("prepack-v2") == 0);
@@ -142,7 +142,8 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(std::string(key.cache_key).find("k_block_size=48") != std::string::npos);
   CHECK(std::string(key.cache_key).find("k_block_cap=65536") != std::string::npos);
   CHECK(std::string(key.cache_key).find("source_version=202") != std::string::npos);
-  CHECK(std::string(key.cache_key).find("hip_device_id=0") != std::string::npos);
+  const std::string expected_device_key = "hip_device_id=" + std::to_string(default_visible_hip_test_device());
+  CHECK(std::string(key.cache_key).find(expected_device_key) != std::string::npos);
 
   CHECK(rns8_create_prepack_cache(cpu, cpu_plan, cpu_b, RNS8_OPERAND_B, &b_cache) == RNS8_UNSUPPORTED_BACKEND);
   CHECK(b_cache == nullptr);

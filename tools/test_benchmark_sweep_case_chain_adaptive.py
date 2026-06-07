@@ -21,6 +21,25 @@ except SystemExit as exc:
 else:
     raise AssertionError("scenario mode should reject manual include flags")
 
+for attr, value in [
+    ("workspace_arena", True),
+    ("resident_lifetime", True),
+    ("adaptive_grouped_scheduler", True),
+    ("streaming_overlap", True),
+    ("k_block_policy", "fixed-safe-kblock-cdna-candidate"),
+    ("release_gate", "golden_regression_required"),
+    ("verification_amortization", "repeat_window"),
+    ("error_detection_policy", "freivalds_two_round_product_check_research"),
+]:
+    bad_scenario_args = copy.copy(scenario_args)
+    setattr(bad_scenario_args, attr, value)
+    try:
+        benchmark_sweep.sweep_commands(bad_scenario_args)
+    except SystemExit as exc:
+        assert "--scenario cannot be combined" in str(exc)
+    else:
+        raise AssertionError(f"scenario mode should reject manual {attr}")
+
 exact_chain_args = copy.copy(exact_args)
 exact_chain_args.backends = ["cpu"]
 exact_chain_args.residue_chain_length = 3

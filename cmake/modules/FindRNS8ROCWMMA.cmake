@@ -5,13 +5,12 @@ foreach(_RNS8_ROCWMMA_HINT IN ITEMS
     "${RNS8_HIP_ROOT}"
     "$ENV{ROCM_PATH}"
     "$ENV{HIP_PATH}"
-    "$ENV{VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}"
     "/opt/rocm")
   if(_RNS8_ROCWMMA_HINT)
     list(APPEND _RNS8_ROCWMMA_HINTS "${_RNS8_ROCWMMA_HINT}")
   endif()
 endforeach()
+rns8_append_windows_vcpkg_hints(_RNS8_ROCWMMA_HINTS)
 
 find_path(
   RNS8_ROCWMMA_INCLUDE_DIR
@@ -28,6 +27,7 @@ set(RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS "not_run_missing_header")
 set(RNS8_ROCWMMA_PRIMITIVE_PROBE_OUTPUT "")
 
 if(RNS8_ROCWMMA_INCLUDE_DIR)
+  rns8_assert_no_linux_windows_vcpkg_paths("rocWMMA include directory" "${RNS8_ROCWMMA_INCLUDE_DIR}")
   set(RNS8_ROCWMMA_CANDIDATE TRUE)
   set(_RNS8_ROCWMMA_TARGET "gfx1100")
   if(RNS8_AMDGPU_TARGETS)

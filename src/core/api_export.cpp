@@ -147,76 +147,6 @@ rns8_status export_native_u64(
   return RNS8_SUCCESS;
 }
 
-bool schedule_all_zero_output_tiles(const rns8_plan& plan);
-
-enum class export_output_layout {
-  scalar_i64,
-  scalar_u64,
-  finite_u8,
-  fixed_u64_limbs,
-};
-
-enum class export_status_policy {
-  none,
-  range_checked_status_buffer,
-};
-
-enum class export_d2h_policy {
-  host_ld_padded,
-};
-
-struct export_reconstruction_plan {
-  export_output_layout output_layout = export_output_layout::scalar_i64;
-  uint32_t limb_count = 0;
-  export_status_policy status_policy = export_status_policy::none;
-  export_d2h_policy d2h_policy = export_d2h_policy::host_ld_padded;
-  const char* selected_export_kernel = "cpu_reference_export";
-  bool requires_hip_tile_metadata = false;
-  bool all_zero_tiled_output = false;
-};
-
-export_reconstruction_plan make_export_plan(
-    const rns8_plan& plan,
-    rns8_semantics semantics,
-    uint32_t limb_count = 0) {
-  export_reconstruction_plan export_plan{};
-  export_plan.limb_count = limb_count;
-  export_plan.all_zero_tiled_output = schedule_all_zero_output_tiles(plan);
-  export_plan.requires_hip_tile_metadata =
-      hip_resident_rns_backend(plan.backend) && !plan.tile_schedule.empty() &&
-      !export_plan.all_zero_tiled_output;
-  if (semantics == RNS8_BOUNDED_I64) {
-    export_plan.output_layout = export_output_layout::scalar_i64;
-    export_plan.status_policy = export_status_policy::range_checked_status_buffer;
-    export_plan.selected_export_kernel =
-        !plan.tile_schedule.empty() ? "hip_direct_export_i64_tiled_device" : "hip_direct_export_i64_device";
-  } else if (semantics == RNS8_BOUNDED_U64) {
-    export_plan.output_layout = export_output_layout::scalar_u64;
-    export_plan.status_policy = export_status_policy::range_checked_status_buffer;
-    export_plan.selected_export_kernel =
-        !plan.tile_schedule.empty() ? "hip_direct_export_u64_tiled_device" : "hip_direct_export_u64_device";
-  } else if (semantics == RNS8_WRAP_U64_MOD_2_64) {
-    export_plan.output_layout = export_output_layout::scalar_u64;
-    export_plan.selected_export_kernel = plan.backend == RNS8_BACKEND_HIP_DIRECT
-                                             ? "wrap64_hip_export_u64_device"
-                                             : "wrap64_reference_export_u64";
-  } else if (uses_finite_storage(semantics)) {
-    export_plan.output_layout = export_output_layout::finite_u8;
-    export_plan.selected_export_kernel = hip_resident_rns_backend(plan.backend)
-                                             ? "hip_direct_export_finite_u8_device"
-                                             : "finite_reference_export_u8";
-  } else if (semantics == RNS8_EXACT_WIDE_SIGNED) {
-    export_plan.output_layout = export_output_layout::fixed_u64_limbs;
-    export_plan.status_policy = export_status_policy::range_checked_status_buffer;
-    export_plan.selected_export_kernel = "hip_direct_export_exact_wide_signed_limbs_device";
-  } else if (semantics == RNS8_EXACT_WIDE_UNSIGNED) {
-    export_plan.output_layout = export_output_layout::fixed_u64_limbs;
-    export_plan.status_policy = export_status_policy::range_checked_status_buffer;
-    export_plan.selected_export_kernel = "hip_direct_export_exact_wide_unsigned_limbs_device";
-  }
-  return export_plan;
-}
-
 rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& plan, rns8_matrix& matrix) {
   if (!context_accepts_backend(ctx, plan.backend) ||
       !matrix_backend_compatible_with_plan(ctx, matrix, plan.backend) ||
@@ -336,18 +266,6 @@ rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& 
   matrix.hip_export_schedule_fingerprint = fingerprint;
   matrix.hip_export_tile_max_elements = max_tile_elements;
   return RNS8_SUCCESS;
-}
-
-bool schedule_all_zero_output_tiles(const rns8_plan& plan) {
-  if (plan.tile_schedule.empty()) {
-    return false;
-  }
-  for (const auto& entry : plan.tile_schedule) {
-    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
-      return false;
-    }
-  }
-  return true;
 }
 
 rns8_matrix& prepare_mutable_export_cache(

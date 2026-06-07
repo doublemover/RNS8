@@ -21,6 +21,8 @@
       "output_domain": "host_export",
       "rationale": "proves resident source-version and arena allocation-free repeat metadata before public lifetime APIs",
       "backends": [
+        "cpu",
+        "hip-vector-alu-int64",
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
@@ -53,6 +55,7 @@
       "output_domain": "residue_current_then_final_limb_export",
       "rationale": "ties lazy exact-wide output to explicit resident currentness and workspace identity",
       "backends": [
+        "cpu",
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
@@ -67,6 +70,94 @@
       "metadata": {
         "promotion_scope": "resident_lifetime_arena_evidence_only",
         "output_domain_requirement": "rns_then_final_export"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-b-arena",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "arena-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 1024",
+      "output_domain": "host_export",
+      "rationale": "checks that workspace arena identity and allocation counters scale beyond 512",
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
+      "pack_mode": "prepacked_reuse_b",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "resident_lifetime_arena_evidence_only",
+        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
+      }
+    },
+    {
+      "name": "exact-wide-signed-chain3-1024-arena",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "arena-exact-chain-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "exact-wide CDNA-prep arena evidence with residue-current chain at 1024",
+      "output_domain": "residue_current_then_final_limb_export",
+      "rationale": "ties exact-wide lazy-output arena identity to a larger review shape",
+      "backends": ["cpu", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
+      "exact_wide_limb_counts": [4],
+      "residue_chain_length": 3,
+      "next_op_hint": "rns-gemm",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "resident_lifetime_arena_evidence_only",
+        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
+      }
+    },
+    {
+      "name": "bounded-i64-2048-arena",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "arena-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 2048",
+      "output_domain": "host_export",
+      "rationale": "large-shape arena allocation counter gate before CDNA validation",
+      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
+      "resident_lifetime": true,
+      "workspace_arena": true,
+      "metadata": {
+        "promotion_scope": "resident_lifetime_arena_evidence_only",
+        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
       }
     }
   ]

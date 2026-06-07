@@ -157,7 +157,10 @@ int checked_common(
       workspace_bytes < a_bytes + b_bytes + temp_bytes) {
     return ck_invalid_argument;
   }
-  hipError_t err = hipSetDevice(device_id < 0 ? 0 : device_id);
+  if (device_id < 0) {
+    return ck_invalid_argument;
+  }
+  hipError_t err = hipSetDevice(device_id);
   if (err != hipSuccess) {
     return ck_backend_failure;
   }

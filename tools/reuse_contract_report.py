@@ -23,16 +23,29 @@ NORMALIZED_CONTRACT_EXCLUDE = {
     "pack_mode",
     "prepack_reuse_operands",
     "prepack_reuse_strategy",
+    "resident_lifetime.enabled",
+    "export_variant.selector_key",
 }
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 DEFAULT_OUT_DIR = Path("temp") / "reuse-contract-reports"
+NON_CAPTURE_JSON_NAMES = {
+    "review_report.json",
+    "scenario_manifest.json",
+    "reuse_contract_report.json",
+    "reuse-contract-report.json",
+    "direct-hip-reuse-expansion-report.json",
+    "validation-summary.json",
+}
+SOURCE_VERSION_REJECTION_REASON = "source_version_changed"
+LEGACY_SOURCE_VERSION_POLICY = "monotonic_source_version_per_repeat_when_packing_runs"
+REUSE_SELECTOR_POLICY = "explicit_reuse_contract_only_not_auto"
 
 
 def expand_inputs(paths: list[Path]) -> list[Path]:
     expanded: list[Path] = []
     for path in paths:
         if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
+            expanded.extend(sorted(item for item in path.rglob("*.json") if item.name not in NON_CAPTURE_JSON_NAMES))
         else:
             expanded.append(path)
     return expanded
@@ -203,6 +216,177 @@ def source_identity_metadata(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def reuse_contract_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    contract = capture.get("reuse_contract")
+    if not isinstance(contract, dict):
+        return {
+            "available": False,
+            "enabled": None,
+            "operand_role": None,
+            "setup_scope": None,
+            "source_version_inputs": None,
+            "output_domain": None,
+            "next_op": None,
+            "target_fingerprint": None,
+            "backend_fingerprint": None,
+            "kernel_fingerprint": None,
+            "workspace_fingerprint": None,
+            "promotion_eligible": None,
+            "invalidation_reasons": [],
+            "reason": "missing_reuse_contract_metadata",
+        }
+    invalidation = contract.get("invalidation_reasons")
+    reasons = [str(item) for item in invalidation] if isinstance(invalidation, list) else []
+    required_strings = [
+        "source_version_inputs",
+        "setup_scope",
+        "output_domain",
+        "next_op",
+        "target_fingerprint",
+        "backend_fingerprint",
+        "workspace_fingerprint",
+    ]
+    missing = [key for key in required_strings if not isinstance(contract.get(key), str) or not contract.get(key)]
+    available = contract.get("enabled") is True and not missing
+    reason = "available" if available else "incomplete_reuse_contract_metadata"
+    if contract.get("enabled") is not True:
+        reason = "reuse_contract_not_enabled"
+    return {
+        "available": available,
+        "enabled": contract.get("enabled"),
+        "operand_role": contract.get("operand_role"),
+        "setup_scope": contract.get("setup_scope"),
+        "source_version_inputs": contract.get("source_version_inputs"),
+        "output_domain": contract.get("output_domain"),
+        "next_op": contract.get("next_op"),
+        "target_fingerprint": contract.get("target_fingerprint"),
+        "backend_fingerprint": contract.get("backend_fingerprint"),
+        "kernel_fingerprint": contract.get("kernel_fingerprint"),
+        "workspace_fingerprint": contract.get("workspace_fingerprint"),
+        "promotion_eligible": contract.get("promotion_eligible"),
+        "invalidation_reasons": reasons,
+        "missing_fields": missing,
+        "reason": reason,
+    }
+
+
+def stale_source_rejection_metadata(
+    capture: dict[str, Any],
+    source_identity: dict[str, Any],
+    reuse_contract: dict[str, Any],
+) -> dict[str, Any]:
+    source_version_inputs = reuse_contract.get("source_version_inputs") or source_identity.get("source_version_inputs")
+    tracks_source_versions = (
+        isinstance(source_version_inputs, str)
+        and "source_version" in source_version_inputs
+        and bool(source_version_inputs)
+    )
+    invalidation_reasons = reuse_contract.get("invalidation_reasons") or []
+    contract_declares_rejection = SOURCE_VERSION_REJECTION_REASON in invalidation_reasons
+
+    if reuse_contract.get("available"):
+        available = bool(source_identity.get("available")) and tracks_source_versions and contract_declares_rejection
+        reason = "available" if available else "reuse_contract_missing_source_version_invalidation"
+        proof_source = "reuse_contract.invalidation_reasons"
+    else:
+        # Legacy reviewed captures predate the top-level reuse_contract object.
+        # They still expose source-version identity through device_allocation.
+        available = (
+            bool(source_identity.get("available"))
+            and source_identity.get("source_version_inputs") == LEGACY_SOURCE_VERSION_POLICY
+        )
+        reason = "legacy_device_allocation_source_version_identity" if available else "missing_stale_source_rejection_metadata"
+        proof_source = "device_allocation.source_version_inputs"
+
+    return {
+        "available": available,
+        "tracks_source_versions": tracks_source_versions,
+        "source_version_inputs": source_version_inputs,
+        "invalidation_reasons": invalidation_reasons,
+        "proof_source": proof_source,
+        "reason": reason,
+    }
+
+
+def same_workload_family_metadata(
+    reuse: dict[str, Any],
+    same_backend_baseline: dict[str, Any] | None,
+    best_nonreuse_baseline: dict[str, Any] | None,
+) -> dict[str, Any]:
+    reuse_key = normalized_contract_key(reuse)
+    same_backend_key = normalized_contract_key(same_backend_baseline) if same_backend_baseline is not None else None
+    best_key = normalized_contract_key(best_nonreuse_baseline) if best_nonreuse_baseline is not None else None
+    same_backend_match = same_backend_key == reuse_key
+    best_match = best_key == reuse_key
+    available = same_backend_baseline is not None and best_nonreuse_baseline is not None and same_backend_match and best_match
+    blockers: list[str] = []
+    if same_backend_baseline is None:
+        blockers.append("missing_same_backend_nonreuse_baseline")
+    elif not same_backend_match:
+        blockers.append("same_backend_baseline_contract_mismatch")
+    if best_nonreuse_baseline is None:
+        blockers.append("missing_best_nonreuse_contract_baseline")
+    elif not best_match:
+        blockers.append("best_nonreuse_baseline_contract_mismatch")
+    return {
+        "available": available,
+        "same_backend_match": same_backend_match,
+        "best_nonreuse_match": best_match,
+        "same_backend_backend": backend_id(same_backend_baseline) if same_backend_baseline is not None else None,
+        "best_nonreuse_backend": backend_id(best_nonreuse_baseline) if best_nonreuse_baseline is not None else None,
+        "blockers": blockers,
+    }
+
+
+def selector_eligibility_metadata(
+    decision: str,
+    blockers: list[str],
+    release_review_pair: bool,
+    same_workload_family: dict[str, Any],
+    source_identity: dict[str, Any],
+    stale_source_rejection: dict[str, Any],
+    reuse_contract: dict[str, Any],
+) -> dict[str, Any]:
+    selector_blockers = list(blockers)
+    if not release_review_pair:
+        selector_blockers.append("not_release_review_pair")
+    if not same_workload_family.get("available"):
+        selector_blockers.extend(same_workload_family.get("blockers") or ["same_workload_family_not_proven"])
+    if not source_identity.get("available"):
+        selector_blockers.append(str(source_identity.get("reason") or "missing_source_identity_metadata"))
+    if not stale_source_rejection.get("available"):
+        selector_blockers.append(str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata"))
+
+    # Top-level reuse_contract metadata is required for future captures. Legacy
+    # release evidence is still useful because device_allocation records source
+    # versions, but it is marked as legacy rather than AUTO/cache eligible.
+    contract_available = bool(reuse_contract.get("available"))
+    if reuse_contract.get("promotion_eligible") is True:
+        selector_blockers.append("reuse_contract_marked_default_promotion_eligible")
+    if not contract_available:
+        selector_blockers.append("missing_reuse_contract_metadata")
+
+    explicit_ready = (
+        decision == "candidate_workload_win"
+        and release_review_pair
+        and contract_available
+        and same_workload_family.get("available") is True
+        and source_identity.get("available") is True
+        and stale_source_rejection.get("available") is True
+        and reuse_contract.get("promotion_eligible") is not True
+        and not selector_blockers
+    )
+
+    return {
+        "selector_policy": REUSE_SELECTOR_POLICY,
+        "explicit_workload_selector_eligible": explicit_ready,
+        "autotune_selector_eligible": False,
+        "capture_contract_available": contract_available,
+        "blockers": sorted(set(selector_blockers)),
+        "reason": "explicit_workload_selector_ready" if explicit_ready else "selector_blocked_or_evidence_only",
+    }
+
+
 def decision_for(
     same_backend_baseline: dict[str, Any] | None,
     best_nonreuse_baseline: dict[str, Any] | None,
@@ -211,6 +395,7 @@ def decision_for(
     speedup_vs_best_nonreuse: float | None,
     break_even_same_backend: int | None,
     source_identity: dict[str, Any],
+    stale_source_rejection: dict[str, Any],
 ) -> tuple[str, list[str]]:
     blockers: list[str] = []
     if same_backend_baseline is None:
@@ -227,6 +412,8 @@ def decision_for(
         blockers.append("missing_prepack_setup_timing")
     if not source_identity.get("available"):
         blockers.append(str(source_identity.get("reason") or "missing_source_identity_metadata"))
+    if not stale_source_rejection.get("available"):
+        blockers.append(str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata"))
     if gpu_backend(reuse) and not gpu_events_available(reuse):
         blockers.append("missing_reuse_gpu_events")
     if gpu_backend(same_backend_baseline) and not gpu_events_available(same_backend_baseline):
@@ -294,6 +481,9 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             prepack_setup_us(reuse),
         )
         source_identity = source_identity_metadata(reuse)
+        reuse_contract = reuse_contract_metadata(reuse)
+        stale_source_rejection = stale_source_rejection_metadata(reuse, source_identity, reuse_contract)
+        same_workload_family = same_workload_family_metadata(reuse, same_backend_baseline, best_nonreuse_baseline)
         decision, blockers = decision_for(
             same_backend_baseline,
             best_nonreuse_baseline,
@@ -302,6 +492,23 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             speedup_vs_best_nonreuse,
             break_even_same_backend,
             source_identity,
+            stale_source_rejection,
+        )
+        release_review_pair = bool(
+            same_backend_baseline is not None
+            and best_nonreuse_baseline is not None
+            and release_satisfied(reuse)
+            and release_satisfied(same_backend_baseline)
+            and release_satisfied(best_nonreuse_baseline)
+        )
+        selector_eligibility = selector_eligibility_metadata(
+            decision,
+            blockers,
+            release_review_pair,
+            same_workload_family,
+            source_identity,
+            stale_source_rejection,
+            reuse_contract,
         )
         comparisons.append(
             {
@@ -330,13 +537,11 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "break_even_repeats_same_backend": break_even_same_backend,
                 "break_even_repeats_best_nonreuse": break_even_best_nonreuse,
                 "source_identity": source_identity,
-                "release_review_pair": bool(
-                    same_backend_baseline is not None
-                    and best_nonreuse_baseline is not None
-                    and release_satisfied(reuse)
-                    and release_satisfied(same_backend_baseline)
-                    and release_satisfied(best_nonreuse_baseline)
-                ),
+                "reuse_contract": reuse_contract,
+                "stale_source_rejection": stale_source_rejection,
+                "same_workload_family": same_workload_family,
+                "selector_eligibility": selector_eligibility,
+                "release_review_pair": release_review_pair,
                 "reuse_gpu_events": gpu_events_available(reuse) if gpu_backend(reuse) else None,
                 "same_backend_nonreuse_gpu_events": gpu_events_available(same_backend_baseline)
                 if gpu_backend(same_backend_baseline)
@@ -354,6 +559,17 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         "reuse_captures": len(reuse_captures),
         "comparisons": len(comparisons),
         "candidate_workload_wins": sum(1 for item in comparisons if item["decision"] == "candidate_workload_win"),
+        "explicit_workload_selector_ready": sum(
+            1
+            for item in comparisons
+            if item.get("selector_eligibility", {}).get("explicit_workload_selector_eligible") is True
+        ),
+        "stale_source_rejection_ready": sum(
+            1 for item in comparisons if item.get("stale_source_rejection", {}).get("available") is True
+        ),
+        "same_workload_family_ready": sum(
+            1 for item in comparisons if item.get("same_workload_family", {}).get("available") is True
+        ),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
         "missing_baselines": sum(1 for item in comparisons if item["decision"] == "missing_baseline"),
@@ -403,8 +619,12 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
         best_time = item.get("best_nonreuse_median_end_to_end_us")
         best_text = f"{best_backend} {fmt(best_time)}" if best_backend is not None else "none"
         blockers = ",".join(item.get("blockers") or []) or "none"
+        selector = item.get("selector_eligibility", {})
+        stale = item.get("stale_source_rejection", {})
+        selector_note = "explicit-ready" if selector.get("explicit_workload_selector_eligible") else "blocked"
+        stale_note = "ready" if stale.get("available") else fmt(stale.get("reason"))
         lines.append(
-            "| {backend} | {semantics} | {m}x{n}x{k} | {mode} | {operands} | {repeats} | {setup} | {steady} | {inclusive} | {same_speedup} | {best} | {workload_speedup} | {break_even} | {decision} | {blockers} |".format(
+            "| {backend} | {semantics} | {m}x{n}x{k} | {mode} | {operands} | {repeats} | {setup} | {steady} | {inclusive} | {same_speedup} | {best} | {workload_speedup} | {break_even} | {decision} ({selector}; stale={stale}) | {blockers} |".format(
                 backend=item.get("backend"),
                 semantics=item.get("semantics"),
                 m=shape.get("m"),
@@ -421,6 +641,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 workload_speedup=fmt(item.get("speedup_vs_best_nonreuse_setup_inclusive")),
                 break_even=fmt(item.get("break_even_repeats_same_backend")),
                 decision=item.get("decision"),
+                selector=selector_note,
+                stale=stale_note,
                 blockers=blockers,
             )
         )

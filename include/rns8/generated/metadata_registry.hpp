@@ -6,13 +6,17 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 20> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 25> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
     "benchmark_host_api_batch",
     "benchmark_owned_vector_alu_native_buffers",
+    "benchmark_streaming_overlap_resident_b_pipeline",
+    "hip_graph_replay_bounded_pack_gemm_export",
+    "hip_graph_replay_finite_u8_pack_gemm_export",
     "hip_graph_replay_resident_rns_chain",
+    "hip_graph_replay_wrap64_pack_gemm_export",
     "internal_wrap64_rocwmma_candidate",
     "persistent_resident_matrices",
     "public_oneshot_transient_native_inputs",
@@ -26,6 +30,7 @@ inline constexpr std::array<std::string_view, 20> benchmark_execution_modes{{
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_ab_inputs",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
+    "vector_native_host_export_repack_direct_rns_chain",
     "vector_native_to_direct_rns_chain"
 }};
 
@@ -35,10 +40,12 @@ inline constexpr std::array<std::string_view, 3> grouped_dispatch_statuses{{
     "not_requested"
 }};
 
-inline constexpr std::array<std::string_view, 7> grouped_dispatch_execution_strategies{{
+inline constexpr std::array<std::string_view, 9> grouped_dispatch_execution_strategies{{
     "device_grouped_exact_wide_export_kernel_batched_d2h",
     "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
+    "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h",
     "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
+    "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h",
     "device_grouped_pack_gemm_host_exports",
     "host_phase_loop_batched_exact_wide_export_d2h",
     "host_phase_loop_per_task_export",
@@ -82,7 +89,7 @@ inline constexpr std::array<std::string_view, 9> pack_layouts{{
     "wrap64_byte_limb_planes"
 }};
 
-inline constexpr std::array<std::string_view, 12> gpu_event_source_scopes{{
+inline constexpr std::array<std::string_view, 14> gpu_event_source_scopes{{
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
     "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -90,6 +97,8 @@ inline constexpr std::array<std::string_view, 12> gpu_event_source_scopes{{
     "direct_hip_native_to_rns_bridge_default_stream_operation_groups",
     "direct_hip_oneshot_default_stream_operation_groups",
     "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
+    "direct_hip_streaming_overlap_multistream_operation_groups",
+    "direct_hip_vector_native_host_repack_chain_default_stream_operation_groups",
     "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
     "hipblaslt_baseline_default_stream_backend_operation_groups",
@@ -97,7 +106,49 @@ inline constexpr std::array<std::string_view, 12> gpu_event_source_scopes{{
     "vector_alu_default_stream_native_int64_operation_groups"
 }};
 
-inline constexpr std::array<std::string_view, 51> selected_kernels{{
+inline constexpr std::array<std::string_view, 4> epilogue_types{{
+    "canonical_u8_export",
+    "crt_export",
+    "low64_wrap_export",
+    "residue_current_rns_output"
+}};
+
+inline constexpr std::array<std::string_view, 15> backend_epilogue_modes{{
+    "ck_fused_i32_to_centered_residue_rns_output",
+    "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "ck_fused_i32_to_centered_residue_then_crt_export",
+    "direct_int64_export",
+    "fused_centered_residue_then_crt_export",
+    "low64_wrap_export",
+    "native_i64_u64_export",
+    "native_input_centered_residue_rns_output",
+    "native_input_centered_residue_then_crt_export",
+    "rocwmma_fused_i32_to_centered_residue_rns_output",
+    "rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+    "separate_i32_scratch_reduce_rns_output",
+    "separate_i32_scratch_reduce_then_canonical_u8_export",
+    "separate_i32_scratch_reduce_then_crt_export"
+}};
+
+inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
+    "direct_hip_finite_modulus_251_fixed_reducer_v1",
+    "direct_hip_finite_modulus_255_fixed_reducer_v1",
+    "direct_hip_finite_modulus_256_fixed_reducer_v1",
+    "direct_hip_fixed_prefix_1_generated_reducer_v1",
+    "direct_hip_fixed_prefix_20_generated_reducer_v1",
+    "direct_hip_fixed_prefix_2_generated_reducer_v1",
+    "direct_hip_fixed_prefix_3_generated_reducer_v1",
+    "direct_hip_fixed_prefix_4_generated_reducer_v1",
+    "direct_hip_fixed_prefix_5_generated_reducer_v1",
+    "direct_hip_fixed_prefix_6_generated_reducer_v1",
+    "direct_hip_fixed_prefix_7_generated_reducer_v1",
+    "direct_hip_fixed_prefix_8_generated_reducer_v1",
+    "direct_hip_fixed_prefix_9_generated_reducer_v1",
+    "not_applicable"
+}};
+
+inline constexpr std::array<std::string_view, 52> selected_kernels{{
     "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
@@ -105,6 +156,7 @@ inline constexpr std::array<std::string_view, 51> selected_kernels{{
     "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
     "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
     "cpu_reference",
+    "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_native_a_finite_u8_gemm_mod251_v1",
     "direct_hip_native_a_finite_u8_gemm_mod255_v1",
     "direct_hip_native_a_finite_u8_gemm_mod256_v1",

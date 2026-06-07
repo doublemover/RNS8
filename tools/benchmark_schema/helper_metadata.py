@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from metadata_registry_constants import (
@@ -18,11 +17,7 @@ from metadata_registry_constants import (
     TARGET_NAMESPACES,
 )
 
-
-GENERATED_REDUCER_RE = re.compile(
-    r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
-    r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
-)
+from .core_shared import GENERATED_REDUCER_RE
 
 
 def _is_int(value: Any) -> bool:
@@ -245,6 +240,9 @@ def validate_helper_lane_metadata(self: Any) -> None:
             "workload_proxy",
             "release_gate",
             "verification_amortization",
+            "error_detection_policy",
+            "cpu_small_shape_selector",
+            "incremental_result_cache",
         ]
     )
     if (
@@ -271,6 +269,12 @@ def validate_helper_lane_metadata(self: Any) -> None:
             for key in ["review_group_key", "configured_amdgpu_targets"]:
                 if not isinstance(target_variant.get(key), str):
                     self._error(f"target_variant.{key} must be a string")
+            for key in ["target_arch", "target_cache_key", "target_instance_id", "device_name"]:
+                if key in target_variant and not isinstance(target_variant.get(key), str):
+                    self._error(f"target_variant.{key} must be a string")
+            for key in ["device_index", "visible_device_count", "node_gpu_count"]:
+                if key in target_variant and not _is_int(target_variant.get(key)):
+                    self._error(f"target_variant.{key} must be an integer")
 
     auto_selector = self.data.get("auto_selector")
     if auto_selector is not None:

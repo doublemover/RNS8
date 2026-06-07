@@ -122,8 +122,22 @@ void capture_schedule_info(rns8_plan* plan, BenchmarkResult& result) {
         if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
           ++result.zero_output_tile_count;
           result.zero_output_selected_residue_plane_count += entry.selected_prefix;
+          continue;
+        }
+        result.adaptive_grouped_independent_launch_count += entry.selected_prefix;
+      }
+      if (result.schedule_info.max_selected_prefix != 0) {
+        result.adaptive_grouped_active_prefix_count = result.schedule_info.max_selected_prefix;
+        for (uint32_t p = 0; p < result.schedule_info.max_selected_prefix; ++p) {
+          for (const auto& entry : entries) {
+            if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+              ++result.adaptive_grouped_active_entry_count;
+            }
+          }
         }
       }
+      result.adaptive_grouped_aggregate_launch_count =
+          result.adaptive_grouped_active_entry_count == 0 ? 0 : 1;
     }
   }
   const auto end = std::chrono::steady_clock::now();
@@ -145,7 +159,130 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
   update_result_target_id_from_key(result);
 }
 
-void capture_packing_and_lowering_info(rns8_plan* plan, BenchmarkResult& result) {
+std::string export_selector_key_for_capture(const Args& args, const rns8_plan& plan, const BenchmarkResult& result) {
+  std::string key = "semantics=" + result.export_semantic_contract;
+  key += ";backend=" + result.export_backend;
+  key += ";target_id=" + result.export_target_id;
+  key += ";prefix=" + std::to_string(plan.prefix);
+  key += ";limb_count=" + std::to_string(result.export_limb_count);
+  key += ";signedness=" + result.export_signedness;
+  key += ";output_layout=" + result.export_output_layout;
+  key += ";status_policy=" + result.export_selector_status_policy;
+  key += ";d2h_policy=" + result.export_d2h_policy;
+  key += ";final_output_mode=" + result.export_final_output_mode;
+  key += ";selected_kernel=" + (result.export_selected_kernel.empty() ? std::string("unknown")
+                                                                       : result.export_selected_kernel);
+  if (args.reconstruction_variant != "default_garner") {
+    key += ";reconstruction_variant=" + args.reconstruction_variant;
+  }
+  return key;
+}
+
+void apply_benchmark_export_selector_overlay(const Args& args, const rns8_plan& plan, BenchmarkResult& result) {
+  bool selector_key_needs_refresh = false;
+  if (exact_wide_benchmark_semantics(args.semantics) && !residue_current_output_mode(args) &&
+      args.output_ld_padding == 0) {
+    result.export_plan_source = "rns8_internal_export_plan_with_runtime_output_ld";
+    result.export_d2h_policy = "compact_contiguous";
+    result.export_cache_visibility = "selector_visible_runtime_contiguous_output";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_runtime_ld";
+    selector_key_needs_refresh = true;
+  }
+  if (residue_current_output_mode(args)) {
+    result.export_plan_source = "benchmark_residue_current_output_selector_overlay";
+    result.export_d2h_policy = "device_residue_current";
+    result.export_selector_status_policy = "none";
+    result.export_final_output_mode = "residue_chain_no_final_export";
+    result.export_status_elision_reason = "residue_current_output_defers_final_export";
+    result.export_cache_visibility = "selector_visible_residue_current_output";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_chain_mode";
+    selector_key_needs_refresh = true;
+  }
+  if (args.export_variant == "compact-d2h-export-candidate" && exact_wide_benchmark_semantics(args.semantics)) {
+    result.export_plan_source = "benchmark_export_selector_variant_overlay";
+    result.export_cache_visibility = "selector_visible_compact_d2h_candidate";
+    if (args.output_ld_padding == 0) {
+      result.export_stale_entry_reason =
+          "compact_d2h_candidate_matches_runtime_contiguous_default_no_policy_delta";
+    } else {
+      result.export_d2h_policy = "compact_contiguous";
+      result.export_stale_entry_reason =
+          "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_d2h_policy";
+    }
+    selector_key_needs_refresh = true;
+  } else if (
+      args.export_variant == "status-elided-exact-proof-export-candidate" &&
+      exact_wide_benchmark_semantics(args.semantics)) {
+    result.export_plan_source = "benchmark_export_selector_variant_overlay";
+    if (!exact_wide_export_status_check_required(args)) {
+      result.export_selector_status_policy = "none";
+      result.export_status_elision_reason = "exact_wide_requested_limb_count_covers_range_status";
+    } else {
+      result.export_selector_status_policy = "range_checked_status_buffer";
+      result.export_status_elision_reason = "status_elision_candidate_requires_limb_count_at_least_3";
+    }
+    result.export_cache_visibility = "selector_visible_status_elision_candidate";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_status_policy";
+    selector_key_needs_refresh = true;
+  } else if (
+      args.export_variant == "prefix20-fixed-export-candidate" && exact_wide_benchmark_semantics(args.semantics)) {
+    result.export_plan_source = "benchmark_export_selector_variant_overlay";
+    result.export_cache_visibility = "selector_visible_prefix20_fixed_export_candidate";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_prefix20";
+    selector_key_needs_refresh = true;
+  } else if (
+      args.export_variant == "tree-crt-export-candidate" || args.reconstruction_variant != "default_garner") {
+    result.export_plan_source = "benchmark_export_selector_variant_overlay";
+    result.export_cache_visibility = "selector_visible_reconstruction_variant_candidate";
+    if (args.reconstruction_variant == "tree_crt_candidate" && result.export_backend == "hip-direct") {
+      const std::string signedness = exact_wide_benchmark_semantics(args.semantics)
+                                         ? (args.semantics == BenchSemantics::ExactWideSigned ? "signed" : "unsigned")
+                                         : std::string("unknown");
+      result.export_selected_kernel =
+          "hip_direct_export_exact_wide_" + signedness + "_tree_crt_limbs_device";
+    }
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_reconstruction_variant";
+    selector_key_needs_refresh = true;
+  }
+  if (selector_key_needs_refresh) {
+    result.export_selector_key = export_selector_key_for_capture(args, plan, result);
+  }
+}
+
+void capture_export_plan_info(const Args& args, rns8_plan* plan, BenchmarkResult& result) {
+  const uint32_t limb_count = exact_wide_benchmark_semantics(args.semantics) ? args.exact_wide_limb_count : 0;
+  const rns8::detail::api::export_reconstruction_plan export_plan =
+      rns8::detail::api::make_export_plan(*plan, c_semantics(args.semantics), limb_count);
+  result.export_plan_info_available = true;
+  result.export_plan_source = "rns8_internal_export_plan";
+  result.export_output_layout = rns8::detail::api::export_output_layout_name(export_plan.output_layout);
+  result.export_selector_status_policy =
+      rns8::detail::api::export_status_policy_name(export_plan.status_policy);
+  result.export_d2h_policy = rns8::detail::api::export_d2h_policy_name(export_plan.d2h_policy);
+  result.export_selected_kernel = export_plan.selected_export_kernel ? export_plan.selected_export_kernel : "";
+  result.export_selector_key = export_plan.selector_key;
+  result.export_selector_policy = export_plan.selector_policy;
+  result.export_semantic_contract = export_plan.semantic_contract;
+  result.export_backend = export_plan.backend;
+  result.export_target_id = export_plan.target_id;
+  result.export_prefix_contract = export_plan.prefix_contract;
+  result.export_signedness = export_plan.signedness;
+  result.export_final_output_mode = export_plan.final_output_mode;
+  result.export_cache_visibility = export_plan.cache_visibility;
+  result.export_stale_entry_reason = export_plan.stale_entry_reason;
+  result.export_status_elision_reason = export_plan.status_elision_reason;
+  result.export_limb_count = export_plan.limb_count;
+  result.export_requires_tile_metadata = export_plan.requires_hip_tile_metadata;
+  result.export_all_zero_tiled_output = export_plan.all_zero_tiled_output;
+  apply_benchmark_export_selector_overlay(args, *plan, result);
+}
+
+void capture_packing_and_lowering_info(const Args& args, rns8_plan* plan, BenchmarkResult& result) {
   result.packing_info.struct_size = sizeof(result.packing_info);
   result.packing_info.abi_version = RNS8_ABI_VERSION;
   const rns8_status packing_status = rns8_get_plan_packing_info(plan, &result.packing_info);
@@ -158,6 +295,7 @@ void capture_packing_and_lowering_info(rns8_plan* plan, BenchmarkResult& result)
         rns8::detail::describe_plan_lowering(result.backend_info, result.packing_info, result.schedule_info);
     result.lowering_info_available = true;
   }
+  capture_export_plan_info(args, plan, result);
 }
 
 void append_accumulator_key_fields(std::ostringstream& out, const rns8_plan_backend_info& info) {

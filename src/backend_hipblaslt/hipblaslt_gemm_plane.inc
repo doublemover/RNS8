@@ -1,3 +1,5 @@
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+
 rns8_status run_reduce_block(
     int32_t* scratch,
     int8_t* residues,

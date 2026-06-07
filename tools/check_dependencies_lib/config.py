@@ -1,9 +1,23 @@
 from __future__ import annotations
 
-CORE_COMMANDS = ["cmake", "ninja", "git", "python", "vcpkg"]
+HOST_NEUTRAL_CORE_COMMANDS = ["cmake", "ninja", "git", "python"]
+WINDOWS_CORE_COMMANDS = ["vcpkg"]
+CORE_COMMANDS = HOST_NEUTRAL_CORE_COMMANDS + WINDOWS_CORE_COMMANDS
 WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
 LINUX_ROCM_COMMANDS = ["hipcc", "hipconfig", "rocminfo"]
 LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
+LINUX_TOPOLOGY_COMMANDS = ["numactl", "lstopo"]
+LINUX_PROFILER_COMMANDS = ["rocprofv3", "rocprofv3-avail"]
+LINUX_BANDWIDTH_COMMANDS = ["rocm-bandwidth-test"]
+RCCL_TEST_COMMANDS = ["all_reduce_perf", "all_gather_perf", "broadcast_perf", "reduce_scatter_perf"]
+LINUX_READINESS_COMMANDS = (
+    LINUX_ROCM_COMMANDS
+    + LINUX_SMI_COMMANDS
+    + LINUX_TOPOLOGY_COMMANDS
+    + LINUX_PROFILER_COMMANDS
+    + LINUX_BANDWIDTH_COMMANDS
+    + RCCL_TEST_COMMANDS
+)
 PYTHON_PACKAGES = ["numpy", "pandas", "matplotlib", "pytest", "scipy"]
 CORE_VCPKG_PACKAGES = ["boost-multiprecision", "catch2", "nlohmann-json"]
 OPTIONAL_CPP_PACKAGES = ["gmp", "flint", "ntl", "fflas-ffpack", "linbox"]

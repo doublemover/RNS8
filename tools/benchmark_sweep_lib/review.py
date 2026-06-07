@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,28 @@ def required_baselines(semantics: Any) -> list[str]:
     if semantics == "wrap_u64_mod_2_64":
         return ["wrap64-byte-limb", "hip-direct"]
     return []
+
+
+REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
+GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
+
+
+def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
+    if not items:
+        return False
+    if not all(capture_pack_mode(item) != "per_repeat_repack" for item in items):
+        return False
+    scopes = {capture_scenario_promotion_scope(item) for item in items}
+    return bool(scopes & REUSE_EVIDENCE_PROMOTION_SCOPES)
+
+
+def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) -> list[str]:
+    if reuse_evidence_group(items):
+        return []
+    scopes = {capture_scenario_promotion_scope(item) for item in items}
+    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES:
+        return []
+    return required_baselines(semantics)
 
 
 def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any]:
@@ -226,6 +249,28 @@ def capture_gpu_events_available(capture: dict[str, Any]) -> bool:
     )
 
 
+def capture_scenario_promotion_scope(capture: dict[str, Any]) -> str | None:
+    scenario = capture.get("scenario_metadata")
+    if not isinstance(scenario, dict):
+        return None
+    eligibility = scenario.get("promotion_eligibility")
+    if isinstance(eligibility, str) and eligibility:
+        return eligibility
+    metadata = scenario.get("metadata")
+    if isinstance(metadata, dict):
+        scope = metadata.get("promotion_scope")
+        if isinstance(scope, str) and scope:
+            return scope
+    return None
+
+
+def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
+    scope = capture_scenario_promotion_scope(capture)
+    if scope is None or scope == "release_review_candidate":
+        return []
+    return ["scenario_scope_not_autotune_promotable"]
+
+
 def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
@@ -242,7 +287,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         duplicate_backends = sorted(backend for backend, count in backend_counts.items() if count > 1)
         by_backend = {backend_id(item): item for item in items}
         semantics = items[0].get("semantics")
-        required = required_baselines(semantics)
+        required = required_baselines_for_group(semantics, items)
         missing = [backend for backend in required if backend not in by_backend]
         cpu_capture = by_backend.get("cpu-reference")
         direct_capture = by_backend.get("hip-direct")
@@ -331,6 +376,13 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         repeat_count_values = {count for count in repeat_counts.values() if count}
         repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
+        scenario_promotion_scopes = sorted(
+            {
+                scope
+                for item in items
+                if (scope := capture_scenario_promotion_scope(item)) is not None
+            }
+        )
         candidates = []
         for item in items:
             backend = backend_id(item)
@@ -380,12 +432,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
             )
+            blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
             candidate = {
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
                 "source_metadata": candidate_source_metadata(item),
+                "scenario_promotion_scope": capture_scenario_promotion_scope(item),
                 "accelerator_backend": accelerator,
                 "release_review_capture": release_capture_satisfied(item),
                 "median_end_to_end_us": end_to_end,
@@ -484,6 +538,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "repeat_count_complete": repeat_count_complete,
                 "repeat_count_compatible": repeat_count_compatible,
                 "duplicate_backends": duplicate_backends,
+                "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
                 "candidates": candidates,
@@ -515,6 +570,19 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     medians = capture.get("timing_summary_us") if isinstance(capture.get("timing_summary_us"), dict) else {}
     schedule = capture.get("schedule_metadata") if isinstance(capture.get("schedule_metadata"), dict) else {}
     tile_bounds = capture.get("tile_bounds_u64") if isinstance(capture.get("tile_bounds_u64"), dict) else {}
+    export_variant = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    reconstruction_variant = (
+        capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+    )
+    export_variant_name = str(export_variant.get("name") or "default")
+    reconstruction_variant_name = str(reconstruction_variant.get("name") or "default_garner")
+    export_selector_key = export_variant.get("selector_key")
+    export_selector_hash = (
+        hashlib.sha256(export_selector_key.encode("utf-8")).hexdigest()[:16]
+        if isinstance(export_selector_key, str) and export_selector_key
+        else None
+    )
+    default_export_contract = export_variant_name == "default" and reconstruction_variant_name == "default_garner"
     selected_prefix = capture.get("selected_prefix", schedule.get("max_selected_prefix"))
     requested_max_prefix = capture.get("requested_max_prefix", capture.get("prefix"))
     prefix_policy = capture.get("contract_prefix_policy", "legacy_v4_unspecified")
@@ -536,6 +604,13 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     hip_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
     version = metadata.get("accelerator_version") or hip_toolchain.get("hip_sdk_or_rocm_version") or "unknown"
+    key = metadata.get("autotune_key")
+    if isinstance(key, str) and key and not default_export_contract and export_selector_hash:
+        key = (
+            f"{key};export_variant={export_variant_name};"
+            f"reconstruction_variant={reconstruction_variant_name};"
+            f"export_selector_hash={export_selector_hash}"
+        )
 
     def median(phase: str) -> float:
         item = medians.get(phase) if isinstance(medians, dict) else None
@@ -544,7 +619,7 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         return 0.0
 
     return {
-        "key": metadata.get("autotune_key"),
+        "key": key,
         "selected_backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "target_id": normalized_target_id(device.get("gcn_arch")) or "cpu",
@@ -560,6 +635,14 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "epilogue": metadata.get("epilogue_mode"),
         "kernel_family": metadata.get("selected_kernel") or capture.get("selected_kernel"),
         "workspace_bytes": metadata.get("workspace_required_bytes", 0),
+        "export_variant": export_variant_name,
+        "reconstruction_variant": reconstruction_variant_name,
+        "export_selector_key": export_selector_key,
+        "export_selector_hash": export_selector_hash,
+        "export_selector_policy": export_variant.get("selector_policy"),
+        "export_cache_visibility": export_variant.get("cache_visibility"),
+        "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
+        "cache_scope": "runtime_exact_autotune" if default_export_contract else "selector_review_only_non_default",
         "measured_medians_us": {
             "pack": median("pack"),
             "rns_gemm": median("rns_gemm"),

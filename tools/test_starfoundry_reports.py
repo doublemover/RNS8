@@ -29,6 +29,7 @@ FIXTURE_DIR = ROOT / "tests" / "fixtures" / "benchmark_schema"
 
 def starfoundry_capture() -> dict:
     capture = add_helper_lane_fields(copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_hipblaslt.json")))
+    capture.setdefault("target_id", "gfx1100")
     capture.setdefault("selected_prefix", capture["prefix"])
     capture.setdefault("requested_max_prefix", capture["prefix"])
     capture.setdefault("contract_prefix_policy", "fixed_requested")
@@ -66,8 +67,30 @@ def starfoundry_capture() -> dict:
     capture["export_variant"] = {
         "name": "default",
         "source": "current_backend_export_path",
+        "selector_source": "rns8_internal_export_plan",
+        "selector_key": (
+            f"semantics={capture['semantics']};backend={capture['backend_selected']};"
+            f"target_id={capture['target_id']};prefix={capture['selected_prefix']};limb_count=0;"
+            f"signedness=signed;output_layout=scalar_i64;status_policy=range_checked_status_buffer;"
+            f"d2h_policy=host_ld_padded;final_output_mode=final_host_output;selected_kernel={selected_kernel}"
+        ),
+        "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
+        "semantic_contract": capture["semantics"],
+        "backend": capture["backend_selected"],
+        "target_id": capture["target_id"],
+        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "signedness": "signed",
+        "output_layout": "scalar_i64",
         "limb_count": None,
         "status_policy": "required",
+        "selector_status_policy": "range_checked_status_buffer",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "exact_shape_selector_metadata_only",
+        "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
+        "status_elision_reason": None,
+        "requires_tile_metadata": False,
+        "all_zero_tiled_output": False,
         "selected_kernel": selected_kernel,
         "constants_placement": "backend_default",
         "promotion_eligible": True,
@@ -98,7 +121,10 @@ def starfoundry_capture() -> dict:
         "requested_prefix": capture["requested_max_prefix"],
         "selected_prefix": capture["selected_prefix"],
         "minimum_range_prefix": capture["schedule_metadata"]["min_required_prefix"],
-        "redundant_residue_count": 0,
+        "redundant_residue_count": max(
+            0,
+            capture["selected_prefix"] - capture["schedule_metadata"]["min_required_prefix"],
+        ),
         "autotune_scope": "current_exact_cache",
         "cache_promotion_blocker": None,
     }
@@ -107,9 +133,13 @@ def starfoundry_capture() -> dict:
         "tile_m": capture["tile_m"],
         "tile_n": capture["tile_n"],
         "tile_k": capture["k_block_size"],
+        "k_block_policy": "auto",
+        "split_k_mode": "single_gpu_no_split_k",
+        "accumulator_safety_key": f"k_block_size={capture['k_block_size']};k_block_cap=65536;safe_for_k_block=true",
         "selected_kernel_identity": selected_kernel,
         "resource_report_key": f"tile_m={capture['tile_m']};tile_n={capture['tile_n']};tile_k={capture['k_block_size']};kernel={selected_kernel}",
         "shape_family_bucket": "medium",
+        "resource_report_required": "isa_or_counter_for_non_default_k_block_policy",
         "stale_kernel_rejection": "selected_kernel_identity_must_match_capture",
     }
     capture["grouped_dispatch"] = {
@@ -150,17 +180,27 @@ def starfoundry_capture() -> dict:
         "strategy": "prefix_tile_zero_mask_grouped_descriptors",
         "descriptor_identity": "prefix=9;tile_m=128;tile_n=128;zero_tiles=0",
         "group_count": 1,
+        "active_prefix_count": capture["schedule_metadata"]["max_selected_prefix"],
         "active_tile_count": capture["schedule_metadata"]["tile_count"],
+        "active_entry_count": capture["schedule_metadata"]["tile_count"]
+        * capture["schedule_metadata"]["max_selected_prefix"],
         "zero_tile_count": 0,
+        "independent_launch_count_model": capture["schedule_metadata"]["tile_count"]
+        * capture["schedule_metadata"]["max_selected_prefix"],
+        "aggregate_launch_count_model": 1,
+        "launch_reduction_ratio": float(
+            capture["schedule_metadata"]["tile_count"] * capture["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat",
         "selected_prefix_histogram": "min=9;max=9",
-        "capture_status": "metadata_only_unsupported_for_execution_path",
-        "unsupported_reason": "adaptive_grouped_scheduler_not_executed_by_current_path",
+        "capture_status": "executed",
+        "unsupported_reason": None,
         "promotion_eligible": False,
     }
     capture["resident_lifetime"] = {
         "enabled": True,
         "matrix_roles": "A/B/C explicit benchmark resident roles",
-        "source_version_policy": "monotonic_per_import_or_pack",
+        "source_version_policy": "monotonic_per_import_pack_or_gemm_output_hash",
         "current_storage_state": "native_i64_u64_host",
         "output_domain": "native_i64_u64_host",
         "workspace_identity": "0B:resident_device_buffers",
@@ -174,6 +214,8 @@ def starfoundry_capture() -> dict:
         "high_water_mark_bytes": 0,
         "suballocation_count": 5,
         "measured_repeat_allocation_free": True,
+        "setup_allocation_delta": {"allocate_calls": 1, "free_calls": 0, "allocated_bytes": 4096},
+        "measured_repeat_allocation_delta": {"allocate_calls": 0, "free_calls": 0, "allocated_bytes": 0},
         "source_version_policy": "plan_target_backend_semantic_shape_prefix_output_policy",
         "stream_safety": "single_stream_owner",
         "promotion_eligible": False,
@@ -184,6 +226,13 @@ def starfoundry_capture() -> dict:
         "buffering": "double_buffered_benchmark_only",
         "dependency_contract": "pack_before_gemm;gemm_before_export;status_before_host_read;final_sync_before_checksum",
         "transfer_policy": "compact_or_padded_output_policy_declared_by_output_policy",
+        "stream_count": 0,
+        "buffer_count": 0,
+        "measured_repeat_count": 0,
+        "batch_wall_us": 0,
+        "per_repeat_pipeline_us": 0,
+        "explicit_dependency_events": False,
+        "stage_event_scope": "not_available",
         "capture_status": "metadata_only_unsupported_for_execution_path",
         "unsupported_reason": "streaming_overlap_not_executed_by_current_path",
         "promotion_eligible": False,
@@ -275,11 +324,71 @@ def main() -> int:
         ledger_entry = promotion_ledger.build_ledger([capture_path], cache_path)["entries"][0]
         assert ledger_entry["installed_cache_entry"] is True
         assert "hip_graph_replay_non_promoting" not in ledger_entry["promotion_blockers"]
+        shape_shadow_path = tmp / "shape-family-shadow-report.json"
+        shape_shadow_path.write_text(
+            json.dumps(
+                {
+                    "schema": "rns8_shape_family_shadow_report_v2",
+                    "policy": "non_routing_shape_family_recommendations_require_exact_review_before_AUTO",
+                    "boundary_fields": [
+                        "target_id",
+                        "target_family",
+                        "semantic_contract",
+                        "signedness",
+                        "finite_modulus",
+                        "layout",
+                        "output_contract",
+                        "export_selector",
+                        "limb_count",
+                    ],
+                    "recommendations": [
+                        {
+                            "basis_cache_key": capture["backend_metadata"]["autotune_key"],
+                            "would_recommend": True,
+                            "recommendation_is_exact_cache_hit": False,
+                            "runtime_routing_allowed": False,
+                            "promotion_eligible": False,
+                            "promotion_blockers": [
+                                "shape_family_shadow_only_no_routing_change",
+                                "exact_query_not_reviewed",
+                                "representative_matrix_requires_same_target_layout_contract_review",
+                            ],
+                            "rejected_boundary_candidates": [
+                                {
+                                    "basis_cache_key": capture["backend_metadata"]["autotune_key"],
+                                    "boundary_blockers": ["boundary_output_contract_mismatch"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        shadow_ledger = promotion_ledger.build_ledger(
+            [capture_path],
+            cache_path,
+            shape_family_shadow_reports=[shape_shadow_path],
+        )
+        shadow_entry = shadow_ledger["entries"][0]
+        assert shadow_ledger["shape_family_shadow_report_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["non_exact_recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["blocked_recommendation_count"] == 1
+        assert shadow_ledger["shape_family_shadow_summary"]["boundary_rejected_recommendation_count"] == 1
+        assert shadow_entry["shape_family_recommendation_status"] == "exact_cache_entry_shadow_basis_non_routing"
+        assert shadow_entry["shape_family_shadow_query_count"] == 1
+        assert "exact_query_not_reviewed" in shadow_entry["shape_family_shadow_blockers"]
         assert target_validation_report.build_report([capture_path])["capture_count"] == 1
-        assert tile_shape_report.build_report([capture_path])["groups"][0]["rows"][0]["variant_name"]
+        tile_report = tile_shape_report.build_report([capture_path])
+        assert tile_report["capture_count"] == 1
+        assert tile_report["candidate_count"] == 0
         assert many_small_grouped_report.build_report([capture_path])["groups"][0]["rows"][0]["mode"] == "grouped_dispatch"
         assert fhe_workload_report.build_report([capture_path])["groups"][0]["rows"][0]["family"] == "fhe_lattice_proxy"
-        assert resident_workspace_report.build_report([capture_path])["rows"][0]["arena_enabled"] is True
+        resident_report = resident_workspace_report.build_report([capture_path])
+        assert resident_report["rows"][0]["arena_enabled"] is True
+        assert resident_report["arena_ready_count"] == 1
+        assert "measured_repeat_allocation_delta_nonzero" not in resident_report["rows"][0]["promotion_blockers"]
         assert scheduler_overlap_report.build_report([capture_path])["rows"][0]["overlap_requested"] is True
         release_report = release_gate_report.build_report([capture_path])
         assert release_report["schema"] == "rns8_release_gate_report_v2"
@@ -347,6 +456,18 @@ def main() -> int:
         assert reviewed_entry["performance_validated"] is True
         assert reviewed_entry["speedup_margin"] == 1.5
         assert reviewed_entry["promotion_blockers"] == []
+        selector_review_capture = copy.deepcopy(reviewed_capture)
+        selector_review_capture["export_variant"]["name"] = "compact-d2h-export-candidate"
+        selector_review_capture["export_variant"]["promotion_eligible"] = False
+        selector_review_capture["export_variant"]["promotion_blocker"] = "experimental_export_variant"
+        selector_review_capture["export_variant"]["selector_key"] += ";export_variant=compact-d2h-export-candidate"
+        selector_review_path = tmp / "selector-review-only.json"
+        selector_review_path.write_text(json.dumps(selector_review_capture), encoding="utf-8")
+        selector_review_ledger = promotion_ledger.build_ledger([selector_review_path], cache_path)
+        selector_review_entry = selector_review_ledger["entries"][0]
+        assert selector_review_entry["cache_scope"] == "selector_review_only_non_default"
+        assert "selector_review_only_not_runtime_cache_route" in selector_review_entry["promotion_blockers"]
+        assert "export_selector_contract_mismatch" in selector_review_entry["stale_invalidation_reasons"]
         failure_path = tmp / "starfoundry-cpu.failed.json"
         failure_path.write_text(
             json.dumps(

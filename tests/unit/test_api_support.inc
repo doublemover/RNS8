@@ -185,6 +185,18 @@ rns8_matrix_storage_info matrix_storage_info(const rns8_matrix* matrix) {
   return info;
 }
 
+rns8_resident_lifetime_info resident_lifetime_info(
+    const rns8_matrix* matrix,
+    const rns8_plan* plan,
+    const rns8_workspace* workspace,
+    rns8_resident_matrix_role role) {
+  rns8_resident_lifetime_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_resident_lifetime_info(matrix, plan, workspace, role, &info) == RNS8_SUCCESS);
+  return info;
+}
+
 rns8_prepack_cache_key_info prepack_cache_key_info(
     const rns8_plan* plan,
     const rns8_matrix* matrix,

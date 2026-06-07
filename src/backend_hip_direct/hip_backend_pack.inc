@@ -460,3 +460,100 @@ rns8_status hip_direct_pack_finite_u8_device(
 #endif
 }
 
+rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
+    int device_id,
+    const uint8_t* src_slab,
+    void* device_src_slab,
+    std::size_t device_src_slab_bytes,
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    rns8_semantics expected_semantics,
+    const void* device_residue_ptrs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint16_t modulus,
+    uint64_t first_source_version) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, 1) ||
+      !checked_grouped_source_versions(first_source_version, task_count) ||
+      !valid_finite_modulus_for_semantics(expected_semantics, modulus)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  std::size_t source_bytes = 0;
+  int64_t source_task_stride = 0;
+  if (!checked_grouped_source_bytes(task_count, rows, ld, sizeof(uint8_t), &source_bytes, &source_task_stride) ||
+      device_src_slab_bytes < source_bytes) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  int matrix_device_id = -1;
+  uint32_t matrix_prefix = 0;
+  rns8_status status = validate_grouped_rns_matrices(
+      matrices,
+      task_count,
+      expected_semantics,
+      rows,
+      cols,
+      false,
+      &matrix_device_id,
+      &matrix_prefix,
+      nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (matrix_device_id != device_id || matrix_prefix != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
+    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+  });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  err = timed_hip_operation("finite_pack_kernel", [&]() {
+    const int code = rns8_hip_direct_pack_u8_grouped_modulus_device(
+        static_cast<const uint8_t*>(device_src_slab),
+        static_cast<int8_t* const*>(const_cast<void*>(device_residue_ptrs)),
+        static_cast<int>(task_count),
+        source_task_stride,
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(ld),
+        static_cast<int>(modulus));
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
+  if (err != hipSuccess) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  for (uint32_t index = 0; index < task_count; ++index) {
+    rns8_matrix* matrix = matrices[index];
+    mark_device_residue_output_current(matrix);
+    matrix->finite_modulus = modulus;
+    matrix->source_version = first_source_version + static_cast<uint64_t>(index);
+  }
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)src_slab;
+  (void)device_src_slab;
+  (void)device_src_slab_bytes;
+  (void)matrices;
+  (void)task_count;
+  (void)expected_semantics;
+  (void)device_residue_ptrs;
+  (void)rows;
+  (void)cols;
+  (void)ld;
+  (void)modulus;
+  (void)first_source_version;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+

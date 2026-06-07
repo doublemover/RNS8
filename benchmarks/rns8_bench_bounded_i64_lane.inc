@@ -27,7 +27,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   enforce_per_tile_capture_contract(args, result);
   apply_bounded_native_a_reuse_b_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
@@ -52,14 +52,19 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_matrix* a_stream_matrix = nullptr;
+  rns8_matrix* c_stream_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
   rns8_prepack_cache* b_prepack_cache = nullptr;
+  rns8_result_cache* result_cache = nullptr;
+  std::vector<rns8_dirty_region> result_cache_dirty_regions;
   DeviceBuffer native_a;
   DeviceBuffer uniform_small_a_device;
   DeviceBuffer uniform_small_b_device;
@@ -99,10 +104,29 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
     if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
   }
-  const auto alloc_end = std::chrono::steady_clock::now();
-  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
   const bool skip_all_zero_direct_hip_input_pack =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend);
+  const bool streaming_overlap_path =
+      streaming_overlap_supported(args, result, selected_backend, ldc) && !use_native_a_reuse_b &&
+      !use_uniform_small_i8_ab_transient && !use_uniform_small_i8_ab_reuse_a &&
+      !use_uniform_small_i8_ab_reuse_b && !skip_all_zero_direct_hip_input_pack;
+  if (streaming_overlap_path) {
+    status = rns8_create_matrix(ctx, &a_desc, &a_stream_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A streaming buffer)", status);
+    status = rns8_create_matrix(ctx, &c_desc, &c_stream_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C streaming buffer)", status);
+  }
+  const bool use_result_cache_candidate =
+      incremental_result_cache_runtime_candidate_requested(args, selected_backend) &&
+      !use_native_a_reuse_b && !use_uniform_small_i8_ab_transient &&
+      !use_uniform_small_i8_ab_reuse_a && !use_uniform_small_i8_ab_reuse_b &&
+      !streaming_overlap_path && !skip_all_zero_direct_hip_input_pack;
+  if (use_result_cache_candidate) {
+    result_cache = create_benchmark_result_cache(ctx, plan);
+    result_cache_dirty_regions.push_back(benchmark_incremental_result_cache_dirty_region(args));
+  }
+  const auto alloc_end = std::chrono::steady_clock::now();
+  result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_transient) {
@@ -338,17 +362,37 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
       }
     } else {
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
+        const rns8_dirty_region* dirty_regions =
+            result_cache ? result_cache_dirty_regions.data() : nullptr;
+        const uint32_t dirty_region_count =
+            result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
         status = run_rns_gemm_with_optional_b_cache(
-            ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace);
+            ctx,
+            plan,
+            lhs_matrix,
+            b_matrix,
+            b_prepack_cache,
+            out_matrix,
+            workspace,
+            result_cache,
+            dirty_regions,
+            dirty_region_count);
         if (status != RNS8_SUCCESS) {
-          fail_status(b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns", status);
+          fail_status(
+              result_cache ? "rns8_gemm_rns_incremental"
+                           : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+              status);
         }
         final_output_matrix = out_matrix;
         lhs_matrix = out_matrix;
         out_matrix = out_matrix == c_matrix ? scratch_matrix : c_matrix;
       }
       if (collect_gpu_events) {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+        if (result_cache) {
+          collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
+        } else {
+          collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+        }
       }
     }
     latest_output_matrix = final_output_matrix;
@@ -379,9 +423,48 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     }
   };
 
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
+    run_hip_graph_replay_bounded_pack_gemm_export(
+        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, bound, latest_output_matrix);
+  } else if (hip_graph_replay_requested(args)) {
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+  } else if (streaming_overlap_path) {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_bounded_streaming_overlap_pipeline(
+          args,
+          result,
+          plan,
+          a_matrix,
+          a_stream_matrix,
+          b_matrix,
+          c_matrix,
+          c_stream_matrix,
+          A,
+          C,
+          bound,
+          static_cast<uint64_t>(r) + 1,
+          1,
+          false);
+    }
+    record_allocation_after_warmups(result);
+    run_bounded_streaming_overlap_pipeline(
+        args,
+        result,
+        plan,
+        a_matrix,
+        a_stream_matrix,
+        b_matrix,
+        c_matrix,
+        c_stream_matrix,
+        A,
+        C,
+        bound,
+        static_cast<uint64_t>(args.warmups) + 1,
+        args.repeats,
+        result.gpu_events.requested);
+    record_allocation_after_repeats(result);
+    latest_output_matrix = c_matrix;
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
@@ -390,23 +473,44 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     for (uint32_t r = 0; r < args.repeats; ++r) {
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
+    record_allocation_after_repeats(result);
   }
   if (chain_residue_output) {
     status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(final chain checksum)", status);
   }
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
+  if (result_cache) {
+    capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
+    pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
+    const rns8_status stale_status =
+        rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    if (stale_status == RNS8_SUCCESS) {
+      fail_status("rns8_gemm_rns_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
+    }
+    capture_incremental_result_cache_stale_rejection(result, result_cache);
+  }
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
     if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
   }
+  if (result_cache) {
+    status = rns8_destroy_result_cache(result_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
+  }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);
+  }
+  if (c_stream_matrix) {
+    rns8_destroy_matrix(c_stream_matrix);
   }
   rns8_destroy_matrix(c_matrix);
   if (b_matrix) {
     rns8_destroy_matrix(b_matrix);
+  }
+  if (a_stream_matrix) {
+    rns8_destroy_matrix(a_stream_matrix);
   }
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);

@@ -3,10 +3,72 @@
   "family": "finite-modulus-map",
   "items": [
     {
+      "name": "finite-ring-map-128",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-map-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "finite-ring u8 modulus map over hot and generic byte moduli",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "maps small-shape prime, composite, and power-of-two ring behavior without assuming hot-modulus kernels generalize",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 243, 251, 253, 255, 256],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "finite_modulus_map_128",
+        "modulus_role": "prime_composite_power_of_two_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "mixed"
+      }
+    },
+    {
+      "name": "finite-field-prime-map-128",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-map-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "finite-field u8 prime modulus map",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps small-shape prime-field behavior separate from composite finite-ring captures",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 251],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "prime_field_u8",
+        "shape_family": "finite_modulus_map_128",
+        "modulus_role": "prime_field_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "prime"
+      }
+    },
+    {
       "name": "finite-ring-map-512",
       "semantics": "finite-u8-ring",
       "case": {
-        "name": "finite-generic-512",
+        "name": "finite-map-512",
         "m": 512,
         "n": 512,
         "k": 512,
@@ -15,29 +77,19 @@
         "bound_mode": "global",
         "input_profile": "uniform-small",
         "require_adaptive": false,
-        "promotable": true
+        "promotable": false
       },
       "evidence_scope": "finite-ring u8 modulus map over hot and generic byte moduli",
       "output_domain": "finite_u8_canonical_host_export",
-      "rationale": "maps prime/composite and power-of-two behavior without assuming the hot-modulus kernels generalize",
-      "backends": [
-        "cpu",
-        "hip-direct",
-        "ck",
-        "rocwmma"
-      ],
-      "review_mode_expectation": "smoke",
+      "rationale": "maps medium-shape prime, composite, and power-of-two ring behavior without assuming hot-modulus kernels generalize",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "non_promoting_modulus_map",
-      "finite_moduli": [
-        127,
-        241,
-        243,
-        251,
-        253,
-        255,
-        256
-      ],
+      "finite_moduli": [127, 241, 243, 251, 253, 255, 256],
       "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "finite_modulus_map_512",
         "modulus_role": "prime_composite_power_of_two_map",
         "promotion_scope": "non_promoting_modulus_map",
         "prime_or_composite": "mixed"
@@ -47,7 +99,7 @@
       "name": "finite-field-prime-map-512",
       "semantics": "finite-u8-field",
       "case": {
-        "name": "finite-generic-512",
+        "name": "finite-map-512",
         "m": 512,
         "n": 512,
         "k": 512,
@@ -56,28 +108,148 @@
         "bound_mode": "global",
         "input_profile": "uniform-small",
         "require_adaptive": false,
-        "promotable": true
+        "promotable": false
       },
       "evidence_scope": "finite-field u8 prime modulus map",
       "output_domain": "finite_u8_canonical_host_export",
-      "rationale": "keeps prime field behavior separate from composite finite-ring captures",
-      "backends": [
-        "cpu",
-        "hip-direct",
-        "ck",
-        "rocwmma"
-      ],
-      "review_mode_expectation": "smoke",
+      "rationale": "keeps medium-shape prime-field behavior separate from composite finite-ring captures",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
       "promotion_eligibility": "non_promoting_modulus_map",
-      "finite_moduli": [
-        127,
-        241,
-        251
-      ],
+      "finite_moduli": [127, 241, 251],
       "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "prime_field_u8",
+        "shape_family": "finite_modulus_map_512",
         "modulus_role": "prime_field_map",
         "promotion_scope": "non_promoting_modulus_map",
         "prime_or_composite": "prime"
+      }
+    },
+    {
+      "name": "finite-ring-map-1024",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-map-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "finite-ring u8 modulus map over hot and generic byte moduli",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "maps release-size prime, composite, and power-of-two ring behavior without assuming hot-modulus kernels generalize",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 243, 251, 253, 255, 256],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "finite_modulus_map_1024",
+        "modulus_role": "prime_composite_power_of_two_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "mixed"
+      }
+    },
+    {
+      "name": "finite-field-prime-map-1024",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-map-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "finite-field u8 prime modulus map",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps release-size prime-field behavior separate from composite finite-ring captures",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 251],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "prime_field_u8",
+        "shape_family": "finite_modulus_map_1024",
+        "modulus_role": "prime_field_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "prime"
+      }
+    },
+    {
+      "name": "finite-ring-map-2048",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-map-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-ring u8 modulus map over hot and generic byte moduli",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "maps large-shape prime, composite, and power-of-two ring behavior without assuming hot-modulus kernels generalize",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 243, 251, 253, 255, 256],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "finite_modulus_map_2048",
+        "modulus_role": "prime_composite_power_of_two_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "mixed",
+        "large_shape_role": "finite_modulus_map"
+      }
+    },
+    {
+      "name": "finite-field-prime-map-2048",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-map-2048",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "large finite-field u8 prime modulus map",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps large-shape prime-field behavior separate from composite finite-ring captures",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "non_promoting_modulus_map",
+      "finite_moduli": [127, 241, 251],
+      "metadata": {
+        "workflow_name": "finite_u8_modulus_family_map",
+        "domain_family": "prime_field_u8",
+        "shape_family": "finite_modulus_map_2048",
+        "modulus_role": "prime_field_map",
+        "promotion_scope": "non_promoting_modulus_map",
+        "prime_or_composite": "prime",
+        "large_shape_role": "finite_modulus_map"
       }
     }
   ]

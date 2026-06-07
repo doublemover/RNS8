@@ -11,7 +11,8 @@ hipError_t launch_finite_ring_fixed_modulus_gemm(
     int ldc,
     int safe_k_block,
     dim3 grid,
-    dim3 block) {
+    dim3 block,
+    hipStream_t stream) {
   hipError_t err = hipSuccess;
   int k_offset = 0;
   int accumulate = 0;
@@ -23,7 +24,7 @@ hipError_t launch_finite_ring_fixed_modulus_gemm(
         grid,
         block,
         0,
-        nullptr,
+        stream,
         d_a,
         d_b,
         d_c,
@@ -42,6 +43,120 @@ hipError_t launch_finite_ring_fixed_modulus_gemm(
   return err;
 }
 
+template <int Modulus>
+hipError_t launch_finite_ring_grouped_fixed_modulus_gemm(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block,
+    dim3 grid,
+    dim3 block,
+    hipStream_t stream) {
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_finite_ring_gemm_i8_i32_grouped_fixed_modulus_kernel<Modulus>),
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a_ptrs,
+        d_b_ptrs,
+        d_c_ptrs,
+        task_count,
+        m,
+        n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return err;
+}
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block,
+    void* stream) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus < 2 ||
+      modulus > 256 || modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
+  if (modulus == 256) {
+    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<256>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, hip_stream));
+  }
+  if (modulus == 255) {
+    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<255>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, hip_stream));
+  }
+  if (modulus == 251) {
+    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<251>(
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, hip_stream));
+  }
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_ring_gemm_i8_i32_tiled_kernel,
+        grid,
+        block,
+        0,
+        hip_stream,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        modulus,
+        modulus_reciprocal,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
 extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -55,25 +170,37 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     int modulus,
     uint32_t modulus_reciprocal,
     int safe_k_block) {
-  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || modulus < 2 ||
-      modulus > 256 || modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+  return rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+      d_a, d_b, d_c, m, n, k, lda, ldb, ldc, modulus, modulus_reciprocal, safe_k_block, nullptr);
+}
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      region_row_offset < 0 || region_col_offset < 0 || region_rows <= 0 || region_cols <= 0 ||
+      region_row_offset > m || region_col_offset > n || region_rows > m - region_row_offset ||
+      region_cols > n - region_col_offset || modulus < 2 || modulus > 256 ||
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
       safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   const dim3 block(kRns8HipTileN, kRns8HipTileM);
-  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
-  if (modulus == 256) {
-    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<256>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
-  }
-  if (modulus == 255) {
-    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<255>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
-  }
-  if (modulus == 251) {
-    return static_cast<int>(launch_finite_ring_fixed_modulus_gemm<251>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
-  }
+  const dim3 grid((region_cols + block.x - 1) / block.x, (region_rows + block.y - 1) / block.y);
   hipError_t err = hipSuccess;
   int k_offset = 0;
   int accumulate = 0;
@@ -81,7 +208,7 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     const int k_remaining = k - k_offset;
     const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
     hipLaunchKernelGGL(
-        rns8_ring_gemm_i8_i32_tiled_kernel,
+        rns8_ring_gemm_i8_i32_region_kernel,
         grid,
         block,
         0,
@@ -91,6 +218,79 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
         d_c,
         m,
         n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        region_row_offset,
+        region_col_offset,
+        region_rows,
+        region_cols,
+        modulus,
+        modulus_reciprocal,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block) {
+  if (!d_a_ptrs || !d_b_ptrs || !d_c_ptrs || task_count <= 0 || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || modulus < 2 || modulus > 256 ||
+      modulus_reciprocal != rns8_modulus_reciprocal_host(modulus) ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y, task_count);
+  if (modulus == 256) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<256>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
+  }
+  if (modulus == 255) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<255>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
+  }
+  if (modulus == 251) {
+    return static_cast<int>(launch_finite_ring_grouped_fixed_modulus_gemm<251>(
+        d_a_ptrs, d_b_ptrs, d_c_ptrs, task_count, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
+  }
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_finite_ring_gemm_i8_i32_grouped_modulus_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a_ptrs,
+        d_b_ptrs,
+        d_c_ptrs,
+        task_count,
+        m,
+        n,
+        k,
         k_offset,
         k_block,
         lda,
@@ -119,7 +319,8 @@ hipError_t launch_finite_ring_native_fixed_modulus_gemm(
     int ldc,
     int safe_k_block,
     dim3 grid,
-    dim3 block) {
+    dim3 block,
+    hipStream_t stream) {
   hipError_t err = hipSuccess;
   int k_offset = 0;
   int accumulate = 0;
@@ -131,7 +332,7 @@ hipError_t launch_finite_ring_native_fixed_modulus_gemm(
         grid,
         block,
         0,
-        nullptr,
+        stream,
         d_a,
         d_b,
         d_c,
@@ -172,15 +373,15 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
   const dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
   if (modulus == 256) {
     return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<256>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
   }
   if (modulus == 255) {
     return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<255>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
   }
   if (modulus == 251) {
     return static_cast<int>(launch_finite_ring_native_fixed_modulus_gemm<251>(
-        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block));
+        d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block, grid, block, nullptr));
   }
   hipError_t err = hipSuccess;
   int k_offset = 0;

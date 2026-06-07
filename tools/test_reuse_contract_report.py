@@ -21,6 +21,8 @@ def capture(
     repeats: int = 9,
     warmups: int = 3,
     with_source_identity: bool = True,
+    with_reuse_contract: bool = True,
+    with_stale_source_rejection: bool = True,
 ) -> dict:
     reuse = pack_mode != "per_repeat_repack"
     operands = {
@@ -58,6 +60,20 @@ def capture(
         "reuse_packed_inputs": reuse,
         "prepack_reuse_operands": operands,
         "prepack_reuse_strategy": "persistent_matrix_residency" if reuse else "none",
+        "resident_lifetime": {
+            "enabled": reuse,
+            "output_domain": "native_i64_u64_host",
+        },
+        "export_variant": {
+            "name": "default",
+            "semantic_contract": "bounded_i64",
+            "signedness": "signed",
+            "output_layout": "scalar_i64",
+            "selector_status_policy": "range_checked_status_buffer",
+            "d2h_policy": "host_ld_padded",
+            "final_output_mode": "final_host_output",
+            "selector_key": f"semantics=bounded_i64;backend={backend};target_id=gfx1100",
+        },
         "warmups": warmups,
         "repeats": repeats,
         "avg_prepack_setup_us": setup_us,
@@ -84,6 +100,26 @@ def capture(
             "setup_scope": "persistent_plan_workspace_prepacked_reuse",
             "source_version_inputs": "monotonic_source_version_per_repeat_when_packing_runs",
         }
+    if reuse and with_reuse_contract:
+        result["reuse_contract"] = {
+            "enabled": True,
+            "operand_role": "A+B" if operands == ["A", "B"] else operands[0],
+            "source_version_inputs": "monotonic_source_version_per_repeat_when_packing_runs",
+            "setup_scope": "persistent_plan_workspace_prepacked_reuse",
+            "setup_cost_us": setup_us,
+            "measured_repeat_count": repeats,
+            "break_even_repeat_count": None,
+            "output_domain": "native_i64_u64_host",
+            "next_op": "final-export",
+            "target_fingerprint": "gfx1100",
+            "backend_fingerprint": backend,
+            "kernel_fingerprint": f"{backend}_fixture_kernel",
+            "workspace_fingerprint": "fixture_workspace",
+            "promotion_eligible": False,
+            "invalidation_reasons": ["source_version_changed"]
+            if with_stale_source_rejection
+            else ["descriptor_identity_changed"],
+        }
     return result
 
 
@@ -98,6 +134,11 @@ def main() -> int:
     assert item["break_even_repeats_same_backend"] == 4
     assert round(item["phases"]["end_to_end"]["setup_inclusive_speedup"], 4) == 1.25
     assert round(item["speedup_vs_best_nonreuse_setup_inclusive"], 4) == 1.125
+    assert item["stale_source_rejection"]["available"] is True
+    assert item["same_workload_family"]["available"] is True
+    assert item["selector_eligibility"]["explicit_workload_selector_eligible"] is True
+    assert item["selector_eligibility"]["autotune_selector_eligible"] is False
+    assert report["summary"]["explicit_workload_selector_ready"] == 1
 
     slow_setup = copy.deepcopy(winning_reuse)
     slow_setup["_path"] = "slow-setup.json"
@@ -115,6 +156,35 @@ def main() -> int:
     identity_item = identity_report["comparisons"][0]
     assert identity_item["decision"] == "keep_experimental"
     assert "missing_device_allocation_metadata" in identity_item["blockers"]
+
+    missing_stale_rejection = capture(
+        backend="hipblaslt",
+        median_us=700.0,
+        pack_mode="prepacked_reuse_b",
+        setup_us=900.0,
+        with_stale_source_rejection=False,
+    )
+    stale_report = reuse_contract_report.compare_reuse_contracts(
+        [same_backend, best_nonreuse, missing_stale_rejection]
+    )
+    stale_item = stale_report["comparisons"][0]
+    assert stale_item["decision"] == "keep_experimental"
+    assert "reuse_contract_missing_source_version_invalidation" in stale_item["blockers"]
+    assert stale_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
+
+    legacy_reuse = capture(
+        backend="hipblaslt",
+        median_us=700.0,
+        pack_mode="prepacked_reuse_b",
+        setup_us=900.0,
+        with_reuse_contract=False,
+    )
+    legacy_report = reuse_contract_report.compare_reuse_contracts([same_backend, best_nonreuse, legacy_reuse])
+    legacy_item = legacy_report["comparisons"][0]
+    assert legacy_item["decision"] == "candidate_workload_win"
+    assert legacy_item["stale_source_rejection"]["available"] is True
+    assert legacy_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
+    assert "missing_reuse_contract_metadata" in legacy_item["selector_eligibility"]["blockers"]
 
     missing_baseline_report = reuse_contract_report.compare_reuse_contracts([best_nonreuse, winning_reuse])
     missing_item = missing_baseline_report["comparisons"][0]

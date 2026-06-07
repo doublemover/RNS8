@@ -1,6 +1,6 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-05
+Status date: 2026-06-06
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
@@ -72,17 +72,24 @@ contract-metadata, helper/output-policy, and backend metadata validators split
 into focused modules and CTest-backed self-tests. Shared benchmark support,
 argument parsing, backend selection, grouped-dispatch descriptor contracts, and
 large semantic lane bodies have been moved behind internal helpers or include
-units while preserving `rns8-bench` flags and schema output.
+units while preserving `rns8-bench` flags and schema output. Grouped-dispatch
+benchmark lanes now share an internal Direct-HIP same-shape bucket-plan builder
+and grouped resource helper for A/B/C slabs, optional status storage, residue
+pointer tables, and descriptor matrix vectors instead of duplicating descriptor
+and device-resource assembly per semantic.
 
 Core currentness transitions for output setup, benchmark exact-wide pack
 materialization, Direct-HIP output stamping, native-to-RNS bridge paths, and
 test-owned stale/currentness mutations are helper-routed. Workspace identity,
 schedule metadata, backend metadata, accelerator scratch, and prepack/resource
 teardown now flow through named internal helpers while keeping the public
-`rns8_workspace*` handle unchanged. Export/reconstruction paths now create an
-internal plan that records output layout, limb count, status policy, D2H
-policy, selected export kernel, and tiled metadata needs before touching the
-documented mutable export cache.
+`rns8_workspace*` handle unchanged. Export/reconstruction paths now use a
+shared internal selector module that records output layout, limb count, status
+policy, D2H policy, selected export kernel, and tiled/all-zero metadata needs
+before touching the documented mutable export cache; benchmark captures expose
+the same selector source, layout, D2H policy, status policy, selected export
+kernel, and tiled/all-zero decisions through schema-validated
+`export_variant` fields.
 
 HIP event/stream/pinned-staging/temporary-device-buffer ownership uses internal
 RAII wrappers, including CK/rocWMMA event timing helpers. Direct-HIP host code
@@ -94,13 +101,54 @@ portable non-Windows CPU ASan/UBSan preset, a Windows clang-cl CPU-only
 ASan/libFuzzer preset, three deterministic fuzz harnesses, and a non-GUI
 `cdb.exe` WinDbg triage helper. The hygiene report filters intentional
 helper/RAII implementation sites so remaining findings point at real drift.
+Performance evidence hardening now also includes
+`tools/perf_variance_report.py`, which groups same-contract capture reruns by
+backend/kernel, records within-capture and run-to-run timing spread, derives
+the minimum speedup margin needed to clear observed repeatability noise, and
+feeds `tools/promotion_ledger.py` through `--variance-report`; promotion
+ledgers can now require the variance gate directly, and cache installs with a
+promotion ledger require a ready variance row by default.
+The non-routing `tools/shape_family_shadow_report.py` can now explain exact
+hits, nearest same-boundary representatives, and rejected same-family
+candidates with explicit target/layout/contract boundary blockers, and
+promotion ledgers can carry that blocker metadata without changing routing.
+Future CDNA validation infrastructure now also includes schema-visible export selector
+keys, export selector reports, Direct-HIP workspace arena allocation-delta
+gates, and K-block/tile-K scenario/report metadata; these are readiness
+surfaces only, not Linux/CDNA performance claims.
+Counter/resource audit reports now support per-capture counter/ISA attachment
+manifests, batch-level VGPR/SGPR/LDS/scratch/occupancy/wait/memory signal
+summaries, and missing-evidence diagnostics so profiler gaps stay visible.
+Pending-validation infrastructure now uses `tools/pending_validation.py` as the
+target-generic command-planning, review-indexing, post-report, and summary core;
+`tools/gfx1100_pending_validation.py` is the local Windows `gfx1100`
+release-control wrapper. Multi-GPU readiness infrastructure includes
+physical-device topology records in `cdna-env-summary.json` and
+`tools/multigpu_shard_report.py` for independent per-GPU shard aggregation.
+Target-validation reports now include runtime/driver coverage summaries and
+block unsupported targets even if a status record incorrectly marks them
+cache-eligible.
+These do not change AUTO routing, installed cache entries, or durable
+performance claims.
 
 Remaining cleanup is now mostly validation and follow-through: run the full
 final gate on the current host, fix any sanitizer/fuzzer/HIP failures it
 exposes, and keep future optimization lanes using the registry, split schema
 modules, currentness helpers, descriptor contracts, and export plan surface.
-These changes preserve public ABI, reviewed cache behavior, existing benchmark
-CLI compatibility, and Windows `gfx1100` validation boundaries.
+These changes preserve existing public ABI compatibility, reviewed cache
+behavior, existing benchmark CLI compatibility, and Windows `gfx1100`
+validation boundaries. Grouped
+benchmark lanes now also route bounded, finite, and exact-wide pack/GEMM/export
+phase execution through the internal Direct-HIP grouped descriptor/resource
+helpers. `rns8_get_grouped_dispatch_contract_info` exposes the read-only
+contract surface, and `rns8_gemm_rns_grouped` plus
+`rns8_gemm_finite_u8_grouped` expose narrow same-shape Direct-HIP resident
+grouped GEMM. Public grouped pack/export, AUTO routing, and broader generic
+dispatch remain unexposed.
+
+After PR #12, the active performance queue was refreshed so grouping, export,
+residency, reuse policy, variance gates, and target validation drive the next
+work before narrower kernel-tuning lanes.
 
 ## Not Yet Implemented
 
@@ -126,6 +174,12 @@ Windows `gfx1100` proof does not validate Linux ROCm, Linux Radeon, Instinct
 CDNA, profiling, power, or cluster production gates. Dependency discovery does
 not validate correctness backends. Accelerator probes remain candidate evidence
 until a dedicated preset builds real kernels and exact differentials pass.
+The June 6, 2026 CDNA-readiness tooling pass adds target-validation,
+counter/resource, promotion-ledger, cache-history, and bounded-i64 1024 review
+control surfaces, but it does not add Linux/CDNA validation evidence.
+The pending-validation follow-up adds the Windows `gfx1100` validation driver
+and independent multi-GPU shard report, but any outputs stay local or
+infrastructure-only until a later explicit review/promotion pass.
 
 Raw captures, historical smoke files, and review scratch output stay under
 ignored `temp/` paths. Durable docs summarize only reviewed facts.

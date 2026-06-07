@@ -12,6 +12,9 @@ clarity or correctness.
   strict wrap64, finite u8 rings, and finite u8 fields.
 - Adds Windows HIP direct, native vector-ALU, hipBLASLt, CK, and rocWMMA
   bring-up paths with opt-in accelerator validation boundaries.
+- Adds public plan introspection for grouped-dispatch descriptor and lifetime
+  contracts plus narrow Direct-HIP resident grouped GEMM entry points; grouped
+  pack/export remains explicit benchmark or caller work.
 - Publishes benchmark schema v4, result comparison tooling, autotune-cache
   validation, and reviewed-evidence policy.
 - Normalizes first-party metadata to MIT.

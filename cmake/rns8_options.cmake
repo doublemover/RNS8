@@ -17,12 +17,19 @@ option(RNS8_ENABLE_AMDGPU_BUILTINS "Enable target-specific AMDGPU builtin accele
 set(RNS8_AMDGPU_TARGETS "gfx1100" CACHE STRING "Semicolon-separated AMDGPU offload targets for direct HIP sources")
 set(RNS8_HIP_ROOT "" CACHE PATH "AMD HIP SDK or ROCm root used by explicit HIP integration")
 set(RNS8_ROCM_COVERAGE_TARGETS "" CACHE STRING "Source-level ROCm target family coverage metadata; does not add offload architectures")
-set(RNS8_ROCM_DEPS_BUILD_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/build/windows-gfx1100" CACHE PATH "Ignored repo-local build/generated-header root for optional ROCm accelerator dependencies")
-set(RNS8_ROCM_DEPS_INSTALL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/install/windows-gfx1100" CACHE PATH "Ignored repo-local staged install root for optional ROCm accelerator dependencies")
+set(_RNS8_ROCM_DEPS_BUILD_ROOT_DEFAULT "")
+set(_RNS8_ROCM_DEPS_INSTALL_ROOT_DEFAULT "")
+if(WIN32)
+  set(_RNS8_ROCM_DEPS_BUILD_ROOT_DEFAULT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/build/windows-gfx1100")
+  set(_RNS8_ROCM_DEPS_INSTALL_ROOT_DEFAULT "${CMAKE_CURRENT_SOURCE_DIR}/out/third_party/rocm/install/windows-gfx1100")
+endif()
+set(RNS8_ROCM_DEPS_BUILD_ROOT "${_RNS8_ROCM_DEPS_BUILD_ROOT_DEFAULT}" CACHE PATH "Ignored repo-local build/generated-header root for optional ROCm accelerator dependencies")
+set(RNS8_ROCM_DEPS_INSTALL_ROOT "${_RNS8_ROCM_DEPS_INSTALL_ROOT_DEFAULT}" CACHE PATH "Ignored repo-local staged install root for optional ROCm accelerator dependencies")
 set(RNS8_CK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/composable_kernel" CACHE PATH "Repo-local Composable Kernel source or install root")
 set(RNS8_ROCWMMA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/rocWMMA" CACHE PATH "Repo-local rocWMMA source or install root")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+rns8_assert_linux_native_discovery_context()
 
 if(RNS8_ENABLE_HIPBLASLT AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "RNS8_ENABLE_HIPBLASLT requires RNS8_ENABLE_HIP because hipBLASLt uses resident HIP buffers")
@@ -64,11 +71,19 @@ find_path(
   NAMES boost/multiprecision/cpp_int.hpp
   REQUIRED
 )
+rns8_assert_no_linux_windows_vcpkg_paths(
+  "Boost.Multiprecision include directory"
+  "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
+)
 find_package(nlohmann_json CONFIG REQUIRED)
 get_target_property(RNS8_NLOHMANN_JSON_INCLUDE_DIRS nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
 if(NOT RNS8_NLOHMANN_JSON_INCLUDE_DIRS)
   set(RNS8_NLOHMANN_JSON_INCLUDE_DIRS "")
 endif()
+rns8_assert_no_linux_windows_vcpkg_paths(
+  "nlohmann_json::nlohmann_json include directories"
+  ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS}
+)
 
 if(RNS8_ENABLE_GMP OR RNS8_ENABLE_FLINT)
   find_package(RNS8ThirdParty REQUIRED)
@@ -119,18 +134,26 @@ function(rns8_copy_windows_clang_asan_runtime target_name)
 endfunction()
 
 if(RNS8_ENABLE_GMP AND NOT RNS8_GMP_FOUND)
+  set(_RNS8_GMP_HINT "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing gmp.h and gmp/libgmp.")
+  if(UNIX AND NOT WIN32)
+    set(_RNS8_GMP_HINT "Install native Linux GMP development packages or point CMAKE_PREFIX_PATH at a native Linux GMP install.")
+  endif()
   message(
     FATAL_ERROR
       "RNS8_ENABLE_GMP=ON requires GMP headers and library. "
-      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing gmp.h and gmp/libgmp."
+      "${_RNS8_GMP_HINT}"
   )
 endif()
 
 if(RNS8_ENABLE_FLINT AND NOT RNS8_FLINT_FOUND)
+  set(_RNS8_FLINT_HINT "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing flint/flint.h and flint/libflint.")
+  if(UNIX AND NOT WIN32)
+    set(_RNS8_FLINT_HINT "Install native Linux FLINT development packages or point CMAKE_PREFIX_PATH at a native Linux FLINT install.")
+  endif()
   message(
     FATAL_ERROR
       "RNS8_ENABLE_FLINT=ON requires FLINT headers and library. "
-      "Install vcpkg feature optional-exact-libs or point VCPKG_ROOT/RNS8_HIP_ROOT at a tree containing flint/flint.h and flint/libflint."
+      "${_RNS8_FLINT_HINT}"
   )
 endif()
 

@@ -29,6 +29,17 @@
             << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";
   std::cout << "    \"vector_to_rns_chain\": "
             << (vector_to_rns_chain_requested(args) ? "true" : "false") << ",\n";
+  std::cout << "    \"vector_to_rns_chain_control_mode\": ";
+  if (vector_to_rns_chain_requested(args)) {
+    std::cout << "\""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "host_export_repack_control"
+                      : "fused_device_native_to_rns")
+              << "\"";
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "    \"vector_to_rns_chain_producer_backend\": "
             << (vector_to_rns_chain_requested(args) ? "\"hip-vector-alu-int64\"" : "null") << ",\n";
   std::cout << "    \"vector_to_rns_chain_consumer_backend\": "
@@ -129,7 +140,19 @@
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_pack_export_used(result)) {
+    std::cout << "      \"pack\": \"captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay so raw_timings_us.pack is zero and setup-inclusive comparisons use end_to_end plus graph setup\",\n";
+    if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
+      std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with the Direct-HIP finite-u8 pack and canonical export work\",\n";
+      std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including finite export kernel and output D2H\",\n";
+    } else if (result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export") {
+      std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with Direct-HIP wrap64 byte-limb pack and low64 export work\",\n";
+      std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including wrap64 low64 export kernel and output D2H\",\n";
+    } else {
+      std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with the Direct-HIP bounded pack and export work\",\n";
+      std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including status memset, export kernel, status D2H, and output D2H\",\n";
+    }
+  } else if (hip_graph_replay_requested(args)) {
     std::cout << "      \"pack\": \"zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before HIP Graph capture\",\n";
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for one hipGraphLaunch plus stream synchronization containing "
               << args.residue_chain_length
@@ -194,7 +217,11 @@
         std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for fixed-width exact-wide limb export of every grouped task\",\n";
       }
     } else {
-      std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task\",\n";
+      if (result.grouped_dispatch_batched_export_enabled) {
+        std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for bounded CRT export kernels into one shared device slab plus one compact D2H copy for every grouped task\",\n";
+      } else {
+        std::cout << "      \"crt_export\": \"per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task\",\n";
+      }
     }
   } else if (host_batch) {
     std::cout << "      \"pack\": \"per-repeat aggregate host timing for packing A and B for "
@@ -291,7 +318,15 @@
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_pack_export_used(result)) {
+    if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
+      std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete finite-u8 pack, modular GEMM, canonical export, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
+    } else if (result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export") {
+      std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete wrap64 byte-limb pack, byte-GEMM36, low64 export, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
+    } else {
+      std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete bounded pack, RNS GEMM, export, status, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
+    }
+  } else if (hip_graph_replay_requested(args)) {
     std::cout << "      \"end_to_end\": \"same measured duration as rns_gemm for one hipGraphLaunch plus stream synchronization; excludes one-time prepack_setup_us, hip_graph_replay.capture_us, hip_graph_replay.instantiate_us, and the final checksum-only logical export\"\n";
   } else if (chain_residue_output) {
     std::cout << "      \"end_to_end\": \"per-repeat pack plus chained rns_gemm host timing; excludes the final checksum-only logical export";
@@ -400,8 +435,16 @@
     std::cout << "      \"vector_to_rns_chain\": {\n";
     std::cout << "        \"timed\": true,\n";
     std::cout << "        \"timing_key\": \"rns_gemm\",\n";
-    std::cout << "        \"scope\": \"vector_native_output_to_direct_rns_consumer\",\n";
-    std::cout << "        \"reason\": \"measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm\"\n";
+    std::cout << "        \"scope\": \""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "vector_native_output_host_export_repack_to_direct_rns_consumer"
+                      : "vector_native_output_to_direct_rns_consumer")
+              << "\",\n";
+    std::cout << "        \"reason\": \""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, vector_alu_output_d2h, vector_to_rns_host_repack_a, and rns_gemm_kernel_group GPU event phases inside rns_gemm"
+                      : "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm")
+              << "\"\n";
     std::cout << "      },\n";
   }
   std::cout << "      \"reduction\": {\n";

@@ -142,21 +142,42 @@
   std::cout << "    \"graph_launches_per_measured_repeat\": "
             << (result.hip_graph_replay_used ? 1 : 0) << ",\n";
   std::cout << "    \"total_graph_launches\": " << result.hip_graph_launch_count << ",\n";
+  const bool graph_full_bounded_pack_export = hip_graph_replay_full_bounded_pack_export_used(result);
+  const bool graph_full_finite_pack_export =
+      result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export";
+  const bool graph_full_wrap64_pack_export =
+      result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export";
+  const bool graph_full_pack_export =
+      graph_full_bounded_pack_export || graph_full_finite_pack_export || graph_full_wrap64_pack_export;
   std::cout << "    \"captured_chain_length\": "
-            << (result.hip_graph_replay_used ? args.residue_chain_length : 0) << ",\n";
+            << (result.hip_graph_replay_used ? (graph_full_pack_export ? 1 : args.residue_chain_length) : 0)
+            << ",\n";
   std::cout << "    \"timing_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync"
+                     ? (graph_full_finite_pack_export
+                            ? "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                            : (graph_full_wrap64_pack_export
+                                   ? "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                   : (graph_full_bounded_pack_export
+                                          ? "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                          : "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync")))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"setup_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "A_B_prepack_before_capture_capture_and_instantiate_before_warmups"
+                    ? (graph_full_pack_export ? "capture_and_instantiate_before_warmups_no_prepack_reuse"
+                                              : "A_B_prepack_before_capture_capture_and_instantiate_before_warmups")
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"final_export_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "one_final_logical_export_after_measured_repeats_for_checksum_only"
+                     ? (graph_full_finite_pack_export
+                            ? "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat"
+                            : (graph_full_wrap64_pack_export
+                                   ? "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                   : (graph_full_bounded_pack_export
+                                          ? "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                          : "one_final_logical_export_after_measured_repeats_for_checksum_only")))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"caveat\": ";
@@ -211,20 +232,79 @@
                     : "null")
             << "\n";
   std::cout << "  },\n";
+  std::cout << "  \"runtime_environment\": {\n";
+  std::cout << "    \"HIP_VISIBLE_DEVICES\": ";
+  print_json_string_or_null(environment_value("HIP_VISIBLE_DEVICES"));
+  std::cout << ",\n";
+  std::cout << "    \"ROCR_VISIBLE_DEVICES\": ";
+  print_json_string_or_null(environment_value("ROCR_VISIBLE_DEVICES"));
+  std::cout << ",\n";
+  std::cout << "    \"GPU_DEVICE_ORDINAL\": ";
+  print_json_string_or_null(environment_value("GPU_DEVICE_ORDINAL"));
+  std::cout << ",\n";
+  std::cout << "    \"ROCM_PATH\": ";
+  print_json_string_or_null(environment_value("ROCM_PATH"));
+  std::cout << ",\n";
+  std::cout << "    \"HIP_PATH\": ";
+  print_json_string_or_null(environment_value("HIP_PATH"));
+  std::cout << ",\n";
+  std::cout << "    \"LD_LIBRARY_PATH\": ";
+  print_json_string_or_null(environment_value("LD_LIBRARY_PATH"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_MULTI_GPU_MODE\": ";
+  print_json_string_or_null(environment_value("RNS8_MULTI_GPU_MODE"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_RANK\": ";
+  print_json_string_or_null(environment_value("RNS8_RANK"));
+  std::cout << ",\n";
+  std::cout << "    \"RNS8_WORLD_SIZE\": ";
+  print_json_string_or_null(environment_value("RNS8_WORLD_SIZE"));
+  std::cout << "\n";
+  std::cout << "  },\n";
+  const uint32_t visible_device_count = visible_device_count_from_environment();
+  const uint32_t node_gpu_count = benchmark_node_gpu_count();
   std::cout << "  \"device\": {\n";
   std::cout << "    \"device_id\": " << info.device_id << ",\n";
+  std::cout << "    \"device_index\": " << info.device_id << ",\n";
   std::cout << "    \"name\": \"" << json_escape(info.name) << "\",\n";
+  std::cout << "    \"device_name\": \"" << json_escape(info.name) << "\",\n";
   std::cout << "    \"gcn_arch\": \"" << json_escape(info.gcn_arch) << "\",\n";
+  std::cout << "    \"target_arch\": \"" << json_escape(info.gcn_arch) << "\",\n";
+  std::cout << "    \"target_cache_key\": \"" << json_escape(target_cache_key(info, result)) << "\",\n";
+  std::cout << "    \"target_instance_id\": \"" << json_escape(target_instance_id(info, result)) << "\",\n";
   std::cout << "    \"hip_available\": " << info.hip_available << ",\n";
   std::cout << "    \"hip_runtime_version\": " << info.hip_runtime_version << ",\n";
   std::cout << "    \"hip_driver_version\": " << info.hip_driver_version << ",\n";
-  std::cout << "    \"global_mem_bytes\": " << info.global_mem_bytes << "\n";
+  std::cout << "    \"global_mem_bytes\": " << info.global_mem_bytes << ",\n";
+  std::cout << "    \"visible_device_count\": " << visible_device_count << ",\n";
+  std::cout << "    \"node_gpu_count\": " << node_gpu_count << "\n";
   std::cout << "  },\n";
   std::cout << "  \"clock_power_settings\": null,\n";
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (hip_graph_replay_requested(args)) {
+  if (graph_full_wrap64_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP wrap64 full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, byte-limb pack kernels, one byte-GEMM36 kernel, "
+              << "low64 export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export "
+                 "are zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (graph_full_finite_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP finite-u8 full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, finite pack kernels, one modular GEMM, canonical "
+              << "finite export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export "
+                 "are zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (graph_full_bounded_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP bounded full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, pack kernels, one RNS GEMM, export status handling, "
+              << "export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export are "
+                 "zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (hip_graph_replay_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
               << "Direct-HIP residue-current RNS GEMM chain; A and B are packed once before graph capture, "
               << "capture_us and instantiate_us record one-time graph setup before warmups, each measured repeat "
@@ -322,7 +402,7 @@
                  "triplet per task; raw_timings_us values are aggregate grouped totals, avg_*_per_task_us fields "
                  "divide those totals by grouped_dispatch.task_count";
     if (result.grouped_dispatch_batched_export_enabled) {
-      std::cout << "; exact-wide export kernels write into one shared device output slab before one compact D2H copy";
+      std::cout << "; grouped export kernels write into one shared device output slab before one compact D2H copy";
     }
     std::cout << ", and this capture remains non-promotable until a real device grouped dispatcher exists\",\n";
   } else if (host_batch) {

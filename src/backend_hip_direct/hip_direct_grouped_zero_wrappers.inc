@@ -63,6 +63,64 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
   return static_cast<int>(err);
 }
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_active_schedule_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_active_schedule,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
+    int active_entry_count,
+    int max_tile_row_blocks,
+    int max_tile_col_blocks,
+    int m,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || !d_active_schedule || active_entry_count <= 0 ||
+      max_tile_row_blocks <= 0 || max_tile_col_blocks <= 0 || m <= 0 || k <= 0 ||
+      lda < k || ldb <= 0 || ldc <= 0 || safe_k_block <= 0 ||
+      safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid(max_tile_col_blocks, max_tile_row_blocks, active_entry_count);
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_ring_gemm_i8_i32_grouped_active_schedule_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        d_active_schedule,
+        d_zero_a_rows,
+        d_zero_b_cols,
+        active_entry_count,
+        m,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device(
     const int8_t* d_a,
     const int8_t* d_b,

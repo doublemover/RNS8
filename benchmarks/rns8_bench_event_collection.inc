@@ -168,6 +168,19 @@ void collect_gemm_gpu_events(
   }
 }
 
+void collect_incremental_result_cache_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const bool finite = finite_benchmark_semantics(args.semantics);
+  const char* region_label = finite ? "finite_resident_gemm_region_kernel" : "rns_gemm_region_kernel_group";
+  const double cache_restore = sum_event_label(events, samples, "rns_gemm", "residue_d2d_sync");
+  const double region_kernel = sum_event_label(events, samples, "rns_gemm", region_label);
+  if (events.complete) {
+    push_gpu_event_value(events, "residue_d2d_sync", cache_restore);
+    push_gpu_event_value(events, region_label, region_kernel);
+    push_gpu_event_value(events, "rns_gemm", cache_restore + region_kernel);
+  }
+}
+
 void collect_native_to_rns_bridge_gemm_gpu_events(
     const Args& args,
     GpuEventSamples& events) {
@@ -238,6 +251,29 @@ void collect_vector_to_rns_chain_gemm_gpu_events(const Args& args, GpuEventSampl
         events,
         "rns_gemm",
         status_memset + vector_kernel + status_d2h + conversion + direct_kernel_group);
+  }
+}
+
+void collect_vector_to_rns_chain_host_repack_control_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* vector_kernel_label = vector_to_rns_chain_kernel_label(args);
+  const double status_memset = optional_event_label(samples, "vector_alu_status_memset");
+  const double vector_kernel = sum_event_label(events, samples, "rns_gemm", vector_kernel_label);
+  const double status_d2h = optional_event_label(samples, "vector_alu_status_d2h");
+  const double output_d2h = sum_event_label(events, samples, "rns_gemm", "vector_alu_output_d2h");
+  const double host_repack = sum_event_label(events, samples, "rns_gemm", "vector_to_rns_host_repack_a");
+  const double direct_kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  if (events.complete) {
+    push_gpu_event_value(events, "vector_alu_status_memset", status_memset);
+    push_gpu_event_value(events, vector_kernel_label, vector_kernel);
+    push_gpu_event_value(events, "vector_alu_status_d2h", status_d2h);
+    push_gpu_event_value(events, "vector_alu_output_d2h", output_d2h);
+    push_gpu_event_value(events, "vector_to_rns_host_repack_a", host_repack);
+    push_gpu_event_value(events, "rns_gemm_kernel_group", direct_kernel_group);
+    push_gpu_event_value(
+        events,
+        "rns_gemm",
+        status_memset + vector_kernel + status_d2h + output_d2h + host_repack + direct_kernel_group);
   }
 }
 
@@ -726,6 +762,11 @@ void end_gpu_event_phase(bool collect) {
 void record_allocation_after_warmups(BenchmarkResult& result) {
   result.allocation_after_warmups = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_warmups_available = true;
+}
+
+void record_allocation_after_repeats(BenchmarkResult& result) {
+  result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+  result.allocation_after_repeats_available = true;
 }
 
 bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result) {

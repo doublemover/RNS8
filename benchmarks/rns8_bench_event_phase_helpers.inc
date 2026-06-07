@@ -98,6 +98,14 @@ bool vector_to_rns_chain_path(
          result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
+bool vector_to_rns_chain_host_repack_control_path(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  return vector_to_rns_chain_path(args, result, selected_backend) &&
+         vector_to_rns_chain_host_repack_control_requested(args);
+}
+
 bool direct_hip_bounded_oneshot_resident_fallback_path(
     const Args& args,
     const BenchmarkResult& result,
@@ -114,6 +122,19 @@ std::vector<std::string> gpu_event_phase_order(
     const BenchmarkResult& result,
     rns8_backend_kind selected_backend,
     bool use_prepacked_b_cache) {
+  if (result.streaming_overlap_executed) {
+    return {
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
+        "crt_export"};
+  }
   if (args.oneshot && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     if (finite_benchmark_semantics(args.semantics)) {
       return {
@@ -162,6 +183,26 @@ std::vector<std::string> gpu_event_phase_order(
         "rns_gemm",
         "vector_alu_status_d2h",
         "vector_alu_output_d2h",
+        "crt_export"};
+  }
+  if (vector_to_rns_chain_host_repack_control_path(args, result, selected_backend)) {
+    return {
+        "vector_alu_pack_a_h2d",
+        "vector_alu_pack_b_h2d",
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "vector_alu_status_memset",
+        vector_to_rns_chain_kernel_label(args),
+        "vector_alu_status_d2h",
+        "vector_alu_output_d2h",
+        "vector_to_rns_host_repack_a",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
         "crt_export"};
   }
   if (vector_to_rns_chain_path(args, result, selected_backend)) {
@@ -222,10 +263,16 @@ std::vector<std::string> gpu_event_phase_order(
         "finite_pack_h2d",
         "finite_pack_kernel",
         "pack",
-        finite_native_a_reuse_b_path(args, result)
-            ? "finite_native_a_gemm_kernel"
-            : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group",
     };
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("finite_resident_gemm_region_kernel");
+    } else {
+      phases.push_back(
+          finite_native_a_reuse_b_path(args, result)
+              ? "finite_native_a_gemm_kernel"
+              : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group");
+    }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
     phases.push_back("finite_export_kernel");
@@ -255,8 +302,13 @@ std::vector<std::string> gpu_event_phase_order(
         "pack_h2d",
         "pack_kernel",
         "pack",
-        use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group",
     };
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("rns_gemm_region_kernel_group");
+    } else {
+      phases.push_back(use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group");
+    }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
     if (residue_current_output_mode(args)) {
@@ -309,7 +361,12 @@ std::vector<std::string> gpu_event_phase_order(
     if (native_to_rns_bridge_path(args, result, selected_backend)) {
       phases.push_back(native_to_rns_bridge_event_label(args));
     }
-    phases.push_back(gemm_phase);
+    if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+      phases.push_back("residue_d2d_sync");
+      phases.push_back("rns_gemm_region_kernel_group");
+    } else {
+      phases.push_back(gemm_phase);
+    }
   }
   if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {
     phases.push_back("direct_hip_zero_output_tile_memset");
@@ -457,3 +514,25 @@ void copy_compact_to_output(
   }
 }
 
+void copy_compact_limb_output(
+    const std::vector<uint64_t>& compact,
+    std::vector<uint64_t>& output,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    uint32_t limb_count,
+    const char* label) {
+  if (ld == cols) {
+    std::copy(compact.begin(), compact.end(), output.begin());
+    return;
+  }
+  const auto limbs = static_cast<std::size_t>(limb_count);
+  for (int64_t row = 0; row < rows; ++row) {
+    const std::size_t source = row_major_index(row, 0, cols, label) * limbs;
+    const std::size_t destination = row_major_index(row, 0, ld, label) * limbs;
+    const std::size_t count = static_cast<std::size_t>(cols) * limbs;
+    std::copy(compact.begin() + static_cast<std::ptrdiff_t>(source),
+              compact.begin() + static_cast<std::ptrdiff_t>(source + count),
+              output.begin() + static_cast<std::ptrdiff_t>(destination));
+  }
+}

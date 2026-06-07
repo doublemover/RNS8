@@ -1,3 +1,13 @@
+rns8_status assign_matrix_instance_id(rns8_matrix& matrix) {
+  static std::atomic<uint64_t> next_matrix_instance_id{1};
+  const uint64_t id = next_matrix_instance_id.fetch_add(1, std::memory_order_relaxed);
+  if (id == 0) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  matrix.matrix_instance_id = id;
+  return RNS8_SUCCESS;
+}
+
 rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, rns8_matrix** out) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !desc || !out) {
@@ -19,6 +29,11 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     auto* matrix = new (std::nothrow) rns8_matrix();
     if (!matrix) {
       return RNS8_INTERNAL_ERROR;
+    }
+    const rns8_status id_status = assign_matrix_instance_id(*matrix);
+    if (id_status != RNS8_SUCCESS) {
+      delete matrix;
+      return id_status;
     }
     matrix->desc = *desc;
     matrix->backend = ctx->backend;
@@ -130,6 +145,7 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
     out->logical_ld = matrix->desc.logical_ld;
     out->max_prefix = matrix->prefix;
     out->finite_modulus = matrix->finite_modulus;
+    out->matrix_instance_id = matrix->matrix_instance_id;
     out->source_version = matrix->source_version;
     out->host_residues_current = matrix->host_residues_current ? 1u : 0u;
     out->device_residues_current = matrix->device_residues_current ? 1u : 0u;

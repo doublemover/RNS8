@@ -6,6 +6,15 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <utility>
+
+#ifndef RNS8_CONFIGURED_HIP_ENABLED
+#  define RNS8_CONFIGURED_HIP_ENABLED 0
+#endif
+
+#if RNS8_CONFIGURED_HIP_ENABLED
+#  include <hip/hip_runtime_api.h>
+#endif
 
 #ifndef RNS8_GIT_COMMIT
 #  define RNS8_GIT_COMMIT "unknown"
@@ -31,7 +40,8 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--output-ld-padding N]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
-      << "                  [--input-profile uniform-small|adaptive-bands]\n"
+      << "                  [--input-profile uniform-small|adaptive-bands|finite-binary|finite-sparse|\n"
+      << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
       << "                  [--bound-source static-profile|input-scan]\n"
       << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
       << "                  [--exact-wide-limbs 1..32]\n"
@@ -53,12 +63,16 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--streaming-overlap]\n"
       << "                  [--release-gate NAME]\n"
       << "                  [--verification-amortization NAME]\n"
+      << "                  [--error-detection-policy NAME]\n"
+      << "                  [--cpu-small-shape-selector NAME]\n"
+      << "                  [--incremental-result-cache NAME]\n"
       << "                  [--require-adaptive-execution]\n"
       << "                  [--residue-channel-fusion]\n"
       << "                  [--oneshot]\n"
       << "                  [--transient-uniform-small-inputs]\n"
       << "                  [--native-to-rns-bridge]\n"
       << "                  [--vector-to-rns-chain]\n"
+      << "                  [--vector-to-rns-chain-host-repack-control]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -132,6 +146,73 @@ std::string trim_ascii_whitespace(std::string value) {
   return value;
 }
 
+std::string environment_value(const char* name) {
+  if (!name || name[0] == '\0') {
+    return {};
+  }
+#if defined(_MSC_VER)
+  char* buffer = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&buffer, &length, name) != 0 || !buffer) {
+    return {};
+  }
+  std::string value(buffer);
+  std::free(buffer);
+  return value;
+#else
+  const char* value = std::getenv(name);
+  return value ? std::string(value) : std::string{};
+#endif
+}
+
+uint32_t count_visible_devices_list(const std::string& value) {
+  uint32_t count = 0;
+  std::size_t start = 0;
+  while (start <= value.size()) {
+    const std::size_t comma = value.find(',', start);
+    const std::size_t end = comma == std::string::npos ? value.size() : comma;
+    std::string token = value.substr(start, end - start);
+    token = trim_ascii_whitespace(std::move(token));
+    if (!token.empty()) {
+      ++count;
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  return count;
+}
+
+uint32_t visible_device_count_from_environment() {
+  for (const char* name : {"HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"}) {
+    const std::string value = environment_value(name);
+    if (!trim_ascii_whitespace(value).empty()) {
+      return count_visible_devices_list(value);
+    }
+  }
+  return 0;
+}
+
+uint32_t runtime_hip_device_count() {
+#if RNS8_CONFIGURED_HIP_ENABLED
+  int count = 0;
+  if (hipGetDeviceCount(&count) == hipSuccess && count > 0) {
+    return static_cast<uint32_t>(count);
+  }
+#endif
+  return 0;
+}
+
+uint32_t benchmark_node_gpu_count() {
+  const uint32_t visible_count = visible_device_count_from_environment();
+  const uint32_t runtime_count = runtime_hip_device_count();
+  if (visible_count > runtime_count) {
+    return visible_count;
+  }
+  return runtime_count;
+}
+
 std::string runtime_git_commit() {
 #if defined(_WIN32)
   const std::string command =
@@ -197,6 +278,14 @@ void print_nullable_string(const char* value) {
 
 void print_json_string_or_null(const char* value) {
   if (value && value[0] != '\0') {
+    std::cout << "\"" << json_escape(value) << "\"";
+  } else {
+    std::cout << "null";
+  }
+}
+
+void print_json_string_or_null(const std::string& value) {
+  if (!value.empty()) {
     std::cout << "\"" << json_escape(value) << "\"";
   } else {
     std::cout << "null";

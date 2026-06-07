@@ -1,0 +1,293 @@
+TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase contracts") {
+  if (!hip_available()) {
+    return;
+  }
+
+  rns8_context* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto desc = unsigned_desc(2, 2, 2, 1000, RNS8_BACKEND_HIP_DIRECT);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_grouped_dispatch_contract_info public_contract{};
+  public_contract.struct_size = sizeof(public_contract);
+  public_contract.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_grouped_dispatch_contract_info(plan, 2, &public_contract) == RNS8_SUCCESS);
+  CHECK(public_contract.backend == RNS8_BACKEND_HIP_DIRECT);
+  CHECK(public_contract.semantics == RNS8_BOUNDED_U64);
+  CHECK(public_contract.task_count == 2);
+  CHECK(public_contract.descriptor_contract_supported == 1);
+  CHECK(public_contract.public_execution_available == 1);
+  CHECK(public_contract.same_shape_required == 1);
+  CHECK(public_contract.unique_matrix_handles_required == 1);
+  CHECK(public_contract.unique_workspace_handles_required == 1);
+  CHECK(public_contract.same_plan_fingerprint_required == 1);
+  CHECK(public_contract.same_device_required == 1);
+  CHECK(public_contract.device_resident_inputs_required == 1);
+  CHECK(public_contract.produces_device_current_output == 1);
+  CHECK(std::string(public_contract.unsupported_reason).empty());
+  CHECK(std::string(public_contract.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
+
+  rns8_workspace* workspace0 = nullptr;
+  rns8_workspace* workspace1 = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace0) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace1) == RNS8_SUCCESS);
+
+  rns8_matrix_desc a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  rns8_matrix_desc b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  rns8_matrix_desc c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+  a_desc.max_prefix = plan->prefix;
+  b_desc.max_prefix = plan->prefix;
+  c_desc.max_prefix = plan->prefix;
+
+  rns8_matrix* a0 = nullptr;
+  rns8_matrix* b0 = nullptr;
+  rns8_matrix* c0 = nullptr;
+  rns8_matrix* a1 = nullptr;
+  rns8_matrix* b1 = nullptr;
+  rns8_matrix* c1 = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a0) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b0) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c0) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &a1) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &b1) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &c1) == RNS8_SUCCESS);
+
+  rns8::detail::hip_direct_grouped_gemm_task tasks[2] = {
+      {a0, b0, c0, workspace0},
+      {a1, b1, c1, workspace1},
+  };
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan;
+  REQUIRE(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+              plan,
+              tasks,
+              2,
+              RNS8_BOUNDED_U64,
+              2,
+              2,
+              2,
+              plan->prefix,
+              &bucket_plan) == RNS8_SUCCESS);
+  CHECK(bucket_plan.task_count == 2);
+  CHECK(bucket_plan.bucket_count == 1);
+  CHECK(bucket_plan.same_shape_required);
+  CHECK(bucket_plan.buckets.size() == 1);
+  CHECK(bucket_plan.buckets.front().task_offset == 0);
+  CHECK(bucket_plan.buckets.front().task_count == 2);
+  const auto* descriptor_ptr = rns8::detail::hip_direct_single_bucket_descriptor(bucket_plan);
+  REQUIRE(descriptor_ptr != nullptr);
+  const auto& descriptor = *descriptor_ptr;
+
+  int descriptor_device = -1;
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(descriptor, &descriptor_device) ==
+        RNS8_SUCCESS);
+  CHECK(descriptor_device == 0);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
+        RNS8_INVALID_ARGUMENT);
+
+  const uint64_t grouped_a_slab[] = {1, 2, 3, 4, 9, 10, 11, 12};
+  const uint64_t grouped_b_slab[] = {5, 6, 7, 8, 13, 14, 15, 16};
+
+  rns8::detail::hip_direct_grouped_device_resources grouped_resources;
+  REQUIRE(rns8::detail::hip_direct_allocate_grouped_task_device_resources(
+              descriptor,
+              8 * sizeof(uint64_t),
+              8 * sizeof(uint64_t),
+              8 * sizeof(uint64_t),
+              sizeof(int),
+              &grouped_resources) == RNS8_SUCCESS);
+  int pointer_device = -1;
+  REQUIRE(rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+              descriptor,
+              grouped_resources,
+              &pointer_device) == RNS8_SUCCESS);
+  CHECK(pointer_device == 0);
+  CHECK(grouped_resources.device_id == 0);
+  REQUIRE(grouped_resources.c_matrices.size() == 2);
+  REQUIRE(rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
+              descriptor,
+              grouped_resources,
+              grouped_a_slab,
+              grouped_b_slab,
+              2,
+              2,
+              101) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
+        RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_grouped_gemm_task public_tasks[2] = {
+      {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a0, b0, c0, workspace0},
+      {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, a1, b1, c1, workspace1},
+  };
+  REQUIRE(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_SUCCESS);
+  rns8::test::set_device_residues_current(*a1, false);
+  CHECK(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_INVALID_ARGUMENT);
+  rns8::test::set_device_residues_current(*a1, true);
+
+  REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
+              descriptor,
+              grouped_resources) == RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_SUCCESS);
+
+  std::vector<uint64_t> grouped_export(8, UINT64_C(0xdeadbeefdeadbeef));
+  REQUIRE(rns8::detail::hip_direct_export_grouped_u64_task_outputs_to_host(
+              descriptor,
+              grouped_resources,
+              static_cast<uint64_t>(desc.bound),
+              grouped_export.data(),
+              grouped_export.size()) == RNS8_SUCCESS);
+  std::vector<uint64_t> expected0(4);
+  std::vector<uint64_t> expected1(4);
+  REQUIRE(rns8_export_u64(ctx, plan, c0, expected0.data(), 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c1, expected1.data(), 2) == RNS8_SUCCESS);
+  CHECK(std::equal(expected0.begin(), expected0.end(), grouped_export.begin()));
+  CHECK(std::equal(expected1.begin(), expected1.end(), grouped_export.begin() + 4));
+  CHECK(grouped_resources.reset() == RNS8_SUCCESS);
+
+  ++c1->source_version;
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
+        RNS8_INVALID_ARGUMENT);
+  --c1->source_version;
+
+  rns8::detail::hip_direct_grouped_gemm_task shared_workspace_tasks[2] = {
+      {a0, b0, c0, workspace0},
+      {a1, b1, c1, workspace0},
+  };
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan invalid_bucket_plan;
+  CHECK(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
+            plan,
+            shared_workspace_tasks,
+            2,
+            RNS8_BOUNDED_U64,
+            2,
+            2,
+            2,
+            plan->prefix,
+            &invalid_bucket_plan) == RNS8_INVALID_ARGUMENT);
+  auto shared_workspace_descriptor = descriptor;
+  shared_workspace_descriptor.tasks = shared_workspace_tasks;
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(shared_workspace_descriptor, nullptr) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_matrix(c1);
+  rns8_destroy_matrix(b1);
+  rns8_destroy_matrix(a1);
+  rns8_destroy_matrix(c0);
+  rns8_destroy_matrix(b0);
+  rns8_destroy_matrix(a0);
+  rns8_destroy_workspace(workspace1);
+  rns8_destroy_workspace(workspace0);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("Direct-HIP grouped descriptor builds same-contract shape buckets") {
+  if (!hip_available()) {
+    return;
+  }
+
+  rns8_context* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+
+  struct BucketFixture {
+    rns8_plan* plan = nullptr;
+    std::vector<rns8_workspace*> workspaces;
+    std::vector<rns8_matrix*> matrices;
+    std::vector<rns8::detail::hip_direct_grouped_gemm_task> tasks;
+  };
+
+  auto destroy_bucket = [](BucketFixture& bucket) {
+    for (auto it = bucket.matrices.rbegin(); it != bucket.matrices.rend(); ++it) {
+      rns8_destroy_matrix(*it);
+    }
+    for (auto it = bucket.workspaces.rbegin(); it != bucket.workspaces.rend(); ++it) {
+      rns8_destroy_workspace(*it);
+    }
+    rns8_destroy_plan(bucket.plan);
+    bucket = {};
+  };
+
+  auto create_bucket = [&](int64_t m, int64_t n, int64_t k) {
+    BucketFixture bucket;
+    auto desc = unsigned_desc(m, n, k, 1000, RNS8_BACKEND_HIP_DIRECT);
+    REQUIRE(rns8_create_plan(ctx, &desc, &bucket.plan) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    a_desc.max_prefix = bucket.plan->prefix;
+    b_desc.max_prefix = bucket.plan->prefix;
+    c_desc.max_prefix = bucket.plan->prefix;
+    bucket.workspaces.resize(2);
+    bucket.tasks.resize(2);
+    for (uint32_t task_index = 0; task_index < 2; ++task_index) {
+      REQUIRE(rns8_create_workspace(ctx, bucket.plan, &bucket.workspaces[task_index]) == RNS8_SUCCESS);
+      rns8_matrix* a = nullptr;
+      rns8_matrix* b = nullptr;
+      rns8_matrix* c = nullptr;
+      REQUIRE(rns8_create_matrix(ctx, &a_desc, &a) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(ctx, &b_desc, &b) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(ctx, &c_desc, &c) == RNS8_SUCCESS);
+      bucket.matrices.push_back(a);
+      bucket.matrices.push_back(b);
+      bucket.matrices.push_back(c);
+      bucket.tasks[task_index] = {a, b, c, bucket.workspaces[task_index]};
+    }
+    return bucket;
+  };
+
+  BucketFixture small = create_bucket(2, 2, 2);
+  BucketFixture skinny = create_bucket(3, 2, 2);
+
+  rns8::detail::hip_direct_grouped_gemm_bucket_request requests[2] = {
+      {small.plan, small.tasks.data(), 0, static_cast<uint32_t>(small.tasks.size()), RNS8_BOUNDED_U64,
+       small.plan->desc.m, small.plan->desc.n, small.plan->desc.k, small.plan->prefix},
+      {skinny.plan, skinny.tasks.data(), static_cast<uint32_t>(small.tasks.size()),
+       static_cast<uint32_t>(skinny.tasks.size()), RNS8_BOUNDED_U64, skinny.plan->desc.m,
+       skinny.plan->desc.n, skinny.plan->desc.k, skinny.plan->prefix},
+  };
+
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan;
+  REQUIRE(rns8::detail::hip_direct_build_bucketed_grouped_gemm_plan(requests, 2, &bucket_plan) ==
+          RNS8_SUCCESS);
+  CHECK(bucket_plan.bucket_count == 2);
+  CHECK(bucket_plan.task_count == 4);
+  CHECK(bucket_plan.tasks == nullptr);
+  CHECK_FALSE(bucket_plan.same_shape_required);
+  REQUIRE(bucket_plan.buckets.size() == 2);
+  CHECK(bucket_plan.buckets[0].task_offset == 0);
+  CHECK(bucket_plan.buckets[0].task_count == 2);
+  CHECK(bucket_plan.buckets[0].descriptor.m == 2);
+  CHECK(bucket_plan.buckets[0].descriptor.n == 2);
+  CHECK(bucket_plan.buckets[0].descriptor.k == 2);
+  CHECK(bucket_plan.buckets[1].task_offset == 2);
+  CHECK(bucket_plan.buckets[1].task_count == 2);
+  CHECK(bucket_plan.buckets[1].descriptor.m == 3);
+  CHECK(bucket_plan.buckets[1].descriptor.n == 2);
+  CHECK(bucket_plan.buckets[1].descriptor.k == 2);
+  CHECK(rns8::detail::hip_direct_single_bucket_descriptor(bucket_plan) == nullptr);
+
+  auto duplicate_task = skinny.tasks[0];
+  duplicate_task.a = small.tasks[0].a;
+  rns8::detail::hip_direct_grouped_gemm_task duplicate_tasks[2] = {
+      duplicate_task,
+      skinny.tasks[1],
+  };
+  rns8::detail::hip_direct_grouped_gemm_bucket_request duplicate_requests[2] = {
+      requests[0],
+      {skinny.plan, duplicate_tasks, static_cast<uint32_t>(small.tasks.size()),
+       static_cast<uint32_t>(std::size(duplicate_tasks)), RNS8_BOUNDED_U64, skinny.plan->desc.m,
+       skinny.plan->desc.n, skinny.plan->desc.k, skinny.plan->prefix},
+  };
+  rns8::detail::hip_direct_grouped_gemm_bucket_plan invalid_plan;
+  CHECK(rns8::detail::hip_direct_build_bucketed_grouped_gemm_plan(
+            duplicate_requests,
+            2,
+            &invalid_plan) == RNS8_INVALID_ARGUMENT);
+
+  destroy_bucket(skinny);
+  destroy_bucket(small);
+  rns8_destroy_context(ctx);
+}

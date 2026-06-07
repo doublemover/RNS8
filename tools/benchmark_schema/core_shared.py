@@ -16,6 +16,8 @@ from metadata_registry_constants import (
     COMPARISON_BASELINE_STATUSES,
     CONTRACT_PREFIX_POLICIES,
     DIRECT_HIP_GPU_EVENT_SCOPES,
+    GENERATED_REDUCER_IDENTITIES,
+    GENERATED_REDUCER_IDENTITY_PATTERNS,
     HIPBLASLT_GPU_EVENT_SCOPES,
     HIP_RESIDENT_BACKENDS,
     NON_RNS_PREFIX_SEMANTICS,
@@ -82,8 +84,12 @@ def output_destination_layout(padding: Any) -> str:
 
 
 GENERATED_REDUCER_RE = re.compile(
-    r"^(not_applicable|direct_hip_fixed_prefix_(?:[1-9]|20)_generated_reducer_v1|"
-    r"direct_hip_finite_modulus_\d+_fixed_reducer_v1)$"
+    r"^(?:"
+    + "|".join(
+        [re.escape(identity) for identity in sorted(GENERATED_REDUCER_IDENTITIES)]
+        + [f"(?:{pattern})" for pattern in sorted(GENERATED_REDUCER_IDENTITY_PATTERNS)]
+    )
+    + r")$"
 )
 PACK_MODE_OPERANDS = {
     "per_repeat_repack": [],
@@ -197,6 +203,7 @@ DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
 DIRECT_HIP_ADAPTIVE_KERNEL_V2 = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3 = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
 DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3 = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
 DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1 = "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
 DIRECT_HIP_ADAPTIVE_ZERO_TILE_ROW_COL_SKIP_KERNEL_V1 = (

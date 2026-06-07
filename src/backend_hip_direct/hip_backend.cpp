@@ -62,6 +62,16 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
     int ld,
     int modulus);
 
+extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
+    const uint8_t* d_src,
+    int8_t* const* d_residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int modulus);
+
 extern "C" int rns8_hip_direct_ring_gemm_i8_device(
     const int8_t* d_a,
     const int8_t* d_b,
@@ -119,6 +129,23 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
     int grouped_prefix,
     int safe_k_block,
     void* stream);
+
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
+    int grouped_prefix,
+    int safe_k_block);
 
 extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_task_prefix_device(
     const int8_t* const* d_a_ptrs,
@@ -292,6 +319,39 @@ extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device(
     uint32_t modulus_reciprocal,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block);
+
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
+    const int8_t* const* d_a_ptrs,
+    const int8_t* const* d_b_ptrs,
+    int8_t* const* d_c_ptrs,
+    int task_count,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t modulus_reciprocal,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_finite_ring_gemm_u8_native_device(
     const uint8_t* d_a,
     const uint8_t* d_b,
@@ -340,6 +400,23 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_scheduled_device(
     int selected_prefix,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_active_schedule_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    const rns8_plan_tile_schedule_entry* d_active_schedule,
+    const uint8_t* d_zero_a_rows,
+    const uint8_t* d_zero_b_cols,
+    int active_entry_count,
+    int max_tile_row_blocks,
+    int max_tile_col_blocks,
+    int m,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_zero_scheduled_residue_tiles_device(
     int8_t* d_c,
     const rns8_plan_tile_schedule_entry* d_schedule,
@@ -356,9 +433,27 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
     int ld,
     int modulus);
 
+extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
+    const int8_t* const* d_residue_ptrs,
+    uint8_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus);
+
 extern "C" int rns8_hip_direct_export_i64_device(
     const int8_t* d_residues,
     int64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status);
+
+extern "C" int rns8_hip_direct_export_i64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    int64_t* d_dst,
+    int task_count,
     int rows,
     int cols,
     int prefix,
@@ -387,6 +482,16 @@ extern "C" int rns8_hip_direct_export_u64_device(
     uint64_t bound,
     int* d_status);
 
+extern "C" int rns8_hip_direct_export_u64_grouped_device(
+    const int8_t* const* d_residue_ptrs,
+    uint64_t* d_dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* d_status);
+
 extern "C" int rns8_hip_direct_export_u64_scheduled_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
@@ -409,6 +514,15 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
     int limb_count,
     int* d_status);
 
+extern "C" int rns8_hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status);
+
 extern "C" int rns8_hip_direct_export_exact_wide_signed_grouped_limbs_device(
     const int8_t* const* d_residue_ptrs,
     uint64_t* d_dst,
@@ -419,6 +533,15 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_grouped_limbs_device(
     int limb_count);
 
 extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status);
+
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
     const int8_t* d_residues,
     uint64_t* d_dst,
     int rows,

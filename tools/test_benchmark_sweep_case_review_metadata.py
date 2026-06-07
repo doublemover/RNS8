@@ -129,6 +129,30 @@ assert group["candidates"][0]["bottleneck"]["class"] in {
     "unknown",
 }
 
+non_promoting_ck = copy.deepcopy(ck)
+non_promoting_direct = copy.deepcopy(direct)
+non_promoting_cpu = copy.deepcopy(cpu)
+scenario_metadata = {
+    "family": "finite-modulus-map",
+    "name": "finite-ring-map-1024",
+    "promotion_eligibility": "non_promoting_modulus_map",
+    "metadata": {"promotion_scope": "non_promoting_modulus_map"},
+}
+for item in [non_promoting_ck, non_promoting_direct, non_promoting_cpu]:
+    item["scenario_metadata"] = scenario_metadata
+non_promoting_report = benchmark_sweep.review_captures(
+    [non_promoting_ck, non_promoting_direct, non_promoting_cpu],
+    review_mode="release",
+)
+non_promoting_group = non_promoting_report["groups"][0]
+assert non_promoting_report["promotable_autotune_entries"] == []
+assert non_promoting_group["scenario_promotion_scopes"] == ["non_promoting_modulus_map"]
+non_promoting_ck_candidate = next(
+    item for item in non_promoting_group["candidates"] if item["backend"] == "ck"
+)
+assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
+assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
+
 missing_target_ck = copy.deepcopy(ck)
 missing_target_ck["device"]["gcn_arch"] = "unknown"
 missing_target_report = benchmark_sweep.review_captures(
@@ -467,4 +491,67 @@ reuse_a_blockers = {
     candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
 }
 assert "prepacked_reuse_not_autotune_promotable" in reuse_a_blockers["ck"]
+
+reuse_evidence_direct = mark_reused_a_pack(direct)
+reuse_evidence_direct["scenario_metadata"] = {
+    "family": "direct-hip-reuse-expansion",
+    "name": "bounded-u64-adaptive-512-reuse-a",
+    "promotion_eligibility": "reuse_contract_evidence_only",
+    "metadata": {
+        "workflow_name": "direct_hip_reuse_expansion",
+        "reuse_contract_role": "stable_a_candidate",
+        "promotion_scope": "reuse_contract_evidence_only",
+    },
+}
+reuse_evidence_report = benchmark_sweep.review_captures([reuse_evidence_direct], review_mode="release")
+reuse_evidence_group = reuse_evidence_report["groups"][0]
+assert reuse_evidence_group["required_baselines"] == []
+assert reuse_evidence_group["missing_required_baselines"] == []
+reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
+assert "missing_required_baselines" not in reuse_evidence_blockers
+assert "prepacked_reuse_not_autotune_promotable" in reuse_evidence_blockers
+assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
+
+graph_evidence_direct = mark_reused_a_pack(direct)
+graph_evidence_direct["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+graph_evidence_direct["benchmark_execution_mode"] = "hip_graph_replay_resident_rns_chain"
+graph_evidence_direct["scenario_metadata"] = {
+    "family": "hip-graph-replay",
+    "name": "bounded-i64-chain3-512-graph",
+    "promotion_eligibility": "hip_graph_replay_evidence_only",
+    "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "graph_role": "graph_replay_candidate",
+    },
+}
+graph_evidence_report = benchmark_sweep.review_captures([graph_evidence_direct], review_mode="release")
+graph_evidence_group = graph_evidence_report["groups"][0]
+assert graph_evidence_group["required_baselines"] == []
+assert graph_evidence_group["missing_required_baselines"] == []
+graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]
+assert "missing_required_baselines" not in graph_evidence_blockers
+assert "hip_graph_replay_not_autotune_promotable" in graph_evidence_blockers
+assert "scenario_scope_not_autotune_promotable" in graph_evidence_blockers
+
+variant_direct_a = exact_wide_capture("hip-direct", 3000)
+variant_direct_b = copy.deepcopy(variant_direct_a)
+variant_direct_a["export_variant"] = {
+    "name": "compact-d2h-export-candidate",
+}
+variant_direct_b["export_variant"] = {
+    "name": "tree-crt-export-candidate",
+}
+variant_direct_b["reconstruction_variant"] = {
+    "name": "tree_crt_candidate",
+}
+variant_report = benchmark_sweep.review_captures(
+    [variant_direct_a, variant_direct_b],
+    review_mode="release",
+)
+assert variant_report["group_count"] == 2
+assert all(group["duplicate_backends"] == [] for group in variant_report["groups"])
+assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)[0] for group in variant_report["groups"]) == [
+    "compact-d2h-export-candidate",
+    "tree-crt-export-candidate",
+]
 

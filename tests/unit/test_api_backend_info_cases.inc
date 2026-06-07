@@ -305,3 +305,67 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
   CHECK(rns8_get_plan_backend_info(nullptr, &null_info) == RNS8_INVALID_ARGUMENT);
 }
 
+TEST_CASE("public grouped dispatch contract info reports explicit grouped requirements") {
+  rns8_context* cpu = create_cpu_context();
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 4, 4, 4);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &desc, &plan) == RNS8_SUCCESS);
+
+  rns8_grouped_dispatch_contract_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_grouped_dispatch_contract_info(plan, 32, &info) == RNS8_SUCCESS);
+  CHECK(info.backend == RNS8_BACKEND_CPU_REFERENCE);
+  CHECK(info.semantics == RNS8_BOUNDED_U64);
+  CHECK(info.task_count == 32);
+  CHECK(info.descriptor_contract_supported == 0);
+  CHECK(info.public_execution_available == 0);
+  CHECK(info.same_shape_required == 1);
+  CHECK(info.same_semantics_required == 1);
+  CHECK(info.compact_row_major_required == 1);
+  CHECK(info.unique_matrix_handles_required == 1);
+  CHECK(info.unique_workspace_handles_required == 1);
+  CHECK(info.same_plan_fingerprint_required == 1);
+  CHECK(info.same_device_required == 1);
+  CHECK(info.device_resident_inputs_required == 1);
+  CHECK(info.per_task_source_versions_required == 1);
+  CHECK(info.produces_device_current_output == 1);
+  CHECK(info.final_export_required_for_host_output == 1);
+  CHECK(info.per_task_status_required == 1);
+  CHECK(info.checksum_policy_required == 1);
+  CHECK(info.descriptor_reuse_validated == 1);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_PACK_EXPLICIT) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_EXPORT_EXPLICIT) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_GENERIC_BUCKETING_UNAVAILABLE) != 0);
+  CHECK((info.flags & RNS8_GROUPED_DISPATCH_CONTRACT_AUTO_ROUTING_DISABLED) != 0);
+  CHECK(std::string(info.descriptor_layout) == "same_shape_resident_task_triplets_v1");
+  CHECK(std::string(info.bucket_policy) == "single_same_shape_bucket");
+  CHECK(std::string(info.source_version_policy) == "per_task_monotonic_source_version_repack");
+  CHECK(std::string(info.workspace_policy) == "one_workspace_per_task_shared_plan");
+  CHECK(std::string(info.matrix_ownership_policy) == "caller_owns_unique_task_triplets_until_grouped_call_returns");
+  CHECK(std::string(info.descriptor_reuse_policy) == "reuse_after_shape_workspace_source_validation");
+  CHECK(std::string(info.stride_policy) == "matrix_ld_matches_logical_shape_host_output_ld_explicit");
+  CHECK(std::string(info.output_currentness_policy) ==
+        "device_residue_current_after_grouped_gemm_host_output_after_export");
+  CHECK(std::string(info.lifetime_policy) == "task_matrices_and_workspaces_valid_until_grouped_call_returns");
+  CHECK(std::string(info.checksum_policy) == "combined_per_task_checksum_u64");
+  CHECK(std::string(info.status_policy) == "fail_fast_per_task_operation_status");
+  CHECK(std::string(info.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
+  CHECK(std::string(info.output_domain) == "native_i64_u64_host");
+  CHECK(std::string(info.unsupported_reason) == "backend_not_hip_direct");
+  CHECK(rns8_gemm_rns_grouped(cpu, plan, nullptr, 32) == RNS8_INVALID_ARGUMENT);
+
+  rns8_grouped_dispatch_contract_info bad_abi{};
+  bad_abi.struct_size = sizeof(bad_abi) - 1;
+  bad_abi.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_grouped_dispatch_contract_info(plan, 32, &bad_abi) == RNS8_INVALID_ARGUMENT);
+
+  rns8_grouped_dispatch_contract_info null_info{};
+  null_info.struct_size = sizeof(null_info);
+  null_info.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_grouped_dispatch_contract_info(nullptr, 32, &null_info) == RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(cpu);
+}

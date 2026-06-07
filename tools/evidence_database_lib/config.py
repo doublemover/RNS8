@@ -53,6 +53,8 @@ CSV_FIELDS = [
     "grouped_dispatch_status",
     "adaptive_grouped_scheduler_requested",
     "adaptive_grouped_scheduler_status",
+    "adaptive_grouped_scheduler_active_entries",
+    "adaptive_grouped_scheduler_launch_ratio",
     "resident_lifetime_enabled",
     "resident_lifetime_output_domain",
     "workspace_arena_enabled",
@@ -64,6 +66,9 @@ CSV_FIELDS = [
     "release_gate",
     "release_gate_review_status",
     "verification_amortization_policy",
+    "error_detection_policy",
+    "error_detection_mode",
+    "error_detection_false_negative_policy",
     "workload_proxy_family",
     "workload_proxy_label",
     "output_domain",
@@ -99,6 +104,8 @@ CSV_FIELDS = [
     "isa_instruction_lines",
     "isa_vgpr_count",
     "isa_sgpr_count",
+    "isa_lds_bytes",
+    "isa_scratch_bytes",
     "isa_occupancy",
     "isa_rga_statuses",
     "promotable",
@@ -115,6 +122,8 @@ ISA_COUNT_FIELDS = {
 ISA_MAX_FIELDS = {
     "vgpr_count": "isa_vgpr_count",
     "sgpr_count": "isa_sgpr_count",
+    "lds_bytes": "isa_lds_bytes",
+    "scratch_bytes": "isa_scratch_bytes",
     "occupancy": "isa_occupancy",
 }
 BACKEND_ALIASES = {

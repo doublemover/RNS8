@@ -7,7 +7,11 @@ BENCHMARK_EXECUTION_MODES = {
     'benchmark_hip_graph_replay_evidence',
     'benchmark_host_api_batch',
     'benchmark_owned_vector_alu_native_buffers',
+    'benchmark_streaming_overlap_resident_b_pipeline',
+    'hip_graph_replay_bounded_pack_gemm_export',
+    'hip_graph_replay_finite_u8_pack_gemm_export',
     'hip_graph_replay_resident_rns_chain',
+    'hip_graph_replay_wrap64_pack_gemm_export',
     'internal_wrap64_rocwmma_candidate',
     'persistent_resident_matrices',
     'public_oneshot_transient_native_inputs',
@@ -21,6 +25,7 @@ BENCHMARK_EXECUTION_MODES = {
     'transient_uniform_small_i8_a_resident_i8_b_reuse',
     'transient_uniform_small_i8_ab_inputs',
     'transient_uniform_small_i8_b_resident_i8_a_reuse',
+    'vector_native_host_export_repack_direct_rns_chain',
     'vector_native_to_direct_rns_chain',
 }
 BOUND_SOURCES = {
@@ -166,7 +171,9 @@ GROUPED_DISPATCH_STATUSES = {
 GROUPED_DISPATCH_EXECUTION_STRATEGIES = {
     'device_grouped_exact_wide_export_kernel_batched_d2h',
     'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h',
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h',
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h',
+    'device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h',
     'device_grouped_pack_gemm_host_exports',
     'host_phase_loop_batched_exact_wide_export_d2h',
     'host_phase_loop_per_task_export',
@@ -178,12 +185,20 @@ GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h',
     'host_phase_loop_batched_exact_wide_export_d2h',
 }
+GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES = {
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h',
+}
+GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES = {
+    'device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h',
+}
 GROUPED_TASK_DESCRIPTOR_LAYOUTS = {
     'not_requested',
+    'same_contract_bucketed_resident_task_triplets_v1',
     'same_shape_resident_task_triplets_v1',
 }
 GROUPED_TASK_BUCKET_POLICIES = {
     'not_requested',
+    'same_contract_shape_buckets',
     'single_same_shape_bucket',
 }
 GROUPED_TASK_SOURCE_VERSION_POLICIES = {
@@ -193,6 +208,26 @@ GROUPED_TASK_SOURCE_VERSION_POLICIES = {
 GROUPED_TASK_WORKSPACE_POLICIES = {
     'not_requested',
     'one_workspace_per_task_shared_plan',
+}
+GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES = {
+    'benchmark_owns_all_task_triplets_until_capture_end',
+    'not_requested',
+}
+GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES = {
+    'not_requested',
+    'reuse_after_shape_workspace_source_validation',
+}
+GROUPED_TASK_STRIDE_POLICIES = {
+    'matrix_ld_matches_logical_shape_host_output_ld_explicit',
+    'not_requested',
+}
+GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES = {
+    'device_residue_current_after_grouped_gemm_host_output_after_export',
+    'not_requested',
+}
+GROUPED_TASK_LIFETIME_POLICIES = {
+    'not_requested',
+    'task_matrices_and_workspaces_destroyed_after_capture',
 }
 GROUPED_TASK_CHECKSUM_POLICIES = {
     'combined_per_task_checksum_u64',
@@ -210,7 +245,9 @@ GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES = {
 GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES = {
     'device_grouped_exact_wide_export_kernel_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
+    'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h': 'device_pointer_tables_and_compact_slabs',
+    'device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h': 'device_pointer_tables_and_compact_slabs',
     'device_grouped_pack_gemm_host_exports': 'device_pointer_tables_and_compact_slabs',
     'host_phase_loop_batched_exact_wide_export_d2h': 'host_resident_task_loop',
     'host_phase_loop_per_task_export': 'host_resident_task_loop',
@@ -331,6 +368,8 @@ GPU_EVENT_SOURCE_SCOPES = {
     'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_streaming_overlap_multistream_operation_groups',
+    'direct_hip_vector_native_host_repack_chain_default_stream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
     'hipblaslt_baseline_default_stream_backend_operation_groups',
@@ -343,6 +382,8 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     'direct_hip_native_to_rns_bridge_default_stream_operation_groups',
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
+    'direct_hip_streaming_overlap_multistream_operation_groups',
+    'direct_hip_vector_native_host_repack_chain_default_stream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
 }
@@ -373,6 +414,52 @@ ROCWMMA_DEEP_GPU_EVENT_LABELS = {
     'rocwmma_pack_b_kernel',
     'rocwmma_zero_output_tile_memset',
 }
+EPILOGUE_TYPES = {
+    'canonical_u8_export',
+    'crt_export',
+    'low64_wrap_export',
+    'residue_current_rns_output',
+}
+BACKEND_EPILOGUE_MODES = {
+    'ck_fused_i32_to_centered_residue_rns_output',
+    'ck_fused_i32_to_centered_residue_then_canonical_u8_export',
+    'ck_fused_i32_to_centered_residue_then_crt_export',
+    'direct_int64_export',
+    'fused_centered_residue_then_crt_export',
+    'low64_wrap_export',
+    'native_i64_u64_export',
+    'native_input_centered_residue_rns_output',
+    'native_input_centered_residue_then_crt_export',
+    'rocwmma_fused_i32_to_centered_residue_rns_output',
+    'rocwmma_fused_i32_to_centered_residue_then_canonical_u8_export',
+    'rocwmma_fused_i32_to_centered_residue_then_crt_export',
+    'separate_i32_scratch_reduce_rns_output',
+    'separate_i32_scratch_reduce_then_canonical_u8_export',
+    'separate_i32_scratch_reduce_then_crt_export',
+}
+GENERATED_REDUCER_IDENTITIES = {
+    'direct_hip_finite_modulus_251_fixed_reducer_v1',
+    'direct_hip_finite_modulus_255_fixed_reducer_v1',
+    'direct_hip_finite_modulus_256_fixed_reducer_v1',
+    'direct_hip_fixed_prefix_1_generated_reducer_v1',
+    'direct_hip_fixed_prefix_20_generated_reducer_v1',
+    'direct_hip_fixed_prefix_2_generated_reducer_v1',
+    'direct_hip_fixed_prefix_3_generated_reducer_v1',
+    'direct_hip_fixed_prefix_4_generated_reducer_v1',
+    'direct_hip_fixed_prefix_5_generated_reducer_v1',
+    'direct_hip_fixed_prefix_6_generated_reducer_v1',
+    'direct_hip_fixed_prefix_7_generated_reducer_v1',
+    'direct_hip_fixed_prefix_8_generated_reducer_v1',
+    'direct_hip_fixed_prefix_9_generated_reducer_v1',
+    'not_applicable',
+}
+GENERATED_REDUCER_IDENTITY_PATTERNS = {
+    'direct_hip_finite_modulus_[0-9]+_fixed_reducer_v1',
+}
+REDUCER_FAMILIES = {
+    'finite_u8_centered_canonical_export',
+    'rns_prefix_centered_crt_export',
+}
 SELECTED_KERNELS = {
     'ck_wmma_cshuffle_finite_u8_centered_epilogue_v1',
     'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',
@@ -381,6 +468,7 @@ SELECTED_KERNELS = {
     'ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2',
     'ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2',
     'cpu_reference',
+    'direct_hip_grouped_active_prefix_schedule_rns_gemm_v3',
     'direct_hip_native_a_finite_u8_gemm_mod251_v1',
     'direct_hip_native_a_finite_u8_gemm_mod255_v1',
     'direct_hip_native_a_finite_u8_gemm_mod256_v1',
@@ -470,6 +558,7 @@ PROMOTION_SCOPES = {
     'baseline_only',
     'comparison_anchor_only',
     'cpu_backed_2048_release_review_candidate',
+    'cpu_selector_threshold_evidence_only',
     'execution_path_evidence',
     'explicit_reuse_contract_only',
     'exploratory_only',
@@ -478,6 +567,7 @@ PROMOTION_SCOPES = {
     'final_output_chain_evidence_only',
     'final_output_chain_reuse_evidence_only',
     'grouped_dispatch_evidence_only',
+    'hip_graph_replay_evidence_only',
     'independent_export_repack_control_only',
     'larger_final_output_chain_evidence_only',
     'layout_comparison_only',
@@ -494,6 +584,8 @@ PROMOTION_SCOPES = {
     'release_gate_review_required',
     'release_review_candidate',
     'resident_lifetime_arena_evidence_only',
+    'result_cache_contract_candidate',
+    'result_cache_research_only',
     'reuse_contract_evidence_only',
     'scenario_surface_only',
     'streaming_overlap_evidence_only',
@@ -515,7 +607,9 @@ TARGET_CLAIM_LABELS = {
 
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_EXACT_WIDE_EXPORT_KERNEL_BATCHED_D2H = 'device_grouped_exact_wide_export_kernel_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_AND_EXACT_WIDE_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_and_exact_wide_export_kernels_batched_d2h'
+GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_BOUNDED_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_EXACT_WIDE_EXPORT_KERNELS_BATCHED_D2H = 'device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h'
+GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H = 'device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h'
 GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS = 'device_grouped_pack_gemm_host_exports'
 GROUPED_DISPATCH_STRATEGY_HOST_PHASE_LOOP_BATCHED_EXACT_WIDE_EXPORT_D2H = 'host_phase_loop_batched_exact_wide_export_d2h'
 GROUPED_DISPATCH_STRATEGY_HOST_PHASE_LOOP_PER_TASK_EXPORT = 'host_phase_loop_per_task_export'

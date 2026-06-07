@@ -24,24 +24,13 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide signed)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 
-  DeviceBuffer grouped_export_device_slab;
-  DeviceBuffer grouped_export_residue_ptrs;
-  DeviceBuffer grouped_pack_a_device_slab;
-  DeviceBuffer grouped_pack_b_device_slab;
-  DeviceBuffer grouped_pack_a_residue_ptrs;
-  DeviceBuffer grouped_pack_b_residue_ptrs;
-  std::vector<uint64_t> grouped_export_host_slab;
-  std::vector<int64_t> grouped_pack_a_host_slab;
-  std::vector<int64_t> grouped_pack_b_host_slab;
-  std::vector<rns8_matrix*> grouped_export_c_matrices;
-  std::vector<rns8_matrix*> grouped_pack_a_matrices;
-  std::vector<rns8_matrix*> grouped_pack_b_matrices;
+  GroupedExactWideRnsBatch<int64_t> grouped_batch;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
                                            !exact_wide_export_status_check_required(args) &&
@@ -61,104 +50,43 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix, "grouped exact-wide signed setup");
   if (grouped_export_slab_enabled) {
-    const std::size_t total_a_elements =
-        checked_task_slab_elements(task_count, a_elements, "grouped exact-wide signed slab A");
-    const std::size_t total_b_elements =
-        checked_task_slab_elements(task_count, b_elements, "grouped exact-wide signed slab B");
-    const std::size_t a_slab_bytes =
-        checked_bytes(total_a_elements, sizeof(int64_t), "grouped exact-wide signed slab A");
-    const std::size_t b_slab_bytes =
-        checked_bytes(total_b_elements, sizeof(int64_t), "grouped exact-wide signed slab B");
-    const std::size_t compact_limb_elements =
-        checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "grouped exact-wide signed compact C");
-    const std::size_t total_limb_elements =
-        checked_task_slab_limb_elements(task_count, compact_limb_elements, "grouped exact-wide signed slab C");
-    const std::size_t slab_bytes =
-        checked_bytes(total_limb_elements, sizeof(uint64_t), "grouped exact-wide signed slab C");
-    const int device_id = args.device_id < 0 ? 0 : args.device_id;
-    grouped_pack_a_device_slab.allocate(device_id, a_slab_bytes, "hip_direct_allocate(grouped exact-wide signed slab A)");
-    grouped_pack_b_device_slab.allocate(device_id, b_slab_bytes, "hip_direct_allocate(grouped exact-wide signed slab B)");
-    grouped_export_device_slab.allocate(device_id, slab_bytes, "hip_direct_allocate(grouped exact-wide signed slab C)");
-    const std::size_t pointer_bytes =
-        checked_bytes(task_count, sizeof(const void*), "grouped exact-wide signed residue pointer table");
-    grouped_pack_a_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide signed A residue pointer table)");
-    grouped_pack_b_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide signed B residue pointer table)");
-    grouped_export_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide signed C residue pointer table)");
-    grouped_pack_a_matrices.reserve(task_count);
-    grouped_pack_b_matrices.reserve(task_count);
-    grouped_export_c_matrices.reserve(task_count);
-    for (const auto& task : tasks) {
-      grouped_pack_a_matrices.push_back(task.a);
-      grouped_pack_b_matrices.push_back(task.b);
-      grouped_export_c_matrices.push_back(task.c);
-    }
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_pack_a_matrices,
+    initialize_grouped_exact_wide_rns_batch(
+        args,
+        plan,
         RNS8_EXACT_WIDE_SIGNED,
-        grouped_pack_a_residue_ptrs,
         matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(signed A)",
-        "grouped exact-wide signed A residue pointer table");
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_pack_b_matrices,
-        RNS8_EXACT_WIDE_SIGNED,
-        grouped_pack_b_residue_ptrs,
-        matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(signed B)",
-        "grouped exact-wide signed B residue pointer table");
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_export_c_matrices,
-        RNS8_EXACT_WIDE_SIGNED,
-        grouped_export_residue_ptrs,
-        matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(signed C)",
-        "grouped exact-wide signed C residue pointer table");
-    grouped_pack_a_host_slab = flatten_grouped_pack_slab(batch_a, a_elements, "grouped exact-wide signed slab A");
-    grouped_pack_b_host_slab = flatten_grouped_pack_slab(batch_b, b_elements, "grouped exact-wide signed slab B");
-    grouped_export_host_slab.assign(total_limb_elements, UINT64_C(0x5a5a5a5a5a5a5a5a));
-    result.grouped_dispatch_batched_export_enabled = true;
-    result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(slab_bytes);
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        result,
+        "grouped exact-wide signed");
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  auto& grouped_resources = grouped_batch.device_resources;
+  const auto grouped_bucket_plan =
+      make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_SIGNED, matrix_prefix);
+  const auto& grouped_descriptor =
+      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide signed execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_pack_i64_grouped_matrices_device(
-            grouped_pack_a_device_slab.device_id,
-            grouped_pack_a_host_slab.data(),
-            grouped_pack_a_device_slab.ptr,
-            grouped_pack_a_device_slab.bytes,
-            grouped_pack_a_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_SIGNED,
-            grouped_pack_a_residue_ptrs.ptr,
-            args.m,
-            args.k,
-            args.k,
-            matrix_prefix,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_i64_grouped_matrices_device(host API batch A)", status);
-        status = rns8::detail::hip_direct_pack_i64_grouped_matrices_device(
-            grouped_pack_b_device_slab.device_id,
-            grouped_pack_b_host_slab.data(),
-            grouped_pack_b_device_slab.ptr,
-            grouped_pack_b_device_slab.bytes,
-            grouped_pack_b_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_SIGNED,
-            grouped_pack_b_residue_ptrs.ptr,
+        status = rns8::detail::hip_direct_pack_grouped_i64_task_inputs(
+            grouped_descriptor,
+            grouped_resources,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(),
             args.k,
             args.n,
-            args.n,
-            matrix_prefix,
             source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_i64_grouped_matrices_device(host API batch B)", status);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_i64_task_inputs(host API batch exact-wide signed)", status);
       }
       (void)task;
       return;
@@ -171,22 +99,11 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
-            grouped_pack_a_device_slab.device_id,
-            grouped_pack_a_matrices.data(),
-            grouped_pack_b_matrices.data(),
-            grouped_export_c_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_SIGNED,
-            grouped_pack_a_residue_ptrs.ptr,
-            grouped_pack_b_residue_ptrs.ptr,
-            grouped_export_residue_ptrs.ptr,
-            args.m,
-            args.n,
-            args.k,
-            matrix_prefix);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
+            grouped_descriptor,
+            grouped_resources);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_rns_grouped_exact_wide_matrices_device(host API batch signed)", status);
+          fail_status("hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide signed)", status);
         }
       }
       (void)task;
@@ -198,13 +115,16 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
-        export_exact_wide_grouped_dispatch_slab(
-            args,
-            grouped_export_c_matrices,
-            grouped_export_device_slab,
-            grouped_export_residue_ptrs,
-            grouped_export_host_slab,
-            true);
+        status = rns8::detail::hip_direct_export_grouped_exact_wide_task_outputs_to_host(
+            grouped_descriptor,
+            grouped_resources,
+            args.exact_wide_limb_count,
+            true,
+            grouped_batch.export_host_slab.data(),
+            grouped_batch.export_host_slab.size());
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide signed)", status);
+        }
       }
       return;
     }
@@ -215,7 +135,18 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_SIGNED,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -223,16 +154,20 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_EXACT_WIDE_SIGNED,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled) {
-    scatter_grouped_limb_slab_to_outputs(args, grouped_export_host_slab, batch_c);
+    scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_limb_matrix(
@@ -271,24 +206,13 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch exact-wide unsigned)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 
-  DeviceBuffer grouped_export_device_slab;
-  DeviceBuffer grouped_export_residue_ptrs;
-  DeviceBuffer grouped_pack_a_device_slab;
-  DeviceBuffer grouped_pack_b_device_slab;
-  DeviceBuffer grouped_pack_a_residue_ptrs;
-  DeviceBuffer grouped_pack_b_residue_ptrs;
-  std::vector<uint64_t> grouped_export_host_slab;
-  std::vector<uint64_t> grouped_pack_a_host_slab;
-  std::vector<uint64_t> grouped_pack_b_host_slab;
-  std::vector<rns8_matrix*> grouped_export_c_matrices;
-  std::vector<rns8_matrix*> grouped_pack_a_matrices;
-  std::vector<rns8_matrix*> grouped_pack_b_matrices;
+  GroupedExactWideRnsBatch<uint64_t> grouped_batch;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
                                            !exact_wide_export_status_check_required(args) &&
@@ -308,104 +232,43 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix, "grouped exact-wide unsigned setup");
   if (grouped_export_slab_enabled) {
-    const std::size_t total_a_elements =
-        checked_task_slab_elements(task_count, a_elements, "grouped exact-wide unsigned slab A");
-    const std::size_t total_b_elements =
-        checked_task_slab_elements(task_count, b_elements, "grouped exact-wide unsigned slab B");
-    const std::size_t a_slab_bytes =
-        checked_bytes(total_a_elements, sizeof(uint64_t), "grouped exact-wide unsigned slab A");
-    const std::size_t b_slab_bytes =
-        checked_bytes(total_b_elements, sizeof(uint64_t), "grouped exact-wide unsigned slab B");
-    const std::size_t compact_limb_elements =
-        checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "grouped exact-wide unsigned compact C");
-    const std::size_t total_limb_elements =
-        checked_task_slab_limb_elements(task_count, compact_limb_elements, "grouped exact-wide unsigned slab C");
-    const std::size_t slab_bytes =
-        checked_bytes(total_limb_elements, sizeof(uint64_t), "grouped exact-wide unsigned slab C");
-    const int device_id = args.device_id < 0 ? 0 : args.device_id;
-    grouped_pack_a_device_slab.allocate(device_id, a_slab_bytes, "hip_direct_allocate(grouped exact-wide unsigned slab A)");
-    grouped_pack_b_device_slab.allocate(device_id, b_slab_bytes, "hip_direct_allocate(grouped exact-wide unsigned slab B)");
-    grouped_export_device_slab.allocate(device_id, slab_bytes, "hip_direct_allocate(grouped exact-wide unsigned slab C)");
-    const std::size_t pointer_bytes =
-        checked_bytes(task_count, sizeof(const void*), "grouped exact-wide unsigned residue pointer table");
-    grouped_pack_a_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide unsigned A residue pointer table)");
-    grouped_pack_b_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide unsigned B residue pointer table)");
-    grouped_export_residue_ptrs.allocate(
-        device_id, pointer_bytes, "hip_direct_allocate(grouped exact-wide unsigned C residue pointer table)");
-    grouped_pack_a_matrices.reserve(task_count);
-    grouped_pack_b_matrices.reserve(task_count);
-    grouped_export_c_matrices.reserve(task_count);
-    for (const auto& task : tasks) {
-      grouped_pack_a_matrices.push_back(task.a);
-      grouped_pack_b_matrices.push_back(task.b);
-      grouped_export_c_matrices.push_back(task.c);
-    }
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_pack_a_matrices,
+    initialize_grouped_exact_wide_rns_batch(
+        args,
+        plan,
         RNS8_EXACT_WIDE_UNSIGNED,
-        grouped_pack_a_residue_ptrs,
         matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(unsigned A)",
-        "grouped exact-wide unsigned A residue pointer table");
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_pack_b_matrices,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        grouped_pack_b_residue_ptrs,
-        matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(unsigned B)",
-        "grouped exact-wide unsigned B residue pointer table");
-    prepare_grouped_matrix_residue_pointer_table(
-        grouped_export_c_matrices,
-        RNS8_EXACT_WIDE_UNSIGNED,
-        grouped_export_residue_ptrs,
-        matrix_prefix,
-        "hip_direct_prepare_exact_wide_grouped_matrix_residue_pointers(unsigned C)",
-        "grouped exact-wide unsigned C residue pointer table");
-    grouped_pack_a_host_slab = flatten_grouped_pack_slab(batch_a, a_elements, "grouped exact-wide unsigned slab A");
-    grouped_pack_b_host_slab = flatten_grouped_pack_slab(batch_b, b_elements, "grouped exact-wide unsigned slab B");
-    grouped_export_host_slab.assign(total_limb_elements, UINT64_C(0x5a5a5a5a5a5a5a5a));
-    result.grouped_dispatch_batched_export_enabled = true;
-    result.grouped_dispatch_device_output_slab_bytes = static_cast<uint64_t>(slab_bytes);
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        result,
+        "grouped exact-wide unsigned");
   }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  auto& grouped_resources = grouped_batch.device_resources;
+  const auto grouped_bucket_plan =
+      make_grouped_dispatch_bucket_plan(args, plan, tasks, RNS8_EXACT_WIDE_UNSIGNED, matrix_prefix);
+  const auto& grouped_descriptor =
+      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped exact-wide unsigned execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
     if (grouped_pack_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_pack_u64_grouped_matrices_device(
-            grouped_pack_a_device_slab.device_id,
-            grouped_pack_a_host_slab.data(),
-            grouped_pack_a_device_slab.ptr,
-            grouped_pack_a_device_slab.bytes,
-            grouped_pack_a_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_UNSIGNED,
-            grouped_pack_a_residue_ptrs.ptr,
-            args.m,
-            args.k,
-            args.k,
-            matrix_prefix,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_u64_grouped_matrices_device(host API batch A)", status);
-        status = rns8::detail::hip_direct_pack_u64_grouped_matrices_device(
-            grouped_pack_b_device_slab.device_id,
-            grouped_pack_b_host_slab.data(),
-            grouped_pack_b_device_slab.ptr,
-            grouped_pack_b_device_slab.bytes,
-            grouped_pack_b_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_UNSIGNED,
-            grouped_pack_b_residue_ptrs.ptr,
+        status = rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
+            grouped_descriptor,
+            grouped_resources,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(),
             args.k,
             args.n,
-            args.n,
-            matrix_prefix,
             source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_u64_grouped_matrices_device(host API batch B)", status);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_u64_task_inputs(host API batch exact-wide unsigned)", status);
       }
       (void)task;
       return;
@@ -418,22 +281,11 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
-            grouped_pack_a_device_slab.device_id,
-            grouped_pack_a_matrices.data(),
-            grouped_pack_b_matrices.data(),
-            grouped_export_c_matrices.data(),
-            task_count,
-            RNS8_EXACT_WIDE_UNSIGNED,
-            grouped_pack_a_residue_ptrs.ptr,
-            grouped_pack_b_residue_ptrs.ptr,
-            grouped_export_residue_ptrs.ptr,
-            args.m,
-            args.n,
-            args.k,
-            matrix_prefix);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
+            grouped_descriptor,
+            grouped_resources);
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_gemm_rns_grouped_exact_wide_matrices_device(host API batch unsigned)", status);
+          fail_status("hip_direct_gemm_grouped_rns_task_outputs(host API batch exact-wide unsigned)", status);
         }
       }
       (void)task;
@@ -445,13 +297,16 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_export_slab_enabled) {
       if (task_index == 0) {
-        export_exact_wide_grouped_dispatch_slab(
-            args,
-            grouped_export_c_matrices,
-            grouped_export_device_slab,
-            grouped_export_residue_ptrs,
-            grouped_export_host_slab,
-            false);
+        status = rns8::detail::hip_direct_export_grouped_exact_wide_task_outputs_to_host(
+            grouped_descriptor,
+            grouped_resources,
+            args.exact_wide_limb_count,
+            false,
+            grouped_batch.export_host_slab.data(),
+            grouped_batch.export_host_slab.size());
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide unsigned)", status);
+        }
       }
       return;
     }
@@ -462,7 +317,18 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -470,16 +336,20 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,
         gemm_task,
         export_task);
   }
+  record_allocation_after_repeats(result);
   std::vector<uint64_t> task_checksums(task_count);
   if (grouped_export_slab_enabled) {
-    scatter_grouped_limb_slab_to_outputs(args, grouped_export_host_slab, batch_c);
+    scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
     task_checksums[task_index] = checksum_limb_matrix(

@@ -1,14 +1,56 @@
+uint8_t sample_finite_u8_input(std::mt19937_64& rng, const Args& args) {
+  const uint32_t modulus = args.finite_modulus == 256 ? 256u : static_cast<uint32_t>(args.finite_modulus);
+  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
+  switch (args.input_profile) {
+    case InputProfile::FiniteBinary: {
+      std::uniform_int_distribution<uint32_t> dist(0, 1);
+      return static_cast<uint8_t>(dist(rng) % modulus);
+    }
+    case InputProfile::FiniteSparse: {
+      std::uniform_int_distribution<uint32_t> zero_gate(0, 9);
+      if (zero_gate(rng) < 9) {
+        return 0;
+      }
+      std::uniform_int_distribution<uint32_t> nonzero(1, high);
+      return static_cast<uint8_t>(nonzero(rng));
+    }
+    case InputProfile::FiniteLowHamming: {
+      static constexpr uint32_t kChoices[] = {0u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u};
+      std::uniform_int_distribution<std::size_t> index(0, (sizeof(kChoices) / sizeof(kChoices[0])) - 1);
+      return static_cast<uint8_t>(kChoices[index(rng)] % modulus);
+    }
+    case InputProfile::FiniteSmallCentered: {
+      std::uniform_int_distribution<int32_t> dist(-2, 2);
+      const int32_t value = dist(rng);
+      const int32_t mod = static_cast<int32_t>(modulus);
+      return static_cast<uint8_t>((value % mod + mod) % mod);
+    }
+    case InputProfile::FiniteFullUniform:
+    case InputProfile::UniformSmall: {
+      std::uniform_int_distribution<uint32_t> dist(0, high);
+      return static_cast<uint8_t>(dist(rng));
+    }
+    case InputProfile::AdaptiveBands:
+      usage_error("finite-u8 lanes do not support adaptive-bands input profile");
+  }
+  return 0;
+}
+
+void fill_finite_u8_input(std::mt19937_64& rng, const Args& args, std::vector<uint8_t>& values) {
+  for (auto& value : values) {
+    value = sample_finite_u8_input(rng, args);
+  }
+}
+
 BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
-  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
-  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+  fill_finite_u8_input(rng, args, A);
+  fill_finite_u8_input(rng, args, B);
 
   auto desc = gemm_desc(args, 0);
   BenchmarkResult result = initialize_bounded_oneshot_result(ctx, args, 0, desc);
@@ -49,6 +91,7 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   for (uint32_t r = 0; r < args.repeats; ++r) {
     run_iteration(&result.samples);
   }
+  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -57,8 +100,6 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch finite A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch finite B");
   const int64_t ldc = output_logical_ld(args);
@@ -68,8 +109,8 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   std::vector<std::vector<uint8_t>> batch_c(
       task_count, std::vector<uint8_t>(c_elements, 0x5au));
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    for (auto& value : batch_a[task_index]) value = static_cast<uint8_t>(dist(rng));
-    for (auto& value : batch_b[task_index]) value = static_cast<uint8_t>(dist(rng));
+    fill_finite_u8_input(rng, args, batch_a[task_index]);
+    fill_finite_u8_input(rng, args, batch_b[task_index]);
   }
 
   BenchmarkResult result{};
@@ -80,11 +121,18 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch finite)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
+  const bool grouped_pack_gemm_export_enabled =
+      grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
+  if (grouped_dispatch_requested(args)) {
+    result.grouped_dispatch_execution_strategy =
+        grouped_pack_gemm_export_enabled ? "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h"
+                                         : "host_phase_loop_per_task_export";
+  }
 
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -93,10 +141,51 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
+  enforce_grouped_dispatch_task_setup_contract(
+      args, plan, tasks, c_semantics(args.semantics), matrix_prefix, "grouped finite-u8 setup");
+  GroupedNativeRnsBatch<uint8_t> grouped_batch;
+  if (grouped_pack_gemm_export_enabled) {
+    initialize_grouped_native_rns_batch(
+        args,
+        plan,
+        c_semantics(args.semantics),
+        matrix_prefix,
+        tasks,
+        batch_a,
+        batch_b,
+        a_elements,
+        b_elements,
+        grouped_batch,
+        "grouped finite-u8");
+    result.grouped_dispatch_batched_export_enabled = true;
+    result.grouped_dispatch_device_output_slab_bytes =
+        static_cast<uint64_t>(grouped_batch.device_resources.c_slab.bytes);
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
+  auto& grouped_resources = grouped_batch.device_resources;
+  const auto grouped_bucket_plan =
+      make_grouped_dispatch_bucket_plan(args, plan, tasks, c_semantics(args.semantics), matrix_prefix);
+  const auto& grouped_descriptor =
+      single_grouped_dispatch_descriptor(grouped_bucket_plan, "grouped finite execution");
 
   const auto pack_task = [&](HostApiBatchTask& task, uint32_t task_index, uint64_t source_version) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_pack_grouped_finite_u8_task_inputs(
+            grouped_descriptor,
+            grouped_resources,
+            grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(),
+            args.k,
+            args.n,
+            static_cast<uint16_t>(args.finite_modulus),
+            source_version);
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_finite_u8_task_inputs(grouped finite)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_pack_finite_u8(
         ctx, task.a, args.finite_modulus, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch A)", status);
@@ -104,11 +193,37 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         ctx, task.b, args.finite_modulus, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch B)", status);
   };
-  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t) {
+  const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
+            grouped_descriptor,
+            grouped_resources,
+            static_cast<uint16_t>(args.finite_modulus));
+        if (status != RNS8_SUCCESS) fail_status("hip_direct_gemm_grouped_finite_u8_task_outputs(grouped finite)", status);
+      }
+      (void)task;
+      return;
+    }
     status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, task.a, task.b, task.c, task.workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8(host API batch)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
+    if (grouped_pack_gemm_export_enabled) {
+      if (task_index == 0) {
+        status = rns8::detail::hip_direct_export_grouped_finite_u8_task_outputs_to_host(
+            grouped_descriptor,
+            grouped_resources,
+            static_cast<uint16_t>(args.finite_modulus),
+            grouped_batch.c_host_slab.data(),
+            grouped_batch.c_host_slab.size());
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_export_grouped_finite_u8_task_outputs_to_host(grouped finite)", status);
+        }
+      }
+      (void)task;
+      return;
+    }
     status = rns8_export_finite_u8(
         ctx, plan, args.finite_modulus, task.c, batch_c[task_index].data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_finite_u8(host API batch)", status);
@@ -116,7 +231,18 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
     run_host_api_batch_iteration(
-        args, result, selected_backend, tasks, static_cast<uint64_t>(r) + 1, nullptr, pack_task, gemm_task, export_task);
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        c_semantics(args.semantics),
+        matrix_prefix,
+        static_cast<uint64_t>(r) + 1,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
@@ -124,12 +250,19 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         args,
         result,
         selected_backend,
+        plan,
         tasks,
+        c_semantics(args.semantics),
+        matrix_prefix,
         static_cast<uint64_t>(args.warmups) + r + 1,
         &result.samples,
         pack_task,
         gemm_task,
         export_task);
+  }
+  record_allocation_after_repeats(result);
+  if (grouped_pack_gemm_export_enabled) {
+    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped finite-u8 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
@@ -151,14 +284,12 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   }
   (void)bound;
   std::mt19937_64 rng(args.seed);
-  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
-  std::uniform_int_distribution<uint32_t> dist(0, high);
   std::vector<uint8_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
-  for (auto& value : A) value = static_cast<uint8_t>(dist(rng));
-  for (auto& value : B) value = static_cast<uint8_t>(dist(rng));
+  fill_finite_u8_input(rng, args, A);
+  fill_finite_u8_input(rng, args, B);
 
   BenchmarkResult result{};
   auto desc = gemm_desc(args, 0);
@@ -168,7 +299,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
-  capture_packing_and_lowering_info(plan, result);
+  capture_packing_and_lowering_info(args, plan, result);
   apply_finite_native_a_reuse_b_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = finite_native_a_reuse_b_path(args, result);
@@ -176,12 +307,15 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
+  rns8_result_cache* result_cache = nullptr;
+  std::vector<rns8_dirty_region> result_cache_dirty_regions;
   DeviceBuffer native_a;
   const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
@@ -199,6 +333,12 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  const bool use_result_cache_candidate =
+      incremental_result_cache_runtime_candidate_requested(args, selected_backend) && !use_native_a_reuse_b;
+  if (use_result_cache_candidate) {
+    result_cache = create_benchmark_result_cache(ctx, plan);
+    result_cache_dirty_regions.push_back(benchmark_incremental_result_cache_dirty_region(args));
+  }
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -271,10 +411,30 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
         collect_finite_native_a_gemm_gpu_events(result.gpu_events);
       }
     } else {
-      status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
-      if (status != RNS8_SUCCESS) fail_status("rns8_gemm_finite_u8", status);
+      if (result_cache) {
+        status = rns8_gemm_finite_u8_incremental(
+            ctx,
+            plan,
+            args.finite_modulus,
+            a_matrix,
+            b_matrix,
+            c_matrix,
+            workspace,
+            result_cache,
+            result_cache_dirty_regions.data(),
+            static_cast<uint32_t>(result_cache_dirty_regions.size()));
+      } else {
+        status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
+      }
+      if (status != RNS8_SUCCESS) {
+        fail_status(result_cache ? "rns8_gemm_finite_u8_incremental" : "rns8_gemm_finite_u8", status);
+      }
       if (collect_gpu_events) {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        if (result_cache) {
+          collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
+        } else {
+          collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events);
+        }
       }
     }
     end_gpu_event_phase(collect_gpu_events);
@@ -298,15 +458,34 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
-  }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+  if (hip_graph_replay_full_finite_pack_export_requested(args)) {
+    run_hip_graph_replay_finite_pack_gemm_export(args, result, a_matrix, b_matrix, c_matrix, A, B, C);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
+    record_allocation_after_repeats(result);
   }
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
+  if (result_cache) {
+    capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
+    pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
+    const rns8_status stale_status = rns8_gemm_finite_u8_incremental(
+        ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    if (stale_status == RNS8_SUCCESS) {
+      fail_status("rns8_gemm_finite_u8_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
+    }
+    capture_incremental_result_cache_stale_rejection(result, result_cache);
+  }
 
+  if (result_cache) {
+    status = rns8_destroy_result_cache(result_cache);
+    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
+  }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
   if (a_matrix) {

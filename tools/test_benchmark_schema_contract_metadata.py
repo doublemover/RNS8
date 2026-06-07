@@ -25,7 +25,15 @@ def add_optional_contracts(capture: dict) -> dict:
         "buffering": "two_stage_host_device_ring",
         "dependency_contract": "same_stream_ordered_pack_gemm_export",
         "transfer_policy": "async_h2d_d2h_with_host_sync_at_repeat_boundary",
+        "stream_count": 0,
+        "buffer_count": 0,
+        "measured_repeat_count": 0,
+        "batch_wall_us": 0,
+        "per_repeat_pipeline_us": 0,
+        "explicit_dependency_events": False,
+        "stage_event_scope": "not_available",
         "capture_status": "metadata_only_unsupported_for_execution_path",
+        "unsupported_reason": "streaming_overlap_not_executed_by_fixture",
         "promotion_eligible": False,
     }
     contracted["workload_proxy"] = {
@@ -55,6 +63,52 @@ def add_optional_contracts(capture: dict) -> dict:
         "reused_reference_structure": "same_shape_same_seed_fixture",
         "final_exact_comparison_required": True,
         "final_exact_comparison_status": "passed",
+        "promotion_eligible": False,
+    }
+    contracted["error_detection_policy"] = {
+        "enabled": True,
+        "policy": "freivalds_two_round_product_check_research",
+        "mode": "probabilistic_product_check",
+        "verification_basis": "same_shape_same_seed_fixture_cpu_reference_final_compare",
+        "false_negative_policy": "bounded_by_recorded_rounds_seed_and_reference_field_not_default_exact_api",
+        "verification_rounds": 2,
+        "rng_seed_recorded": True,
+        "final_exact_comparison_required": True,
+        "final_exact_comparison_status": "checksum_recorded_reference_required",
+        "research_only": True,
+        "default_exact_api_unchanged": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
+        "promotion_eligible": False,
+    }
+    contracted["cpu_small_shape_selector"] = {
+        "enabled": True,
+        "policy": "bounded_i64_32_cpu_cutoff_review",
+        "candidate_role": "comparison_candidate",
+        "boundary_key": "semantics=bounded_i64;m=32;n=32;k=32;layout=row_major;target=gfx1100",
+        "threshold_scope": "semantic_layout_output_target_family_explicit_review_only",
+        "selector_explanation": "non_routing_auto_explanation_metadata_only",
+        "cpu_reference_required": True,
+        "release_review_required": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
+        "promotion_eligible": False,
+    }
+    contracted["incremental_result_cache"] = {
+        "enabled": True,
+        "policy": "dirty_tile_partial_recompute_research",
+        "source_identity_policy": "caller_visible_source_identity_required",
+        "source_version_policy": "monotonic_source_versions_required",
+        "dirty_region_policy": "explicit_dirty_region_shape_required",
+        "result_lifetime_policy": "caller_visible_result_lifetime_required",
+        "checksum_policy": "final_exact_cpu_comparison_required",
+        "partial_recompute_policy": "dirty_region_only_when_version_contract_matches",
+        "final_exact_comparison_required": True,
+        "final_exact_comparison_status": "checksum_recorded_reference_required",
+        "public_contract_available": False,
+        "default_gemm_unchanged": True,
+        "runtime_routing_allowed": False,
+        "cache_eligible": False,
         "promotion_eligible": False,
     }
     return contracted
@@ -91,15 +145,107 @@ def main() -> int:
     exact["exact_output_contract"] = {
         "requested_final_output": "exact_wide_limb_host",
         "limb_count": 4,
-        "status_policy": "required",
+        "status_policy": "structurally_elided",
         "output_domain_after_measured_repeats": "exact_wide_limb_host",
         "final_checksum_export_after_repeats": False,
     }
+    exact["export_variant"] = {
+        "name": "default",
+        "source": "current_backend_export_path",
+        "selector_source": "rns8_internal_export_plan",
+        "selector_key": (
+            "semantics=exact_wide_signed;backend=hip-direct;target_id=gfx1100;prefix=9;"
+            "limb_count=4;signedness=signed;output_layout=fixed_u64_limbs;"
+            "status_policy=none;d2h_policy=host_ld_padded;"
+            "final_output_mode=final_host_output;"
+            "selected_kernel=hip_direct_export_exact_wide_signed_limbs_device"
+        ),
+        "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
+        "semantic_contract": "exact_wide_signed",
+        "backend": "hip-direct",
+        "target_id": "gfx1100",
+        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "signedness": "signed",
+        "output_layout": "fixed_u64_limbs",
+        "limb_count": 4,
+        "status_policy": "structurally_elided",
+        "selector_status_policy": "none",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "exact_shape_selector_metadata_only",
+        "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
+        "status_elision_reason": "exact_wide_requested_limb_count_covers_range_status",
+        "requires_tile_metadata": False,
+        "all_zero_tiled_output": False,
+        "selected_kernel": "hip_direct_export_exact_wide_signed_limbs_device",
+        "constants_placement": "backend_default",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
     validate_capture(exact)
+
+    reviewable_fixed_limb = copy.deepcopy(exact)
+    reviewable_fixed_limb["export_variant"]["name"] = "exact-wide-fixed-limb-export"
+    reviewable_fixed_limb["export_variant"]["source"] = "reviewable_exact_wide_fixed_limb_selector"
+    reviewable_fixed_limb["export_variant"]["promotion_eligible"] = True
+    reviewable_fixed_limb["export_variant"]["promotion_blocker"] = None
+    validate_capture(reviewable_fixed_limb)
+
+    reviewable_compact_fixed_limb = copy.deepcopy(reviewable_fixed_limb)
+    reviewable_compact_fixed_limb["export_variant"]["selector_key"] = reviewable_compact_fixed_limb[
+        "export_variant"
+    ]["selector_key"].replace("d2h_policy=host_ld_padded", "d2h_policy=compact_contiguous")
+    reviewable_compact_fixed_limb["export_variant"]["d2h_policy"] = "compact_contiguous"
+    validate_capture(reviewable_compact_fixed_limb)
+
+    stale_reviewable_status_reason = copy.deepcopy(reviewable_fixed_limb)
+    stale_reviewable_status_reason["export_variant"]["status_elision_reason"] = None
+    expect_invalid(
+        stale_reviewable_status_reason,
+        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures",
+    )
+
+    stale_reviewable_layout = copy.deepcopy(reviewable_fixed_limb)
+    stale_reviewable_layout["export_variant"]["output_layout"] = "scalar_i64"
+    expect_invalid(
+        stale_reviewable_layout,
+        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures",
+    )
+
+    stale_compact_promotable = copy.deepcopy(reviewable_fixed_limb)
+    stale_compact_promotable["export_variant"]["name"] = "compact-d2h-export-candidate"
+    expect_invalid(
+        stale_compact_promotable,
+        "export_variant.promotion_eligible=true is allowed only for default or exact-wide fixed-limb selector captures",
+    )
 
     stale_exact_domain = copy.deepcopy(exact)
     stale_exact_domain["exact_output_contract"]["requested_final_output"] = "linux_instinct_claim"
     expect_invalid(stale_exact_domain, "exact_output_contract.requested_final_output must be one of")
+
+    stale_export_layout = copy.deepcopy(exact)
+    stale_export_layout["export_variant"]["output_layout"] = "device_magic"
+    expect_invalid(stale_export_layout, "export_variant.output_layout must be one of")
+
+    stale_export_status = copy.deepcopy(exact)
+    stale_export_status["export_variant"]["selector_status_policy"] = "host_assumed_ok"
+    expect_invalid(stale_export_status, "export_variant.selector_status_policy must be one of")
+
+    stale_export_d2h = copy.deepcopy(exact)
+    stale_export_d2h["export_variant"]["d2h_policy"] = "compact_unproven"
+    expect_invalid(stale_export_d2h, "export_variant.d2h_policy must be one of")
+
+    stale_export_mode = copy.deepcopy(exact)
+    stale_export_mode["export_variant"]["final_output_mode"] = "secret_route"
+    expect_invalid(stale_export_mode, "export_variant.final_output_mode must be one of")
+
+    stale_export_key = copy.deepcopy(exact)
+    stale_export_key["export_variant"]["selector_key"] = "semantics=exact_wide_signed;selected_kernel=other"
+    expect_invalid(stale_export_key, "export_variant.selector_key must include selected_kernel")
+
+    stale_export_tile_flag = copy.deepcopy(exact)
+    stale_export_tile_flag["export_variant"]["requires_tile_metadata"] = "false"
+    expect_invalid(stale_export_tile_flag, "export_variant.requires_tile_metadata must be a boolean")
 
     grouped = as_grouped_dispatch_capture(base)
     validate_capture(grouped)
@@ -115,12 +261,178 @@ def main() -> int:
     stale_graph_status["hip_graph_replay"]["capture_status"] = "stale_graph_status"
     expect_invalid(stale_graph_status, "hip_graph_replay.capture_status must be one of")
 
+    adaptive_grouped = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
+    adaptive_grouped["adaptive_grouped_scheduler"] = {
+        "requested": True,
+        "strategy": "prefix_tile_zero_mask_grouped_descriptors",
+        "descriptor_identity": "prefix=4;tile_m=64;tile_n=64;zero_tiles=0",
+        "group_count": adaptive_grouped["schedule_metadata"]["prefix_group_count"],
+        "active_prefix_count": adaptive_grouped["schedule_metadata"]["max_selected_prefix"],
+        "active_tile_count": adaptive_grouped["schedule_metadata"]["tile_count"],
+        "active_entry_count": (
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "zero_tile_count": adaptive_grouped["schedule_metadata"].get("zero_output_tile_count", 0),
+        "independent_launch_count_model": (
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "aggregate_launch_count_model": 1,
+        "launch_reduction_ratio": float(
+            adaptive_grouped["schedule_metadata"]["tile_count"]
+            * adaptive_grouped["schedule_metadata"]["max_selected_prefix"]
+        ),
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat",
+        "selected_prefix_histogram": "min=1;max=4",
+        "capture_status": "executed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+    }
+    validate_capture(adaptive_grouped)
+
+    stale_adaptive_status = copy.deepcopy(adaptive_grouped)
+    stale_adaptive_status["adaptive_grouped_scheduler"]["capture_status"] = (
+        "metadata_only_unsupported_for_execution_path"
+    )
+    stale_adaptive_status["adaptive_grouped_scheduler"][
+        "unsupported_reason"
+    ] = "adaptive_grouped_scheduler_not_executed_by_current_path"
+    expect_invalid(
+        stale_adaptive_status,
+        "adaptive_grouped_scheduler direct-HIP grouped-kernel captures must set capture_status=executed",
+    )
+
+    resident_redesign = copy.deepcopy(direct_hip_base)
+    resident_redesign["resident_redesign"] = {
+        "enabled": True,
+        "candidate": "grouped_active_schedule_v3",
+        "dimensions": [
+            "data_layout",
+            "tile_shape",
+            "export_interaction",
+            "schedule_upload",
+            "workspace_reuse",
+        ],
+        "policy": "benchmark_only_resident_route_candidate_requires_rank51_report",
+        "resource_evidence_required": True,
+        "promotion_eligible": False,
+        "cache_promotion_blocker": "resident_redesign_candidate_not_reviewed",
+    }
+    validate_capture(resident_redesign)
+
+    stale_resident_redesign_dimension = copy.deepcopy(resident_redesign)
+    stale_resident_redesign_dimension["resident_redesign"]["dimensions"] = ["magic_layout"]
+    expect_invalid(
+        stale_resident_redesign_dimension,
+        "resident_redesign.dimensions contains unknown values",
+    )
+
+    experimental_modulus = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
+    experimental_modulus["selected_prefix"] = experimental_modulus["schedule_metadata"]["max_selected_prefix"]
+    experimental_modulus["requested_max_prefix"] = experimental_modulus["prefix"]
+    experimental_modulus["contract_prefix_policy"] = "per_tile_minimum"
+    experimental_modulus["residue_planes_requested"] = experimental_modulus["requested_max_prefix"]
+    experimental_modulus["residue_planes_selected"] = experimental_modulus["selected_prefix"]
+    experimental_modulus["residue_planes_skipped"] = (
+        experimental_modulus["requested_max_prefix"] - experimental_modulus["selected_prefix"]
+    )
+    experimental_modulus["residue_plane_skip_fraction"] = (
+        experimental_modulus["residue_planes_skipped"] / experimental_modulus["requested_max_prefix"]
+    )
+    experimental_modulus["modulus_set"] = {
+        "name": "default",
+        "source": "rns8_default_modulus_ladder",
+        "execution_ladder": "rns8_default_8bit_coprime_ladder",
+        "experimental": False,
+        "product_bits": 72,
+        "prefix_count": experimental_modulus["selected_prefix"],
+        "pairwise_coprime_proof": "schema_declared_current_ladder_or_offline_search_report",
+        "reducer_cost_hint": "backend_default",
+        "cache_promotion_blocker": None,
+    }
+    experimental_modulus["residue_count_policy"] = {
+        "policy": experimental_modulus["contract_prefix_policy"],
+        "requested_prefix": experimental_modulus["requested_max_prefix"],
+        "selected_prefix": experimental_modulus["selected_prefix"],
+        "minimum_range_prefix": experimental_modulus["schedule_metadata"]["min_required_prefix"],
+        "redundant_residue_count": experimental_modulus["selected_prefix"]
+        - experimental_modulus["schedule_metadata"]["min_required_prefix"],
+        "autotune_scope": "current_exact_cache",
+        "cache_promotion_blocker": None,
+    }
+    experimental_modulus["modulus_set"] = {
+        "name": "experimental:prefix5-byte-ladder-search",
+        "source": "benchmark_experimental_ladder",
+        "execution_ladder": "rns8_default_8bit_coprime_ladder",
+        "experimental": True,
+        "runtime_selectable": False,
+        "search_report_required": True,
+        "product_bits": experimental_modulus["modulus_set"]["product_bits"],
+        "prefix_count": experimental_modulus["selected_prefix"],
+        "pairwise_coprime_proof": "schema_declared_current_ladder_or_offline_search_report",
+        "reducer_cost_hint": "offline_search_required",
+        "default_change_gate": "spec_cache_schema_proof_and_same_target_review_required",
+        "cache_promotion_blocker": "experimental_modulus_set",
+    }
+    experimental_modulus["residue_count_policy"]["autotune_scope"] = "evidence_only_non_promoting"
+    experimental_modulus["residue_count_policy"]["promotion_eligible"] = False
+    experimental_modulus["residue_count_policy"]["cache_promotion_blocker"] = "experimental_residue_count_policy"
+    validate_capture(experimental_modulus)
+
+    stale_experimental_modulus_runtime = copy.deepcopy(experimental_modulus)
+    stale_experimental_modulus_runtime["modulus_set"]["runtime_selectable"] = True
+    expect_invalid(
+        stale_experimental_modulus_runtime,
+        "experimental modulus_set captures must set runtime_selectable=false",
+    )
+
+    stale_experimental_modulus_gate = copy.deepcopy(experimental_modulus)
+    stale_experimental_modulus_gate["modulus_set"]["default_change_gate"] = "claim_after_smoke"
+    expect_invalid(
+        stale_experimental_modulus_gate,
+        "experimental modulus_set captures must declare the default-change gate",
+    )
+
+    stale_residue_redundancy = copy.deepcopy(experimental_modulus)
+    stale_residue_redundancy["residue_count_policy"]["redundant_residue_count"] = 999
+    expect_invalid(
+        stale_residue_redundancy,
+        "residue_count_policy.redundant_residue_count must equal selected_prefix - minimum_range_prefix",
+    )
+
     optional = add_optional_contracts(add_helper_lane_fields(copy.deepcopy(base)))
     validate_capture(optional)
 
     stale_overlap = copy.deepcopy(optional)
     stale_overlap["streaming_overlap"]["capture_status"] = "stale_overlap_status"
     expect_invalid(stale_overlap, "streaming_overlap.capture_status must be one of")
+
+    stale_overlap_no_reason = copy.deepcopy(optional)
+    stale_overlap_no_reason["streaming_overlap"]["unsupported_reason"] = None
+    expect_invalid(
+        stale_overlap_no_reason,
+        "requested non-executed streaming_overlap captures must include unsupported_reason",
+    )
+
+    stale_overlap_executed_scope = copy.deepcopy(optional)
+    stale_overlap_executed_scope["streaming_overlap"].update(
+        {
+            "capture_status": "executed",
+            "stream_count": 3,
+            "buffer_count": 2,
+            "measured_repeat_count": stale_overlap_executed_scope.get("repeats", 0),
+            "batch_wall_us": 100,
+            "per_repeat_pipeline_us": 10,
+            "explicit_dependency_events": True,
+            "stage_event_scope": "direct_hip_default_stream_backend_operation_groups",
+            "unsupported_reason": None,
+        }
+    )
+    expect_invalid(
+        stale_overlap_executed_scope,
+        "executed streaming_overlap captures must use stage_event_scope",
+    )
 
     stale_proxy = copy.deepcopy(optional)
     stale_proxy["workload_proxy"]["family"] = "linux_instinct_readiness"
@@ -129,6 +441,110 @@ def main() -> int:
     stale_release_gate = copy.deepcopy(optional)
     stale_release_gate["release_gate"]["review_status"] = "claimed_ready"
     expect_invalid(stale_release_gate, "release_gate.review_status must be one of")
+
+    stale_error_detection_mode = copy.deepcopy(optional)
+    stale_error_detection_mode["error_detection_policy"]["mode"] = "silent_fast_path"
+    expect_invalid(stale_error_detection_mode, "error_detection_policy.mode must be one of")
+
+    stale_error_detection_false_negative = copy.deepcopy(optional)
+    stale_error_detection_false_negative["error_detection_policy"]["false_negative_policy"] = "none"
+    expect_invalid(
+        stale_error_detection_false_negative,
+        "enabled error_detection_policy.false_negative_policy must describe false-negative policy",
+    )
+
+    stale_error_detection_default = copy.deepcopy(optional)
+    stale_error_detection_default["error_detection_policy"]["default_exact_api_unchanged"] = False
+    expect_invalid(
+        stale_error_detection_default,
+        "enabled error_detection_policy captures must keep default_exact_api_unchanged=true",
+    )
+
+    stale_error_detection_promotable = copy.deepcopy(optional)
+    stale_error_detection_promotable["error_detection_policy"]["promotion_eligible"] = True
+    expect_invalid(
+        stale_error_detection_promotable,
+        "enabled error_detection_policy captures must set promotion_eligible=false",
+    )
+
+    stale_error_detection_unseeded = copy.deepcopy(optional)
+    stale_error_detection_unseeded["error_detection_policy"]["rng_seed_recorded"] = False
+    expect_invalid(
+        stale_error_detection_unseeded,
+        "probabilistic error_detection_policy captures must set rng_seed_recorded=true",
+    )
+
+    stale_cpu_selector_role = copy.deepcopy(optional)
+    stale_cpu_selector_role["cpu_small_shape_selector"]["candidate_role"] = "magic_gpu"
+    expect_invalid(stale_cpu_selector_role, "cpu_small_shape_selector.candidate_role must be one of")
+
+    stale_cpu_selector_routing = copy.deepcopy(optional)
+    stale_cpu_selector_routing["cpu_small_shape_selector"]["runtime_routing_allowed"] = True
+    expect_invalid(
+        stale_cpu_selector_routing,
+        "enabled cpu_small_shape_selector captures must set runtime_routing_allowed=false",
+    )
+
+    stale_incremental_contract = copy.deepcopy(optional)
+    stale_incremental_contract["incremental_result_cache"]["source_version_policy"] = "none"
+    expect_invalid(
+        stale_incremental_contract,
+        "enabled incremental_result_cache.source_version_policy must describe the contract",
+    )
+
+    stale_incremental_promotable = copy.deepcopy(optional)
+    stale_incremental_promotable["incremental_result_cache"]["promotion_eligible"] = True
+    expect_invalid(
+        stale_incremental_promotable,
+        "research incremental_result_cache captures must set promotion_eligible=false",
+    )
+
+    public_incremental = copy.deepcopy(optional)
+    public_incremental["scenario_metadata"] = {
+        "family": "incremental-result-cache",
+        "name": "bounded-i64-dirty-tile-public-contract",
+        "promotion_eligibility": "result_cache_contract_candidate",
+    }
+    public_incremental["incremental_result_cache"].update(
+        {
+            "policy": "bounded_i64_dirty_tile_public_contract_v1",
+            "source_identity_policy": "matrix_instance_id_exact_match",
+            "source_version_policy": "nonzero_monotonic_source_versions_required",
+            "dirty_region_policy": "caller_provided_output_rectangles_full_k_recompute",
+            "result_lifetime_policy": "explicit_result_cache_handle_lifetime",
+            "partial_recompute_policy": "restore_cached_output_then_recompute_dirty_rectangles_full_k",
+            "public_contract_available": True,
+            "runtime_routing_allowed": True,
+            "cache_eligible": True,
+            "promotion_eligible": True,
+            "a_matrix_instance_id": 101,
+            "b_matrix_instance_id": 102,
+            "a_source_version": 11,
+            "b_source_version": 12,
+            "result_cache_key_fingerprint": 1234,
+            "dirty_region_count": 1,
+            "recomputed_region_count": 1,
+            "copied_from_cache_bytes": 4096,
+            "cache_allocation_bytes": 4096,
+            "stale_rejection_covered": True,
+            "dirty_regions": [
+                {
+                    "row_offset": 0,
+                    "col_offset": 0,
+                    "row_extent": 1,
+                    "col_extent": 1,
+                }
+            ],
+        }
+    )
+    validate_capture(public_incremental)
+
+    public_incremental_no_stale_test = copy.deepcopy(public_incremental)
+    public_incremental_no_stale_test["incremental_result_cache"]["stale_rejection_covered"] = False
+    expect_invalid(
+        public_incremental_no_stale_test,
+        "public incremental_result_cache.stale_rejection_covered must be true",
+    )
 
     print("benchmark schema contract metadata self-test: PASS")
     return 0

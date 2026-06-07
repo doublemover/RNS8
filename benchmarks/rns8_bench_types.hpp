@@ -32,6 +32,11 @@ enum class BoundMode {
 enum class InputProfile {
   UniformSmall,
   AdaptiveBands,
+  FiniteBinary,
+  FiniteSparse,
+  FiniteLowHamming,
+  FiniteSmallCentered,
+  FiniteFullUniform,
 };
 
 enum class BoundSource {
@@ -88,6 +93,7 @@ struct Args {
   bool reuse_packed_b = false;
   bool native_to_rns_bridge = false;
   bool vector_to_rns_chain = false;
+  bool vector_to_rns_chain_host_repack_control = false;
   NextOpHint next_op_hint = NextOpHint::Auto;
   bool residue_channel_fusion = false;
   std::string modulus_set = "default";
@@ -101,8 +107,14 @@ struct Args {
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
   bool streaming_overlap = false;
+  std::string k_block_policy = "auto";
+  std::string resident_redesign_candidate;
+  std::vector<std::string> resident_redesign_dimensions;
   std::string release_gate = "none";
   std::string verification_amortization = "none";
+  std::string error_detection_policy = "none";
+  std::string cpu_small_shape_selector = "none";
+  std::string incremental_result_cache = "none";
 };
 
 struct TimingSamples {
@@ -158,6 +170,16 @@ struct BenchmarkResult {
   bool schedule_info_available = false;
   uint64_t zero_output_tile_count = 0;
   uint64_t zero_output_selected_residue_plane_count = 0;
+  uint64_t adaptive_grouped_active_entry_count = 0;
+  uint32_t adaptive_grouped_active_prefix_count = 0;
+  uint64_t adaptive_grouped_independent_launch_count = 0;
+  uint64_t adaptive_grouped_aggregate_launch_count = 0;
+  bool streaming_overlap_executed = false;
+  uint32_t streaming_overlap_stream_count = 0;
+  uint32_t streaming_overlap_buffer_count = 0;
+  uint32_t streaming_overlap_measured_repeat_count = 0;
+  uint64_t streaming_overlap_batch_wall_us = 0;
+  uint64_t streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
   std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};
@@ -166,6 +188,26 @@ struct BenchmarkResult {
   bool packing_info_available = false;
   rns8::detail::PlanLoweringDescription lowering_info{};
   bool lowering_info_available = false;
+  bool export_plan_info_available = false;
+  std::string export_plan_source = "rns8_internal_export_plan";
+  std::string export_output_layout = "unknown";
+  std::string export_selector_status_policy = "unknown";
+  std::string export_d2h_policy = "unknown";
+  std::string export_selected_kernel{};
+  std::string export_selector_key{};
+  std::string export_selector_policy{};
+  std::string export_semantic_contract{};
+  std::string export_backend{};
+  std::string export_target_id{};
+  std::string export_prefix_contract{};
+  std::string export_signedness{};
+  std::string export_final_output_mode{};
+  std::string export_cache_visibility{};
+  std::string export_stale_entry_reason{};
+  std::string export_status_elision_reason{};
+  uint32_t export_limb_count = 0;
+  bool export_requires_tile_metadata = false;
+  bool export_all_zero_tiled_output = false;
   TimingSamples samples{};
   GpuEventSamples gpu_events{};
   rns8::detail::hip_direct_allocation_counters allocation_before{};
@@ -173,6 +215,13 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
+  bool allocation_after_repeats_available = false;
+  bool workspace_arena_info_available = false;
+  uint64_t workspace_arena_size_bytes = 0;
+  uint64_t workspace_arena_high_water_mark_bytes = 0;
+  uint32_t workspace_arena_suballocation_count = 0;
+  std::string workspace_arena_target_id{};
+  std::string workspace_arena_policy{};
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
@@ -188,6 +237,32 @@ struct BenchmarkResult {
   bool grouped_dispatch_batched_export_enabled = false;
   uint64_t grouped_dispatch_device_output_slab_bytes = 0;
   std::string grouped_dispatch_execution_strategy = "not_requested";
+  bool incremental_result_cache_info_available = false;
+  bool incremental_result_cache_public_contract_available = false;
+  bool incremental_result_cache_stale_rejection_covered = false;
+  std::string incremental_result_cache_candidate_role = "not_requested";
+  std::string incremental_result_cache_status = "not_requested";
+  std::string incremental_result_cache_stale_reason{};
+  std::string incremental_result_cache_fallback_reason{};
+  std::string incremental_result_cache_detail{};
+  uint64_t incremental_result_cache_key_fingerprint = 0;
+  uint64_t incremental_result_cache_a_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_b_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_c_matrix_instance_id = 0;
+  uint64_t incremental_result_cache_a_source_version = 0;
+  uint64_t incremental_result_cache_b_source_version = 0;
+  uint64_t incremental_result_cache_c_source_version = 0;
+  uint64_t incremental_result_cache_copied_from_cache_bytes = 0;
+  uint64_t incremental_result_cache_recomputed_cell_count = 0;
+  uint64_t incremental_result_cache_allocation_bytes = 0;
+  uint64_t incremental_result_cache_snapshot_device_bytes = 0;
+  uint32_t incremental_result_cache_dirty_region_count = 0;
+  uint32_t incremental_result_cache_recomputed_region_count = 0;
+  uint32_t incremental_result_cache_full_fallback = 0;
+  uint32_t incremental_result_cache_last_cache_hit = 0;
+  uint32_t incremental_result_cache_last_cache_miss = 0;
+  uint32_t incremental_result_cache_last_stale_rejection = 0;
+  std::vector<rns8_dirty_region> incremental_result_cache_dirty_regions{};
   uint64_t checksum = 0;
 };
 

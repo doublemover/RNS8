@@ -87,14 +87,16 @@
   print_device_allocation_json(args, result);
   print_reuse_contract_json(args, result, selected_backend, selected_kernel);
   print_exact_output_contract_json(args, result, output_ld, selected_kernel);
-  print_export_variant_json(args, selected_kernel);
+  print_export_variant_json(args, result, selected_kernel);
   print_reconstruction_variant_json(args, result, selected_kernel);
   print_modulus_and_residue_policy_json(args, result);
   print_tile_shape_variant_json(args, result, selected_kernel);
+  print_resident_redesign_json(args);
   print_dispatch_and_graph_json(args, result);
   print_residency_arena_overlap_json(args, result);
   print_workload_proxy_json(args);
   print_release_and_verification_json(args, result);
+  print_cpu_selector_and_incremental_cache_json(args, result, selected_backend);
   std::cout << "  \"semantics\": \"" << semantics_name(args.semantics) << "\",\n";
   std::cout << "  \"bound_kind\": \"" << bound_kind_name(args) << "\",\n";
   std::cout << "  \"bound_mode\": \"" << bound_mode_name(args.bound_mode) << "\",\n";

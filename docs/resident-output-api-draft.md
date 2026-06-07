@@ -50,3 +50,27 @@ model this API without exposing new public handles. Promotion requires:
 
 Until those gates are satisfied, residue-current output and resident reuse are
 optimizer evidence, not default public routing.
+
+## Rank 46 Chain Contract
+
+The current exact-wide chain evidence models residue-current output as a
+benchmark-owned lifetime, not a public handle. A residue-current chain output
+is consumable by a later RNS GEMM only while all of these remain true:
+
+- the context, physical device, stream owner, and workspace fingerprint match;
+- the semantic contract, shape, leading dimensions, prefix schedule, modulus
+  set, limb contract, output policy, and selected backend metadata match;
+- every source matrix version is unchanged since the residue-current output was
+  produced;
+- the output is device-current and host-not-current until an explicit final
+  export or checksum export occurs;
+- no caller assumes host-visible exact limbs, native integers, or finite values
+  from a residue-current output;
+- the final host export is the only boundary that can be compared to the CPU
+  exact reference.
+
+`tools/exact_wide_chain_report.py` enforces this benchmark contract for the
+current evidence by requiring a residue-current capture, a same-backend
+final-output capture, a CPU final-output baseline, release settings, required
+GPU events, and explicit output-currentness metadata for each exact-wide
+chain/shape/limb contract.

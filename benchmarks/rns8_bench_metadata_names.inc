@@ -14,6 +14,9 @@ const char* benchmark_name(const Args& args) {
     return "rns8_bounded_gemm_native_to_rns_bridge";
   }
   if (vector_to_rns_chain_requested(args)) {
+    if (vector_to_rns_chain_host_repack_control_requested(args)) {
+      return "rns8_bounded_gemm_vector_to_rns_chain_host_repack_control";
+    }
     return "rns8_bounded_gemm_vector_to_rns_chain";
   }
   if (grouped_dispatch_requested(args)) {
@@ -22,8 +25,20 @@ const char* benchmark_name(const Args& args) {
   if (host_api_batch_requested(args)) {
     return "rns8_host_api_batch_persistent_resident";
   }
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_bounded_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_finite_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_finite_u8_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_wrap64_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_wrap64_pack_gemm_export";
+  }
+  if (hip_graph_replay_resident_chain_requested(args)) {
     return "rns8_hip_graph_replay_resident_rns_chain";
+  }
+  if (args.streaming_overlap) {
+    return "rns8_streaming_overlap_resident_b_pipeline";
   }
   if (residue_chain_independent_final_export_requested(args)) {
     return "rns8_residue_chain_independent_final_host_export";
@@ -98,6 +113,23 @@ const char* input_distribution(const Args& args) {
     return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
                                                         : "unsigned_adaptive_bands_0_16";
   }
+  if (finite_benchmark_semantics(args.semantics)) {
+    switch (args.input_profile) {
+      case InputProfile::FiniteBinary:
+        return "u8_binary_0_1";
+      case InputProfile::FiniteSparse:
+        return "u8_sparse_90pct_zero_uniform_nonzero";
+      case InputProfile::FiniteLowHamming:
+        return "u8_low_hamming_powers_of_two_mod_q";
+      case InputProfile::FiniteSmallCentered:
+        return "u8_small_centered_minus2_2_mod_q";
+      case InputProfile::FiniteFullUniform:
+      case InputProfile::UniformSmall:
+        return "u8_full_uniform_0_modulus_minus_1";
+      case InputProfile::AdaptiveBands:
+        return "invalid_finite_adaptive_bands";
+    }
+  }
   switch (args.semantics) {
     case BenchSemantics::BoundedI64:
     case BenchSemantics::ExactWideSigned:
@@ -153,7 +185,7 @@ const char* selected_kernel_name(
     if (result.zero_output_tile_count != 0) {
       return "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3";
     }
-    return "direct_hip_tiled_active_prefix_rns_gemm_v2";
+    return "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3";
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && info.backend == RNS8_BACKEND_HIP_DIRECT) {
     return rns8::detail::wrap64_hip_selected_kernel_for_shape(args.m, args.n, args.k);
@@ -260,6 +292,33 @@ std::string target_namespace_for_id(const std::string& target_id) {
   return "unknown";
 }
 
+std::string target_visibility_key() {
+  for (const char* name : {"HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"}) {
+    const std::string value = trim_ascii_whitespace(environment_value(name));
+    if (!value.empty()) {
+      return std::string(name) + "=" + value;
+    }
+  }
+  return "runtime-default-visible-devices";
+}
+
+std::string target_cache_key(const rns8_device_info& info, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << "arch=" << benchmark_key_target_id(result)
+      << ";device_name=" << info.name
+      << ";hip_sdk_or_rocm=" << RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION
+      << ";hip_runtime=" << info.hip_runtime_version;
+  return out.str();
+}
+
+std::string target_instance_id(const rns8_device_info& info, const BenchmarkResult& result) {
+  std::ostringstream out;
+  out << target_cache_key(info, result)
+      << ";device_index=" << info.device_id
+      << ";visibility=" << target_visibility_key();
+  return out.str();
+}
+
 std::string target_review_group_key(
     const Args& args,
     const rns8_device_info& info,
@@ -271,6 +330,10 @@ std::string target_review_group_key(
       << "/target=" << target_id
       << "/backend=" << selected_backend
       << "/semantics=" << semantics_name(args.semantics)
+      << "/device_index=" << info.device_id
+      << "/device_name=" << info.name
+      << "/target_instance=" << target_instance_id(info, result)
+      << "/visibility=" << target_visibility_key()
       << "/configured=" << RNS8_CONFIGURED_AMDGPU_TARGETS
       << "/runtime=" << info.hip_runtime_version;
   return out.str();

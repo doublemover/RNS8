@@ -9,7 +9,8 @@ Scope:
 
 - Platform: Windows HIP SDK on Radeon RX 7900 XTX / `gfx1100`.
 - Semantics: bounded i64/u64 and finite-u8 square GEMM for the latest post-fix
-  validation passes, plus same-backend strict wrap64 Direct-HIP implementation
+  validation passes, small-shape selector thresholds, dense RNS workload
+  profiles, plus same-backend strict wrap64 Direct-HIP implementation
   comparisons.
 - Evidence standard: release builds, fixed seeds, three warmups, nine measured
   repeats, schema-valid captures, CPU reference checks, and required GPU event
@@ -20,6 +21,73 @@ Scope:
   records the curated platform, command family, seed, shape, backend, result,
   review status, caveat, and reproduction command families. Raw captures stay
   ignored and are not durable docs.
+
+## Selector And Workload-Profile Wins
+
+The June 7, 2026 remaining-ranks closeout under
+`temp/remaining-ranks-captures-20260607/` produced 93 schema-valid captures:
+21 CPU captures and 72 Windows `gfx1100` GPU captures. Required GPU events were
+available for all GPU captures. The corrected rank reports now distinguish
+promotable local recommendations from cache/default-route claims.
+
+Rank 69 now has five promotable local selector-threshold recommendations. These
+are routing-policy evidence for explicit shape/semantic boundaries, not
+installed cache entries.
+
+| Workload | Shape | Promoted recommendation | Median comparison | Speedup | Status |
+|---|---:|---|---:|---:|---|
+| bounded-i64 CPU cutoff | 32x32x32 | CPU reference | 273 us vs fastest GPU 1165 us | 4.27x CPU-favored | Promotable local selector threshold |
+| bounded-u64 CPU cutoff | 64x64x64 | CPU reference | 636 us vs fastest GPU 1659 us | 2.61x CPU-favored | Promotable local selector threshold |
+| finite ring u8 CPU cutoff | 64x64x64 | CPU reference | 79 us vs fastest GPU 1720 us | 21.77x CPU-favored | Promotable local selector threshold |
+| many-small bounded-i64 batch32 boundary | 64x64x64 | CPU reference | 1079 us vs fastest non-CPU GPU 1265 us | 1.17x CPU-favored | Promotable local selector threshold |
+| skinny bounded-u64 GEMV-like N=1 | 64x1x4096 | `hip-vector-alu-int64` | 2061 us vs CPU 6126 us | 2.97x GPU-favored | Promotable local selector threshold |
+
+Rank 63 now has thirteen promotable local dense-RNS workload-profile wins. They
+are named after FHE/lattice-inspired proxy operations because that is how the
+workloads are organized, but the promotion scope is deliberately narrower:
+local dense RNS workload profiles only. They are not cryptographic correctness
+claims and do not claim compatibility with SEAL, OpenFHE, Lattigo, HElib, or
+any FHE library.
+
+| Workload profile | Output contract | Promoted backend | Speedup vs CPU | Status |
+|---|---|---|---:|---|
+| bootstrapping-stage pressure | exact-wide limb host | Direct HIP | 49.24x | Promotable local workload profile |
+| CKKS rescale chain-current profile | RNS residue-current | Direct HIP | 20.69x | Promotable local workload profile |
+| CKKS rescale dense GEMM-adjacent profile | RNS residue-current | Direct HIP | 27.19x | Promotable local workload profile |
+| dense linear transform, repeated-B profile | native i64/u64 host | Direct HIP | 112.01x | Promotable local workload profile |
+| dense linear transform, finite-u8 profile | finite-u8 host | Direct HIP | 33.21x | Promotable local workload profile |
+| dense linear transform, single-call profile | native i64/u64 host | Direct HIP | 34.82x | Promotable local workload profile |
+| key-switch digit aggregation, key-material profile | native i64/u64 host | rocWMMA | 54.59x | Promotable local workload profile |
+| key-switch digit aggregation, repeated-B profile | native i64/u64 host | Direct HIP | 198.40x | Promotable local workload profile |
+| ModDown/rescale chain-current profile | RNS residue-current | Direct HIP | 91.09x | Promotable local workload profile |
+| ModUp/base-extension profile | native i64/u64 host | Direct HIP | 17.13x | Promotable local workload profile |
+| relinearization key-material profile | native i64/u64 host | Direct HIP | 35.20x | Promotable local workload profile |
+| rotation-batch reuse profile | native i64/u64 host | Direct HIP | 16.54x | Promotable local workload profile |
+| tower-reuse chain profile | RNS residue-current | Direct HIP | 94.77x | Promotable local workload profile |
+
+Rank 78 turns the earlier rank 75 result-cache research lane into an explicit
+opt-in public contract. The v1 contract is intentionally narrow: Direct-HIP
+only, caller-owned `rns8_result_cache`, stable matrix instance IDs, nonzero
+source versions, caller-provided dirty output rectangles, full-K recompute for
+each dirty rectangle, and stale identity/version rejection. Default GEMM and
+AUTO routing are unchanged.
+
+The current Windows `gfx1100` release closeout under
+`temp/result-cache-contract-release-current-20260607/` produced 21 schema-valid
+captures with CPU, Direct-HIP full recompute, Direct-HIP result-cache, and CK
+comparators. Required GPU events were present for every GPU row, and
+`tools/incremental_result_cache_report.py --require-complete` reported two
+local public-contract promotions.
+
+| Workload | Shape | Direct-HIP full recompute | Direct-HIP result cache | Speedup | Status |
+|---|---:|---:|---:|---:|---|
+| bounded-i64 dirty output tile | 512x512x512 | 2697 us | 2226 us | 1.21x | Promotable local explicit result-cache workload |
+| exact-wide signed dirty output, 4 limbs | 512x512x512 | 4629 us | 3307 us | 1.40x | Promotable local explicit result-cache workload |
+| finite ring u8 dirty output, modulus 251 | 512x512x512 | 1931 us | 1886 us | 1.02x | Keep experimental; below 1.10x promotion gate |
+
+These are local Windows `gfx1100` explicit-API wins only. They do not install
+autotune cache entries, change default routing, update README headline claims,
+or prove Linux/CDNA behavior.
 
 ## Current One-Shot Winners
 
@@ -219,6 +287,18 @@ The field-127 generic-modulus refresh also reran hipBLASLt with complete
 `hipblaslt_i32_to_residue_reduce` event timing. It was not promoted because it
 lost to Direct HIP and CK at 512, not because event data was missing.
 
+A June 6 finite modulus-family map under
+`temp/rank52-finite-modulus-map-release-20260606/` broadens the local evidence
+without changing cache or README claims. It covers ring moduli 127, 241, 243,
+251, 253, 255, and 256 plus field moduli 127, 241, and 251 at 128, 512, 1024,
+and 2048 across CPU, Direct HIP, hipBLASLt, CK, and rocWMMA. All 40
+same-contract groups are release-reviewed, schema-valid, baseline-complete, and
+GPU-event-complete where required; the scenario is intentionally tagged
+`non_promoting_modulus_map`, so generic review reports zero autotune-promotable
+entries. The map says 128 is CPU-favored for every tested modulus, 512/1024 are
+backend-mixed, and 2048 is hipBLASLt-favored for every tested modulus on local
+Windows `gfx1100`.
+
 The generic ring 127/253 2048 refresh closed the previous GPU-only evidence gap
 with CPU-backed release review. rocWMMA won both reviewed contracts and was
 installed locally. The stale hipBLASLt ring-127 2048 capture was
@@ -252,6 +332,21 @@ replacing existing bounded or finite-u8 entries.
 | exact-wide signed | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 59074 us | 131794 us | 2.23x | Current reviewed v2 cache entry installed locally |
 | exact-wide unsigned | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 40985 us | 124570 us | 3.04x | Current reviewed v2 cache entry installed locally |
 
+The June 6, 2026 `gfx1100` closeout reran the benchmark-only exact-wide fixed
+limb export selector under
+`temp/gfx1100-pending-validation-20260606/`. These rows are local
+export-selector evidence only: they are release-reviewed, schema-valid, and
+event-valid, but the selector variant is still marked experimental and is not a
+README headline claim, installed cache entry, default route, or Linux/CDNA
+claim.
+
+| Contract | Shape | Export selector winner | Winner median end-to-end | Direct HIP median | CPU reference median | Speedup vs Direct HIP | Status |
+|---|---:|---|---:|---:|---:|---:|---|
+| exact-wide signed, 4 limbs | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 14659 us | 17634 us | 3261790 us | 1.20x | Local export-selector candidate only |
+| exact-wide unsigned, 4 limbs | 1024 | CK `ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2` | 15337 us | 16137 us | 2512390 us | 1.05x | Local export-selector candidate only |
+| exact-wide signed, 4 limbs | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 49161 us | 103762 us | 19073800 us | 2.11x | Local export-selector candidate only |
+| exact-wide unsigned, 4 limbs | 2048 | hipBLASLt `hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2` | 44964 us | 101018 us | 15714000 us | 2.25x | Local export-selector candidate only |
+
 Exact-wide signed 64, signed 128, unsigned 128, and unsigned 512 remain on
 Direct HIP in the current v2 matrix. The signed 512 win is narrow and should be
 watched in future reruns, but it is release-reviewed, event-valid, and beats the
@@ -265,16 +360,50 @@ These rows compare one Direct-HIP implementation against the previous
 Direct-HIP implementation for the same public API and shape. They are not
 cross-backend AUTO winners.
 
-| Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event GEMM speedup | Status |
+| Surface | Shape | New selected kernel | Average end-to-end speedup | Median end-to-end speedup | Event phase speedup | Status |
 |---|---:|---|---:|---:|---:|---|
 | Public bounded-i64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 2.72x | 3.07x | 1.04x median | Routed only for Direct-HIP bounded-i64 `m/n/k >= 512`; persistent resident Direct-HIP remains faster for non-one-shot workflows |
-| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.09x | 1.21x | 1.06x | Routed only for Direct-HIP bounded-u64 `m/n/k >= 512`; smaller u64 remains on v1 |
+| Public bounded-u64 one-shot | 512 | `direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2` | 1.53x | 1.53x | 1.53x median | Current schema-valid candidate rerun versus legacy v1 before-capture; routed only for Direct-HIP bounded-u64 fixed-prefix `m/n/k >= 512`; smaller u64 remains on v1 |
+| Resident selected-prefix bounded-i64 | 512 | `direct_hip_grouped_active_prefix_schedule_rns_gemm_v3` | not recorded | 13.98x | 12.35x GEMM, 15.41x export | Local Windows `gfx1100` route candidate after selected-prefix colpair rejection; schema/event/checksum valid, not README/cache/CDNA claim material |
+| Public exact-wide signed 4-limb export | 1024 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.12x | 1.13x | 1.64x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide unsigned 4-limb export | 1024 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.22x | 1.24x | 6.42x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide signed 4-limb export | 2048 | `hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device` | 1.09x | 1.09x | 1.61x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public exact-wide unsigned 4-limb export | 2048 | `hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device` | 1.21x | 1.22x | 5.92x export kernel | Local Windows `gfx1100` same-backend A/B; schema/event-valid, not README/cache/CDNA claim material |
+| Public large exact-wide signed 4-limb tree/CRT export route | 1024 | `hip_direct_export_exact_wide_signed_tree_crt_limbs_device` | 1.07x | 1.05x | 2.04x export phase | Routed only for Direct-HIP signed prefix18, four requested limbs, and large outputs; local Windows `gfx1100`, not README/cache/CDNA claim material |
+| Public large exact-wide signed 4-limb tree/CRT export route | 2048 | `hip_direct_export_exact_wide_signed_tree_crt_limbs_device` | 1.07x | 1.06x | 2.16x export phase | Routed only for Direct-HIP signed prefix18, four requested limbs, and large outputs; local Windows `gfx1100`, not README/cache/CDNA claim material |
 
 The colpair one-shot kernel is now routed for bounded i64 and bounded u64 when
 `m/n/k >= 512`. Smaller bounded one-shot shapes keep the prior v1 native-input
 grouped kernel because 64/128 evidence was noisy or not favorable on Windows
 `gfx1100`. These are public one-shot implementation wins only; they are not
 evidence that one-shot beats resident matrix reuse for repeated calls.
+The current rank-10 closeout report keeps the current candidate captures
+schema-valid and event-valid while treating the older v1 before-captures as
+legacy A/B baselines, not promotable cache evidence.
+
+The resident selected-prefix row replaces the rejected resident colpair
+experiment with a grouped active-schedule launch path. The rank-51 closeout
+keeps the comparison local to Direct-HIP bounded-i64 512 on Windows `gfx1100`:
+the new route reports 2082 us median end-to-end versus 29116 us for the prior
+selected-prefix resident default, with matching checksum and required GPU
+events. It is not evidence for Linux/CDNA, cross-backend AUTO routing, or an
+installed accelerator cache entry.
+
+The exact-wide export rows compare the new Direct-HIP fixed-prefix18 fixed-limb
+export launch path against the immediately previous Direct-HIP export path with
+the same public shape, selected prefix, limb count, signedness, and target. They
+also include the removal of a redundant host-side device synchronization before
+the already-synchronizing export copy/status phase.
+
+The tree/CRT route is deliberately narrower than the benchmark selector
+surface: it is used only for signed prefix18, four requested limbs, and large
+outputs. The same June 6 follow-up showed that unsigned tree/CRT improved some
+GPU export events but did not clear the end-to-end route gate, that 128/512
+signed shapes should stay on fixed-prefix Garner export, and that the prefix20
+fixed-export selector was too marginal to call a durable win because its
+export-kernel event did not improve. Those dispositions are recorded in
+[reviewed-local-evidence.md](reviewed-local-evidence.md) and stay out of cache,
+README, and Linux/CDNA claims.
 
 ## Planner And Prepass Wins
 
@@ -415,6 +544,63 @@ baseline, with matching combined checksum `666386315613239916`. This remains
 benchmark-owned persistent-task evidence, not a public grouped API, generic
 descriptor queue, AUTO cache entry, or Linux/Instinct claim.
 
+The bounded grouped export closeout under
+`temp/perf-queue-grouped-bounded-export-release/` removes the per-task bounded
+CRT export loop from the same bounded-i64/u64 64 group32 benchmark contract.
+The strategy is now
+`device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h`: grouped
+pack kernels build resident RNS inputs for the task batch, the same-shape
+Direct-HIP grouped GEMM covers all tasks, grouped bounded CRT export kernels
+write one compact device output slab, and a single compact D2H copy returns the
+native output. The release controls use seed `20260606`, three warmups, nine
+repeats, CPU and Direct-HIP independent baselines, Direct-HIP hostbatch32
+baselines, schema v4, required Direct-HIP GPU events, and same-task-count
+checksum parity. Bounded-i64 64 group32 is now 53.625 us per task, 19.97x
+faster than the 1071 us best independent CPU baseline and 23.32x faster than
+Direct-HIP hostbatch32 at 1250.59 us per task. Bounded-u64 64 group32 is now
+53.25 us per task, 10.95x faster than the 583 us best independent CPU baseline
+and 22.95x faster than Direct-HIP hostbatch32 at 1222.19 us per task. This is
+still benchmark-owned same-shape grouped evidence, not a public grouped API,
+generic descriptor queue, AUTO cache entry, or Linux/Instinct claim.
+
+The broader grouped matrix closeout under
+`temp/perf-queue-grouped-broader-release/` reruns the current grouped-dispatch
+family with scenario-owned CPU/Direct-HIP independent controls and matching
+same-task-count Direct-HIP hostbatch controls. It uses seed `20260606`, three
+warmups, nine repeats, schema v4, required Direct-HIP GPU events, and
+`tools/many_small_grouped_report.py` checksum parity. All five grouped rows are
+candidate wins with no missing baselines: bounded-i64 64 group32 is
+57.41 us per task, 20.02x faster than the best independent baseline and
+19.98x faster than hostbatch32; bounded-i64 128 group64 is 55.88 us per task,
+26.59x faster than best independent and 23.09x faster than hostbatch64;
+bounded-u64 64 group32 is 59.38 us per task, 16.62x faster than best
+independent and 15.87x faster than hostbatch32; bounded-u64 128x1x1024
+group128 is 100.76 us per task, 16.14x faster than best independent and
+14.62x faster than hostbatch128; finite-ring u8 mod251 64 group32 is
+33.53 us per task, 2.33x faster than the best independent CPU baseline and
+26.41x faster than Direct-HIP hostbatch32. The finite row is the first
+release-reviewed grouped finite pack+GEMM+export path: it uses grouped finite
+pack, grouped finite GEMM, grouped finite canonical export, and one compact
+output D2H. These rows supersede narrower grouped smokes for the same contracts
+but remain benchmark-owned same-shape workload evidence, not public grouped
+ABI, AUTO routing, cache entries, or Linux/Instinct proof.
+
+The exact-wide 128 grouped-control closeout under
+`temp/perf-queue-grouped-exact128-release/` keeps the same report gate but adds
+signed and unsigned 128-square independent, hostbatch32, and grouped-dispatch
+controls. The 20-capture release set has schema v4 throughout, required GPU
+events for all 12 GPU captures, and four candidate wins with no missing
+baselines. Exact-wide signed 64 group32 is 68.12 us per task, 18.47x faster
+than independent Direct HIP and 16.78x faster than hostbatch32; exact-wide
+signed 128 group32 is 184.97 us per task, 7.93x faster than independent
+Direct HIP and 7.59x faster than hostbatch32; exact-wide unsigned 64 group32
+is 75.53 us per task, 16.16x faster than independent Direct HIP and 13.96x
+faster than hostbatch32; exact-wide unsigned 128 group32 is 155.88 us per
+task, 11.66x faster than independent Direct HIP and 8.94x faster than
+hostbatch32. The 128 rows are still benchmark-owned same-shape grouped
+evidence; they do not create public grouped descriptors, cache entries, AUTO
+routing, or Linux/Instinct claims.
+
 The strict wrap64 Direct-HIP v4 kernel supersedes the previous v3 scalar path
 for local `K <= 4096` shapes. It uses direct unsigned byte products, uint32
 low-diagonal accumulation where safe, uint64 carry propagation, vectorized
@@ -434,6 +620,46 @@ schema-valid/event-valid v4 captures, and checksum-matched before/after output.
 | Strict wrap64 Direct-HIP reuse-packed inputs | 512 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 1.07x | 1.99x | Positive but export-noisy |
 | Strict wrap64 Direct-HIP reuse-packed inputs | 1024 | `direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4` | 6.74x | 7.83x | Local implementation win |
 
+The rank-20 Direct-HIP reuse expansion closeout reran strict wrap64
+reuse-packed inputs against the current v4 non-reuse path with setup cost folded
+into each measured repeat. Under
+`temp/rank20-direct-hip-reuse-expansion-release-20260606/`, the 512 row is
+2267 us non-reuse versus 2057.22 us setup-inclusive reuse, a 1.10x local
+workload win, and the 1024 row is 6627 us non-reuse versus 5561.89 us
+setup-inclusive reuse, a 1.19x local workload win. The same closeout
+deprioritizes adaptive bounded-u64 colpair reuse-A/B, finite-u8 native-A/reuse-B,
+and exact-wide residue-current chain reuse-B at the 9-repeat release gate. These
+are explicit workload-contract classifications only: no AUTO/cache entry,
+README headline claim, default route, or Linux/CDNA claim changes.
+
+HIP Graph replay now has release-size benchmark-only evidence for resident
+RNS-chain workloads. Under
+`temp/rank30-hip-graph-replay-release-20260606/`, the graph path compares one
+`hipGraphLaunch` of a captured Direct-HIP residue-current chain against the
+same ordinary Direct-HIP chain. The fair decision metric folds A/B prepack setup
+into both sides and also amortizes graph capture plus graph instantiate cost
+into the graph side. Four local Windows `gfx1100` rows win setup-inclusively:
+bounded-i64 1024 is 14901.56 us graph versus 15250.78 us ordinary, 1.02x;
+bounded-u64 512 is 4708.22 us versus 5194.89 us, 1.10x; bounded-u64 1024 is
+14439.11 us versus 14824.78 us, 1.03x; exact-wide signed 512 is 6148.67 us
+versus 6652.78 us, 1.08x. Bounded-i64 512, exact-wide signed 1024, and
+exact-wide unsigned 512/1024 are deprioritized after setup cost. These are
+benchmark-only graph replay classifications, not README headline claims,
+installed cache entries, public async APIs, default routes, or Linux/CDNA
+claims.
+
+Rank 58 extends HIP Graph replay to full pack/GEMM/export Direct-HIP paths.
+Under `temp/rank58-hip-graph-full-release-20260606/`, bounded i64/u64,
+finite ring/field u8, and strict wrap64 512/1024 graph candidates compare
+against same-contract non-graph Direct-HIP baselines with graph setup amortized.
+Bounded and finite full-path graph rows are all deprioritized after setup cost.
+Strict wrap64 is the useful local signal: wrap64 512 is 1626 us graph versus
+2739 us ordinary Direct-HIP, 1.69x faster, and wrap64 1024 is 5340 us versus
+6546 us, 1.23x faster. These are local Windows `gfx1100` benchmark-only
+workload wins; they do not add a README headline claim, installed cache entry,
+AUTO/default route, public async API, Linux readiness claim, or CDNA
+performance claim.
+
 The large-shape release-validation follow-up on June 5, 2026 covered strict
 wrap64 2048x2048x2048 with the same-contract byte-limb CPU reference and Direct
 HIP v4. The review had no missing required baselines, duplicate backends, target
@@ -441,6 +667,22 @@ or toolchain mismatches, or commit mismatches. Direct HIP measured 58331 us
 median end-to-end versus 13423400 us for the CPU byte-limb reference, a 230.1x
 same-contract speedup, with required wrap64 GPU events. This is durable evidence
 for the current Direct-HIP strict wrap64 path, not an AUTO cache entry.
+
+Rank 68 closes the current strict wrap64 v4 tuning gate under
+`temp/rank68-wrap64-direct-hip-tuning-20260606/`. The closeout has 18
+schema-valid release captures, required GPU events for non-graph GPU rows,
+Direct-HIP and rocWMMA ISA sidecars, and a dedicated
+`tools/wrap64_direct_hip_tuning_report.py` decision report. The useful local
+signals are explicit workload/benchmark-only paths: reuse-packed inputs are
+1410 us versus 2812 us at 512, 1.99x faster, and 5042 us versus 6584 us at
+1024, 1.31x faster; full-path HIP Graph replay is 1483 us versus 2812 us at
+512, 1.90x faster, and 5292 us versus 6584 us at 1024, 1.24x faster. The same
+report deprioritizes reuse at 2048 after the corrected baseline, deprioritizes
+K-block and rocWMMA candidates where CPU/reference evidence exists, and keeps
+the 4096 K-block row experimental because the byte-limb reference is omitted
+from release-repeat sweeps due to impractical runtime. No README headline
+claim, installed cache entry, default route, Linux readiness claim, or CDNA
+performance claim changes from this closeout.
 
 ## RNS Chain Evidence
 
@@ -475,6 +717,53 @@ chain3 is 2842 us versus 30687 us, 10.80x faster. This closes the focused
 exact-wide same-output control gap, but it is still benchmark evidence only:
 no AUTO/cache entry, no public lazy-output API, and no Linux/Instinct claim.
 
+The broader rank-9 release matrix under
+`temp/rank9-rns-chain-broader-release/` extends the same final-output contract
+to 512 and 1024 for bounded-i64, bounded-u64, exact-wide signed, and
+exact-wide unsigned. Each group has CPU final-output baseline, Direct-HIP
+resident-chain capture, and same-backend Direct-HIP independent export/repack
+control. `tools/rns_chain_report.py` reports eight candidate wins, zero missing
+baselines, zero experimental rows, and required GPU events for every Direct-HIP
+row:
+
+| Contract | Shape | Resident Chain Median | Independent Export/Repack Median | Speedup Vs Independent |
+|---|---:|---:|---:|---:|
+| bounded-i64 chain3 final output | 512 | 3696 us | 5630 us | 1.52x |
+| bounded-i64 chain3 final output | 1024 | 14610 us | 19097 us | 1.31x |
+| bounded-u64 chain3 final output | 512 | 3497 us | 6022 us | 1.72x |
+| bounded-u64 chain3 final output | 1024 | 14090 us | 18435 us | 1.31x |
+| exact-wide signed chain3 final output | 512 | 6475 us | 228670 us | 35.32x |
+| exact-wide signed chain3 final output | 1024 | 32339 us | 1116390 us | 34.52x |
+| exact-wide unsigned chain3 final output | 512 | 5817 us | 113142 us | 19.45x |
+| exact-wide unsigned chain3 final output | 1024 | 30178 us | 472985 us | 15.67x |
+
+These rows close the current benchmark-owned RNS-chain final-output matrix.
+They do not install cache entries, change AUTO routing, expose a public lazy
+output API, or imply Linux/CDNA behavior.
+
+Exact-wide residue-current chain pairs now have a dedicated report in
+`tools/exact_wide_chain_report.py`. The rank-46 release sweep under
+`temp/rank46-exact-wide-output-chain-release/`, paired with the rank-9
+final-output chain3 captures, reports eight ready residue-current/final-output
+pairs with no missing baselines. The ratio below is final-output median divided
+by residue-current median for the same Direct-HIP exact-wide chain contract:
+
+| Contract | Shape | Chain | Residue-Current Median | Final-Output Median | Final/Residue Ratio |
+|---|---:|---:|---:|---:|---:|
+| exact-wide signed | 512 | 3 | 4513 us | 6475 us | 1.43x |
+| exact-wide signed | 512 | 4 | 5799 us | 7727 us | 1.33x |
+| exact-wide signed | 1024 | 3 | 26612 us | 32339 us | 1.22x |
+| exact-wide signed | 1024 | 4 | 34372 us | 40388 us | 1.18x |
+| exact-wide unsigned | 512 | 3 | 4473 us | 5817 us | 1.30x |
+| exact-wide unsigned | 512 | 4 | 5852 us | 7218 us | 1.23x |
+| exact-wide unsigned | 1024 | 3 | 25974 us | 30178 us | 1.16x |
+| exact-wide unsigned | 1024 | 4 | 33509 us | 37377 us | 1.12x |
+
+These rows prove that the benchmark-owned residue-current chain contract is
+event-complete and paired with exact final-output checks. They remain API
+design evidence until public resident-output handles and lifetime rejection
+rules exist.
+
 ## Reuse And Prepack Wins
 
 The latest reuse validation compares each reuse path against the same backend
@@ -497,8 +786,32 @@ one-off spreadsheet math. The report normalizes reuse captures against their
 non-reuse workload contract, adds setup cost back into the per-repeat median,
 computes break-even repeats, requires GPU events for GPU captures, and records
 whether source-version/setup-scope metadata is strong enough for a workload
-claim. The latest large-shape reports and bounded reuse-contract matrix produced
-these explicit workload candidate rows:
+claim.
+
+The current rank-43 ledger reran the bounded reuse-contract matrix with current
+`reuse_contract` metadata and selector policy. It produced 96 release captures,
+16 release-reviewed groups, zero missing baselines, zero duplicate backend
+records, required GPU events for every non-CPU capture, and 11 explicit
+workload selector-ready rows. These are still explicit reusable-input workload
+claims only: no AUTO cache entry, README headline claim, one-shot route, or
+Linux/CDNA claim changes.
+
+| Candidate | Reuse mode | Setup-inclusive per-repeat | Fastest non-reuse baseline | Workload speedup | Same-backend speedup | Break-even repeats |
+|---|---|---:|---|---:|---:|---:|
+| Direct HIP bounded-i64 1024 | repeated-A | 4730 us | Direct HIP 6850 us | 1.45x | 1.45x | 1 |
+| Direct HIP bounded-i64 1024 | repeated-B | 4674 us | Direct HIP 6850 us | 1.47x | 1.47x | 1 |
+| hipBLASLt bounded-i64 2048 | repeated-A | 10993 us | hipBLASLt 11640 us | 1.06x | 1.06x | 8 |
+| CK bounded-i64 2048 | repeated-A+B | 9875 us | hipBLASLt 11640 us | 1.18x | 1.21x | 6 |
+| hipBLASLt bounded-i64 2048 | repeated-A+B | 9544 us | hipBLASLt 11640 us | 1.22x | 1.22x | 6 |
+| rocWMMA bounded-i64 2048 | repeated-A+B | 10958 us | hipBLASLt 11640 us | 1.06x | 1.28x | 5 |
+| hipBLASLt bounded-i64 2048 | repeated-B | 11154 us | hipBLASLt 11640 us | 1.04x | 1.04x | 8 |
+| Direct HIP bounded-u64 1024 | repeated-A | 4625 us | Direct HIP 6649 us | 1.44x | 1.44x | 1 |
+| Direct HIP bounded-u64 1024 | repeated-B | 4932 us | Direct HIP 6649 us | 1.35x | 1.35x | 1 |
+| CK bounded-u64 2048 | repeated-A+B | 9867 us | hipBLASLt 10293 us | 1.04x | 1.38x | 5 |
+| hipBLASLt bounded-u64 2048 | repeated-A+B | 8658 us | hipBLASLt 10293 us | 1.19x | 1.19x | 7 |
+
+Earlier large-shape reports and the June 5 bounded reuse-contract matrix
+produced these historical explicit workload candidate rows:
 
 | Capture family | Candidate | Setup-inclusive per-repeat | Same-backend speedup | Fastest non-reuse baseline | Workload speedup | Break-even repeats | Decision |
 |---|---|---:|---:|---|---:|---:|---|
@@ -606,6 +919,56 @@ slower than the normal Direct-HIP grouped GEMM, but the path still wins
 setup-inclusively because A packing is removed from the measured repeats and
 CRT export timing was lower in these captures.
 
+## Layout-Search Wins
+
+The rank-77 layout-search closeout under
+`temp/rank77-layout-search-20260606/` is benchmark-only local Windows
+`gfx1100` evidence. It does not install cache entries, change default routing,
+add a public layout API, or imply Linux/CDNA readiness.
+
+| Workload | Layout candidate | Baseline | Median candidate | Median baseline | Speedup | Status |
+|---|---|---|---:|---:|---:|---|
+| bounded-i64 512 prefix9 | residue-channel width3 pack/GEMM layout | default resident RNS residue planes | 1908 us | 2037 us | 1.07x | local benchmark-only layout win |
+| exact-wide signed 512 chain3 | residue-current chain final export | independent export/repack chain | 6529 us | 230848 us | 35.36x | local benchmark-only layout win |
+
+The same closeout deprioritizes padded host-output leading dimension for
+bounded-i64 512, finite-u8 ring/field 512, and strict wrap64 512 because those
+rows lose the setup-inclusive same-layout gate.
+
+## Vector-To-RNS Chain Wins
+
+The rank-72 vector/native-to-RNS closeout under
+`temp/rank72-vector-to-rns-chain-20260606/` is benchmark-only local Windows
+`gfx1100` evidence. It compares a fused device native-to-RNS handoff against a
+same-contract control that exports the vector producer's exact native
+intermediate to host, repacks that exact result into Direct-HIP RNS storage,
+runs the same consumer GEMM, and exports the same final output. All 32 captures
+are release-mode, schema-valid, event-valid, and final checksums match within
+each paired group.
+
+| Contract | Shape | Consumer mode | Fused chain median | Host export/repack control | Speedup | Status |
+|---|---:|---|---:|---:|---:|---|
+| bounded-i64 | 1024 | normal | 19085 us | 28505 us | 1.49x | local benchmark-only chain win |
+| bounded-i64 | 1024 | reuse-B | 17773 us | 26439 us | 1.49x | local benchmark-only chain win |
+| bounded-i64 | 128 | normal | 2075 us | 2715 us | 1.31x | local benchmark-only chain win |
+| bounded-i64 | 128 | reuse-B | 1767 us | 2484 us | 1.41x | local benchmark-only chain win |
+| bounded-i64 | 512 | normal | 4984 us | 7867 us | 1.58x | local benchmark-only chain win |
+| bounded-i64 | 512 | reuse-B | 4969 us | 7352 us | 1.48x | local benchmark-only chain win |
+| bounded-i64 | 64 | normal | 1815 us | 2274 us | 1.25x | local benchmark-only chain win |
+| bounded-i64 | 64 | reuse-B | 1758 us | 2170 us | 1.23x | local benchmark-only chain win |
+| bounded-u64 | 1024 | normal | 13497 us | 19097 us | 1.41x | local benchmark-only chain win |
+| bounded-u64 | 1024 | reuse-B | 12827 us | 18305 us | 1.43x | local benchmark-only chain win |
+| bounded-u64 | 128 | normal | 1842 us | 2847 us | 1.55x | local benchmark-only chain win |
+| bounded-u64 | 128 | reuse-B | 1779 us | 2498 us | 1.40x | local benchmark-only chain win |
+| bounded-u64 | 512 | normal | 4774 us | 6334 us | 1.33x | local benchmark-only chain win |
+| bounded-u64 | 512 | reuse-B | 4126 us | 5484 us | 1.33x | local benchmark-only chain win |
+| bounded-u64 | 64 | normal | 2283 us | 2751 us | 1.20x | local benchmark-only chain win |
+
+The bounded-u64 64 reuse-B pair is a near tie at 1709 us versus 1714 us,
+1.003x, so it stays experimental. These rows do not change public API, default
+AUTO routing, installed cache entries, README headline claims, Linux readiness,
+CDNA readiness, or multi-GPU behavior.
+
 ## Promotion Boundaries
 
 - Promote now: the current local default runtime cache includes the reviewed
@@ -625,5 +988,7 @@ CRT export timing was lower in these captures.
   lifetime/source policy before AUTO selection. The mechanism split is
   summarized in [reviewed-local-evidence.md](reviewed-local-evidence.md).
 - Deprioritize for now: vector 1024 repeated-A/full-reuse, hipBLASLt 1024
-  repeated-A/full-reuse, and rocWMMA 1024 repeated-B, which lose the latest
-  setup-inclusive workload gate.
+  repeated-A/full-reuse, rocWMMA 1024 repeated-B, and rank-74 finite-u8 1024
+  K-block policy, which lose their latest setup-inclusive workload gates.
+  Other rank-74 K-block rows remain experimental pending profiler occupancy
+  and counter evidence, so they are not durable wins.

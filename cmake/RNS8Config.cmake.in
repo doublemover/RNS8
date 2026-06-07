@@ -2,8 +2,13 @@
 
 include(CMakeFindDependencyMacro)
 
-if(NOT TARGET roc::hipblaslt)
-  find_dependency(hipblaslt CONFIG QUIET)
+set(RNS8_ENABLE_HIP @RNS8_ENABLE_HIP@)
+set(RNS8_ENABLE_HIPBLASLT @RNS8_ENABLE_HIPBLASLT@)
+set(RNS8_ENABLE_CK @RNS8_ENABLE_CK@)
+set(RNS8_ENABLE_ROCWMMA @RNS8_ENABLE_ROCWMMA@)
+
+if(RNS8_ENABLE_HIPBLASLT AND NOT TARGET roc::hipblaslt)
+  find_dependency(hipblaslt CONFIG REQUIRED)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/RNS8Targets.cmake")

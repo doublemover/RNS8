@@ -53,6 +53,80 @@ rns8_status hip_direct_export_finite_u8_device(
 #endif
 }
 
+rns8_status hip_direct_export_finite_u8_grouped_matrices_to_device(
+    rns8_matrix* const* matrices,
+    uint32_t task_count,
+    const void* device_residue_ptrs,
+    void* device_dst,
+    int64_t rows,
+    int64_t cols,
+    uint16_t modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_residue_ptrs || !device_dst || task_count == 0 || modulus < 2 || modulus > 256 ||
+      !checked_output_bytes(rows, cols, static_cast<std::size_t>(task_count) * sizeof(uint8_t))) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  int device_id = -1;
+  uint32_t prefix = 0;
+  rns8_semantics semantics = RNS8_FINITE_RING_U8;
+  if (!matrices || !matrices[0]) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  semantics = matrices[0]->desc.semantics;
+  if (!valid_finite_modulus_for_semantics(semantics, modulus)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_status status = validate_grouped_rns_matrices(
+      matrices,
+      task_count,
+      semantics,
+      rows,
+      cols,
+      true,
+      &device_id,
+      &prefix,
+      nullptr);
+  if (status != RNS8_SUCCESS) {
+    return status;
+  }
+  if (prefix != 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  for (uint32_t index = 0; index < task_count; ++index) {
+    if (matrices[index]->finite_modulus != modulus) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const hipError_t err = timed_hip_operation("finite_export_kernel", [&]() {
+    const int code = rns8_hip_direct_export_u8_grouped_modulus_device(
+        static_cast<const int8_t* const*>(device_residue_ptrs),
+        static_cast<uint8_t*>(device_dst),
+        static_cast<int>(task_count),
+        static_cast<int>(rows),
+        static_cast<int>(cols),
+        static_cast<int>(modulus));
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)matrices;
+  (void)task_count;
+  (void)device_residue_ptrs;
+  (void)device_dst;
+  (void)rows;
+  (void)cols;
+  (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_export_exact_wide_signed_limbs_to_device(
     int device_id,
     const void* device_residues,

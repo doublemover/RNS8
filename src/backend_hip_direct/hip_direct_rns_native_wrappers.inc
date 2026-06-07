@@ -65,6 +65,70 @@ extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(
       reinterpret_cast<hipStream_t>(stream));
 }
 
+extern "C" int rns8_hip_direct_ring_gemm_i8_grouped_prefix_region_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int region_row_offset,
+    int region_col_offset,
+    int region_rows,
+    int region_cols,
+    int grouped_prefix,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      region_row_offset < 0 || region_col_offset < 0 || region_rows <= 0 || region_cols <= 0 ||
+      region_row_offset > m || region_col_offset > n || region_rows > m - region_row_offset ||
+      region_cols > n - region_col_offset || grouped_prefix <= 0 || grouped_prefix > kRns8DefaultModulusCount ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const dim3 block(kRns8HipTileN, kRns8HipTileM);
+  const dim3 grid(
+      (region_cols + block.x - 1) / block.x,
+      (region_rows + block.y - 1) / block.y,
+      grouped_prefix);
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_ring_gemm_i8_i32_grouped_prefix_region_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        region_row_offset,
+        region_col_offset,
+        region_rows,
+        region_cols,
+        grouped_prefix,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return static_cast<int>(err);
+}
+
 template <typename NativeT>
 hipError_t launch_native_prefix9_grouped_gemm(
     const NativeT* d_a,

@@ -115,6 +115,34 @@ rns8_status release_workspace_device_buffer(int device_id, T*& ptr, std::size_t&
   return status;
 }
 
+bool workspace_uses_hip_arena(const rns8_workspace& workspace) {
+  return workspace.hip_workspace_arena != nullptr;
+}
+
+void clear_workspace_arena_subranges(rns8_workspace& workspace) {
+  workspace.hip_tile_schedule = nullptr;
+  workspace.hip_tile_schedule_bytes = 0;
+  workspace.hip_tile_schedule_count = 0;
+  workspace.hip_tile_schedule_active_entries = nullptr;
+  workspace.hip_tile_schedule_active_entries_bytes = 0;
+  workspace.hip_tile_schedule_active_entries_count = 0;
+  workspace.hip_zero_a_rows = nullptr;
+  workspace.hip_zero_a_rows_bytes = 0;
+  workspace.hip_zero_b_cols = nullptr;
+  workspace.hip_zero_b_cols_bytes = 0;
+  workspace.hip_workspace_scratch = nullptr;
+  workspace.hip_workspace_scratch_bytes = 0;
+}
+
+void clear_workspace_arena_contract(rns8_workspace& workspace) {
+  workspace.hip_workspace_arena_bytes = 0;
+  workspace.hip_workspace_arena_high_water_mark_bytes = 0;
+  workspace.hip_workspace_arena_suballocation_count = 0;
+  workspace.hip_workspace_arena_plan_fingerprint = 0;
+  workspace.hip_workspace_arena_target_id.clear();
+  workspace.hip_workspace_arena_policy.clear();
+}
+
 void reset_workspace_active_schedule_contract(rns8_workspace& workspace) {
   workspace.hip_tile_schedule_active_prefix_count = 0;
   for (uint32_t p = 0; p < RNS8_MAX_SUPPORTED_PREFIX; ++p) {
@@ -150,19 +178,26 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
       status = free_status;
     }
   };
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hip_tile_schedule, workspace.hip_tile_schedule_bytes));
-  workspace.hip_tile_schedule_count = 0;
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id,
-      workspace.hip_tile_schedule_active_entries,
-      workspace.hip_tile_schedule_active_entries_bytes));
-  workspace.hip_tile_schedule_active_entries_count = 0;
+  if (workspace_uses_hip_arena(workspace)) {
+    clear_workspace_arena_subranges(workspace);
+  } else {
+    keep_first_error(release_workspace_device_buffer(
+        workspace.hip_device_id, workspace.hip_tile_schedule, workspace.hip_tile_schedule_bytes));
+    workspace.hip_tile_schedule_count = 0;
+    keep_first_error(release_workspace_device_buffer(
+        workspace.hip_device_id,
+        workspace.hip_tile_schedule_active_entries,
+        workspace.hip_tile_schedule_active_entries_bytes));
+    workspace.hip_tile_schedule_active_entries_count = 0;
+    keep_first_error(release_workspace_device_buffer(
+        workspace.hip_device_id, workspace.hip_zero_a_rows, workspace.hip_zero_a_rows_bytes));
+    keep_first_error(release_workspace_device_buffer(
+        workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
+  }
   reset_workspace_active_schedule_contract(workspace);
   keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hip_zero_a_rows, workspace.hip_zero_a_rows_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
+      workspace.hip_device_id, workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
+  clear_workspace_arena_contract(workspace);
   keep_first_error(release_workspace_device_buffer(
       workspace.hip_device_id, workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
   keep_first_error(release_workspace_device_buffer(

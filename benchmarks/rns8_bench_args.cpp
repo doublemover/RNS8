@@ -4,6 +4,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include "rns8_bench_modes.hpp"
 #include "rns8_bench_support.hpp"
@@ -29,6 +30,12 @@ bool grouped_dispatch_requested_for_args(const Args& args) {
 
 bool grouped_task_executor_requested_for_args(const Args& args) {
   return host_api_batch_requested_for_args(args) || grouped_dispatch_requested_for_args(args);
+}
+
+bool finite_input_profile(InputProfile profile) {
+  return profile == InputProfile::FiniteBinary || profile == InputProfile::FiniteSparse ||
+         profile == InputProfile::FiniteLowHamming || profile == InputProfile::FiniteSmallCentered ||
+         profile == InputProfile::FiniteFullUniform;
 }
 
 }  // namespace
@@ -134,6 +141,24 @@ BoundMode parse_bound_mode(const std::string& value) {
 InputProfile parse_input_profile(const std::string& value) {
   if (value == "uniform-small" || value == "uniform_small") return InputProfile::UniformSmall;
   if (value == "adaptive-bands" || value == "adaptive_bands") return InputProfile::AdaptiveBands;
+  if (value == "finite-binary" || value == "finite_binary" || value == "binary") {
+    return InputProfile::FiniteBinary;
+  }
+  if (value == "finite-sparse" || value == "finite_sparse" || value == "sparse") {
+    return InputProfile::FiniteSparse;
+  }
+  if (value == "finite-low-hamming" || value == "finite_low_hamming" || value == "low-hamming" ||
+      value == "low_hamming") {
+    return InputProfile::FiniteLowHamming;
+  }
+  if (value == "finite-small-centered" || value == "finite_small_centered" || value == "small-centered" ||
+      value == "small_centered") {
+    return InputProfile::FiniteSmallCentered;
+  }
+  if (value == "finite-full-uniform" || value == "finite_full_uniform" || value == "full-uniform" ||
+      value == "full_uniform") {
+    return InputProfile::FiniteFullUniform;
+  }
   usage_error("unknown input profile: " + value);
 }
 
@@ -165,6 +190,27 @@ NextOpHint parse_next_op_hint(const std::string& value) {
   if (value == "native-to-rns" || value == "native_to_rns") return NextOpHint::NativeToRns;
   if (value == "reuse-b" || value == "reuse_b") return NextOpHint::ReuseB;
   usage_error("unknown next-op hint: " + value);
+}
+
+std::vector<std::string> parse_string_list(const std::string& value, const char* label) {
+  std::vector<std::string> items;
+  std::size_t start = 0;
+  while (start <= value.size()) {
+    const std::size_t comma = value.find(',', start);
+    const std::size_t end = comma == std::string::npos ? value.size() : comma;
+    std::string item = trim_ascii_whitespace(value.substr(start, end - start));
+    if (!item.empty()) {
+      items.push_back(item);
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  if (items.empty()) {
+    usage_error(std::string(label) + " must contain at least one nonempty item");
+  }
+  return items;
 }
 
 Args parse_args(int argc, char** argv) {
@@ -250,10 +296,22 @@ Args parse_args(int argc, char** argv) {
       args.adaptive_grouped_scheduler = true;
     } else if (arg == "--streaming-overlap") {
       args.streaming_overlap = true;
+    } else if (arg == "--k-block-policy" && i + 1 < argc) {
+      args.k_block_policy = argv[++i];
+    } else if (arg == "--resident-redesign-candidate" && i + 1 < argc) {
+      args.resident_redesign_candidate = argv[++i];
+    } else if (arg == "--resident-redesign-dimensions" && i + 1 < argc) {
+      args.resident_redesign_dimensions = parse_string_list(argv[++i], "--resident-redesign-dimensions");
     } else if (arg == "--release-gate" && i + 1 < argc) {
       args.release_gate = argv[++i];
     } else if (arg == "--verification-amortization" && i + 1 < argc) {
       args.verification_amortization = argv[++i];
+    } else if (arg == "--error-detection-policy" && i + 1 < argc) {
+      args.error_detection_policy = argv[++i];
+    } else if (arg == "--cpu-small-shape-selector" && i + 1 < argc) {
+      args.cpu_small_shape_selector = argv[++i];
+    } else if (arg == "--incremental-result-cache" && i + 1 < argc) {
+      args.incremental_result_cache = argv[++i];
     } else if (arg == "--require-adaptive-execution") {
       args.require_adaptive_execution = true;
     } else if (arg == "--residue-channel-fusion") {
@@ -267,6 +325,10 @@ Args parse_args(int argc, char** argv) {
       args.native_to_rns_bridge = true;
     } else if (arg == "--vector-to-rns-chain" || arg == "--vector-native-to-rns-chain") {
       args.vector_to_rns_chain = true;
+    } else if (arg == "--vector-to-rns-chain-host-repack-control" ||
+               arg == "--vector-native-to-rns-chain-host-repack-control") {
+      args.vector_to_rns_chain = true;
+      args.vector_to_rns_chain_host_repack_control = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -288,7 +350,8 @@ Args parse_args(int argc, char** argv) {
           << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
-          << "                  [--input-profile uniform-small|adaptive-bands]\n"
+          << "                  [--input-profile uniform-small|adaptive-bands|finite-binary|finite-sparse|\n"
+          << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
@@ -308,14 +371,21 @@ Args parse_args(int argc, char** argv) {
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
           << "                  [--streaming-overlap]\n"
+          << "                  [--k-block-policy NAME]\n"
+          << "                  [--resident-redesign-candidate NAME]\n"
+          << "                  [--resident-redesign-dimensions a,b,c]\n"
           << "                  [--release-gate NAME]\n"
           << "                  [--verification-amortization NAME]\n"
+          << "                  [--error-detection-policy NAME]\n"
+          << "                  [--cpu-small-shape-selector NAME]\n"
+          << "                  [--incremental-result-cache NAME]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
           << "                  [--transient-uniform-small-inputs]\n"
           << "                  [--native-to-rns-bridge]\n"
           << "                  [--vector-to-rns-chain]\n"
+          << "                  [--vector-to-rns-chain-host-repack-control]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
@@ -481,8 +551,15 @@ Args parse_args(int argc, char** argv) {
       usage_error("--oneshot currently requires --backend cpu or --backend hip-direct");
     }
   }
-  if (args.input_profile != InputProfile::UniformSmall && !bounded_benchmark_semantics(args.semantics)) {
+  if (args.input_profile == InputProfile::AdaptiveBands && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
+  }
+  if (finite_input_profile(args.input_profile) && !finite_benchmark_semantics(args.semantics)) {
+    usage_error("--input-profile finite-* values are only valid for finite-u8 semantics");
+  }
+  if (args.input_profile != InputProfile::UniformSmall && args.input_profile != InputProfile::AdaptiveBands &&
+      !finite_input_profile(args.input_profile)) {
+    usage_error("unsupported input profile");
   }
   if (args.bound_source == BoundSource::InputScan) {
     if (!bounded_benchmark_semantics(args.semantics)) {
@@ -531,6 +608,12 @@ Args parse_args(int argc, char** argv) {
   if (args.tile_shape_variant.empty()) {
     usage_error("--tile-shape-variant must not be empty");
   }
+  if (args.resident_redesign_candidate.empty() && !args.resident_redesign_dimensions.empty()) {
+    usage_error("--resident-redesign-dimensions requires --resident-redesign-candidate");
+  }
+  if (!args.resident_redesign_candidate.empty() && args.resident_redesign_dimensions.empty()) {
+    usage_error("--resident-redesign-candidate requires --resident-redesign-dimensions");
+  }
   if (args.export_variant.empty()) {
     usage_error("--export-variant must not be empty");
   }
@@ -545,6 +628,18 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.verification_amortization.empty()) {
     usage_error("--verification-amortization must not be empty");
+  }
+  if (args.error_detection_policy.empty()) {
+    usage_error("--error-detection-policy must not be empty");
+  }
+  if (args.cpu_small_shape_selector.empty()) {
+    usage_error("--cpu-small-shape-selector must not be empty");
+  }
+  if (args.incremental_result_cache.empty()) {
+    usage_error("--incremental-result-cache must not be empty");
+  }
+  if (args.k_block_policy.empty()) {
+    usage_error("--k-block-policy must not be empty");
   }
   if (host_api_batch_requested_for_args(args)) {
     if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
@@ -600,23 +695,33 @@ Args parse_args(int argc, char** argv) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
     usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
 #endif
-    if (residue_chain_final_export_requested(args)) {
+    const bool full_bounded_pack_export_graph =
+        bounded_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool full_finite_pack_export_graph =
+        finite_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool full_wrap64_pack_export_graph =
+        args.semantics == BenchSemantics::WrapU64Mod2_64 && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool resident_chain_graph =
+        rns_chain_benchmark_semantics(args.semantics) && args.residue_chain_length > 1 &&
+        args.reuse_packed_inputs && args.reuse_packed_a && args.reuse_packed_b &&
+        args.next_op_hint == NextOpHint::RnsGemm;
+    if (args.residue_chain_final_export || args.residue_chain_independent_final_export) {
       usage_error("--hip-graph-replay cannot be combined with residue-chain final-export modes");
     }
     if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
       usage_error("--hip-graph-replay requires --backend hip-direct");
     }
-    if (!rns_chain_benchmark_semantics(args.semantics)) {
-      usage_error("--hip-graph-replay is only valid for bounded or exact-wide RNS semantics");
+    if (!resident_chain_graph && !full_bounded_pack_export_graph && !full_finite_pack_export_graph &&
+        !full_wrap64_pack_export_graph) {
+      usage_error(
+          "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
+          "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm");
     }
-    if (args.residue_chain_length <= 1) {
-      usage_error("--hip-graph-replay requires --residue-chain-length > 1 so output stays residue-current");
-    }
-    if (!args.reuse_packed_inputs || !args.reuse_packed_a || !args.reuse_packed_b) {
-      usage_error("--hip-graph-replay requires --reuse-packed-inputs so graph replay has stable resident A/B inputs");
-    }
-    if (args.next_op_hint != NextOpHint::RnsGemm) {
-      usage_error("--hip-graph-replay requires --next-op-hint rns-gemm");
+    if (full_wrap64_pack_export_graph && args.output_ld_padding != 0) {
+      usage_error("--hip-graph-replay wrap64 full pack/GEMM/export mode currently requires contiguous output");
     }
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--hip-graph-replay currently requires global static-profile bounds");

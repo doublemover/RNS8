@@ -200,6 +200,84 @@
       }
     },
     {
+      "name": "bounded-i64-64-proxy",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small bounded i64 64-square grouped-dispatch control",
+      "output_domain": "host_export",
+      "rationale": "keeps the bounded-i64 64 grouped-dispatch row self-contained with a matching independent baseline in the scenario corpus",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "pre_grouped_batch_proxy",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-i64-64-host-batch32",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch bounded i64 64-square control",
+      "output_domain": "host_export",
+      "rationale": "provides the same-task-count host-batch control for bounded-i64 64 grouped-dispatch classification",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
       "name": "bounded-u64-64-proxy",
       "semantics": "bounded-u64",
       "case": {
@@ -240,6 +318,45 @@
       }
     },
     {
+      "name": "bounded-u64-64-host-batch32",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "many-small-64",
+        "m": 64,
+        "n": 64,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch bounded u64 64-square control",
+      "output_domain": "host_export",
+      "rationale": "provides the same-task-count host-batch control for bounded-u64 64 grouped-dispatch classification",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
       "name": "bounded-i64-128-proxy",
       "semantics": "bounded-i64",
       "case": {
@@ -275,6 +392,45 @@
         "batch_count_model": 64,
         "reuse_profile": "independent_inputs",
         "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "bounded-i64-128-host-batch64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch bounded i64 128-square control",
+      "output_domain": "host_export",
+      "rationale": "provides the same-task-count host-batch control needed to classify the bounded-i64 128 grouped-dispatch row",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "host_api_batch_size": 64,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_independent_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "medium_small_square",
+        "batch_count_model": 64,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
         "dense_kernel_extracted": true
       }
     },
@@ -442,6 +598,89 @@
       }
     },
     {
+      "name": "exact-wide-signed-128-proxy",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide signed 128-square proxy with fixed limb export",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "provides the independent baseline for exact-wide signed 128 grouped-dispatch controls",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "pre_grouped_exact_wide_proxy",
+        "shape_signature": "medium_small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-signed-128-host-batch32",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch exact-wide signed 128-square control",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "provides the same-task-count host-batch control for exact-wide signed 128 grouped-dispatch classification",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "medium_small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
       "name": "exact-wide-unsigned-64-proxy",
       "semantics": "exact-wide-unsigned",
       "case": {
@@ -518,6 +757,89 @@
         "workflow_name": "many_small_exact_wide_gemms",
         "phase_label": "host_api_batch",
         "shape_signature": "small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "host_api_batch_candidate",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-128-proxy",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide unsigned 128-square proxy with fixed limb export",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "provides the independent baseline for exact-wide unsigned 128 grouped-dispatch controls",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "metadata": {
+        "evidence_role": "proxy_single_shape_repeat",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "pre_grouped_exact_wide_proxy",
+        "shape_signature": "medium_small_square",
+        "batch_count_model": 32,
+        "reuse_profile": "independent_inputs",
+        "grouping_role": "pre_grouped_baseline",
+        "dense_kernel_extracted": true
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-128-host-batch32",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small host API batch exact-wide unsigned 128-square control",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "provides the same-task-count host-batch control for exact-wide unsigned 128 grouped-dispatch classification",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "host_api_batch_size": 32,
+      "metadata": {
+        "evidence_role": "host_api_batch_candidate",
+        "workflow_name": "many_small_exact_wide_gemms",
+        "phase_label": "host_api_batch",
+        "shape_signature": "medium_small_square",
         "batch_count_model": 32,
         "reuse_profile": "independent_inputs",
         "grouping_role": "host_api_batch_candidate",

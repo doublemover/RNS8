@@ -44,8 +44,30 @@ def user_tools_dirs() -> list[Path]:
     return [Path(p) for p in glob.glob(str(home / "Tools" / "RadeonDeveloperToolSuite-*"))]
 
 
-def command_names_for_host() -> list[str]:
-    names = CORE_COMMANDS + WINDOWS_HIP_COMMANDS + LINUX_ROCM_COMMANDS + LINUX_SMI_COMMANDS + RADEON_TOOLS
+def vcpkg_required_for_host(host_system: str | None = None) -> bool:
+    return (host_system or platform.system()) == "Windows"
+
+
+def command_required_for_host(name: str, host_system: str | None = None) -> bool:
+    host = host_system or platform.system()
+    return (
+        name in HOST_NEUTRAL_CORE_COMMANDS
+        or (host == "Windows" and (name in WINDOWS_CORE_COMMANDS or name in WINDOWS_HIP_COMMANDS))
+        or (host == "Linux" and name in LINUX_ROCM_COMMANDS)
+    )
+
+
+def command_names_for_host(host_system: str | None = None) -> list[str]:
+    host = host_system or platform.system()
+    names = (
+        HOST_NEUTRAL_CORE_COMMANDS
+        + WINDOWS_CORE_COMMANDS
+        + WINDOWS_HIP_COMMANDS
+        + LINUX_READINESS_COMMANDS
+        + RADEON_TOOLS
+    )
+    if host != "Windows":
+        names = [name for name in names if name not in WINDOWS_HIP_COMMANDS]
     deduped: list[str] = []
     for name in names:
         if name not in deduped:
@@ -59,7 +81,7 @@ def find_command(name: str) -> str | None:
     if found:
         return found
 
-    if name == "vcpkg":
+    if name == "vcpkg" and platform.system() == "Windows":
         root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
         candidates.append(Path(root) / "vcpkg.exe")
 
@@ -72,12 +94,13 @@ def find_command(name: str) -> str | None:
             ]
         )
 
-    if name in {"rocminfo", "rocm-smi", "amd-smi"}:
+    if name in set(LINUX_READINESS_COMMANDS):
         rocm_root = os.environ.get("ROCM_PATH", "/opt/rocm")
         candidates.extend(
             [
                 Path(rocm_root) / "bin" / name,
                 Path(rocm_root) / "bin" / f"{name}.exe",
+                Path(rocm_root) / "rccl" / "bin" / name,
             ]
         )
 
@@ -92,7 +115,7 @@ def find_command(name: str) -> str | None:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def load_json(path: Path) -> dict[str, object]:

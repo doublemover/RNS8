@@ -31,6 +31,61 @@ from .execution import cli_backend, normalize_semantics, parse_backend_bench
 from .parsing import parse_case
 from .scenarios import load_scenario_data_catalog
 
+FINITE_SEMANTICS = {"finite-u8-ring", "finite-u8-field"}
+
+VISIBILITY_ENV_OPTIONS = {
+    "hip_visible_devices": "HIP_VISIBLE_DEVICES",
+    "rocr_visible_devices": "ROCR_VISIBLE_DEVICES",
+    "gpu_device_ordinal": "GPU_DEVICE_ORDINAL",
+}
+
+
+def _device_list(value: str) -> list[str]:
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def visibility_env_overrides(args: argparse.Namespace) -> dict[str, str]:
+    env: dict[str, str] = {}
+    for attr, env_name in VISIBILITY_ENV_OPTIONS.items():
+        value = getattr(args, attr, None)
+        if value:
+            env[env_name] = value
+    return env
+
+
+def apply_visibility_environment(args: argparse.Namespace, entries: list[SweepCommand]) -> list[SweepCommand]:
+    base_env = visibility_env_overrides(args)
+    shard_spec = getattr(args, "gpu_shards", None)
+    if not shard_spec:
+        if not base_env:
+            return entries
+        return [
+            SweepCommand(entry.name, entry.command, entry.output, entry.scenario, dict(base_env))
+            for entry in entries
+        ]
+
+    sharded: list[SweepCommand] = []
+    for shard in _device_list(shard_spec):
+        env = dict(base_env)
+        env["HIP_VISIBLE_DEVICES"] = shard
+        env["ROCR_VISIBLE_DEVICES"] = shard
+        for entry in entries:
+            scenario = dict(entry.scenario) if entry.scenario is not None else None
+            if scenario is not None:
+                scenario["gpu_shard"] = shard
+                scenario["visibility_environment"] = env
+            sharded.append(
+                SweepCommand(
+                    f"gpu{shard}-{entry.name}",
+                    entry.command,
+                    entry.output.parent / f"gpu{shard}" / entry.output.name,
+                    scenario,
+                    dict(env),
+                )
+            )
+    return sharded
+
+
 def default_cases(args: argparse.Namespace) -> list[SweepCase]:
     if args.case:
         return [parse_case(value) for value in args.case]
@@ -129,6 +184,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
+    scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -147,11 +203,25 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
         args, "adaptive_grouped_scheduler", False
     )
     scenario_args.streaming_overlap = item.streaming_overlap or getattr(args, "streaming_overlap", False)
+    scenario_args.k_block_policy = item.k_block_policy or getattr(args, "k_block_policy", "auto")
+    scenario_args.resident_redesign_candidate = item.resident_redesign_candidate or getattr(
+        args, "resident_redesign_candidate", ""
+    )
+    scenario_args.resident_redesign_dimensions = item.resident_redesign_dimensions or getattr(
+        args, "resident_redesign_dimensions", ()
+    )
     scenario_args.release_gate = (
         item.release_gate if item.release_gate and item.release_gate != "none" else getattr(args, "release_gate", "none")
     )
     scenario_args.verification_amortization = item.verification_amortization or getattr(
         args, "verification_amortization", "none"
+    )
+    scenario_args.error_detection_policy = item.error_detection_policy or getattr(args, "error_detection_policy", "none")
+    scenario_args.cpu_small_shape_selector = item.cpu_small_shape_selector or getattr(
+        args, "cpu_small_shape_selector", "none"
+    )
+    scenario_args.incremental_result_cache = item.incremental_result_cache or getattr(
+        args, "incremental_result_cache", "none"
     )
     return scenario_args
 
@@ -199,6 +269,7 @@ def scenario_metadata(
         "host_api_batch_size": item.host_api_batch_size,
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
+        "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
         "next_op_hint": item.next_op_hint,
         "residue_channel_fusion": item.residue_channel_fusion,
         "modulus_set": item.modulus_set,
@@ -212,8 +283,14 @@ def scenario_metadata(
         "workspace_arena": item.workspace_arena,
         "adaptive_grouped_scheduler": item.adaptive_grouped_scheduler,
         "streaming_overlap": item.streaming_overlap,
+        "k_block_policy": item.k_block_policy,
+        "resident_redesign_candidate": item.resident_redesign_candidate,
+        "resident_redesign_dimensions": list(item.resident_redesign_dimensions),
         "release_gate": item.release_gate,
         "verification_amortization": item.verification_amortization,
+        "error_detection_policy": item.error_detection_policy,
+        "cpu_small_shape_selector": item.cpu_small_shape_selector,
+        "incremental_result_cache": item.incremental_result_cache,
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -382,7 +459,10 @@ def command_for(
     if getattr(args, "native_to_rns_bridge", False):
         command.append("--native-to-rns-bridge")
     if getattr(args, "vector_to_rns_chain", False):
-        command.append("--vector-to-rns-chain")
+        if getattr(args, "vector_to_rns_chain_host_repack_control", False):
+            command.append("--vector-to-rns-chain-host-repack-control")
+        else:
+            command.append("--vector-to-rns-chain")
     modulus_set = getattr(args, "modulus_set", "default")
     if modulus_set and modulus_set != "default":
         command.extend(["--modulus-set", modulus_set])
@@ -411,12 +491,30 @@ def command_for(
         command.append("--adaptive-grouped-scheduler")
     if getattr(args, "streaming_overlap", False):
         command.append("--streaming-overlap")
+    k_block_policy = getattr(args, "k_block_policy", "auto")
+    if k_block_policy and k_block_policy != "auto":
+        command.extend(["--k-block-policy", k_block_policy])
+    resident_redesign_candidate = getattr(args, "resident_redesign_candidate", "")
+    if resident_redesign_candidate:
+        command.extend(["--resident-redesign-candidate", resident_redesign_candidate])
+        dimensions = getattr(args, "resident_redesign_dimensions", ())
+        if dimensions:
+            command.extend(["--resident-redesign-dimensions", ",".join(str(item) for item in dimensions)])
     release_gate = getattr(args, "release_gate", "none")
     if release_gate and release_gate != "none":
         command.extend(["--release-gate", release_gate])
     verification_amortization = getattr(args, "verification_amortization", "none")
     if verification_amortization and verification_amortization != "none":
         command.extend(["--verification-amortization", verification_amortization])
+    error_detection_policy = getattr(args, "error_detection_policy", "none")
+    if error_detection_policy and error_detection_policy != "none":
+        command.extend(["--error-detection-policy", error_detection_policy])
+    cpu_small_shape_selector = getattr(args, "cpu_small_shape_selector", "none")
+    if cpu_small_shape_selector and cpu_small_shape_selector != "none":
+        command.extend(["--cpu-small-shape-selector", cpu_small_shape_selector])
+    incremental_result_cache = getattr(args, "incremental_result_cache", "none")
+    if incremental_result_cache and incremental_result_cache != "none":
+        command.extend(["--incremental-result-cache", incremental_result_cache])
     return command
 
 
@@ -483,12 +581,40 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             args, "residue_chain_independent_final_export", False
         ):
             raise SystemExit("--hip-graph-replay cannot be combined with residue-chain final-export modes")
-        if requested_pack_mode(args) != "prepacked_reuse":
-            raise SystemExit("--hip-graph-replay requires --reuse-packed-inputs")
-        if args.residue_chain_length <= 1:
-            raise SystemExit("--hip-graph-replay requires --residue-chain-length > 1")
-        if getattr(args, "next_op_hint", None) != "rns-gemm":
-            raise SystemExit("--hip-graph-replay requires --next-op-hint rns-gemm")
+        full_bounded_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics in BOUNDED_SEMANTICS for semantics in semantics_values)
+        )
+        full_finite_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics in FINITE_SEMANTICS for semantics in semantics_values)
+        )
+        full_wrap64_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics == "wrap-u64" for semantics in semantics_values)
+        )
+        resident_chain_graph = (
+            args.residue_chain_length > 1
+            and requested_pack_mode(args) == "prepacked_reuse"
+            and getattr(args, "next_op_hint", None) == "rns-gemm"
+            and all(semantics in RNS_CHAIN_SEMANTICS for semantics in semantics_values)
+        )
+        if (
+            not full_bounded_pack_export_graph
+            and not full_finite_pack_export_graph
+            and not full_wrap64_pack_export_graph
+            and not resident_chain_graph
+        ):
+            raise SystemExit(
+                "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
+                "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm"
+            )
         if host_api_batch_size > 1 or getattr(args, "include_oneshot", False) or getattr(args, "oneshot_only", False):
             raise SystemExit("--hip-graph-replay cannot be combined with host batching or one-shot sweeps")
         if getattr(args, "native_to_rns_bridge", False) or getattr(args, "vector_to_rns_chain", False):
@@ -497,8 +623,6 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             raise SystemExit("--hip-graph-replay cannot be combined with residue-channel fusion")
         if getattr(args, "bound_source", None) == "input-scan":
             raise SystemExit("--hip-graph-replay currently requires static-profile bounds")
-        if any(semantics not in RNS_CHAIN_SEMANTICS for semantics in semantics_values):
-            raise SystemExit("--hip-graph-replay is only valid for bounded or exact-wide RNS sweeps")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if getattr(args, "residue_chain_independent_final_export", False) and args.residue_chain_length <= 1:
@@ -674,6 +798,16 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
             getattr(args, "residue_chain_final_export", False),
             getattr(args, "residue_chain_independent_final_export", False),
             getattr(args, "workload_proxy", "none") != "none",
+            getattr(args, "resident_lifetime", False),
+            getattr(args, "workspace_arena", False),
+            getattr(args, "adaptive_grouped_scheduler", False),
+            getattr(args, "streaming_overlap", False),
+            getattr(args, "k_block_policy", "auto") != "auto",
+            getattr(args, "release_gate", "none") != "none",
+            getattr(args, "verification_amortization", "none") != "none",
+            getattr(args, "error_detection_policy", "none") != "none",
+            getattr(args, "cpu_small_shape_selector", "none") != "none",
+            getattr(args, "incremental_result_cache", "none") != "none",
             int(getattr(args, "output_ld_padding", 0) or 0) != 0,
             int(getattr(args, "residue_chain_length", 1) or 1) != 1,
             int(getattr(args, "host_api_batch_size", 1) or 1) != 1,
@@ -758,11 +892,12 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
 
 
 def sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand]:
-    return (
+    entries = (
         scenario_sweep_command_entries(args)
         if getattr(args, "scenario", None)
         else default_sweep_command_entries(args)
     )
+    return apply_visibility_environment(args, entries)
 
 
 def sweep_commands(args: argparse.Namespace) -> list[tuple[str, list[str], Path]]:

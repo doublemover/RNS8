@@ -8,8 +8,13 @@
     "public_runtime_vector_alu_native_buffers",
     "auto_native_to_rns_bridge",
     "vector_native_to_direct_rns_chain",
+    "vector_native_host_export_repack_direct_rns_chain",
     "benchmark_host_api_batch",
     "hip_graph_replay_resident_rns_chain",
+    "hip_graph_replay_bounded_pack_gemm_export",
+    "hip_graph_replay_finite_u8_pack_gemm_export",
+    "hip_graph_replay_wrap64_pack_gemm_export",
+    "benchmark_streaming_overlap_resident_b_pipeline",
     "residue_current_rns_chain",
     "residue_chain_final_host_export",
     "residue_chain_independent_final_host_export",
@@ -32,47 +37,77 @@
     {
       "id": "not_requested",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "not_requested"
     },
     {
       "id": "host_phase_loop_per_task_export",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "host_resident_task_loop"
     },
     {
       "id": "host_phase_loop_batched_exact_wide_export_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "host_resident_task_loop"
     },
     {
       "id": "device_grouped_pack_gemm_host_exports",
       "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h",
+      "batched_exact_wide_export": false,
+      "batched_bounded_export": true,
+      "batched_finite_export": false,
+      "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
+    },
+    {
+      "id": "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h",
+      "batched_exact_wide_export": false,
+      "batched_bounded_export": false,
+      "batched_finite_export": true,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_exact_wide_export_kernel_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_pack_and_exact_wide_export_kernels_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     },
     {
       "id": "device_grouped_pack_gemm_and_exact_wide_export_kernels_batched_d2h",
       "batched_exact_wide_export": true,
+      "batched_bounded_export": false,
+      "batched_finite_export": false,
       "device_descriptor_policy": "device_pointer_tables_and_compact_slabs"
     }
   ],
   "grouped_task_descriptor": {
     "descriptor_layouts": [
       "not_requested",
-      "same_shape_resident_task_triplets_v1"
+      "same_shape_resident_task_triplets_v1",
+      "same_contract_bucketed_resident_task_triplets_v1"
     ],
     "bucket_policies": [
       "not_requested",
-      "single_same_shape_bucket"
+      "single_same_shape_bucket",
+      "same_contract_shape_buckets"
     ],
     "source_version_policies": [
       "not_requested",
@@ -81,6 +116,26 @@
     "workspace_policies": [
       "not_requested",
       "one_workspace_per_task_shared_plan"
+    ],
+    "matrix_ownership_policies": [
+      "not_requested",
+      "benchmark_owns_all_task_triplets_until_capture_end"
+    ],
+    "descriptor_reuse_policies": [
+      "not_requested",
+      "reuse_after_shape_workspace_source_validation"
+    ],
+    "stride_policies": [
+      "not_requested",
+      "matrix_ld_matches_logical_shape_host_output_ld_explicit"
+    ],
+    "output_currentness_policies": [
+      "not_requested",
+      "device_residue_current_after_grouped_gemm_host_output_after_export"
+    ],
+    "lifetime_policies": [
+      "not_requested",
+      "task_matrices_and_workspaces_destroyed_after_capture"
     ],
     "checksum_policies": [
       "not_requested",

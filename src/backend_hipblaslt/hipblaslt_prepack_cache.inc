@@ -1,3 +1,5 @@
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+
 rns8_status pack_transpose_centered(
     const int8_t* src,
     int8_t* dst,
@@ -237,3 +239,4 @@ rns8_status ensure_b_prepack_cache(
   return RNS8_SUCCESS;
 }
 
+#endif

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,9 @@ class Registry:
 
     def event_phases(self) -> dict[str, Any]:
         return self.files["event_phases"]
+
+    def epilogues(self) -> dict[str, Any]:
+        return self.files["epilogues"]
 
     def kernels(self) -> dict[str, Any]:
         return self.files["kernels"]
@@ -118,6 +122,14 @@ def _strategy_ids(registry: Registry) -> list[str]:
             raise MetadataRegistryError(
                 f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_exact_wide_export must be boolean"
             )
+        if not isinstance(item.get("batched_bounded_export"), bool):
+            raise MetadataRegistryError(
+                f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_bounded_export must be boolean"
+            )
+        if not isinstance(item.get("batched_finite_export"), bool):
+            raise MetadataRegistryError(
+                f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_finite_export must be boolean"
+            )
         policy = item.get("device_descriptor_policy")
         if not isinstance(policy, str) or not policy:
             raise MetadataRegistryError(
@@ -143,6 +155,22 @@ def _batched_exact_wide_strategies(registry: Registry) -> list[str]:
     ]
 
 
+def _batched_bounded_strategies(registry: Registry) -> list[str]:
+    return [
+        item["id"]
+        for item in registry.benchmark_modes()["grouped_dispatch_execution_strategies"]
+        if item["batched_bounded_export"]
+    ]
+
+
+def _batched_finite_strategies(registry: Registry) -> list[str]:
+    return [
+        item["id"]
+        for item in registry.benchmark_modes()["grouped_dispatch_execution_strategies"]
+        if item["batched_finite_export"]
+    ]
+
+
 def _kernel_groups(registry: Registry) -> dict[str, list[str]]:
     groups = registry.kernels().get("selected_kernel_groups")
     if not isinstance(groups, dict):
@@ -161,6 +189,72 @@ def _kernel_groups(registry: Registry) -> dict[str, list[str]]:
         if missing:
             raise MetadataRegistryError(f"kernels.selected_kernel_groups.{group} references unknown kernels: {missing}")
         result[group] = list(values)
+    return result
+
+
+def _generated_reducer_identities(registry: Registry) -> list[str]:
+    return _require_string_list(registry.epilogues(), "generated_reducer_identities", "epilogues")
+
+
+def _generated_reducer_identity_patterns(registry: Registry) -> list[str]:
+    patterns = _require_string_list(registry.epilogues(), "generated_reducer_identity_patterns", "epilogues")
+    for index, pattern in enumerate(patterns):
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise MetadataRegistryError(
+                f"epilogues.generated_reducer_identity_patterns[{index}] is not a valid regex: {exc}"
+            ) from exc
+    return patterns
+
+
+def _reducer_families(registry: Registry) -> list[dict[str, Any]]:
+    families = _require_list(registry.epilogues(), "reducer_families", "epilogues")
+    epilogue_types = set(_require_string_list(registry.epilogues(), "epilogue_types", "epilogues"))
+    backend_modes = set(_require_string_list(registry.epilogues(), "backend_epilogue_modes", "epilogues"))
+    reducer_identities = set(_generated_reducer_identities(registry))
+    selected_kernels = set(_require_string_list(registry.kernels(), "selected_kernels", "kernels"))
+    ids: list[str] = []
+    result: list[dict[str, Any]] = []
+    for index, item in enumerate(families):
+        if not isinstance(item, dict):
+            raise MetadataRegistryError(f"epilogues.reducer_families[{index}] must be an object")
+        family_id = item.get("id")
+        if not isinstance(family_id, str) or not family_id:
+            raise MetadataRegistryError(f"epilogues.reducer_families[{index}].id must be a nonempty string")
+        ids.append(family_id)
+        epilogue_type = item.get("epilogue_type")
+        if epilogue_type not in epilogue_types:
+            raise MetadataRegistryError(f"reducer family {family_id} references unknown epilogue_type {epilogue_type}")
+        backend_mode = item.get("backend_epilogue_mode")
+        if backend_mode not in backend_modes:
+            raise MetadataRegistryError(
+                f"reducer family {family_id} references unknown backend_epilogue_mode {backend_mode}"
+            )
+        reducer_identity = item.get("generated_reducer_identity")
+        if reducer_identity not in reducer_identities:
+            raise MetadataRegistryError(
+                f"reducer family {family_id} references unknown generated_reducer_identity {reducer_identity}"
+            )
+        for key in ["generated_reducer_identity_pattern", "generated_helper", "isa_evidence"]:
+            value = item.get(key)
+            if not isinstance(value, str) or not value:
+                raise MetadataRegistryError(f"epilogues.reducer_families[{index}].{key} must be a nonempty string")
+        examples = item.get("selected_kernel_examples")
+        if not isinstance(examples, list) or not all(isinstance(value, str) and value for value in examples):
+            raise MetadataRegistryError(
+                f"epilogues.reducer_families[{index}].selected_kernel_examples must be a nonempty string list"
+            )
+        if not examples:
+            raise MetadataRegistryError(
+                f"epilogues.reducer_families[{index}].selected_kernel_examples must not be empty"
+            )
+        _require_unique(examples, f"epilogues.reducer_families[{index}].selected_kernel_examples")
+        missing = sorted(set(examples) - selected_kernels)
+        if missing:
+            raise MetadataRegistryError(f"reducer family {family_id} references unknown kernels: {missing}")
+        result.append(dict(item))
+    _require_unique(ids, "epilogues.reducer_families")
     return result
 
 
@@ -248,8 +342,11 @@ def validate_registry(registry: Registry) -> None:
         "rocwmma_deep_gpu_event_labels",
     ]:
         _require_string_list(event, key, "event_phases")
-    _require_string_list(registry.files["epilogues"], "epilogue_types", "epilogues")
-    _require_string_list(registry.files["epilogues"], "backend_epilogue_modes", "epilogues")
+    _require_string_list(registry.epilogues(), "epilogue_types", "epilogues")
+    _require_string_list(registry.epilogues(), "backend_epilogue_modes", "epilogues")
+    _generated_reducer_identities(registry)
+    _generated_reducer_identity_patterns(registry)
+    _reducer_families(registry)
     _require_string_list(registry.files["workspace_modes"], "workspace_modes", "workspace_modes")
     _require_string_list(registry.kernels(), "selected_kernels", "kernels")
     _kernel_groups(registry)
@@ -284,6 +381,7 @@ def render_python_constants(registry: Registry) -> str:
     descriptor = benchmark["grouped_task_descriptor"]
     output = registry.output_policies()
     event = registry.event_phases()
+    epilogues = registry.epilogues()
     kernels = registry.kernels()
     kernel_groups = _kernel_groups(registry)
     claim = registry.claim_labels()
@@ -318,10 +416,17 @@ def render_python_constants(registry: Registry) -> str:
         f"GROUPED_DISPATCH_STATUSES = {_python_repr_set(benchmark['grouped_dispatch_statuses'])}",
         f"GROUPED_DISPATCH_EXECUTION_STRATEGIES = {_python_repr_set(strategies)}",
         f"GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES = {_python_repr_set(_batched_exact_wide_strategies(registry))}",
+        f"GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES = {_python_repr_set(_batched_bounded_strategies(registry))}",
+        f"GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES = {_python_repr_set(_batched_finite_strategies(registry))}",
         f"GROUPED_TASK_DESCRIPTOR_LAYOUTS = {_python_repr_set(descriptor['descriptor_layouts'])}",
         f"GROUPED_TASK_BUCKET_POLICIES = {_python_repr_set(descriptor['bucket_policies'])}",
         f"GROUPED_TASK_SOURCE_VERSION_POLICIES = {_python_repr_set(descriptor['source_version_policies'])}",
         f"GROUPED_TASK_WORKSPACE_POLICIES = {_python_repr_set(descriptor['workspace_policies'])}",
+        f"GROUPED_TASK_MATRIX_OWNERSHIP_POLICIES = {_python_repr_set(descriptor['matrix_ownership_policies'])}",
+        f"GROUPED_TASK_DESCRIPTOR_REUSE_POLICIES = {_python_repr_set(descriptor['descriptor_reuse_policies'])}",
+        f"GROUPED_TASK_STRIDE_POLICIES = {_python_repr_set(descriptor['stride_policies'])}",
+        f"GROUPED_TASK_OUTPUT_CURRENTNESS_POLICIES = {_python_repr_set(descriptor['output_currentness_policies'])}",
+        f"GROUPED_TASK_LIFETIME_POLICIES = {_python_repr_set(descriptor['lifetime_policies'])}",
         f"GROUPED_TASK_CHECKSUM_POLICIES = {_python_repr_set(descriptor['checksum_policies'])}",
         f"GROUPED_TASK_STATUS_POLICIES = {_python_repr_set(descriptor['status_policies'])}",
         f"GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES = {_python_repr_set(descriptor['device_descriptor_policies'])}",
@@ -347,6 +452,11 @@ def render_python_constants(registry: Registry) -> str:
         f"VECTOR_ALU_GPU_EVENT_SCOPES = {_python_repr_set(event['vector_alu_gpu_event_scopes'])}",
         f"CK_DEEP_GPU_EVENT_LABELS = {_python_repr_set(event['ck_deep_gpu_event_labels'])}",
         f"ROCWMMA_DEEP_GPU_EVENT_LABELS = {_python_repr_set(event['rocwmma_deep_gpu_event_labels'])}",
+        f"EPILOGUE_TYPES = {_python_repr_set(epilogues['epilogue_types'])}",
+        f"BACKEND_EPILOGUE_MODES = {_python_repr_set(epilogues['backend_epilogue_modes'])}",
+        f"GENERATED_REDUCER_IDENTITIES = {_python_repr_set(_generated_reducer_identities(registry))}",
+        f"GENERATED_REDUCER_IDENTITY_PATTERNS = {_python_repr_set(_generated_reducer_identity_patterns(registry))}",
+        f"REDUCER_FAMILIES = {_python_repr_set([item['id'] for item in _reducer_families(registry)])}",
         f"SELECTED_KERNELS = {_python_repr_set(kernels['selected_kernels'])}",
         f"VECTOR_ALU_SELECTED_KERNELS = {_python_repr_set(kernel_groups['vector_alu'])}",
         f"CK_SELECTED_KERNELS = {_python_repr_set(kernel_groups['ck'])}",
@@ -381,6 +491,7 @@ def render_cpp_header(registry: Registry) -> str:
     descriptor = benchmark["grouped_task_descriptor"]
     output = registry.output_policies()
     event = registry.event_phases()
+    epilogues = registry.epilogues()
     kernels = registry.kernels()
     return "\n".join(
         [
@@ -401,6 +512,9 @@ def render_cpp_header(registry: Registry) -> str:
             _cpp_array("output_contract_domains", output["output_contract_domains"]),
             _cpp_array("pack_layouts", output["pack_layouts"]),
             _cpp_array("gpu_event_source_scopes", event["gpu_event_source_scopes"]),
+            _cpp_array("epilogue_types", epilogues["epilogue_types"]),
+            _cpp_array("backend_epilogue_modes", epilogues["backend_epilogue_modes"]),
+            _cpp_array("generated_reducer_identities", _generated_reducer_identities(registry)),
             _cpp_array("selected_kernels", kernels["selected_kernels"]),
             "",
             "}  // namespace rns8::generated_metadata",

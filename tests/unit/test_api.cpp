@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/api_internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 #include "rns8/rns8.hpp"
@@ -24,5 +25,7 @@ namespace {
 #include "test_api_backend_info_cases.inc"
 #include "test_api_storage_prepack_cases.inc"
 #include "test_api_plan_packing_cases.inc"
+#include "test_api_export_plan_cases.inc"
+#include "test_api_result_cache_cases.inc"
 #include "test_api_auto_selector_cases.inc"
 #include "test_api_status_cases.inc"

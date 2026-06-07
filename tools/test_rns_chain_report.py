@@ -82,6 +82,16 @@ def capture(
             "limb_count": 4,
             "status_policy": "structurally_elided",
         },
+        "export_variant": {
+            "name": "default",
+            "semantic_contract": "exact_wide_signed",
+            "signedness": "signed",
+            "output_layout": "fixed_width_limbs",
+            "selector_status_policy": "structurally_elided",
+            "d2h_policy": "host_ld_padded",
+            "final_output_mode": "final_host_output",
+            "selector_key": f"semantics=exact_wide_signed;backend={backend};selected_kernel={backend}_export",
+        },
         "timing_metadata": {
             "benchmark_execution_mode": (
                 "residue_chain_independent_final_host_export" if independent else "residue_chain_final_host_export"
@@ -180,12 +190,18 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         report_path = tmp_path / "rns-chain-report.json"
+        review_path = tmp_path / "review_report.json"
+        manifest_path = tmp_path / "scenario_manifest.json"
         capture_path = tmp_path / "capture.json"
         report_path.write_text("{}", encoding="utf-8")
+        review_path.write_text("{}", encoding="utf-8")
+        manifest_path.write_text("{}", encoding="utf-8")
         capture_path.write_text("{}", encoding="utf-8")
         expanded = rns_chain_report.expand_inputs([tmp_path])
         assert capture_path in expanded
         assert report_path not in expanded
+        assert review_path not in expanded
+        assert manifest_path not in expanded
 
     print("rns chain report self-test: PASS")
     return 0

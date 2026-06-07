@@ -34,6 +34,8 @@ def hip_roots() -> list[Path]:
 
 def vcpkg_roots() -> list[Path]:
     roots: list[Path] = []
+    if platform.system() != "Windows":
+        return roots
     root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
     triplets = ["x64-windows", "x64-linux"]
     env_triplet = os.environ.get("VCPKG_TARGET_TRIPLET")
@@ -48,17 +50,29 @@ def vcpkg_roots() -> list[Path]:
 def repo_local_accelerator_roots(name: str) -> list[Path]:
     root = repo_root()
     if name == "ck":
-        return [
+        roots = [
             root / "third_party" / "rocm" / "composable_kernel",
-            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
-            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
         ]
+        if platform.system() == "Windows":
+            roots.extend(
+                [
+                    root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+                    root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
+                ]
+            )
+        return roots
     if name == "rocwmma":
-        return [
+        roots = [
             root / "third_party" / "rocm" / "rocWMMA",
-            root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
-            root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "rocWMMA",
         ]
+        if platform.system() == "Windows":
+            roots.extend(
+                [
+                    root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
+                    root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "rocWMMA",
+                ]
+            )
+        return roots
     return []
 
 
@@ -104,7 +118,7 @@ def repo_local_dependency_report(name: str) -> dict[str, object]:
     actual_sha = ""
     actual_branch = ""
     actual_url = ""
-    if path.exists():
+    if (path / ".git").exists():
         code, actual_sha = git_text(["rev-parse", "HEAD"], cwd=path)
         if code != 0:
             actual_sha = ""
@@ -172,6 +186,12 @@ def command_version(name: str, path: str) -> str:
         _, output = run([path, "--version"], timeout=30)
         if not output and name == "rocminfo":
             _, output = run([path], timeout=30)
+    elif name == "rocprofv3-avail":
+        _, output = run([path, "--help"], timeout=30)
+    elif name in {"rocprofv3", "rocm-bandwidth-test", *RCCL_TEST_COMMANDS}:
+        _, output = run([path, "--version"], timeout=30)
+        if not output:
+            _, output = run([path, "--help"], timeout=30)
     elif name == "RadeonDeveloperServiceCLI":
         _, output = run([path, "--help"])
     else:
@@ -179,6 +199,40 @@ def command_version(name: str, path: str) -> str:
 
     first = output.splitlines()[0] if output else ""
     return first.strip()
+
+
+def _ldconfig_library_path(name: str) -> str | None:
+    if platform.system() != "Linux":
+        return None
+    code, output = run(["ldconfig", "-p"], timeout=30)
+    if code != 0:
+        return None
+    for line in output.splitlines():
+        if name in line and "=>" in line:
+            return line.split("=>", 1)[1].strip()
+    return None
+
+
+def rccl_discovery_report() -> dict[str, object]:
+    roots = hip_roots()
+    header = find_under_roots(roots, ["include/rccl/rccl.h", "include/rccl.h"])
+    library = find_under_roots(roots, ["lib/librccl.so", "lib64/librccl.so"]) or _ldconfig_library_path("librccl.so")
+    test_commands = {name: find_command(name) for name in RCCL_TEST_COMMANDS}
+    tests_present = {name: path for name, path in test_commands.items() if path}
+    return {
+        "ok": bool(header and library),
+        "required_for_single_device_smoke": False,
+        "readiness_lane": "future_multi_gpu_platform",
+        "header": header,
+        "library": library,
+        "rccl_tests_ready": bool(tests_present),
+        "rccl_test_commands": test_commands,
+        "detail": (
+            "RCCL headers/libraries discovered; rccl-tests command present"
+            if header and library and tests_present
+            else "RCCL and rccl-tests are future multi-GPU platform readiness signals, not single-device smoke blockers"
+        ),
+    }
 
 
 def parse_hip_info_details(output: str) -> dict[str, str]:

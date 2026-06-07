@@ -194,6 +194,56 @@ bool hip_direct_gemm_requires_device_tile_schedule(const rns8_plan& plan);
 
 bool plan_all_zero_output_tiles(const rns8_plan& plan);
 
+enum class export_output_layout {
+  scalar_i64,
+  scalar_u64,
+  finite_u8,
+  fixed_u64_limbs,
+};
+
+enum class export_status_policy {
+  none,
+  range_checked_status_buffer,
+};
+
+enum class export_d2h_policy {
+  host_ld_padded,
+  compact_contiguous,
+  device_residue_current,
+};
+
+struct export_reconstruction_plan {
+  export_output_layout output_layout = export_output_layout::scalar_i64;
+  uint32_t limb_count = 0;
+  export_status_policy status_policy = export_status_policy::none;
+  export_d2h_policy d2h_policy = export_d2h_policy::host_ld_padded;
+  const char* selected_export_kernel = "cpu_reference_export";
+  std::string selector_key;
+  std::string selector_policy = "default_export_selector";
+  std::string semantic_contract;
+  std::string backend;
+  std::string target_id;
+  std::string prefix_contract;
+  std::string signedness;
+  std::string final_output_mode = "final_host_output";
+  std::string cache_visibility = "exact_shape_selector_metadata_only";
+  std::string stale_entry_reason;
+  std::string status_elision_reason;
+  bool requires_hip_tile_metadata = false;
+  bool all_zero_tiled_output = false;
+};
+
+const char* export_output_layout_name(export_output_layout layout);
+
+const char* export_status_policy_name(export_status_policy policy);
+
+const char* export_d2h_policy_name(export_d2h_policy policy);
+
+export_reconstruction_plan make_export_plan(
+    const rns8_plan& plan,
+    rns8_semantics semantics,
+    uint32_t limb_count = 0);
+
 bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m, int64_t& max_n);
 
 bool hipblaslt_pack_workspace_breakdown(

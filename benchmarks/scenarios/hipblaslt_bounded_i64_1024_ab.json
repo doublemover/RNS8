@@ -23,7 +23,10 @@
       "backends": [
         "cpu",
         "hip-direct",
-        "hipblaslt"
+        "hip-vector-alu-int64",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "narrow_margin_review_only",
@@ -31,6 +34,37 @@
         "promotion_scope": "narrow_margin_review_only",
         "comparison_role": "current_reducer_vs_direct_hip_baseline",
         "margin_policy": "require reviewed same-contract margin before promotion"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-a",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "hipBLASLt bounded i64 1024 stable-A reuse A/B workload",
+      "output_domain": "host_export",
+      "rationale": "separates setup-inclusive reusable-A behavior from ordinary per-repeat packing",
+      "backends": [
+        "hip-direct",
+        "hipblaslt"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
+      "pack_mode": "prepacked_reuse_a",
+      "metadata": {
+        "promotion_scope": "explicit_reuse_contract_only",
+        "comparison_role": "reuse_a_vs_repack",
+        "margin_policy": "narrow_margin_report_required"
       }
     },
     {
@@ -61,6 +95,37 @@
       "metadata": {
         "promotion_scope": "explicit_reuse_contract_only",
         "comparison_role": "reuse_b_vs_repack",
+        "margin_policy": "narrow_margin_report_required"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-reuse-ab",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "hipBLASLt bounded i64 1024 stable-A+B reuse A/B workload",
+      "output_domain": "host_export",
+      "rationale": "separates setup-inclusive full reusable-input behavior from ordinary per-repeat packing",
+      "backends": [
+        "hip-direct",
+        "hipblaslt"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "explicit_reuse_contract_only",
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "explicit_reuse_contract_only",
+        "comparison_role": "reuse_ab_vs_repack",
         "margin_policy": "narrow_margin_report_required"
       }
     }

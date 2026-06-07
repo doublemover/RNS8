@@ -1,6 +1,8 @@
 # Third-Party Policy
 
-RNS8 uses vcpkg-managed C++ dependencies declared in `vcpkg.json`.
+RNS8 uses vcpkg-managed C++ dependencies declared in `vcpkg.json` on Windows.
+Linux builds use distro packages or native CMake package prefixes instead of
+Windows vcpkg roots.
 
 Required Phase 0 dependencies are Catch2 for tests and Boost.Multiprecision for
 exact CRT and wide-integer reference behavior. GMP and FLINT are optional

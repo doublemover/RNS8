@@ -12,6 +12,11 @@
       "description": "CPU-only development preset with HIP and accelerator backends disabled.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/cpu-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
@@ -33,9 +38,9 @@
     },
     {
       "name": "cpu-asan-ubsan-debug",
-      "displayName": "CPU + vcpkg + ASan/UBSan (Debug)",
-      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains. This remains host-gated until validated on the target host.",
-      "inherits": "cpu-debug",
+      "displayName": "CPU + native packages + ASan/UBSan (Debug)",
+      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains using native package discovery only.",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-debug",
       "condition": {
         "type": "notEquals",
@@ -43,10 +48,16 @@
         "rhs": "Windows"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
         "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
         "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
-        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined"
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
+        "RNS8_ENABLE_HIP": "OFF",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
       }
     },
     {
@@ -194,8 +205,8 @@
     },
     {
       "name": "linux-rocm-debug",
-      "displayName": "Linux ROCm + vcpkg (Debug)",
-      "description": "Linux ROCm production/profiling validation preset. Represented only until run on a real Linux ROCm host with supported hardware.",
+      "displayName": "Linux ROCm + native packages (Debug)",
+      "description": "Linux ROCm production/profiling validation preset using system packages and native CMake discovery only. Represented only until run on a real Linux ROCm host with supported hardware.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-rocm-debug",
       "condition": {
@@ -205,21 +216,82 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_TARGET_TRIPLET": "x64-linux",
         "RNS8_ENABLE_HIP": "ON",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
         "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
+        "RNS8_ROCM_DEPS_BUILD_ROOT": "",
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
         "RNS8_ROCM_COVERAGE_TARGETS": "gfx1030;gfx1100;gfx1200;gfx1201;gfx90a;gfx942;gfx950"
       }
     },
     {
       "name": "linux-rocm-release",
-      "displayName": "Linux ROCm + vcpkg (Release)",
+      "displayName": "Linux ROCm + native packages (Release)",
       "inherits": "linux-rocm-debug",
       "binaryDir": "${sourceDir}/build/linux-rocm-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-cdna-debug",
+      "displayName": "Linux ROCm CDNA + native packages (Debug)",
+      "description": "Clean Linux CDNA real-host preset using /opt/rocm and native package discovery only; no vcpkg toolchain, Windows triplet, or repo-local generated accelerator dependency roots.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-cdna-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RNS8_ENABLE_HIP": "ON",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_DEPS_BUILD_ROOT": "",
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
+        "RNS8_CK_ROOT": "",
+        "RNS8_ROCWMMA_ROOT": ""
+      }
+    },
+    {
+      "name": "linux-cdna-release",
+      "displayName": "Linux ROCm CDNA + native packages (Release)",
+      "inherits": "linux-cdna-debug",
+      "binaryDir": "${sourceDir}/build/linux-cdna-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-cdna-accelerators-release",
+      "displayName": "Linux ROCm CDNA accelerators + native packages (Release)",
+      "description": "Clean real-host CDNA preset for MI300X/Instinct accelerator probing with native ROCm package discovery only; no vcpkg toolchain, Windows paths, or repo-local generated dependency roots.",
+      "inherits": "linux-cdna-release",
+      "binaryDir": "${sourceDir}/build/linux-cdna-accelerators-release",
+      "cacheVariables": {
+        "RNS8_PROBE_ACCELERATORS": "ON",
+        "RNS8_ENABLE_HIPBLASLT": "ON",
+        "RNS8_ENABLE_CK": "ON",
+        "RNS8_ENABLE_ROCWMMA": "ON",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "RNS8_HIP_ROOT": "/opt/rocm",
+        "RNS8_AMDGPU_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_ROCM_DEPS_BUILD_ROOT": "",
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
+        "RNS8_CK_ROOT": "",
+        "RNS8_ROCWMMA_ROOT": ""
       }
     },
     {
@@ -234,6 +306,35 @@
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
         "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
+      "name": "linux-cpu-debug",
+      "displayName": "Linux CPU + native packages (Debug)",
+      "description": "Linux CPU-only development preset using system packages and native CMake discovery only.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-cpu-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RNS8_ENABLE_HIP": "OFF",
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+      }
+    },
+    {
+      "name": "linux-cpu-release",
+      "displayName": "Linux CPU + native packages (Release)",
+      "inherits": "linux-cpu-debug",
+      "binaryDir": "${sourceDir}/build/linux-cpu-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       }
     }
   ],
@@ -301,6 +402,26 @@
     {
       "name": "linux-accelerator-probe",
       "configurePreset": "linux-rocm-accelerator-probe"
+    },
+    {
+      "name": "linux-cdna-debug",
+      "configurePreset": "linux-cdna-debug"
+    },
+    {
+      "name": "linux-cdna-release",
+      "configurePreset": "linux-cdna-release"
+    },
+    {
+      "name": "linux-cdna-accelerators-release",
+      "configurePreset": "linux-cdna-accelerators-release"
+    },
+    {
+      "name": "linux-cpu-debug",
+      "configurePreset": "linux-cpu-debug"
+    },
+    {
+      "name": "linux-cpu-release",
+      "configurePreset": "linux-cpu-release"
     }
   ],
   "testPresets": [
@@ -398,6 +519,41 @@
     {
       "name": "linux-release",
       "configurePreset": "linux-rocm-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cdna-debug",
+      "configurePreset": "linux-cdna-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cdna-release",
+      "configurePreset": "linux-cdna-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cdna-accelerators-release",
+      "configurePreset": "linux-cdna-accelerators-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cpu-debug",
+      "configurePreset": "linux-cpu-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-cpu-release",
+      "configurePreset": "linux-cpu-release",
       "output": {
         "outputOnFailure": true
       }

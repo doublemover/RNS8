@@ -47,6 +47,21 @@ Cleanup and drift-control helpers:
   readiness wording and unqualified speedup claims.
 - `tools/golden_regression_suite.py`: runs compact metadata/schema/report smoke
   checks without broad release performance sweeps.
+- `tools/perf_variance_report.py`: groups reviewed captures by same
+  contract/backend/kernel and reports whether observed timing variance leaves a
+  claimed speedup outside the repeatability margin.
+- `tools/verification_amortization_report.py`: verifies benchmark-only
+  verification-amortized exact workloads still have final exact CPU/reference
+  coverage and remain non-promotable.
+- `tools/error_detection_policy_report.py`: verifies research-only
+  error-detecting exact fast-path captures declare false-negative policy,
+  preserve deterministic default exact APIs, and remain non-promotable.
+- `tools/shape_family_shadow_report.py`: builds non-routing AUTO
+  shape-family recommendations from reviewed exact cache entries and records
+  why each recommendation remains advisory.
+- `tools/auto_shape_family_gate.py`: verifies shape-family shadow reports stay
+  exact-cache, non-routing, non-promotable, and boundary-safe before any AUTO
+  selector work can use them.
 
 Tracked documentation should summarize reviewed facts. Raw benchmark captures,
 probe output, downloaded installers, and smoke-test scratch files belong under

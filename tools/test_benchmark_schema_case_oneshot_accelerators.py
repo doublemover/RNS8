@@ -307,6 +307,31 @@ bad_hip_available = copy.deepcopy(v4_rocwmma_i64)
 bad_hip_available["device"]["hip_available"] = 0
 expect_invalid(bad_hip_available, "HIP backend captures must use device.hip_available=1")
 
+multi_gpu_metadata = copy.deepcopy(v4_ck_i64)
+multi_gpu_metadata["runtime_environment"] = {
+    "HIP_VISIBLE_DEVICES": "0,1,2,3,4,5,6,7",
+    "ROCR_VISIBLE_DEVICES": None,
+    "GPU_DEVICE_ORDINAL": None,
+    "ROCM_PATH": "/opt/rocm",
+    "HIP_PATH": "/opt/rocm",
+    "LD_LIBRARY_PATH": "/opt/rocm/lib",
+}
+multi_gpu_metadata["device"]["device_index"] = multi_gpu_metadata["device"]["device_id"]
+multi_gpu_metadata["device"]["device_name"] = multi_gpu_metadata["device"]["name"]
+multi_gpu_metadata["device"]["target_arch"] = multi_gpu_metadata["device"]["gcn_arch"]
+multi_gpu_metadata["device"]["visible_device_count"] = 8
+multi_gpu_metadata["device"]["node_gpu_count"] = 8
+add_target_variant_fields(multi_gpu_metadata)
+validate_capture(multi_gpu_metadata)
+
+bad_device_alias = copy.deepcopy(multi_gpu_metadata)
+bad_device_alias["device"]["target_arch"] = "gfx942"
+expect_invalid(bad_device_alias, "device.target_arch must match device.gcn_arch")
+
+bad_runtime_environment = copy.deepcopy(multi_gpu_metadata)
+bad_runtime_environment["runtime_environment"]["HIP_VISIBLE_DEVICES"] = 0
+expect_invalid(bad_runtime_environment, "runtime_environment.HIP_VISIBLE_DEVICES must be a string or null")
+
 bad_vector_source = copy.deepcopy(v4_vector_i64)
 bad_vector_source["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
 expect_invalid(bad_vector_source, "rns8_bench_vector_alu_baseline")
@@ -369,6 +394,10 @@ expect_invalid(bad_rocwmma_finite_kernel, "rocWMMA finite-u8 modulus 256 capture
 bad_finite_epilogue = copy.deepcopy(v4_finite_field_rocwmma)
 bad_finite_epilogue["epilogue_type"] = "crt_export"
 expect_invalid(bad_finite_epilogue, "canonical_u8_export")
+
+bad_finite_distribution = copy.deepcopy(v4_finite_ring_ck)
+bad_finite_distribution["input_distribution"] = "u8_modulus_inferred_from_hot_path"
+expect_invalid(bad_finite_distribution, "registered finite input_distribution")
 
 direct_finite_specialized = as_direct_hip_finite_capture(
     v4_finite_ring_ck,

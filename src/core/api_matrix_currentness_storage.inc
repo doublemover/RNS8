@@ -75,7 +75,9 @@ bool build_active_prefix_tile_schedule(
     active_offsets[p] = static_cast<uint64_t>(active_entries.size());
     for (const auto& entry : plan.tile_schedule) {
       if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
-        active_entries.push_back(entry);
+        auto active_entry = entry;
+        active_entry.group_index = p;
+        active_entries.push_back(active_entry);
       }
     }
     active_counts[p] = static_cast<uint64_t>(active_entries.size()) - active_offsets[p];

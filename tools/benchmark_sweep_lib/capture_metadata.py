@@ -15,6 +15,8 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     timing_metadata = capture.get("timing_metadata")
     output_policy = capture.get("output_policy")
     requested_next_op = capture.get("requested_next_op")
+    export_variant = capture_export_variant_name(capture)
+    reconstruction_variant = capture_reconstruction_variant_name(capture)
     residue_output_mode = capture.get("residue_output_mode", "host_export")
     if residue_output_mode == "host_export":
         next_op_contract = "host_export"
@@ -47,11 +49,29 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"next_op_contract={next_op_contract}",
         f"output_policy={output_policy.get('destination_layout') if isinstance(output_policy, dict) else None}",
         f"status_handling={output_policy.get('status_handling') if isinstance(output_policy, dict) else None}",
+        f"export_variant={export_variant}",
+        f"reconstruction_variant={reconstruction_variant}",
         f"fusion_mode={timing_metadata.get('fusion_mode') if isinstance(timing_metadata, dict) else None}",
         f"residue_group_width={timing_metadata.get('residue_group_width') if isinstance(timing_metadata, dict) else None}",
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)
+
+
+def capture_export_variant_name(capture: dict[str, Any]) -> str:
+    variant = capture.get("export_variant")
+    if isinstance(variant, dict) and isinstance(variant.get("name"), str) and variant["name"]:
+        return variant["name"]
+    value = capture.get("export_variant_name")
+    return str(value) if isinstance(value, str) and value else "default"
+
+
+def capture_reconstruction_variant_name(capture: dict[str, Any]) -> str:
+    variant = capture.get("reconstruction_variant")
+    if isinstance(variant, dict) and isinstance(variant.get("name"), str) and variant["name"]:
+        return variant["name"]
+    value = capture.get("reconstruction_variant_name")
+    return str(value) if isinstance(value, str) and value else "default_garner"
 
 
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
@@ -76,6 +96,12 @@ def backend_id(capture: dict[str, Any]) -> str:
         return f"{backend}-hostbatch"
     if execution_mode == "hip_graph_replay_resident_rns_chain":
         return f"{backend}-hipgraph"
+    if execution_mode == "hip_graph_replay_bounded_pack_gemm_export":
+        return f"{backend}-hipgraph-pack-export"
+    if execution_mode == "hip_graph_replay_finite_u8_pack_gemm_export":
+        return f"{backend}-hipgraph-finite-pack-export"
+    if execution_mode == "hip_graph_replay_wrap64_pack_gemm_export":
+        return f"{backend}-hipgraph-wrap64-pack-export"
     return backend
 
 
@@ -94,7 +120,7 @@ def normalized_target_id(value: Any) -> str | None:
 
 
 def backend_family_id(backend: str) -> str:
-    for suffix in ("-oneshot", "-hostbatch"):
+    for suffix in ("-oneshot", "-hostbatch", "-hipgraph", "-hipgraph-pack-export"):
         if backend.endswith(suffix):
             return backend[: -len(suffix)]
     return backend

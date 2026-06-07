@@ -7,7 +7,7 @@ from typing import Any
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
-HOST_API_BATCH_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
+HOST_API_BATCH_BACKENDS = ["hip-direct"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
@@ -77,6 +77,7 @@ class ScenarioItem:
     oneshot: bool = False
     native_to_rns_bridge: bool = False
     vector_to_rns_chain: bool = False
+    vector_to_rns_chain_host_repack_control: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None
@@ -93,8 +94,14 @@ class ScenarioItem:
     workspace_arena: bool = False
     adaptive_grouped_scheduler: bool = False
     streaming_overlap: bool = False
+    k_block_policy: str = "auto"
+    resident_redesign_candidate: str = ""
+    resident_redesign_dimensions: tuple[str, ...] = ()
     release_gate: str = "none"
     verification_amortization: str = "none"
+    error_detection_policy: str = "none"
+    cpu_small_shape_selector: str = "none"
+    incremental_result_cache: str = "none"
     include_wrap64_candidate: bool = False
     metadata: dict[str, Any] | None = None
 
@@ -106,5 +113,6 @@ class SweepCommand:
     command: list[str]
     output: Path
     scenario: dict[str, Any] | None = None
+    env: dict[str, str] | None = None
 
 

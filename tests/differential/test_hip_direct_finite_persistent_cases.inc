@@ -122,6 +122,109 @@ TEST_CASE("direct HIP finite u8 persistent matrices match CPU and reuse resident
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("direct HIP finite u8 public grouped GEMM matches CPU") {
+  if (!hip_available()) {
+    SKIP("no HIP device available for direct HIP finite grouped public API smoke");
+  }
+
+  rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr int64_t m = 3;
+  constexpr int64_t n = 2;
+  constexpr int64_t k = 4;
+  constexpr uint16_t modulus = 251;
+  auto cpu_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_CPU_REFERENCE, modulus);
+  auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
+  rns8_plan* cpu_plan = nullptr;
+  rns8_plan* hip_plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+
+  rns8_workspace* cpu_workspace[2] = {};
+  rns8_workspace* hip_workspace[2] = {};
+  rns8_matrix* cpu_a[2] = {};
+  rns8_matrix* cpu_b[2] = {};
+  rns8_matrix* cpu_c[2] = {};
+  rns8_matrix* hip_a[2] = {};
+  rns8_matrix* hip_b[2] = {};
+  rns8_matrix* hip_c[2] = {};
+  auto a_desc = matrix_desc(m, k, RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
+  auto b_desc = matrix_desc(k, n, RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
+  auto c_desc = matrix_desc(m, n, RNS8_FINITE_FIELD_U8, RNS8_BOUND_NONE);
+  for (uint32_t task = 0; task < 2; ++task) {
+    REQUIRE(rns8_create_workspace(cpu, cpu_plan, &cpu_workspace[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(hip, hip_plan, &hip_workspace[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(cpu, &a_desc, &cpu_a[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(cpu, &b_desc, &cpu_b[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(cpu, &c_desc, &cpu_c[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b[task]) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c[task]) == RNS8_SUCCESS);
+  }
+
+  std::vector<std::vector<uint8_t>> a_values(2, std::vector<uint8_t>(static_cast<std::size_t>(m * k)));
+  std::vector<std::vector<uint8_t>> b_values(2, std::vector<uint8_t>(static_cast<std::size_t>(k * n)));
+  for (uint32_t task = 0; task < 2; ++task) {
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        a_values[task][static_cast<std::size_t>(row * k + col)] =
+            static_cast<uint8_t>((task * 17 + row * 11 + col * 13 + 3) % modulus);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        b_values[task][static_cast<std::size_t>(row * n + col)] =
+            static_cast<uint8_t>((task * 19 + row * 7 + col * 23 + 5) % modulus);
+      }
+    }
+  }
+
+  rns8_grouped_gemm_task tasks[2] = {};
+  std::vector<std::vector<uint8_t>> cpu_out(2, std::vector<uint8_t>(static_cast<std::size_t>(m * n)));
+  std::vector<std::vector<uint8_t>> hip_out(2, std::vector<uint8_t>(static_cast<std::size_t>(m * n)));
+  for (uint32_t task = 0; task < 2; ++task) {
+    const uint64_t a_version = 10 + task * 2;
+    const uint64_t b_version = 11 + task * 2;
+    REQUIRE(rns8_pack_finite_u8(cpu, cpu_a[task], modulus, a_values[task].data(), k, a_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_finite_u8(cpu, cpu_b[task], modulus, b_values[task].data(), n, b_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_finite_u8(
+                cpu, cpu_plan, modulus, cpu_a[task], cpu_b[task], cpu_c[task], cpu_workspace[task]) ==
+            RNS8_SUCCESS);
+    REQUIRE(rns8_export_finite_u8(cpu, cpu_plan, modulus, cpu_c[task], cpu_out[task].data(), n) ==
+            RNS8_SUCCESS);
+
+    REQUIRE(rns8_pack_finite_u8(hip, hip_a[task], modulus, a_values[task].data(), k, a_version) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_finite_u8(hip, hip_b[task], modulus, b_values[task].data(), n, b_version) == RNS8_SUCCESS);
+    tasks[task] = {sizeof(rns8_grouped_gemm_task), RNS8_ABI_VERSION, hip_a[task], hip_b[task], hip_c[task],
+                   hip_workspace[task]};
+  }
+
+  REQUIRE(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, 253, tasks, 2) == RNS8_INVALID_ARGUMENT);
+  for (uint32_t task = 0; task < 2; ++task) {
+    REQUIRE(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c[task], hip_out[task].data(), n) == RNS8_SUCCESS);
+    CHECK(hip_out[task] == cpu_out[task]);
+  }
+  rns8::test::set_device_residues_current(*hip_a[1], false);
+  CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
+  rns8::test::set_device_residues_current(*hip_a[1], true);
+
+  for (int task = 1; task >= 0; --task) {
+    rns8_destroy_matrix(hip_c[task]);
+    rns8_destroy_matrix(hip_b[task]);
+    rns8_destroy_matrix(hip_a[task]);
+    rns8_destroy_matrix(cpu_c[task]);
+    rns8_destroy_matrix(cpu_b[task]);
+    rns8_destroy_matrix(cpu_a[task]);
+    rns8_destroy_workspace(hip_workspace[task]);
+    rns8_destroy_workspace(cpu_workspace[task]);
+  }
+  rns8_destroy_plan(hip_plan);
+  rns8_destroy_plan(cpu_plan);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("direct HIP finite u8 one-shot preserves K-split semantics") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP finite u8 K-split smoke");
@@ -206,9 +309,10 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   adaptive_info.struct_size = sizeof(adaptive_info);
   adaptive_info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_backend_info(adaptive_plan, &adaptive_info) == RNS8_SUCCESS);
-  CHECK(std::string(adaptive_info.selected_kernel) == "direct_hip_tiled_active_prefix_rns_gemm_v2");
-  CHECK(std::string(adaptive_info.autotune_key).find("kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;") !=
-        std::string::npos);
+  CHECK(std::string(adaptive_info.selected_kernel) ==
+        "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3");
+  CHECK(std::string(adaptive_info.autotune_key).find(
+            "kernel=direct_hip_grouped_active_prefix_schedule_rns_gemm_v3;") != std::string::npos);
   CHECK(std::string(adaptive_info.workspace_mode) ==
         "resident_device_buffers_with_active_prefix_tiled_schedule");
   std::vector<rns8_plan_tile_schedule_entry> adaptive_entries(adaptive_plan->tile_schedule.size());

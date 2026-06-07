@@ -642,7 +642,7 @@ class ValidatorScheduleMixin:
             elif zero_row_col_products:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1
             else:
-                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_KERNEL_V2
+                direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3
             expected_kernels = {
                 "hip-direct": direct_hip_expected_kernel,
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",

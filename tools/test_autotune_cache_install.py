@@ -111,8 +111,98 @@ def vector_entry(
     }
 
 
+def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -> dict:
+    selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+    epilogue = "ck_fused_i32_to_centered_residue_rns_output"
+    target_id = f"gfx1100{key_suffix}"
+    key = (
+        f"backend=ck;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
+        "semantics=exact_wide_unsigned;m=1024;n=1024;k=1024;layout=row_major;"
+        f"k_block_size=1024;tile_m=128;tile_n=128;kernel={selected_kernel};epilogue={epilogue}"
+    )
+    cache_scope = "runtime_exact_autotune"
+    selector_key = None
+    selector_hash = None
+    if export_variant != "default":
+        selector_key = (
+            "semantic=exact_wide_unsigned;prefix=20;limb_count=16;signedness=unsigned;"
+            "output_layout=fixed_u64_limbs;status_policy=range_checked_status_buffer;"
+            "d2h_policy=host_ld_padded;backend=ck;target_id=gfx1100;"
+            f"selected_kernel={selected_kernel}"
+        )
+        selector_hash = install_autotune_cache.selector_key_hash(selector_key)
+        key = (
+            f"{key};export_variant={export_variant};reconstruction_variant=default_garner;"
+            f"export_selector_hash={selector_hash}"
+        )
+        cache_scope = "selector_review_only_non_default"
+    return {
+        "key": key,
+        "selected_backend": "ck",
+        "selected_kernel": selected_kernel,
+        "target_id": target_id,
+        "hip_sdk_or_library_version": "repo-local release/rocm-rel-7.1",
+        "semantic_contract": "exact_wide_unsigned",
+        "finite_modulus": 0,
+        "shape": {"m": 1024, "n": 1024, "k": 1024},
+        "layout": "row_major",
+        "prefix_schedule_hash": "groups=1;adaptive_prefix=0;adaptive_skip=0",
+        "k_block_size": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "epilogue": epilogue,
+        "kernel_family": selected_kernel,
+        "workspace_bytes": 4096,
+        "export_variant": export_variant,
+        "reconstruction_variant": "default_garner",
+        "export_selector_key": selector_key,
+        "export_selector_hash": selector_hash,
+        "cache_scope": cache_scope,
+        "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
+        "performance_validated": True,
+        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "schema_version": 1,
+        "updated_utc": "2026-06-03T00:00:00Z",
+    }
+
+
 def write_cache(path: Path, entries: list[dict]) -> None:
     path.write_text(json.dumps({"schema_version": 1, "entries": entries}, indent=2), encoding="utf-8")
+
+
+def write_ledger(
+    path: Path,
+    entries: list[dict],
+    *,
+    blockers: list[str] | None = None,
+    variance: bool = False,
+    variance_ready: bool = True,
+    target_gate: bool = False,
+    target_ready: bool = True,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "policy": "reviewed_release_evidence_required_for_autotune_promotion",
+                "entries": [
+                    {
+                        "autotune_key": item["key"],
+                        "performance_validated": True,
+                        "promotion_blockers": list(blockers or []),
+                        "variance_gate_available": variance,
+                        "variance_gate_ready": variance_ready if variance else None,
+                        "target_validation_gate_available": target_gate,
+                        "target_validation_gate_ready": target_ready if target_gate else None,
+                        "target_cache_eligible": target_ready if target_gate else None,
+                    }
+                    for item in entries
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def restore_env(name: str, value: str | None) -> None:
@@ -180,18 +270,204 @@ def main() -> int:
             "end_to_end"
         ] == 4.0
 
-        summary = install_autotune_cache.install_cache([source_a, source_b], destination)
+        try:
+            install_autotune_cache.install_cache([source_a, source_b], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_required_for_cache_install" in str(exc)
+        else:
+            raise AssertionError("cache install accepted a write without a promotion ledger")
+
+        install_ledger = root / "install-promotion-ledger.json"
+        write_ledger(install_ledger, [replacement, finite, vector, vector_gemv], variance=True, variance_ready=True)
+        summary = install_autotune_cache.install_cache(
+            [source_a, source_b],
+            destination,
+            promotion_ledgers=[install_ledger],
+        )
         assert summary["source_entries"] == 4
         assert summary["existing_entries"] == 1
         assert summary["installed_entries"] == 4
         assert summary["added_entries"] == 3
         assert summary["replaced_entries"] == 1
+        assert summary["require_variance_gate"] is True
+        assert any(item["action"] == "replace" for item in summary["replacement_history"])
+        assert any(item["target_class"] == "rdna" for item in summary["replacement_history"])
+        assert summary["cache_coverage"]
         installed = json.loads(destination.read_text(encoding="utf-8"))["entries"]
         assert [item["key"] for item in installed] == sorted(item["key"] for item in installed)
         assert any(item["finite_modulus"] == 251 for item in installed)
         assert any(item["selected_backend"] == "hip-vector-alu-int64" for item in installed)
         assert any(item["selected_kernel"] == "hip_vector_alu_i64_gemv_n1_exact_192b_v1" for item in installed)
         assert any(item["measured_medians_us"]["end_to_end"] == 1.5 for item in installed)
+
+        exact_default = exact_wide_entry("-exact")
+        exact_fixed_limb = exact_wide_entry(
+            "-exact", export_variant="exact-wide-fixed-limb-export"
+        )
+        exact_selector_source = root / "exact-selector-cache.json"
+        write_cache(exact_selector_source, [exact_default, exact_fixed_limb])
+        try:
+            install_autotune_cache.install_cache([exact_selector_source], destination, dry_run=True)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "selector_review_only_cache_entry_not_runtime_installable" in str(exc)
+        else:
+            raise AssertionError("selector-review-only entry was accepted by the default runtime cache install")
+        exact_selector_summary = install_autotune_cache.install_cache(
+            [exact_selector_source],
+            destination,
+            dry_run=True,
+            allow_selector_review_cache=True,
+        )
+        assert exact_default["key"] != exact_fixed_limb["key"]
+        assert exact_default["key"] in exact_fixed_limb["key"] or "export_selector_hash" in exact_fixed_limb["key"]
+        assert any(
+            item["cache_scope"] == "selector_review_only_non_default"
+            and item["export_variant"] == "exact-wide-fixed-limb-export"
+            for item in exact_selector_summary["replacement_history"]
+        )
+        assert any(
+            row["export_variant"] == "exact-wide-fixed-limb-export"
+            and row["reconstruction_variant"] == "default_garner"
+            for row in exact_selector_summary["cache_coverage"]
+        )
+
+        missing_selector_key_field = copy.deepcopy(exact_fixed_limb)
+        missing_selector_key_field["key"] = exact_default["key"]
+        missing_selector_source = root / "missing-selector-key-field.json"
+        write_cache(missing_selector_source, [missing_selector_key_field])
+        try:
+            install_autotune_cache.install_cache(
+                [missing_selector_source],
+                destination,
+                allow_selector_review_cache=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "key_export_variant_mismatch" in str(exc)
+        else:
+            raise AssertionError("non-default export selector without selector key fields was accepted")
+
+        stale_selector_hash = copy.deepcopy(exact_fixed_limb)
+        stale_selector_hash["export_selector_hash"] = "badbadbadbadbad0"
+        stale_selector_hash_source = root / "stale-selector-hash.json"
+        write_cache(stale_selector_hash_source, [stale_selector_hash])
+        try:
+            install_autotune_cache.install_cache(
+                [stale_selector_hash_source],
+                destination,
+                allow_selector_review_cache=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "export_selector_hash_mismatch" in str(exc)
+        else:
+            raise AssertionError("stale export selector hash was accepted")
+
+        default_with_selector_key = copy.deepcopy(exact_default)
+        default_with_selector_key["key"] += ";export_selector_hash=0000000000000000"
+        default_selector_source = root / "default-with-selector-key.json"
+        write_cache(default_selector_source, [default_with_selector_key])
+        try:
+            install_autotune_cache.install_cache([default_selector_source], destination)
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "unexpected_default_export_selector_hash_key" in str(exc)
+        else:
+            raise AssertionError("default export cache key with selector hash was accepted")
+
+        ledger = root / "promotion-ledger.json"
+        write_ledger(ledger, [replacement])
+        try:
+            install_autotune_cache.install_cache(
+                [source_a],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[ledger],
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_variance_gate" in str(exc)
+        else:
+            raise AssertionError("promotion ledger without variance gate was accepted")
+
+        missing_ledger = root / "missing-promotion-ledger.json"
+        write_ledger(missing_ledger, [finite])
+        try:
+            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[missing_ledger])
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "missing_promotion_ledger_entry" in str(exc)
+        else:
+            raise AssertionError("source cache entry without a ledger row was accepted")
+
+        blocked_ledger = root / "blocked-promotion-ledger.json"
+        write_ledger(blocked_ledger, [replacement], blockers=["speedup_inside_variance_margin"])
+        try:
+            install_autotune_cache.install_cache([source_a], destination, promotion_ledgers=[blocked_ledger])
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_blocked" in str(exc)
+            assert "speedup_inside_variance_margin" in str(exc)
+        else:
+            raise AssertionError("blocked promotion ledger row was accepted")
+
+        try:
+            install_autotune_cache.install_cache(
+                [source_a],
+                destination,
+                promotion_ledgers=[ledger],
+                require_variance_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_variance_gate" in str(exc)
+        else:
+            raise AssertionError("cache install accepted a missing required variance gate")
+
+        variance_ledger = root / "variance-promotion-ledger.json"
+        write_ledger(variance_ledger, [replacement], variance=True, variance_ready=True)
+        variance_summary = install_autotune_cache.install_cache(
+            [source_a],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[variance_ledger],
+        )
+        assert variance_summary["require_variance_gate"] is True
+
+        target_ledger = root / "target-promotion-ledger.json"
+        write_ledger(target_ledger, [replacement], variance=True, variance_ready=True, target_gate=True, target_ready=True)
+        target_summary = install_autotune_cache.install_cache(
+            [source_a],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[target_ledger],
+            require_target_validation_gate=True,
+        )
+        assert target_summary["require_target_validation_gate"] is True
+
+        cdna = copy.deepcopy(replacement)
+        cdna["target_id"] = "gfx942"
+        cdna["key"] = cdna["key"].replace("target_id=gfx1100-old", "target_id=gfx942")
+        cdna_source = root / "cdna-source.json"
+        write_cache(cdna_source, [cdna])
+        cdna_ledger_missing_target = root / "cdna-missing-target-ledger.json"
+        write_ledger(cdna_ledger_missing_target, [cdna], variance=True, variance_ready=True)
+        try:
+            install_autotune_cache.install_cache(
+                [cdna_source],
+                destination,
+                dry_run=True,
+                promotion_ledgers=[cdna_ledger_missing_target],
+                require_variance_gate=True,
+            )
+        except install_autotune_cache.AutotuneCacheInstallError as exc:
+            assert "promotion_ledger_missing_target_validation_gate" in str(exc)
+        else:
+            raise AssertionError("CDNA cache entry installed without target validation gate")
+
+        cdna_ledger = root / "cdna-target-ledger.json"
+        write_ledger(cdna_ledger, [cdna], variance=True, variance_ready=True, target_gate=True, target_ready=True)
+        cdna_summary = install_autotune_cache.install_cache(
+            [cdna_source],
+            destination,
+            dry_run=True,
+            promotion_ledgers=[cdna_ledger],
+            require_variance_gate=True,
+        )
+        assert cdna_summary["replacement_history"][0]["target_class"] == "cdna"
 
         bad = copy.deepcopy(finite)
         bad["key"] = bad["key"].replace(";finite_modulus=251", "")
@@ -386,7 +662,12 @@ def main() -> int:
         else:
             raise AssertionError("stale destination cache was silently preserved")
 
-        replaced = install_autotune_cache.install_cache([source_a], stale, replace_existing=True)
+        replaced = install_autotune_cache.install_cache(
+            [source_a],
+            stale,
+            replace_existing=True,
+            promotion_ledgers=[variance_ledger],
+        )
         assert replaced["replace_existing"] is True
         assert replaced["existing_entries"] == 0
         assert replaced["installed_entries"] == 1

@@ -52,7 +52,7 @@ bool padded_block_shape_for(int64_t m, int64_t n, int64_t k_block, padded_block_
 
 rns8_status set_hip_device(int device_id) {
   if (device_id < 0) {
-    device_id = 0;
+    return RNS8_INVALID_ARGUMENT;
   }
   const hipError_t err = hipSetDevice(device_id);
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
@@ -391,3 +391,4 @@ hipblasStatus_t run_matmul_block(
   });
 }
 
+#endif

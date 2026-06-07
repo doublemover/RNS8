@@ -41,6 +41,8 @@ def main() -> int:
         {
             "id": "device_grouped_unregistered_descriptor_policy",
             "batched_exact_wide_export": False,
+            "batched_bounded_export": False,
+            "batched_finite_export": False,
             "device_descriptor_policy": "unregistered_device_policy",
         }
     )
@@ -51,6 +53,30 @@ def main() -> int:
             raise
     else:
         raise SystemExit("expected stale grouped strategy metadata to fail validation")
+
+    stale_reducer_family = metadata_registry.Registry(copy.deepcopy(registry.files))
+    stale_reducer_family.files["epilogues"]["reducer_families"][0][
+        "generated_reducer_identity"
+    ] = "direct_hip_generic_reducer"
+    try:
+        metadata_registry.validate_registry(stale_reducer_family)
+    except metadata_registry.MetadataRegistryError as exc:
+        if "references unknown generated_reducer_identity" not in str(exc):
+            raise
+    else:
+        raise SystemExit("expected stale reducer family metadata to fail validation")
+
+    stale_reducer_kernel = metadata_registry.Registry(copy.deepcopy(registry.files))
+    stale_reducer_kernel.files["epilogues"]["reducer_families"][0]["selected_kernel_examples"].append(
+        "direct_hip_unregistered_reducer_kernel_v9"
+    )
+    try:
+        metadata_registry.validate_registry(stale_reducer_kernel)
+    except metadata_registry.MetadataRegistryError as exc:
+        if "references unknown kernels" not in str(exc):
+            raise
+    else:
+        raise SystemExit("expected stale reducer kernel metadata to fail validation")
 
     print("metadata registry self-test: PASS")
     return 0

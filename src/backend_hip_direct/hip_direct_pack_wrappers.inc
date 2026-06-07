@@ -1,10 +1,12 @@
-extern "C" int rns8_hip_direct_pack_i64_device(
+extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
     const int64_t* d_src,
     int8_t* d_residues,
     int rows,
     int cols,
     int ld,
-    int prefix) {
+    int prefix,
+    void* stream) {
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total =
@@ -19,7 +21,7 @@ extern "C" int rns8_hip_direct_pack_i64_device(
           dim3(fixed_blocks),                          \
           dim3(threads),                               \
           0,                                           \
-          nullptr,                                     \
+          hip_stream,                                  \
           d_src,                                       \
           d_residues,                                  \
           rows,                                        \
@@ -43,7 +45,7 @@ extern "C" int rns8_hip_direct_pack_i64_device(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          hip_stream,
           d_src,
           d_residues,
           rows,
@@ -55,13 +57,25 @@ extern "C" int rns8_hip_direct_pack_i64_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u64_device(
-    const uint64_t* d_src,
+extern "C" int rns8_hip_direct_pack_i64_device(
+    const int64_t* d_src,
     int8_t* d_residues,
     int rows,
     int cols,
     int ld,
     int prefix) {
+  return rns8_hip_direct_pack_i64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix, nullptr);
+}
+
+extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
+    const uint64_t* d_src,
+    int8_t* d_residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix,
+    void* stream) {
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t total =
@@ -76,7 +90,7 @@ extern "C" int rns8_hip_direct_pack_u64_device(
           dim3(fixed_blocks),                          \
           dim3(threads),                               \
           0,                                           \
-          nullptr,                                     \
+          hip_stream,                                  \
           d_src,                                       \
           d_residues,                                  \
           rows,                                        \
@@ -100,7 +114,7 @@ extern "C" int rns8_hip_direct_pack_u64_device(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          hip_stream,
           d_src,
           d_residues,
           rows,
@@ -110,6 +124,16 @@ extern "C" int rns8_hip_direct_pack_u64_device(
       break;
   }
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_u64_device(
+    const uint64_t* d_src,
+    int8_t* d_residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  return rns8_hip_direct_pack_u64_device_on_stream(d_src, d_residues, rows, cols, ld, prefix, nullptr);
 }
 
 extern "C" int rns8_hip_direct_pack_i64_grouped_device(
@@ -244,16 +268,18 @@ extern "C" int rns8_hip_direct_pack_u64_grouped_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_pack_u8_modulus_device(
+extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
     const uint8_t* d_src,
     int8_t* d_residues,
     int rows,
     int cols,
     int ld,
-    int modulus) {
+    int modulus,
+    void* stream) {
   if (!d_src || !d_residues || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 || modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
@@ -263,7 +289,7 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_src,
         d_residues,
         rows,
@@ -277,7 +303,7 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_src,
         d_residues,
         rows,
@@ -291,7 +317,7 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_src,
         d_residues,
         rows,
@@ -304,9 +330,101 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device(
       dim3(blocks),
       dim3(threads),
       0,
-      nullptr,
+      hip_stream,
       d_src,
       d_residues,
+      rows,
+      cols,
+      ld,
+      modulus);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_u8_modulus_device(
+    const uint8_t* d_src,
+    int8_t* d_residues,
+    int rows,
+    int cols,
+    int ld,
+    int modulus) {
+  return rns8_hip_direct_pack_u8_modulus_device_on_stream(d_src, d_residues, rows, cols, ld, modulus, nullptr);
+}
+
+extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
+    const uint8_t* d_src,
+    int8_t* const* d_residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols,
+    int ld,
+    int modulus) {
+  if (!d_src || !d_residue_ptrs || task_count <= 0 || rows <= 0 || cols <= 0 || ld < cols ||
+      src_task_stride < static_cast<int64_t>(rows) * static_cast<int64_t>(ld) ||
+      modulus < 2 || modulus > 256) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int blocks = static_cast<int>((total + threads - 1) / threads);
+  if (modulus == 256) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<256>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residue_ptrs,
+        task_count,
+        src_task_stride,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 255) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<255>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residue_ptrs,
+        task_count,
+        src_task_stride,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  if (modulus == 251) {
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<251>),
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residue_ptrs,
+        task_count,
+        src_task_stride,
+        rows,
+        cols,
+        ld);
+    return static_cast<int>(hipGetLastError());
+  }
+  hipLaunchKernelGGL(
+      rns8_pack_u8_grouped_modulus_kernel,
+      dim3(blocks, task_count),
+      dim3(threads),
+      0,
+      nullptr,
+      d_src,
+      d_residue_ptrs,
+      task_count,
+      src_task_stride,
       rows,
       cols,
       ld,

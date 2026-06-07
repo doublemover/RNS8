@@ -17,6 +17,7 @@ typedef struct rns8_plan rns8_plan;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
+typedef struct rns8_result_cache rns8_result_cache;
 
 typedef struct rns8_context_options {
   uint64_t struct_size;
@@ -281,6 +282,68 @@ typedef struct rns8_plan_packing_info {
   char detail[256];
 } rns8_plan_packing_info;
 
+#define RNS8_GROUPED_DISPATCH_CONTRACT_SAME_SHAPE_REQUIRED 0x00000001u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_COMPACT_ROW_MAJOR_REQUIRED 0x00000002u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_UNIQUE_TASK_HANDLES_REQUIRED 0x00000004u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_ONE_WORKSPACE_PER_TASK_REQUIRED 0x00000008u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_SAME_DEVICE_REQUIRED 0x00000010u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_PER_TASK_SOURCE_VERSION_REQUIRED 0x00000020u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_DEVICE_CURRENT_OUTPUT_REQUIRED 0x00000040u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_BENCHMARK_ONLY_EXECUTION 0x00000080u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_PACK_EXPLICIT 0x00000100u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_PUBLIC_EXPORT_EXPLICIT 0x00000200u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_GENERIC_BUCKETING_UNAVAILABLE 0x00000400u
+#define RNS8_GROUPED_DISPATCH_CONTRACT_AUTO_ROUTING_DISABLED 0x00000800u
+
+typedef struct rns8_grouped_dispatch_contract_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  uint32_t task_count;
+  uint32_t descriptor_contract_supported;
+  uint32_t public_execution_available;
+  uint32_t same_shape_required;
+  uint32_t same_semantics_required;
+  uint32_t compact_row_major_required;
+  uint32_t unique_matrix_handles_required;
+  uint32_t unique_workspace_handles_required;
+  uint32_t same_plan_fingerprint_required;
+  uint32_t same_device_required;
+  uint32_t device_resident_inputs_required;
+  uint32_t per_task_source_versions_required;
+  uint32_t produces_device_current_output;
+  uint32_t final_export_required_for_host_output;
+  uint32_t per_task_status_required;
+  uint32_t checksum_policy_required;
+  uint32_t descriptor_reuse_validated;
+  uint32_t flags;
+  char descriptor_layout[96];
+  char bucket_policy[96];
+  char source_version_policy[96];
+  char workspace_policy[96];
+  char matrix_ownership_policy[128];
+  char descriptor_reuse_policy[128];
+  char stride_policy[128];
+  char output_currentness_policy[128];
+  char lifetime_policy[128];
+  char checksum_policy[96];
+  char status_policy[96];
+  char device_descriptor_policy[96];
+  char output_domain[64];
+  char unsupported_reason[160];
+  char detail[256];
+} rns8_grouped_dispatch_contract_info;
+
+typedef struct rns8_grouped_gemm_task {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  const rns8_matrix* a;
+  const rns8_matrix* b;
+  rns8_matrix* c;
+  rns8_workspace* workspace;
+} rns8_grouped_gemm_task;
+
 typedef struct rns8_matrix_storage_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -293,6 +356,7 @@ typedef struct rns8_matrix_storage_info {
   int64_t logical_ld;
   uint32_t max_prefix;
   uint32_t finite_modulus;
+  uint64_t matrix_instance_id;
   uint64_t source_version;
   uint32_t host_residues_current;
   uint32_t device_residues_current;
@@ -315,6 +379,133 @@ typedef struct rns8_matrix_storage_info {
   char storage_scope[96];
   char detail[256];
 } rns8_matrix_storage_info;
+
+#define RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES 0x00000001u
+#define RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY 0x00000002u
+#define RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE 0x00000004u
+#define RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN 0x00000008u
+
+#define RNS8_RESULT_CACHE_FLAG_INITIALIZED 0x00000001u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_HIT 0x00000002u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_MISS 0x00000004u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_PARTIAL_RECOMPUTE 0x00000008u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_FULL_FALLBACK 0x00000010u
+#define RNS8_RESULT_CACHE_FLAG_LAST_CALL_STALE_REJECTED 0x00000020u
+
+typedef struct rns8_result_cache_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  uint32_t max_dirty_regions;
+  uint32_t reserved0;
+} rns8_result_cache_desc;
+
+typedef struct rns8_dirty_region {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t flags;
+  int64_t row_offset;
+  int64_t col_offset;
+  int64_t row_extent;
+  int64_t col_extent;
+} rns8_dirty_region;
+
+typedef struct rns8_result_cache_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_bound_kind bound_kind;
+  int64_t m;
+  int64_t n;
+  int64_t k;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint32_t flags;
+  int32_t hip_device_id;
+  uint32_t initialized;
+  uint32_t max_dirty_regions;
+  uint32_t last_dirty_region_count;
+  uint32_t last_recomputed_region_count;
+  uint32_t last_full_fallback;
+  uint32_t last_cache_hit;
+  uint32_t last_cache_miss;
+  uint32_t last_stale_rejection;
+  uint64_t plan_fingerprint;
+  uint64_t workspace_fingerprint;
+  uint64_t result_cache_key_hash;
+  uint64_t a_matrix_instance_id;
+  uint64_t b_matrix_instance_id;
+  uint64_t c_matrix_instance_id;
+  uint64_t a_source_version;
+  uint64_t b_source_version;
+  uint64_t c_source_version;
+  uint64_t snapshot_device_bytes;
+  uint64_t copied_from_cache_bytes;
+  uint64_t recomputed_cell_count;
+  uint64_t cache_allocation_bytes;
+  char target_id[128];
+  char selected_backend[64];
+  char selected_kernel[128];
+  char dirty_region_contract[128];
+  char source_identity_policy[128];
+  char source_version_policy[128];
+  char result_lifetime_policy[128];
+  char stale_reason[160];
+  char fallback_reason[160];
+  char detail[256];
+} rns8_result_cache_info;
+
+typedef enum rns8_resident_matrix_role {
+  RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN = 0,
+  RNS8_RESIDENT_MATRIX_ROLE_A = 1,
+  RNS8_RESIDENT_MATRIX_ROLE_B = 2,
+  RNS8_RESIDENT_MATRIX_ROLE_C = 3
+} rns8_resident_matrix_role;
+
+typedef struct rns8_resident_lifetime_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_layout logical_layout;
+  rns8_bound_kind bound_kind;
+  rns8_resident_matrix_role matrix_role;
+  rns8_output_domain current_output_domain;
+  int64_t rows;
+  int64_t cols;
+  int64_t logical_ld;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t source_version;
+  uint64_t plan_fingerprint;
+  uint64_t workspace_fingerprint;
+  int32_t hip_device_id;
+  uint32_t source_version_valid;
+  uint32_t host_current;
+  uint32_t device_current;
+  uint32_t device_resident;
+  uint32_t plan_binding_available;
+  uint32_t plan_binding_matches;
+  uint32_t workspace_binding_available;
+  uint32_t workspace_identity_matches;
+  uint32_t workspace_schedule_matches;
+  uint32_t workspace_backend_matches;
+  uint32_t workspace_binding_matches;
+  uint32_t device_id_matches;
+  uint32_t can_feed_rns_gemm;
+  uint32_t can_feed_native_gemm;
+  uint32_t can_feed_final_export;
+  uint32_t flags;
+  char current_domain[64];
+  char matrix_role_name[32];
+  char source_version_policy[96];
+  char workspace_binding_policy[128];
+  char output_currentness_policy[128];
+  char lifetime_policy[128];
+  char mismatch_policy[160];
+  char detail[256];
+} rns8_resident_lifetime_info;
 
 typedef enum rns8_operand_role {
   RNS8_OPERAND_A = 1,
@@ -430,6 +621,17 @@ RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
     rns8_plan_packing_info* out);
 
+/*
+ * Report the current grouped-dispatch descriptor and lifetime contract for a
+ * created plan. This is read-only introspection. public_execution_available is
+ * set only for the narrow same-shape Direct-HIP resident grouped GEMM contracts
+ * currently exposed by rns8_gemm_rns_grouped and rns8_gemm_finite_u8_grouped.
+ */
+RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
+    const rns8_plan* plan,
+    uint32_t task_count,
+    rns8_grouped_dispatch_contract_info* out);
+
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -452,6 +654,20 @@ RNS8_API rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
 RNS8_API rns8_status rns8_get_matrix_storage_info(
     const rns8_matrix* matrix,
     rns8_matrix_storage_info* out);
+
+/*
+ * Report the resident lifetime contract for a matrix role, optionally bound to
+ * a plan and workspace. This read-only inspection API exposes source-version,
+ * plan/workspace fingerprint, current output domain, and deterministic
+ * mismatch policy before callers attempt persistent reuse. Passing a workspace
+ * requires passing the plan it was created for.
+ */
+RNS8_API rns8_status rns8_get_resident_lifetime_info(
+    const rns8_matrix* matrix,
+    const rns8_plan* plan,
+    const rns8_workspace* workspace,
+    rns8_resident_matrix_role matrix_role,
+    rns8_resident_lifetime_info* out);
 
 /*
  * Validate and report deterministic key material for a future reusable prepack
@@ -491,6 +707,27 @@ RNS8_API rns8_status rns8_get_prepack_cache_info(
     rns8_prepack_cache_info* out);
 
 RNS8_API rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache);
+
+/*
+ * Create or inspect an explicit result cache for opt-in incremental GEMM.
+ * The v1 public contract is intentionally narrow: Direct-HIP only, full-K
+ * recompute for caller-provided dirty output rectangles, no default AUTO
+ * routing, and no implicit dirty-region inference. Cached inputs must carry
+ * nonzero source versions and stable matrix identities.
+ */
+RNS8_API rns8_status rns8_create_result_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_result_cache_desc* desc,
+    rns8_result_cache** out);
+
+RNS8_API rns8_status rns8_destroy_result_cache(rns8_result_cache* cache);
+
+RNS8_API rns8_status rns8_get_result_cache_info(
+    const rns8_result_cache* cache,
+    rns8_result_cache_info* out);
+
+RNS8_API rns8_status rns8_invalidate_result_cache(rns8_result_cache* cache);
 
 RNS8_API rns8_status rns8_pack_i64(
     rns8_context* ctx,
@@ -533,6 +770,37 @@ RNS8_API rns8_status rns8_gemm_rns(
     rns8_workspace* workspace);
 
 /*
+ * Explicit incremental resident RNS GEMM. Dirty regions are output rectangles
+ * recomputed over the full K dimension. A first call initializes the cache
+ * with a full Direct-HIP GEMM. Later calls either reuse the cached full output
+ * unchanged, or restore it and recompute only the supplied dirty output
+ * rectangles. Stale identity/version mismatches are rejected unless the caller
+ * supplies dirty regions for the changed inputs.
+ */
+RNS8_API rns8_status rns8_gemm_rns_incremental(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    rns8_result_cache* cache,
+    const rns8_dirty_region* dirty_regions,
+    uint32_t dirty_region_count);
+
+/*
+ * Execute a same-shape group of resident RNS GEMMs through the Direct-HIP
+ * grouped descriptor path. Inputs must already be packed/current resident
+ * matrices for this plan; the grouped call does not perform host packing,
+ * native-to-RNS conversion, final host export, or AUTO routing.
+ */
+RNS8_API rns8_status rns8_gemm_rns_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count);
+
+/*
  * GEMM variant that consumes a reusable B prepack cache created from the same
  * plan and source-versioned B matrix. Currently implemented for the narrow
  * rocWMMA non-tiled RNS B-cache path only.
@@ -571,6 +839,36 @@ RNS8_API rns8_status rns8_gemm_finite_u8(
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace);
+
+/*
+ * Explicit incremental resident finite-u8 GEMM. Semantics match
+ * rns8_gemm_rns_incremental, with the finite modulus also bound into the cache
+ * identity and validated on every call.
+ */
+RNS8_API rns8_status rns8_gemm_finite_u8_incremental(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    rns8_result_cache* cache,
+    const rns8_dirty_region* dirty_regions,
+    uint32_t dirty_region_count);
+
+/*
+ * Execute a same-shape group of resident finite-u8 GEMMs through the Direct-HIP
+ * grouped descriptor path. The modulus stays explicit as in
+ * rns8_gemm_finite_u8. Inputs must already be packed/current for the same
+ * modulus; the grouped call does not perform host packing or final export.
+ */
+RNS8_API rns8_status rns8_gemm_finite_u8_grouped(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_grouped_gemm_task* tasks,
+    uint32_t task_count);
 
 RNS8_API rns8_status rns8_export_i64(
     rns8_context* ctx,

@@ -172,6 +172,30 @@ expect_invalid(
     "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true",
 )
 
+stale_chain_control_mode = copy.deepcopy(vector_to_rns_chain)
+stale_chain_control_mode["timing_metadata"]["vector_to_rns_chain_control_mode"] = "host_export_repack_control"
+expect_invalid(
+    stale_chain_control_mode,
+    "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain_control_mode=fused_device_native_to_rns",
+)
+
+vector_to_rns_host_repack_control = as_vector_to_rns_chain_capture(
+    v4_adaptive_i64,
+    "native_i64_to_rns_kernel",
+    "vector_alu_i64_kernel",
+    host_repack_control=True,
+)
+validate_capture(vector_to_rns_host_repack_control)
+
+missing_host_repack_event = copy.deepcopy(vector_to_rns_host_repack_control)
+missing_host_repack_event["timing_metadata"]["gpu_event_phase_order"].remove("vector_to_rns_host_repack_a")
+del missing_host_repack_event["gpu_event_timings_us"]["vector_to_rns_host_repack_a"]
+del missing_host_repack_event["gpu_event_timing_summary_us"]["vector_to_rns_host_repack_a"]
+expect_invalid(
+    missing_host_repack_event,
+    "direct-HIP vector-to-RNS chain GPU event phase set is incomplete",
+)
+
 vector_to_rns_chain_reuse_b = as_vector_to_rns_chain_capture(
     v4_adaptive_i64,
     "native_i64_to_rns_kernel",
@@ -220,6 +244,51 @@ expect_invalid(stale_host_batch_note, "benchmark_host_api_batch phase note end_t
 
 grouped_dispatch = as_grouped_dispatch_capture(v4_ck_i64)
 validate_capture(grouped_dispatch)
+
+bucketed_grouped_dispatch = copy.deepcopy(grouped_dispatch)
+bucketed_grouped_dispatch["grouped_dispatch"]["task_count"] = 8
+bucketed_grouped_dispatch["timing_metadata"]["grouped_dispatch_task_count"] = 8
+bucketed_grouped_dispatch["avg_end_to_end_per_task_us"] = bucketed_grouped_dispatch["avg_end_to_end_us"] / 8.0
+bucketed_grouped_dispatch["avg_pack_per_task_us"] = bucketed_grouped_dispatch["avg_pack_us"] / 8.0
+bucketed_grouped_dispatch["avg_rns_gemm_per_task_us"] = bucketed_grouped_dispatch["avg_rns_gemm_us"] / 8.0
+bucketed_grouped_dispatch["avg_crt_export_per_task_us"] = bucketed_grouped_dispatch["avg_crt_export_us"] / 8.0
+bucketed_contract = bucketed_grouped_dispatch["grouped_dispatch"]["task_descriptor_contract"]
+bucketed_contract.update(
+    {
+        "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
+        "bucket_policy": "same_contract_shape_buckets",
+        "bucket_count": 2,
+        "task_count": 8,
+        "same_shape_required": False,
+        "shape_key": "multiple_shape_buckets",
+        "buckets": [
+            {
+                "bucket_index": 0,
+                "task_offset": 0,
+                "task_count": 4,
+                "shape_key": "m=64;n=64;k=64;tile_m=128;tile_n=128;prefix=9",
+                "semantics": bucketed_grouped_dispatch["semantics"],
+                "output_domain": "native_i64_u64_host",
+            },
+            {
+                "bucket_index": 1,
+                "task_offset": 4,
+                "task_count": 4,
+                "shape_key": "m=128;n=128;k=128;tile_m=128;tile_n=128;prefix=9",
+                "semantics": bucketed_grouped_dispatch["semantics"],
+                "output_domain": "native_i64_u64_host",
+            },
+        ],
+    }
+)
+validate_capture(bucketed_grouped_dispatch)
+
+bucketed_bad_task_sum = copy.deepcopy(bucketed_grouped_dispatch)
+bucketed_bad_task_sum["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1]["task_count"] = 3
+expect_invalid(
+    bucketed_bad_task_sum,
+    "bucketed grouped task descriptor bucket task counts must sum to task_count",
+)
 
 grouped_device_pack_gemm = copy.deepcopy(grouped_dispatch)
 grouped_device_pack_gemm["grouped_dispatch"][
@@ -295,12 +364,51 @@ expect_invalid(
     "grouped task descriptor device_descriptor_policy must match execution strategy",
 )
 
+grouped_missing_ownership_policy = copy.deepcopy(grouped_dispatch)
+del grouped_missing_ownership_policy["grouped_dispatch"]["task_descriptor_contract"]["matrix_ownership_policy"]
+expect_invalid(
+    grouped_missing_ownership_policy,
+    "grouped_dispatch.task_descriptor_contract.matrix_ownership_policy must be known",
+)
+
+grouped_bad_reuse_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_reuse_policy["grouped_dispatch"]["task_descriptor_contract"][
+    "descriptor_reuse_policy"
+] = "not_requested"
+expect_invalid(
+    grouped_bad_reuse_policy,
+    "grouped task descriptor descriptor_reuse_policy must require validated reuse",
+)
+
+grouped_bad_stride_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_stride_policy["grouped_dispatch"]["task_descriptor_contract"]["stride_policy"] = "not_requested"
+expect_invalid(
+    grouped_bad_stride_policy,
+    "grouped task descriptor stride_policy must declare explicit matrix/output strides",
+)
+
+grouped_bad_currentness_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_currentness_policy["grouped_dispatch"]["task_descriptor_contract"][
+    "output_currentness_policy"
+] = "not_requested"
+expect_invalid(
+    grouped_bad_currentness_policy,
+    "grouped task descriptor output_currentness_policy must bind device-current outputs",
+)
+
+grouped_bad_lifetime_policy = copy.deepcopy(grouped_dispatch)
+grouped_bad_lifetime_policy["grouped_dispatch"]["task_descriptor_contract"]["lifetime_policy"] = "not_requested"
+expect_invalid(
+    grouped_bad_lifetime_policy,
+    "grouped task descriptor lifetime_policy must describe capture lifetime",
+)
+
 grouped_bad_batched_strategy = copy.deepcopy(grouped_dispatch)
 grouped_bad_batched_strategy["grouped_dispatch"]["batched_export_enabled"] = True
 grouped_bad_batched_strategy["timing_metadata"]["grouped_dispatch_batched_export_enabled"] = True
 expect_invalid(
     grouped_bad_batched_strategy,
-    "grouped_dispatch batched export requires the batched exact-wide export strategy",
+    "grouped_dispatch batched export requires a registered batched export strategy",
 )
 
 helper_lane_direct = add_helper_lane_fields(copy.deepcopy(v4_adaptive_i64))

@@ -108,6 +108,13 @@ key, and writes either an explicit destination or the default cache path. The
 installer accepts `hip-vector-alu-int64` only for bounded i64/u64 reviewed
 entries with native final/export epilogues; finite, exact-wide, and wrap64
 entries still require their explicit residue or byte-limb backend contracts.
+For cache replacement reviews, pass `--promotion-ledger <promotion-ledger.json>`
+so every source entry must have an unblocked ledger row. Cache writes now
+require that ledger to carry a ready `perf_variance_report.py` variance gate;
+dry-runs may still validate cache JSON without a ledger, but real installs and
+replacements do not bypass repeatability evidence. Use
+`promotion_ledger.py --require-variance-gate` when generating evidence-review
+ledgers so missing variance rows are blocked before cache-install review.
 
 ## Windows `gfx1100` release-smoke snapshot
 
@@ -826,7 +833,12 @@ continuation, conversion, transient packing, and prepack reuse decisions.
 Matrix handles expose the companion source version, finite modulus, host/device
 currentness flags, byte counts, and persistent layout version through
 `rns8_get_matrix_storage_info`; reusable cache tooling must include that
-matrix-side state in cache keys and mismatch rejection.
+matrix-side state in cache keys and mismatch rejection. The stronger
+`rns8_get_resident_lifetime_info` inspection surface binds that same matrix
+state to an optional plan/workspace and A/B/C role: it reports source-version
+validity, current output domain, plan and workspace fingerprints, workspace
+identity/schedule/backend matches, device-id match, next-operation eligibility,
+and the deterministic mismatch policy used to reject stale resident reuse.
 `rns8_get_prepack_cache_key_info` is the current validator for plan/operand
 cache-key material. Its serialized `prepack-v2` key names the backend, target
 id, selected kernel, B prepack kernel variant, semantic, prefix-schedule hash,
@@ -866,8 +878,10 @@ provide `avg_prepack_setup_us`.
 
 ## Helper-Lane Evidence Metadata
 
-Current schema-v4 benchmark captures emit additional optimizer-facing metadata
-without changing the public C/C++ ABI or AUTO promotion policy:
+Current schema-v4 benchmark captures emit additional optimizer-facing metadata.
+Most objects remain benchmark-only and do not change public C/C++ execution
+semantics or AUTO promotion policy; public read-only inspection calls are
+called out explicitly below.
 
 - `plan_packing` mirrors `rns8_get_plan_packing_info` and names the selected
   input/output domains, resident/transient layout use, prepack-cache
@@ -919,7 +933,12 @@ without changing the public C/C++ ABI or AUTO promotion policy:
   output domain, checksum/status behavior, and whether the path used a host task
   loop or device-readable pointer/slab descriptors. Current captures may report
   deterministic unsupported metadata instead of pretending a graph or grouped
-  path ran.
+  path ran. `rns8_get_grouped_dispatch_contract_info` exposes the current
+  grouped descriptor and lifetime rules for a created plan. Public
+  `rns8_gemm_rns_grouped` and `rns8_gemm_finite_u8_grouped` calls now expose
+  the narrow resident grouped GEMM executor for already-current Direct-HIP task
+  matrices; grouped pack/export and broader generic dispatch remain benchmark
+  or caller phases.
 - `resident_lifetime` and `workspace_arena` make resident A/B/C currentness,
   source-version policy, workspace identity, arena high-water mark,
   suballocation count, stream-safety contract, and allocation-free repeat proof
@@ -951,16 +970,21 @@ speedup claim.
 `tools/gpu_isa_report.py --capture <capture.json>` validates and cross-links a
 capture before writing temp-only ISA summaries under `temp/isa-reports/`.
 `tools/gpu_counter_report.py` validates captures, optionally ingests JSON/CSV
-profiler counter exports and ISA summaries, and writes JSON/Markdown reports
-under `temp/gpu-counter-reports/`. Counter and ISA reports explain bottlenecks
-and next experiments only; they do not replace exact correctness checks, host
-timings, HIP event timings, or release baseline gates.
+profiler counter exports and ISA summaries, supports per-capture attachment
+manifests for batch audits, and writes JSON/Markdown reports under
+`temp/gpu-counter-reports/`. Batch rows summarize VGPR, SGPR, LDS, scratch,
+occupancy, memory-pressure, wait/stall, store, matrix-instruction, and
+work-intensity signals while keeping missing counter, partial ISA, and missing
+event evidence visible. Counter and ISA reports explain bottlenecks and next
+experiments only; they do not replace exact correctness checks, host timings,
+HIP event timings, or release baseline gates.
 
 Additional Starfoundry report tools are temp-output only: `tools/reuse_contract_report.py`,
 `tools/promotion_ledger.py`, `tools/target_validation_report.py`,
 `tools/tile_shape_report.py`, `tools/modulus_set_search.py`,
 `tools/fhe_workload_report.py`, `tools/many_small_grouped_report.py`,
-`tools/rns_chain_report.py`, `tools/resident_workspace_report.py`,
+`tools/rns_chain_report.py`, `tools/perf_variance_report.py`,
+`tools/shape_family_shadow_report.py`, `tools/resident_workspace_report.py`,
 `tools/scheduler_overlap_report.py`, and `tools/release_gate_report.py`.
 They validate captures before grouping evidence and should be used to decide
 which optimizer experiment to run next, not to install cache entries or make

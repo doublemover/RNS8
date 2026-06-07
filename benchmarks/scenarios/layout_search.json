@@ -3,7 +3,7 @@
   "family": "layout-search",
   "items": [
     {
-      "name": "bounded-i64-prefix9-final-export",
+      "name": "bounded-i64-prefix9-default-final-export",
       "semantics": "bounded-i64",
       "case": {
         "name": "layout-512",
@@ -17,17 +17,13 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "bounded i64 fixed-prefix RNS final-export layout candidate",
+      "evidence_scope": "bounded i64 fixed-prefix default RNS final-export layout anchor",
       "output_domain": "host_export",
-      "rationale": "anchors layout search against the current host-export RNS contract before trying lazy or fused variants",
+      "rationale": "anchors bounded RNS layout candidates against the current resident residue-plane final-export contract",
       "backends": [
-        "hip-direct",
-        "hip-vector-alu-int64",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -35,13 +31,15 @@
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "rns_residue_planes_final_export",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "default_resident_rns_planes",
         "pack_layout_family": "centered_rns_residue_planes",
         "output_domain_requirement": "host_export",
         "promotion_scope": "layout_comparison_only"
       }
     },
     {
-      "name": "bounded-i64-prefix9-rns-next",
+      "name": "bounded-i64-prefix9-residue-channel-fusion",
       "semantics": "bounded-i64",
       "case": {
         "name": "layout-512",
@@ -55,31 +53,71 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "bounded i64 fixed-prefix RNS next-GEMM layout candidate",
+      "evidence_scope": "bounded i64 packed residue-channel layout candidate",
       "output_domain": "host_export",
-      "rationale": "keeps next-op intent visible when comparing final-export and residue-current layout choices",
+      "rationale": "tests whether packing the first prefix residues into a width-3 channel layout beats default residue planes end-to-end",
       "backends": [
-        "hip-direct",
-        "hip-vector-alu-int64",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
-      "next_op_hint": "rns-gemm",
+      "next_op_hint": "final-export",
+      "residue_channel_fusion": true,
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
-        "layout_role": "rns_residue_planes_next_rns_gemm",
-        "pack_layout_family": "centered_rns_residue_planes",
-        "output_domain_requirement": "rns_gemm_continuation",
-        "promotion_scope": "layout_comparison_only"
+        "layout_role": "packed_residue_channel_layout",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "residue_channel_width3",
+        "layout_baseline_name": "bounded-i64-prefix9-default-final-export",
+        "pack_layout_family": "native_i8_row_major_residue_channel_width3",
+        "output_domain_requirement": "host_export",
+        "promotion_scope": "layout_comparison_only",
+        "actual_layout_variant": true
       }
     },
     {
-      "name": "exact-wide-signed-prefix20-final-export",
+      "name": "bounded-i64-prefix9-padded-ld",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "bounded i64 leading-dimension output layout candidate",
+      "output_domain": "host_export",
+      "rationale": "tests padded host-output leading dimension separately from residue-plane pack and GEMM layout",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "layout_comparison_only",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "next_op_hint": "final-export",
+      "output_ld_padding": 32,
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "leading_dimension_output_policy",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "host_output_ld_plus32",
+        "layout_baseline_name": "bounded-i64-prefix9-default-final-export",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "host_export",
+        "promotion_scope": "layout_comparison_only",
+        "actual_layout_variant": true
+      }
+    },
+    {
+      "name": "exact-wide-signed-prefix20-default-final-export",
       "semantics": "exact-wide-signed",
       "case": {
         "name": "layout-512",
@@ -93,17 +131,13 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "exact-wide signed prefix-20 final limb-output layout candidate",
+      "evidence_scope": "exact-wide signed prefix-20 default limb-output layout anchor",
       "output_domain": "exact_wide_signed_limbs",
-      "rationale": "separates fixed limb export layout from bounded RNS host-output behavior",
+      "rationale": "anchors exact-wide layout candidates against the current final limb export contract",
       "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "exact_wide_limb_counts": [
         4
@@ -114,13 +148,15 @@
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "exact_wide_prefix20_limb_export",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "default_final_limb_export",
         "pack_layout_family": "centered_rns_residue_planes",
         "output_domain_requirement": "host_limb_export",
         "promotion_scope": "layout_comparison_only"
       }
     },
     {
-      "name": "exact-wide-signed-prefix20-rns-next",
+      "name": "exact-wide-signed-prefix20-independent-export-chain",
       "semantics": "exact-wide-signed",
       "case": {
         "name": "layout-512",
@@ -134,34 +170,75 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "exact-wide signed prefix-20 RNS-next layout candidate",
-      "output_domain": "residue_current_rns",
-      "rationale": "tests whether exact-wide work should stay residue-current before final limb export",
+      "evidence_scope": "exact-wide signed prefix-20 independent export/repack chain layout anchor",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "anchors residue-current chain layout candidates against same-length independent export/repack controls",
       "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "exact_wide_limb_counts": [
         4
       ],
       "prefix_policy": "fixed-requested",
       "max_prefix": 20,
-      "next_op_hint": "rns-gemm",
+      "residue_chain_length": 3,
+      "residue_chain_independent_final_export": true,
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
-        "layout_role": "exact_wide_prefix20_next_rns_gemm",
+        "layout_role": "exact_wide_independent_export_chain_layout",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "independent_export_repack_chain3",
         "pack_layout_family": "centered_rns_residue_planes",
-        "output_domain_requirement": "lazy_export",
+        "output_domain_requirement": "host_limb_export",
         "promotion_scope": "layout_comparison_only"
       }
     },
     {
-      "name": "finite-ring-hot-modulus-layout",
+      "name": "exact-wide-signed-prefix20-residue-current-chain",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "exact-wide signed prefix-20 residue-current producer-consumer layout candidate",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "tests whether keeping intermediate exact-wide output residue-current across a chain beats final export plus repack controls",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "layout_comparison_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "residue_chain_length": 3,
+      "residue_chain_final_export": true,
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "exact_wide_residue_current_chain_layout",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "residue_current_chain3_final_export",
+        "layout_baseline_name": "exact-wide-signed-prefix20-independent-export-chain",
+        "pack_layout_family": "centered_rns_residue_planes",
+        "output_domain_requirement": "host_limb_export",
+        "promotion_scope": "layout_comparison_only",
+        "actual_layout_variant": true
+      }
+    },
+    {
+      "name": "finite-ring-hot-modulus-default-layout",
       "semantics": "finite-u8-ring",
       "case": {
         "name": "layout-512",
@@ -175,17 +252,13 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "finite-ring u8 hot-modulus layout candidate",
+      "evidence_scope": "finite-ring u8 hot-modulus default layout anchor",
       "output_domain": "finite_u8_canonical_host_export",
-      "rationale": "keeps finite-ring residue layout decisions separate from bounded RNS prefix decisions",
+      "rationale": "anchors finite-ring layout decisions separately from bounded RNS prefix decisions",
       "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "finite_moduli": [
         251,
@@ -196,6 +269,8 @@
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "finite_u8_ring_residue_layout",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "finite_default_contiguous_output",
         "pack_layout_family": "centered_i8_finite_residues",
         "output_domain_requirement": "finite_host_export",
         "promotion_scope": "layout_comparison_only",
@@ -203,7 +278,50 @@
       }
     },
     {
-      "name": "finite-field-hot-prime-layout",
+      "name": "finite-ring-hot-modulus-padded-ld",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-ring u8 hot-modulus leading-dimension layout candidate",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "tests finite canonical export sensitivity to padded host-output leading dimension",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "layout_comparison_only",
+      "finite_moduli": [
+        251,
+        255,
+        256
+      ],
+      "next_op_hint": "final-export",
+      "output_ld_padding": 32,
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "finite_u8_ring_leading_dimension_policy",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "finite_output_ld_plus32",
+        "layout_baseline_name": "finite-ring-hot-modulus-default-layout",
+        "pack_layout_family": "centered_i8_finite_residues",
+        "output_domain_requirement": "finite_host_export",
+        "promotion_scope": "layout_comparison_only",
+        "modulus_role": "hot_modulus",
+        "actual_layout_variant": true
+      }
+    },
+    {
+      "name": "finite-field-hot-prime-default-layout",
       "semantics": "finite-u8-field",
       "case": {
         "name": "layout-512",
@@ -217,17 +335,13 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "finite-field u8 hot-prime layout candidate",
+      "evidence_scope": "finite-field u8 hot-prime default layout anchor",
       "output_domain": "finite_u8_canonical_host_export",
-      "rationale": "separates prime-field layout behavior from composite finite-ring behavior",
+      "rationale": "anchors prime-field layout behavior separately from composite finite-ring behavior",
       "backends": [
-        "cpu",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
+        "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "finite_moduli": [
         251
@@ -236,6 +350,8 @@
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "finite_u8_prime_field_residue_layout",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "finite_prime_default_contiguous_output",
         "pack_layout_family": "centered_i8_finite_residues",
         "output_domain_requirement": "finite_host_export",
         "promotion_scope": "layout_comparison_only",
@@ -244,7 +360,49 @@
       }
     },
     {
-      "name": "wrap64-direct-byte-layout",
+      "name": "finite-field-hot-prime-padded-ld",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "layout-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "finite-field u8 hot-prime leading-dimension layout candidate",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "tests prime-field canonical export sensitivity to padded host-output leading dimension",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "layout_comparison_only",
+      "finite_moduli": [
+        251
+      ],
+      "next_op_hint": "final-export",
+      "output_ld_padding": 32,
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "finite_u8_prime_field_leading_dimension_policy",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "finite_prime_output_ld_plus32",
+        "layout_baseline_name": "finite-field-hot-prime-default-layout",
+        "pack_layout_family": "centered_i8_finite_residues",
+        "output_domain_requirement": "finite_host_export",
+        "promotion_scope": "layout_comparison_only",
+        "modulus_role": "hot_prime",
+        "prime_or_composite": "prime",
+        "actual_layout_variant": true
+      }
+    },
+    {
+      "name": "wrap64-direct-byte-default-layout",
       "semantics": "wrap-u64",
       "case": {
         "name": "wrap64-512",
@@ -258,20 +416,58 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "strict wrap64 byte-limb direct layout candidate",
+      "evidence_scope": "strict wrap64 byte-limb default layout anchor",
       "output_domain": "low64_wrap_u64_host_output",
-      "rationale": "keeps byte-limb wraparound layout decisions separate from odd-modulus RNS and finite-u8 paths",
+      "rationale": "anchors byte-limb wraparound layout decisions separately from odd-modulus RNS and finite-u8 paths",
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "layout_comparison_only",
       "metadata": {
         "workflow_name": "end_to_end_layout_search",
         "layout_role": "wrap64_byte_limb_low64_output",
+        "layout_variant_role": "baseline",
+        "layout_variant_name": "wrap64_byte_limb_contiguous_output",
         "pack_layout_family": "unsigned_byte_limb_planes",
         "output_domain_requirement": "low64_host_export",
         "promotion_scope": "layout_comparison_only"
+      }
+    },
+    {
+      "name": "wrap64-direct-byte-padded-ld",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "strict wrap64 byte-limb leading-dimension layout candidate",
+      "output_domain": "low64_wrap_u64_host_output",
+      "rationale": "tests strict wrap64 byte-limb export sensitivity to padded host-output leading dimension",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "layout_comparison_only",
+      "output_ld_padding": 32,
+      "metadata": {
+        "workflow_name": "end_to_end_layout_search",
+        "layout_role": "wrap64_byte_limb_leading_dimension_policy",
+        "layout_variant_role": "candidate",
+        "layout_variant_name": "wrap64_output_ld_plus32",
+        "layout_baseline_name": "wrap64-direct-byte-default-layout",
+        "pack_layout_family": "unsigned_byte_limb_planes",
+        "output_domain_requirement": "low64_host_export",
+        "promotion_scope": "layout_comparison_only",
+        "actual_layout_variant": true
       }
     }
   ]

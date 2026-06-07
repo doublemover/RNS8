@@ -13,7 +13,8 @@
   const bool per_modulus_estimate_applicable =
       selected_prefix > 0 && args.bound_mode != BoundMode::PerTile && !adaptive_applied && !args.oneshot &&
       !args.vector_alu_baseline && !runtime_vector_alu_backend(args) && !vector_to_rns_chain_requested(args) &&
-      !grouped_task_executor_requested(args) && !hip_graph_replay_requested(args);
+      !grouped_task_executor_requested(args) && !hip_graph_replay_requested(args) &&
+      !result.streaming_overlap_executed;
   const double avg_per_modulus_gemm_estimate_us =
       per_modulus_estimate_applicable ? avg_gemm_us / static_cast<double>(selected_prefix) : avg_gemm_us;
   const bool gpu_events_available = gpu_event_timing_available(args, result);
@@ -51,6 +52,7 @@
       gpu_events_available && native_to_rns_bridge_path(args, result, selected_backend_kind);
   const bool vector_to_rns_chain_events =
       gpu_events_available && vector_to_rns_chain_path(args, result, selected_backend_kind);
+  const bool streaming_overlap_events = gpu_events_available && result.streaming_overlap_executed;
   const bool all_zero_direct_hip_pack_elided =
       all_zero_direct_hip_input_pack_elided(args, result, selected_backend_kind);
   const char* gpu_event_reason = "backend_has_no_gpu_event_hooks";
@@ -64,7 +66,14 @@
         "\"HIP event timings record backend default-stream operation groups only; host wall-clock timings remain "
         "required for CPU scheduling overhead, API dispatch, allocations, and any synchronous host-side copy overhead "
         "not represented on the HIP stream\"";
-    if (chain_residue_output) {
+    if (streaming_overlap_events) {
+      gpu_event_reason = "captured_by_direct_hip_streaming_overlap_hooks";
+      gpu_event_scope = "\"direct_hip_streaming_overlap_multistream_operation_groups\"";
+      gpu_event_caveat =
+          "\"HIP event timings record benchmark-owned nonblocking pack, GEMM, and export streams with explicit "
+          "dependency events. The end_to_end timing samples are per-repeat pipeline throughput from the measured "
+          "batch wall clock, not a serial sum of pack, GEMM, and export phase timings\"";
+    } else if (chain_residue_output) {
       gpu_event_reason = "captured_by_residue_current_chain_backend_hooks";
       if (hipblaslt_events) {
         gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";
@@ -113,12 +122,22 @@
           "CPU scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
     } else if (vector_to_rns_chain_events) {
       gpu_event_reason = "captured_by_vector_native_to_direct_rns_chain_hooks";
-      gpu_event_scope = "\"direct_hip_vector_native_to_rns_chain_default_stream_operation_groups\"";
-      gpu_event_caveat =
-          "\"HIP event timings record vector-ALU producer packing and GEMM events, Direct-HIP second-input "
-          "pack/export operation groups, the native-to-RNS device materialization kernel, and the Direct-HIP "
-          "consumer RNS GEMM operation group; host wall-clock timings remain required for API dispatch, CPU "
-          "scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+      if (vector_to_rns_chain_host_repack_control_requested(args)) {
+        gpu_event_scope = "\"direct_hip_vector_native_host_repack_chain_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record vector-ALU producer packing and GEMM events, vector native host export, "
+            "Direct-HIP host repack of the produced intermediate, Direct-HIP second-input pack/export operation "
+            "groups, and the Direct-HIP consumer RNS GEMM operation group; host wall-clock timings remain required "
+            "for API dispatch, CPU scheduling, allocations, and synchronous host-side overhead not represented on "
+            "the HIP stream\"";
+      } else {
+        gpu_event_scope = "\"direct_hip_vector_native_to_rns_chain_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record vector-ALU producer packing and GEMM events, Direct-HIP second-input "
+            "pack/export operation groups, the native-to-RNS device materialization kernel, and the Direct-HIP "
+            "consumer RNS GEMM operation group; host wall-clock timings remain required for API dispatch, CPU "
+            "scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+      }
     } else if (hipblaslt_events) {
       gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
       gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";

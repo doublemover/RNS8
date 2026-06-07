@@ -7,6 +7,7 @@ import argparse
 from dataclasses import asdict
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from isa_common import (
     disassemble_code_object,
     extracted_device_code_object,
     mnemonic_lines,
+    run_command,
     sibling_tool,
 )
 
@@ -42,6 +44,24 @@ GLOBAL_STORE_RE = re.compile(r"\b(?:global|buffer)_store\b|\b(?:global|buffer)_s
 VGPR_RE = re.compile(r"(?:VGPRs?|\.amdhsa_next_free_vgpr)\D+(\d+)", re.IGNORECASE)
 SGPR_RE = re.compile(r"(?:SGPRs?|\.amdhsa_next_free_sgpr)\D+(\d+)", re.IGNORECASE)
 OCCUPANCY_RE = re.compile(r"occupancy\D+(\d+)", re.IGNORECASE)
+METADATA_KERNEL_START_RE = re.compile(r"^\s*-\s+\.args:")
+METADATA_NAME_RE = re.compile(r"^\s*\.name:\s*(?P<value>\S+)")
+METADATA_INT_RE = re.compile(
+    r"^\s*\.(?P<key>"
+    r"group_segment_fixed_size|private_segment_fixed_size|max_flat_workgroup_size|"
+    r"sgpr_count|sgpr_spill_count|vgpr_count|vgpr_spill_count|wavefront_size"
+    r"):\s*(?P<value>\d+)\s*$"
+)
+METADATA_KEY_MAP = {
+    "group_segment_fixed_size": "lds_bytes",
+    "private_segment_fixed_size": "scratch_bytes",
+    "max_flat_workgroup_size": "max_flat_workgroup_size",
+    "sgpr_count": "sgpr_count",
+    "sgpr_spill_count": "sgpr_spill_count",
+    "vgpr_count": "vgpr_count",
+    "vgpr_spill_count": "vgpr_spill_count",
+    "wavefront_size": "wavefront_size",
+}
 
 
 def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
@@ -146,23 +166,113 @@ def scan_disassembly(disassembly: str) -> dict[str, Any]:
     }
 
 
+def readobj_for_objdump(objdump: str, override: str | None = None) -> str | None:
+    if override:
+        return override
+    objdump_path = Path(objdump)
+    suffix = ".exe" if sys.platform == "win32" else ""
+    candidates = [
+        objdump_path.with_name(f"llvm-readobj{suffix}"),
+        objdump_path.with_name("llvm-readobj"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    try:
+        return sibling_tool(None, "llvm-readobj")
+    except RuntimeError:
+        return None
+
+
+def parse_amdgpu_metadata(readobj_output: str) -> dict[str, dict[str, Any]]:
+    metadata: dict[str, dict[str, Any]] = {}
+    current: dict[str, Any] | None = None
+    for line in readobj_output.splitlines():
+        if METADATA_KERNEL_START_RE.match(line):
+            if current and current.get("name"):
+                metadata[str(current["name"])] = current
+            current = {}
+            continue
+        if current is None:
+            continue
+        name_match = METADATA_NAME_RE.match(line)
+        if name_match:
+            current["name"] = name_match.group("value")
+            continue
+        int_match = METADATA_INT_RE.match(line)
+        if not int_match:
+            continue
+        key = METADATA_KEY_MAP[int_match.group("key")]
+        current[key] = int(int_match.group("value"))
+    if current and current.get("name"):
+        metadata[str(current["name"])] = current
+    return metadata
+
+
+def code_object_metadata(readobj: str | None, code_object: Path) -> dict[str, dict[str, Any]]:
+    if readobj is None:
+        return {}
+    try:
+        output = run_command([readobj, "--notes", str(code_object)])
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return {}
+    return parse_amdgpu_metadata(output)
+
+
+def merge_resource_metadata(counts: dict[str, Any], metadata: dict[str, Any] | None) -> dict[str, Any]:
+    if not metadata:
+        return counts
+    merged = dict(counts)
+    for key in (
+        "vgpr_count",
+        "sgpr_count",
+        "lds_bytes",
+        "scratch_bytes",
+        "vgpr_spill_count",
+        "sgpr_spill_count",
+        "max_flat_workgroup_size",
+        "wavefront_size",
+    ):
+        if metadata.get(key) is not None:
+            merged[key] = metadata.get(key)
+    return merged
+
+
 def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
     keys = ["wmma", "mfma", "global_store", "lds_mentions", "wait_instructions", "instruction_lines"]
     totals = {key: sum(int(report["counts"].get(key) or 0) for report in symbol_reports) for key in keys}
-    for key in ["vgpr_count", "sgpr_count", "occupancy"]:
+    for key in [
+        "vgpr_count",
+        "sgpr_count",
+        "lds_bytes",
+        "scratch_bytes",
+        "vgpr_spill_count",
+        "sgpr_spill_count",
+        "max_flat_workgroup_size",
+        "wavefront_size",
+        "occupancy",
+    ]:
         values = [report["counts"].get(key) for report in symbol_reports if report["counts"].get(key) is not None]
         totals[key] = max(values) if values else None
     return totals
 
 
-def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None) -> dict[str, Any]:
+def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, readobj_path: str | None) -> dict[str, Any]:
     with extracted_device_code_object(config, "rns8-gpu-isa-", f"{config.host_object.stem}.fatbin") as code_object:
         symbols = device_function_symbols(config.objdump, code_object)
+        metadata = code_object_metadata(readobj_path, code_object)
         symbols_to_report, note = selected_symbols(symbols, backend)
         symbol_reports = []
         for symbol in symbols_to_report:
             disassembly = disassemble_code_object(config.objdump, code_object, config.target, symbol)
-            symbol_reports.append({"symbol": symbol, "counts": scan_disassembly(disassembly)})
+            symbol_metadata = metadata.get(symbol)
+            symbol_reports.append(
+                {
+                    "symbol": symbol,
+                    "counts": merge_resource_metadata(scan_disassembly(disassembly), symbol_metadata),
+                    "metadata": symbol_metadata,
+                }
+            )
         return {
             "object": str(config.host_object),
             "target": config.target,
@@ -170,9 +280,11 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None) ->
             "tools": {
                 "llvm_objcopy": config.objcopy,
                 "llvm_objdump": config.objdump,
+                "llvm_readobj": readobj_path,
                 "clang_offload_bundler": config.bundler,
                 "rga": str(rga_path) if rga_path is not None else None,
                 "rga_status": "not_run_optional",
+                "amdgpu_metadata_status": "present" if metadata else "missing",
             },
             "code_object_note": note,
             "device_symbol_count": len(symbols),
@@ -209,6 +321,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred")
     parser.add_argument("--llvm-objcopy", help="Override llvm-objcopy path")
     parser.add_argument("--llvm-objdump", help="Override llvm-objdump path")
+    parser.add_argument("--llvm-readobj", help="Override llvm-readobj path")
     parser.add_argument("--clang-offload-bundler", help="Override clang-offload-bundler path")
     parser.add_argument("--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default")
     parser.add_argument("--capture", type=Path, help="optional schema-v4 benchmark capture to validate and cross-link")
@@ -243,6 +356,7 @@ def main() -> int:
         "bundler": args.clang_offload_bundler or sibling_tool(hipcc, "clang-offload-bundler"),
         "scratch_root": args.scratch_root,
     }
+    readobj_path = readobj_for_objdump(config_template["objdump"], args.llvm_readobj)
     linked_capture = capture_metadata(args.capture, args.capture_label) if args.capture is not None else None
 
     outputs = []
@@ -251,7 +365,7 @@ def main() -> int:
             raise RuntimeError(f"HIP object does not exist: {obj}")
         backend = backend_for_object(obj, args.backend)
         config = IsaToolConfig(host_object=obj, **config_template)
-        report = report_object(config, backend, args.rga)
+        report = report_object(config, backend, args.rga, readobj_path)
         if linked_capture is not None:
             report["capture"] = linked_capture
         report["config"] = json_safe_config(config)

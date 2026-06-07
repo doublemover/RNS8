@@ -13,18 +13,37 @@ def add_output_padding_fields(capture: dict, padding: int) -> dict:
 
 def add_target_variant_fields(capture: dict, target_id: str = "gfx1100") -> dict:
     namespace = "gfx1100" if target_id == "gfx1100" else "unknown"
+    device = capture.get("device", {})
+    device_name = device.get("name", "")
+    hip_toolchain = capture.get("hip_toolchain", {})
+    target_cache_key = (
+        f"arch={target_id};device_name={device_name};"
+        f"hip_sdk_or_rocm={hip_toolchain.get('hip_sdk_or_rocm_version', '')};"
+        f"hip_runtime={device.get('hip_runtime_version', 0)}"
+    )
     capture["target_variant"] = {
         "target_id": target_id,
+        "target_arch": device.get("gcn_arch", target_id),
+        "target_cache_key": target_cache_key,
+        "target_instance_id": (
+            f"{target_cache_key};device_index={device.get('device_id', -1)};"
+            "visibility=runtime-default-visible-devices"
+        ),
         "target_namespace": namespace,
         "review_group_key": (
             f"{namespace}/target={target_id}/backend={capture['backend_selected']}/"
+            f"device_index={device.get('device_id', -1)}/device_name={device.get('name', '')}/"
             f"semantics={capture['semantics']}/configured={capture.get('configured_amdgpu_targets', '')}/runtime="
-            f"{capture.get('device', {}).get('hip_runtime_version', 0)}"
+            f"{device.get('hip_runtime_version', 0)}"
         ),
         "configured_amdgpu_targets": capture.get("configured_amdgpu_targets", ""),
+        "device_index": device.get("device_id", -1),
+        "device_name": device.get("name", ""),
+        "visible_device_count": device.get("visible_device_count", 1 if device.get("hip_available") else 0),
+        "node_gpu_count": device.get("node_gpu_count", 1 if device.get("hip_available") else 0),
         "hip_enabled": capture.get("hip_toolchain", {}).get("enabled", False),
-        "hip_runtime_version": capture.get("device", {}).get("hip_runtime_version", 0),
-        "hip_driver_version": capture.get("device", {}).get("hip_driver_version", 0),
+        "hip_runtime_version": device.get("hip_runtime_version", 0),
+        "hip_driver_version": device.get("hip_driver_version", 0),
     }
     return capture
 

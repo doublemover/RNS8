@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -76,6 +77,7 @@ using rns8::bench::checked_elements;
 using rns8::bench::checked_limb_elements;
 using rns8::bench::Args;
 using rns8::bench::BenchmarkResult;
+using rns8::bench::benchmark_node_gpu_count;
 using rns8::bench::BenchSemantics;
 using rns8::bench::BoundMode;
 using rns8::bench::bound_kind;
@@ -89,6 +91,7 @@ using rns8::bench::compiler_version;
 using rns8::bench::c_semantics;
 using rns8::bench::c_semantics_name;
 using rns8::bench::elapsed_us;
+using rns8::bench::environment_value;
 using rns8::bench::exact_wide_benchmark_semantics;
 using rns8::bench::exact_wide_export_status_check_required;
 using rns8::bench::fail_hip_runtime;
@@ -115,8 +118,10 @@ using rns8::bench::rns_residue_chain_requested;
 using rns8::bench::runtime_git_commit;
 using rns8::bench::semantics_name;
 using rns8::bench::TimingSamples;
+using rns8::bench::trim_ascii_whitespace;
 using rns8::bench::usage_error;
 using rns8::bench::valid_finite_modulus;
+using rns8::bench::visible_device_count_from_environment;
 
 constexpr uint32_t kBenchmarkSchemaVersion = 4;
 constexpr uint32_t kWrap64RocwmmaCandidateTile = 16;
@@ -159,7 +164,12 @@ bool grouped_dispatch_requested(const Args& args);
 bool grouped_task_executor_requested(const Args& args);
 uint32_t measured_task_count(const Args& args);
 bool hip_graph_replay_requested(const Args& args);
+bool hip_graph_replay_full_bounded_pack_export_requested(const Args& args);
+bool hip_graph_replay_full_finite_pack_export_requested(const Args& args);
+bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args);
+bool hip_graph_replay_full_pack_export_used(const BenchmarkResult& result);
 void record_allocation_after_warmups(BenchmarkResult& result);
+void record_allocation_after_repeats(BenchmarkResult& result);
 struct HipGraphReplayState {
 #if RNS8_CONFIGURED_HIP_ENABLED
   rns8::detail::hip_unique_stream stream;
@@ -207,6 +217,7 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 #include "rns8_bench_backend_path_metadata.inc"
 #include "rns8_bench_event_phase_helpers.inc"
 #include "rns8_bench_event_collection.inc"
+#include "rns8_bench_streaming_overlap.inc"
 #include "rns8_bench_grouped_host_helpers.inc"
 #include "rns8_bench_vector_lanes.inc"
 #include "rns8_bench_vector_chain_helpers.inc"
@@ -336,7 +347,10 @@ int main(int argc, char** argv) {
       break;
   }
   result.allocation_before = allocation_before;
-  result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+  if (!result.allocation_after_repeats_available) {
+    result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
+    result.allocation_after_repeats_available = true;
+  }
   result.allocation_tracking_available = true;
   if (!result.allocation_after_warmups_available) {
     result.allocation_after_warmups = result.allocation_after_repeats;

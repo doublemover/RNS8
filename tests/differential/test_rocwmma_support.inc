@@ -1,14 +1,20 @@
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+int default_visible_hip_test_device() {
+  return 0;
+}
+
 class HipBuffer {
  public:
   explicit HipBuffer(std::size_t bytes) {
     REQUIRE(bytes > 0);
+    REQUIRE(hipSetDevice(default_visible_hip_test_device()) == hipSuccess);
     REQUIRE(hipMalloc(&ptr_, bytes) == hipSuccess);
   }
 
   ~HipBuffer() {
     if (ptr_) {
+      (void)hipSetDevice(default_visible_hip_test_device());
       (void)hipFree(ptr_);
     }
   }
@@ -28,6 +34,7 @@ class HipScratchBuffer {
  public:
   ~HipScratchBuffer() {
     if (ptr_) {
+      (void)hipSetDevice(default_visible_hip_test_device());
       (void)hipFree(ptr_);
     }
   }
@@ -56,7 +63,7 @@ rns8_context* create_backend_context(rns8_backend_kind backend) {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = backend;
   rns8_context* ctx = nullptr;
-  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0;
+  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
   REQUIRE(rns8_create_context(device_id, &options, &ctx) == RNS8_SUCCESS);
   return ctx;
 }
@@ -67,7 +74,7 @@ bool rocwmma_available() {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = RNS8_BACKEND_ROCWMMA;
   rns8_context* ctx = nullptr;
-  const rns8_status status = rns8_create_context(0, &options, &ctx);
+  const rns8_status status = rns8_create_context(default_visible_hip_test_device(), &options, &ctx);
   rns8_destroy_context(ctx);
   return status == RNS8_SUCCESS;
 }
@@ -304,7 +311,7 @@ void require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(
     bool exhaustive_oracle = true) {
   INFO(shape.name);
 
-  constexpr int device_id = 0;
+  const int device_id = default_visible_hip_test_device();
   constexpr uint64_t sentinel = 0xfeedfacecafebeefull;
   const int64_t lda = shape.k + shape.lda_padding;
   const int64_t ldb = shape.n + shape.ldb_padding;

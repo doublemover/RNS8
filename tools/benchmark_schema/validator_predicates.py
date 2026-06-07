@@ -31,6 +31,12 @@ class ValidatorPredicatesMixin:
             return "public_runtime_vector_alu_native_buffers"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_resident_rns_chain":
             return "hip_graph_replay_resident_rns_chain"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_bounded_pack_gemm_export":
+            return "hip_graph_replay_bounded_pack_gemm_export"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_finite_u8_pack_gemm_export":
+            return "hip_graph_replay_finite_u8_pack_gemm_export"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_wrap64_pack_gemm_export":
+            return "hip_graph_replay_wrap64_pack_gemm_export"
         if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
             return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
@@ -135,7 +141,18 @@ class ValidatorPredicatesMixin:
         return (
             self.data.get("backend_selected") == "hip-direct"
             and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
-            and self._benchmark_execution_mode() == "vector_native_to_direct_rns_chain"
+            and self._benchmark_execution_mode()
+            in {
+                "vector_native_to_direct_rns_chain",
+                "vector_native_host_export_repack_direct_rns_chain",
+            }
+        )
+
+    def _is_direct_hip_vector_to_rns_host_repack_control_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self._benchmark_execution_mode() == "vector_native_host_export_repack_direct_rns_chain"
         )
 
     def _is_direct_hip_bounded_residue_channel_fusion_capture(self) -> bool:
@@ -155,7 +172,20 @@ class ValidatorPredicatesMixin:
         return self._benchmark_execution_mode() == "benchmark_grouped_dispatch_evidence"
 
     def _is_hip_graph_replay_capture(self) -> bool:
-        return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
+        return self._benchmark_execution_mode() in {
+            "hip_graph_replay_resident_rns_chain",
+            "hip_graph_replay_bounded_pack_gemm_export",
+            "hip_graph_replay_finite_u8_pack_gemm_export",
+            "hip_graph_replay_wrap64_pack_gemm_export",
+        }
+
+    def _is_streaming_overlap_capture(self) -> bool:
+        overlap = self.data.get("streaming_overlap")
+        return (
+            isinstance(overlap, dict)
+            and overlap.get("requested") is True
+            and overlap.get("capture_status") == "executed"
+        )
 
     def _is_residue_chain_final_export_capture(self) -> bool:
         return (

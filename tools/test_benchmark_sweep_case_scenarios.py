@@ -49,19 +49,67 @@ for scenario_name in [
     "modulus-set-autotune",
     "tile-shape-sweeps",
     "exact-wide-output-chain",
+    "exact-wide-output-chain-broader",
     "export-bound-limb-variants",
     "reconstruction-zoo",
     "hip-graph-replay",
+    "finite-distributions",
     "rns-chain-final-output",
+    "rns-chain-final-output-broader",
     "grouped-dispatch",
     "resident-lifetime-arena",
     "adaptive-grouped-scheduler",
     "streaming-overlap",
     "release-gate-closeout",
     "fhe-lattice-proxy-starfoundry",
+    "cpu-small-shape-selector",
+    "incremental-result-cache",
+    "error-detecting-fast-path",
 ]:
     assert scenario_name in catalog
     assert catalog[scenario_name]
+
+cpu_selector_policies_with_cpu = {
+    item.cpu_small_shape_selector
+    for items in catalog.values()
+    for item in items
+    if item.cpu_small_shape_selector != "none" and "cpu" in item.backends
+}
+result_cache_groups_with_cpu = {
+    (
+        item.metadata.get("result_cache_contract_group", item.name)
+        if isinstance(item.metadata, dict)
+        else item.name
+    )
+    for items in catalog.values()
+    for item in items
+    if item.incremental_result_cache != "none" and item.backends and "cpu" in item.backends
+}
+
+for family, items in catalog.items():
+    for item in items:
+        if item.verification_amortization != "none":
+            assert "cpu" in item.backends, f"{family}/{item.name} verification amortization requires CPU baseline"
+        if item.error_detection_policy != "none":
+            assert "cpu" in item.backends, f"{family}/{item.name} error detection policy requires CPU baseline"
+        if item.cpu_small_shape_selector != "none":
+            assert (
+                item.cpu_small_shape_selector in cpu_selector_policies_with_cpu
+            ), f"{family}/{item.name} CPU selector review requires paired CPU baseline"
+            assert item.promotion_eligibility == "cpu_selector_threshold_evidence_only"
+        if item.incremental_result_cache != "none":
+            result_cache_group = (
+                item.metadata.get("result_cache_contract_group", item.name)
+                if isinstance(item.metadata, dict)
+                else item.name
+            )
+            assert (
+                result_cache_group in result_cache_groups_with_cpu
+            ), f"{family}/{item.name} result-cache review group requires CPU baseline"
+            assert item.promotion_eligibility in {
+                "result_cache_research_only",
+                "result_cache_contract_candidate",
+            }
 
 with tempfile.TemporaryDirectory() as temp_dir:
     scenario_path = Path(temp_dir) / "bad_scenario.json"
@@ -130,7 +178,7 @@ modulus_command = benchmark_sweep.command_for(
     modulus_args,
 )
 assert "--modulus-set" in modulus_command and "experimental:prefix5-byte-ladder-search" in modulus_command
-tile_item = catalog["tile-shape-sweeps"][0]
+tile_item = next(item for item in catalog["tile-shape-sweeps"] if item.tile_shape_variant == "direct-hip-bounded-512-64x64")
 tile_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, tile_item)
 tile_command = benchmark_sweep.command_for(
     Path("rns8-bench"),
@@ -143,6 +191,10 @@ tile_command = benchmark_sweep.command_for(
 )
 assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
 graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
+assert len(catalog["hip-graph-replay"]) == 36
+assert {item.review_mode_expectation for item in catalog["hip-graph-replay"]} == {"release"}
+assert {item.promotion_eligibility for item in catalog["hip-graph-replay"]} == {"hip_graph_replay_evidence_only"}
+assert {item.case.m for item in catalog["hip-graph-replay"]} == {512, 1024}
 graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
 graph_command = benchmark_sweep.command_for(
     Path("rns8-bench"),
@@ -179,6 +231,50 @@ resident_command = benchmark_sweep.command_for(
 )
 assert "--resident-lifetime" in resident_command
 assert "--workspace-arena" in resident_command
+resident_redesign_item = benchmark_sweep.ScenarioItem(
+    "direct-hip-resident-redesign",
+    "grouped-active-schedule",
+    "bounded-i64",
+    benchmark_sweep.SweepCase(
+        "adaptive-redesign",
+        512,
+        512,
+        512,
+        tile_m=64,
+        tile_n=64,
+        bound_mode="per-tile",
+        input_profile="adaptive-bands",
+        require_adaptive=True,
+    ),
+    "resident-redesign-candidate",
+    "rns_residue_current",
+    "rank-51 grouped active-schedule candidate",
+    "release",
+    "benchmark_evidence_only",
+    backends=("hip-direct",),
+    resident_redesign_candidate="grouped_active_schedule_v3",
+    resident_redesign_dimensions=(
+        "data_layout",
+        "tile_shape",
+        "export_interaction",
+        "schedule_upload",
+        "workspace_reuse",
+    ),
+)
+resident_redesign_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_redesign_item)
+resident_redesign_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    resident_redesign_item.semantics,
+    resident_redesign_item.case,
+    None,
+    None,
+    resident_redesign_args,
+)
+assert "--resident-redesign-candidate" in resident_redesign_command
+assert "grouped_active_schedule_v3" in resident_redesign_command
+assert "--resident-redesign-dimensions" in resident_redesign_command
+assert "data_layout,tile_shape,export_interaction,schedule_upload,workspace_reuse" in resident_redesign_command
 adaptive_group_item = catalog["adaptive-grouped-scheduler"][0]
 adaptive_group_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, adaptive_group_item)
 adaptive_group_command = benchmark_sweep.command_for(
@@ -191,7 +287,7 @@ adaptive_group_command = benchmark_sweep.command_for(
     adaptive_group_args,
 )
 assert "--adaptive-grouped-scheduler" in adaptive_group_command
-overlap_item = catalog["streaming-overlap"][0]
+overlap_item = next(item for item in catalog["streaming-overlap"] if item.streaming_overlap)
 overlap_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, overlap_item)
 overlap_command = benchmark_sweep.command_for(
     Path("rns8-bench"),
@@ -215,4 +311,107 @@ release_command = benchmark_sweep.command_for(
     release_args,
 )
 assert "--release-gate" in release_command and "large-release-validation-4096-budgeted" in release_command
+error_detection_item = catalog["error-detecting-fast-path"][0]
+error_detection_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, error_detection_item)
+error_detection_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    error_detection_item.semantics,
+    error_detection_item.case,
+    None,
+    None,
+    error_detection_args,
+)
+assert "--error-detection-policy" in error_detection_command
+assert "freivalds_two_round_product_check_research" in error_detection_command
+cpu_selector_item = catalog["cpu-small-shape-selector"][0]
+cpu_selector_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, cpu_selector_item)
+cpu_selector_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    cpu_selector_item.semantics,
+    cpu_selector_item.case,
+    None,
+    None,
+    cpu_selector_args,
+)
+assert "--cpu-small-shape-selector" in cpu_selector_command
+assert "bounded_i64_32_cpu_cutoff_review" in cpu_selector_command
+incremental_item = catalog["incremental-result-cache"][0]
+incremental_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, incremental_item)
+incremental_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    incremental_item.semantics,
+    incremental_item.case,
+    None,
+    None,
+    incremental_args,
+)
+assert "--incremental-result-cache" in incremental_command
+assert "bounded_i64_dirty_tile_partial_recompute_research" in incremental_command
+
+with tempfile.TemporaryDirectory() as temp_dir:
+    capture_path = Path(temp_dir) / "capture.json"
+    capture_path.write_text(json.dumps(finite_capture("ck", 190)), encoding="utf-8")
+    metadata = {
+        "family": "finite-modulus-map",
+        "name": "finite-ring-map-1024",
+        "promotion_eligibility": "non_promoting_modulus_map",
+        "metadata": {"promotion_scope": "non_promoting_modulus_map"},
+    }
+    benchmark_sweep.annotate_scenario_metadata(capture_path, metadata)
+    annotated = load_capture(capture_path)
+    validate_capture(annotated, capture_path)
+    assert annotated["scenario_metadata"] == metadata
+
+broader_chain_items = catalog["rns-chain-final-output-broader"]
+assert len(broader_chain_items) == 16
+assert {
+    (item.semantics, item.case.m, item.residue_chain_independent_final_export)
+    for item in broader_chain_items
+} == {
+    (semantics, shape, independent)
+    for semantics in ["bounded-i64", "bounded-u64", "exact-wide-signed", "exact-wide-unsigned"]
+    for shape in [512, 1024]
+    for independent in [False, True]
+}
+broader_chain_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, broader_chain_items[0])
+broader_chain_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    broader_chain_items[0].semantics,
+    broader_chain_items[0].case,
+    None,
+    None,
+    broader_chain_args,
+)
+assert "--residue-chain-length" in broader_chain_command and "3" in broader_chain_command
+assert "--residue-chain-final-export" in broader_chain_command
+
+exact_wide_output_chain_items = catalog["exact-wide-output-chain-broader"]
+assert len(exact_wide_output_chain_items) == 12
+assert {
+    (item.semantics, item.case.m, item.residue_chain_length, item.residue_chain_final_export)
+    for item in exact_wide_output_chain_items
+} == {
+    (semantics, shape, chain, final_export)
+    for semantics in ["exact-wide-signed", "exact-wide-unsigned"]
+    for shape in [512, 1024]
+    for chain, final_export in [(3, False), (4, False), (4, True)]
+}
+residue_item = next(item for item in exact_wide_output_chain_items if not item.residue_chain_final_export)
+residue_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, residue_item)
+residue_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "hip-direct",
+    residue_item.semantics,
+    residue_item.case,
+    None,
+    4,
+    residue_args,
+)
+assert "--residue-chain-length" in residue_command and "3" in residue_command
+assert "--residue-chain-final-export" not in residue_command
+assert "--next-op-hint" in residue_command and "rns-gemm" in residue_command
 

@@ -436,6 +436,60 @@ __device__ void rns8_reconstruct_canonical_wide_fixed_prefix_device(
   *out_product = product;
 }
 
+template <int Prefix>
+__device__ void rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device(
+    const int8_t* residues,
+    int cell,
+    int elements,
+    rns8_u192_device* out_x,
+    rns8_u192_device* out_product) {
+  static_assert(Prefix == 18 || Prefix == 20, "tree-pair CRT is specialized for exact-wide prefix 18 or 20");
+  constexpr int kPairCount = Prefix / 2;
+  uint32_t pair_values[kPairCount]{};
+  uint32_t pair_moduli[kPairCount]{};
+
+#pragma unroll
+  for (int pair = 0; pair < kPairCount; ++pair) {
+    const int lhs_index = pair * 2;
+    const uint32_t lhs_modulus = static_cast<uint32_t>(rns8_default_moduli_device[lhs_index]);
+    const uint32_t rhs_modulus = static_cast<uint32_t>(rns8_default_moduli_device[lhs_index + 1]);
+    const uint32_t lhs_target = rns8_canonical_from_centered_device(
+        residues[static_cast<int64_t>(lhs_index) * elements + cell],
+        static_cast<int>(lhs_modulus));
+    const uint32_t rhs_target = rns8_canonical_from_centered_device(
+        residues[static_cast<int64_t>(lhs_index + 1) * elements + cell],
+        static_cast<int>(rhs_modulus));
+    const uint32_t inverse = rns8_mod_inverse_device(lhs_modulus % rhs_modulus, rhs_modulus);
+    int64_t delta_mod = static_cast<int64_t>(rhs_target) - static_cast<int64_t>(lhs_target % rhs_modulus);
+    delta_mod %= static_cast<int64_t>(rhs_modulus);
+    delta_mod += static_cast<int64_t>(rhs_modulus) & -static_cast<int64_t>(delta_mod < 0);
+    const uint32_t coefficient = static_cast<uint32_t>(
+        (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % rhs_modulus);
+    pair_values[pair] = lhs_target + lhs_modulus * coefficient;
+    pair_moduli[pair] = lhs_modulus * rhs_modulus;
+  }
+
+  rns8_u192_device x = rns8_u192_from_u64_device(0);
+  rns8_u192_device product = rns8_u192_from_u64_device(1);
+#pragma unroll
+  for (int pair = 0; pair < kPairCount; ++pair) {
+    const uint32_t modulus = pair_moduli[pair];
+    const uint32_t target = pair_values[pair];
+    const uint32_t x_mod = rns8_u192_mod_u32_device(x, modulus);
+    const uint32_t product_mod = rns8_u192_mod_u32_device(product, modulus);
+    const uint32_t inverse = rns8_mod_inverse_device(product_mod, modulus);
+    int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
+    delta_mod %= static_cast<int64_t>(modulus);
+    delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
+    const uint32_t coefficient = static_cast<uint32_t>(
+        (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % modulus);
+    x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+    product = rns8_u192_mul_u32_device(product, modulus);
+  }
+  *out_x = x;
+  *out_product = product;
+}
+
 __device__ int8_t rns8_center_i64_device(int64_t value, int modulus) {
   int64_t residue = value % static_cast<int64_t>(modulus);
   residue += static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue < 0);

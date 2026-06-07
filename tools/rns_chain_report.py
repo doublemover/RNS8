@@ -18,9 +18,10 @@ DEFAULT_OUT_DIR = Path("temp") / "rns-chain-reports"
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
-REPORT_OUTPUT_NAMES = {"rns-chain-report.json"}
+REPORT_OUTPUT_NAMES = {"rns-chain-report.json", "review_report.json", "scenario_manifest.json"}
 REUSE_PACK_MODES = {"prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 NORMALIZED_CONTRACT_EXCLUDE = {
+    "export_variant.selector_key",
     "reuse_packed_inputs",
     "pack_mode",
     "prepack_reuse_operands",

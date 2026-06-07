@@ -54,6 +54,9 @@ def build_row(
         if isinstance(capture.get("verification_amortization"), dict)
         else {}
     )
+    error_detection_policy = (
+        capture.get("error_detection_policy") if isinstance(capture.get("error_detection_policy"), dict) else {}
+    )
     workload_proxy = capture.get("workload_proxy") if isinstance(capture.get("workload_proxy"), dict) else {}
     row = {
         "capture_path": capture.get("_path"),
@@ -103,6 +106,8 @@ def build_row(
         "grouped_dispatch_status": grouped_dispatch.get("capture_status"),
         "adaptive_grouped_scheduler_requested": adaptive_grouped_scheduler.get("requested"),
         "adaptive_grouped_scheduler_status": adaptive_grouped_scheduler.get("capture_status"),
+        "adaptive_grouped_scheduler_active_entries": adaptive_grouped_scheduler.get("active_entry_count"),
+        "adaptive_grouped_scheduler_launch_ratio": adaptive_grouped_scheduler.get("launch_reduction_ratio"),
         "resident_lifetime_enabled": resident_lifetime.get("enabled"),
         "resident_lifetime_output_domain": resident_lifetime.get("output_domain"),
         "workspace_arena_enabled": workspace_arena.get("enabled"),
@@ -114,6 +119,9 @@ def build_row(
         "release_gate": release_gate.get("name"),
         "release_gate_review_status": release_gate.get("review_status"),
         "verification_amortization_policy": verification_amortization.get("policy"),
+        "error_detection_policy": error_detection_policy.get("policy"),
+        "error_detection_mode": error_detection_policy.get("mode"),
+        "error_detection_false_negative_policy": error_detection_policy.get("false_negative_policy"),
         "workload_proxy_family": workload_proxy.get("family"),
         "workload_proxy_label": workload_proxy.get("label"),
         "output_domain": scenario.get("output_domain") or capture.get("residue_output_mode"),

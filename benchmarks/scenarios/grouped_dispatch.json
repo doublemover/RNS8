@@ -17,7 +17,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small bounded i64 grouped pack+GEMM with per-task host export",
+      "evidence_scope": "many-small bounded i64 grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "host_export",
       "rationale": "checks whether the same device grouped task-prefix path helps bounded signed workloads before public resident API work",
       "backends": [
@@ -29,7 +29,7 @@
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
         "grouping_role": "same_shape_grouped_descriptor",
-        "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports"
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
       }
     },
     {
@@ -47,7 +47,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small bounded u64 grouped pack+GEMM with per-task host export",
+      "evidence_scope": "many-small bounded u64 grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "host_export",
       "rationale": "extends grouped task-prefix coverage to the unsigned bounded contract",
       "backends": [
@@ -59,7 +59,69 @@
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
         "grouping_role": "same_shape_grouped_descriptor",
-        "grouped_strategy_expectation": "device_grouped_pack_gemm_host_exports"
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
+      }
+    },
+    {
+      "name": "bounded-i64-128-group64",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small bounded i64 128-square grouped pack+GEMM+export with one compact output D2H",
+      "output_domain": "host_export",
+      "rationale": "checks whether the same grouped device path still wins once many-small bounded i64 jobs become less launch-bound",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
+      "grouped_dispatch_tasks": 64,
+      "metadata": {
+        "promotion_scope": "grouped_dispatch_evidence_only",
+        "grouping_role": "same_shape_grouped_descriptor",
+        "comparison_required": "fastest_independent_and_same_backend_host_batch",
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
+      }
+    },
+    {
+      "name": "bounded-u64-skinny-n1-group128",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "many-small-skinny-128x1x1024",
+        "m": 128,
+        "n": 1,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small skinny bounded u64 grouped pack+GEMM+export with one compact output D2H",
+      "output_domain": "host_export",
+      "rationale": "tests whether grouped dispatch helps the long-K N=1 bounded-u64 workload that already has independent and host-batch controls",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
+      "grouped_dispatch_tasks": 128,
+      "metadata": {
+        "promotion_scope": "grouped_dispatch_evidence_only",
+        "grouping_role": "same_shape_grouped_descriptor",
+        "comparison_required": "fastest_independent_and_same_backend_host_batch",
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
       }
     },
     {
@@ -77,7 +139,7 @@
         "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "many-small finite-ring grouped-dispatch metadata capture",
+      "evidence_scope": "many-small finite-ring grouped pack+GEMM+export with one compact output D2H",
       "output_domain": "finite_u8_canonical_host_export",
       "rationale": "keeps finite-u8 grouped-dispatch evidence separate from bounded exact paths",
       "backends": [
@@ -91,7 +153,8 @@
       "grouped_dispatch_tasks": 32,
       "metadata": {
         "promotion_scope": "grouped_dispatch_evidence_only",
-        "grouping_role": "same_shape_grouped_descriptor"
+        "grouping_role": "same_shape_grouped_descriptor",
+        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h"
       }
     },
     {
@@ -160,6 +223,72 @@
         "grouping_role": "same_shape_grouped_descriptor",
         "comparison_required": "fastest_independent_and_same_backend_host_batch",
         "prior_smoke_signal": "direct_hip_exact_wide_unsigned_64_group32"
+      }
+    },
+    {
+      "name": "exact-wide-signed-128-group32",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide signed 128 grouped pack+GEMM+export with one compact output D2H",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "checks whether the exact-wide grouped path still wins at the next small square shape after 64",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "grouped_dispatch_tasks": 32,
+      "metadata": {
+        "promotion_scope": "grouped_dispatch_evidence_only",
+        "grouping_role": "same_shape_grouped_descriptor",
+        "comparison_required": "fastest_independent_and_same_backend_host_batch"
+      }
+    },
+    {
+      "name": "exact-wide-unsigned-128-group32",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "many-small-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "many-small exact-wide unsigned 128 grouped pack+GEMM+export with one compact output D2H",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "checks whether unsigned exact-wide grouped dispatch behaves like signed at the next small square shape after 64",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "grouped_dispatch_evidence_only",
+      "exact_wide_limb_counts": [
+        4
+      ],
+      "grouped_dispatch_tasks": 32,
+      "metadata": {
+        "promotion_scope": "grouped_dispatch_evidence_only",
+        "grouping_role": "same_shape_grouped_descriptor",
+        "comparison_required": "fastest_independent_and_same_backend_host_batch"
       }
     }
   ]

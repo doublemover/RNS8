@@ -91,7 +91,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
       return "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1";
     }
-    return "direct_hip_tiled_active_prefix_rns_gemm_v2";
+    return "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3";
   }
   if (plan.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     if (plan.desc.n == 1 && plan.desc.k >= 4096) {

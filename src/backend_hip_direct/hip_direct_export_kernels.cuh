@@ -16,6 +16,24 @@ __global__ void rns8_export_u8_modulus_kernel(
       static_cast<uint8_t>(rns8_canonical_from_centered_device(residues[idx], modulus));
 }
 
+__global__ void rns8_export_u8_grouped_modulus_kernel(
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus) {
+  const int task = blockIdx.y;
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  if (task >= task_count || idx >= elements) {
+    return;
+  }
+  const int8_t* residues = residue_ptrs[task];
+  uint8_t* task_dst = dst + static_cast<int64_t>(task) * elements;
+  task_dst[idx] = static_cast<uint8_t>(rns8_canonical_from_centered_device(residues[idx], modulus));
+}
+
 template <int Modulus>
 __global__ void rns8_export_u8_fixed_modulus_kernel(
     const int8_t* residues,
@@ -32,6 +50,24 @@ __global__ void rns8_export_u8_fixed_modulus_kernel(
   const int col = static_cast<int>(idx - static_cast<int64_t>(row) * cols);
   dst[static_cast<int64_t>(row) * ld + col] =
       static_cast<uint8_t>(rns8_canonical_from_centered_fixed_modulus_device<Modulus>(residues[idx]));
+}
+
+template <int Modulus>
+__global__ void rns8_export_u8_grouped_fixed_modulus_kernel(
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  if (task >= task_count || idx >= elements) {
+    return;
+  }
+  const int8_t* residues = residue_ptrs[task];
+  uint8_t* task_dst = dst + static_cast<int64_t>(task) * elements;
+  task_dst[idx] = static_cast<uint8_t>(rns8_canonical_from_centered_fixed_modulus_device<Modulus>(residues[idx]));
 }
 
 __device__ void rns8_export_i64_cell_device(
@@ -282,6 +318,102 @@ __global__ void rns8_export_u64_fixed_prefix_kernel(
   rns8_export_u64_fixed_prefix_cell_device<Prefix>(residues, dst, cell, elements, bound, status);
 }
 
+__global__ void rns8_export_i64_grouped_kernel(
+    const int8_t* const* residue_ptrs,
+    int64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  int64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_i64_cell_device(residues, task_dst, cell, elements, prefix, bound, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_i64_grouped_fixed_prefix_kernel(
+    const int8_t* const* residue_ptrs,
+    int64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  int64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_i64_fixed_prefix_cell_device<Prefix>(residues, task_dst, cell, elements, bound, status);
+}
+
+__global__ void rns8_export_u64_grouped_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int prefix,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_u64_cell_device(residues, task_dst, cell, elements, prefix, bound, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_u64_grouped_fixed_prefix_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    uint64_t bound,
+    int* status) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements);
+  rns8_export_u64_fixed_prefix_cell_device<Prefix>(residues, task_dst, cell, elements, bound, status);
+}
+
 __global__ void rns8_export_i64_scheduled_kernel(
     const int8_t* residues,
     int64_t* dst,
@@ -497,6 +629,45 @@ __global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel(
   rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
 }
 
+template <int Prefix>
+__global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_limbs_device(dst, cell, x, limb_count, status);
+}
+
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+}
+
 __device__ void rns8_export_exact_wide_signed_limbs_device(
     uint64_t* dst,
     int cell,
@@ -583,6 +754,45 @@ __global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel(
   rns8_u192_device x{};
   rns8_u192_device product{};
   rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+}
+
+template <int Prefix>
+__global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int limb_count,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_limbs_device(dst, cell, x, product, limb_count, status);
+}
+
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
   rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
 }
 

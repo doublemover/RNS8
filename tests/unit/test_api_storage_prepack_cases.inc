@@ -121,6 +121,141 @@ TEST_CASE("C++ matrix wrapper exposes storage info") {
   CHECK(std::string(info.layout_version) == "rns_centered_residue_planes_v1");
 }
 
+TEST_CASE("resident lifetime info reports role, source version, and workspace binding") {
+  rns8_context* cpu = create_cpu_context();
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 2, 3, 4);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a = nullptr;
+  rns8_matrix* b = nullptr;
+  rns8_matrix* c = nullptr;
+  auto a_desc = bounded_matrix_desc(desc.m, desc.k, RNS8_BOUNDED_I64);
+  auto b_desc = bounded_matrix_desc(desc.k, desc.n, RNS8_BOUNDED_I64);
+  auto c_desc = bounded_matrix_desc(desc.m, desc.n, RNS8_BOUNDED_I64);
+  REQUIRE(rns8_create_plan(cpu, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(cpu, plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &a_desc, &a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &b_desc, &b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(cpu, &c_desc, &c) == RNS8_SUCCESS);
+
+  const int64_t a_values[] = {1, -2, 3, -4, 5, -6, 7, -8};
+  const int64_t b_values[] = {1, 2, -3, 4, 5, -6, 7, 8, -9, 10, 11, -12};
+  REQUIRE(rns8_pack_i64(cpu, a, a_values, desc.k, 101) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(cpu, b, b_values, desc.n, 202) == RNS8_SUCCESS);
+
+  const auto a_info =
+      resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  CHECK(a_info.backend == RNS8_BACKEND_CPU_REFERENCE);
+  CHECK(a_info.semantics == RNS8_BOUNDED_I64);
+  CHECK(a_info.matrix_role == RNS8_RESIDENT_MATRIX_ROLE_A);
+  CHECK(a_info.current_output_domain == RNS8_OUTPUT_DOMAIN_RNS_RESIDUE);
+  CHECK(a_info.rows == desc.m);
+  CHECK(a_info.cols == desc.k);
+  CHECK(a_info.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(a_info.source_version == 101);
+  CHECK(a_info.source_version_valid == 1);
+  CHECK(a_info.host_current == 1);
+  CHECK(a_info.device_current == 0);
+  CHECK(a_info.device_resident == 0);
+  CHECK(a_info.plan_binding_available == 1);
+  CHECK(a_info.plan_binding_matches == 1);
+  CHECK(a_info.workspace_binding_available == 1);
+  CHECK(a_info.workspace_identity_matches == 1);
+  CHECK(a_info.workspace_schedule_matches == 1);
+  CHECK(a_info.workspace_backend_matches == 1);
+  CHECK(a_info.workspace_binding_matches == 1);
+  CHECK(a_info.device_id_matches == 1);
+  CHECK(a_info.can_feed_rns_gemm == 1);
+  CHECK(a_info.can_feed_native_gemm == 0);
+  CHECK(a_info.can_feed_final_export == 1);
+  CHECK(a_info.plan_fingerprint != 0);
+  CHECK(a_info.workspace_fingerprint == a_info.plan_fingerprint);
+  CHECK(std::string(a_info.current_domain) == "rns_residue_host_current");
+  CHECK(std::string(a_info.matrix_role_name) == "A");
+  CHECK(std::string(a_info.source_version_policy) == "monotonic_per_import_pack_or_gemm_output_hash");
+  CHECK(std::string(a_info.workspace_binding_policy) ==
+        "plan_fingerprint_plus_workspace_identity_schedule_backend");
+  CHECK(std::string(a_info.mismatch_policy) ==
+        "source_version_descriptor_semantic_prefix_target_workspace_match");
+
+  const auto wrong_role =
+      resident_lifetime_info(b, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  CHECK(wrong_role.source_version == 202);
+  CHECK(wrong_role.plan_binding_matches == 0);
+  CHECK(wrong_role.workspace_binding_matches == 0);
+  CHECK(wrong_role.can_feed_rns_gemm == 0);
+  CHECK(std::string(wrong_role.mismatch_policy) ==
+        "reject_source_version_descriptor_semantic_prefix_target_workspace_mismatch");
+
+  auto desc_other = desc;
+  desc_other.n = 5;
+  rns8_plan* other_plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &desc_other, &other_plan) == RNS8_SUCCESS);
+  const auto mismatched_workspace =
+      resident_lifetime_info(a, other_plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  CHECK(mismatched_workspace.plan_binding_matches == 1);
+  CHECK(mismatched_workspace.workspace_identity_matches == 0);
+  CHECK(mismatched_workspace.workspace_binding_matches == 0);
+  CHECK(mismatched_workspace.plan_fingerprint != a_info.plan_fingerprint);
+  CHECK(std::string(mismatched_workspace.mismatch_policy) ==
+        "reject_source_version_descriptor_semantic_prefix_target_workspace_mismatch");
+
+  const auto c_info =
+      resident_lifetime_info(c, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_C);
+  CHECK(c_info.plan_binding_matches == 1);
+  CHECK(c_info.workspace_binding_matches == 1);
+  CHECK(c_info.source_version == 0);
+  CHECK(c_info.source_version_valid == 0);
+  CHECK(std::string(c_info.matrix_role_name) == "C");
+
+  rns8_resident_lifetime_info bad_abi{};
+  bad_abi.struct_size = sizeof(bad_abi) - 1;
+  bad_abi.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &bad_abi) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_resident_lifetime_info raw{};
+  raw.struct_size = sizeof(raw);
+  raw.abi_version = RNS8_ABI_VERSION;
+  CHECK(rns8_get_resident_lifetime_info(nullptr, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &raw) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_resident_lifetime_info(a, nullptr, workspace, RNS8_RESIDENT_MATRIX_ROLE_A, &raw) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_resident_lifetime_info(
+            a, plan, workspace, static_cast<rns8_resident_matrix_role>(99), &raw) ==
+        RNS8_INVALID_ARGUMENT);
+
+  rns8_destroy_plan(other_plan);
+  rns8_destroy_matrix(c);
+  rns8_destroy_matrix(b);
+  rns8_destroy_matrix(a);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("C++ resident lifetime wrapper exposes matrix and workspace contracts") {
+  rns8::Context context(-1, RNS8_BACKEND_CPU_REFERENCE);
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 1, 1, 2);
+  rns8::Plan plan(context, desc);
+  rns8::Workspace workspace(context, plan);
+  rns8::Matrix a(context, bounded_matrix_desc(desc.m, desc.k, RNS8_BOUNDED_U64));
+
+  const uint64_t values[] = {3, 4};
+  REQUIRE(rns8_pack_u64(context.get(), a.get(), values, desc.k, 303) == RNS8_SUCCESS);
+
+  const auto matrix_only = a.resident_lifetime_info();
+  CHECK(matrix_only.source_version == 303);
+  CHECK(matrix_only.plan_binding_available == 0);
+  CHECK(std::string(matrix_only.workspace_binding_policy) == "not_bound_to_plan_or_workspace");
+
+  const auto bound =
+      rns8::resident_lifetime_info(a, plan, workspace, RNS8_RESIDENT_MATRIX_ROLE_A);
+  CHECK(bound.plan_binding_matches == 1);
+  CHECK(bound.workspace_binding_matches == 1);
+  CHECK(bound.source_version == 303);
+}
+
 TEST_CASE("public prepack cache key info validates operand role and source version") {
   rns8_context* cpu = create_cpu_context();
   rns8_gemm_desc desc{};

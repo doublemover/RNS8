@@ -47,6 +47,12 @@ def main() -> int:
     stale_reducer["timing_metadata"]["generated_reducer_identity"] = "generic"
     expect_invalid(stale_reducer, "declared reducer identity")
 
+    undeclared_prefix_reducer = copy.deepcopy(direct_reducer)
+    undeclared_prefix_reducer["timing_metadata"]["generated_reducer_identity"] = (
+        "direct_hip_fixed_prefix_10_generated_reducer_v1"
+    )
+    expect_invalid(undeclared_prefix_reducer, "declared reducer identity")
+
     residue_current = as_residue_current_chain_capture(base)
     validate_capture(residue_current)
 

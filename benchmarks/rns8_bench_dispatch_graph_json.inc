@@ -20,6 +20,11 @@ struct GroupedDispatchDescriptorContract {
   std::string output_domain;
   std::string source_version_policy = "not_requested";
   std::string workspace_policy = "not_requested";
+  std::string matrix_ownership_policy = "not_requested";
+  std::string descriptor_reuse_policy = "not_requested";
+  std::string stride_policy = "not_requested";
+  std::string output_currentness_policy = "not_requested";
+  std::string lifetime_policy = "not_requested";
   std::string checksum_policy = "not_requested";
   std::string status_policy = "not_requested";
   std::string device_descriptor_policy = "not_requested";
@@ -62,6 +67,11 @@ GroupedDispatchDescriptorContract make_grouped_dispatch_descriptor_contract(
   contract.same_shape_required = true;
   contract.source_version_policy = "per_task_monotonic_source_version_repack";
   contract.workspace_policy = "one_workspace_per_task_shared_plan";
+  contract.matrix_ownership_policy = "benchmark_owns_all_task_triplets_until_capture_end";
+  contract.descriptor_reuse_policy = "reuse_after_shape_workspace_source_validation";
+  contract.stride_policy = "matrix_ld_matches_logical_shape_host_output_ld_explicit";
+  contract.output_currentness_policy = "device_residue_current_after_grouped_gemm_host_output_after_export";
+  contract.lifetime_policy = "task_matrices_and_workspaces_destroyed_after_capture";
   contract.checksum_policy = "combined_per_task_checksum_u64";
   contract.status_policy = "fail_fast_per_task_operation_status";
   contract.device_descriptor_policy =
@@ -74,6 +84,12 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
       make_grouped_dispatch_descriptor_contract(args, result);
   const bool grouped = grouped_contract.requested;
   const bool adaptive_grouped = args.adaptive_grouped_scheduler;
+  const bool adaptive_grouped_executed =
+      adaptive_grouped && result.backend_info_available &&
+      result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT && result.schedule_info_available &&
+      result.schedule_info.tile_count != 0 &&
+      std::string(result.backend_info.selected_kernel) ==
+          "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3";
   std::cout << "  \"grouped_dispatch\": {\n";
   std::cout << "    \"requested\": " << (grouped ? "true" : "false") << ",\n";
   std::cout << "    \"task_count\": " << grouped_contract.task_count << ",\n";
@@ -106,6 +122,14 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
   std::cout << "      \"source_version_policy\": \""
             << json_escape(grouped_contract.source_version_policy) << "\",\n";
   std::cout << "      \"workspace_policy\": \"" << json_escape(grouped_contract.workspace_policy) << "\",\n";
+  std::cout << "      \"matrix_ownership_policy\": \""
+            << json_escape(grouped_contract.matrix_ownership_policy) << "\",\n";
+  std::cout << "      \"descriptor_reuse_policy\": \""
+            << json_escape(grouped_contract.descriptor_reuse_policy) << "\",\n";
+  std::cout << "      \"stride_policy\": \"" << json_escape(grouped_contract.stride_policy) << "\",\n";
+  std::cout << "      \"output_currentness_policy\": \""
+            << json_escape(grouped_contract.output_currentness_policy) << "\",\n";
+  std::cout << "      \"lifetime_policy\": \"" << json_escape(grouped_contract.lifetime_policy) << "\",\n";
   std::cout << "      \"checksum_policy\": \"" << json_escape(grouped_contract.checksum_policy) << "\",\n";
   std::cout << "      \"status_policy\": \"" << json_escape(grouped_contract.status_policy) << "\",\n";
   std::cout << "      \"device_descriptor_policy\": \""
@@ -125,15 +149,40 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
             << ";zero_tiles=" << result.zero_output_tile_count << "\",\n";
   std::cout << "    \"group_count\": "
             << (adaptive_grouped ? std::max<uint64_t>(1, result.schedule_info.prefix_group_count) : 0) << ",\n";
+  std::cout << "    \"active_prefix_count\": "
+            << (adaptive_grouped ? result.adaptive_grouped_active_prefix_count : 0) << ",\n";
   std::cout << "    \"active_tile_count\": " << result.schedule_info.tile_count << ",\n";
+  std::cout << "    \"active_entry_count\": "
+            << (adaptive_grouped ? result.adaptive_grouped_active_entry_count : 0) << ",\n";
   std::cout << "    \"zero_tile_count\": " << result.zero_output_tile_count << ",\n";
+  std::cout << "    \"independent_launch_count_model\": "
+            << (adaptive_grouped ? result.adaptive_grouped_independent_launch_count : 0) << ",\n";
+  std::cout << "    \"aggregate_launch_count_model\": "
+            << (adaptive_grouped ? result.adaptive_grouped_aggregate_launch_count : 0) << ",\n";
+  std::cout << "    \"launch_reduction_ratio\": ";
+  if (adaptive_grouped && result.adaptive_grouped_aggregate_launch_count != 0) {
+    std::cout << static_cast<double>(result.adaptive_grouped_independent_launch_count) /
+                     static_cast<double>(result.adaptive_grouped_aggregate_launch_count);
+  } else {
+    std::cout << 0.0;
+  }
+  std::cout << ",\n";
+  std::cout << "    \"event_scope\": \""
+            << (adaptive_grouped_executed ? "aggregate_rns_gemm_kernel_group_per_measured_repeat"
+                                          : "not_available")
+            << "\",\n";
   std::cout << "    \"selected_prefix_histogram\": \"min=" << result.schedule_info.min_selected_prefix
             << ";max=" << result.schedule_info.max_selected_prefix << "\",\n";
   std::cout << "    \"capture_status\": \""
-            << (adaptive_grouped ? "metadata_only_unsupported_for_execution_path" : "not_requested") << "\",\n";
+            << (adaptive_grouped_executed ? "executed"
+                                          : adaptive_grouped ? "metadata_only_unsupported_for_execution_path"
+                                                             : "not_requested")
+            << "\",\n";
   std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(adaptive_grouped ? std::string("adaptive_grouped_scheduler_not_executed_by_current_path")
-                                             : std::string());
+  print_nullable_std_string(
+      adaptive_grouped && !adaptive_grouped_executed
+          ? std::string("adaptive_grouped_scheduler_not_executed_by_current_path")
+          : std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
@@ -142,6 +191,17 @@ void print_dispatch_and_graph_json(const Args& args, const BenchmarkResult& resu
 void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult& result) {
   const bool residency = args.resident_lifetime || args.reuse_packed_inputs || args.residue_chain_length > 1;
   const bool arena = args.workspace_arena;
+  const bool streaming_executed = result.streaming_overlap_executed;
+  const uint64_t arena_size =
+      result.workspace_arena_info_available ? result.workspace_arena_size_bytes : result.backend_info.workspace_required_bytes;
+  const uint64_t arena_high_water =
+      result.workspace_arena_info_available ? result.workspace_arena_high_water_mark_bytes : result.backend_info.workspace_required_bytes;
+  const uint32_t arena_suballocations =
+      result.workspace_arena_info_available ? result.workspace_arena_suballocation_count : 5u;
+  const std::string arena_policy =
+      result.workspace_arena_info_available ? result.workspace_arena_policy : std::string("benchmark_declared_workspace_bytes");
+  const std::string arena_target =
+      result.workspace_arena_info_available ? result.workspace_arena_target_id : result.target_id;
   const bool repeat_alloc_free =
       result.allocation_tracking_available &&
       (result.allocation_after_repeats.allocate_calls == result.allocation_after_warmups.allocate_calls) &&
@@ -149,23 +209,38 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"resident_lifetime\": {\n";
   std::cout << "    \"enabled\": " << (residency ? "true" : "false") << ",\n";
   std::cout << "    \"matrix_roles\": \"" << (residency ? "A/B/C explicit benchmark resident roles" : "transient") << "\",\n";
-  std::cout << "    \"source_version_policy\": \"monotonic_per_import_or_pack\",\n";
+  std::cout << "    \"source_version_policy\": \"monotonic_per_import_pack_or_gemm_output_hash\",\n";
   std::cout << "    \"current_storage_state\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
   std::cout << "    \"output_domain\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
+  std::cout << "    \"contract_api\": \"rns8_get_resident_lifetime_info\",\n";
+  std::cout << "    \"role_binding_policy\": \"A=m_by_k;B=k_by_n;C=m_by_n\",\n";
   std::cout << "    \"workspace_identity\": \"" << result.backend_info.workspace_required_bytes
             << "B:" << json_escape(result.backend_info.workspace_mode) << "\",\n";
+  std::cout << "    \"workspace_binding_policy\": \"plan_fingerprint_plus_workspace_identity_schedule_backend\",\n";
+  std::cout << "    \"output_currentness_policy\": \"explicit_host_or_device_current_domain_no_implicit_semantic_inference\",\n";
   std::cout << "    \"stale_source_rejection\": \"source_version_descriptor_semantic_prefix_target_workspace_mismatch\",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
   std::cout << "  \"workspace_arena\": {\n";
   std::cout << "    \"enabled\": " << (arena ? "true" : "false") << ",\n";
   std::cout << "    \"arena_identity\": \"" << json_escape(result.backend_info.autotune_key) << "|"
-            << json_escape(result.backend_info.workspace_mode) << "\",\n";
-  std::cout << "    \"size_bytes\": " << result.backend_info.workspace_required_bytes << ",\n";
-  std::cout << "    \"high_water_mark_bytes\": " << result.backend_info.workspace_required_bytes << ",\n";
-  std::cout << "    \"suballocation_count\": " << (arena ? 5 : 0) << ",\n";
+            << json_escape(result.backend_info.workspace_mode) << "|target=" << json_escape(arena_target)
+            << "|policy=" << json_escape(arena_policy) << "\",\n";
+  std::cout << "    \"size_bytes\": " << arena_size << ",\n";
+  std::cout << "    \"high_water_mark_bytes\": " << arena_high_water << ",\n";
+  std::cout << "    \"suballocation_count\": " << (arena ? arena_suballocations : 0) << ",\n";
   std::cout << "    \"measured_repeat_allocation_free\": "
             << (repeat_alloc_free ? "true" : "false") << ",\n";
+  std::cout << "    \"setup_allocation_delta\": ";
+  print_counter_object(allocation_delta(result.allocation_before, result.allocation_after_warmups));
+  std::cout << ",\n";
+  std::cout << "    \"measured_repeat_allocation_delta\": ";
+  if (result.allocation_after_warmups_available) {
+    print_counter_object(allocation_delta(result.allocation_after_warmups, result.allocation_after_repeats));
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "    \"source_version_policy\": \"plan_target_backend_semantic_shape_prefix_output_policy\",\n";
   std::cout << "    \"stream_safety\": \"" << (args.streaming_overlap ? "event_guarded_pipeline_lanes" : "single_stream_owner")
             << "\",\n";
@@ -174,16 +249,35 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"streaming_overlap\": {\n";
   std::cout << "    \"requested\": " << (args.streaming_overlap ? "true" : "false") << ",\n";
   std::cout << "    \"pipeline\": \""
-            << (args.streaming_overlap ? "pack_next_gemm_current_export_previous" : "serial_default_stream")
+            << (streaming_executed ? "pack_next_gemm_current_export_previous" : args.streaming_overlap
+                          ? "pack_next_gemm_current_export_previous"
+                          : "serial_default_stream")
             << "\",\n";
-  std::cout << "    \"buffering\": \"" << (args.streaming_overlap ? "double_buffered_benchmark_only" : "none") << "\",\n";
+  std::cout << "    \"buffering\": \"" << (streaming_executed ? "double_buffered_benchmark_only"
+                                              : args.streaming_overlap ? "requested_but_not_executed"
+                                                                       : "none")
+            << "\",\n";
   std::cout << "    \"dependency_contract\": \"pack_before_gemm;gemm_before_export;status_before_host_read;final_sync_before_checksum\",\n";
   std::cout << "    \"transfer_policy\": \"compact_or_padded_output_policy_declared_by_output_policy\",\n";
+  std::cout << "    \"stream_count\": " << result.streaming_overlap_stream_count << ",\n";
+  std::cout << "    \"buffer_count\": " << result.streaming_overlap_buffer_count << ",\n";
+  std::cout << "    \"measured_repeat_count\": " << result.streaming_overlap_measured_repeat_count << ",\n";
+  std::cout << "    \"batch_wall_us\": " << result.streaming_overlap_batch_wall_us << ",\n";
+  std::cout << "    \"per_repeat_pipeline_us\": " << result.streaming_overlap_per_repeat_pipeline_us << ",\n";
+  std::cout << "    \"explicit_dependency_events\": " << (streaming_executed ? "true" : "false") << ",\n";
+  std::cout << "    \"stage_event_scope\": \""
+            << (streaming_executed ? "direct_hip_streaming_overlap_multistream_operation_groups"
+                                   : "not_available")
+            << "\",\n";
   std::cout << "    \"capture_status\": \""
-            << (args.streaming_overlap ? "metadata_only_unsupported_for_execution_path" : "not_requested") << "\",\n";
+            << (streaming_executed ? "executed"
+                                   : args.streaming_overlap ? "metadata_only_unsupported_for_execution_path"
+                                                            : "not_requested")
+            << "\",\n";
   std::cout << "    \"unsupported_reason\": ";
-  print_nullable_std_string(args.streaming_overlap ? std::string("streaming_overlap_not_executed_by_current_path")
-                                                   : std::string());
+  print_nullable_std_string(args.streaming_overlap && !streaming_executed
+                                ? std::string("streaming_overlap_not_executed_by_current_path")
+                                : std::string());
   std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": false\n";
   std::cout << "  },\n";
@@ -214,6 +308,12 @@ void print_workload_proxy_json(const Args& args) {
 void print_release_and_verification_json(const Args& args, const BenchmarkResult& result) {
   const bool gate_requested = args.release_gate != "none";
   const bool amortized = args.verification_amortization != "none";
+  const bool error_detecting = args.error_detection_policy != "none";
+  const bool probabilistic =
+      error_detecting &&
+      (args.error_detection_policy.find("freivalds") != std::string::npos ||
+       args.error_detection_policy.find("probabilistic") != std::string::npos ||
+       args.error_detection_policy.find("cra") != std::string::npos);
   std::cout << "  \"release_gate\": {\n";
   std::cout << "    \"name\": \"" << json_escape(args.release_gate) << "\",\n";
   std::cout << "    \"requested\": " << (gate_requested ? "true" : "false") << ",\n";
@@ -240,6 +340,161 @@ void print_release_and_verification_json(const Args& args, const BenchmarkResult
   std::cout << "    \"final_exact_comparison_status\": \""
             << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required") << "\",\n";
   std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "  },\n";
+  std::cout << "  \"error_detection_policy\": {\n";
+  std::cout << "    \"enabled\": " << (error_detecting ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.error_detection_policy) << "\",\n";
+  std::cout << "    \"mode\": \""
+            << (probabilistic ? "probabilistic_product_check"
+                              : (error_detecting ? "deterministic_error_check" : "not_requested"))
+            << "\",\n";
+  std::cout << "    \"verification_basis\": \""
+            << (error_detecting ? "benchmark_metadata_only_final_exact_cpu_reference_required" : "none")
+            << "\",\n";
+  std::cout << "    \"false_negative_policy\": \""
+            << (probabilistic ? "bounded_by_recorded_rounds_seed_and_reference_field_not_default_exact_api"
+                              : (error_detecting ? "deterministic_check_no_probabilistic_false_negative_claim"
+                                                 : "none"))
+            << "\",\n";
+  std::cout << "    \"verification_rounds\": " << (probabilistic ? 2 : 0) << ",\n";
+  std::cout << "    \"rng_seed_recorded\": " << (probabilistic ? "true" : "false") << ",\n";
+  std::cout << "    \"final_exact_comparison_required\": true,\n";
+  std::cout << "    \"final_exact_comparison_status\": \""
+            << (result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required")
+            << "\",\n";
+  std::cout << "    \"research_only\": " << (error_detecting ? "true" : "false") << ",\n";
+  std::cout << "    \"default_exact_api_unchanged\": true,\n";
+  std::cout << "    \"runtime_routing_allowed\": false,\n";
+  std::cout << "    \"cache_eligible\": false,\n";
+  std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "  },\n";
+}
+
+void print_cpu_selector_and_incremental_cache_json(
+    const Args& args,
+    const BenchmarkResult& result,
+    const std::string& selected_backend) {
+  const bool cpu_selector_enabled = args.cpu_small_shape_selector != "none";
+  const bool incremental_enabled = args.incremental_result_cache != "none";
+  const bool public_incremental_policy = public_incremental_result_cache_contract_requested(args);
+  const bool public_incremental_available = result.incremental_result_cache_public_contract_available;
+  const bool cpu_backend = selected_backend == "cpu-reference" || selected_backend == "cpu";
+  const std::string incremental_candidate_role =
+      incremental_result_cache_candidate_role(args, result, selected_backend);
+  const std::string boundary_key =
+      std::string("semantics=") + semantics_name(args.semantics) +
+      ";m=" + std::to_string(args.m) +
+      ";n=" + std::to_string(args.n) +
+      ";k=" + std::to_string(args.k) +
+      ";modulus=" + std::to_string(args.finite_modulus) +
+      ";layout=row_major;output=" + output_domain_contract_name(args) +
+      ";target=" + json_escape(result.target_id.empty() ? std::string("unknown") : result.target_id);
+  const std::string checksum_status =
+      result.checksum != 0 ? "checksum_recorded_reference_required" : "reference_required";
+  std::cout << "  \"cpu_small_shape_selector\": {\n";
+  std::cout << "    \"enabled\": " << (cpu_selector_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.cpu_small_shape_selector) << "\",\n";
+  std::cout << "    \"candidate_role\": \""
+            << (cpu_selector_enabled ? (cpu_backend ? "cpu_baseline" : "comparison_candidate")
+                                     : "not_requested")
+            << "\",\n";
+  std::cout << "    \"boundary_key\": \"" << json_escape(boundary_key) << "\",\n";
+  std::cout << "    \"threshold_scope\": \""
+            << (cpu_selector_enabled
+                    ? "semantic_layout_output_target_family_explicit_review_only"
+                    : "not_requested")
+            << "\",\n";
+  std::cout << "    \"selector_explanation\": \""
+            << (cpu_selector_enabled
+                    ? "non_routing_auto_explanation_metadata_only"
+                    : "not_requested")
+            << "\",\n";
+  std::cout << "    \"cpu_reference_required\": true,\n";
+  std::cout << "    \"release_review_required\": " << (cpu_selector_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"runtime_routing_allowed\": false,\n";
+  std::cout << "    \"cache_eligible\": false,\n";
+  std::cout << "    \"promotion_eligible\": false\n";
+  std::cout << "  },\n";
+  std::cout << "  \"incremental_result_cache\": {\n";
+  std::cout << "    \"enabled\": " << (incremental_enabled ? "true" : "false") << ",\n";
+  std::cout << "    \"policy\": \"" << json_escape(args.incremental_result_cache) << "\",\n";
+  std::cout << "    \"candidate_role\": \"" << json_escape(incremental_candidate_role) << "\",\n";
+  std::cout << "    \"source_identity_policy\": \""
+            << incremental_result_cache_source_identity_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"source_version_policy\": \""
+            << incremental_result_cache_source_version_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"dirty_region_policy\": \""
+            << incremental_result_cache_dirty_region_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"result_lifetime_policy\": \""
+            << incremental_result_cache_result_lifetime_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"checksum_policy\": \""
+            << (incremental_enabled ? "final_exact_cpu_comparison_required" : "none") << "\",\n";
+  std::cout << "    \"partial_recompute_policy\": \""
+            << incremental_result_cache_partial_recompute_policy(args, public_incremental_policy) << "\",\n";
+  std::cout << "    \"final_exact_comparison_required\": true,\n";
+  std::cout << "    \"final_exact_comparison_status\": \"" << checksum_status << "\",\n";
+  std::cout << "    \"public_contract_available\": "
+            << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"default_gemm_unchanged\": true,\n";
+  std::cout << "    \"runtime_routing_allowed\": "
+            << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"cache_eligible\": " << (public_incremental_available ? "true" : "false") << ",\n";
+  std::cout << "    \"promotion_eligible\": " << (public_incremental_available ? "true" : "false");
+  if (public_incremental_available && result.incremental_result_cache_info_available) {
+    std::cout << ",\n";
+    std::cout << "    \"status\": \"" << json_escape(result.incremental_result_cache_status) << "\",\n";
+    std::cout << "    \"a_matrix_instance_id\": "
+              << result.incremental_result_cache_a_matrix_instance_id << ",\n";
+    std::cout << "    \"b_matrix_instance_id\": "
+              << result.incremental_result_cache_b_matrix_instance_id << ",\n";
+    std::cout << "    \"c_matrix_instance_id\": "
+              << result.incremental_result_cache_c_matrix_instance_id << ",\n";
+    std::cout << "    \"a_source_version\": " << result.incremental_result_cache_a_source_version << ",\n";
+    std::cout << "    \"b_source_version\": " << result.incremental_result_cache_b_source_version << ",\n";
+    std::cout << "    \"c_source_version\": " << result.incremental_result_cache_c_source_version << ",\n";
+    std::cout << "    \"result_cache_key_fingerprint\": "
+              << result.incremental_result_cache_key_fingerprint << ",\n";
+    std::cout << "    \"dirty_region_count\": "
+              << result.incremental_result_cache_dirty_region_count << ",\n";
+    std::cout << "    \"recomputed_region_count\": "
+              << result.incremental_result_cache_recomputed_region_count << ",\n";
+    std::cout << "    \"copied_from_cache_bytes\": "
+              << result.incremental_result_cache_copied_from_cache_bytes << ",\n";
+    std::cout << "    \"recomputed_cell_count\": "
+              << result.incremental_result_cache_recomputed_cell_count << ",\n";
+    std::cout << "    \"cache_allocation_bytes\": "
+              << result.incremental_result_cache_allocation_bytes << ",\n";
+    std::cout << "    \"snapshot_device_bytes\": "
+              << result.incremental_result_cache_snapshot_device_bytes << ",\n";
+    std::cout << "    \"last_full_fallback\": "
+              << (result.incremental_result_cache_full_fallback != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"last_cache_hit\": "
+              << (result.incremental_result_cache_last_cache_hit != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"last_cache_miss\": "
+              << (result.incremental_result_cache_last_cache_miss != 0 ? "true" : "false") << ",\n";
+    std::cout << "    \"stale_rejection_covered\": "
+              << (result.incremental_result_cache_stale_rejection_covered ? "true" : "false") << ",\n";
+    std::cout << "    \"stale_reason\": \""
+              << json_escape(result.incremental_result_cache_stale_reason) << "\",\n";
+    std::cout << "    \"fallback_reason\": \""
+              << json_escape(result.incremental_result_cache_fallback_reason) << "\",\n";
+    std::cout << "    \"detail\": \""
+              << json_escape(result.incremental_result_cache_detail) << "\",\n";
+    std::cout << "    \"dirty_regions\": [";
+    for (std::size_t index = 0; index < result.incremental_result_cache_dirty_regions.size(); ++index) {
+      const auto& region = result.incremental_result_cache_dirty_regions[index];
+      if (index != 0) {
+        std::cout << ", ";
+      }
+      std::cout << "{\"row_offset\": " << region.row_offset
+                << ", \"col_offset\": " << region.col_offset
+                << ", \"row_extent\": " << region.row_extent
+                << ", \"col_extent\": " << region.col_extent << "}";
+    }
+    std::cout << "]\n";
+  } else {
+    std::cout << "\n";
+  }
   std::cout << "  },\n";
 }
 

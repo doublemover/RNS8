@@ -86,6 +86,58 @@ def main() -> int:
     assert repack_vs_reuse["contract"]["pack_mode"]["match"] is False
     assert repack_vs_reuse["contract"]["prepack_reuse_operands"]["match"] is False
 
+    selector_default = copy.deepcopy(gpu)
+    selector_default["export_variant"] = {
+        "name": "default",
+        "semantic_contract": "finite_ring_u8",
+        "signedness": "unsigned",
+        "output_layout": "finite_u8_host",
+        "selector_status_policy": "required",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "selector_key": "semantics=finite_ring_u8;d2h_policy=host_ld_padded",
+    }
+    selector_default["reconstruction_variant"] = {"name": "default_garner"}
+    selector_candidate = copy.deepcopy(selector_default)
+    selector_candidate["export_variant"]["name"] = "compact-d2h-export-candidate"
+    selector_candidate["export_variant"]["d2h_policy"] = "compact_contiguous"
+    selector_candidate["export_variant"]["selector_key"] = (
+        selector_candidate["export_variant"]["selector_key"] + ";d2h_policy=compact_contiguous"
+    )
+    strict_selector_compare = result_compare.compare(
+        selector_default,
+        selector_candidate,
+        Path("selector-default.json"),
+        Path("selector-candidate.json"),
+    )
+    assert strict_selector_compare["matching_contract"] is False
+    assert strict_selector_compare["contract"]["export_variant.d2h_policy"]["match"] is False
+    assert strict_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"] is False
+
+    review_selector_compare = result_compare.compare(
+        selector_default,
+        selector_candidate,
+        Path("selector-default.json"),
+        Path("selector-candidate.json"),
+        allow_export_selector_diff=True,
+    )
+    assert review_selector_compare["matching_contract"] is True
+    assert review_selector_compare["comparison_mode"] == "export_selector_review"
+    assert review_selector_compare["contract"]["export_variant.d2h_policy"]["match"] is False
+    assert review_selector_compare["contract"]["export_variant.d2h_policy"]["ignored_for_contract"] is True
+
+    invalid_selector_candidate = copy.deepcopy(selector_candidate)
+    invalid_selector_candidate["export_variant"]["output_layout"] = "host_scalar_i64"
+    invalid_selector_compare = result_compare.compare(
+        selector_default,
+        invalid_selector_candidate,
+        Path("selector-default.json"),
+        Path("selector-invalid.json"),
+        allow_export_selector_diff=True,
+    )
+    assert invalid_selector_compare["matching_contract"] is False
+    assert invalid_selector_compare["contract"]["export_variant.output_layout"]["ignored_for_contract"] is False
+
     layout_a = copy.deepcopy(gpu)
     layout_b = copy.deepcopy(gpu)
     layout_a["timing_metadata"]["pack_layout"] = "resident_rns_residue_planes"

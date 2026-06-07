@@ -19,12 +19,14 @@ set(RNS8_SOURCES
   src/core/api_pack.cpp
   src/core/api_plan.cpp
   src/core/backend_common.cpp
+  src/core/export_plan.cpp
   src/core/moduli.cpp
   src/core/plan_lowering.cpp
   src/core/status.cpp
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp
   src/backend_hip_direct/hip_backend.cpp
+  src/backend_hip_direct/hip_grouped_descriptor.cpp
   src/backend_hip_direct/hip_timing.cpp
   src/backend_vector_alu/vector_alu_backend.cpp
   src/backend_ck/ck_backend.cpp
@@ -81,10 +83,19 @@ endfunction()
 
 if(RNS8_ENABLE_HIP)
   find_package(RNS8HIP REQUIRED)
+  file(
+    GLOB
+    RNS8_HIP_DIRECT_KERNEL_DEPENDS
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.cuh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.inc"
+  )
+  set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
   rns8_compile_hip_source(
     RNS8_HIP_DIRECT_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
+  unset(RNS8_HIP_SOURCE_DEPENDS)
   rns8_compile_hip_source(
     RNS8_WRAP64_HIP_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/wrap64_hip_kernels.hip"

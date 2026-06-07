@@ -3,6 +3,7 @@
   "selected_kernels": [
     "cpu_reference",
     "direct_hip_tiled_active_prefix_rns_gemm_v2",
+    "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1",
     "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
     "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",

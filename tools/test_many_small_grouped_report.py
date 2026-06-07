@@ -111,7 +111,46 @@ def main() -> int:
     assert row["checksum_matches_same_backend_host_batch"] is True
     assert row["same_backend_host_batch_task_count_matches"] is True
     assert row["grouped_task_descriptor_valid"] is True
+    assert row["grouped_task_descriptor_bucket_count"] == 1
     assert row["grouped_task_descriptor_device_policy"] == "host_resident_task_loop"
+
+    bucketed_grouped_captures = build_grouped_case(60.0)
+    bucketed_descriptor = bucketed_grouped_captures[-1]["grouped_dispatch"]["task_descriptor_contract"]
+    bucketed_descriptor.update(
+        {
+            "descriptor_layout": "same_contract_bucketed_resident_task_triplets_v1",
+            "bucket_policy": "same_contract_shape_buckets",
+            "bucket_count": 2,
+            "same_shape_required": False,
+            "shape_key": "multiple_shape_buckets",
+            "buckets": [
+                {
+                    "bucket_index": 0,
+                    "task_offset": 0,
+                    "task_count": 16,
+                    "shape_key": "m=64;n=64;k=64;tile_m=128;tile_n=128;prefix=9",
+                    "semantics": bucketed_grouped_captures[-1]["semantics"],
+                    "output_domain": "native_i64_u64_host",
+                },
+                {
+                    "bucket_index": 1,
+                    "task_offset": 16,
+                    "task_count": 16,
+                    "shape_key": "m=128;n=128;k=128;tile_m=128;tile_n=128;prefix=9",
+                    "semantics": bucketed_grouped_captures[-1]["semantics"],
+                    "output_domain": "native_i64_u64_host",
+                },
+            ],
+        }
+    )
+    bucketed_report = many_small_grouped_report.build_report_from_captures(bucketed_grouped_captures)
+    bucketed_row = next(
+        row for group in bucketed_report["groups"] for row in group["rows"] if row["mode"] == "grouped_dispatch"
+    )
+    assert bucketed_row["decision"] == "candidate_win"
+    assert bucketed_row["grouped_task_descriptor_valid"] is True
+    assert bucketed_row["grouped_task_descriptor_bucket_policy"] == "same_contract_shape_buckets"
+    assert bucketed_row["grouped_task_descriptor_bucket_count"] == 2
 
     device_grouped_captures = build_grouped_case(60.0)
     device_grouped_captures[-1]["grouped_dispatch"][
@@ -208,12 +247,18 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         report_path = tmp_path / "many-small-grouped-report.json"
+        review_path = tmp_path / "review_report.json"
+        manifest_path = tmp_path / "scenario_manifest.json"
         capture_path = tmp_path / "capture.json"
         report_path.write_text("{}", encoding="utf-8")
+        review_path.write_text("{}", encoding="utf-8")
+        manifest_path.write_text("{}", encoding="utf-8")
         capture_path.write_text("{}", encoding="utf-8")
         expanded = many_small_grouped_report.expand_inputs([tmp_path])
         assert capture_path in expanded
         assert report_path not in expanded
+        assert review_path not in expanded
+        assert manifest_path not in expanded
 
     print("many-small grouped report self-test: PASS")
     return 0
