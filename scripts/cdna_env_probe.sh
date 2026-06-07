@@ -23,6 +23,8 @@ cdna_repo_capture numactl_hardware numactl --hardware || true
 cdna_repo_capture lstopo lstopo --of console || true
 cdna_repo_capture hipconfig_full hipconfig --full || true
 cdna_repo_capture hipcc_version hipcc --version || true
+cdna_repo_capture rocm_version_files bash -lc 'set -u; seen=""; for root in "${ROCM_PATH:-}" "${HIP_PATH:-}" /opt/rocm; do [[ -n "$root" && -d "$root" ]] || continue; case ":$seen:" in *":$root:"*) continue ;; esac; seen="${seen:+$seen:}$root"; for name in version version-dev version-utils; do path="$root/.info/$name"; if [[ -r "$path" ]]; then printf "%s=" "$path"; tr -d "\r\n" <"$path"; printf "\n"; fi; done; done' || true
+cdna_repo_capture rocm_package_versions bash -lc 'set -u; if command -v dpkg-query >/dev/null 2>&1; then dpkg-query -W -f="\${Package} \${Version}\n" rocm-core hip-runtime-amd hipcc rocminfo rocm-smi-lib rocm-dev 2>/dev/null || true; elif command -v rpm >/dev/null 2>&1; then rpm -q --qf "%{NAME} %{VERSION}-%{RELEASE}\n" rocm-core hip-runtime-amd hipcc rocminfo rocm-smi-lib rocm-dev 2>/dev/null || true; fi' || true
 cdna_repo_capture rocminfo rocminfo || true
 if command -v rocm-smi >/dev/null 2>&1 || [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   cdna_repo_capture rocm_smi_showallinfo rocm-smi --showallinfo || true

@@ -93,10 +93,32 @@ def main() -> int:
         _indexed_logs(root, 1)
         summary = _summary(root, "0")
         physical = {item["physical_device_id"]: item for item in summary["physical_devices"]}
+        assert summary["rocm_version"] == "7.1"
+        assert summary["hip_version"] == "7.1.0"
+        assert summary["hip_sdk_or_rocm_version"] == "7.1.0"
         assert summary["physical_device_mapping_source"] == "per_device_smi"
         assert summary["visible_gpu_count"] == 1
         assert physical[0]["bdf"] == "0000:10:00.0"
         assert physical[0]["topology_source"] == "per_device_smi"
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        root = Path(tmp_name)
+        _write(root / "hipconfig_full.log", "HIP_PATH=/opt/rocm\n")
+        _write(root / "hipcc_version.log", "HIP version: 7.2.26015-fc0010cf6a\n")
+        _write(root / "rocm_version_files.log", "/opt/rocm/.info/version=7.2.0\n")
+        summary = _summary(root, "0")
+        assert summary["rocm_version"] == "7.2.0"
+        assert summary["hip_version"] == "7.2.26015-fc0010cf6a"
+        assert summary["hip_sdk_or_rocm_version"] == "7.2.26015-fc0010cf6a"
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        root = Path(tmp_name)
+        _write(root / "hipconfig_full.log", "HIP_PATH=/opt/rocm\n")
+        _write(root / "rocm_package_versions.log", "rocm-core 7.2.0.70200-1\nhipcc 7.2.26015-fc0010cf6a\n")
+        summary = _summary(root, "0")
+        assert summary["rocm_version"] == "7.2.0.70200-1"
+        assert summary["hip_version"] == "7.2.26015-fc0010cf6a"
+        assert summary["hip_sdk_or_rocm_version"] == "7.2.26015-fc0010cf6a"
 
     with tempfile.TemporaryDirectory() as tmp_name:
         root = Path(tmp_name)

@@ -87,6 +87,33 @@ def unique_values(values: list[str]) -> list[str]:
     return seen
 
 
+def first_clean_version(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() in {"n/a", "none", "unknown"}:
+        return None
+    return cleaned
+
+
+def rocm_version_from_logs(hipconfig: str, version_files: str, package_versions: str) -> str | None:
+    return first_clean_version(
+        first_match(hipconfig, [r"ROCm Version:\s*([^\n\r]+)"])
+        or first_match(version_files, [r"^[^=\n\r]*[/\\]\.info[/\\]version(?:-[A-Za-z0-9_-]+)?=([^\n\r]+)"])
+        or first_match(package_versions, [r"^rocm-core\s+([^\s]+)"])
+    )
+
+
+def hip_version_from_logs(hipconfig: str, hipcc: str, package_versions: str) -> str | None:
+    return first_clean_version(
+        first_match(
+            hipconfig + "\n" + hipcc,
+            [r"HIP version:\s*([^\n\r]+)", r"HIP_VERSION\s*:\s*([^\n\r]+)", r"HIP version\s+([^\n\r]+)"],
+        )
+        or first_match(package_versions, [r"^hipcc\s+([^\s]+)", r"^hip-runtime-amd\s+([^\s]+)"])
+    )
+
+
 def smi_device_index(line: str) -> int | None:
     for pattern in [
         r"\bGPU\s*\[\s*([0-9]+)\s*\]",
@@ -151,6 +178,8 @@ def build_summary(
     rocminfo = read_log(log_dir, "rocminfo")
     hipconfig = read_log(log_dir, "hipconfig_full")
     hipcc = read_log(log_dir, "hipcc_version")
+    rocm_version_files = read_log(log_dir, "rocm_version_files")
+    rocm_package_versions = read_log(log_dir, "rocm_package_versions")
     smi_text = "\n".join(
         [
             read_log(log_dir, "rocm_smi_showallinfo"),
@@ -220,6 +249,8 @@ def build_summary(
         for name, path in re.findall(r"^(all_[a-z_]+_perf|broadcast_perf|reduce_scatter_perf)=(.+)$", rccl, flags=re.MULTILINE)
         if path != "not-found"
     }
+    rocm_version = rocm_version_from_logs(hipconfig, rocm_version_files, rocm_package_versions)
+    hip_version = hip_version_from_logs(hipconfig, hipcc, rocm_package_versions)
 
     return {
         "schema_version": 1,
@@ -228,11 +259,9 @@ def build_summary(
         "requested_devices": split_visible(devices_option),
         "rocminfo_gfx_targets": gfx_targets,
         "smi_device_names": device_names,
-        "rocm_version": first_match(hipconfig, [r"ROCm Version:\s*([^\n\r]+)", r"ROCm Path:\s*([^\n\r]+)"]),
-        "hip_version": first_match(
-            hipconfig + "\n" + hipcc,
-            [r"HIP version:\s*([^\n\r]+)", r"HIP_VERSION\s*:\s*([^\n\r]+)", r"HIP version\s+([^\n\r]+)"],
-        ),
+        "rocm_version": rocm_version,
+        "hip_version": hip_version,
+        "hip_sdk_or_rocm_version": hip_version or rocm_version,
         "visible_gpu_count": visible_gpu_count,
         "node_gpu_count": node_gpu_count,
         "physical_device_mapping_source": "per_device_smi" if indexed_records else "heuristic_index_order",

@@ -50,8 +50,41 @@ else
   if (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"; then
     DEPS_STATUS="pass"
   else
-    DEPS_STATUS="fail"
-    printf 'warning: dependency checker reported not-ready status; continuing with build/smoke. See %s\n' "${DEPS_JSON}" >&2
+    DEPS_STATUS="$("${PYTHON_BIN}" - "${DEPS_JSON}" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+try:
+    report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    print("fail")
+    raise SystemExit(0)
+
+readiness = report.get("readiness")
+if not isinstance(readiness, dict):
+    print("fail")
+    raise SystemExit(0)
+gates = readiness.get("gates")
+if not isinstance(gates, dict):
+    print("fail")
+    raise SystemExit(0)
+required_failures = []
+for name, gate in gates.items():
+    if not isinstance(gate, dict):
+        continue
+    if gate.get("required_for_host_readiness") is True and gate.get("ok") is not True:
+        required_failures.append(str(name))
+print("fail" if required_failures else "pass")
+PY
+)"
+    if [[ "${DEPS_STATUS}" == "pass" ]]; then
+      printf 'warning: dependency checker returned nonzero for advisory gates only; host-required gates passed. See %s\n' "${DEPS_JSON}" >&2
+    else
+      printf 'warning: dependency checker reported host-required not-ready status; continuing with build/smoke. See %s\n' "${DEPS_JSON}" >&2
+    fi
   fi
 fi
 
@@ -95,6 +128,7 @@ fi
 
 CDNA_ENV_SUMMARY="${ENV_DIR}/cdna-env-summary.json" \
 CDNA_STATUS_JSON="${STATUS_JSON}" \
+CDNA_CAPTURE_JSON="${CAPTURE}" \
 CDNA_DEVICE="${DEVICE}" \
 CDNA_PRESET_VALUE="${PRESET}" \
 CDNA_BUILD_STATUS="${BUILD_STATUS}" \
@@ -111,17 +145,27 @@ from pathlib import Path
 
 summary_path = Path(os.environ["CDNA_ENV_SUMMARY"])
 status_path = Path(os.environ["CDNA_STATUS_JSON"])
+capture_path = Path(os.environ["CDNA_CAPTURE_JSON"])
 try:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 except OSError:
     summary = {}
 except json.JSONDecodeError:
     summary = {}
+try:
+    capture = json.loads(capture_path.read_text(encoding="utf-8"))
+except OSError:
+    capture = {}
+except json.JSONDecodeError:
+    capture = {}
 
 targets = summary.get("rocminfo_gfx_targets") or []
 names = summary.get("smi_device_names") or []
 bdfs = summary.get("pci_bdf_ids") or []
 numa_nodes = summary.get("numa_nodes") or []
+capture_device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
+capture_target = capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
+capture_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
 device = os.environ["CDNA_DEVICE"]
 physical_devices = {
     str(item.get("physical_device_id")): item
@@ -130,13 +174,20 @@ physical_devices = {
 }
 physical = physical_devices.get(str(device), {})
 physical_device_id = int(device) if device.isdigit() else device
+toolchain_version = (
+    capture_toolchain.get("hip_sdk_or_rocm_version")
+    or summary.get("hip_sdk_or_rocm_version")
+    or summary.get("hip_version")
+    or summary.get("rocm_version")
+)
 record = {
     "host_os": "linux",
-    "target_id": physical.get("target_arch") or (targets[0] if targets else None),
+    "target_id": capture_target.get("target_id") or physical.get("target_arch") or (targets[0] if targets else None),
     "rocm_version": summary.get("rocm_version"),
-    "hip_sdk_or_rocm_version": summary.get("rocm_version"),
-    "hip_runtime_version": summary.get("hip_version"),
-    "gpu_name": physical.get("device_name") or (names[0] if names else None),
+    "hip_sdk_or_rocm_version": toolchain_version,
+    "hip_runtime_version": capture_device.get("hip_runtime_version") or summary.get("hip_version"),
+    "hip_driver_version": capture_device.get("hip_driver_version"),
+    "gpu_name": capture_device.get("name") or physical.get("device_name") or (names[0] if names else None),
     "device_index": physical_device_id,
     "physical_device_id": physical_device_id,
     "visible_device_count": 1,
@@ -147,6 +198,9 @@ record = {
     "world_size": 1,
     "device_bdf": physical.get("bdf") or (bdfs[0] if bdfs else None),
     "numa_node": physical.get("numa_node") if physical.get("numa_node") is not None else (numa_nodes[0] if numa_nodes else None),
+    "target_cache_key": capture_target.get("target_cache_key") or capture_device.get("target_cache_key"),
+    "target_instance_id": capture_target.get("target_instance_id") or capture_device.get("target_instance_id"),
+    "global_mem_bytes": capture_device.get("global_mem_bytes"),
     "rocprofv3_ready": summary.get("rocprofv3_ready"),
     "rccl_ready": summary.get("rccl_ready"),
     "rccl_tests_ready": summary.get("rccl_tests_ready"),

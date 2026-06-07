@@ -114,6 +114,7 @@ fi
 CDNA_ENV_SUMMARY="${ENV_DIR}/cdna-env-summary.json" \
 CDNA_STATUS_JSON="${STATUS_JSON}" \
 CDNA_DEVICES_VALUE="${DEVICES}" \
+CDNA_SHARDS_DIR="${CDNA_OUT_DIR}/shards" \
 CDNA_WORLD_SIZE="${WORLD_SIZE}" \
 CDNA_DRY_RUN_VALUE="${CDNA_DRY_RUN}" \
 CDNA_BUILD_STATUS="${BUILD_STATUS}" \
@@ -127,6 +128,7 @@ from pathlib import Path
 
 summary_path = Path(os.environ["CDNA_ENV_SUMMARY"])
 status_path = Path(os.environ["CDNA_STATUS_JSON"])
+shards_dir = Path(os.environ["CDNA_SHARDS_DIR"])
 try:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 except OSError:
@@ -155,16 +157,33 @@ def by_rank_or_first(values, rank):
 
 records = []
 for rank, device in enumerate(devices):
+    capture_path = shards_dir / f"gpu{device}" / f"bounded-i64-hip-direct-smoke-rank{rank}.json"
+    try:
+        capture = json.loads(capture_path.read_text(encoding="utf-8"))
+    except OSError:
+        capture = {}
+    except json.JSONDecodeError:
+        capture = {}
+    capture_device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
+    capture_target = capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
+    capture_toolchain = capture.get("hip_toolchain") if isinstance(capture.get("hip_toolchain"), dict) else {}
     physical = physical_devices.get(str(device), {})
     physical_device_id = int(device) if device.isdigit() else device
+    toolchain_version = (
+        capture_toolchain.get("hip_sdk_or_rocm_version")
+        or summary.get("hip_sdk_or_rocm_version")
+        or summary.get("hip_version")
+        or summary.get("rocm_version")
+    )
     records.append(
         {
             "host_os": "linux",
-            "target_id": physical.get("target_arch") or by_rank_or_first(targets, rank),
+            "target_id": capture_target.get("target_id") or physical.get("target_arch") or by_rank_or_first(targets, rank),
             "rocm_version": summary.get("rocm_version"),
-            "hip_sdk_or_rocm_version": summary.get("rocm_version"),
-            "hip_runtime_version": summary.get("hip_version"),
-            "gpu_name": physical.get("device_name") or by_rank_or_first(names, rank),
+            "hip_sdk_or_rocm_version": toolchain_version,
+            "hip_runtime_version": capture_device.get("hip_runtime_version") or summary.get("hip_version"),
+            "hip_driver_version": capture_device.get("hip_driver_version"),
+            "gpu_name": capture_device.get("name") or physical.get("device_name") or by_rank_or_first(names, rank),
             "device_index": physical_device_id,
             "physical_device_id": physical_device_id,
             "visible_device_count": 1,
@@ -177,6 +196,9 @@ for rank, device in enumerate(devices):
             "numa_node": physical.get("numa_node")
             if physical.get("numa_node") is not None
             else (numa_nodes[rank % len(numa_nodes)] if numa_nodes else None),
+            "target_cache_key": capture_target.get("target_cache_key") or capture_device.get("target_cache_key"),
+            "target_instance_id": capture_target.get("target_instance_id") or capture_device.get("target_instance_id"),
+            "global_mem_bytes": capture_device.get("global_mem_bytes"),
             "rocprofv3_ready": summary.get("rocprofv3_ready"),
             "rccl_ready": summary.get("rccl_ready"),
             "rccl_tests_ready": summary.get("rccl_tests_ready"),
