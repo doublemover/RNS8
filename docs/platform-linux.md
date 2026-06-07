@@ -81,6 +81,17 @@ before any benchmark evidence:
 bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
 ```
 
+Optional CDNA follow-up scenario groups can be queued after the first smoke
+without making them default smoke blockers. The current CDNA-prep closeout
+groups are `wrap64-carry`, `k-block-tile-variants`, `layout-search`,
+`finite-distributions`, and `vector-to-rns-chain`:
+
+```bash
+bash scripts/cdna_first_pass.sh \
+  --out-dir temp/cdna-first-pass-rank-followup \
+  --rank-scenarios wrap64-carry,k-block-tile-variants,layout-search,finite-distributions,vector-to-rns-chain
+```
+
 For an independent per-GPU shard smoke on an eight-GPU host:
 
 ```bash

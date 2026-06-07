@@ -349,9 +349,15 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
             self._error("native-to-RNS bridge captures must set timing_metadata.native_to_rns_bridge_forced=true")
     if self._is_direct_hip_vector_to_rns_chain_capture():
         metadata = self.data.get("timing_metadata")
-        if self.data.get("benchmark") != "rns8_bounded_gemm_vector_to_rns_chain":
+        host_repack_control = self._is_direct_hip_vector_to_rns_host_repack_control_capture()
+        expected_benchmark = (
+            "rns8_bounded_gemm_vector_to_rns_chain_host_repack_control"
+            if host_repack_control
+            else "rns8_bounded_gemm_vector_to_rns_chain"
+        )
+        if self.data.get("benchmark") != expected_benchmark:
             self._error(
-                "vector-to-RNS chain captures must use benchmark=rns8_bounded_gemm_vector_to_rns_chain"
+                f"vector-to-RNS chain captures must use benchmark={expected_benchmark}"
             )
         if self.data.get("backend_requested") != "auto":
             self._error("vector-to-RNS chain captures must use backend_requested=auto")
@@ -369,6 +375,14 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
         if isinstance(metadata, dict):
             if metadata.get("vector_to_rns_chain") is not True:
                 self._error("vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true")
+            expected_control_mode = (
+                "host_export_repack_control" if host_repack_control else "fused_device_native_to_rns"
+            )
+            if metadata.get("vector_to_rns_chain_control_mode") != expected_control_mode:
+                self._error(
+                    "vector-to-RNS chain captures must set "
+                    f"timing_metadata.vector_to_rns_chain_control_mode={expected_control_mode}"
+                )
             if metadata.get("native_to_rns_bridge_forced") is not False:
                 self._error(
                     "vector-to-RNS chain captures must set timing_metadata.native_to_rns_bridge_forced=false"
@@ -451,7 +465,11 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
                 elif self._is_direct_hip_native_to_rns_bridge_capture():
                     expected_scope = "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
                 elif self._is_direct_hip_vector_to_rns_chain_capture():
-                    expected_scope = "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"
+                    expected_scope = (
+                        "direct_hip_vector_native_host_repack_chain_default_stream_operation_groups"
+                        if self._is_direct_hip_vector_to_rns_host_repack_control_capture()
+                        else "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"
+                    )
                 else:
                     expected_scope = "direct_hip_default_stream_backend_operation_groups"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:

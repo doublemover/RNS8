@@ -300,24 +300,45 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             if self.data.get("semantics") == "bounded_i64"
             else "vector_alu_u64_kernel"
         )
-        expected = [
-            "vector_alu_pack_a_h2d",
-            "vector_alu_pack_b_h2d",
-            "pack_h2d",
-            "pack_kernel",
-            "pack",
-            "vector_alu_status_memset",
-            vector_kernel,
-            "vector_alu_status_d2h",
-            conversion_event,
-            "rns_gemm_kernel_group",
-            "rns_gemm",
-            "crt_export_status_memset",
-            "crt_export_kernel",
-            "crt_export_status_d2h",
-            "crt_export_d2h",
-            "crt_export",
-        ]
+        if self._is_direct_hip_vector_to_rns_host_repack_control_capture():
+            expected = [
+                "vector_alu_pack_a_h2d",
+                "vector_alu_pack_b_h2d",
+                "pack_h2d",
+                "pack_kernel",
+                "pack",
+                "vector_alu_status_memset",
+                vector_kernel,
+                "vector_alu_status_d2h",
+                "vector_alu_output_d2h",
+                "vector_to_rns_host_repack_a",
+                "rns_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
+        else:
+            expected = [
+                "vector_alu_pack_a_h2d",
+                "vector_alu_pack_b_h2d",
+                "pack_h2d",
+                "pack_kernel",
+                "pack",
+                "vector_alu_status_memset",
+                vector_kernel,
+                "vector_alu_status_d2h",
+                conversion_event,
+                "rns_gemm_kernel_group",
+                "rns_gemm",
+                "crt_export_status_memset",
+                "crt_export_kernel",
+                "crt_export_status_d2h",
+                "crt_export_d2h",
+                "crt_export",
+            ]
         if phases != expected:
             missing = [phase for phase in expected if phase not in phases]
             extra = [phase for phase in phases if phase not in expected]

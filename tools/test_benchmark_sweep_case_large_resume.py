@@ -217,24 +217,25 @@ vector_chain_args.backends = None
 vector_chain_args.bench_for = ["hip-direct=hip-direct-release-bench"]
 vector_chain_args.scenario = ["vector-to-rns-chain"]
 vector_chain_entries = benchmark_sweep.sweep_command_entries(vector_chain_args)
-assert len(vector_chain_entries) == 8
-assert {entry.scenario["name"] for entry in vector_chain_entries} == {
-    "bounded-i64-64",
-    "bounded-u64-64",
-    "bounded-i64-128",
-    "bounded-u64-128",
-    "bounded-i64-64-reuse-consumer-b",
-    "bounded-u64-64-reuse-consumer-b",
-    "bounded-i64-128-reuse-consumer-b",
-    "bounded-u64-128-reuse-consumer-b",
-}
+assert len(vector_chain_entries) == 32
+assert {entry.scenario["semantics"] for entry in vector_chain_entries} == {"bounded-i64", "bounded-u64"}
+assert {entry.scenario["shape"]["m"] for entry in vector_chain_entries} == {64, 128, 512, 1024}
+assert {
+    entry.scenario.get("metadata", {}).get("chain_control_mode")
+    for entry in vector_chain_entries
+} == {"fused_device_native_to_rns", "host_export_repack_control"}
 assert {entry.scenario["backend"] for entry in vector_chain_entries} == {"auto"}
 assert all(entry.command[0] == "hip-direct-release-bench" for entry in vector_chain_entries)
 assert all(entry.command[entry.command.index("--backend") + 1] == "auto" for entry in vector_chain_entries)
-assert all("--vector-to-rns-chain" in entry.command for entry in vector_chain_entries)
+assert any("--vector-to-rns-chain" in entry.command for entry in vector_chain_entries)
+assert any("--vector-to-rns-chain-host-repack-control" in entry.command for entry in vector_chain_entries)
 assert all("--native-to-rns-bridge" not in entry.command for entry in vector_chain_entries)
 assert all(entry.scenario["native_to_rns_bridge"] is False for entry in vector_chain_entries)
 assert all(entry.scenario["vector_to_rns_chain"] is True for entry in vector_chain_entries)
+assert {
+    entry.scenario["vector_to_rns_chain_host_repack_control"]
+    for entry in vector_chain_entries
+} == {False, True}
 assert {
     entry.scenario["pack_mode"]
     for entry in vector_chain_entries
@@ -250,6 +251,10 @@ assert all(
 )
 assert any(
     entry.scenario.get("metadata", {}).get("conversion_event_required") == "native_u64_to_rns_kernel"
+    for entry in vector_chain_entries
+)
+assert any(
+    entry.scenario.get("metadata", {}).get("host_repack_event_required") == "vector_to_rns_host_repack_a"
     for entry in vector_chain_entries
 )
 

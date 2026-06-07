@@ -9,6 +9,7 @@ CDNA_OUT_DIR=""
 CDNA_PRESET=""
 CDNA_DEVICES=""
 CDNA_BENCH_ARGS=""
+CDNA_RANK_SCENARIOS=""
 CDNA_SKIP_BUILD=0
 CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
@@ -25,6 +26,11 @@ Common options:
   --preset NAME      CMake configure/build/test preset
   --devices LIST     comma-separated physical GPU ids, for example 0,1,2,3
   --bench-args ARGS  extra rns8-bench arguments appended to the smoke command
+  --rank-scenarios LIST
+                      optional comma-separated benchmark_sweep scenario groups
+                      to run after the first smoke, for example
+                      wrap64-carry,k-block-tile-variants,layout-search,
+                      finite-distributions,vector-to-rns-chain
   --accelerators     use linux-cdna-accelerators-release unless --preset is set
   --skip-build       skip configure/build/CTest steps
   --dry-run          print and record planned commands without executing them
@@ -48,6 +54,10 @@ cdna_parse_common_args() {
         ;;
       --bench-args)
         CDNA_BENCH_ARGS="${2:-}"
+        shift 2
+        ;;
+      --rank-scenarios)
+        CDNA_RANK_SCENARIOS="${2:-}"
         shift 2
         ;;
       --accelerators)
@@ -219,4 +229,3 @@ cdna_default_bench_command() {
     CDNA_DEFAULT_BENCH_CMD+=("${CDNA_BENCH_ARGV[@]}")
   fi
 }
-

@@ -29,6 +29,17 @@
             << (native_to_rns_bridge_requested(args) ? "true" : "false") << ",\n";
   std::cout << "    \"vector_to_rns_chain\": "
             << (vector_to_rns_chain_requested(args) ? "true" : "false") << ",\n";
+  std::cout << "    \"vector_to_rns_chain_control_mode\": ";
+  if (vector_to_rns_chain_requested(args)) {
+    std::cout << "\""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "host_export_repack_control"
+                      : "fused_device_native_to_rns")
+              << "\"";
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
   std::cout << "    \"vector_to_rns_chain_producer_backend\": "
             << (vector_to_rns_chain_requested(args) ? "\"hip-vector-alu-int64\"" : "null") << ",\n";
   std::cout << "    \"vector_to_rns_chain_consumer_backend\": "
@@ -424,8 +435,16 @@
     std::cout << "      \"vector_to_rns_chain\": {\n";
     std::cout << "        \"timed\": true,\n";
     std::cout << "        \"timing_key\": \"rns_gemm\",\n";
-    std::cout << "        \"scope\": \"vector_native_output_to_direct_rns_consumer\",\n";
-    std::cout << "        \"reason\": \"measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm\"\n";
+    std::cout << "        \"scope\": \""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "vector_native_output_host_export_repack_to_direct_rns_consumer"
+                      : "vector_native_output_to_direct_rns_consumer")
+              << "\",\n";
+    std::cout << "        \"reason\": \""
+              << (vector_to_rns_chain_host_repack_control_requested(args)
+                      ? "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, vector_alu_output_d2h, vector_to_rns_host_repack_a, and rns_gemm_kernel_group GPU event phases inside rns_gemm"
+                      : "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm")
+              << "\"\n";
     std::cout << "      },\n";
   }
   std::cout << "      \"reduction\": {\n";

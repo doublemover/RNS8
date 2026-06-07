@@ -867,6 +867,40 @@ The same closeout deprioritizes padded host-output leading dimension for
 bounded-i64 512, finite-u8 ring/field 512, and strict wrap64 512 because those
 rows lose the setup-inclusive same-layout gate.
 
+## Vector-To-RNS Chain Wins
+
+The rank-72 vector/native-to-RNS closeout under
+`temp/rank72-vector-to-rns-chain-20260606/` is benchmark-only local Windows
+`gfx1100` evidence. It compares a fused device native-to-RNS handoff against a
+same-contract control that exports the vector producer's exact native
+intermediate to host, repacks that exact result into Direct-HIP RNS storage,
+runs the same consumer GEMM, and exports the same final output. All 32 captures
+are release-mode, schema-valid, event-valid, and final checksums match within
+each paired group.
+
+| Contract | Shape | Consumer mode | Fused chain median | Host export/repack control | Speedup | Status |
+|---|---:|---|---:|---:|---:|---|
+| bounded-i64 | 1024 | normal | 19085 us | 28505 us | 1.49x | local benchmark-only chain win |
+| bounded-i64 | 1024 | reuse-B | 17773 us | 26439 us | 1.49x | local benchmark-only chain win |
+| bounded-i64 | 128 | normal | 2075 us | 2715 us | 1.31x | local benchmark-only chain win |
+| bounded-i64 | 128 | reuse-B | 1767 us | 2484 us | 1.41x | local benchmark-only chain win |
+| bounded-i64 | 512 | normal | 4984 us | 7867 us | 1.58x | local benchmark-only chain win |
+| bounded-i64 | 512 | reuse-B | 4969 us | 7352 us | 1.48x | local benchmark-only chain win |
+| bounded-i64 | 64 | normal | 1815 us | 2274 us | 1.25x | local benchmark-only chain win |
+| bounded-i64 | 64 | reuse-B | 1758 us | 2170 us | 1.23x | local benchmark-only chain win |
+| bounded-u64 | 1024 | normal | 13497 us | 19097 us | 1.41x | local benchmark-only chain win |
+| bounded-u64 | 1024 | reuse-B | 12827 us | 18305 us | 1.43x | local benchmark-only chain win |
+| bounded-u64 | 128 | normal | 1842 us | 2847 us | 1.55x | local benchmark-only chain win |
+| bounded-u64 | 128 | reuse-B | 1779 us | 2498 us | 1.40x | local benchmark-only chain win |
+| bounded-u64 | 512 | normal | 4774 us | 6334 us | 1.33x | local benchmark-only chain win |
+| bounded-u64 | 512 | reuse-B | 4126 us | 5484 us | 1.33x | local benchmark-only chain win |
+| bounded-u64 | 64 | normal | 2283 us | 2751 us | 1.20x | local benchmark-only chain win |
+
+The bounded-u64 64 reuse-B pair is a near tie at 1709 us versus 1714 us,
+1.003x, so it stays experimental. These rows do not change public API, default
+AUTO routing, installed cache entries, README headline claims, Linux readiness,
+CDNA readiness, or multi-GPU behavior.
+
 ## Promotion Boundaries
 
 - Promote now: the current local default runtime cache includes the reviewed

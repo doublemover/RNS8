@@ -25,6 +25,7 @@ BENCHMARK_EXECUTION_MODES = {
     'transient_uniform_small_i8_a_resident_i8_b_reuse',
     'transient_uniform_small_i8_ab_inputs',
     'transient_uniform_small_i8_b_resident_i8_a_reuse',
+    'vector_native_host_export_repack_direct_rns_chain',
     'vector_native_to_direct_rns_chain',
 }
 BOUND_SOURCES = {
@@ -368,6 +369,7 @@ GPU_EVENT_SOURCE_SCOPES = {
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
     'direct_hip_streaming_overlap_multistream_operation_groups',
+    'direct_hip_vector_native_host_repack_chain_default_stream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
     'hipblaslt_baseline_default_stream_backend_operation_groups',
@@ -381,6 +383,7 @@ DIRECT_HIP_GPU_EVENT_SCOPES = {
     'direct_hip_oneshot_default_stream_operation_groups',
     'direct_hip_oneshot_resident_fallback_default_stream_operation_groups',
     'direct_hip_streaming_overlap_multistream_operation_groups',
+    'direct_hip_vector_native_host_repack_chain_default_stream_operation_groups',
     'direct_hip_vector_native_to_rns_chain_default_stream_operation_groups',
     'direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups',
 }

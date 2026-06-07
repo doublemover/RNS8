@@ -50,12 +50,27 @@ def main() -> int:
     partial = out_root / "multigpu-4-5-6-7"
 
     _require_ok(
-        _run(["bash", "scripts/cdna_first_pass.sh", "--dry-run", "--devices", "0", "--out-dir", str(first_pass)]),
+        _run(
+            [
+                "bash",
+                "scripts/cdna_first_pass.sh",
+                "--dry-run",
+                "--devices",
+                "0",
+                "--out-dir",
+                str(first_pass),
+                "--rank-scenarios",
+                "vector-to-rns-chain",
+            ]
+        ),
         "first-pass dry-run",
     )
     first_status = json.loads((REPO_ROOT / first_pass / "target-status.json").read_text(encoding="utf-8"))
     assert first_status["records"][0]["device_index"] == 0
     assert (REPO_ROOT / first_pass / "env" / "cdna-env-summary.json").exists()
+    first_plan = (REPO_ROOT / first_pass / "command-plan.txt").read_text(encoding="utf-8")
+    assert "--scenario vector-to-rns-chain" in first_plan
+    assert (REPO_ROOT / first_pass / "rank-scenarios" / "vector-to-rns-chain" / "rank-scenario-plan.log").exists()
 
     for devices, out_dir, expected_world in [
         ("0,1,2,3", multi4, 4),

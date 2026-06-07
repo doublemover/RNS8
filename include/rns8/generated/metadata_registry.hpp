@@ -6,7 +6,7 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 24> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 25> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
@@ -30,6 +30,7 @@ inline constexpr std::array<std::string_view, 24> benchmark_execution_modes{{
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_ab_inputs",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
+    "vector_native_host_export_repack_direct_rns_chain",
     "vector_native_to_direct_rns_chain"
 }};
 
@@ -88,7 +89,7 @@ inline constexpr std::array<std::string_view, 9> pack_layouts{{
     "wrap64_byte_limb_planes"
 }};
 
-inline constexpr std::array<std::string_view, 13> gpu_event_source_scopes{{
+inline constexpr std::array<std::string_view, 14> gpu_event_source_scopes{{
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
     "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
     "direct_hip_bounded_adaptive_default_stream_backend_operation_groups",
@@ -97,6 +98,7 @@ inline constexpr std::array<std::string_view, 13> gpu_event_source_scopes{{
     "direct_hip_oneshot_default_stream_operation_groups",
     "direct_hip_oneshot_resident_fallback_default_stream_operation_groups",
     "direct_hip_streaming_overlap_multistream_operation_groups",
+    "direct_hip_vector_native_host_repack_chain_default_stream_operation_groups",
     "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups",
     "direct_hip_wrap64_byte_gemm36_default_stream_backend_operation_groups",
     "hipblaslt_baseline_default_stream_backend_operation_groups",

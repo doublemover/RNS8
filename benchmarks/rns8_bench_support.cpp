@@ -70,6 +70,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--transient-uniform-small-inputs]\n"
       << "                  [--native-to-rns-bridge]\n"
       << "                  [--vector-to-rns-chain]\n"
+      << "                  [--vector-to-rns-chain-host-repack-control]\n"
       << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
       << "                  [--write-autotune-cache]  # refused; use release benchmark_sweep promotion\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";

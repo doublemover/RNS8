@@ -157,4 +157,38 @@ else
   (cd "${CDNA_REPO_ROOT}" && python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}")
 fi
 
+if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
+  RANK_SCENARIO_ROOT="${CDNA_OUT_DIR}/rank-scenarios"
+  cdna_split_devices "${CDNA_RANK_SCENARIOS}" RANK_SCENARIO_LIST
+  mkdir -p "${RANK_SCENARIO_ROOT}"
+  for scenario in "${RANK_SCENARIO_LIST[@]}"; do
+    scenario_out="${RANK_SCENARIO_ROOT}/${scenario}"
+    cdna_note_command "rank_scenario_${scenario}" env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" \
+      python tools/benchmark_sweep.py \
+      --bench "${BENCH_BIN}" \
+      --out-root "${scenario_out}" \
+      --scenario "${scenario}" \
+      --review-mode release \
+      --warmups 3 \
+      --repeats 9 \
+      --seed 20260606 \
+      --skip-existing
+    if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+      mkdir -p "${scenario_out}"
+      printf 'dry-run rank scenario %s\n' "${scenario}" >"${scenario_out}/rank-scenario-plan.log"
+    else
+      (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" \
+        python tools/benchmark_sweep.py \
+          --bench "${BENCH_BIN}" \
+          --out-root "${scenario_out}" \
+          --scenario "${scenario}" \
+          --review-mode release \
+          --warmups 3 \
+          --repeats 9 \
+          --seed 20260606 \
+          --skip-existing)
+    fi
+  done
+fi
+
 echo "CDNA first-pass output: ${CDNA_OUT_DIR}"

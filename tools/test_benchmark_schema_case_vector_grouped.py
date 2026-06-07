@@ -172,6 +172,30 @@ expect_invalid(
     "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain=true",
 )
 
+stale_chain_control_mode = copy.deepcopy(vector_to_rns_chain)
+stale_chain_control_mode["timing_metadata"]["vector_to_rns_chain_control_mode"] = "host_export_repack_control"
+expect_invalid(
+    stale_chain_control_mode,
+    "vector-to-RNS chain captures must set timing_metadata.vector_to_rns_chain_control_mode=fused_device_native_to_rns",
+)
+
+vector_to_rns_host_repack_control = as_vector_to_rns_chain_capture(
+    v4_adaptive_i64,
+    "native_i64_to_rns_kernel",
+    "vector_alu_i64_kernel",
+    host_repack_control=True,
+)
+validate_capture(vector_to_rns_host_repack_control)
+
+missing_host_repack_event = copy.deepcopy(vector_to_rns_host_repack_control)
+missing_host_repack_event["timing_metadata"]["gpu_event_phase_order"].remove("vector_to_rns_host_repack_a")
+del missing_host_repack_event["gpu_event_timings_us"]["vector_to_rns_host_repack_a"]
+del missing_host_repack_event["gpu_event_timing_summary_us"]["vector_to_rns_host_repack_a"]
+expect_invalid(
+    missing_host_repack_event,
+    "direct-HIP vector-to-RNS chain GPU event phase set is incomplete",
+)
+
 vector_to_rns_chain_reuse_b = as_vector_to_rns_chain_capture(
     v4_adaptive_i64,
     "native_i64_to_rns_kernel",

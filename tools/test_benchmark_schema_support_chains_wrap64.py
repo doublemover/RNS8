@@ -743,6 +743,7 @@ def as_hip_graph_full_finite_capture(capture: dict) -> dict:
     graph["semantics"] = "finite_ring_u8"
     graph["bound_kind"] = "none"
     graph["bound"] = 0
+    graph["input_distribution"] = "u8_uniform_0_modulus_minus_1"
     graph["finite_modulus"] = modulus
     graph["prefix"] = 0
     graph["selected_prefix"] = 0

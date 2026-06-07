@@ -475,10 +475,19 @@ def as_vector_to_rns_chain_capture(
     vector_kernel: str,
     *,
     reuse_consumer_b: bool = False,
+    host_repack_control: bool = False,
 ) -> dict:
     chain = as_native_to_rns_bridge_capture(capture, conversion_event)
-    chain["benchmark"] = "rns8_bounded_gemm_vector_to_rns_chain"
-    chain["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    chain["benchmark"] = (
+        "rns8_bounded_gemm_vector_to_rns_chain_host_repack_control"
+        if host_repack_control
+        else "rns8_bounded_gemm_vector_to_rns_chain"
+    )
+    chain["benchmark_execution_mode"] = (
+        "vector_native_host_export_repack_direct_rns_chain"
+        if host_repack_control
+        else "vector_native_to_direct_rns_chain"
+    )
     if reuse_consumer_b:
         chain["reuse_packed_inputs"] = True
         chain["pack_mode"] = "prepacked_reuse_b"
@@ -488,7 +497,7 @@ def as_vector_to_rns_chain_capture(
         chain["avg_prepack_setup_us"] = 321.0
     chain["command_line"] = (
         "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
-        "--vector-to-rns-chain"
+        + ("--vector-to-rns-chain-host-repack-control" if host_repack_control else "--vector-to-rns-chain")
         + (" --reuse-packed-b" if reuse_consumer_b else "")
         + " --warmups 1 --repeats 3 --seed 7"
     )
@@ -497,19 +506,26 @@ def as_vector_to_rns_chain_capture(
     chain["avg_per_modulus_gemm_estimate_us"] = chain["avg_rns_gemm_us"]
 
     metadata = chain["timing_metadata"]
-    metadata["benchmark_execution_mode"] = "vector_native_to_direct_rns_chain"
+    metadata["benchmark_execution_mode"] = chain["benchmark_execution_mode"]
     metadata["pack_mode"] = chain["pack_mode"]
     metadata["native_to_rns_bridge_forced"] = False
     metadata["vector_to_rns_chain"] = True
+    metadata["vector_to_rns_chain_control_mode"] = (
+        "host_export_repack_control" if host_repack_control else "fused_device_native_to_rns"
+    )
     metadata["vector_to_rns_chain_producer_backend"] = "hip-vector-alu-int64"
     metadata["vector_to_rns_chain_consumer_backend"] = "hip-direct"
     metadata["vector_to_rns_chain_consumer_k"] = chain["n"]
     metadata["gpu_event_timing_reason"] = "captured_by_vector_native_to_direct_rns_chain_hooks"
     metadata["gpu_event_timing_source_scope"] = (
-        "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"
+        "direct_hip_vector_native_host_repack_chain_default_stream_operation_groups"
+        if host_repack_control
+        else "direct_hip_vector_native_to_rns_chain_default_stream_operation_groups"
     )
     metadata["gpu_event_timing_caveat"] = (
-        "HIP event timings record vector producer, native-to-RNS materialization, and Direct-HIP consumer events"
+        "HIP event timings record vector producer, host export/repack control, and Direct-HIP consumer events"
+        if host_repack_control
+        else "HIP event timings record vector producer, native-to-RNS materialization, and Direct-HIP consumer events"
     )
     metadata["prepack_reuse_operands"] = chain["prepack_reuse_operands"]
     metadata["prepack_reuse_strategy"] = chain["prepack_reuse_strategy"]
@@ -531,8 +547,16 @@ def as_vector_to_rns_chain_capture(
     metadata["phase_availability"]["vector_to_rns_chain"] = {
         "timed": True,
         "timing_key": "rns_gemm",
-        "scope": "vector_native_output_to_direct_rns_consumer",
-        "reason": "measured as vector, native-to-RNS, and Direct-HIP GPU event phases inside rns_gemm",
+        "scope": (
+            "vector_native_output_host_export_repack_to_direct_rns_consumer"
+            if host_repack_control
+            else "vector_native_output_to_direct_rns_consumer"
+        ),
+        "reason": (
+            "measured as vector, host export/repack, and Direct-HIP GPU event phases inside rns_gemm"
+            if host_repack_control
+            else "measured as vector, native-to-RNS, and Direct-HIP GPU event phases inside rns_gemm"
+        ),
     }
     metadata["phase_availability"]["prepack_setup"] = {
         "timed": reuse_consumer_b,
@@ -564,16 +588,31 @@ def as_vector_to_rns_chain_capture(
     timings["vector_alu_status_memset"] = [0.25 for _ in range(repeats)]
     timings[vector_kernel] = [4.0 for _ in range(repeats)]
     timings["vector_alu_status_d2h"] = [0.5 for _ in range(repeats)]
-    timings["rns_gemm"] = [
-        memset + vector + status + conversion + direct
-        for memset, vector, status, conversion, direct in zip(
-            timings["vector_alu_status_memset"],
-            timings[vector_kernel],
-            timings["vector_alu_status_d2h"],
-            timings[conversion_event],
-            timings["rns_gemm_kernel_group"],
-        )
-    ]
+    if host_repack_control:
+        timings["vector_alu_output_d2h"] = [2.5 for _ in range(repeats)]
+        timings["vector_to_rns_host_repack_a"] = [3.0 for _ in range(repeats)]
+        timings["rns_gemm"] = [
+            memset + vector + status + output + repack + direct
+            for memset, vector, status, output, repack, direct in zip(
+                timings["vector_alu_status_memset"],
+                timings[vector_kernel],
+                timings["vector_alu_status_d2h"],
+                timings["vector_alu_output_d2h"],
+                timings["vector_to_rns_host_repack_a"],
+                timings["rns_gemm_kernel_group"],
+            )
+        ]
+    else:
+        timings["rns_gemm"] = [
+            memset + vector + status + conversion + direct
+            for memset, vector, status, conversion, direct in zip(
+                timings["vector_alu_status_memset"],
+                timings[vector_kernel],
+                timings["vector_alu_status_d2h"],
+                timings[conversion_event],
+                timings["rns_gemm_kernel_group"],
+            )
+        ]
     phases = [
         "vector_alu_pack_a_h2d",
         "vector_alu_pack_b_h2d",
@@ -583,7 +622,11 @@ def as_vector_to_rns_chain_capture(
         "vector_alu_status_memset",
         vector_kernel,
         "vector_alu_status_d2h",
-        conversion_event,
+        "vector_alu_output_d2h" if host_repack_control else conversion_event,
+    ]
+    if host_repack_control:
+        phases.append("vector_to_rns_host_repack_a")
+    phases += [
         "rns_gemm_kernel_group",
         "rns_gemm",
         "crt_export_status_memset",

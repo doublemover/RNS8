@@ -14,6 +14,9 @@ const char* benchmark_name(const Args& args) {
     return "rns8_bounded_gemm_native_to_rns_bridge";
   }
   if (vector_to_rns_chain_requested(args)) {
+    if (vector_to_rns_chain_host_repack_control_requested(args)) {
+      return "rns8_bounded_gemm_vector_to_rns_chain_host_repack_control";
+    }
     return "rns8_bounded_gemm_vector_to_rns_chain";
   }
   if (grouped_dispatch_requested(args)) {

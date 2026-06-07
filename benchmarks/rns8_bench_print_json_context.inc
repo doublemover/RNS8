@@ -122,12 +122,22 @@
           "CPU scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
     } else if (vector_to_rns_chain_events) {
       gpu_event_reason = "captured_by_vector_native_to_direct_rns_chain_hooks";
-      gpu_event_scope = "\"direct_hip_vector_native_to_rns_chain_default_stream_operation_groups\"";
-      gpu_event_caveat =
-          "\"HIP event timings record vector-ALU producer packing and GEMM events, Direct-HIP second-input "
-          "pack/export operation groups, the native-to-RNS device materialization kernel, and the Direct-HIP "
-          "consumer RNS GEMM operation group; host wall-clock timings remain required for API dispatch, CPU "
-          "scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+      if (vector_to_rns_chain_host_repack_control_requested(args)) {
+        gpu_event_scope = "\"direct_hip_vector_native_host_repack_chain_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record vector-ALU producer packing and GEMM events, vector native host export, "
+            "Direct-HIP host repack of the produced intermediate, Direct-HIP second-input pack/export operation "
+            "groups, and the Direct-HIP consumer RNS GEMM operation group; host wall-clock timings remain required "
+            "for API dispatch, CPU scheduling, allocations, and synchronous host-side overhead not represented on "
+            "the HIP stream\"";
+      } else {
+        gpu_event_scope = "\"direct_hip_vector_native_to_rns_chain_default_stream_operation_groups\"";
+        gpu_event_caveat =
+            "\"HIP event timings record vector-ALU producer packing and GEMM events, Direct-HIP second-input "
+            "pack/export operation groups, the native-to-RNS device materialization kernel, and the Direct-HIP "
+            "consumer RNS GEMM operation group; host wall-clock timings remain required for API dispatch, CPU "
+            "scheduling, allocations, and synchronous host-side overhead not represented on the HIP stream\"";
+      }
     } else if (hipblaslt_events) {
       gpu_event_reason = "captured_by_hipblaslt_backend_hooks";
       gpu_event_scope = "\"hipblaslt_baseline_default_stream_backend_operation_groups\"";

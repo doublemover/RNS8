@@ -98,6 +98,14 @@ bool vector_to_rns_chain_path(
          result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
+bool vector_to_rns_chain_host_repack_control_path(
+    const Args& args,
+    const BenchmarkResult& result,
+    rns8_backend_kind selected_backend) {
+  return vector_to_rns_chain_path(args, result, selected_backend) &&
+         vector_to_rns_chain_host_repack_control_requested(args);
+}
+
 bool direct_hip_bounded_oneshot_resident_fallback_path(
     const Args& args,
     const BenchmarkResult& result,
@@ -175,6 +183,26 @@ std::vector<std::string> gpu_event_phase_order(
         "rns_gemm",
         "vector_alu_status_d2h",
         "vector_alu_output_d2h",
+        "crt_export"};
+  }
+  if (vector_to_rns_chain_host_repack_control_path(args, result, selected_backend)) {
+    return {
+        "vector_alu_pack_a_h2d",
+        "vector_alu_pack_b_h2d",
+        "pack_h2d",
+        "pack_kernel",
+        "pack",
+        "vector_alu_status_memset",
+        vector_to_rns_chain_kernel_label(args),
+        "vector_alu_status_d2h",
+        "vector_alu_output_d2h",
+        "vector_to_rns_host_repack_a",
+        "rns_gemm_kernel_group",
+        "rns_gemm",
+        "crt_export_status_memset",
+        "crt_export_kernel",
+        "crt_export_status_d2h",
+        "crt_export_d2h",
         "crt_export"};
   }
   if (vector_to_rns_chain_path(args, result, selected_backend)) {

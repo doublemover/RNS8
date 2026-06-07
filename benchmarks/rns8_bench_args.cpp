@@ -321,6 +321,10 @@ Args parse_args(int argc, char** argv) {
       args.native_to_rns_bridge = true;
     } else if (arg == "--vector-to-rns-chain" || arg == "--vector-native-to-rns-chain") {
       args.vector_to_rns_chain = true;
+    } else if (arg == "--vector-to-rns-chain-host-repack-control" ||
+               arg == "--vector-native-to-rns-chain-host-repack-control") {
+      args.vector_to_rns_chain = true;
+      args.vector_to_rns_chain_host_repack_control = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -375,6 +379,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--transient-uniform-small-inputs]\n"
           << "                  [--native-to-rns-bridge]\n"
           << "                  [--vector-to-rns-chain]\n"
+          << "                  [--vector-to-rns-chain-host-repack-control]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";

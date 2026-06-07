@@ -216,6 +216,12 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 oneshot=_bool_or_default(raw, "oneshot", label=label, default=False),
                 native_to_rns_bridge=_bool_or_default(raw, "native_to_rns_bridge", label=label, default=False),
                 vector_to_rns_chain=_bool_or_default(raw, "vector_to_rns_chain", label=label, default=False),
+                vector_to_rns_chain_host_repack_control=_bool_or_default(
+                    raw,
+                    "vector_to_rns_chain_host_repack_control",
+                    label=label,
+                    default=False,
+                ),
                 prefix_policy=_optional_string(raw, "prefix_policy", label=label),
                 max_prefix=_optional_int(raw, "max_prefix", label=label),
                 bound_source=_optional_string(raw, "bound_source", label=label),

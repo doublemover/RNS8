@@ -141,7 +141,18 @@ class ValidatorPredicatesMixin:
         return (
             self.data.get("backend_selected") == "hip-direct"
             and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
-            and self._benchmark_execution_mode() == "vector_native_to_direct_rns_chain"
+            and self._benchmark_execution_mode()
+            in {
+                "vector_native_to_direct_rns_chain",
+                "vector_native_host_export_repack_direct_rns_chain",
+            }
+        )
+
+    def _is_direct_hip_vector_to_rns_host_repack_control_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and self._benchmark_execution_mode() == "vector_native_host_export_repack_direct_rns_chain"
         )
 
     def _is_direct_hip_bounded_residue_channel_fusion_capture(self) -> bool:

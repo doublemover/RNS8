@@ -241,6 +241,29 @@ void collect_vector_to_rns_chain_gemm_gpu_events(const Args& args, GpuEventSampl
   }
 }
 
+void collect_vector_to_rns_chain_host_repack_control_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* vector_kernel_label = vector_to_rns_chain_kernel_label(args);
+  const double status_memset = optional_event_label(samples, "vector_alu_status_memset");
+  const double vector_kernel = sum_event_label(events, samples, "rns_gemm", vector_kernel_label);
+  const double status_d2h = optional_event_label(samples, "vector_alu_status_d2h");
+  const double output_d2h = sum_event_label(events, samples, "rns_gemm", "vector_alu_output_d2h");
+  const double host_repack = sum_event_label(events, samples, "rns_gemm", "vector_to_rns_host_repack_a");
+  const double direct_kernel_group = sum_event_label(events, samples, "rns_gemm", "rns_gemm_kernel_group");
+  if (events.complete) {
+    push_gpu_event_value(events, "vector_alu_status_memset", status_memset);
+    push_gpu_event_value(events, vector_kernel_label, vector_kernel);
+    push_gpu_event_value(events, "vector_alu_status_d2h", status_d2h);
+    push_gpu_event_value(events, "vector_alu_output_d2h", output_d2h);
+    push_gpu_event_value(events, "vector_to_rns_host_repack_a", host_repack);
+    push_gpu_event_value(events, "rns_gemm_kernel_group", direct_kernel_group);
+    push_gpu_event_value(
+        events,
+        "rns_gemm",
+        status_memset + vector_kernel + status_d2h + output_d2h + host_repack + direct_kernel_group);
+  }
+}
+
 void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const double kernel = sum_event_label(events, samples, "rns_gemm", "finite_resident_gemm_kernel");

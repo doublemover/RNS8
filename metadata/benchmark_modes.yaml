@@ -8,6 +8,7 @@
     "public_runtime_vector_alu_native_buffers",
     "auto_native_to_rns_bridge",
     "vector_native_to_direct_rns_chain",
+    "vector_native_host_export_repack_direct_rns_chain",
     "benchmark_host_api_batch",
     "hip_graph_replay_resident_rns_chain",
     "hip_graph_replay_bounded_pack_gemm_export",

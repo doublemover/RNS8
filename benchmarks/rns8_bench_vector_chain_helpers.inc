@@ -67,6 +67,7 @@ BenchmarkResult run_vector_to_rns_chain(
   std::vector<T> A(checked_elements(args.m, args.k, "vector chain A"));
   std::vector<T> B(checked_elements(args.k, args.n, "vector chain B"));
   std::vector<T> D(checked_elements(args.n, args.n, "vector chain direct B"));
+  std::vector<T> produced_host(checked_elements(args.m, args.n, "vector chain produced host"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<T> C(output_elements(args, "vector chain C"), static_cast<T>(0x5a));
   fill_vector_to_rns_chain_inputs(args, A, B, D, rng);
@@ -176,12 +177,26 @@ BenchmarkResult run_vector_to_rns_chain(
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(vector_ctx, vector_plan, vector_a, vector_b, vector_c, vector_workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain producer)", status);
-    status = rns8::detail::materialize_native_matrix_as_direct_rns(direct_ctx, direct_plan, vector_c, direct_a);
-    if (status != RNS8_SUCCESS) fail_status("materialize_native_matrix_as_direct_rns(vector chain)", status);
+    if (vector_to_rns_chain_host_repack_control_requested(args)) {
+      status = export_vector_to_rns_chain_output(vector_ctx, vector_plan, vector_c, produced_host.data(), args.n);
+      if (status != RNS8_SUCCESS) fail_status("rns8_export(vector chain produced host control)", status);
+      status = run_timed_status_operation("vector_to_rns_host_repack_a", [&]() {
+        return pack_vector_to_rns_chain_operand(
+            direct_ctx, direct_a, produced_host.data(), args.n, source_version);
+      });
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain host-repacked direct A)", status);
+    } else {
+      status = rns8::detail::materialize_native_matrix_as_direct_rns(direct_ctx, direct_plan, vector_c, direct_a);
+      if (status != RNS8_SUCCESS) fail_status("materialize_native_matrix_as_direct_rns(vector chain)", status);
+    }
     status = rns8_gemm_rns(direct_ctx, direct_plan, direct_a, direct_b, direct_c, direct_workspace);
     if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain consumer)", status);
     if (collect_gpu_events) {
-      collect_vector_to_rns_chain_gemm_gpu_events(args, result.gpu_events);
+      if (vector_to_rns_chain_host_repack_control_requested(args)) {
+        collect_vector_to_rns_chain_host_repack_control_gemm_gpu_events(args, result.gpu_events);
+      } else {
+        collect_vector_to_rns_chain_gemm_gpu_events(args, result.gpu_events);
+      }
     }
     end_gpu_event_phase(collect_gpu_events);
     const auto gemm_end = std::chrono::steady_clock::now();

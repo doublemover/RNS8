@@ -77,6 +77,7 @@ class ScenarioItem:
     oneshot: bool = False
     native_to_rns_bridge: bool = False
     vector_to_rns_chain: bool = False
+    vector_to_rns_chain_host_repack_control: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None

@@ -7,6 +7,22 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-72 vector/native-to-RNS chain closeout:
+
+- Rank 72 moved from the active queue to the completed-work archive after the
+  vector/native producer-to-RNS consumer path gained a same-contract
+  host-export/repack control, schema-visible control-mode metadata, and a
+  dedicated report gate. The benchmark-only control runs the vector producer,
+  exports that exact native intermediate to host, repacks it into Direct-HIP
+  RNS storage, runs the same consumer GEMM, and exports the final result.
+- The Windows `gfx1100` closeout under
+  `temp/rank72-vector-to-rns-chain-20260606/` produced 32 schema-valid release
+  captures with required GPU events. `tools/vector_to_rns_chain_report.py`
+  reports 16 same-contract groups: 15 fused device handoff wins versus the
+  host-export/repack control, and one bounded-u64 64 reuse-B near-tie kept
+  experimental. This is benchmark-only chain evidence; no public API, cache,
+  README headline, default AUTO route, Linux, or CDNA claim changes.
+
 June 6, 2026 rank-73 finite-u8 data-distribution closeout:
 
 - Rank 73 moved from the active queue to the completed-work archive after the

@@ -184,6 +184,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.host_api_batch_size = item.host_api_batch_size
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
+    scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -262,6 +263,7 @@ def scenario_metadata(
         "host_api_batch_size": item.host_api_batch_size,
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
+        "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
         "next_op_hint": item.next_op_hint,
         "residue_channel_fusion": item.residue_channel_fusion,
         "modulus_set": item.modulus_set,
@@ -449,7 +451,10 @@ def command_for(
     if getattr(args, "native_to_rns_bridge", False):
         command.append("--native-to-rns-bridge")
     if getattr(args, "vector_to_rns_chain", False):
-        command.append("--vector-to-rns-chain")
+        if getattr(args, "vector_to_rns_chain_host_repack_control", False):
+            command.append("--vector-to-rns-chain-host-repack-control")
+        else:
+            command.append("--vector-to-rns-chain")
     modulus_set = getattr(args, "modulus_set", "default")
     if modulus_set and modulus_set != "default":
         command.extend(["--modulus-set", modulus_set])

@@ -305,6 +305,10 @@ bool vector_to_rns_chain_requested(const Args& args) {
   return args.vector_to_rns_chain;
 }
 
+bool vector_to_rns_chain_host_repack_control_requested(const Args& args) {
+  return args.vector_to_rns_chain && args.vector_to_rns_chain_host_repack_control;
+}
+
 bool host_api_batch_requested(const Args& args) {
   return args.host_api_batch_size > 1;
 }
@@ -353,6 +357,9 @@ const char* benchmark_execution_mode_name(const Args& args) {
     return "auto_native_to_rns_bridge";
   }
   if (vector_to_rns_chain_requested(args)) {
+    if (vector_to_rns_chain_host_repack_control_requested(args)) {
+      return "vector_native_host_export_repack_direct_rns_chain";
+    }
     return "vector_native_to_direct_rns_chain";
   }
   if (grouped_dispatch_requested(args)) {

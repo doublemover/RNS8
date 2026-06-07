@@ -156,6 +156,11 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_layout_search_report.py"],
     ),
+    SuiteCase(
+        "vector_to_rns_chain_report",
+        "performance_evidence_drift",
+        [sys.executable, "tools/test_vector_to_rns_chain_report.py"],
+    ),
     SuiteCase("claim_validation", "documentation_claims", [sys.executable, "tools/test_claim_validation.py"]),
 ]
 
