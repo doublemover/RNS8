@@ -189,6 +189,15 @@ print(Path(cmake.CMAKE_BIN_DIR) / "cmake")
 PY
 }
 
+cdna_prepend_path_dir() {
+  local dir="$1"
+  [[ -d "${dir}" ]] || return 0
+  case ":${PATH}:" in
+    *":${dir}:"*) ;;
+    *) export PATH="${dir}:${PATH}" ;;
+  esac
+}
+
 cdna_resolve_cmake_tools() {
   local python_bin="$1"
   local tool_root="${CDNA_REPO_ROOT}/temp/cdna-tools/cmake-${CDNA_CMAKE_MIN_VERSION}"
@@ -208,10 +217,11 @@ cdna_resolve_cmake_tools() {
   if [[ -n "${target_candidate}" ]]; then
     candidates+=("${target_candidate}")
   fi
+  cdna_prepend_path_dir "${target_site}/bin"
 
   for candidate in "${candidates[@]}"; do
     if [[ -x "${candidate}" ]] && cdna_accept_cmake_pair "${python_bin}" "${candidate}"; then
-      export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+      cdna_prepend_path_dir "$(dirname "${CDNA_CMAKE_BIN}")"
       return 0
     fi
   done
@@ -229,7 +239,7 @@ cdna_resolve_cmake_tools() {
     cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
     "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
     if cdna_accept_cmake_pair "${python_bin}" "${tool_root}/bin/cmake"; then
-      export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+      cdna_prepend_path_dir "$(dirname "${CDNA_CMAKE_BIN}")"
       return 0
     fi
   else
@@ -239,6 +249,7 @@ cdna_resolve_cmake_tools() {
   mkdir -p "${target_site}"
   cdna_note_command bootstrap_cmake_pip_target "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
   "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+  cdna_prepend_path_dir "${target_site}/bin"
 
   target_candidate="$(cdna_pip_target_cmake_bin "${python_bin}" "${target_site}")"
   if ! cdna_accept_cmake_pair "${python_bin}" "${target_candidate}"; then
@@ -251,7 +262,7 @@ cdna_resolve_cmake_tools() {
     return 1
   fi
 
-  export PATH="$(dirname "${CDNA_CMAKE_BIN}"):${PATH}"
+  cdna_prepend_path_dir "$(dirname "${CDNA_CMAKE_BIN}")"
 }
 
 cdna_prepend_cmake_prefix() {
@@ -276,6 +287,7 @@ cdna_probe_catch2_v3() {
 cmake_minimum_required(VERSION 3.28)
 project(rns8_catch2_probe LANGUAGES CXX)
 find_package(Catch2 3 CONFIG REQUIRED)
+include(Catch)
 EOF
   "${CDNA_CMAKE_BIN}" -S "${probe_src}" -B "${probe_build}" >"${probe_log}" 2>&1
 }
@@ -301,8 +313,8 @@ cdna_resolve_catch2() {
     git clone --depth 1 --branch "${CDNA_CATCH2_VERSION}" https://github.com/catchorg/Catch2.git "${source_root}"
   fi
 
-  cdna_note_command bootstrap_catch2_configure "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=OFF -DBUILD_TESTING=OFF
-  "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=OFF -DBUILD_TESTING=OFF
+  cdna_note_command bootstrap_catch2_configure "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=ON -DBUILD_TESTING=OFF
+  "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=ON -DBUILD_TESTING=OFF
 
   cdna_note_command bootstrap_catch2_install "${CDNA_CMAKE_BIN}" --build "${build_root}" --target install
   "${CDNA_CMAKE_BIN}" --build "${build_root}" --target install
