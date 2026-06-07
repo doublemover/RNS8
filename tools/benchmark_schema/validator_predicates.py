@@ -31,6 +31,12 @@ class ValidatorPredicatesMixin:
             return "public_runtime_vector_alu_native_buffers"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_resident_rns_chain":
             return "hip_graph_replay_resident_rns_chain"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_bounded_pack_gemm_export":
+            return "hip_graph_replay_bounded_pack_gemm_export"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_finite_u8_pack_gemm_export":
+            return "hip_graph_replay_finite_u8_pack_gemm_export"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_wrap64_pack_gemm_export":
+            return "hip_graph_replay_wrap64_pack_gemm_export"
         if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
             return "public_oneshot_transient_native_inputs"
         if self.data.get("backend_selected") == "hip-vector-alu-int64":
@@ -155,7 +161,12 @@ class ValidatorPredicatesMixin:
         return self._benchmark_execution_mode() == "benchmark_grouped_dispatch_evidence"
 
     def _is_hip_graph_replay_capture(self) -> bool:
-        return self._benchmark_execution_mode() == "hip_graph_replay_resident_rns_chain"
+        return self._benchmark_execution_mode() in {
+            "hip_graph_replay_resident_rns_chain",
+            "hip_graph_replay_bounded_pack_gemm_export",
+            "hip_graph_replay_finite_u8_pack_gemm_export",
+            "hip_graph_replay_wrap64_pack_gemm_export",
+        }
 
     def _is_streaming_overlap_capture(self) -> bool:
         overlap = self.data.get("streaming_overlap")

@@ -1,13 +1,15 @@
-extern "C" int rns8_hip_direct_export_u8_modulus_device(
+extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
     const int8_t* d_residues,
     uint8_t* d_dst,
     int rows,
     int cols,
     int ld,
-    int modulus) {
+    int modulus,
+    void* stream) {
   if (!d_residues || !d_dst || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 || modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
+  hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
@@ -17,7 +19,7 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -31,7 +33,7 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -45,7 +47,7 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
         dim3(blocks),
         dim3(threads),
         0,
-        nullptr,
+        hip_stream,
         d_residues,
         d_dst,
         rows,
@@ -58,7 +60,7 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
       dim3(blocks),
       dim3(threads),
       0,
-      nullptr,
+      hip_stream,
       d_residues,
       d_dst,
       rows,
@@ -66,6 +68,17 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device(
       ld,
       modulus);
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_export_u8_modulus_device(
+    const int8_t* d_residues,
+    uint8_t* d_dst,
+    int rows,
+    int cols,
+    int ld,
+    int modulus) {
+  return rns8_hip_direct_export_u8_modulus_device_on_stream(
+      d_residues, d_dst, rows, cols, ld, modulus, nullptr);
 }
 
 extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(

@@ -22,7 +22,16 @@ const char* benchmark_name(const Args& args) {
   if (host_api_batch_requested(args)) {
     return "rns8_host_api_batch_persistent_resident";
   }
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_bounded_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_finite_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_finite_u8_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_wrap64_pack_export_requested(args)) {
+    return "rns8_hip_graph_replay_wrap64_pack_gemm_export";
+  }
+  if (hip_graph_replay_resident_chain_requested(args)) {
     return "rns8_hip_graph_replay_resident_rns_chain";
   }
   if (args.streaming_overlap) {

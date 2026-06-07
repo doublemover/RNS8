@@ -421,22 +421,36 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
                 self._error("non-graph captures must set timing_metadata.hip_graph_replay_enabled=false")
         return
 
-    if self.data.get("benchmark") != "rns8_hip_graph_replay_resident_rns_chain":
-        self._error("hip_graph_replay captures must use benchmark=rns8_hip_graph_replay_resident_rns_chain")
+    execution_mode = self._benchmark_execution_mode()
+    resident_chain_graph = execution_mode == "hip_graph_replay_resident_rns_chain"
+    bounded_full_graph = execution_mode == "hip_graph_replay_bounded_pack_gemm_export"
+    finite_full_graph = execution_mode == "hip_graph_replay_finite_u8_pack_gemm_export"
+    wrap64_full_graph = execution_mode == "hip_graph_replay_wrap64_pack_gemm_export"
+    if resident_chain_graph:
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_resident_rns_chain":
+            self._error("resident-chain hip_graph_replay captures must use benchmark=rns8_hip_graph_replay_resident_rns_chain")
+    elif bounded_full_graph:
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_bounded_pack_gemm_export":
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use "
+                "benchmark=rns8_hip_graph_replay_bounded_pack_gemm_export"
+            )
+    elif finite_full_graph:
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_finite_u8_pack_gemm_export":
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use "
+                "benchmark=rns8_hip_graph_replay_finite_u8_pack_gemm_export"
+            )
+    elif wrap64_full_graph:
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_wrap64_pack_gemm_export":
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use "
+                "benchmark=rns8_hip_graph_replay_wrap64_pack_gemm_export"
+            )
+    else:
+        self._error("hip_graph_replay captures must use a registered graph replay execution mode")
     if self.data.get("backend_selected") != "hip-direct" or self.data.get("backend_requested") != "hip-direct":
         self._error("hip_graph_replay captures must request and select backend hip-direct")
-    if self.data.get("semantics") not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
-        self._error("hip_graph_replay captures must use bounded or exact-wide RNS semantics")
-    if self.data.get("reuse_packed_inputs") is not True:
-        self._error("hip_graph_replay captures must use reuse_packed_inputs=true")
-    if self.data.get("pack_mode") != "prepacked_reuse":
-        self._error("hip_graph_replay captures must use pack_mode=prepacked_reuse")
-    if self.data.get("prepack_reuse_operands") != ["A", "B"]:
-        self._error("hip_graph_replay captures must reuse operands A and B")
-    if self.data.get("prepack_reuse_strategy") != "persistent_matrix_residency":
-        self._error("hip_graph_replay captures must use prepack_reuse_strategy=persistent_matrix_residency")
-    if chain_length <= 1 or self._residue_output_mode() != "residue_current_rns":
-        self._error("hip_graph_replay captures must use residue-current chain output")
     if self.data.get("bound_mode") != "global":
         self._error("hip_graph_replay captures must use bound_mode=global")
     if self.data.get("bound_source") not in {None, "static_profile"}:
@@ -447,25 +461,143 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             self._error(f"hip_graph_replay captures must set hip_graph_replay.{key}=true")
     if graph.get("status") != "available":
         self._error("hip_graph_replay captures must set hip_graph_replay.status=available")
-    if graph.get("scope") != "direct_hip_reused_inputs_residue_current_rns_chain":
-        self._error(
-            "hip_graph_replay captures must set hip_graph_replay.scope="
-            "direct_hip_reused_inputs_residue_current_rns_chain"
-        )
     if graph.get("graph_launches_per_measured_repeat") != 1:
         self._error("hip_graph_replay captures must launch one graph per measured repeat")
-    if graph.get("captured_chain_length") != chain_length:
-        self._error("hip_graph_replay.captured_chain_length must match residue_chain_length")
     if _is_int(repeats) and _is_int(warmups) and graph.get("total_graph_launches") != repeats + warmups:
         self._error("hip_graph_replay.total_graph_launches must equal warmups + repeats")
-    if graph.get("timing_policy") != "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync":
-        self._error("hip_graph_replay.timing_policy is stale or unsupported")
-    if graph.get("setup_policy") != "A_B_prepack_before_capture_capture_and_instantiate_before_warmups":
-        self._error("hip_graph_replay.setup_policy is stale or unsupported")
-    if graph.get("final_export_policy") != "one_final_logical_export_after_measured_repeats_for_checksum_only":
-        self._error("hip_graph_replay.final_export_policy is stale or unsupported")
-    if not isinstance(caveat, str) or "resident Direct-HIP RNS GEMM launches only" not in caveat:
-        self._error("hip_graph_replay.caveat must describe graph replay scope")
+
+    if resident_chain_graph:
+        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
+            self._error("resident-chain hip_graph_replay captures must use bounded or exact-wide RNS semantics")
+        if self.data.get("reuse_packed_inputs") is not True:
+            self._error("resident-chain hip_graph_replay captures must use reuse_packed_inputs=true")
+        if self.data.get("pack_mode") != "prepacked_reuse":
+            self._error("resident-chain hip_graph_replay captures must use pack_mode=prepacked_reuse")
+        if self.data.get("prepack_reuse_operands") != ["A", "B"]:
+            self._error("resident-chain hip_graph_replay captures must reuse operands A and B")
+        if self.data.get("prepack_reuse_strategy") != "persistent_matrix_residency":
+            self._error("resident-chain hip_graph_replay captures must use prepack_reuse_strategy=persistent_matrix_residency")
+        if chain_length <= 1 or self._residue_output_mode() != "residue_current_rns":
+            self._error("resident-chain hip_graph_replay captures must use residue-current chain output")
+        if graph.get("scope") != "direct_hip_reused_inputs_residue_current_rns_chain":
+            self._error(
+                "resident-chain hip_graph_replay captures must set hip_graph_replay.scope="
+                "direct_hip_reused_inputs_residue_current_rns_chain"
+            )
+        if graph.get("captured_chain_length") != chain_length:
+            self._error("resident-chain hip_graph_replay.captured_chain_length must match residue_chain_length")
+        if graph.get("timing_policy") != "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync":
+            self._error("resident-chain hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "A_B_prepack_before_capture_capture_and_instantiate_before_warmups":
+            self._error("resident-chain hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "one_final_logical_export_after_measured_repeats_for_checksum_only":
+            self._error("resident-chain hip_graph_replay.final_export_policy is stale or unsupported")
+        if not isinstance(caveat, str) or "resident Direct-HIP RNS GEMM launches only" not in caveat:
+            self._error("resident-chain hip_graph_replay.caveat must describe graph replay scope")
+    elif bounded_full_graph:
+        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must use bounded semantics")
+        if self.data.get("reuse_packed_inputs") is not False:
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+        if self.data.get("pack_mode") != "per_repeat_repack":
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+        if self.data.get("prepack_reuse_operands") != []:
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+        if self.data.get("prepack_reuse_strategy") != "none":
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+        if chain_length != 1 or self._residue_output_mode() != "host_export":
+            self._error("bounded pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+        if graph.get("scope") != "direct_hip_bounded_pack_gemm_export":
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must set "
+                "hip_graph_replay.scope=direct_hip_bounded_pack_gemm_export"
+            )
+        if graph.get("captured_chain_length") != 1:
+            self._error("bounded pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+        if (
+            graph.get("timing_policy")
+            != "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+        ):
+            self._error("bounded pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
+            self._error("bounded pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "logical_export_and_output_d2h_captured_inside_graph_each_repeat":
+            self._error("bounded pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+        if (
+            not isinstance(caveat, str)
+            or "pack, one RNS GEMM, export status, export kernel, and output D2H" not in caveat
+        ):
+            self._error("bounded pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+    elif finite_full_graph:
+        if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use finite-u8 semantics")
+        if self.data.get("reuse_packed_inputs") is not False:
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+        if self.data.get("pack_mode") != "per_repeat_repack":
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+        if self.data.get("prepack_reuse_operands") != []:
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+        if self.data.get("prepack_reuse_strategy") != "none":
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+        if chain_length != 1 or self._residue_output_mode() != "host_export":
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+        if not isinstance(self.data.get("finite_modulus"), int) or self.data.get("finite_modulus") <= 1:
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must record finite_modulus")
+        if graph.get("scope") != "direct_hip_finite_u8_pack_gemm_export":
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must set "
+                "hip_graph_replay.scope=direct_hip_finite_u8_pack_gemm_export"
+            )
+        if graph.get("captured_chain_length") != 1:
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+        if (
+            graph.get("timing_policy")
+            != "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+        ):
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat":
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+        if (
+            not isinstance(caveat, str)
+            or "finite-u8 pack, one modular GEMM, canonical finite export, and output D2H" not in caveat
+        ):
+            self._error("finite-u8 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+    elif wrap64_full_graph:
+        if self.data.get("semantics") != "wrap_u64_mod_2_64":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use wrap_u64_mod_2_64 semantics")
+        if self.data.get("reuse_packed_inputs") is not False:
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+        if self.data.get("pack_mode") != "per_repeat_repack":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+        if self.data.get("prepack_reuse_operands") != []:
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+        if self.data.get("prepack_reuse_strategy") != "none":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+        if chain_length != 1 or self._residue_output_mode() != "host_export":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+        if graph.get("scope") != "direct_hip_wrap64_pack_gemm_export":
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must set "
+                "hip_graph_replay.scope=direct_hip_wrap64_pack_gemm_export"
+            )
+        if graph.get("captured_chain_length") != 1:
+            self._error("wrap64 pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+        if (
+            graph.get("timing_policy")
+            != "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+        ):
+            self._error("wrap64 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat":
+            self._error("wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+        if (
+            not isinstance(caveat, str)
+            or "wrap64 byte-limb pack, byte-GEMM36, low64 export, and output D2H" not in caveat
+        ):
+            self._error("wrap64 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
 
     if not isinstance(metadata, dict):
         return

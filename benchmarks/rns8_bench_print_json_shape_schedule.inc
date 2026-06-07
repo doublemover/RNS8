@@ -142,21 +142,42 @@
   std::cout << "    \"graph_launches_per_measured_repeat\": "
             << (result.hip_graph_replay_used ? 1 : 0) << ",\n";
   std::cout << "    \"total_graph_launches\": " << result.hip_graph_launch_count << ",\n";
+  const bool graph_full_bounded_pack_export = hip_graph_replay_full_bounded_pack_export_used(result);
+  const bool graph_full_finite_pack_export =
+      result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export";
+  const bool graph_full_wrap64_pack_export =
+      result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export";
+  const bool graph_full_pack_export =
+      graph_full_bounded_pack_export || graph_full_finite_pack_export || graph_full_wrap64_pack_export;
   std::cout << "    \"captured_chain_length\": "
-            << (result.hip_graph_replay_used ? args.residue_chain_length : 0) << ",\n";
+            << (result.hip_graph_replay_used ? (graph_full_pack_export ? 1 : args.residue_chain_length) : 0)
+            << ",\n";
   std::cout << "    \"timing_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync"
+                     ? (graph_full_finite_pack_export
+                            ? "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                            : (graph_full_wrap64_pack_export
+                                   ? "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                   : (graph_full_bounded_pack_export
+                                          ? "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                          : "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync")))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"setup_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "A_B_prepack_before_capture_capture_and_instantiate_before_warmups"
+                    ? (graph_full_pack_export ? "capture_and_instantiate_before_warmups_no_prepack_reuse"
+                                              : "A_B_prepack_before_capture_capture_and_instantiate_before_warmups")
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"final_export_policy\": \""
             << (result.hip_graph_replay_used
-                    ? "one_final_logical_export_after_measured_repeats_for_checksum_only"
+                     ? (graph_full_finite_pack_export
+                            ? "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat"
+                            : (graph_full_wrap64_pack_export
+                                   ? "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                   : (graph_full_bounded_pack_export
+                                          ? "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                          : "one_final_logical_export_after_measured_repeats_for_checksum_only")))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"caveat\": ";
@@ -253,7 +274,28 @@
   print_comparison_baseline(args, info, result);
   std::cout << "  \"derived_tops_equivalent\": null,\n";
   std::cout << "  \"timing_source\": \"std::chrono::steady_clock\",\n";
-  if (hip_graph_replay_requested(args)) {
+  if (graph_full_wrap64_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP wrap64 full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, byte-limb pack kernels, one byte-GEMM36 kernel, "
+              << "low64 export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export "
+                 "are zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (graph_full_finite_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP finite-u8 full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, finite pack kernels, one modular GEMM, canonical "
+              << "finite export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export "
+                 "are zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (graph_full_bounded_pack_export) {
+    std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
+              << "Direct-HIP bounded full pack/GEMM/export path; capture_us and instantiate_us record one-time "
+              << "graph setup before warmups, each measured repeat runs one hipGraphLaunch plus stream "
+              << "synchronization containing A/B H2D copies, pack kernels, one RNS GEMM, export status handling, "
+              << "export kernel, and output D2H, while raw_timings_us.pack and raw_timings_us.crt_export are "
+                 "zero because the graph launch is measured as one end-to-end unit\",\n";
+  } else if (hip_graph_replay_requested(args)) {
     std::cout << "  \"timing_note\": \"host wall-clock timings for benchmark-only HIP Graph replay of a "
               << "Direct-HIP residue-current RNS GEMM chain; A and B are packed once before graph capture, "
               << "capture_us and instantiate_us record one-time graph setup before warmups, each measured repeat "

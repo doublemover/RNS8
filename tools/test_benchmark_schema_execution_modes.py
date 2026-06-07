@@ -14,6 +14,9 @@ from metadata_registry_constants import (
 )
 from test_benchmark_schema import (
     as_grouped_dispatch_capture,
+    as_hip_graph_full_bounded_capture,
+    as_hip_graph_full_finite_capture,
+    as_hip_graph_full_wrap64_capture,
     as_hip_graph_replay_capture,
     as_host_api_batch_capture,
     expect_invalid,
@@ -24,6 +27,7 @@ from test_benchmark_schema import (
 def main() -> int:
     base = expect_valid("v4_bounded_i64_ck.json")
     direct_hip_base = expect_valid("v4_bounded_i64_adaptive_hip.json")
+    wrap64_base = expect_valid("v4_wrap64_hip.json")
 
     host_batch = as_host_api_batch_capture(base)
     validate_capture(host_batch)
@@ -112,6 +116,54 @@ def main() -> int:
     bad_graph_launches = copy.deepcopy(graph)
     bad_graph_launches["hip_graph_replay"]["total_graph_launches"] += 1
     expect_invalid(bad_graph_launches, "hip_graph_replay.total_graph_launches must equal warmups + repeats")
+
+    full_graph = as_hip_graph_full_bounded_capture(direct_hip_base)
+    validate_capture(full_graph)
+
+    bad_full_graph_reuse = copy.deepcopy(full_graph)
+    bad_full_graph_reuse["reuse_packed_inputs"] = True
+    expect_invalid(
+        bad_full_graph_reuse,
+        "bounded pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false",
+    )
+
+    bad_full_graph_scope = copy.deepcopy(full_graph)
+    bad_full_graph_scope["hip_graph_replay"]["scope"] = "direct_hip_reused_inputs_residue_current_rns_chain"
+    expect_invalid(
+        bad_full_graph_scope,
+        "bounded pack/GEMM/export hip_graph_replay captures must set hip_graph_replay.scope",
+    )
+
+    finite_graph = as_hip_graph_full_finite_capture(direct_hip_base)
+    validate_capture(finite_graph)
+
+    bad_finite_graph_benchmark = copy.deepcopy(finite_graph)
+    bad_finite_graph_benchmark["benchmark"] = "rns8_hip_graph_replay_bounded_pack_gemm_export"
+    expect_invalid(
+        bad_finite_graph_benchmark,
+        "finite-u8 pack/GEMM/export hip_graph_replay captures must use benchmark",
+    )
+
+    bad_finite_graph_policy = copy.deepcopy(finite_graph)
+    bad_finite_graph_policy["hip_graph_replay"][
+        "final_export_policy"
+    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    expect_invalid(
+        bad_finite_graph_policy,
+        "finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
+    )
+
+    wrap64_graph = as_hip_graph_full_wrap64_capture(wrap64_base)
+    validate_capture(wrap64_graph)
+
+    bad_wrap64_graph_policy = copy.deepcopy(wrap64_graph)
+    bad_wrap64_graph_policy["hip_graph_replay"][
+        "final_export_policy"
+    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    expect_invalid(
+        bad_wrap64_graph_policy,
+        "wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
+    )
 
     print("benchmark schema execution-mode self-test: PASS")
     return 0

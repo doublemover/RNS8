@@ -646,23 +646,33 @@ Args parse_args(int argc, char** argv) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
     usage_error("--hip-graph-replay requires a HIP-enabled benchmark build");
 #endif
-    if (residue_chain_final_export_requested(args)) {
+    const bool full_bounded_pack_export_graph =
+        bounded_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool full_finite_pack_export_graph =
+        finite_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool full_wrap64_pack_export_graph =
+        args.semantics == BenchSemantics::WrapU64Mod2_64 && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool resident_chain_graph =
+        rns_chain_benchmark_semantics(args.semantics) && args.residue_chain_length > 1 &&
+        args.reuse_packed_inputs && args.reuse_packed_a && args.reuse_packed_b &&
+        args.next_op_hint == NextOpHint::RnsGemm;
+    if (args.residue_chain_final_export || args.residue_chain_independent_final_export) {
       usage_error("--hip-graph-replay cannot be combined with residue-chain final-export modes");
     }
     if (args.backend != RNS8_BACKEND_HIP_DIRECT) {
       usage_error("--hip-graph-replay requires --backend hip-direct");
     }
-    if (!rns_chain_benchmark_semantics(args.semantics)) {
-      usage_error("--hip-graph-replay is only valid for bounded or exact-wide RNS semantics");
+    if (!resident_chain_graph && !full_bounded_pack_export_graph && !full_finite_pack_export_graph &&
+        !full_wrap64_pack_export_graph) {
+      usage_error(
+          "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
+          "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm");
     }
-    if (args.residue_chain_length <= 1) {
-      usage_error("--hip-graph-replay requires --residue-chain-length > 1 so output stays residue-current");
-    }
-    if (!args.reuse_packed_inputs || !args.reuse_packed_a || !args.reuse_packed_b) {
-      usage_error("--hip-graph-replay requires --reuse-packed-inputs so graph replay has stable resident A/B inputs");
-    }
-    if (args.next_op_hint != NextOpHint::RnsGemm) {
-      usage_error("--hip-graph-replay requires --next-op-hint rns-gemm");
+    if (full_wrap64_pack_export_graph && args.output_ld_padding != 0) {
+      usage_error("--hip-graph-replay wrap64 full pack/GEMM/export mode currently requires contiguous output");
     }
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--hip-graph-replay currently requires global static-profile bounds");

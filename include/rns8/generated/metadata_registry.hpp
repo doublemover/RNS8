@@ -6,14 +6,17 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 21> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 24> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
     "benchmark_host_api_batch",
     "benchmark_owned_vector_alu_native_buffers",
     "benchmark_streaming_overlap_resident_b_pipeline",
+    "hip_graph_replay_bounded_pack_gemm_export",
+    "hip_graph_replay_finite_u8_pack_gemm_export",
     "hip_graph_replay_resident_rns_chain",
+    "hip_graph_replay_wrap64_pack_gemm_export",
     "internal_wrap64_rocwmma_candidate",
     "persistent_resident_matrices",
     "public_oneshot_transient_native_inputs",

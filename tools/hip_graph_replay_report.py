@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize HIP Graph replay evidence for queue rank 30."""
+"""Summarize benchmark-only HIP Graph replay evidence."""
 
 from __future__ import annotations
 
@@ -44,6 +44,8 @@ def prepack_setup_us(capture: dict[str, Any]) -> float | None:
     value = numeric_value(capture, "avg_prepack_setup_us")
     if value is None:
         value = numeric_value(capture, "prepack_setup_us")
+    if value is None and capture.get("reuse_packed_inputs") is False:
+        return 0.0
     return value
 
 
@@ -57,7 +59,13 @@ def graph_requested(capture: dict[str, Any]) -> bool:
     return (
         graph.get("requested") is True
         or graph.get("used") is True
-        or capture_execution_mode(capture) == "hip_graph_replay_resident_rns_chain"
+        or capture_execution_mode(capture)
+        in {
+            "hip_graph_replay_resident_rns_chain",
+            "hip_graph_replay_bounded_pack_gemm_export",
+            "hip_graph_replay_finite_u8_pack_gemm_export",
+            "hip_graph_replay_wrap64_pack_gemm_export",
+        }
     )
 
 
@@ -99,6 +107,7 @@ def requested_next_op(capture: dict[str, Any]) -> Any:
 def comparison_key(capture: dict[str, Any]) -> str:
     parts = [
         ("semantics", capture.get("semantics")),
+        ("finite_modulus", capture.get("finite_modulus")),
         ("m", capture.get("m")),
         ("n", capture.get("n")),
         ("k", capture.get("k")),
@@ -234,6 +243,8 @@ def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None
         "scenario_name": scenario_metadata(graph).get("name"),
         "scenario_promotion_eligibility": scenario_metadata(graph).get("promotion_eligibility"),
         "graph_role": scenario_inner_metadata(graph).get("graph_role"),
+        "graph_scope": graph_metadata(graph).get("scope"),
+        "graph_execution_mode": capture_execution_mode(graph),
         "semantics": graph.get("semantics"),
         "shape": shape(graph),
         "backend": graph.get("backend_selected"),
@@ -278,6 +289,8 @@ def build_hip_graph_replay_report_from_captures(captures: list[dict[str, Any]]) 
             scenario_metadata(capture).get("family") == "hip-graph-replay"
         ):
             baselines[comparison_key(capture)] = capture
+        else:
+            baselines.setdefault(comparison_key(capture), capture)
 
     comparisons = [compare_graph_capture(graph, baselines.get(comparison_key(graph))) for graph in graphs]
     decision_counts = Counter(str(item["decision"]) for item in comparisons)

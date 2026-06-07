@@ -392,14 +392,18 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     }
   };
 
-  for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+  if (hip_graph_replay_full_finite_pack_export_requested(args)) {
+    run_hip_graph_replay_finite_pack_gemm_export(args, result, a_matrix, b_matrix, c_matrix, A, B, C);
+  } else {
+    for (uint32_t r = 0; r < args.warmups; ++r) {
+      run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
+    }
+    record_allocation_after_warmups(result);
+    for (uint32_t r = 0; r < args.repeats; ++r) {
+      run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
+    }
+    record_allocation_after_repeats(result);
   }
-  record_allocation_after_warmups(result);
-  for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
-  }
-  record_allocation_after_repeats(result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   rns8_destroy_matrix(c_matrix);

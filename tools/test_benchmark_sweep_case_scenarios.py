@@ -153,7 +153,7 @@ tile_command = benchmark_sweep.command_for(
 )
 assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
 graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
-assert len(catalog["hip-graph-replay"]) == 16
+assert len(catalog["hip-graph-replay"]) == 36
 assert {item.review_mode_expectation for item in catalog["hip-graph-replay"]} == {"release"}
 assert {item.promotion_eligibility for item in catalog["hip-graph-replay"]} == {"hip_graph_replay_evidence_only"}
 assert {item.case.m for item in catalog["hip-graph-replay"]} == {512, 1024}

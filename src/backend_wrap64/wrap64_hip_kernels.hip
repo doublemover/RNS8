@@ -386,12 +386,14 @@ __global__ void rns8_wrap64_export_u64_scalar_kernel(
 
 }  // namespace
 
-extern "C" int rns8_wrap64_hip_pack_u64_device(
+extern "C" int rns8_wrap64_hip_pack_u64_device_on_stream(
     const uint64_t* src,
     uint8_t* byte_limbs,
     int64_t rows,
     int64_t cols,
-    int64_t ld) {
+    int64_t ld,
+    void* stream_ptr) {
+  hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
@@ -404,7 +406,7 @@ extern "C" int rns8_wrap64_hip_pack_u64_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         src,
         byte_limbs,
         rows,
@@ -416,7 +418,7 @@ extern "C" int rns8_wrap64_hip_pack_u64_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         src,
         byte_limbs,
         rows,
@@ -426,13 +428,24 @@ extern "C" int rns8_wrap64_hip_pack_u64_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
+extern "C" int rns8_wrap64_hip_pack_u64_device(
+    const uint64_t* src,
+    uint8_t* byte_limbs,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld) {
+  return rns8_wrap64_hip_pack_u64_device_on_stream(src, byte_limbs, rows, cols, ld, nullptr);
+}
+
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(
     const uint8_t* a_limbs,
     const uint8_t* b_limbs,
     uint8_t* c_limbs,
     int64_t m,
     int64_t n,
-    int64_t k) {
+    int64_t k,
+    void* stream_ptr) {
+  hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   const int64_t tile_rows = (m + kWrap64TileM - 1) / kWrap64TileM;
   const int64_t tile_cols = (n + kWrap64TileN - 1) / kWrap64TileN;
   const dim3 blocks(static_cast<unsigned int>(tile_cols), static_cast<unsigned int>(tile_rows));
@@ -443,7 +456,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         a_limbs,
         b_limbs,
         c_limbs,
@@ -457,7 +470,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         a_limbs,
         b_limbs,
         c_limbs,
@@ -471,7 +484,7 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         a_limbs,
         b_limbs,
         c_limbs,
@@ -482,11 +495,23 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_wrap64_hip_export_u64_device(
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
+    const uint8_t* a_limbs,
+    const uint8_t* b_limbs,
+    uint8_t* c_limbs,
+    int64_t m,
+    int64_t n,
+    int64_t k) {
+  return rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(a_limbs, b_limbs, c_limbs, m, n, k, nullptr);
+}
+
+extern "C" int rns8_wrap64_hip_export_u64_device_on_stream(
     const uint8_t* byte_limbs,
     uint64_t* dst,
     int64_t rows,
-    int64_t cols) {
+    int64_t cols,
+    void* stream_ptr) {
+  hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
@@ -499,7 +524,7 @@ extern "C" int rns8_wrap64_hip_export_u64_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         byte_limbs,
         dst,
         rows,
@@ -510,11 +535,19 @@ extern "C" int rns8_wrap64_hip_export_u64_device(
         blocks,
         threads,
         0,
-        nullptr,
+        stream,
         byte_limbs,
         dst,
         rows,
         cols);
   }
   return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_wrap64_hip_export_u64_device(
+    const uint8_t* byte_limbs,
+    uint64_t* dst,
+    int64_t rows,
+    int64_t cols) {
+  return rns8_wrap64_hip_export_u64_device_on_stream(byte_limbs, dst, rows, cols, nullptr);
 }

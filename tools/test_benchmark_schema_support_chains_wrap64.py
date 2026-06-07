@@ -584,6 +584,351 @@ def as_hip_graph_replay_capture(capture: dict) -> dict:
     return graph
 
 
+def as_hip_graph_full_bounded_capture(capture: dict) -> dict:
+    graph = copy.deepcopy(capture)
+    repeats = graph["repeats"]
+    graph["benchmark"] = "rns8_hip_graph_replay_bounded_pack_gemm_export"
+    graph["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+    graph["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics bounded-i64 --m 64 --n 64 --k 64 "
+        "--hip-graph-replay --warmups 1 --repeats 3 --seed 7"
+    )
+    graph["backend_requested"] = "hip-direct"
+    graph["backend_selected"] = "hip-direct"
+    graph["semantics"] = "bounded_i64"
+    graph["m"] = 64
+    graph["n"] = 64
+    graph["k"] = 64
+    graph["bound_kind"] = "global_max_abs"
+    graph["bound_mode"] = "global"
+    graph["bound_source"] = "static_profile"
+    graph["bound"] = 1099511627776
+    graph["tile_bounds_u64"] = None
+    graph["prefix"] = 9
+    graph["selected_prefix"] = 9
+    graph["requested_max_prefix"] = 9
+    graph["contract_prefix_policy"] = "minimum_proven"
+    graph["schedule_metadata"]["tile_rows"] = 1
+    graph["schedule_metadata"]["tile_cols"] = 1
+    graph["schedule_metadata"]["tile_count"] = 1
+    graph["schedule_metadata"]["min_required_prefix"] = 9
+    graph["schedule_metadata"]["max_required_prefix"] = 9
+    graph["schedule_metadata"]["min_selected_prefix"] = 9
+    graph["schedule_metadata"]["max_selected_prefix"] = 9
+    graph["schedule_metadata"]["prefix_group_count"] = 1
+    graph["schedule_metadata"]["adaptive_prefix_active"] = False
+    graph["schedule_metadata"]["adaptive_skip_active"] = False
+    graph["schedule_metadata"]["adaptive_execution_applied"] = False
+    graph["schedule_metadata"]["range_bit_length"] = 41
+    graph["reuse_packed_inputs"] = False
+    graph["pack_mode"] = "per_repeat_repack"
+    graph["prepack_reuse_operands"] = []
+    graph["prepack_reuse_strategy"] = "none"
+    graph["prepack_setup_us"] = None
+    graph.pop("avg_prepack_setup_us", None)
+    graph["epilogue_type"] = "crt_export"
+    graph["residue_chain_length"] = 1
+    graph["residue_output_mode"] = "host_export"
+    graph["per_modulus_gemm_estimate_applicable"] = False
+    graph["raw_timings_us"].pop("tile_bound_scan", None)
+    graph["timing_summary_us"].pop("tile_bound_scan", None)
+    graph["raw_timings_us"]["pack"] = [0 for _ in range(repeats)]
+    graph["raw_timings_us"]["rns_gemm"] = [90, 91, 92][:repeats]
+    graph["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
+    graph["raw_timings_us"]["end_to_end"] = [90, 91, 92][:repeats]
+    graph["timing_summary_us"]["pack"] = zero_summary()
+    graph["timing_summary_us"]["rns_gemm"] = summary(graph["raw_timings_us"]["rns_gemm"])
+    graph["timing_summary_us"]["crt_export"] = zero_summary()
+    graph["timing_summary_us"]["end_to_end"] = summary(graph["raw_timings_us"]["end_to_end"])
+    graph["avg_pack_us"] = 0.0
+    graph["avg_rns_gemm_us"] = graph["timing_summary_us"]["rns_gemm"]["avg"]
+    graph["avg_crt_export_us"] = 0.0
+    graph["avg_end_to_end_us"] = graph["timing_summary_us"]["end_to_end"]["avg"]
+    graph["avg_per_modulus_gemm_estimate_us"] = 0.0
+    graph["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+        (
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=64;tile_n=64;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;"
+            "epilogue=fused_centered_residue_then_crt_export"
+        ),
+        graph,
+    )
+    add_prefix_policy_fields(graph, "minimum_proven")
+    graph["timing_note"] = (
+        "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP bounded full pack/GEMM/export path"
+    )
+    metadata = graph["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+    metadata["pack_mode"] = "per_repeat_repack"
+    metadata["prepack_reuse_operands"] = []
+    metadata["prepack_reuse_strategy"] = "none"
+    metadata["gpu_event_timing"] = False
+    metadata["gpu_event_timing_reason"] = "hip_graph_replay_wall_clock_only"
+    metadata["gpu_event_timing_status"] = "not_requested_graph_replay"
+    metadata["gpu_event_timing_source"] = None
+    metadata["gpu_event_timing_source_scope"] = None
+    metadata["gpu_event_timing_caveat"] = None
+    metadata["gpu_event_phase_order"] = None
+    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_notes"]["pack"] = (
+        "captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "captured inside one HIP Graph launch with the Direct-HIP bounded pack and export work"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "captured inside one HIP Graph launch including status memset, export kernel, status D2H, and output D2H"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "measured duration for one hipGraphLaunch plus stream synchronization containing the complete bounded pack, "
+        "RNS GEMM, export, status, and D2H path"
+    )
+    metadata["phase_availability"].pop("tile_bound_scan", None)
+    metadata["hip_graph_replay_enabled"] = True
+    metadata["hip_graph_replay_status"] = "available"
+    metadata["hip_graph_replay_scope"] = "direct_hip_bounded_pack_gemm_export"
+    metadata["hip_graph_capture_us"] = 13
+    metadata["hip_graph_instantiate_us"] = 19
+    metadata["hip_graph_total_launches"] = graph["warmups"] + graph["repeats"]
+    graph["gpu_event_timings_us"] = None
+    graph["gpu_event_timing_summary_us"] = None
+    graph["hip_graph_replay"] = {
+        "requested": True,
+        "available": True,
+        "used": True,
+        "status": "available",
+        "scope": "direct_hip_bounded_pack_gemm_export",
+        "descriptor_identity": "fixed_plan_workspace_descriptor:m=64;n=64;k=64",
+        "plan_identity": graph["backend_metadata"]["autotune_key"],
+        "setup_scope": "benchmark_hip_graph_replay_bounded_pack_gemm_export",
+        "capture_status": "replayed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+        "capture_us": 13,
+        "instantiate_us": 19,
+        "graph_launches_per_measured_repeat": 1,
+        "total_graph_launches": graph["warmups"] + graph["repeats"],
+        "captured_chain_length": 1,
+        "timing_policy": "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync",
+        "setup_policy": "capture_and_instantiate_before_warmups_no_prepack_reuse",
+        "final_export_policy": "logical_export_and_output_d2h_captured_inside_graph_each_repeat",
+        "caveat": (
+            "captures Direct-HIP bounded pack, one RNS GEMM, export status, export kernel, and output D2H inside "
+            "the graph"
+        ),
+    }
+    add_target_variant_fields(graph)
+    add_requested_next_op_fields(graph)
+    add_output_policy_fields(graph, status_handling="required", per_repeat_export=True, final_checksum_export=False)
+    return graph
+
+
+def as_hip_graph_full_finite_capture(capture: dict) -> dict:
+    graph = as_hip_graph_full_bounded_capture(capture)
+    repeats = graph["repeats"]
+    modulus = 251
+    kernel = "direct_hip_tiled_finite_u8_gemm_mod251_v1"
+    autotune_key_base = (
+        "backend=hip-direct;semantics=finite_ring_u8;m=64;n=64;k=64;bound_kind=none;"
+        "finite_modulus=251;prefix=0;tile_m=64;tile_n=64;groups=0;adaptive_prefix=0;"
+        "adaptive_skip=0;kernel=direct_hip_tiled_finite_u8_gemm_mod251_v1;"
+        "epilogue=fused_centered_residue_then_canonical_u8_export"
+    )
+    graph["benchmark"] = "rns8_hip_graph_replay_finite_u8_pack_gemm_export"
+    graph["benchmark_execution_mode"] = "hip_graph_replay_finite_u8_pack_gemm_export"
+    graph["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics finite-u8-ring --modulus 251 "
+        "--m 64 --n 64 --k 64 --hip-graph-replay --warmups 1 --repeats 3 --seed 7"
+    )
+    graph["semantics"] = "finite_ring_u8"
+    graph["bound_kind"] = "none"
+    graph["bound"] = 0
+    graph["finite_modulus"] = modulus
+    graph["prefix"] = 0
+    graph["selected_prefix"] = 0
+    graph["requested_max_prefix"] = 0
+    graph["contract_prefix_policy"] = "semantic_specific_no_rns_prefix"
+    graph["residue_planes_requested"] = 0
+    graph["residue_planes_selected"] = 0
+    graph["residue_planes_skipped"] = 0
+    graph["residue_plane_skip_fraction"] = 0.0
+    graph["packed_layout_version"] = None
+    graph["epilogue_type"] = "canonical_u8_export"
+    graph["selected_kernel"] = kernel
+    graph["backend_metadata"]["selected_kernel"] = kernel
+    graph["backend_metadata"]["epilogue_mode"] = "fused_centered_residue_then_canonical_u8_export"
+    graph["backend_metadata"]["workspace_mode"] = "resident_device_buffers"
+    graph["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
+    graph["backend_metadata"]["accumulator_safety"].update(
+        {
+            "input_domain": "centered_i8_finite_u8_residues",
+            "modulus_policy": "finite_u8_modulus",
+            "modulus": modulus,
+            "k_block_size": 64,
+            "k_block_cap": 65536,
+            "safe_for_k_block": True,
+            "status": "safe_int32_k_block_split",
+        }
+    )
+    autotune_key = with_accumulator_key_fields(autotune_key_base, graph)
+    graph["backend_metadata"]["autotune_key"] = autotune_key
+    graph["schedule_metadata"].update(
+        {
+            "bound_kind": "none",
+            "effective_bound": 0,
+            "lhs_bound": 0,
+            "rhs_bound": 0,
+            "bound_contract": "finite_modulus",
+            "min_required_prefix": 0,
+            "max_required_prefix": 0,
+            "min_selected_prefix": 0,
+            "max_selected_prefix": 0,
+            "prefix_group_count": 0,
+            "range_bit_length": 0,
+        }
+    )
+    graph["backend_metadata"]["autotune_key"] = autotune_key
+    graph["timing_note"] = (
+        "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP finite-u8 full pack/GEMM/export path"
+    )
+    graph["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_finite_u8_pack_gemm_export"
+    graph["timing_metadata"]["hip_graph_replay_scope"] = "direct_hip_finite_u8_pack_gemm_export"
+    graph["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "captured inside one HIP Graph launch with the Direct-HIP finite-u8 pack and canonical export work"
+    )
+    graph["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "captured inside one HIP Graph launch including finite export kernel and output D2H"
+    )
+    graph["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "measured duration for one hipGraphLaunch plus stream synchronization containing the complete finite-u8 "
+        "pack, modular GEMM, canonical export, and D2H path"
+    )
+    graph["hip_graph_replay"].update(
+        {
+            "scope": "direct_hip_finite_u8_pack_gemm_export",
+            "plan_identity": autotune_key,
+            "setup_scope": "benchmark_hip_graph_replay_finite_u8_pack_gemm_export",
+            "timing_policy": (
+                "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+            ),
+            "final_export_policy": "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat",
+            "caveat": (
+                "captures Direct-HIP finite-u8 pack, one modular GEMM, canonical finite export, and output D2H "
+                "inside the graph"
+            ),
+        }
+    )
+    graph["raw_timings_us"]["rns_gemm"] = [70, 71, 72][:repeats]
+    graph["raw_timings_us"]["end_to_end"] = [70, 71, 72][:repeats]
+    graph["timing_summary_us"]["rns_gemm"] = summary(graph["raw_timings_us"]["rns_gemm"])
+    graph["timing_summary_us"]["end_to_end"] = summary(graph["raw_timings_us"]["end_to_end"])
+    graph["avg_rns_gemm_us"] = graph["timing_summary_us"]["rns_gemm"]["avg"]
+    graph["avg_end_to_end_us"] = graph["timing_summary_us"]["end_to_end"]["avg"]
+    add_prefix_policy_fields(graph, "semantic_specific_no_rns_prefix")
+    add_target_variant_fields(graph)
+    add_requested_next_op_fields(graph)
+    add_output_policy_fields(graph, status_handling="structurally_elided", per_repeat_export=True, final_checksum_export=False)
+    return graph
+
+
+def as_hip_graph_full_wrap64_capture(capture: dict) -> dict:
+    graph = copy.deepcopy(capture)
+    repeats = graph["repeats"]
+    graph["benchmark"] = "rns8_hip_graph_replay_wrap64_pack_gemm_export"
+    graph["benchmark_execution_mode"] = "hip_graph_replay_wrap64_pack_gemm_export"
+    graph["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics wrap-u64 "
+        "--m 4 --n 4 --k 8 --hip-graph-replay --warmups 1 --repeats 3 --seed 7"
+    )
+    graph["reuse_packed_inputs"] = False
+    graph["pack_mode"] = "per_repeat_repack"
+    graph["prepack_reuse_operands"] = []
+    graph["prepack_reuse_strategy"] = "none"
+    graph["prepack_setup_us"] = None
+    graph.pop("avg_prepack_setup_us", None)
+    graph["residue_chain_length"] = 1
+    graph["residue_output_mode"] = "host_export"
+    graph["output_logical_ld"] = graph["n"]
+    graph["output_ld_padding"] = 0
+    graph["raw_timings_us"]["pack"] = [0 for _ in range(repeats)]
+    graph["raw_timings_us"]["rns_gemm"] = [80, 81, 82][:repeats]
+    graph["raw_timings_us"]["crt_export"] = [0 for _ in range(repeats)]
+    graph["raw_timings_us"]["end_to_end"] = [80, 81, 82][:repeats]
+    graph["timing_summary_us"]["pack"] = zero_summary()
+    graph["timing_summary_us"]["rns_gemm"] = summary(graph["raw_timings_us"]["rns_gemm"])
+    graph["timing_summary_us"]["crt_export"] = zero_summary()
+    graph["timing_summary_us"]["end_to_end"] = summary(graph["raw_timings_us"]["end_to_end"])
+    graph["avg_pack_us"] = 0.0
+    graph["avg_rns_gemm_us"] = graph["timing_summary_us"]["rns_gemm"]["avg"]
+    graph["avg_crt_export_us"] = 0.0
+    graph["avg_end_to_end_us"] = graph["timing_summary_us"]["end_to_end"]["avg"]
+    graph["timing_note"] = (
+        "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP wrap64 full pack/GEMM/export path"
+    )
+    metadata = graph["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "hip_graph_replay_wrap64_pack_gemm_export"
+    metadata["pack_mode"] = "per_repeat_repack"
+    metadata["prepack_reuse_operands"] = []
+    metadata["prepack_reuse_strategy"] = "none"
+    metadata["gpu_event_timing"] = False
+    metadata["gpu_event_timing_reason"] = "hip_graph_replay_wall_clock_only"
+    metadata["gpu_event_timing_status"] = "not_requested_graph_replay"
+    metadata["gpu_event_timing_source"] = None
+    metadata["gpu_event_timing_source_scope"] = None
+    metadata["gpu_event_timing_caveat"] = None
+    metadata["gpu_event_phase_order"] = None
+    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_notes"]["pack"] = (
+        "captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay"
+    )
+    metadata["phase_notes"]["rns_gemm"] = (
+        "captured inside one HIP Graph launch with Direct-HIP wrap64 byte-limb pack and low64 export work"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "captured inside one HIP Graph launch including wrap64 low64 export kernel and output D2H"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "measured duration for one hipGraphLaunch plus stream synchronization containing the complete wrap64 "
+        "byte-limb pack, byte-GEMM36, low64 export, and D2H path"
+    )
+    metadata["hip_graph_replay_enabled"] = True
+    metadata["hip_graph_replay_status"] = "available"
+    metadata["hip_graph_replay_scope"] = "direct_hip_wrap64_pack_gemm_export"
+    metadata["hip_graph_capture_us"] = 17
+    metadata["hip_graph_instantiate_us"] = 23
+    metadata["hip_graph_total_launches"] = graph["warmups"] + graph["repeats"]
+    graph["gpu_event_timings_us"] = None
+    graph["gpu_event_timing_summary_us"] = None
+    graph["hip_graph_replay"] = {
+        "requested": True,
+        "available": True,
+        "used": True,
+        "status": "available",
+        "scope": "direct_hip_wrap64_pack_gemm_export",
+        "descriptor_identity": "fixed_wrap64_byte_limb_descriptor:m=4;n=4;k=8",
+        "plan_identity": graph["backend_metadata"]["autotune_key"],
+        "setup_scope": "benchmark_hip_graph_replay_wrap64_pack_gemm_export",
+        "capture_status": "replayed",
+        "unsupported_reason": None,
+        "promotion_eligible": False,
+        "capture_us": 17,
+        "instantiate_us": 23,
+        "graph_launches_per_measured_repeat": 1,
+        "total_graph_launches": graph["warmups"] + graph["repeats"],
+        "captured_chain_length": 1,
+        "timing_policy": "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync",
+        "setup_policy": "capture_and_instantiate_before_warmups_no_prepack_reuse",
+        "final_export_policy": "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat",
+        "caveat": (
+            "captures Direct-HIP wrap64 byte-limb pack, byte-GEMM36, low64 export, and output D2H inside the graph"
+        ),
+    }
+    add_target_variant_fields(graph)
+    add_requested_next_op_fields(graph)
+    add_output_policy_fields(graph, status_handling="not_applicable", per_repeat_export=True, final_checksum_export=False)
+    return graph
+
+
 def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
     candidate = copy.deepcopy(capture)
     repeats = candidate["repeats"]

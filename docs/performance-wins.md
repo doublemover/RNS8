@@ -580,6 +580,18 @@ benchmark-only graph replay classifications, not README headline claims,
 installed cache entries, public async APIs, default routes, or Linux/CDNA
 claims.
 
+Rank 58 extends HIP Graph replay to full pack/GEMM/export Direct-HIP paths.
+Under `temp/rank58-hip-graph-full-release-20260606/`, bounded i64/u64,
+finite ring/field u8, and strict wrap64 512/1024 graph candidates compare
+against same-contract non-graph Direct-HIP baselines with graph setup amortized.
+Bounded and finite full-path graph rows are all deprioritized after setup cost.
+Strict wrap64 is the useful local signal: wrap64 512 is 1626 us graph versus
+2739 us ordinary Direct-HIP, 1.69x faster, and wrap64 1024 is 5340 us versus
+6546 us, 1.23x faster. These are local Windows `gfx1100` benchmark-only
+workload wins; they do not add a README headline claim, installed cache entry,
+AUTO/default route, public async API, Linux readiness claim, or CDNA
+performance claim.
+
 The large-shape release-validation follow-up on June 5, 2026 covered strict
 wrap64 2048x2048x2048 with the same-contract byte-limb CPU reference and Direct
 HIP v4. The review had no missing required baselines, duplicate backends, target

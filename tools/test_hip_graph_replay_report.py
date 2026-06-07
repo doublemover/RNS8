@@ -8,7 +8,18 @@ import copy
 import hip_graph_replay_report
 
 
-def capture(*, graph: bool, median_us: float, setup_us: float, name: str, checksum: int = 1234) -> dict:
+def capture(
+    *,
+    graph: bool,
+    median_us: float,
+    setup_us: float | None,
+    name: str,
+    checksum: int = 1234,
+    full_path: bool = False,
+) -> dict:
+    execution_mode = "hip_graph_replay_bounded_pack_gemm_export" if full_path and graph else (
+        "hip_graph_replay_resident_rns_chain" if graph else ("persistent_resident_matrices" if full_path else "residue_current_rns_chain")
+    )
     result = {
         "_path": f"{name}.json",
         "semantics": "bounded_i64",
@@ -23,21 +34,25 @@ def capture(*, graph: bool, median_us: float, setup_us: float, name: str, checks
         "input_distribution": "signed_uniform_-16_16",
         "selected_prefix": 9,
         "requested_max_prefix": 9,
-        "contract_prefix_policy": "fixed_requested_residue_chain",
+        "contract_prefix_policy": "minimum_proven" if full_path else "fixed_requested_residue_chain",
         "exact_wide_limb_count": None,
-        "residue_chain_length": 3,
-        "residue_output_mode": "residue_current_rns",
+        "residue_chain_length": 1 if full_path else 3,
+        "residue_output_mode": "host_export" if full_path else "residue_current_rns",
         "seed": 20260606,
         "warmups": 3,
         "repeats": 9,
         "backend_selected": "hip-direct",
         "checksum_u64": checksum,
-        "prepack_setup_us": int(setup_us),
-        "avg_prepack_setup_us": float(setup_us),
-        "requested_next_op": {"requested": "rns-gemm", "resolved": "rns-gemm", "source": "cli"},
+        "reuse_packed_inputs": not full_path,
+        "prepack_setup_us": int(setup_us) if setup_us is not None else None,
+        "requested_next_op": (
+            {"requested": "auto", "resolved": "final-export", "source": "benchmark_default"}
+            if full_path
+            else {"requested": "rns-gemm", "resolved": "rns-gemm", "source": "cli"}
+        ),
         "exact_output_contract": {
             "limb_count": None,
-            "output_domain_after_measured_repeats": "rns_residue_current",
+            "output_domain_after_measured_repeats": "native_i64_u64_host" if full_path else "rns_residue_current",
         },
         "timing_summary_us": {
             "end_to_end": {"median": median_us},
@@ -53,7 +68,7 @@ def capture(*, graph: bool, median_us: float, setup_us: float, name: str, checks
             },
         },
         "timing_metadata": {
-            "benchmark_execution_mode": "hip_graph_replay_resident_rns_chain" if graph else "residue_current_rns_chain",
+            "benchmark_execution_mode": execution_mode,
             "gpu_event_timing": not graph,
             "gpu_event_timing_reason": "hip_graph_replay_wall_clock_only" if graph else "requested",
             "gpu_event_timing_status": "not_requested_graph_replay" if graph else "available",
@@ -70,6 +85,12 @@ def capture(*, graph: bool, median_us: float, setup_us: float, name: str, checks
             "instantiate_us": 99 if graph else 0,
         },
     }
+    if setup_us is not None:
+        result["avg_prepack_setup_us"] = float(setup_us)
+    if full_path and graph:
+        result["hip_graph_replay"]["scope"] = "direct_hip_bounded_pack_gemm_export"
+    elif graph:
+        result["hip_graph_replay"]["scope"] = "direct_hip_reused_inputs_residue_current_rns_chain"
     return result
 
 
@@ -100,6 +121,33 @@ def main() -> int:
     mismatch_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([baseline, mismatch])
     assert mismatch_report["comparisons"][0]["decision"] == "keep_experimental"
     assert "checksum_mismatch" in mismatch_report["comparisons"][0]["blockers"]
+
+    full_baseline = capture(graph=False, median_us=800.0, setup_us=None, name="full-baseline", full_path=True)
+    full_graph = capture(graph=True, median_us=720.0, setup_us=None, name="full-graph", full_path=True)
+    full_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([full_baseline, full_graph])
+    full_comparison = full_report["comparisons"][0]
+    assert full_comparison["decision"] == "candidate_workload_win"
+    assert full_comparison["graph_scope"] == "direct_hip_bounded_pack_gemm_export"
+    assert full_comparison["baseline_prepack_setup_us"] == 0.0
+    assert full_comparison["graph_prepack_setup_us"] == 0.0
+    assert full_comparison["baseline_setup_inclusive_per_repeat_us"] == 800.0
+    assert full_comparison["graph_setup_inclusive_per_repeat_us"] == 741.0
+
+    wrap_baseline = capture(graph=False, median_us=700.0, setup_us=None, name="wrap-baseline", full_path=True)
+    wrap_graph = capture(graph=True, median_us=650.0, setup_us=None, name="wrap-graph", full_path=True)
+    for item in [wrap_baseline, wrap_graph]:
+        item["semantics"] = "wrap_u64_mod_2_64"
+        item["bound_kind"] = "none"
+        item["input_distribution"] = "unsigned_uniform_u64"
+        item["selected_prefix"] = 0
+        item["requested_max_prefix"] = 0
+        item["contract_prefix_policy"] = "semantic_specific_no_rns_prefix"
+    wrap_graph["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_wrap64_pack_gemm_export"
+    wrap_graph["hip_graph_replay"]["scope"] = "direct_hip_wrap64_pack_gemm_export"
+    wrap_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([wrap_baseline, wrap_graph])
+    wrap_comparison = wrap_report["comparisons"][0]
+    assert wrap_comparison["decision"] == "candidate_workload_win"
+    assert wrap_comparison["graph_scope"] == "direct_hip_wrap64_pack_gemm_export"
 
     print("hip graph replay report self-test: PASS")
     return 0

@@ -529,6 +529,624 @@
         "reuse_contract": "stable_chain_a_b_prepacked_before_capture",
         "setup_cost_policy": "prepack_setup_us_graph_capture_us_and_instantiate_us_included_in_review"
       }
+    },
+    {
+      "name": "bounded-i64-full-pack-export-512-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP bounded-i64 full pack/GEMM/export path",
+      "output_domain": "host_export",
+      "rationale": "same-contract baseline for the rank-58 full-path HIP Graph replay candidate",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_bounded_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "bounded-i64-full-pack-export-512-graph",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for bounded-i64 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether graph replay helps once pack, GEMM, status handling, export, and output D2H are all captured",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_bounded_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-i64-full-pack-export-1024-baseline",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP bounded-i64 full pack/GEMM/export path at 1024",
+      "output_domain": "host_export",
+      "rationale": "larger same-contract baseline for the rank-58 full-path HIP Graph replay candidate",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_bounded_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "bounded-i64-full-pack-export-1024-graph",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for larger bounded-i64 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether full-path graph replay remains useful at a less launch-bound release shape",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_bounded_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-full-pack-export-512-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP bounded-u64 full pack/GEMM/export path",
+      "output_domain": "host_export",
+      "rationale": "same-contract unsigned baseline for the rank-58 full-path HIP Graph replay candidate",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_bounded_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "bounded-u64-full-pack-export-512-graph",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for bounded-u64 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks full-path graph replay against unsigned bounded Direct-HIP baseline",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_bounded_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "bounded-u64-full-pack-export-1024-baseline",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP bounded-u64 full pack/GEMM/export path at 1024",
+      "output_domain": "host_export",
+      "rationale": "larger unsigned same-contract baseline for full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_bounded_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "bounded-u64-full-pack-export-1024-graph",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for larger bounded-u64 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether unsigned full-path graph replay remains useful at 1024",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_bounded_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "finite-ring-u8-full-pack-export-512-baseline",
+      "semantics": "finite-u8-ring",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP finite-ring-u8 full pack/GEMM/export path",
+      "output_domain": "host_export",
+      "rationale": "same-contract finite-ring baseline for rank-58 full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_finite_u8_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "finite-ring-u8-full-pack-export-512-graph",
+      "semantics": "finite-u8-ring",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for finite-ring-u8 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether graph replay helps when finite-u8 pack, modular GEMM, export, and output D2H are all captured",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_finite_u8_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "finite-ring-u8-full-pack-export-1024-baseline",
+      "semantics": "finite-u8-ring",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP finite-ring-u8 full pack/GEMM/export path at 1024",
+      "output_domain": "host_export",
+      "rationale": "larger finite-ring same-contract baseline for full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_finite_u8_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "finite-ring-u8-full-pack-export-1024-graph",
+      "semantics": "finite-u8-ring",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for larger finite-ring-u8 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether finite full-path graph replay remains useful at 1024",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_finite_u8_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "finite-field-u8-full-pack-export-512-baseline",
+      "semantics": "finite-u8-field",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP finite-field-u8 full pack/GEMM/export path",
+      "output_domain": "host_export",
+      "rationale": "same-contract finite-field baseline for rank-58 full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_finite_u8_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "finite-field-u8-full-pack-export-512-graph",
+      "semantics": "finite-u8-field",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for finite-field-u8 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks full-path graph replay against the finite-field Direct-HIP baseline",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_finite_u8_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "finite-field-u8-full-pack-export-1024-baseline",
+      "semantics": "finite-u8-field",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP finite-field-u8 full pack/GEMM/export path at 1024",
+      "output_domain": "host_export",
+      "rationale": "larger finite-field same-contract baseline for full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_finite_u8_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "finite-field-u8-full-pack-export-1024-graph",
+      "semantics": "finite-u8-field",
+      "finite_moduli": [251],
+      "case": {
+        "name": "finite-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for larger finite-field-u8 full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether finite-field full-path graph replay remains useful at 1024",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_finite_u8_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "wrap64-full-pack-export-512-baseline",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP strict wrap64 byte-limb full pack/GEMM/export path",
+      "output_domain": "host_export",
+      "rationale": "same-contract strict wrap64 baseline for full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_wrap64_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "wrap64-full-pack-export-512-graph",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-full-pack-export-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for strict wrap64 byte-limb full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks full-path graph replay against the strict wrap64 Direct-HIP baseline",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_wrap64_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
+    },
+    {
+      "name": "wrap64-full-pack-export-1024-baseline",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "ordinary Direct-HIP strict wrap64 byte-limb full pack/GEMM/export path at 1024",
+      "output_domain": "host_export",
+      "rationale": "larger strict wrap64 same-contract baseline for full-path HIP Graph replay",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "ordinary_wrap64_full_pack_gemm_export",
+        "graph_role": "same_contract_non_graph_baseline",
+        "reuse_contract": "no_prepack_reuse_per_repeat_pack_export",
+        "setup_cost_policy": "no_prepack_setup_graph_setup_not_applicable"
+      }
+    },
+    {
+      "name": "wrap64-full-pack-export-1024-graph",
+      "semantics": "wrap-u64",
+      "case": {
+        "name": "wrap64-full-pack-export-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "Direct-HIP HIP Graph replay candidate for larger strict wrap64 byte-limb full pack/GEMM/export",
+      "output_domain": "host_export",
+      "rationale": "checks whether strict wrap64 full-path graph replay remains useful at 1024",
+      "backends": ["hip-direct"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "hip_graph_replay_evidence_only",
+      "pack_mode": "per_repeat_repack",
+      "hip_graph_replay": true,
+      "metadata": {
+        "workflow_name": "hip_graph_replay",
+        "phase_label": "hip_graph_wrap64_full_pack_gemm_export",
+        "graph_role": "graph_replay_candidate",
+        "reuse_contract": "no_prepack_reuse_fixed_inputs_captured_full_path",
+        "setup_cost_policy": "graph_capture_us_and_instantiate_us_included_in_review"
+      }
     }
   ]
 }

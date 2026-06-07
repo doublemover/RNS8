@@ -96,6 +96,12 @@ def backend_id(capture: dict[str, Any]) -> str:
         return f"{backend}-hostbatch"
     if execution_mode == "hip_graph_replay_resident_rns_chain":
         return f"{backend}-hipgraph"
+    if execution_mode == "hip_graph_replay_bounded_pack_gemm_export":
+        return f"{backend}-hipgraph-pack-export"
+    if execution_mode == "hip_graph_replay_finite_u8_pack_gemm_export":
+        return f"{backend}-hipgraph-finite-pack-export"
+    if execution_mode == "hip_graph_replay_wrap64_pack_gemm_export":
+        return f"{backend}-hipgraph-wrap64-pack-export"
     return backend
 
 
@@ -114,7 +120,7 @@ def normalized_target_id(value: Any) -> str | None:
 
 
 def backend_family_id(backend: str) -> str:
-    for suffix in ("-oneshot", "-hostbatch"):
+    for suffix in ("-oneshot", "-hostbatch", "-hipgraph", "-hipgraph-pack-export"):
         if backend.endswith(suffix):
             return backend[: -len(suffix)]
     return backend

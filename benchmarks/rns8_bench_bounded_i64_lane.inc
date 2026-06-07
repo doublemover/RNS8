@@ -392,7 +392,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     }
   };
 
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
+    run_hip_graph_replay_bounded_pack_gemm_export(
+        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, bound, latest_output_matrix);
+  } else if (hip_graph_replay_requested(args)) {
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else if (streaming_overlap_path) {

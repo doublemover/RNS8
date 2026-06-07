@@ -7,6 +7,35 @@ context and evidence breadcrumbs.
 
 ## Recent Execution Status
 
+June 6, 2026 rank-58 HIP Graph replay full-path closeout:
+
+- Rank 58 moved from the active queue to the completed-work archive after the
+  graph lane expanded beyond resident RNS chains into full pack/GEMM/export
+  captures for bounded i64/u64, finite ring/field u8, and strict wrap64. The
+  bounded, finite, and wrap64 graph bodies capture H2D inputs, pack kernels,
+  Direct-HIP compute, export/status work, and D2H output on explicit streams
+  with graph setup amortized into the reported per-repeat comparison. The
+  resident-chain graph mode remains unchanged.
+- `benchmarks/scenarios/hip_graph_replay.json`, schema validation, sweep
+  metadata, generated metadata registry constants, and
+  `tools/hip_graph_replay_report.py` now distinguish resident-chain graph,
+  bounded full pack/GEMM/export graph, finite-u8 full pack/GEMM/export graph,
+  and strict wrap64 full pack/GEMM/export graph execution modes. The finite
+  path also fixed its stream correctness issue by launching fixed-modulus GEMM
+  kernels on the captured stream.
+- The Windows `gfx1100` release sweep under
+  `temp/rank58-hip-graph-full-release-20260606/` produced 20 schema-valid
+  captures and 10 checksum-matched graph/baseline comparisons with zero missing
+  baselines. Bounded full-path graph rows are deprioritized at 0.60x to 0.86x
+  versus ordinary Direct-HIP, and finite-u8 full-path graph rows are
+  deprioritized at 0.48x to 0.61x. Strict wrap64 graph replay is a local
+  benchmark-only workload win: 512 improves from 2739 us to 1626 us, 1.69x,
+  and 1024 improves from 6546 us to 5340 us, 1.23x. This adds no README
+  headline claim, installed cache entry, AUTO route, public async API, Linux
+  readiness claim, or CDNA performance claim. Mixed accelerator graph capture
+  remains deferred until hipBLASLt/CK/rocWMMA handle, stream, and scratch
+  lifetimes are graph-safe.
+
 June 6, 2026 rank-56 tile-shape autotuning gate closeout:
 
 - Rank 56 moved from the active queue to the completed-work archive after the

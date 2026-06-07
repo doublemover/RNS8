@@ -309,6 +309,16 @@ bool hip_graph_replay_requested(const Args& args) {
   return args.hip_graph_replay;
 }
 
+bool hip_graph_replay_resident_chain_requested(const Args& args) {
+  return hip_graph_replay_requested(args) && !hip_graph_replay_full_bounded_pack_export_requested(args) &&
+         !hip_graph_replay_full_finite_pack_export_requested(args) &&
+         !hip_graph_replay_full_wrap64_pack_export_requested(args);
+}
+
+bool hip_graph_replay_full_bounded_pack_export_used(const BenchmarkResult& result) {
+  return result.hip_graph_replay_scope == "direct_hip_bounded_pack_gemm_export";
+}
+
 bool oneshot_benchmark_mode(const Args& args) {
   return args.oneshot;
 }
@@ -335,7 +345,16 @@ const char* benchmark_execution_mode_name(const Args& args) {
   if (host_api_batch_requested(args)) {
     return "benchmark_host_api_batch";
   }
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_bounded_pack_export_requested(args)) {
+    return "hip_graph_replay_bounded_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_finite_pack_export_requested(args)) {
+    return "hip_graph_replay_finite_u8_pack_gemm_export";
+  }
+  if (hip_graph_replay_full_wrap64_pack_export_requested(args)) {
+    return "hip_graph_replay_wrap64_pack_gemm_export";
+  }
+  if (hip_graph_replay_resident_chain_requested(args)) {
     return "hip_graph_replay_resident_rns_chain";
   }
   if (args.streaming_overlap) {

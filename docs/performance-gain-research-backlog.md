@@ -1,6 +1,7 @@
 # Performance Gain Research Backlog
 
-This document preserves the long-form research backlog that used to live in
+This document preserves the former detailed backlog and research-notes material
+that used to live in
 [performance-gain-work-queue.md](performance-gain-work-queue.md). Use the work
 queue as the ranked execution control panel; use this file for archived
 evidence snapshots, alignment notes, ordered work items, and batch-level

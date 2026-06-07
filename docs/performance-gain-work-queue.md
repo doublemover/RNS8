@@ -40,17 +40,17 @@ Evidence sources for current promotion state are
 [current local performance snapshot](../README.md#exactness-and-performance).
 Completed and closed queue ranks are archived in
 [performance-gain-completed-work.md](performance-gain-completed-work.md).
-Archived research notes, dated execution updates, and non-active disposition
-tables live in [performance-gain-research-backlog.md](performance-gain-research-backlog.md),
-[performance-gain-work-log.md](performance-gain-work-log.md), and
+The former detailed backlog/research-notes material lives in
+[performance-gain-research-backlog.md](performance-gain-research-backlog.md);
+dated execution updates and non-active disposition tables live in
+[performance-gain-work-log.md](performance-gain-work-log.md) and
 [performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
-The active table below now contains 10 ranks. Rank IDs are historical/stable
+The active table below now contains 9 ranks. Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
 | Rank | Work Item | Why Now | Evidence Gate | Disposition Rule |
 |---:|---|---|---|---|
-| 58 | HIP Graph replay expansion beyond the Direct-HIP resident RNS chain lane | Rank 30 proved the narrow resident-chain graph lane is worth keeping for some 512/1024 workflows, but it still excludes pack, export, finite-u8, wrap64, and mixed-backend work | Prove explicit-stream capture, status/error equivalence, currentness, setup accounting, and same-contract non-graph baselines for each broader path | Expand only path-by-path; keep every graph variant benchmark-only until setup-inclusive release review beats the ordinary path |
 | 60 | Advanced promotion ledger adoption and cache-install gate | Installed reviewed cache entries need durable auditability | `tools/promotion_ledger.py` now records target-validation group, target/cache eligibility, stale invalidation reasons, variance state, and coverage summaries; `tools/install_autotune_cache.py` now records add/replace history, cache coverage, `--require-target-validation-gate`, and automatic CDNA target-gate enforcement | Do not install or replace cache entries without ledger consistency, target validation where required, variance gates for narrow lanes, and claim validation |
 | 63 | Verification amortization and real FHE/lattice workload suite | Exact repeated validation and FHE/lattice-inspired workloads need realistic contracts | Add CKKS/BFV/BGV-like NTT, key-switch, relinearization, rotation, ModUp/ModDown/rescale, bootstrapping-stage, tower reuse proxies, and safe verification amortization | Keep as workload/proxy evidence, not cryptographic correctness or library support claims |
 | 68 | Strict wrap64 Direct-HIP v4 carry/byte-limb tuning | Direct-HIP v4 is the only reviewed strict wrap64 performance path | Release A/B for byte-limb carry propagation, pack/export policy, accumulator tiling, u32 store shape, and event/ISA evidence at 512, 1024, 2048, and exploratory 4096 | Promote only Direct-HIP same-contract wins; keep matrix-engine wrap64 paths experimental until they beat v4 end-to-end |

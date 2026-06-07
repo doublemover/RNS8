@@ -31,6 +31,8 @@ from .execution import cli_backend, normalize_semantics, parse_backend_bench
 from .parsing import parse_case
 from .scenarios import load_scenario_data_catalog
 
+FINITE_SEMANTICS = {"finite-u8-ring", "finite-u8-field"}
+
 VISIBILITY_ENV_OPTIONS = {
     "hip_visible_devices": "HIP_VISIBLE_DEVICES",
     "rocr_visible_devices": "ROCR_VISIBLE_DEVICES",
@@ -560,12 +562,40 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             args, "residue_chain_independent_final_export", False
         ):
             raise SystemExit("--hip-graph-replay cannot be combined with residue-chain final-export modes")
-        if requested_pack_mode(args) != "prepacked_reuse":
-            raise SystemExit("--hip-graph-replay requires --reuse-packed-inputs")
-        if args.residue_chain_length <= 1:
-            raise SystemExit("--hip-graph-replay requires --residue-chain-length > 1")
-        if getattr(args, "next_op_hint", None) != "rns-gemm":
-            raise SystemExit("--hip-graph-replay requires --next-op-hint rns-gemm")
+        full_bounded_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics in BOUNDED_SEMANTICS for semantics in semantics_values)
+        )
+        full_finite_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics in FINITE_SEMANTICS for semantics in semantics_values)
+        )
+        full_wrap64_pack_export_graph = (
+            args.residue_chain_length == 1
+            and requested_pack_mode(args) == "per_repeat_repack"
+            and getattr(args, "next_op_hint", None) != "rns-gemm"
+            and all(semantics == "wrap-u64" for semantics in semantics_values)
+        )
+        resident_chain_graph = (
+            args.residue_chain_length > 1
+            and requested_pack_mode(args) == "prepacked_reuse"
+            and getattr(args, "next_op_hint", None) == "rns-gemm"
+            and all(semantics in RNS_CHAIN_SEMANTICS for semantics in semantics_values)
+        )
+        if (
+            not full_bounded_pack_export_graph
+            and not full_finite_pack_export_graph
+            and not full_wrap64_pack_export_graph
+            and not resident_chain_graph
+        ):
+            raise SystemExit(
+                "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
+                "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm"
+            )
         if host_api_batch_size > 1 or getattr(args, "include_oneshot", False) or getattr(args, "oneshot_only", False):
             raise SystemExit("--hip-graph-replay cannot be combined with host batching or one-shot sweeps")
         if getattr(args, "native_to_rns_bridge", False) or getattr(args, "vector_to_rns_chain", False):
@@ -574,8 +604,6 @@ def default_sweep_command_entries(args: argparse.Namespace) -> list[SweepCommand
             raise SystemExit("--hip-graph-replay cannot be combined with residue-channel fusion")
         if getattr(args, "bound_source", None) == "input-scan":
             raise SystemExit("--hip-graph-replay currently requires static-profile bounds")
-        if any(semantics not in RNS_CHAIN_SEMANTICS for semantics in semantics_values):
-            raise SystemExit("--hip-graph-replay is only valid for bounded or exact-wide RNS sweeps")
     if args.residue_chain_length < 1:
         raise SystemExit("--residue-chain-length must be positive")
     if getattr(args, "residue_chain_independent_final_export", False) and args.residue_chain_length <= 1:
