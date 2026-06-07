@@ -14,6 +14,7 @@ mkdir -p "${CDNA_OUT_DIR}"
 : >"$(cdna_plan_file)"
 
 PRESET="$(cdna_default_preset)"
+PYTHON_BIN="$(cdna_python_bin)"
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
 ENV_DIR="${CDNA_OUT_DIR}/env"
@@ -29,7 +30,7 @@ fi
 if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
   ENV_PROBE_ARGS+=(--accelerators)
 fi
-cdna_repo_run env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
+cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
 if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
   cdna_repo_run configure cmake --preset "${PRESET}"
@@ -46,7 +47,7 @@ if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   printf 'dry-run schema validation for %s\n' "${CAPTURE}" >"${SCHEMA_LOG}"
 else
   (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}") >"${CAPTURE}"
-  (cd "${CDNA_REPO_ROOT}" && python tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
+  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
 fi
 
 echo "CDNA smoke output: ${CDNA_OUT_DIR}"

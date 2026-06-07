@@ -14,6 +14,7 @@ mkdir -p "${CDNA_OUT_DIR}"
 : >"$(cdna_plan_file)"
 
 PRESET="$(cdna_default_preset)"
+PYTHON_BIN="$(cdna_python_bin)"
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
 ENV_DIR="${CDNA_OUT_DIR}/env"
@@ -32,13 +33,13 @@ fi
 if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
   ENV_PROBE_ARGS+=(--accelerators)
 fi
-cdna_repo_run env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
+cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
-cdna_note_command check_dependencies_json python tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes"
+cdna_note_command check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes"
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   printf '{"dry_run": true, "accelerator_probes": "planned"}\n' >"${DEPS_JSON}"
 else
-  (cd "${CDNA_REPO_ROOT}" && python tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"
+  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"
 fi
 
 BUILD_STATUS="not_run"
@@ -73,7 +74,7 @@ if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   CAPTURE_STATUS="planned"
 else
   (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}") >"${CAPTURE}"
-  (cd "${CDNA_REPO_ROOT}" && python tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
+  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
   CAPTURE_STATUS="pass"
 fi
 
@@ -85,7 +86,7 @@ CDNA_BUILD_STATUS="${BUILD_STATUS}" \
 CDNA_CTEST_STATUS="${CTEST_STATUS}" \
 CDNA_SMOKE_STATUS="${SMOKE_STATUS}" \
 CDNA_CAPTURE_STATUS="${CAPTURE_STATUS}" \
-python - <<'PY'
+"${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
 import json
@@ -97,6 +98,8 @@ status_path = Path(os.environ["CDNA_STATUS_JSON"])
 try:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 except OSError:
+    summary = {}
+except json.JSONDecodeError:
     summary = {}
 
 targets = summary.get("rocminfo_gfx_targets") or []
@@ -149,12 +152,12 @@ status_path.write_text(json.dumps({"records": [record]}, indent=2, sort_keys=Tru
 print(status_path)
 PY
 
-cdna_note_command target_validation python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}"
+cdna_note_command target_validation "${PYTHON_BIN}" tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}"
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   mkdir -p "${TARGET_REPORT_DIR}"
   printf 'dry-run target validation for %s\n' "${STATUS_JSON}" >"${TARGET_REPORT_DIR}/target-validation-report.md"
 else
-  (cd "${CDNA_REPO_ROOT}" && python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}")
+  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}")
 fi
 
 if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
@@ -164,7 +167,7 @@ if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
   for scenario in "${RANK_SCENARIO_LIST[@]}"; do
     scenario_out="${RANK_SCENARIO_ROOT}/${scenario}"
     cdna_note_command "rank_scenario_${scenario}" env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" \
-      python tools/benchmark_sweep.py \
+      "${PYTHON_BIN}" tools/benchmark_sweep.py \
       --bench "${BENCH_BIN}" \
       --out-root "${scenario_out}" \
       --scenario "${scenario}" \
@@ -178,7 +181,7 @@ if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
       printf 'dry-run rank scenario %s\n' "${scenario}" >"${scenario_out}/rank-scenario-plan.log"
     else
       (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" \
-        python tools/benchmark_sweep.py \
+        "${PYTHON_BIN}" tools/benchmark_sweep.py \
           --bench "${BENCH_BIN}" \
           --out-root "${scenario_out}" \
           --scenario "${scenario}" \

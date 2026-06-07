@@ -15,6 +15,17 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 
 DEFAULT_OUT_DIR = Path("temp") / "multigpu-shard-report"
+CRITICAL_EXIT_BLOCKERS = {
+    "checksum_mismatch",
+    "env_summary_invalid_json",
+    "env_summary_missing",
+    "env_summary_unreadable",
+    "failed_shards",
+    "missing_shards",
+    "schema_failed",
+    "schema_log_failed",
+    "target_status_missing",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -23,6 +34,20 @@ def _load_json(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _load_json_with_status(path: Path | None) -> tuple[dict[str, Any], str]:
+    if path is None:
+        return {}, "not_provided"
+    if not path.exists():
+        return {}, "missing"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}, "invalid_json"
+    except OSError:
+        return {}, "unreadable"
+    return (value, "present") if isinstance(value, dict) else ({}, "invalid_json")
 
 
 def _status_records(paths: list[Path]) -> list[dict[str, Any]]:
@@ -274,7 +299,7 @@ def build_report(
     target_status: list[Path] | None = None,
     shards_dir: Path | None = None,
 ) -> dict[str, Any]:
-    summary = _load_json(env_summary) if env_summary is not None else {}
+    summary, env_summary_status = _load_json_with_status(env_summary)
     records = _status_records(target_status or [])
     status_by_device, status_by_rank = _target_lookup(records)
     physical_by_device = _env_physical_lookup(summary)
@@ -306,6 +331,8 @@ def build_report(
         blockers.add("timing_outliers")
     for row in rows:
         blockers.update(row.get("blockers", []))
+    if env_summary_status in {"missing", "invalid_json", "unreadable"}:
+        blockers.add(f"env_summary_{env_summary_status}")
     if rows:
         blockers.add("multi_gpu_smoke_not_release_reviewed")
     return {
@@ -314,6 +341,7 @@ def build_report(
         "status_record_count": len(records),
         "env_summary": str(env_summary) if env_summary else None,
         "target_status": [str(path) for path in target_status or []],
+        "env_summary_status": env_summary_status,
         "world_sizes": sorted({str(row.get("world_size")) for row in rows if row.get("world_size") is not None}),
         "observed_ranks": sorted({int(row["rank"]) for row in rows if row.get("rank") is not None}),
         "missing_ranks": missing_ranks,
@@ -366,6 +394,11 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
     return {"json": str(json_path), "markdown": str(md_path)}
 
 
+def report_has_critical_failures(report: dict[str, Any]) -> bool:
+    blockers = {str(item) for item in report.get("promotion_blockers") or []}
+    return bool(blockers.intersection(CRITICAL_EXIT_BLOCKERS))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("captures", nargs="*", type=Path)
@@ -386,7 +419,7 @@ def main() -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
         print(outputs["markdown"])
-    return 0 if not report["failed_ranks"] else 1
+    return 1 if report_has_critical_failures(report) else 0
 
 
 if __name__ == "__main__":

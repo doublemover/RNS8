@@ -108,6 +108,7 @@ def main() -> int:
             shards_dir=tmp / "shards",
         )
         assert report["schema"] == "rns8_multigpu_shard_report_v1"
+        assert report["env_summary_status"] == "present"
         assert report["capture_count"] == 4
         assert report["missing_ranks"] == []
         assert report["failed_ranks"] == []
@@ -116,6 +117,7 @@ def main() -> int:
         assert rows[0]["device_bdf"] == "0000:05:00.0"
         assert rows[3]["physical_device_id"] == 7
         assert rows[3]["device_bdf"] == "0000:08:00.0"
+        assert multigpu_shard_report.report_has_critical_failures(report) is False
         outputs = multigpu_shard_report.write_outputs(report, tmp / "report")
         assert Path(outputs["json"]).exists()
         assert Path(outputs["markdown"]).exists()
@@ -135,6 +137,20 @@ def main() -> int:
         assert failed_report["failed_ranks"] == [1]
         assert "failed_shards" in failed_report["promotion_blockers"]
         assert "missing_shards" in failed_report["promotion_blockers"]
+        assert multigpu_shard_report.report_has_critical_failures(failed_report) is True
+
+        missing_env_report = multigpu_shard_report.build_report(
+            [],
+            env_summary=tmp / "env" / "missing-cdna-env-summary.json",
+            target_status=[status_path],
+            shards_dir=tmp / "shards",
+        )
+        assert missing_env_report["env_summary_status"] == "missing"
+        assert "env_summary_missing" in missing_env_report["promotion_blockers"]
+        assert multigpu_shard_report.report_has_critical_failures(missing_env_report) is True
+        missing_env_rows = {row["rank"]: row for row in missing_env_report["rows"]}
+        assert missing_env_rows[0]["physical_device_id"] == 4
+        assert missing_env_rows[0]["device_bdf"] == "0000:05:00.0"
 
     print("multi-GPU shard report self-test: PASS")
     return 0

@@ -44,6 +44,28 @@ def split_visible(value: str | None) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+def parse_env_log(text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        if "=" not in line or line.startswith("dry-run:"):
+            continue
+        key, value = line.split("=", 1)
+        if key in RUNTIME_ENV_KEYS:
+            values[key] = value
+    return values
+
+
+def captured_tool_ready(*logs: str, fallback_commands: list[str] | None = None) -> bool:
+    present_logs = [log.strip() for log in logs if log.strip()]
+    if not present_logs:
+        return all(shutil.which(command) is not None for command in fallback_commands or [])
+    for text in present_logs:
+        lowered = text.lower()
+        if lowered.startswith("dry-run:") or "command not found:" in lowered:
+            return False
+    return len(present_logs) == len(logs)
+
+
 def parse_device_list(values: list[str]) -> list[int]:
     return [int(value, 10) for value in values if re.fullmatch(r"[0-9]+", value)]
 
@@ -139,6 +161,12 @@ def build_summary(
     )
     numactl = read_log(log_dir, "numactl_hardware")
     rccl = read_log(log_dir, "rccl_discovery")
+    env_log = read_log(log_dir, "env")
+    rocprofv3_version = read_log(log_dir, "rocprofv3_version")
+    rocprofv3_agents = read_log(log_dir, "rocprofv3_avail_agents")
+    rocprofv3_pmcs = read_log(log_dir, "rocprofv3_avail_pmcs")
+    captured_environment = parse_env_log(env_log)
+    runtime_environment = {key: captured_environment.get(key, environment.get(key)) for key in RUNTIME_ENV_KEYS}
 
     gfx_targets = sorted(set(re.findall(r"\bgfx[0-9a-fA-F]+\b", rocminfo)))
     device_names = unindexed_device_names(smi_text)
@@ -152,7 +180,7 @@ def build_summary(
     visible_values = split_visible(devices_option)
     if not visible_values:
         for key in ["HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"]:
-            visible_values = split_visible(environment.get(key))
+            visible_values = split_visible(runtime_environment.get(key))
             if visible_values:
                 break
 
@@ -196,7 +224,7 @@ def build_summary(
     return {
         "schema_version": 1,
         "dry_run": dry_run,
-        "runtime_environment": {key: environment.get(key) for key in RUNTIME_ENV_KEYS},
+        "runtime_environment": runtime_environment,
         "requested_devices": split_visible(devices_option),
         "rocminfo_gfx_targets": gfx_targets,
         "smi_device_names": device_names,
@@ -211,7 +239,12 @@ def build_summary(
         "physical_devices": physical_devices,
         "numa_nodes": numa_nodes,
         "pci_bdf_ids": bdfs,
-        "rocprofv3_ready": shutil.which("rocprofv3") is not None and shutil.which("rocprofv3-avail") is not None,
+        "rocprofv3_ready": captured_tool_ready(
+            rocprofv3_version,
+            rocprofv3_agents,
+            rocprofv3_pmcs,
+            fallback_commands=["rocprofv3", "rocprofv3-avail"],
+        ),
         "rccl_ready": bool(rccl_header and rccl_library),
         "rccl_tests_ready": bool(rccl_tests),
         "rccl_tests": rccl_tests,

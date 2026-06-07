@@ -10,6 +10,8 @@ CDNA_OUT_DIR="temp/cdna-first-pass/$(cdna_timestamp)/env"
 cdna_parse_common_args "$@"
 cd "${CDNA_REPO_ROOT}"
 
+PYTHON_BIN="$(cdna_python_bin)"
+
 mkdir -p "${CDNA_OUT_DIR}"
 : >"$(cdna_plan_file)"
 
@@ -34,11 +36,11 @@ cdna_repo_capture rocprofv3_version rocprofv3 --version || true
 cdna_repo_capture rocprofv3_avail_agents rocprofv3-avail list --agent || true
 cdna_repo_capture rocprofv3_avail_pmcs rocprofv3-avail list --pmc || true
 cdna_repo_capture cmake_presets cmake --list-presets || true
-cdna_repo_capture check_dependencies_json python tools/check_dependencies.py --json || true
+cdna_repo_capture check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json || true
 cdna_repo_capture rccl_discovery bash -lc 'set -u; for p in /opt/rocm/include/rccl/rccl.h /opt/rocm/include/rccl.h /opt/rocm/lib/librccl.so /opt/rocm/lib64/librccl.so; do if [[ -e "$p" ]]; then echo "$p"; fi; done; for t in all_reduce_perf all_gather_perf broadcast_perf reduce_scatter_perf; do if command -v "$t" >/dev/null 2>&1; then echo "$t=$(command -v "$t")"; else echo "$t=not-found"; fi; done' || true
 
 summary_args=(
-  python tools/cdna_env_summary.py
+  "${PYTHON_BIN}" tools/cdna_env_summary.py
   --log-dir "${CDNA_OUT_DIR}"
   --devices "${CDNA_DEVICES}"
   --out "${CDNA_OUT_DIR}/cdna-env-summary.json"

@@ -14,6 +14,7 @@ mkdir -p "${CDNA_OUT_DIR}/shards"
 : >"$(cdna_plan_file)"
 
 PRESET="$(cdna_default_preset)"
+PYTHON_BIN="$(cdna_python_bin)"
 DEVICES="$(cdna_discover_devices)"
 DEVICE_LIST=()
 cdna_split_devices "${DEVICES}" DEVICE_LIST
@@ -36,7 +37,7 @@ fi
 if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
   ENV_PROBE_ARGS+=(--accelerators)
 fi
-cdna_repo_run env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
+cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
 if [[ "${CDNA_SKIP_BUILD}" -ne 0 ]]; then
   BUILD_STATUS="skipped"
@@ -86,15 +87,18 @@ for rank in "${!DEVICE_LIST[@]}"; do
         RNS8_RANK="${rank}" \
         RNS8_WORLD_SIZE="${WORLD_SIZE}" \
         "${CDNA_DEFAULT_BENCH_CMD[@]}" >"${capture}"
-      python tools/benchmark_schema.py "${capture}" >"${schema_log}" 2>&1
+      "${PYTHON_BIN}" tools/benchmark_schema.py "${capture}" >"${schema_log}" 2>&1
     ) &
     PIDS+=("$!")
   fi
 done
 
+SHARD_FAILURES=0
 if [[ "${CDNA_DRY_RUN}" -eq 0 ]]; then
   for pid in "${PIDS[@]}"; do
-    wait "${pid}"
+    if ! wait "${pid}"; then
+      SHARD_FAILURES=1
+    fi
   done
 fi
 
@@ -105,7 +109,7 @@ CDNA_WORLD_SIZE="${WORLD_SIZE}" \
 CDNA_DRY_RUN_VALUE="${CDNA_DRY_RUN}" \
 CDNA_BUILD_STATUS="${BUILD_STATUS}" \
 CDNA_CTEST_STATUS="${CTEST_STATUS}" \
-python - <<'PY'
+"${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
 import json
@@ -117,6 +121,8 @@ status_path = Path(os.environ["CDNA_STATUS_JSON"])
 try:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 except OSError:
+    summary = {}
+except json.JSONDecodeError:
     summary = {}
 
 devices = [part.strip() for part in os.environ["CDNA_DEVICES_VALUE"].split(",") if part.strip()]
@@ -187,19 +193,24 @@ if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   mkdir -p "${TARGET_REPORT_DIR}"
   printf 'dry-run target validation for %s\n' "${STATUS_JSON}" >"${TARGET_REPORT_DIR}/target-validation-report.md"
 else
-  cdna_note_command target_validation python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}"
-  (cd "${CDNA_REPO_ROOT}" && python tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}")
+  cdna_note_command target_validation "${PYTHON_BIN}" tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}"
+  (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURES[@]}") || SHARD_FAILURES=1
 fi
 
-cdna_note_command multigpu_shard_report python tools/multigpu_shard_report.py \
+cdna_note_command multigpu_shard_report "${PYTHON_BIN}" tools/multigpu_shard_report.py \
   --env-summary "${ENV_DIR}/cdna-env-summary.json" \
   --target-status "${STATUS_JSON}" \
   --shards-dir "${CDNA_OUT_DIR}/shards" \
   --out-dir "${SHARD_REPORT_DIR}"
-(cd "${CDNA_REPO_ROOT}" && python tools/multigpu_shard_report.py \
+if ! (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/multigpu_shard_report.py \
   --env-summary "${ENV_DIR}/cdna-env-summary.json" \
   --target-status "${STATUS_JSON}" \
   --shards-dir "${CDNA_OUT_DIR}/shards" \
-  --out-dir "${SHARD_REPORT_DIR}")
+  --out-dir "${SHARD_REPORT_DIR}"); then
+  SHARD_FAILURES=1
+fi
 
 echo "CDNA multi-GPU smoke output: ${CDNA_OUT_DIR}"
+if [[ "${SHARD_FAILURES}" -ne 0 ]]; then
+  exit 1
+fi

@@ -99,6 +99,18 @@ cdna_default_preset() {
   fi
 }
 
+cdna_python_bin() {
+  if [[ -n "${PYTHON:-}" ]]; then
+    printf '%s\n' "${PYTHON}"
+  elif command -v python3 >/dev/null 2>&1; then
+    command -v python3
+  elif command -v python >/dev/null 2>&1; then
+    command -v python
+  else
+    printf '%s\n' "python3"
+  fi
+}
+
 cdna_command_line() {
   printf '%q ' "$@"
 }
@@ -148,6 +160,13 @@ cdna_run_capture() {
 
 cdna_repo_run() {
   (cd "${CDNA_REPO_ROOT}" && cdna_run "$@")
+}
+
+cdna_repo_run_artifact_command() {
+  local label="$1"
+  shift
+  cdna_note_command "${label}" "$@"
+  (cd "${CDNA_REPO_ROOT}" && "$@")
 }
 
 cdna_repo_capture() {

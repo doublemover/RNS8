@@ -7,7 +7,11 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+
+import cdna_env_summary
+import multigpu_shard_report
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -29,16 +33,90 @@ def _require_ok(result: subprocess.CompletedProcess[str], label: str) -> None:
         raise AssertionError(f"{label} failed with {result.returncode}\n{result.stdout}")
 
 
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _run_portable_artifact_tests() -> None:
+    with tempfile.TemporaryDirectory() as tmp_name:
+        missing_log_dir = Path(tmp_name) / "missing-env-logs"
+        summary = cdna_env_summary.build_summary(
+            missing_log_dir,
+            devices_option="0,1,2,3",
+            dry_run=True,
+            environment={
+                "HIP_VISIBLE_DEVICES": None,
+                "ROCR_VISIBLE_DEVICES": None,
+                "GPU_DEVICE_ORDINAL": None,
+                "ROCM_PATH": "/opt/rocm",
+                "HIP_PATH": "/opt/rocm",
+                "LD_LIBRARY_PATH": "/opt/rocm/lib",
+            },
+        )
+        physical = {item["physical_device_id"]: item for item in summary["physical_devices"]}
+        assert summary["dry_run"] is True
+        assert summary["visible_gpu_count"] == 4
+        assert summary["node_gpu_count"] == 4
+        assert summary["raw_logs"] == []
+        assert physical[0]["topology_source"] == "heuristic_index_order"
+        assert physical[3]["visible"] is True
+        assert physical[3]["visibility_index"] == 3
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        status_path = tmp / "target-status.json"
+        records = []
+        for rank, device in enumerate([4, 5, 6, 7]):
+            records.append(
+                {
+                    "device_index": device,
+                    "device_bdf": f"0000:{device + 1:02x}:00.0",
+                    "gpu_name": f"MI300X-{device}",
+                    "multi_gpu_mode": "embarrassingly_parallel_shards",
+                    "rank": rank,
+                    "target_id": "gfx942",
+                    "world_size": 4,
+                }
+            )
+            capture = tmp / "shards" / f"gpu{device}" / f"bounded-i64-hip-direct-smoke-rank{rank}.json"
+            _write_json(capture, {"dry_run": True, "rank": rank, "world_size": 4, "device": str(device)})
+            (capture.parent / f"benchmark-schema-rank{rank}.log").write_text(
+                "dry-run schema validation\n",
+                encoding="utf-8",
+            )
+        _write_json(status_path, {"records": records})
+        report = multigpu_shard_report.build_report(
+            [],
+            env_summary=tmp / "env" / "missing-cdna-env-summary.json",
+            target_status=[status_path],
+            shards_dir=tmp / "shards",
+        )
+        assert report["env_summary_status"] == "missing"
+        assert report["capture_count"] == 4
+        assert report["missing_ranks"] == []
+        assert "env_summary_missing" in report["promotion_blockers"]
+        assert multigpu_shard_report.report_has_critical_failures(report) is True
+        rows = {row["rank"]: row for row in report["rows"]}
+        assert rows[0]["physical_device_id"] == 4
+        assert rows[3]["device_bdf"] == "0000:08:00.0"
+        assert all("target_status_missing" not in row["blockers"] for row in report["rows"])
+
+
 def main() -> int:
+    _run_portable_artifact_tests()
     if os.name == "nt":
-        print("CDNA script self-test: SKIP (Linux Bash test)")
+        print("CDNA script Bash dry-run self-test: SKIP (Linux Bash test)")
+        print("CDNA script portable artifact self-test: PASS")
         return 0
     if shutil.which("bash") is None:
-        print("CDNA script self-test: SKIP (bash unavailable)")
+        print("CDNA script Bash dry-run self-test: SKIP (bash unavailable)")
+        print("CDNA script portable artifact self-test: PASS")
         return 0
     probe = _run(["bash", "--version"])
     if probe.returncode != 0:
-        print("CDNA script self-test: SKIP (bash unusable)")
+        print("CDNA script Bash dry-run self-test: SKIP (bash unusable)")
+        print("CDNA script portable artifact self-test: PASS")
         return 0
 
     _require_ok(_run(["bash", "-n", *SCRIPTS]), "bash syntax")

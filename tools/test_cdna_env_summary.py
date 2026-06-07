@@ -48,6 +48,47 @@ def _summary(root: Path, devices: str):
 
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
+        missing_root = Path(tmp_name) / "missing-logs"
+        summary = _summary(missing_root, "0,1,2,3")
+        physical = {item["physical_device_id"]: item for item in summary["physical_devices"]}
+        assert summary["dry_run"] is True
+        assert summary["visible_gpu_count"] == 4
+        assert summary["node_gpu_count"] == 4
+        assert summary["raw_logs"] == []
+        assert physical[0]["topology_source"] == "heuristic_index_order"
+        assert physical[3]["visible"] is True
+        assert physical[3]["visibility_index"] == 3
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        root = Path(tmp_name)
+        _write(root / "env.log", "ROCR_VISIBLE_DEVICES=4,5\nROCM_PATH=/captured/rocm\n")
+        summary = cdna_env_summary.build_summary(
+            root,
+            devices_option="",
+            dry_run=False,
+            environment={
+                "HIP_VISIBLE_DEVICES": None,
+                "ROCR_VISIBLE_DEVICES": "0",
+                "GPU_DEVICE_ORDINAL": None,
+                "ROCM_PATH": "/process/rocm",
+                "HIP_PATH": None,
+                "LD_LIBRARY_PATH": None,
+            },
+        )
+        assert summary["runtime_environment"]["ROCR_VISIBLE_DEVICES"] == "4,5"
+        assert summary["runtime_environment"]["ROCM_PATH"] == "/captured/rocm"
+        assert summary["visible_gpu_count"] == 2
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        root = Path(tmp_name)
+        _write(root / "rocprofv3_version.log", "rocprofv3 version 1.0\n")
+        _write(root / "rocprofv3_avail_agents.log", "Agent 0 gfx942\n")
+        _write(root / "rocprofv3_avail_pmcs.log", "SQ_INSTS_VALU\n")
+        assert _summary(root, "0")["rocprofv3_ready"] is True
+        _write(root / "rocprofv3_avail_pmcs.log", "command not found: rocprofv3-avail\n")
+        assert _summary(root, "0")["rocprofv3_ready"] is False
+
+    with tempfile.TemporaryDirectory() as tmp_name:
         root = Path(tmp_name)
         _indexed_logs(root, 1)
         summary = _summary(root, "0")
