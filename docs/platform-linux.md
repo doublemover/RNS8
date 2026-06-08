@@ -157,10 +157,14 @@ bash scripts/cdna_smoke.sh --devices 0 --out-dir temp/cdna-smoke-real
 ```
 
 Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
-`--bench-args`, `--skip-build`, and `--dry-run`. `--accelerators` selects the
-clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
-That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
-real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
+`--bench-args`, `--rank-scenarios`, `--sweep-args`, `--skip-build`, and
+`--dry-run`. `--bench-args` appends extra `rns8-bench` arguments to the first
+64x64 smoke capture. `--sweep-args` appends extra `benchmark_sweep.py`
+arguments to each queued `--rank-scenarios` release sweep, for example CPU
+correctness-anchor and progress controls. `--accelerators` selects the clean
+`linux-cdna-accelerators-release` preset unless `--preset` is supplied. That
+preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a real
+Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
 `RNS8_HIP_ROOT=/opt/rocm`, an active `RNS8_AMDGPU_TARGETS` value matching the
 detected validation GPU such as `gfx942`, and no Windows vcpkg or local
 workstation paths. Wider CDNA family intent belongs in
@@ -176,6 +180,13 @@ The dedicated accelerator first-pass command is:
 
 ```bash
 bash scripts/cdna_accelerators.sh --devices 0 --out-dir temp/cdna-accelerators-real
+```
+
+For a built accelerator tree, a CDNA release scenario can be queued through the
+same wrapper without spelling GPU visibility environment variables manually:
+
+```bash
+bash scripts/cdna_accelerators.sh --out-dir temp/cdna-accelerators-large-release --skip-build --rank-scenarios large-release-validation --sweep-args "--cpu-reference-mode correctness-anchor --cpu-threads 4 --cpu-parallel-threshold 0 --progress"
 ```
 
 GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`

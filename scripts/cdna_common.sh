@@ -9,11 +9,13 @@ CDNA_OUT_DIR=""
 CDNA_PRESET=""
 CDNA_DEVICES=""
 CDNA_BENCH_ARGS=""
+CDNA_SWEEP_ARGS=""
 CDNA_RANK_SCENARIOS=""
 CDNA_SKIP_BUILD=0
 CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
 CDNA_BENCH_ARGV=()
+CDNA_SWEEP_ARGV=()
 CDNA_CMAKE_MIN_VERSION="3.22.0"
 CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-v3.5.4}"
 CDNA_CMAKE_BIN=""
@@ -31,6 +33,8 @@ Common options:
   --preset NAME      CMake configure/build/test preset
   --devices LIST     comma-separated physical GPU ids, for example 0,1,2,3
   --bench-args ARGS  extra rns8-bench arguments appended to the smoke command
+  --sweep-args ARGS  extra benchmark_sweep.py arguments appended to each
+                      --rank-scenarios run
   --rank-scenarios LIST
                       optional comma-separated benchmark_sweep scenario groups
                       to run after the first smoke, for example
@@ -59,6 +63,10 @@ cdna_parse_common_args() {
         ;;
       --bench-args)
         CDNA_BENCH_ARGS="${2:-}"
+        shift 2
+        ;;
+      --sweep-args)
+        CDNA_SWEEP_ARGS="${2:-}"
         shift 2
         ;;
       --rank-scenarios)
@@ -91,6 +99,10 @@ cdna_parse_common_args() {
   if [[ -n "${CDNA_BENCH_ARGS}" ]]; then
     # shellcheck disable=SC2206
     CDNA_BENCH_ARGV=(${CDNA_BENCH_ARGS})
+  fi
+  if [[ -n "${CDNA_SWEEP_ARGS}" ]]; then
+    # shellcheck disable=SC2206
+    CDNA_SWEEP_ARGV=(${CDNA_SWEEP_ARGS})
   fi
 }
 

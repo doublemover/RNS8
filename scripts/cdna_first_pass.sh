@@ -494,6 +494,7 @@ if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
       --warmups 3 \
       --repeats 9 \
       --seed 20260606 \
+      "${CDNA_SWEEP_ARGV[@]}" \
       --skip-existing
     if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
       mkdir -p "${scenario_out}"
@@ -508,6 +509,7 @@ if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
           --warmups 3 \
           --repeats 9 \
           --seed 20260606 \
+          "${CDNA_SWEEP_ARGV[@]}" \
           --skip-existing)
     fi
   done
