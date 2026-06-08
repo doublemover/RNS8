@@ -456,10 +456,10 @@ inspection commands.
   `amdgpu-builtins-sparse-a-runtime` from
   `amdgpu-builtins-dense-sparse-a-input` to avoid duplicate-backend blockers
   while keeping both rows in the same sparse contract group. AMDGPU builtin
-  differential coverage now includes exact-wide signed/unsigned sparse-A RNS
-  paths against the dense AMDGPU builtin path for the same sparse-shaped native
-  input; it builds locally and skips on RDNA3, then executes on CDNA3 SMFMAC or
-  RDNA4 SWMMAC targets.
+  differential coverage now includes bounded i64/u64 and exact-wide
+  signed/unsigned sparse-A RNS paths against the dense AMDGPU builtin path for
+  the same sparse-shaped native input; it builds locally and skips on RDNA3,
+  then executes on CDNA3 SMFMAC or RDNA4 SWMMAC targets.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 
