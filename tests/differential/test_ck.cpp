@@ -64,14 +64,14 @@ rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
   return desc;
 }
 
-rns8_gemm_desc per_tile_u64_desc(
+rns8_gemm_desc per_tile_i64_desc(
     int64_t m,
     int64_t n,
     int64_t k,
     const std::vector<uint64_t>& bounds,
     rns8_backend_kind backend) {
-  rns8_gemm_desc desc = bounded_u64_desc(m, n, k, 0, backend);
-  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  rns8_gemm_desc desc = bounded_i64_desc(m, n, k, 0, backend);
+  desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
   desc.tile_m = 64;
   desc.tile_n = 64;
   desc.tile_bounds = bounds.data();
@@ -204,7 +204,20 @@ TEST_CASE("CK fused bounded RNS backend matches CPU and direct HIP") {
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("CK fused adaptive bounded schedule matches CPU and direct HIP") {
+TEST_CASE("CK fused bounded u64 is rejected until an unsigned contract is validated") {
+  if (!ck_available()) {
+    SKIP("CK backend is not available on this device");
+  }
+
+  rns8_context* ck = create_backend_context(RNS8_BACKEND_CK);
+  auto ck_desc = bounded_u64_desc(64, 64, 64, 1000000, RNS8_BACKEND_CK);
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ck, &ck_desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
+  rns8_destroy_context(ck);
+}
+
+TEST_CASE("CK fused adaptive bounded i64 schedule matches CPU and direct HIP") {
   if (!ck_available()) {
     SKIP("CK backend is not available on this device");
   }
@@ -217,30 +230,30 @@ TEST_CASE("CK fused adaptive bounded schedule matches CPU and direct HIP") {
   constexpr int64_t n = 65;
   constexpr int64_t k = 64;
   std::vector<uint64_t> bounds = {64, 1024, uint64_t{1} << 32u, uint64_t{1} << 40u};
-  std::vector<uint64_t> A(static_cast<std::size_t>(m * k), 0);
-  std::vector<uint64_t> B(static_cast<std::size_t>(k * n), 0);
+  std::vector<int64_t> A(static_cast<std::size_t>(m * k), 0);
+  std::vector<int64_t> B(static_cast<std::size_t>(k * n), 0);
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * k + col)] = static_cast<uint64_t>((row + col) & 1);
+      A[static_cast<std::size_t>(row * k + col)] = ((row + col) & 1) == 0 ? 1 : -1;
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint64_t>(((row ^ col) & 1) == 0 ? 1 : 0);
+      B[static_cast<std::size_t>(row * n + col)] = ((row ^ col) & 1) == 0 ? 2 : -2;
     }
   }
-  std::vector<uint64_t> cpu_out(static_cast<std::size_t>(m * n), 0);
-  std::vector<uint64_t> hip_out(static_cast<std::size_t>(m * n), 0);
-  std::vector<uint64_t> ck_out(static_cast<std::size_t>(m * n), 0);
-  auto cpu_desc = per_tile_u64_desc(m, n, k, bounds, RNS8_BACKEND_CPU_REFERENCE);
-  auto hip_desc = per_tile_u64_desc(m, n, k, bounds, RNS8_BACKEND_HIP_DIRECT);
-  auto ck_desc = per_tile_u64_desc(m, n, k, bounds, RNS8_BACKEND_CK);
+  std::vector<int64_t> cpu_out(static_cast<std::size_t>(m * n), 0);
+  std::vector<int64_t> hip_out(static_cast<std::size_t>(m * n), 0);
+  std::vector<int64_t> ck_out(static_cast<std::size_t>(m * n), 0);
+  auto cpu_desc = per_tile_i64_desc(m, n, k, bounds, RNS8_BACKEND_CPU_REFERENCE);
+  auto hip_desc = per_tile_i64_desc(m, n, k, bounds, RNS8_BACKEND_HIP_DIRECT);
+  auto ck_desc = per_tile_i64_desc(m, n, k, bounds, RNS8_BACKEND_CK);
 
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_u64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_u64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
-  require_same_u64(cpu_out, hip_out);
-  require_same_u64(cpu_out, ck_out);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(cpu_out, hip_out);
+  require_same_i64(cpu_out, ck_out);
 
   rns8_destroy_context(ck);
   rns8_destroy_context(hip);

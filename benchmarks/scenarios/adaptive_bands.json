@@ -53,7 +53,6 @@
         "cpu",
         "hip-direct",
         "hip-vector-alu-int64",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",

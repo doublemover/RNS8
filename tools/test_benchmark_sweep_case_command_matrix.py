@@ -252,12 +252,17 @@ direct_reuse_args = copy.copy(scenario_args)
 direct_reuse_args.backends = None
 direct_reuse_args.scenario = ["direct-hip-reuse-expansion"]
 direct_reuse_entries = benchmark_sweep.sweep_command_entries(direct_reuse_args)
-assert len(direct_reuse_entries) == 70
+assert len(direct_reuse_entries) == 68
 assert {entry.scenario["family"] for entry in direct_reuse_entries} == {"direct-hip-reuse-expansion"}
 assert {
     entry.scenario["semantics"]
     for entry in direct_reuse_entries
 } == {"bounded-u64", "finite-u8-ring", "finite-u8-field", "exact-wide-signed", "exact-wide-unsigned", "wrap-u64"}
+assert all(
+    entry.scenario["backend"] != "ck"
+    for entry in direct_reuse_entries
+    if entry.scenario["semantics"] == "bounded-u64"
+)
 assert {
     entry.scenario.get("metadata", {}).get("workflow_name")
     for entry in direct_reuse_entries
@@ -553,13 +558,18 @@ adaptive_bands_args = copy.copy(scenario_args)
 adaptive_bands_args.backends = None
 adaptive_bands_args.scenario = ["adaptive-bands"]
 adaptive_bands_entries = benchmark_sweep.sweep_command_entries(adaptive_bands_args)
-assert len(adaptive_bands_entries) == 15
+assert len(adaptive_bands_entries) == 14
 assert {entry.scenario["family"] for entry in adaptive_bands_entries} == {"adaptive-bands"}
 assert {
     entry.scenario["backend"]
     for entry in adaptive_bands_entries
     if entry.scenario["name"] == "bounded-i64-256"
 } == {"cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"}
+assert all(
+    entry.scenario["backend"] != "ck"
+    for entry in adaptive_bands_entries
+    if entry.scenario["semantics"] == "bounded-u64"
+)
 assert all("--bound-mode" in entry.command and "per-tile" in entry.command for entry in adaptive_bands_entries)
 assert all("--require-adaptive-execution" in entry.command for entry in adaptive_bands_entries)
 
@@ -567,7 +577,7 @@ bound_discovery_args = copy.copy(scenario_args)
 bound_discovery_args.backends = None
 bound_discovery_args.scenario = ["bound-discovery"]
 bound_discovery_entries = benchmark_sweep.sweep_command_entries(bound_discovery_args)
-assert len(bound_discovery_entries) == 51
+assert len(bound_discovery_entries) == 48
 assert {entry.scenario["family"] for entry in bound_discovery_entries} == {"bound-discovery"}
 assert {entry.scenario["name"] for entry in bound_discovery_entries} == {
     "bounded-i64-256-static-global",
@@ -680,6 +690,11 @@ assert {entry.scenario["name"] for entry in layout_entries} == {
     "wrap64-direct-byte-default-layout",
     "wrap64-direct-byte-padded-ld",
 }
+assert all(
+    entry.scenario["backend"] != "ck"
+    for entry in bound_discovery_entries
+    if entry.scenario["semantics"] == "bounded-u64"
+)
 assert sorted(
     entry.scenario["modulus"]
     for entry in layout_entries

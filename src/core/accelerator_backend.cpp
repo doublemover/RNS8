@@ -85,7 +85,11 @@ bool accelerator_backend_supports_semantics(rns8_backend_kind backend, rns8_sema
   }
   switch (semantics) {
     case RNS8_BOUNDED_I64:
+      return descriptor->supports_bounded_rns != 0;
     case RNS8_BOUNDED_U64:
+      if (backend == RNS8_BACKEND_CK) {
+        return false;
+      }
       return descriptor->supports_bounded_rns != 0;
     case RNS8_EXACT_WIDE_SIGNED:
     case RNS8_EXACT_WIDE_UNSIGNED:

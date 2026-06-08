@@ -309,8 +309,11 @@ def scenario_metadata(
 
 
 def default_backends_for(semantics: str, case: SweepCase) -> list[str]:
-    if semantics in {"bounded-i64", "bounded-u64"}:
+    if semantics == "bounded-i64":
         return ["cpu", "hip-direct", "hip-vector-alu-int64", "ck", "rocwmma"] if case.bound_mode == "per-tile" else BOUNDED_BACKENDS
+    if semantics == "bounded-u64":
+        backends = [backend for backend in BOUNDED_BACKENDS if backend != "ck"]
+        return [backend for backend in backends if backend != "hipblaslt"] if case.bound_mode == "per-tile" else backends
     if semantics in {"finite-u8-ring", "finite-u8-field"}:
         return FINITE_BACKENDS
     if semantics in {"exact-wide-signed", "exact-wide-unsigned"}:
@@ -329,6 +332,8 @@ def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
         return case.bound_mode == "global" and backend in EXACT_WIDE_BACKENDS
     if semantics in {"bounded-i64", "bounded-u64"}:
         if backend not in BOUNDED_BACKENDS:
+            return False
+        if semantics == "bounded-u64" and backend == "ck":
             return False
         if case.bound_mode == "per-tile" and backend == "hipblaslt":
             return False

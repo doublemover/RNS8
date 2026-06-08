@@ -24,7 +24,7 @@ large_validation_args = copy.copy(scenario_args)
 large_validation_args.backends = None
 large_validation_args.scenario = ["large-release-validation"]
 large_validation_entries = benchmark_sweep.sweep_command_entries(large_validation_args)
-assert len(large_validation_entries) == 56
+assert len(large_validation_entries) == 54
 assert {entry.scenario["family"] for entry in large_validation_entries} == {"large-release-validation"}
 assert {entry.scenario["name"] for entry in large_validation_entries} == {
     "bounded-i64-2048-required-baselines",
@@ -42,6 +42,11 @@ assert {
     for entry in large_validation_entries
     if entry.scenario["name"] == "bounded-i64-2048-required-baselines"
 } == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+assert {
+    entry.scenario["backend"]
+    for entry in large_validation_entries
+    if entry.scenario["name"] == "bounded-u64-2048-required-baselines"
+} == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "rocwmma"}
 assert {
     entry.scenario["backend"]
     for entry in large_validation_entries
@@ -68,7 +73,7 @@ large_4096_budgeted_args = copy.copy(scenario_args)
 large_4096_budgeted_args.backends = None
 large_4096_budgeted_args.scenario = ["large-release-validation-4096-budgeted"]
 large_4096_budgeted_entries = benchmark_sweep.sweep_command_entries(large_4096_budgeted_args)
-assert len(large_4096_budgeted_entries) == 44
+assert len(large_4096_budgeted_entries) == 43
 assert {
     entry.scenario["backend"]
     for entry in large_4096_budgeted_entries
@@ -78,7 +83,7 @@ assert {
     entry.scenario["backend"]
     for entry in large_4096_budgeted_entries
     if entry.scenario["name"] == "bounded-u64-4096-budgeted-baselines"
-} == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"}
+} == {"cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "rocwmma"}
 assert {
     entry.scenario["backend"]
     for entry in large_4096_budgeted_entries

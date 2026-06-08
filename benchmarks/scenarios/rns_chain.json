@@ -165,7 +165,6 @@
       "backends": [
         "hip-direct",
         "hipblaslt",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",

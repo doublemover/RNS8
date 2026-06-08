@@ -14,6 +14,8 @@ assert benchmark_sweep.backend_allowed_for("exact-wide-signed", parsed, "ck") is
 assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
 assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
 assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
+assert benchmark_sweep.backend_allowed_for("bounded-u64", parsed, "ck") is False
+assert "ck" not in benchmark_sweep.default_backends_for("bounded-u64", parsed)
 assert benchmark_sweep.cli_backend("rocwmma") == "rocwmma"
 assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-int64-runtime"
 assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"

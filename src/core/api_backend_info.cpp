@@ -313,7 +313,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in CK backend using target-selected CShuffle int8 matrix GEMM with fused centered-residue epilogue specialized for mod 256/255/251.");
+          "Opt-in CK backend using target-selected CShuffle int8 matrix GEMM with fused centered-residue epilogue specialized for mod 256/255/251; bounded-u64 is not exposed until an unsigned exactness contract is validated.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

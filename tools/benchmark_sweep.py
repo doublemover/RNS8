@@ -18,6 +18,7 @@ from benchmark_sweep_lib.cli import main, parse_args
 from benchmark_sweep_lib.commands import (
     backend_allowed_for,
     command_for,
+    default_backends_for,
     default_sweep_command_entries,
     scenario_args_for_item,
     scenario_catalog,

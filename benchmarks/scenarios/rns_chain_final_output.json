@@ -136,7 +136,6 @@
       "backends": [
         "cpu",
         "hip-direct",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",

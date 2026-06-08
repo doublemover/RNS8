@@ -300,7 +300,6 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
@@ -339,7 +338,6 @@
         "cpu",
         "hip-direct",
         "hipblaslt",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
@@ -457,7 +455,6 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
@@ -496,7 +493,6 @@
         "cpu",
         "hip-direct",
         "hipblaslt",
-        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
