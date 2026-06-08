@@ -267,14 +267,16 @@ inspection commands.
   survives review refresh, cache installation, compact VM triage output, and
   durable JSON/CSV/Markdown evidence export. Host-batch per-task pack paths now
   return measured A/B pack totals for bounded i64/u64, exact-wide
-  signed/unsigned, and finite-u8 captures. Grouped-dispatch paths that use a
-  combined device A+B pack kernel intentionally keep aggregate pack timing until
-  split grouped pack kernels exist.
-- Remaining work: add split GPU-event labels for Direct-HIP pack kernels that
-  currently report only aggregate pack, implement separate grouped A/B pack
-  kernels where grouped-dispatch diagnostics need them, and then implement the
-  actual coalesced/vectorized pack kernels or pack-elision routes selected by
-  the new evidence.
+  signed/unsigned, and finite-u8 captures. Direct-HIP host-batch GPU event
+  captures now split the per-task A/B H2D and pack-kernel labels while also
+  preserving aggregate pack labels for existing setup-inclusive comparisons.
+  Grouped-dispatch paths that use a combined device A+B pack kernel
+  intentionally keep aggregate pack timing until split grouped pack kernels
+  exist.
+- Remaining work: implement separate grouped A/B pack kernels where
+  grouped-dispatch diagnostics need them, and then implement the actual
+  coalesced/vectorized pack kernels or pack-elision routes selected by the new
+  evidence.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 

@@ -10,8 +10,16 @@
     "end_to_end"
   ],
   "direct_hip_core_events": [
+    "pack_a_h2d",
+    "pack_a_kernel",
+    "pack_b_h2d",
+    "pack_b_kernel",
     "pack_h2d",
     "pack_kernel",
+    "finite_pack_a_h2d",
+    "finite_pack_a_kernel",
+    "finite_pack_b_h2d",
+    "finite_pack_b_kernel",
     "pack",
     "rns_gemm_kernel_group",
     "rns_gemv_n1_kernel_group",

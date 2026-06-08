@@ -87,6 +87,63 @@ std::vector<double> event_label_values(
   return values;
 }
 
+double sum_event_values(const std::vector<double>& values) {
+  double total = 0.0;
+  for (const double value : values) {
+    total += value;
+  }
+  return total;
+}
+
+double sum_alternating_event_values(const std::vector<double>& values, std::size_t offset) {
+  double total = 0.0;
+  for (std::size_t index = offset; index < values.size(); index += 2) {
+    total += values[index];
+  }
+  return total;
+}
+
+bool collect_direct_hip_host_batch_pack_gpu_events(
+    const Args& args,
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    GpuEventSamples& events) {
+  const bool finite = finite_benchmark_semantics(args.semantics);
+  const char* h2d_label = finite ? "finite_pack_h2d" : "pack_h2d";
+  const char* kernel_label = finite ? "finite_pack_kernel" : "pack_kernel";
+  const char* pack_a_h2d_label = finite ? "finite_pack_a_h2d" : "pack_a_h2d";
+  const char* pack_a_kernel_label = finite ? "finite_pack_a_kernel" : "pack_a_kernel";
+  const char* pack_b_h2d_label = finite ? "finite_pack_b_h2d" : "pack_b_h2d";
+  const char* pack_b_kernel_label = finite ? "finite_pack_b_kernel" : "pack_b_kernel";
+  const auto h2d_values = event_label_values(samples, h2d_label);
+  const auto kernel_values = event_label_values(samples, kernel_label);
+  const std::size_t expected_values = static_cast<std::size_t>(measured_task_count(args)) * 2u;
+  if (h2d_values.size() != expected_values || kernel_values.size() != expected_values) {
+    add_unavailable_reason(
+        events,
+        std::string("host-batch pack expected ") + std::to_string(expected_values) + " " + h2d_label +
+            " and " + kernel_label + " samples, got " + std::to_string(h2d_values.size()) + " and " +
+            std::to_string(kernel_values.size()));
+    return true;
+  }
+
+  const double a_h2d = sum_alternating_event_values(h2d_values, 0);
+  const double b_h2d = sum_alternating_event_values(h2d_values, 1);
+  const double a_kernel = sum_alternating_event_values(kernel_values, 0);
+  const double b_kernel = sum_alternating_event_values(kernel_values, 1);
+  const double h2d = sum_event_values(h2d_values);
+  const double kernel = sum_event_values(kernel_values);
+  if (events.complete) {
+    push_gpu_event_value(events, pack_a_h2d_label, a_h2d);
+    push_gpu_event_value(events, pack_a_kernel_label, a_kernel);
+    push_gpu_event_value(events, pack_b_h2d_label, b_h2d);
+    push_gpu_event_value(events, pack_b_kernel_label, b_kernel);
+    push_gpu_event_value(events, h2d_label, h2d);
+    push_gpu_event_value(events, kernel_label, kernel);
+    push_gpu_event_value(events, "pack", h2d + kernel);
+  }
+  return true;
+}
+
 void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -118,6 +175,12 @@ void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backen
       push_gpu_event_value(events, "pack", a_h2d + b_h2d);
     }
     return;
+  }
+  if (host_api_batch_requested(args) && !grouped_dispatch_requested(args) &&
+      selected_backend == RNS8_BACKEND_HIP_DIRECT) {
+    if (collect_direct_hip_host_batch_pack_gpu_events(args, samples, events)) {
+      return;
+    }
   }
   const bool finite = finite_benchmark_semantics(args.semantics);
   const char* h2d_label = finite ? "finite_pack_h2d" : "pack_h2d";

@@ -121,6 +121,34 @@ bool direct_hip_bounded_oneshot_resident_fallback_path(
          selected_prefix < requested_prefix;
 }
 
+bool direct_hip_host_batch_split_pack_event_path(const Args& args, rns8_backend_kind selected_backend) {
+  return host_api_batch_requested(args) && !grouped_dispatch_requested(args) &&
+         selected_backend == RNS8_BACKEND_HIP_DIRECT;
+}
+
+std::vector<std::string> direct_hip_pack_event_phases(
+    const Args& args,
+    rns8_backend_kind selected_backend,
+    bool finite) {
+  if (direct_hip_host_batch_split_pack_event_path(args, selected_backend)) {
+    if (finite) {
+      return {
+          "finite_pack_a_h2d",
+          "finite_pack_a_kernel",
+          "finite_pack_b_h2d",
+          "finite_pack_b_kernel",
+          "finite_pack_h2d",
+          "finite_pack_kernel",
+          "pack"};
+    }
+    return {"pack_a_h2d", "pack_a_kernel", "pack_b_h2d", "pack_b_kernel", "pack_h2d", "pack_kernel", "pack"};
+  }
+  if (finite) {
+    return {"finite_pack_h2d", "finite_pack_kernel", "pack"};
+  }
+  return {"pack_h2d", "pack_kernel", "pack"};
+}
+
 std::vector<std::string> gpu_event_phase_order(
     const Args& args,
     const BenchmarkResult& result,
@@ -251,22 +279,14 @@ std::vector<std::string> gpu_event_phase_order(
   }
   if (finite_benchmark_semantics(args.semantics)) {
     if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-      std::vector<std::string> phases = {
-          "finite_pack_h2d",
-          "finite_pack_kernel",
-          "pack",
-      };
+      std::vector<std::string> phases = direct_hip_pack_event_phases(args, selected_backend, true);
       append_hipblaslt_gemm_event_phases(phases, args);
       phases.push_back("finite_export_kernel");
       phases.push_back("finite_export_d2h");
       phases.push_back("crt_export");
       return phases;
     }
-    std::vector<std::string> phases = {
-        "finite_pack_h2d",
-        "finite_pack_kernel",
-        "pack",
-    };
+    std::vector<std::string> phases = direct_hip_pack_event_phases(args, selected_backend, true);
     if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       phases.push_back("residue_d2d_sync");
       phases.push_back("finite_resident_gemm_region_kernel");
@@ -285,11 +305,7 @@ std::vector<std::string> gpu_event_phase_order(
   }
   if (exact_wide_benchmark_semantics(args.semantics)) {
     if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-      std::vector<std::string> phases = {
-          "pack_h2d",
-          "pack_kernel",
-          "pack",
-      };
+      std::vector<std::string> phases = direct_hip_pack_event_phases(args, selected_backend, false);
       append_hipblaslt_gemm_event_phases(phases, args);
       if (residue_current_output_mode(args)) {
         return phases;
@@ -301,11 +317,7 @@ std::vector<std::string> gpu_event_phase_order(
       phases.push_back("crt_export");
       return phases;
     }
-    std::vector<std::string> phases = {
-        "pack_h2d",
-        "pack_kernel",
-        "pack",
-    };
+    std::vector<std::string> phases = direct_hip_pack_event_phases(args, selected_backend, false);
     if (result.incremental_result_cache_public_contract_available && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       phases.push_back("residue_d2d_sync");
       phases.push_back("rns_gemm_region_kernel_group");
@@ -325,11 +337,7 @@ std::vector<std::string> gpu_event_phase_order(
     return phases;
   }
   if (selected_backend == RNS8_BACKEND_HIPBLASLT) {
-    std::vector<std::string> phases = {
-        "pack_h2d",
-        "pack_kernel",
-        "pack",
-    };
+    std::vector<std::string> phases = direct_hip_pack_event_phases(args, selected_backend, false);
     append_hipblaslt_gemm_event_phases(phases, args);
     if (residue_current_output_mode(args)) {
       return phases;
@@ -363,7 +371,7 @@ std::vector<std::string> gpu_event_phase_order(
         "pack",
         gemm_phase};
   } else {
-    phases = {"pack_h2d", "pack_kernel", "pack"};
+    phases = direct_hip_pack_event_phases(args, selected_backend, false);
     if (native_to_rns_bridge_path(args, result, selected_backend)) {
       phases.push_back(native_to_rns_bridge_event_label(args));
     }
