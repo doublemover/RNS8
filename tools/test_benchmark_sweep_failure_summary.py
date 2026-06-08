@@ -215,6 +215,10 @@ def main() -> int:
                             },
                             "bottleneck": {"class": "pack_bound", "phase": "pack"},
                             "matrix_instruction_histogram": {},
+                            "matrix_instruction_family": "mfma",
+                            "matrix_instruction_shape": "16x16x32",
+                            "matrix_instruction_dtype": "i8",
+                            "matrix_instruction_sparsity": "dense",
                             "capture": str(scenarios / "c-ck.json"),
                         },
                     }
@@ -284,7 +288,7 @@ def main() -> int:
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
         assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
-        assert "pack_split=pack_a:70.0,pack_b:30.0 matrix_isa=" in text
+        assert "pack_split=pack_a:70.0,pack_b:30.0 matrix_meta=mfma/16x16x32/i8/dense matrix_isa=" in text
         assert "matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
         assert summary.clean_gate_failures(lines) == [
             "failed captures=1",

@@ -139,6 +139,18 @@ def _pack_split_text(candidate: dict[str, Any]) -> str:
     return ",".join(values) if values else "none"
 
 
+def _matrix_metadata_text(candidate: dict[str, Any]) -> str:
+    values = [
+        candidate.get("matrix_instruction_family"),
+        candidate.get("matrix_instruction_shape"),
+        candidate.get("matrix_instruction_dtype"),
+        candidate.get("matrix_instruction_sparsity"),
+    ]
+    if not any(isinstance(value, str) and value for value in values):
+        return "none"
+    return "/".join(str(value or "unknown") for value in values)
+
+
 def _route_line(
     out: Path,
     label: str,
@@ -162,6 +174,7 @@ def _route_line(
         f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
         f"bottleneck={bottleneck_text} "
         f"pack_split={_pack_split_text(candidate)} "
+        f"matrix_meta={_matrix_metadata_text(candidate)} "
         f"matrix_isa={_histogram_text(candidate, isa_index)} "
         f"capture={_relative_capture(out, candidate.get('capture'))}"
     )
