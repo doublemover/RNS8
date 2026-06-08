@@ -439,7 +439,7 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     linux_smi_ok = any(command_ok(commands, name) for name in LINUX_SMI_COMMANDS)
     linux_rocm_ok = (
         host_is_linux
-        and all(command_ok(commands, name) for name in LINUX_ROCM_COMMANDS)
+        and all(command_ok(commands, name) for name in LINUX_ROCM_REQUIRED_COMMANDS)
         and linux_smi_ok
         and bool(linux["represented"])
     )
@@ -488,12 +488,20 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "ok": linux_rocm_ok,
             "required_for_host_readiness": host_is_linux,
             "evidence": [
-                "commands: "
-                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_ROCM_COMMANDS),
+                "required commands: "
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in LINUX_ROCM_REQUIRED_COMMANDS
+                ),
+                "diagnostic commands: "
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in LINUX_ROCM_DIAGNOSTIC_COMMANDS
+                ),
                 "smi: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_SMI_COMMANDS),
                 f"linux preset represented={'OK' if linux['represented'] else 'MISSING'}",
             ],
-            "detail": "Linux ROCm production/profiling gate; not required to pass on a Windows host",
+            "detail": "Linux ROCm production gate; hipconfig is diagnostic capture only and does not block a passing HIP build/smoke path",
         },
         "E004_gpu_architecture_detection": {
             "status": status_label(gpu_arch_ok, bool(hip_info["ok"])),

@@ -8,8 +8,10 @@ CDNA, profiling, power, or cluster production gates.
 `tools/check_dependencies.py` reports Linux readiness separately from Windows
 readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platform
 matrix gates are reported as not applicable rather than as Windows blockers.
-On Linux, `hipcc`, `hipconfig`, `rocminfo`, and either `rocm-smi` or `amd-smi`
-are treated as the ROCm capability-inspection command set.
+On Linux, `hipcc`, `rocminfo`, and either `rocm-smi` or `amd-smi`
+are treated as the hard ROCm capability-inspection command set. `hipconfig`
+is captured as diagnostic evidence when present, but it does not block the
+single-device CDNA build/smoke path.
 `rocprofv3` and `rocprofv3-avail` are required for the counter/resource audit
 lane, but not for a basic build-only smoke. `numactl` and `lstopo` provide
 topology evidence. RCCL and `rccl-tests` are future multi-GPU platform

@@ -25,6 +25,9 @@ def main() -> int:
     expect(deps.vcpkg_required_for_host("Linux") is False, "Linux must not require Windows vcpkg")
     expect(deps.command_required_for_host("vcpkg", "Windows") is True, "vcpkg should be Windows-required")
     expect(deps.command_required_for_host("vcpkg", "Linux") is False, "vcpkg should not be Linux-required")
+    expect(deps.command_required_for_host("hipcc", "Linux") is True, "hipcc should be Linux ROCm-required")
+    expect(deps.command_required_for_host("rocminfo", "Linux") is True, "rocminfo should be Linux ROCm-required")
+    expect(deps.command_required_for_host("hipconfig", "Linux") is False, "hipconfig should be Linux diagnostic-only")
     expect(
         deps.command_version_ok("cmake", "cmake version 3.22.1")[0] is False,
         "CMake below the project minimum must fail dependency readiness",
@@ -38,6 +41,7 @@ def main() -> int:
     linux_commands = deps.command_names_for_host("Linux")
     expect("vcpkg" in linux_commands, "Linux report should still show vcpkg if present")
     expect("hipInfo" not in linux_commands, "Linux report should not require Windows HIP SDK tools")
+    expect("hipconfig" in linux_commands, "Linux report should still include hipconfig as diagnostic evidence")
     expect("rocprofv3" in linux_commands, "Linux profiler readiness command missing")
     expect("rocprofv3-avail" in linux_commands, "Linux rocprof counter-list command missing")
     expect("numactl" in linux_commands and "lstopo" in linux_commands, "Linux topology commands missing")

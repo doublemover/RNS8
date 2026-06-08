@@ -53,7 +53,7 @@ def command_required_for_host(name: str, host_system: str | None = None) -> bool
     return (
         name in HOST_NEUTRAL_CORE_COMMANDS
         or (host == "Windows" and (name in WINDOWS_CORE_COMMANDS or name in WINDOWS_HIP_COMMANDS))
-        or (host == "Linux" and name in LINUX_ROCM_COMMANDS)
+        or (host == "Linux" and name in LINUX_ROCM_REQUIRED_COMMANDS)
     )
 
 
@@ -67,7 +67,7 @@ def command_names_for_host(host_system: str | None = None) -> list[str]:
         + RADEON_TOOLS
     )
     if host != "Windows":
-        names = [name for name in names if name not in WINDOWS_HIP_COMMANDS]
+        names = [name for name in names if name != "hipInfo"]
     deduped: list[str] = []
     for name in names:
         if name not in deduped:
