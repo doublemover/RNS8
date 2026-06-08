@@ -293,6 +293,76 @@ TEST_CASE("AMDGPU builtin dense bounded RNS backend matches CPU") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("AMDGPU builtin dense bounded RNS backend handles tile and K tails") {
+  if (!amdgpu_builtins_available()) {
+    SKIP("AMDGPU builtin backend is not available on this device");
+  }
+
+  rns8_context* cpu = require_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* amdgpu = require_context(RNS8_BACKEND_AMDGPU_BUILTINS);
+  struct Shape {
+    int64_t m;
+    int64_t n;
+    int64_t k;
+  };
+  const Shape shapes[] = {
+      {17, 19, 35},
+      {33, 18, 47},
+  };
+  for (const Shape shape : shapes) {
+    CAPTURE(shape.m, shape.n, shape.k);
+    std::vector<int64_t> A(static_cast<std::size_t>(shape.m * shape.k));
+    std::vector<int64_t> B(static_cast<std::size_t>(shape.k * shape.n));
+    for (int64_t row = 0; row < shape.m; ++row) {
+      for (int64_t col = 0; col < shape.k; ++col) {
+        A[static_cast<std::size_t>(row * shape.k + col)] =
+            static_cast<int64_t>((row * 5 + col * 7 + 3) % 11) - 5;
+      }
+    }
+    for (int64_t row = 0; row < shape.k; ++row) {
+      for (int64_t col = 0; col < shape.n; ++col) {
+        B[static_cast<std::size_t>(row * shape.n + col)] =
+            static_cast<int64_t>((row * 13 + col * 17 + 1) % 13) - 6;
+      }
+    }
+    std::vector<int64_t> cpu_out(static_cast<std::size_t>(shape.m * shape.n), 0);
+    std::vector<int64_t> gpu_out(static_cast<std::size_t>(shape.m * shape.n), 0);
+    auto cpu_desc = bounded_i64_desc(shape.m, shape.n, shape.k, RNS8_BACKEND_CPU_REFERENCE);
+    auto gpu_desc = bounded_i64_desc(shape.m, shape.n, shape.k, RNS8_BACKEND_AMDGPU_BUILTINS);
+
+    REQUIRE(
+        rns8_gemm_i64_oneshot(
+            cpu, &cpu_desc, A.data(), shape.k, B.data(), shape.n, cpu_out.data(), shape.n) == RNS8_SUCCESS);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
+    rns8_workspace* workspace = nullptr;
+    REQUIRE(rns8_create_workspace(amdgpu, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = bounded_i64_matrix_desc(shape.m, shape.k);
+    auto b_desc = bounded_i64_matrix_desc(shape.k, shape.n);
+    auto c_desc = bounded_i64_matrix_desc(shape.m, shape.n);
+    rns8_matrix* a = nullptr;
+    rns8_matrix* b = nullptr;
+    rns8_matrix* c = nullptr;
+    REQUIRE(rns8_create_matrix(amdgpu, &a_desc, &a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(amdgpu, &b_desc, &b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(amdgpu, &c_desc, &c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(amdgpu, a, A.data(), shape.k, 11) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(amdgpu, b, B.data(), shape.n, 12) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(amdgpu, plan, a, b, c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_i64(amdgpu, plan, c, gpu_out.data(), shape.n) == RNS8_SUCCESS);
+    CHECK(gpu_out == cpu_out);
+
+    rns8_destroy_matrix(c);
+    rns8_destroy_matrix(b);
+    rns8_destroy_matrix(a);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  rns8_destroy_context(amdgpu);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
   if (!amdgpu_builtins_available()) {
     SKIP("AMDGPU builtin backend is not available on this device");

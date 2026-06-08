@@ -365,7 +365,9 @@ inspection commands.
   exact-wide signed/unsigned RNS output against the CPU reference, and a tiny
   benchmark smoke schema-validates the exact-wide RDNA3 WMMA selected kernel,
   matrix metadata, and `amdgpu_builtin_fused_i32_to_centered_residue_rns_output`
-  epilogue.
+  epilogue. Dense bounded AMDGPU builtin differential coverage now includes
+  non-multiple M/N/K shapes, so matrix-core tile tails and K-tail zero-padding
+  are checked against CPU before deeper CDNA/RDNA tile tuning.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
