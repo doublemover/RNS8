@@ -104,6 +104,9 @@ inspection commands.
   `direct_hip_prefix9_rns_gemv_n1_i64_v1` and
   `direct_hip_prefix9_rns_gemv_n1_u64_v1`; local Windows HIP smokes selected
   the new `direct_hip_skinny_gemv_n1_resident_rns` route and schema-validated.
+  Public Direct-HIP plan metadata now reports the same GEMV selected kernel,
+  epilogue, and workspace for bounded fixed-prefix `N=1` plans instead of the
+  generic grouped GEMM identity.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024` against CPU anchor, current tiled Direct HIP, vector-ALU
   where applicable, and rocWMMA; schema must report a GEMV selected kernel and

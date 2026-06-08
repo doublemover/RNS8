@@ -65,6 +65,37 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
       "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
 }
 
+TEST_CASE("Direct HIP bounded N=1 plans report skinny GEMV route metadata") {
+  rns8_plan plan{};
+  plan.backend = RNS8_BACKEND_HIP_DIRECT;
+  plan.prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  plan.desc.semantics = RNS8_BOUNDED_I64;
+  plan.desc.m = 512;
+  plan.desc.n = 1;
+  plan.desc.k = 512;
+
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_rns_gemv_n1_i64_v1");
+  CHECK(
+      rns8::detail::api::epilogue_mode_for_plan(plan) ==
+      "resident_rns_gemv_n1_centered_residue_then_crt_export");
+  CHECK(
+      rns8::detail::api::workspace_mode_for_plan(plan) ==
+      "resident_rns_inputs_skinny_n1_output");
+
+  plan.desc.semantics = RNS8_BOUNDED_U64;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_rns_gemv_n1_u64_v1");
+
+  plan.desc.n = 2;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_grouped_rns_gemm_v1");
+  CHECK(rns8::detail::api::workspace_mode_for_plan(plan) == "resident_device_buffers");
+}
+
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
   const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA, RNS8_BACKEND_AMDGPU_BUILTINS};
