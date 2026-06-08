@@ -309,9 +309,14 @@ inspection commands.
   i64/u64 residue pack launchers for both single and grouped pack paths instead
   of falling through to the generic per-plane pack kernel; this matches the
   prefix18 export specialization and avoids reloading each source element once
-  per modulus plane on prefix18 exact-wide captures.
-- Remaining work: implement the actual coalesced/vectorized pack kernels or
-  pack-elision routes selected by the new split evidence.
+  per modulus plane on prefix18 exact-wide captures. Direct-HIP pack launchers
+  now also route contiguous `ld == cols` native i64/u64 and finite-u8 single and
+  grouped packs through dedicated contiguous kernels. Those kernels keep the
+  existing strided fallback unchanged but avoid per-thread row/column division
+  and load source cells as `src[cell]` on the common row-major release path.
+- Remaining work: implement wider vectorized pack kernels and fused native-pack
+  plus GEMM routes selected by split evidence, then prove setup-inclusive wins
+  against the contiguous-pack baseline.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 

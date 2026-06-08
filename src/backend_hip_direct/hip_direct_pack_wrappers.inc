@@ -13,20 +13,34 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                  \
-      hipLaunchKernelGGL(                              \
-          HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<PrefixValue>), \
-          dim3(fixed_blocks),                          \
-          dim3(threads),                               \
-          0,                                           \
-          hip_stream,                                  \
-          d_src,                                       \
-          d_residues,                                  \
-          rows,                                        \
-          cols,                                        \
-          ld);                                         \
+      if (contiguous) {                                \
+        hipLaunchKernelGGL(                            \
+            HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_contiguous_kernel<PrefixValue>), \
+            dim3(fixed_blocks),                        \
+            dim3(threads),                             \
+            0,                                         \
+            hip_stream,                                \
+            d_src,                                     \
+            d_residues,                                \
+            rows,                                      \
+            cols);                                     \
+      } else {                                         \
+        hipLaunchKernelGGL(                            \
+            HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<PrefixValue>), \
+            dim3(fixed_blocks),                        \
+            dim3(threads),                             \
+            0,                                         \
+            hip_stream,                                \
+            d_src,                                     \
+            d_residues,                                \
+            rows,                                      \
+            cols,                                      \
+            ld);                                       \
+      }                                                \
       break
     RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(1);
     RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(2);
@@ -41,18 +55,32 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
     RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_PACK_I64_FIXED_PREFIX
     default:
-      hipLaunchKernelGGL(
-          rns8_pack_i64_kernel,
-          dim3(blocks),
-          dim3(threads),
-          0,
-          hip_stream,
-          d_src,
-          d_residues,
-          rows,
-          cols,
-          ld,
-          prefix);
+      if (contiguous) {
+        hipLaunchKernelGGL(
+            rns8_pack_i64_contiguous_kernel,
+            dim3(blocks),
+            dim3(threads),
+            0,
+            hip_stream,
+            d_src,
+            d_residues,
+            rows,
+            cols,
+            prefix);
+      } else {
+        hipLaunchKernelGGL(
+            rns8_pack_i64_kernel,
+            dim3(blocks),
+            dim3(threads),
+            0,
+            hip_stream,
+            d_src,
+            d_residues,
+            rows,
+            cols,
+            ld,
+            prefix);
+      }
       break;
   }
   return static_cast<int>(hipGetLastError());
@@ -83,20 +111,34 @@ extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                  \
-      hipLaunchKernelGGL(                              \
-          HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<PrefixValue>), \
-          dim3(fixed_blocks),                          \
-          dim3(threads),                               \
-          0,                                           \
-          hip_stream,                                  \
-          d_src,                                       \
-          d_residues,                                  \
-          rows,                                        \
-          cols,                                        \
-          ld);                                         \
+      if (contiguous) {                                \
+        hipLaunchKernelGGL(                            \
+            HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_contiguous_kernel<PrefixValue>), \
+            dim3(fixed_blocks),                        \
+            dim3(threads),                             \
+            0,                                         \
+            hip_stream,                                \
+            d_src,                                     \
+            d_residues,                                \
+            rows,                                      \
+            cols);                                     \
+      } else {                                         \
+        hipLaunchKernelGGL(                            \
+            HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_kernel<PrefixValue>), \
+            dim3(fixed_blocks),                        \
+            dim3(threads),                             \
+            0,                                         \
+            hip_stream,                                \
+            d_src,                                     \
+            d_residues,                                \
+            rows,                                      \
+            cols,                                      \
+            ld);                                       \
+      }                                                \
       break
     RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(1);
     RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(2);
@@ -111,18 +153,32 @@ extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
     RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_PACK_U64_FIXED_PREFIX
     default:
-      hipLaunchKernelGGL(
-          rns8_pack_u64_kernel,
-          dim3(blocks),
-          dim3(threads),
-          0,
-          hip_stream,
-          d_src,
-          d_residues,
-          rows,
-          cols,
-          ld,
-          prefix);
+      if (contiguous) {
+        hipLaunchKernelGGL(
+            rns8_pack_u64_contiguous_kernel,
+            dim3(blocks),
+            dim3(threads),
+            0,
+            hip_stream,
+            d_src,
+            d_residues,
+            rows,
+            cols,
+            prefix);
+      } else {
+        hipLaunchKernelGGL(
+            rns8_pack_u64_kernel,
+            dim3(blocks),
+            dim3(threads),
+            0,
+            hip_stream,
+            d_src,
+            d_residues,
+            rows,
+            cols,
+            ld,
+            prefix);
+      }
       break;
   }
   return static_cast<int>(hipGetLastError());
@@ -156,22 +212,38 @@ extern "C" int rns8_hip_direct_pack_i64_grouped_device(
   const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                          \
-      hipLaunchKernelGGL(                                      \
-          HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_kernel<PrefixValue>), \
-          dim3(fixed_blocks, task_count),                      \
-          dim3(threads),                                       \
-          0,                                                   \
-          nullptr,                                             \
-          d_src,                                               \
-          d_residue_ptrs,                                      \
-          task_count,                                          \
-          src_task_stride,                                     \
-          rows,                                                \
-          cols,                                                \
-          ld);                                                 \
+      if (contiguous) {                                        \
+        hipLaunchKernelGGL(                                    \
+            HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel<PrefixValue>), \
+            dim3(fixed_blocks, task_count),                    \
+            dim3(threads),                                     \
+            0,                                                 \
+            nullptr,                                           \
+            d_src,                                             \
+            d_residue_ptrs,                                    \
+            task_count,                                        \
+            src_task_stride,                                   \
+            rows,                                              \
+            cols);                                             \
+      } else {                                                 \
+        hipLaunchKernelGGL(                                    \
+            HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_kernel<PrefixValue>), \
+            dim3(fixed_blocks, task_count),                    \
+            dim3(threads),                                     \
+            0,                                                 \
+            nullptr,                                           \
+            d_src,                                             \
+            d_residue_ptrs,                                    \
+            task_count,                                        \
+            src_task_stride,                                   \
+            rows,                                              \
+            cols,                                              \
+            ld);                                               \
+      }                                                        \
       break
     RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(1);
     RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(2);
@@ -186,20 +258,36 @@ extern "C" int rns8_hip_direct_pack_i64_grouped_device(
     RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX
     default:
-      hipLaunchKernelGGL(
-          rns8_pack_i64_grouped_kernel,
-          dim3(blocks, task_count),
-          dim3(threads),
-          0,
-          nullptr,
-          d_src,
-          d_residue_ptrs,
-          task_count,
-          src_task_stride,
-          rows,
-          cols,
-          ld,
-          prefix);
+      if (contiguous) {
+        hipLaunchKernelGGL(
+            rns8_pack_i64_grouped_contiguous_kernel,
+            dim3(blocks, task_count),
+            dim3(threads),
+            0,
+            nullptr,
+            d_src,
+            d_residue_ptrs,
+            task_count,
+            src_task_stride,
+            rows,
+            cols,
+            prefix);
+      } else {
+        hipLaunchKernelGGL(
+            rns8_pack_i64_grouped_kernel,
+            dim3(blocks, task_count),
+            dim3(threads),
+            0,
+            nullptr,
+            d_src,
+            d_residue_ptrs,
+            task_count,
+            src_task_stride,
+            rows,
+            cols,
+            ld,
+            prefix);
+      }
       break;
   }
   return static_cast<int>(hipGetLastError());
@@ -223,22 +311,38 @@ extern "C" int rns8_hip_direct_pack_u64_grouped_device(
   const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                          \
-      hipLaunchKernelGGL(                                      \
-          HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_kernel<PrefixValue>), \
-          dim3(fixed_blocks, task_count),                      \
-          dim3(threads),                                       \
-          0,                                                   \
-          nullptr,                                             \
-          d_src,                                               \
-          d_residue_ptrs,                                      \
-          task_count,                                          \
-          src_task_stride,                                     \
-          rows,                                                \
-          cols,                                                \
-          ld);                                                 \
+      if (contiguous) {                                        \
+        hipLaunchKernelGGL(                                    \
+            HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel<PrefixValue>), \
+            dim3(fixed_blocks, task_count),                    \
+            dim3(threads),                                     \
+            0,                                                 \
+            nullptr,                                           \
+            d_src,                                             \
+            d_residue_ptrs,                                    \
+            task_count,                                        \
+            src_task_stride,                                   \
+            rows,                                              \
+            cols);                                             \
+      } else {                                                 \
+        hipLaunchKernelGGL(                                    \
+            HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_kernel<PrefixValue>), \
+            dim3(fixed_blocks, task_count),                    \
+            dim3(threads),                                     \
+            0,                                                 \
+            nullptr,                                           \
+            d_src,                                             \
+            d_residue_ptrs,                                    \
+            task_count,                                        \
+            src_task_stride,                                   \
+            rows,                                              \
+            cols,                                              \
+            ld);                                               \
+      }                                                        \
       break
     RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(1);
     RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(2);
@@ -253,20 +357,36 @@ extern "C" int rns8_hip_direct_pack_u64_grouped_device(
     RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(kRns8MaxSupportedPrefix);
 #undef RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX
     default:
-      hipLaunchKernelGGL(
-          rns8_pack_u64_grouped_kernel,
-          dim3(blocks, task_count),
-          dim3(threads),
-          0,
-          nullptr,
-          d_src,
-          d_residue_ptrs,
-          task_count,
-          src_task_stride,
-          rows,
-          cols,
-          ld,
-          prefix);
+      if (contiguous) {
+        hipLaunchKernelGGL(
+            rns8_pack_u64_grouped_contiguous_kernel,
+            dim3(blocks, task_count),
+            dim3(threads),
+            0,
+            nullptr,
+            d_src,
+            d_residue_ptrs,
+            task_count,
+            src_task_stride,
+            rows,
+            cols,
+            prefix);
+      } else {
+        hipLaunchKernelGGL(
+            rns8_pack_u64_grouped_kernel,
+            dim3(blocks, task_count),
+            dim3(threads),
+            0,
+            nullptr,
+            d_src,
+            d_residue_ptrs,
+            task_count,
+            src_task_stride,
+            rows,
+            cols,
+            ld,
+            prefix);
+      }
       break;
   }
   return static_cast<int>(hipGetLastError());
@@ -287,37 +407,48 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   if (modulus == 256) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<256>),
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
+#define RNS8_LAUNCH_PACK_U8_FIXED_MODULUS(ModulusValue) \
+    if (contiguous) {                                    \
+      hipLaunchKernelGGL(                                \
+          HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_contiguous_kernel<ModulusValue>), \
+          dim3(blocks),                                  \
+          dim3(threads),                                 \
+          0,                                             \
+          hip_stream,                                    \
+          d_src,                                         \
+          d_residues,                                    \
+          rows,                                          \
+          cols);                                         \
+    } else {                                             \
+      hipLaunchKernelGGL(                                \
+          HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<ModulusValue>), \
+          dim3(blocks),                                  \
+          dim3(threads),                                 \
+          0,                                             \
+          hip_stream,                                    \
+          d_src,                                         \
+          d_residues,                                    \
+          rows,                                          \
+          cols,                                          \
+          ld);                                           \
+    }
+    RNS8_LAUNCH_PACK_U8_FIXED_MODULUS(256);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 255) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<255>),
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_src,
-        d_residues,
-        rows,
-        cols,
-        ld);
+    RNS8_LAUNCH_PACK_U8_FIXED_MODULUS(255);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 251) {
+    RNS8_LAUNCH_PACK_U8_FIXED_MODULUS(251);
+    return static_cast<int>(hipGetLastError());
+  }
+#undef RNS8_LAUNCH_PACK_U8_FIXED_MODULUS
+  if (contiguous) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_kernel<251>),
+        rns8_pack_u8_modulus_contiguous_kernel,
         dim3(blocks),
         dim3(threads),
         0,
@@ -326,21 +457,21 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
         d_residues,
         rows,
         cols,
-        ld);
-    return static_cast<int>(hipGetLastError());
+        modulus);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_pack_u8_modulus_kernel,
+        dim3(blocks),
+        dim3(threads),
+        0,
+        hip_stream,
+        d_src,
+        d_residues,
+        rows,
+        cols,
+        ld,
+        modulus);
   }
-  hipLaunchKernelGGL(
-      rns8_pack_u8_modulus_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      hip_stream,
-      d_src,
-      d_residues,
-      rows,
-      cols,
-      ld,
-      modulus);
   return static_cast<int>(hipGetLastError());
 }
 
@@ -371,41 +502,52 @@ extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  const bool contiguous = ld == cols;
   if (modulus == 256) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<256>),
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residue_ptrs,
-        task_count,
-        src_task_stride,
-        rows,
-        cols,
-        ld);
+#define RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS(ModulusValue) \
+    if (contiguous) {                                           \
+      hipLaunchKernelGGL(                                       \
+          HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_contiguous_kernel<ModulusValue>), \
+          dim3(blocks, task_count),                             \
+          dim3(threads),                                        \
+          0,                                                    \
+          nullptr,                                              \
+          d_src,                                                \
+          d_residue_ptrs,                                       \
+          task_count,                                           \
+          src_task_stride,                                      \
+          rows,                                                 \
+          cols);                                                \
+    } else {                                                    \
+      hipLaunchKernelGGL(                                       \
+          HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<ModulusValue>), \
+          dim3(blocks, task_count),                             \
+          dim3(threads),                                        \
+          0,                                                    \
+          nullptr,                                              \
+          d_src,                                                \
+          d_residue_ptrs,                                       \
+          task_count,                                           \
+          src_task_stride,                                      \
+          rows,                                                 \
+          cols,                                                 \
+          ld);                                                  \
+    }
+    RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS(256);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 255) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<255>),
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_src,
-        d_residue_ptrs,
-        task_count,
-        src_task_stride,
-        rows,
-        cols,
-        ld);
+    RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS(255);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 251) {
+    RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS(251);
+    return static_cast<int>(hipGetLastError());
+  }
+#undef RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS
+  if (contiguous) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_kernel<251>),
+        rns8_pack_u8_grouped_modulus_contiguous_kernel,
         dim3(blocks, task_count),
         dim3(threads),
         0,
@@ -416,23 +558,23 @@ extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
         src_task_stride,
         rows,
         cols,
-        ld);
-    return static_cast<int>(hipGetLastError());
+        modulus);
+  } else {
+    hipLaunchKernelGGL(
+        rns8_pack_u8_grouped_modulus_kernel,
+        dim3(blocks, task_count),
+        dim3(threads),
+        0,
+        nullptr,
+        d_src,
+        d_residue_ptrs,
+        task_count,
+        src_task_stride,
+        rows,
+        cols,
+        ld,
+        modulus);
   }
-  hipLaunchKernelGGL(
-      rns8_pack_u8_grouped_modulus_kernel,
-      dim3(blocks, task_count),
-      dim3(threads),
-      0,
-      nullptr,
-      d_src,
-      d_residue_ptrs,
-      task_count,
-      src_task_stride,
-      rows,
-      cols,
-      ld,
-      modulus);
   return static_cast<int>(hipGetLastError());
 }
 
