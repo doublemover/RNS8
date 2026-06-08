@@ -284,3 +284,243 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense bounded reference") {
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);
 }
+
+TEST_CASE("resident sparse RNS CPU GEMM matches dense bounded unsigned reference") {
+  rns8_context* ctx = create_cpu_context();
+  auto gemm = bounded_gemm_desc(RNS8_BOUNDED_U64, 2, 2, 4);
+  gemm.bound = 256;
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &gemm, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+
+  auto a_desc = bounded_matrix_desc(2, 4, RNS8_BOUNDED_U64);
+  auto b_desc = bounded_matrix_desc(4, 2, RNS8_BOUNDED_U64);
+  auto c_desc = bounded_matrix_desc(2, 2, RNS8_BOUNDED_U64);
+  rns8_matrix* dense_a = nullptr;
+  rns8_matrix* dense_b = nullptr;
+  rns8_matrix* dense_c = nullptr;
+  rns8_matrix* sparse_c = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &a_desc, &dense_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &b_desc, &dense_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &dense_c) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &c_desc, &sparse_c) == RNS8_SUCCESS);
+
+  const std::vector<uint64_t> a_values = {
+      5, 0, 7, 0,
+      0, 11, 0, 13,
+  };
+  const std::vector<uint64_t> b_values = {
+      2, 5,
+      1, 7,
+      3, 2,
+      4, 1,
+  };
+  REQUIRE(rns8_pack_u64(ctx, dense_a, a_values.data(), 4, 301) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx, dense_b, b_values.data(), 2, 302) == RNS8_SUCCESS);
+
+  rns8_sparse_matrix_desc sparse_desc{};
+  sparse_desc.struct_size = sizeof(sparse_desc);
+  sparse_desc.abi_version = RNS8_ABI_VERSION;
+  sparse_desc.semantics = RNS8_BOUNDED_U64;
+  sparse_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+  sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+  sparse_desc.rows = 2;
+  sparse_desc.expanded_k = 4;
+  sparse_desc.group_size = 4;
+  sparse_desc.nonzeros_per_group = 2;
+  sparse_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  rns8_sparse_matrix* sparse_a = nullptr;
+  REQUIRE(rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
+  REQUIRE(
+      rns8_pack_sparse_a_4_to_2_matrix_u8(
+          ctx,
+          sparse_a,
+          reinterpret_cast<const uint8_t*>(dense_a->residues.data()),
+          dense_a->desc.cols,
+          dense_a->source_version) == RNS8_SUCCESS);
+
+  REQUIRE(rns8_gemm_rns(ctx, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns_sparse_a(ctx, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+  std::vector<uint64_t> dense_out(4, 0);
+  std::vector<uint64_t> sparse_out(4, 0);
+  REQUIRE(rns8_export_u64(ctx, plan, dense_c, dense_out.data(), 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, sparse_c, sparse_out.data(), 2) == RNS8_SUCCESS);
+  CHECK(sparse_out == dense_out);
+  CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(301, 302));
+
+  rns8_destroy_sparse_matrix(sparse_a);
+  rns8_destroy_matrix(sparse_c);
+  rns8_destroy_matrix(dense_c);
+  rns8_destroy_matrix(dense_b);
+  rns8_destroy_matrix(dense_a);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("resident sparse RNS CPU GEMM matches dense exact-wide reference") {
+  rns8_context* ctx = create_cpu_context();
+  constexpr int64_t m = 2;
+  constexpr int64_t n = 2;
+  constexpr int64_t k = 4;
+  constexpr uint32_t limb_count = 2;
+
+  auto run_signed = [&]() {
+    auto gemm = exact_desc(RNS8_EXACT_WIDE_SIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &gemm, &plan) == RNS8_SUCCESS);
+    rns8_workspace* workspace = nullptr;
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+
+    auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED);
+    auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+    rns8_matrix* dense_a = nullptr;
+    rns8_matrix* dense_b = nullptr;
+    rns8_matrix* dense_c = nullptr;
+    rns8_matrix* sparse_c = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &dense_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &dense_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &dense_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &sparse_c) == RNS8_SUCCESS);
+
+    const std::vector<int64_t> a_values = {
+        3, 0, -5, 0,
+        0, 7, 0, -9,
+    };
+    const std::vector<int64_t> b_values = {
+        2, -1,
+        5, 3,
+        -4, 6,
+        7, -2,
+    };
+    REQUIRE(rns8_pack_i64(ctx, dense_a, a_values.data(), k, 401) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, dense_b, b_values.data(), n, 402) == RNS8_SUCCESS);
+
+    rns8_sparse_matrix_desc sparse_desc{};
+    sparse_desc.struct_size = sizeof(sparse_desc);
+    sparse_desc.abi_version = RNS8_ABI_VERSION;
+    sparse_desc.semantics = RNS8_EXACT_WIDE_SIGNED;
+    sparse_desc.bound_kind = RNS8_BOUND_NONE;
+    sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+    sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+    sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+    sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+    sparse_desc.rows = m;
+    sparse_desc.expanded_k = k;
+    sparse_desc.group_size = 4;
+    sparse_desc.nonzeros_per_group = 2;
+    sparse_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_sparse_matrix* sparse_a = nullptr;
+    REQUIRE(rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
+    REQUIRE(
+        rns8_pack_sparse_a_4_to_2_matrix_u8(
+            ctx,
+            sparse_a,
+            reinterpret_cast<const uint8_t*>(dense_a->residues.data()),
+            dense_a->desc.cols,
+            dense_a->source_version) == RNS8_SUCCESS);
+
+    REQUIRE(rns8_gemm_rns(ctx, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(ctx, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    std::vector<uint64_t> dense_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    std::vector<uint64_t> sparse_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, dense_c, dense_limbs.data(), n, limb_count) == RNS8_SUCCESS);
+    REQUIRE(
+        rns8_export_exact_wide_signed_limbs(ctx, plan, sparse_c, sparse_limbs.data(), n, limb_count) == RNS8_SUCCESS);
+    CHECK(sparse_limbs == dense_limbs);
+    CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(401, 402));
+
+    rns8_destroy_sparse_matrix(sparse_a);
+    rns8_destroy_matrix(sparse_c);
+    rns8_destroy_matrix(dense_c);
+    rns8_destroy_matrix(dense_b);
+    rns8_destroy_matrix(dense_a);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  };
+
+  auto run_unsigned = [&]() {
+    auto gemm = exact_desc(RNS8_EXACT_WIDE_UNSIGNED, m, n, k);
+    rns8_plan* plan = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &gemm, &plan) == RNS8_SUCCESS);
+    rns8_workspace* workspace = nullptr;
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+
+    auto a_desc = exact_matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED);
+    auto b_desc = exact_matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED);
+    auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+    rns8_matrix* dense_a = nullptr;
+    rns8_matrix* dense_b = nullptr;
+    rns8_matrix* dense_c = nullptr;
+    rns8_matrix* sparse_c = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &dense_a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &dense_b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &dense_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &sparse_c) == RNS8_SUCCESS);
+
+    const std::vector<uint64_t> a_values = {
+        3, 0, 5, 0,
+        0, 7, 0, 9,
+    };
+    const std::vector<uint64_t> b_values = {
+        2, 1,
+        5, 3,
+        4, 6,
+        7, 2,
+    };
+    REQUIRE(rns8_pack_u64(ctx, dense_a, a_values.data(), k, 501) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(ctx, dense_b, b_values.data(), n, 502) == RNS8_SUCCESS);
+
+    rns8_sparse_matrix_desc sparse_desc{};
+    sparse_desc.struct_size = sizeof(sparse_desc);
+    sparse_desc.abi_version = RNS8_ABI_VERSION;
+    sparse_desc.semantics = RNS8_EXACT_WIDE_UNSIGNED;
+    sparse_desc.bound_kind = RNS8_BOUND_NONE;
+    sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+    sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+    sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+    sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+    sparse_desc.rows = m;
+    sparse_desc.expanded_k = k;
+    sparse_desc.group_size = 4;
+    sparse_desc.nonzeros_per_group = 2;
+    sparse_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+    rns8_sparse_matrix* sparse_a = nullptr;
+    REQUIRE(rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
+    REQUIRE(
+        rns8_pack_sparse_a_4_to_2_matrix_u8(
+            ctx,
+            sparse_a,
+            reinterpret_cast<const uint8_t*>(dense_a->residues.data()),
+            dense_a->desc.cols,
+            dense_a->source_version) == RNS8_SUCCESS);
+
+    REQUIRE(rns8_gemm_rns(ctx, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(ctx, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    std::vector<uint64_t> dense_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    std::vector<uint64_t> sparse_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    REQUIRE(
+        rns8_export_exact_wide_unsigned_limbs(ctx, plan, dense_c, dense_limbs.data(), n, limb_count) == RNS8_SUCCESS);
+    REQUIRE(
+        rns8_export_exact_wide_unsigned_limbs(ctx, plan, sparse_c, sparse_limbs.data(), n, limb_count) == RNS8_SUCCESS);
+    CHECK(sparse_limbs == dense_limbs);
+    CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(501, 502));
+
+    rns8_destroy_sparse_matrix(sparse_a);
+    rns8_destroy_matrix(sparse_c);
+    rns8_destroy_matrix(dense_c);
+    rns8_destroy_matrix(dense_b);
+    rns8_destroy_matrix(dense_a);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  };
+
+  run_signed();
+  run_unsigned();
+  rns8_destroy_context(ctx);
+}
