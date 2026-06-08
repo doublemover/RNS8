@@ -65,6 +65,8 @@
     "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel",
     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel",
     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel",
+    "sparse_a_indices_h2d",
+    "sparse_a_values_h2d",
     "ck_int8_matmul_kernel",
     "rocwmma_pack_a_kernel",
     "rocwmma_pack_b_kernel",

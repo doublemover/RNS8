@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "backend_hip_direct/hip_backend.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -44,6 +45,17 @@ std::string context_target(rns8_context* ctx) {
 
 bool sparse_runtime_target(const std::string& target) {
   return target.rfind("gfx942", 0) == 0 || target.rfind("gfx1200", 0) == 0 || target.rfind("gfx1201", 0) == 0;
+}
+
+bool has_timing_label(
+    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+    const std::string& label) {
+  for (const auto& sample : samples) {
+    if (sample.label == label) {
+      return true;
+    }
+  }
+  return false;
 }
 
 uint8_t nonzero_mod251(int64_t value) {
@@ -290,7 +302,14 @@ TEST_CASE("AMDGPU builtin explicit sparse-A finite u8 backend matches dense back
   sparse_desc.finite_modulus = 251;
   rns8_sparse_matrix* sparse_a = nullptr;
   REQUIRE(rns8_create_sparse_matrix(amdgpu, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
+
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
   REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(amdgpu, sparse_a, A.data(), k, 11) == RNS8_SUCCESS);
+  const auto sparse_pack_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK(has_timing_label(sparse_pack_events, "sparse_a_values_h2d"));
+  CHECK(has_timing_label(sparse_pack_events, "sparse_a_indices_h2d"));
 
   REQUIRE(rns8_gemm_finite_u8(amdgpu, plan, 251, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_finite_u8_sparse_a(amdgpu, plan, 251, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);

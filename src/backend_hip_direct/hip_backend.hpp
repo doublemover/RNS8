@@ -133,6 +133,12 @@ rns8_status hip_direct_free(int device_id, void* ptr);
 rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes);
 rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src, std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src, std::size_t bytes);
+rns8_status hip_direct_copy_host_to_device_labeled(
+    int device_id,
+    const char* timing_label,
+    void* dst,
+    const void* src,
+    std::size_t bytes);
 rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const void* src, std::size_t bytes);
 rns8_status hip_direct_ensure_upload_buffer(int device_id, std::size_t bytes, void** buffer, std::size_t* capacity);
 rns8_status hip_direct_copy_compact_matrix_device_to_host(

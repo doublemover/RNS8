@@ -297,14 +297,16 @@ rns8_status upload_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& 
     matrix.device_current = false;
     return status;
   }
-  status = rns8::detail::hip_direct_copy_host_to_device(
+  status = rns8::detail::hip_direct_copy_host_to_device_labeled(
       ctx.device_id,
+      "sparse_a_values_h2d",
       matrix.hip_packed_values,
       matrix.packed_values.data(),
       matrix.packed_values.size() * sizeof(uint8_t));
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_copy_host_to_device(
+    status = rns8::detail::hip_direct_copy_host_to_device_labeled(
         ctx.device_id,
+        "sparse_a_indices_h2d",
         matrix.hip_packed_indices,
         matrix.packed_indices.data(),
         matrix.packed_indices.size() * sizeof(uint8_t));

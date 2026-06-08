@@ -387,6 +387,8 @@ ACCELERATOR_GPU_EVENT_LABELS = {
     'rocwmma_pack_a_prepacked_b_kernel',
     'rocwmma_pack_b_kernel',
     'rocwmma_zero_output_tile_memset',
+    'sparse_a_indices_h2d',
+    'sparse_a_values_h2d',
 }
 GPU_EVENT_SOURCE_SCOPES = {
     'accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export',
