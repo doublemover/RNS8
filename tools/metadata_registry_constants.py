@@ -561,6 +561,31 @@ ROCWMMA_SELECTED_KERNELS = {
     'rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2',
     'rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2',
 }
+BOUNDED_I64_EXPORT_KERNELS = {
+    'cpu_reference_export_i64',
+    'hip_direct_export_i64_device',
+    'hip_direct_export_i64_grouped_device',
+    'hip_direct_export_i64_tiled_device',
+    'vector_alu_output_d2h',
+}
+BOUNDED_U64_EXPORT_KERNELS = {
+    'cpu_reference_export_u64',
+    'hip_direct_export_u64_device',
+    'hip_direct_export_u64_grouped_device',
+    'hip_direct_export_u64_tiled_device',
+    'vector_alu_output_d2h',
+}
+BOUNDED_EXPORT_KERNELS = {
+    'cpu_reference_export_i64',
+    'cpu_reference_export_u64',
+    'hip_direct_export_i64_device',
+    'hip_direct_export_i64_grouped_device',
+    'hip_direct_export_i64_tiled_device',
+    'hip_direct_export_u64_device',
+    'hip_direct_export_u64_grouped_device',
+    'hip_direct_export_u64_tiled_device',
+    'vector_alu_output_d2h',
+}
 EXACT_WIDE_SIGNED_EXPORT_KERNELS = {
     'cpu_reference_export_exact_wide_signed_limbs',
     'hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device',

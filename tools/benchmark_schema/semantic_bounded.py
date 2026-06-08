@@ -20,6 +20,33 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
     oneshot_capture = self._is_bounded_oneshot_capture()
     native_a_reuse_b_capture = self._is_direct_hip_bounded_native_a_reuse_b_capture()
     streaming_overlap_capture = self._is_streaming_overlap_capture()
+    expected_export_kernels = (
+        BOUNDED_I64_EXPORT_KERNELS if semantics == "bounded_i64" else BOUNDED_U64_EXPORT_KERNELS
+    )
+    export_variant = self.data.get("export_variant")
+    export_kernel = None
+    if isinstance(export_variant, dict):
+        export_kernel = export_variant.get("selected_kernel")
+        if export_kernel not in expected_export_kernels:
+            self._error(f"{semantics} export_variant.selected_kernel must be a registered bounded export kernel")
+    exact_output = self.data.get("exact_output_contract")
+    if isinstance(exact_output, dict):
+        contract_kernel = exact_output.get("kernel_identity")
+        if contract_kernel not in expected_export_kernels:
+            self._error(
+                f"{semantics} exact_output_contract.kernel_identity must be a registered bounded export kernel"
+            )
+        if export_kernel is not None and contract_kernel != export_kernel:
+            self._error("exact_output_contract.kernel_identity must match export_variant.selected_kernel")
+    reconstruction = self.data.get("reconstruction_variant")
+    if isinstance(reconstruction, dict):
+        reconstruction_kernel = reconstruction.get("kernel_identity")
+        if reconstruction_kernel not in expected_export_kernels:
+            self._error(
+                f"{semantics} reconstruction_variant.kernel_identity must be a registered bounded export kernel"
+            )
+        if export_kernel is not None and reconstruction_kernel != export_kernel:
+            self._error("reconstruction_variant.kernel_identity must match export_variant.selected_kernel")
     if oneshot_capture:
         if self.data.get("benchmark") != "rns8_bounded_gemm_public_oneshot":
             self._error("one-shot captures must use benchmark=rns8_bounded_gemm_public_oneshot")

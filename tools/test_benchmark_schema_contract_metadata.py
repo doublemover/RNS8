@@ -141,6 +141,80 @@ def main() -> int:
     stale_reuse_role["reuse_contract"]["operand_role"] = "A+C"
     expect_invalid(stale_reuse_role, "reuse_contract.operand_role must be one of")
 
+    bounded_export = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
+    bounded_export["exact_output_contract"] = {
+        "requested_final_output": "native_i64_u64_host",
+        "limb_count": None,
+        "status_policy": "required",
+        "output_domain_after_measured_repeats": "native_i64_u64_host",
+        "final_checksum_export_after_repeats": False,
+        "kernel_identity": "hip_direct_export_i64_tiled_device",
+    }
+    bounded_export["export_variant"] = {
+        "name": "default",
+        "source": "current_backend_export_path",
+        "selector_source": "rns8_internal_export_plan",
+        "selector_key": (
+            "semantics=bounded_i64;backend=hip-direct;target_id=gfx1100;prefix=9;"
+            "limb_count=0;signedness=signed;output_layout=scalar_i64;"
+            "status_policy=range_checked_status_buffer;d2h_policy=host_ld_padded;"
+            "final_output_mode=final_host_output;selected_kernel=hip_direct_export_i64_tiled_device"
+        ),
+        "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
+        "semantic_contract": "bounded_i64",
+        "backend": "hip-direct",
+        "target_id": "gfx1100",
+        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "signedness": "signed",
+        "output_layout": "scalar_i64",
+        "limb_count": None,
+        "status_policy": "required",
+        "selector_status_policy": "range_checked_status_buffer",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "selector_visible_tile_metadata_required",
+        "stale_entry_reason": "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target",
+        "status_elision_reason": None,
+        "requires_tile_metadata": True,
+        "all_zero_tiled_output": False,
+        "selected_kernel": "hip_direct_export_i64_tiled_device",
+        "constants_placement": "backend_default",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
+    bounded_export["reconstruction_variant"] = {
+        "name": "default_garner",
+        "family": "garner_fixed_prefix",
+        "controller": "public_export_api",
+        "prefix_count": 9,
+        "kernel_identity": "hip_direct_export_i64_tiled_device",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
+    validate_capture(bounded_export)
+
+    stale_bounded_export_kernel = copy.deepcopy(bounded_export)
+    stale_bounded_export_kernel["export_variant"]["selected_kernel"] = "made_up_bounded_export_kernel"
+    stale_bounded_export_kernel["export_variant"]["selector_key"] = stale_bounded_export_kernel[
+        "export_variant"
+    ]["selector_key"].replace(
+        "selected_kernel=hip_direct_export_i64_tiled_device",
+        "selected_kernel=made_up_bounded_export_kernel",
+    )
+    stale_bounded_export_kernel["exact_output_contract"]["kernel_identity"] = "made_up_bounded_export_kernel"
+    stale_bounded_export_kernel["reconstruction_variant"]["kernel_identity"] = "made_up_bounded_export_kernel"
+    expect_invalid(
+        stale_bounded_export_kernel,
+        "bounded_i64 export_variant.selected_kernel must be a registered bounded export kernel",
+    )
+
+    stale_bounded_contract_kernel = copy.deepcopy(bounded_export)
+    stale_bounded_contract_kernel["exact_output_contract"]["kernel_identity"] = "hip_direct_export_i64_device"
+    expect_invalid(
+        stale_bounded_contract_kernel,
+        "exact_output_contract.kernel_identity must match export_variant.selected_kernel",
+    )
+
     exact = add_helper_lane_fields(as_exact_wide_capture(base))
     exact["exact_output_contract"] = {
         "requested_final_output": "exact_wide_limb_host",

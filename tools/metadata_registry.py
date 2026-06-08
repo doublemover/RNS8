@@ -480,6 +480,9 @@ def render_python_constants(registry: Registry) -> str:
         f"VECTOR_ALU_SELECTED_KERNELS = {_python_repr_set(kernel_groups['vector_alu'])}",
         f"CK_SELECTED_KERNELS = {_python_repr_set(kernel_groups['ck'])}",
         f"ROCWMMA_SELECTED_KERNELS = {_python_repr_set(kernel_groups['rocwmma'])}",
+        f"BOUNDED_I64_EXPORT_KERNELS = {_python_repr_set(export_kernel_groups['bounded_i64'])}",
+        f"BOUNDED_U64_EXPORT_KERNELS = {_python_repr_set(export_kernel_groups['bounded_u64'])}",
+        f"BOUNDED_EXPORT_KERNELS = {_python_repr_set(sorted(set(export_kernel_groups['bounded_i64']) | set(export_kernel_groups['bounded_u64'])))}",
         f"EXACT_WIDE_SIGNED_EXPORT_KERNELS = {_python_repr_set(export_kernel_groups['exact_wide_signed'])}",
         f"EXACT_WIDE_UNSIGNED_EXPORT_KERNELS = {_python_repr_set(export_kernel_groups['exact_wide_unsigned'])}",
         f"EXACT_WIDE_EXPORT_KERNELS = {_python_repr_set(sorted(set(export_kernel_groups['exact_wide_signed']) | set(export_kernel_groups['exact_wide_unsigned'])))}",
@@ -516,6 +519,9 @@ def render_cpp_header(registry: Registry) -> str:
     epilogues = registry.epilogues()
     kernels = registry.kernels()
     export_kernel_groups = _export_kernel_groups(registry)
+    bounded_export_kernels = sorted(
+        set(export_kernel_groups["bounded_i64"]) | set(export_kernel_groups["bounded_u64"])
+    )
     exact_wide_export_kernels = sorted(
         set(export_kernel_groups["exact_wide_signed"]) | set(export_kernel_groups["exact_wide_unsigned"])
     )
@@ -542,6 +548,7 @@ def render_cpp_header(registry: Registry) -> str:
             _cpp_array("backend_epilogue_modes", epilogues["backend_epilogue_modes"]),
             _cpp_array("generated_reducer_identities", _generated_reducer_identities(registry)),
             _cpp_array("selected_kernels", kernels["selected_kernels"]),
+            _cpp_array("bounded_export_kernels", bounded_export_kernels),
             _cpp_array("exact_wide_export_kernels", exact_wide_export_kernels),
             "",
             "}  // namespace rns8::generated_metadata",

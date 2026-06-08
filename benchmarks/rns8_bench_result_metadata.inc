@@ -200,6 +200,18 @@ void apply_benchmark_export_selector_overlay(const Args& args, const rns8_plan& 
         "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_chain_mode";
     selector_key_needs_refresh = true;
   }
+  if (grouped_dispatch_requested(args) && bounded_benchmark_semantics(args.semantics) &&
+      result.export_backend == "hip-direct") {
+    result.export_plan_source = "benchmark_grouped_dispatch_export_selector_overlay";
+    result.export_d2h_policy = "compact_contiguous";
+    result.export_selected_kernel =
+        args.semantics == BenchSemantics::BoundedI64 ? "hip_direct_export_i64_grouped_device"
+                                                     : "hip_direct_export_u64_grouped_device";
+    result.export_cache_visibility = "selector_visible_grouped_bounded_batched_export";
+    result.export_stale_entry_reason =
+        "selector_key_mismatch_rejects_semantic_prefix_limb_layout_status_d2h_backend_target_grouped_batched_export";
+    selector_key_needs_refresh = true;
+  }
   if (args.export_variant == "compact-d2h-export-candidate" && exact_wide_benchmark_semantics(args.semantics)) {
     result.export_plan_source = "benchmark_export_selector_variant_overlay";
     result.export_cache_visibility = "selector_visible_compact_d2h_candidate";

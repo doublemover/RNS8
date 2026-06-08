@@ -222,6 +222,18 @@ inline constexpr std::array<std::string_view, 65> selected_kernels{{
     "rocwmma_wrap64_byte_gemm36_candidate_v0"
 }};
 
+inline constexpr std::array<std::string_view, 9> bounded_export_kernels{{
+    "cpu_reference_export_i64",
+    "cpu_reference_export_u64",
+    "hip_direct_export_i64_device",
+    "hip_direct_export_i64_grouped_device",
+    "hip_direct_export_i64_tiled_device",
+    "hip_direct_export_u64_device",
+    "hip_direct_export_u64_grouped_device",
+    "hip_direct_export_u64_tiled_device",
+    "vector_alu_output_d2h"
+}};
+
 inline constexpr std::array<std::string_view, 14> exact_wide_export_kernels{{
     "cpu_reference_export_exact_wide_signed_limbs",
     "cpu_reference_export_exact_wide_unsigned_limbs",

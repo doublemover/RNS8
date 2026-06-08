@@ -157,6 +157,15 @@ inspection commands.
 - Implementation scope: add final-output kernels that combine residue
   reconstruction, range/status handling, and compact host-output staging for
   bounded i64/u64; preserve exact range checks and deterministic status.
+- Local implementation status: Direct HIP bounded device export already runs
+  final-output device CRT reconstruction, range-status handling, device output
+  staging, status D2H, and output D2H. Export kernel identities are now
+  registry-backed for bounded i64/u64, schema-checked across
+  `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
+  and `reconstruction_variant.kernel_identity`, and grouped bounded captures now
+  report the actual grouped export kernels plus `compact_contiguous` D2H policy.
+  Local Windows HIP bounded i64/u64 normal and grouped smokes passed schema
+  validation.
 - Required evidence: repeated-B, large-release-validation, and export-bound
   scenarios with per-phase event labels for GEMM, CRT kernel, status memset,
   status D2H, output D2H, and end-to-end timing.

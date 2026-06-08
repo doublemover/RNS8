@@ -106,6 +106,20 @@
     ]
   },
   "export_kernel_groups": {
+    "bounded_i64": [
+      "cpu_reference_export_i64",
+      "hip_direct_export_i64_device",
+      "hip_direct_export_i64_tiled_device",
+      "hip_direct_export_i64_grouped_device",
+      "vector_alu_output_d2h"
+    ],
+    "bounded_u64": [
+      "cpu_reference_export_u64",
+      "hip_direct_export_u64_device",
+      "hip_direct_export_u64_tiled_device",
+      "hip_direct_export_u64_grouped_device",
+      "vector_alu_output_d2h"
+    ],
     "exact_wide_signed": [
       "cpu_reference_export_exact_wide_signed_limbs",
       "hip_direct_export_exact_wide_signed_limbs_device",
