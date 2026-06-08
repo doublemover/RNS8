@@ -47,6 +47,16 @@ SWMMAC targets. The CPU sparse path expands resident sparse A into the existing
 exact dense CPU reference before GEMM; this remains the correctness anchor for
 CDNA3 SMFMAC and RDNA4 SWMMAC claims.
 
+Benchmark sparse evidence separates the input distribution from the execution
+route. `rns8-bench --sparse-a-4-to-2` generates the same canonical structured
+A input for CPU, Direct HIP, and accelerator rows. CPU reference and AMDGPU
+builtins use the explicit sparse runtime unless
+`--sparse-a-4-to-2-dense-baseline` is also present; dense baseline rows then
+pack and execute the expanded sparse input through the normal dense finite-u8
+backend. Review backend ids distinguish sparse runtime rows from dense
+sparse-input rows so sparse SMFMAC/SWMMAC can be compared against Direct HIP
+and dense AMDGPU builtin baselines for the same mathematical input.
+
 ## Selection Policy
 
 `RNS8_BACKEND_AUTO` is a context-default selector. In HIP-capable contexts it

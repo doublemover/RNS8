@@ -395,6 +395,10 @@ inspection commands.
 - Required evidence: API/unit tests for valid/invalid groups, signedness,
   K divisibility, dense/sparse API rejection, cache-key mismatch, and sparse
   CPU-vs-dense parity.
+- Local progress: `rns8-bench --sparse-a-4-to-2` now generates explicit
+  finite-u8 sparse-A 4:2 inputs, records the structured sparse input
+  distribution, routes CPU through sparse expand-to-dense reference, and
+  validates CPU sparse captures through schema v4.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 
@@ -410,6 +414,12 @@ inspection commands.
 - Required evidence: sparse release captures comparing sparse setup-inclusive
   path against dense Direct HIP, dense AMDGPU builtin, CK/rocWMMA where
   comparable, and CPU sparse reference.
+- Local progress: the `sparse-a-4-to-2` sweep family now emits CPU sparse
+  reference, Direct-HIP dense same-input baseline, AMDGPU sparse runtime, and
+  AMDGPU dense sparse-input baseline rows. Review backend ids separate
+  `amdgpu-builtins-sparse-a-runtime` from
+  `amdgpu-builtins-dense-sparse-a-input` to avoid duplicate-backend blockers
+  while keeping both rows in the same sparse contract group.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 
