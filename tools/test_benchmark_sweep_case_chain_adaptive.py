@@ -206,7 +206,8 @@ exact_include_commands = benchmark_sweep.sweep_commands(exact_include_args)
 exact_include_names = [name for name, _command, _output in exact_include_commands]
 assert "exact-wide-signed-small-16x16x16-cpu.json" in exact_include_names
 assert "exact-wide-unsigned-small-16x16x16-rocwmma.json" in exact_include_names
-assert len(exact_include_commands) == 21
+assert "exact-wide-unsigned-small-16x16x16-amdgpu-builtins.json" in exact_include_names
+assert len(exact_include_commands) == 25
 assert not any(
     "--semantics" in command and "bounded-u64" in command and "--backend" in command and "ck" in command
     for _name, command, _output in exact_include_commands

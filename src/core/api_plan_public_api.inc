@@ -485,16 +485,16 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     }
 
     if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
-      out->uses_transient_pack_workspace = 1;
+      out->uses_transient_pack_workspace = 0;
       out->uses_matrix_engine_pack_layout = 1;
       set_text(out->a_layout_version, sizeof(out->a_layout_version), "amdgpu_builtin_a_centered_i8_matrix_core_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "amdgpu_builtin_b_centered_i8_matrix_core_v1");
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
-      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "resident_dense_direct_or_explicit_sparse_a_handle");
       set_text(
           out->detail,
           sizeof(out->detail),
-          "AMDGPU builtin kernels require explicit target-specific matrix-core pack layouts; sparse-A uses a separate public sparse handle and is not inferred from dense inputs.");
+          "AMDGPU builtin dense kernels read resident RNS/finite byte planes directly; sparse-A uses a separate public sparse handle and is not inferred from dense inputs.");
       return RNS8_SUCCESS;
     }
 

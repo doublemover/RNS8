@@ -177,6 +177,28 @@ def main() -> int:
     assert (REPO_ROOT / accelerators / "benchmark-schema.log").exists()
     assert (REPO_ROOT / accelerators / "target-validation" / "target-validation-report.md").exists()
 
+    skip_rank = root / "first-pass-skip-rank"
+    _require_ok(
+        _run(
+            [
+                "bash",
+                "scripts/cdna_first_pass.sh",
+                "--dry-run",
+                "--devices",
+                "0",
+                "--out-dir",
+                str(skip_rank),
+                "--rank-scenarios",
+                "vector-to-rns-chain",
+                "--skip-rank-scenarios",
+            ]
+        ),
+        "first-pass dry-run skip rank scenarios",
+    )
+    skip_rank_plan = (REPO_ROOT / skip_rank / "command-plan.txt").read_text(encoding="utf-8")
+    assert "rank_scenario_" not in skip_rank_plan
+    assert not (REPO_ROOT / skip_rank / "rank-scenarios").exists()
+
     for devices, out_dir, expected_world in [
         ("0,1,2,3", multi4, 4),
         ("0,1,2,3,4,5,6,7", multi8, 8),

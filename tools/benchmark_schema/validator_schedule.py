@@ -721,7 +721,7 @@ class ValidatorScheduleMixin:
             expected_workspaces = {
                 "cpu-reference": "host_reference_workspace",
                 "rocwmma": "resident_device_buffers_with_rocwmma_pack_workspace",
-                "amdgpu-builtins": "resident_device_buffers_with_amdgpu_builtin_pack_workspace",
+                "amdgpu-builtins": "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace",
                 "hip-vector-alu-int64": (
                     "native_device_i64_u64_buffers"
                     if self._is_vector_alu_runtime_capture()

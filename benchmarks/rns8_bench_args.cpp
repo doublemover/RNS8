@@ -100,6 +100,10 @@ void parse_backend_option(const std::string& value, Args& args) {
     args.backend = RNS8_BACKEND_ROCWMMA;
     return;
   }
+  if (value == "amdgpu-builtins" || value == "amdgpu-builtin") {
+    args.backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+    return;
+  }
   if (value == kWrap64RocwmmaCandidateRequestedBackend) {
     args.backend = RNS8_BACKEND_ROCWMMA;
     args.wrap64_rocwmma_candidate = true;
@@ -365,7 +369,7 @@ Args parse_args(int argc, char** argv) {
       args.write_autotune_cache = true;
     } else if (arg == "--help") {
       std::cout
-          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
+          << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|amdgpu-builtins|wrap64-byte-limb|rocwmma-wrap64-candidate|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
           << "                  [--semantics bounded-i64|bounded-u64|exact-wide-signed|exact-wide-unsigned|wrap-u64|finite-u8-ring|finite-u8-field]\n"
           << "                  [--modulus M]\n"
           << "                  [--device N] [--m M] [--n N] [--k K]\n"
@@ -816,10 +820,10 @@ Args parse_args(int argc, char** argv) {
     }
     if (!args.vector_alu_baseline && args.backend != RNS8_BACKEND_CPU_REFERENCE &&
         args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_CK &&
-        args.backend != RNS8_BACKEND_ROCWMMA && args.backend != RNS8_BACKEND_AUTO &&
-        args.backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+        args.backend != RNS8_BACKEND_ROCWMMA && args.backend != RNS8_BACKEND_AMDGPU_BUILTINS &&
+        args.backend != RNS8_BACKEND_AUTO && args.backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       usage_error(
-          "--bound-mode per-tile currently captures CPU, direct HIP, CK, rocWMMA, or hip-vector-alu-int64 paths");
+          "--bound-mode per-tile currently captures CPU, direct HIP, CK, rocWMMA, AMDGPU builtins, or hip-vector-alu-int64 paths");
     }
   }
   if (args.require_adaptive_execution && args.bound_mode != BoundMode::PerTile) {
@@ -829,7 +833,8 @@ Args parse_args(int argc, char** argv) {
     args.device_id =
         (args.vector_alu_baseline || args.backend == RNS8_BACKEND_HIP_DIRECT || args.backend == RNS8_BACKEND_HIPBLASLT ||
          args.backend == RNS8_BACKEND_CK || args.backend == RNS8_BACKEND_ROCWMMA || args.backend == RNS8_BACKEND_AUTO ||
-         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.vector_to_rns_chain)
+         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.backend == RNS8_BACKEND_AMDGPU_BUILTINS ||
+         args.vector_to_rns_chain)
             ? 0
             : -1;
   }

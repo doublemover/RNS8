@@ -23,6 +23,12 @@ def accelerator_components() -> dict[str, dict[str, object]]:
     modules = repo_root() / "cmake" / "modules"
     ck_dependency = repo_local_dependency_report("ck")
     rocwmma_dependency = repo_local_dependency_report("rocwmma")
+    amdgpu_builtin_source = first_existing(
+        [
+            repo_root() / "src" / "backend_amdgpu_builtins" / "amdgpu_builtins_kernels.hip",
+            repo_root() / "src" / "backend_amdgpu_builtins" / "amdgpu_builtins_backend.cpp",
+        ]
+    )
     hipblaslt_header = find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"])
     hipblaslt_cmake_config = find_under_roots(
         roots,
@@ -111,17 +117,17 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "repo_local_dependency": rocwmma_dependency,
         },
         "amdgpu_builtins": {
-            "header": None,
+            "header": amdgpu_builtin_source,
             "library": None,
             "tool": None,
             "cmake_module": None,
-            "probe": "no shallow discovery probe; requires real target-specific kernels and exact CPU differential validation",
+            "probe": "in-repo target-specific HIP builtin kernels; correctness requires explicit build/test validation",
             "backend_stage": "B7",
             "experiment": "E008",
             "capability": "AMDGPU builtin target-specific hot kernels",
             "not_ready_detail": (
-                "AMDGPU builtin path has no discovery-only readiness; backend remains disabled until "
-                "target-specific kernels, exact CPU differentials, and ISA evidence exist"
+                "AMDGPU builtin source was not found; backend requires in-repo target-specific kernels, "
+                "exact CPU differentials, and ISA evidence"
             ),
         },
     }
@@ -135,6 +141,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                 if name == "hipblaslt"
                 else "explicit_opt_in_fused_backend_with_exact_differentials"
                 if name in {"ck", "rocwmma"}
+                else "explicit_opt_in_builtin_backend_with_exact_differentials"
+                if name == "amdgpu_builtins"
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "backend_enablement": (
@@ -144,6 +152,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                 if name == "ck"
                 else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
                 if name == "rocwmma"
+                else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+                if name == "amdgpu_builtins"
                 else "disabled"
             ),
             "correctness_backend": (
@@ -151,10 +161,12 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                 if name == "hipblaslt"
                 else "implemented_opt_in_fused_not_validated_by_dependency_report"
                 if name in {"ck", "rocwmma"}
+                else "implemented_opt_in_builtin_not_validated_by_dependency_report"
+                if name == "amdgpu_builtins"
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma"}
+            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and bool(item["header"] or item["library"] or item["tool"]),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
@@ -188,8 +200,13 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                             "candidate evidence only; rocWMMA backend validation requires the explicit "
                             "windows-rocwmma-debug build/test preset"
                             if name == "rocwmma"
-                            else "candidate evidence only; backend remains disabled until a real exact correctness "
-                            "backend has target capability checks and exact CPU differentials"
+                            else (
+                                "candidate evidence only; AMDGPU builtin validation requires "
+                                "RNS8_ENABLE_AMDGPU_BUILTINS=ON plus exact CPU differential and ISA checks"
+                                if name == "amdgpu_builtins"
+                                else "candidate evidence only; backend remains disabled until a real exact correctness "
+                                "backend has target capability checks and exact CPU differentials"
+                            )
                         )
                     )
                 )
@@ -330,6 +347,8 @@ def not_run_probe(
             if name == "ck"
             else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
             if name == "rocwmma"
+            else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+            if name == "amdgpu_builtins"
             else "disabled"
         ),
         "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
@@ -338,10 +357,12 @@ def not_run_probe(
             if name == "hipblaslt"
             else "explicit_opt_in_fused_backend_with_exact_differentials"
             if name in {"ck", "rocwmma"}
+            else "explicit_opt_in_builtin_backend_with_exact_differentials"
+            if name == "amdgpu_builtins"
             else ACCELERATOR_ENABLE_POLICY
         ),
         "validated_correctness_backend": False,
-        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma"} and requested,
+        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"} and requested,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
@@ -468,9 +489,9 @@ def accelerator_compile_probes(
             items[name] = not_run_probe(
                 name,
                 root,
-                "NOT_RUN_NO_CORRECTNESS_KERNEL",
-                "AMDGPU builtin probes are disabled until a real target-specific exact kernel exists",
-                True,
+                "NOT_RUN_IN_REPO_BUILD_TEST_REQUIRED",
+                "AMDGPU builtin correctness is validated by RNS8_ENABLE_AMDGPU_BUILTINS builds and exact tests, not a shallow dependency probe",
+                False,
             )
             continue
         header = component.get("header") if isinstance(component, dict) else None
@@ -559,6 +580,8 @@ def accelerator_compile_probes(
                 if name == "ck"
                 else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
                 if name == "rocwmma"
+                else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+                if name == "amdgpu_builtins"
                 else "disabled"
             ),
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
@@ -567,10 +590,14 @@ def accelerator_compile_probes(
                 if name == "hipblaslt"
                 else "explicit_opt_in_fused_backend_with_exact_differentials"
                 if name in {"ck", "rocwmma"}
+                else "explicit_opt_in_builtin_backend_with_exact_differentials"
+                if name == "amdgpu_builtins"
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma"} and compiled and runtime_ok,
+            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+            and compiled
+            and runtime_ok,
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",

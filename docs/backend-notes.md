@@ -26,11 +26,10 @@ shims or hidden fallback semantics.
 - rocWMMA: opt-in fused matrix-engine backend for bounded,
   adaptive bounded, exact-wide RNS output, and finite u8. It also contains an
   internal wrap64 candidate harness that is not public or AUTO-selected.
-- AMDGPU builtins: public backend identity and metadata for target-specific
-  MFMA, WMMA, SMFMAC, and SWMMAC kernels. The enum and capability surface exist
-  so plans, schemas, reviews, and autotune metadata can name the path honestly.
-  Runtime contexts and GEMM dispatch remain unsupported until compiled kernels
-  pass exact CPU parity, timing, and ISA evidence gates.
+- AMDGPU builtins: opt-in target-specific backend for MFMA, WMMA, SMFMAC, and
+  SWMMAC kernels. The enum, capability surface, schemas, reviews, autotune
+  metadata, runtime contexts, and GEMM dispatch name the path honestly; release
+  promotion still requires exact CPU parity, timing, and ISA evidence gates.
 
 ## Sparse-A v1
 
@@ -43,10 +42,10 @@ planes or one finite-u8 modulus plane.
 
 Sparse handles are separate from dense `rns8_matrix` handles. Dense GEMM APIs
 cannot consume sparse A, sparse GEMM APIs reject dense A, and accelerator
-sparse paths remain unsupported until a real SMFMAC/SWMMAC implementation
-exists. The current CPU sparse path expands resident sparse A into the existing
-exact dense CPU reference before GEMM; this is the correctness anchor for
-future CDNA3 SMFMAC and RDNA4 SWMMAC claims.
+sparse paths require an explicit sparse-A handle on CDNA3 SMFMAC or RDNA4
+SWMMAC targets. The CPU sparse path expands resident sparse A into the existing
+exact dense CPU reference before GEMM; this remains the correctness anchor for
+CDNA3 SMFMAC and RDNA4 SWMMAC claims.
 
 ## Selection Policy
 

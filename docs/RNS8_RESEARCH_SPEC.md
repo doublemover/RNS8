@@ -225,10 +225,10 @@ The dependency checker reports:
   enablement status.
 - rocWMMA shallow discovery, optional compile/run probe evidence, and backend
   enablement status.
-- AMDGPU builtin readiness status. This has no shallow discovery-only pass:
-  the public backend identity may be reported as disabled capability metadata,
-  but runtime contexts and GEMM dispatch remain unsupported until
-  target-specific exact kernels and ISA evidence exist.
+- AMDGPU builtin readiness status. This has no shallow discovery-only
+  correctness pass: the public backend identity is opt-in and runtime contexts
+  require `RNS8_ENABLE_AMDGPU_BUILTINS`, compiled target-specific kernels, exact
+  CPU differentials, and ISA evidence.
 - Accelerator enablement policy as a first-class readiness object. hipBLASLt
   must report as an explicit opt-in baseline backend only after the dedicated
   build/test preset validates exact CPU/direct-HIP differentials; dependency
@@ -1639,8 +1639,8 @@ E005 through E008 require more than file discovery. Shallow headers, libraries,
 tools, opt-in tiny compile/run probes, and builtin availability notes are
 evidence only until a backend also has target-supported capability checks and
 exact CPU differential validation. E008 has no discovery-only readiness path:
-AMDGPU builtin kernels are not enabled until real target-specific exact kernels
-exist.
+AMDGPU builtin kernels are enabled only by the explicit builtin build/test path
+with target-specific exact kernels and ISA evidence.
 
 ### 18.2 Core Correctness
 

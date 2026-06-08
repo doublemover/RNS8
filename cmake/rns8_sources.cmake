@@ -35,6 +35,7 @@ set(RNS8_SOURCES
   src/backend_rocwmma/rocwmma_backend.cpp
   src/backend_wrap64/wrap64_reference.cpp
   src/backend_wrap64/wrap64_hip.cpp
+  src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp
 )
 
 function(rns8_apply_ck_wmma_no_divide_patch out_include_dir out_header)
@@ -127,6 +128,22 @@ if(RNS8_ENABLE_HIP)
     "${RNS8_WRAP64_HIP_KERNEL_OBJECT}"
     "${RNS8_VECTOR_ALU_KERNEL_OBJECT}"
   )
+  if(RNS8_ENABLE_AMDGPU_BUILTINS)
+    file(
+      GLOB
+      RNS8_AMDGPU_BUILTIN_KERNEL_DEPENDS
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_amdgpu_builtins/*.hpp"
+    )
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_AMDGPU_BUILTIN_KERNEL_DEPENDS})
+    rns8_compile_hip_source(
+      RNS8_AMDGPU_BUILTIN_KERNEL_OBJECT
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip"
+    )
+    unset(RNS8_HIP_SOURCE_DEPENDS)
+    set(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE TRUE)
+    list(APPEND RNS8_SOURCES "${RNS8_AMDGPU_BUILTIN_KERNEL_OBJECT}")
+  endif()
   if(RNS8_ENABLE_HIPBLASLT)
     find_package(RNS8HIPBLASLT REQUIRED)
     set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS})

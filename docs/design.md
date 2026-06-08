@@ -37,11 +37,11 @@ Current backend boundary:
 - CK and rocWMMA are implemented as opt-in correctness backends under their
   explicit presets. CK selects WMMA on RDNA and XDL on CDNA. They are not
   correctness requirements and are not performance-validated.
-- `RNS8_BACKEND_AMDGPU_BUILTINS` is a public reserved backend identity for
-  target-specific MFMA, WMMA, SMFMAC, and SWMMAC kernels. Its capability and
-  plan metadata are wired into schema/review tooling, but runtime contexts and
-  GEMM dispatch remain unsupported until compiled kernels exist and pass exact
-  CPU parity plus ISA gates.
+- `RNS8_BACKEND_AMDGPU_BUILTINS` is an opt-in backend identity for
+  target-specific MFMA, WMMA, SMFMAC, and SWMMAC kernels. Its capability,
+  runtime contexts, GEMM dispatch, and plan metadata are wired into
+  schema/review tooling; promotion still requires exact CPU parity plus ISA
+  gates.
 - Sparse-A v1 is explicit A-side 4:2 structured storage with separate sparse
   handles and sparse GEMM entrypoints. The current implementation provides
   pack/expand helpers, resident source-versioned sparse-A storage, and CPU

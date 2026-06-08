@@ -628,6 +628,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(RNS8_ENABLE_ROCWMMA)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_rocwmma.cpp)
   endif()
+  if(RNS8_ENABLE_AMDGPU_BUILTINS)
+    list(APPEND RNS8_TEST_SOURCES tests/differential/test_amdgpu_builtins.cpp)
+  endif()
   add_executable(rns8_tests ${RNS8_TEST_SOURCES})
   target_include_directories(
     rns8_tests
@@ -639,6 +642,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>)
+  target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_AMDGPU_BUILTINS}>:RNS8_ENABLE_AMDGPU_BUILTINS=1>)
+  target_compile_definitions(
+    rns8_tests
+    PRIVATE $<$<BOOL:${RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE}>:RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE=1>
+  )
   target_compile_definitions(rns8_tests PRIVATE RNS8_CK_USE_XDL=${RNS8_CK_USE_XDL})
   target_compile_definitions(rns8_tests PRIVATE RNS8_CK_SHAPE_ALIGNMENT=${RNS8_CK_SHAPE_ALIGNMENT})
   target_compile_definitions(

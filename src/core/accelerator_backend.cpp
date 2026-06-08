@@ -51,11 +51,11 @@ constexpr accelerator_backend_descriptor kAmdgpuBuiltinsDescriptor{
     "RNS8_ENABLE_AMDGPU_BUILTINS",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled",
     "amdgpu_builtin_fused_i32_to_centered_residue_disabled",
-    "amdgpu_builtin_pack_workspace_disabled",
+    "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace_disabled",
     "not_validated",
     "not_compiled_in_this_build",
-    "Public target-specific AMDGPU builtin backend is reserved for MFMA/WMMA/SMFMAC/SWMMAC kernels. Dense and sparse "
-    "calls do not route here until compiled kernels have exact CPU parity and ISA evidence.",
+    "Public target-specific AMDGPU builtin backend is compiled only when RNS8_ENABLE_AMDGPU_BUILTINS is enabled. Dense "
+    "calls use MFMA/WMMA matrix-core kernels, while sparse calls require the explicit sparse-A API and never route from dense GEMM.",
     1,
     1,
     1,

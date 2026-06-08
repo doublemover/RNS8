@@ -32,9 +32,9 @@ and correctness requirements are human defined. Codex does the typing.
 - Native vector-ALU runtime backend for explicit bounded i64/u64 contracts.
 - Opt-in hipBLASLt, CK, and rocWMMA accelerator backends with reviewed local
   `gfx1100` winners for selected bounded, finite-u8, and exact-wide shapes.
-- Public AMDGPU builtin backend identity and metadata for future MFMA, WMMA,
-  SMFMAC, and SWMMAC kernels. Runtime calls remain unsupported until compiled
-  target-specific kernels have CPU parity, timings, and ISA evidence.
+- Opt-in AMDGPU builtin backend with target-specific MFMA/WMMA dense kernels
+  and explicit sparse-A SMFMAC/SWMMAC runtime dispatch where the hardware
+  supports it. Promotion still requires CPU parity, timings, and ISA evidence.
 - Explicit sparse-A 4:2 structured contract helpers and resident sparse-A
   handles. Sparse CPU GEMM expands A into the exact dense CPU reference path;
   dense GEMM calls never route to sparse hardware implicitly.

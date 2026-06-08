@@ -11,7 +11,7 @@
 | prepack cache | Backend-owned reusable packed representation, currently limited and explicitly reported. |
 | RNS | Residue number system matrix storage. |
 | rocWMMA | AMD rocWMMA-based opt-in matrix-engine backend. Public backend spelling is `rocwmma`. |
-| AMDGPU builtins | Reserved public backend identity for target-specific MFMA, WMMA, SMFMAC, and SWMMAC kernels. Public backend spelling is `amdgpu-builtins`; runtime dispatch remains unsupported until compiled kernels pass exact evidence gates. |
+| AMDGPU builtins | Opt-in public backend for target-specific MFMA, WMMA, SMFMAC, and SWMMAC kernels. Public backend spelling is `amdgpu-builtins`; promotion requires compiled ISA, exact CPU parity, and timing evidence. |
 | sparse-A v1 | Explicit A-side 4:2 structured sparsity contract with dense B, canonical K-group indices, explicit byte signedness, and CPU expand/reference correctness anchor. It is not automatic dense pruning or general sparse GEMM. |
 | strict wrap64 | Multiplication modulo `2^64` using byte-limb semantics, not odd-modulus CRT. |
 | vector ALU | Native integer HIP backend for bounded i64/u64, separate from matrix-engine paths. |

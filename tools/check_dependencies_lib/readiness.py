@@ -110,7 +110,7 @@ def accelerator_gate(
     else:
         status = "CANDIDATE" if found else "NOT_READY"
     if name == "amdgpu_builtins":
-        status = "NOT_READY"
+        status = "CANDIDATE" if found else "NOT_READY"
         detail = item["readiness"]
     elif name == "hipblaslt" and probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         detail = (
@@ -166,6 +166,8 @@ def accelerator_gate(
             if name == "ck"
             else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
             if name == "rocwmma"
+            else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+            if name == "amdgpu_builtins"
             else "disabled"
         ),
         "correctness_backend": (
@@ -173,6 +175,8 @@ def accelerator_gate(
             if name == "hipblaslt"
             else "implemented_opt_in_fused_not_validated_by_dependency_report"
             if name in {"ck", "rocwmma"}
+            else "implemented_opt_in_builtin_not_validated_by_dependency_report"
+            if name == "amdgpu_builtins"
             else "not_implemented"
         ),
         "validated_correctness_backend": False,
@@ -209,6 +213,7 @@ def accelerator_enablement_policy(
         is_hipblaslt = name == "hipblaslt"
         is_ck = name == "ck"
         is_rocwmma = name == "rocwmma"
+        is_amdgpu_builtins = name == "amdgpu_builtins"
         flags[name] = {
             "enable_flag": ACCELERATOR_ENABLE_FLAGS[name],
             "enable_policy": (
@@ -225,6 +230,8 @@ def accelerator_enablement_policy(
                 if is_ck
                 else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
                 if is_rocwmma
+                else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+                if is_amdgpu_builtins
                 else "disabled"
             ),
             "correctness_backend": (
@@ -232,11 +239,13 @@ def accelerator_enablement_policy(
                 if is_hipblaslt
                 else "implemented_opt_in_fused_not_validated_by_dependency_report"
                 if is_ck or is_rocwmma
+                else "implemented_opt_in_builtin_not_validated_by_dependency_report"
+                if is_amdgpu_builtins
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
             "can_enable_correctness_backend": (
-                (is_hipblaslt or is_ck or is_rocwmma) and bool(component.get("ok"))
+                (is_hipblaslt or is_ck or is_rocwmma or is_amdgpu_builtins) and bool(component.get("ok"))
                 if isinstance(component, dict)
                 else False
             ),
@@ -256,13 +265,13 @@ def accelerator_enablement_policy(
         "correctness_backends_enabled": False,
         "validated_correctness_backend_count": 0,
         "enable_flags_fail_fast": "none",
-        "runtime_unsupported_until_compiled": "amdgpu_builtins",
+        "runtime_unsupported_until_compiled": None,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "policy": (
-            "hipBLASLt, CK, and rocWMMA have explicit opt-in backends validated by separate build/test presets; "
-            "AMDGPU builtin runtime remains unsupported until real exact correctness backends exist; "
-            "discovery and probes are evidence only"
+            "hipBLASLt, CK, rocWMMA, and AMDGPU builtins have explicit opt-in backends validated by separate "
+            "build/test presets; discovery and dependency probes are evidence only and do not replace exact "
+            "CPU differential validation"
         ),
         "flags": flags,
     }
@@ -281,6 +290,7 @@ def correctness_backend_validation_status(
         is_hipblaslt = name == "hipblaslt"
         is_ck = name == "ck"
         is_rocwmma = name == "rocwmma"
+        is_amdgpu_builtins = name == "amdgpu_builtins"
         accelerator_summary[name] = {
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "component_discovered": bool(item.get("ok")) if isinstance(item, dict) else False,
@@ -292,6 +302,8 @@ def correctness_backend_validation_status(
                 if is_ck
                 else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
                 if is_rocwmma
+                else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+                if is_amdgpu_builtins
                 else "disabled"
             ),
             "correctness_backend": (
@@ -299,6 +311,8 @@ def correctness_backend_validation_status(
                 if is_hipblaslt
                 else "implemented_opt_in_fused_not_validated_by_dependency_report"
                 if is_ck or is_rocwmma
+                else "implemented_opt_in_builtin_not_validated_by_dependency_report"
+                if is_amdgpu_builtins
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
@@ -349,6 +363,13 @@ def correctness_backend_validation_status(
                 "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-rocwmma-debug build, exact CPU/direct-HIP differentials, rocWMMA ISA gate, and benchmark schema fixtures, not dependency discovery",
+            },
+            "amdgpu_builtins": {
+                "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_AMDGPU_BUILTINS",
+                "evidence_class": "implemented_correctness_backend",
+                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "validated_by_this_report": False,
+                "validation_source": "AMDGPU builtin build, exact CPU/direct-HIP differentials, ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
         },
         "candidate_accelerators": accelerator_summary,
@@ -631,6 +652,8 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
             if name == "ck"
             else "requires_explicit_RNS8_ENABLE_ROCWMMA_build"
             if name == "rocwmma"
+            else "requires_explicit_RNS8_ENABLE_AMDGPU_BUILTINS_build"
+            if name == "amdgpu_builtins"
             else "disabled"
         )
         expected_correctness = (
@@ -638,6 +661,8 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
             if name == "hipblaslt"
             else "implemented_opt_in_fused_not_validated_by_dependency_report"
             if name in {"ck", "rocwmma"}
+            else "implemented_opt_in_builtin_not_validated_by_dependency_report"
+            if name == "amdgpu_builtins"
             else "not_implemented"
         )
         if (

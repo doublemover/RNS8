@@ -183,9 +183,9 @@ def validate_backend_metadata(self: Any) -> None:
             )
         if not str(metadata.get("epilogue_mode", "")).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report an amdgpu_builtin_* epilogue")
-        if metadata.get("workspace_mode") != "resident_device_buffers_with_amdgpu_builtin_pack_workspace":
+        if metadata.get("workspace_mode") != "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace":
             self._error(
-                "amdgpu-builtins captures must use workspace_mode=resident_device_buffers_with_amdgpu_builtin_pack_workspace"
+                "amdgpu-builtins captures must use workspace_mode=resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
             )
         if metadata.get("isa_evidence") != "amdgpu_builtin_matrix_isa_gate_no_divide":
             self._error("amdgpu-builtins captures must use isa_evidence=amdgpu_builtin_matrix_isa_gate_no_divide")

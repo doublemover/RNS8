@@ -1059,6 +1059,34 @@ rns8_status rns8_gemm_rns(
       return RNS8_UNSUPPORTED_BACKEND;
 #endif
     }
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+      if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_device(
+          ctx->device_id,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          plan->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      mark_output_device_residues_current(*C);
+      C->source_version = gemm_output_source_version(*A, *B);
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }
@@ -1298,6 +1326,35 @@ rns8_status rns8_gemm_finite_u8(
           C->hip_residues,
           workspace->accelerator_workspace,
           workspace->accelerator_workspace_bytes,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          A->desc.cols,
+          B->desc.cols,
+          C->desc.cols,
+          modulus);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      mark_output_device_residues_current(*C);
+      C->finite_modulus = modulus;
+      C->source_version = gemm_output_source_version(*A, *B);
+      return RNS8_SUCCESS;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+      if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_finite_u8_device(
+          ctx->device_id,
+          A->hip_residues,
+          B->hip_residues,
+          C->hip_residues,
           plan->desc.m,
           plan->desc.n,
           plan->desc.k,

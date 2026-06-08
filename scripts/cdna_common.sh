@@ -11,6 +11,7 @@ CDNA_DEVICES=""
 CDNA_BENCH_ARGS=""
 CDNA_SWEEP_ARGS=""
 CDNA_RANK_SCENARIOS=""
+CDNA_SKIP_RANK_SCENARIOS=0
 CDNA_SKIP_BUILD=0
 CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
@@ -40,6 +41,9 @@ Common options:
                       to run after the first smoke, for example
                       wrap64-carry,k-block-tile-variants,layout-search,
                       finite-distributions,vector-to-rns-chain
+  --skip-rank-scenarios
+                      skip any rank scenario sweep even if a wrapper default
+                      or earlier argument populated --rank-scenarios
   --accelerators     use linux-cdna-accelerators-release unless --preset is set
   --skip-build       skip configure/build/CTest steps
   --dry-run          print and record planned commands without executing them
@@ -71,7 +75,13 @@ cdna_parse_common_args() {
         ;;
       --rank-scenarios)
         CDNA_RANK_SCENARIOS="${2:-}"
+        CDNA_SKIP_RANK_SCENARIOS=0
         shift 2
+        ;;
+      --skip-rank-scenarios)
+        CDNA_RANK_SCENARIOS=""
+        CDNA_SKIP_RANK_SCENARIOS=1
+        shift
         ;;
       --accelerators)
         CDNA_ACCELERATORS=1
@@ -103,6 +113,9 @@ cdna_parse_common_args() {
   if [[ -n "${CDNA_SWEEP_ARGS}" ]]; then
     # shellcheck disable=SC2206
     CDNA_SWEEP_ARGV=(${CDNA_SWEEP_ARGS})
+  fi
+  if [[ "${CDNA_SKIP_RANK_SCENARIOS}" -eq 1 ]]; then
+    CDNA_RANK_SCENARIOS=""
   fi
 }
 

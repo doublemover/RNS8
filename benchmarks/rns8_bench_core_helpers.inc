@@ -92,6 +92,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "ck";
     case RNS8_BACKEND_ROCWMMA:
       return "rocwmma";
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return "amdgpu-builtins";
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return "wrap64-byte-limb";
   }
@@ -117,7 +119,8 @@ const char* selected_backend_name(const Args& args, const rns8_device_info& info
 
 bool benchmark_gpu_target_backend(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 ||
-         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
+         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
+         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 bool concrete_benchmark_target_id(const char* target) {

@@ -9,6 +9,15 @@
 
 namespace {
 
+using rns8::detail::api::context_accepts_backend;
+using rns8::detail::api::finite_matrix_storage_matches;
+using rns8::detail::api::matrix_backend_compatible_with_plan;
+using rns8::detail::api::matrix_descriptor_matches;
+using rns8::detail::api::rns_matrix_storage_matches;
+using rns8::detail::api::rns_residue_state_current_for_backend;
+using rns8::detail::api::rns_storage_prefix_for_plan;
+using rns8::detail::api::storage_bound_kind_for_plan;
+
 constexpr const char* kSparseLayoutVersion = "sparse_a_4_to_2_canonical_2bit_k_groups_v1";
 
 std::atomic<uint64_t> g_next_sparse_matrix_instance_id{1};
@@ -216,20 +225,177 @@ rns8_matrix make_sparse_expanded_finite_matrix(const rns8_sparse_matrix& sparse,
   return dense;
 }
 
+bool sparse_device_backend_supported(rns8_backend_kind backend) {
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+  return backend == RNS8_BACKEND_AMDGPU_BUILTINS;
+#else
+  (void)backend;
+  return false;
+#endif
+}
+
+rns8_status free_sparse_device_storage(rns8_sparse_matrix& matrix) {
+  rns8_status status = RNS8_SUCCESS;
+  if (matrix.hip_packed_values) {
+    status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_packed_values);
+    matrix.hip_packed_values = nullptr;
+    matrix.hip_packed_value_bytes = 0;
+  }
+  if (matrix.hip_packed_indices) {
+    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_packed_indices);
+    if (status == RNS8_SUCCESS) {
+      status = free_status;
+    }
+    matrix.hip_packed_indices = nullptr;
+    matrix.hip_packed_index_bytes = 0;
+  }
+  matrix.device_current = false;
+  return status;
+}
+
+rns8_status ensure_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& matrix) {
+  if (!sparse_device_backend_supported(matrix.backend) || matrix.hip_device_id != ctx.device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const std::size_t value_bytes = matrix.packed_values.size() * sizeof(uint8_t);
+  const std::size_t index_bytes = matrix.packed_indices.size() * sizeof(uint8_t);
+  if (value_bytes == 0 || index_bytes == 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if ((matrix.hip_packed_values && matrix.hip_packed_value_bytes != value_bytes) ||
+      (matrix.hip_packed_indices && matrix.hip_packed_index_bytes != index_bytes)) {
+    const rns8_status free_status = free_sparse_device_storage(matrix);
+    if (free_status != RNS8_SUCCESS) {
+      return free_status;
+    }
+  }
+  if (!matrix.hip_packed_values) {
+    rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, value_bytes, &matrix.hip_packed_values);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
+    matrix.hip_packed_value_bytes = value_bytes;
+  }
+  if (!matrix.hip_packed_indices) {
+    rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, index_bytes, &matrix.hip_packed_indices);
+    if (status != RNS8_SUCCESS) {
+      (void)free_sparse_device_storage(matrix);
+      return status;
+    }
+    matrix.hip_packed_index_bytes = index_bytes;
+  }
+  return RNS8_SUCCESS;
+}
+
+rns8_status upload_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& matrix) {
+  if (!matrix.host_current) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_status status = ensure_sparse_device_storage(ctx, matrix);
+  if (status != RNS8_SUCCESS) {
+    matrix.device_current = false;
+    return status;
+  }
+  status = rns8::detail::hip_direct_copy_host_to_device(
+      ctx.device_id,
+      matrix.hip_packed_values,
+      matrix.packed_values.data(),
+      matrix.packed_values.size() * sizeof(uint8_t));
+  if (status == RNS8_SUCCESS) {
+    status = rns8::detail::hip_direct_copy_host_to_device(
+        ctx.device_id,
+        matrix.hip_packed_indices,
+        matrix.packed_indices.data(),
+        matrix.packed_indices.size() * sizeof(uint8_t));
+  }
+  matrix.device_current = status == RNS8_SUCCESS;
+  return status;
+}
+
 bool sparse_rns_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& plan) {
   return rns8::detail::api::uses_rns_storage(plan.desc.semantics) && sparse.desc.semantics == plan.desc.semantics &&
          sparse.desc.bound_kind == rns8::detail::api::storage_bound_kind_for_plan(plan) &&
          sparse.desc.rows == plan.desc.m && sparse.desc.expanded_k == plan.desc.k &&
          sparse.desc.max_prefix >= rns8::detail::api::rns_storage_prefix_for_plan(plan) &&
          sparse.desc.finite_modulus == 0 && sparse.value_plane_count == sparse.desc.max_prefix &&
-         sparse.value_plane_count != 0 && sparse.host_current;
+         sparse.value_plane_count != 0;
 }
 
 bool sparse_finite_matches_plan(const rns8_sparse_matrix& sparse, const rns8_plan& plan, uint16_t modulus) {
   return rns8::detail::api::uses_finite_storage(plan.desc.semantics) && sparse.desc.semantics == plan.desc.semantics &&
          sparse.desc.bound_kind == RNS8_BOUND_NONE && sparse.desc.rows == plan.desc.m &&
          sparse.desc.expanded_k == plan.desc.k && sparse.desc.max_prefix == 0 &&
-         sparse.desc.finite_modulus == modulus && sparse.value_plane_count == 1 && sparse.host_current;
+         sparse.desc.finite_modulus == modulus && sparse.value_plane_count == 1;
+}
+
+rns8_status validate_sparse_rns_device_operands(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    const rns8_sparse_matrix& A,
+    const rns8_matrix& B,
+    const rns8_matrix& C) {
+  if (plan.backend != RNS8_BACKEND_AMDGPU_BUILTINS || A.backend != RNS8_BACKEND_AMDGPU_BUILTINS ||
+      !sparse_device_backend_supported(plan.backend)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  if (!context_accepts_backend(ctx, plan.backend) || !sparse_rns_matches_plan(A, plan) || !A.device_current ||
+      A.hip_device_id != ctx.device_id || !A.hip_packed_values || !A.hip_packed_indices ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+      !matrix_backend_compatible_with_plan(ctx, C, plan.backend) ||
+      B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
+  const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(plan);
+  if (!matrix_descriptor_matches(
+          B, plan.desc.semantics, storage_bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          C, plan.desc.semantics, storage_bound_kind, plan.desc.m, plan.desc.n, storage_prefix, plan.desc.tile_m,
+          plan.desc.tile_n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!rns_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n, storage_prefix) ||
+      !rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix) ||
+      !rns_residue_state_current_for_backend(B, plan.backend)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  return RNS8_SUCCESS;
+}
+
+rns8_status validate_sparse_finite_device_operands(
+    const rns8_context& ctx,
+    const rns8_plan& plan,
+    uint16_t modulus,
+    const rns8_sparse_matrix& A,
+    const rns8_matrix& B,
+    const rns8_matrix& C) {
+  if (plan.backend != RNS8_BACKEND_AMDGPU_BUILTINS || A.backend != RNS8_BACKEND_AMDGPU_BUILTINS ||
+      !sparse_device_backend_supported(plan.backend)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  if (!context_accepts_backend(ctx, plan.backend) || !sparse_finite_matches_plan(A, plan, modulus) ||
+      !A.device_current || A.hip_device_id != ctx.device_id || !A.hip_packed_values || !A.hip_packed_indices ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+      !matrix_backend_compatible_with_plan(ctx, C, plan.backend) ||
+      B.hip_device_id != ctx.device_id || C.hip_device_id != ctx.device_id) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!matrix_descriptor_matches(
+          B, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.k, plan.desc.n, 0, plan.desc.tile_m,
+          plan.desc.tile_n) ||
+      !matrix_descriptor_matches(
+          C, plan.desc.semantics, RNS8_BOUND_NONE, plan.desc.m, plan.desc.n, 0, plan.desc.tile_m,
+          plan.desc.tile_n)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (!finite_matrix_storage_matches(B, plan.backend, plan.desc.k, plan.desc.n) ||
+      !finite_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n) ||
+      !rns_residue_state_current_for_backend(B, plan.backend) || B.finite_modulus != modulus) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  return RNS8_SUCCESS;
 }
 
 }  // namespace
@@ -363,7 +529,7 @@ rns8_status rns8_create_sparse_matrix(
     if (!rns8::detail::api::backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE) {
+    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && !sparse_device_backend_supported(ctx->backend)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     auto* matrix = new (std::nothrow) rns8_sparse_matrix();
@@ -386,6 +552,11 @@ rns8_status rns8_create_sparse_matrix(
 }
 
 rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix) {
+  if (matrix) {
+    const rns8_status status = free_sparse_device_storage(*matrix);
+    delete matrix;
+    return status;
+  }
   delete matrix;
   return RNS8_SUCCESS;
 }
@@ -458,6 +629,12 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
     matrix->source_version = source_version;
     matrix->host_current = true;
     matrix->device_current = false;
+    if (sparse_device_backend_supported(matrix->backend)) {
+      const rns8_status upload_status = upload_sparse_device_storage(*ctx, *matrix);
+      if (upload_status != RNS8_SUCCESS) {
+        return upload_status;
+      }
+    }
     matrix->cache_key = build_sparse_cache_key(*matrix);
     return RNS8_SUCCESS;
   });
@@ -498,24 +675,57 @@ rns8_status rns8_gemm_rns_sparse_a(
     if (!sparse_rns_matches_plan(*A, *plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (plan->backend != RNS8_BACKEND_CPU_REFERENCE || A->backend != RNS8_BACKEND_CPU_REFERENCE) {
-      return RNS8_UNSUPPORTED_BACKEND;
+    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE && A->backend == RNS8_BACKEND_CPU_REFERENCE) {
+      if (!A->host_current) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      rns8_matrix dense_a = make_sparse_expanded_rns_matrix(*A, *plan);
+      if (dense_a.residues.empty()) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      const rns8_status operand_status =
+          rns8::detail::api::validate_rns_gemm_operands(*ctx, *plan, dense_a, *B, *C);
+      if (operand_status != RNS8_SUCCESS) {
+        return operand_status;
+      }
+      const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
+      if (status == RNS8_SUCCESS) {
+        rns8::detail::api::mark_output_host_residues_current(*C);
+        C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+      }
+      return status;
     }
-    rns8_matrix dense_a = make_sparse_expanded_rns_matrix(*A, *plan);
-    if (dense_a.residues.empty()) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    const rns8_status operand_status =
-        rns8::detail::api::validate_rns_gemm_operands(*ctx, *plan, dense_a, *B, *C);
-    if (operand_status != RNS8_SUCCESS) {
-      return operand_status;
-    }
-    const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
-    if (status == RNS8_SUCCESS) {
-      rns8::detail::api::mark_output_host_residues_current(*C);
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS && A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status operand_status = validate_sparse_rns_device_operands(*ctx, *plan, *A, *B, *C);
+      if (operand_status != RNS8_SUCCESS) {
+        return operand_status;
+      }
+      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_sparse_a_device(
+          ctx->device_id,
+          A->hip_packed_values,
+          A->hip_packed_indices,
+          B->hip_residues,
+          C->hip_residues,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          B->desc.cols,
+          C->desc.cols,
+          plan->prefix);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      rns8::detail::api::mark_output_device_residues_current(*C);
       C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+      return RNS8_SUCCESS;
     }
-    return status;
+#endif
+    return RNS8_UNSUPPORTED_BACKEND;
   });
 }
 
@@ -538,24 +748,58 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
     if (!sparse_finite_matches_plan(*A, *plan, modulus)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (plan->backend != RNS8_BACKEND_CPU_REFERENCE || A->backend != RNS8_BACKEND_CPU_REFERENCE) {
-      return RNS8_UNSUPPORTED_BACKEND;
+    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE && A->backend == RNS8_BACKEND_CPU_REFERENCE) {
+      if (!A->host_current) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      rns8_matrix dense_a = make_sparse_expanded_finite_matrix(*A, *plan, modulus);
+      if (dense_a.residues.empty()) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      const rns8_status operand_status =
+          rns8::detail::api::validate_finite_gemm_operands(*ctx, *plan, modulus, dense_a, *B, *C);
+      if (operand_status != RNS8_SUCCESS) {
+        return operand_status;
+      }
+      const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
+      if (status == RNS8_SUCCESS) {
+        rns8::detail::api::mark_output_host_residues_current(*C);
+        C->finite_modulus = modulus;
+        C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+      }
+      return status;
     }
-    rns8_matrix dense_a = make_sparse_expanded_finite_matrix(*A, *plan, modulus);
-    if (dense_a.residues.empty()) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    const rns8_status operand_status =
-        rns8::detail::api::validate_finite_gemm_operands(*ctx, *plan, modulus, dense_a, *B, *C);
-    if (operand_status != RNS8_SUCCESS) {
-      return operand_status;
-    }
-    const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
-    if (status == RNS8_SUCCESS) {
-      rns8::detail::api::mark_output_host_residues_current(*C);
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS && A->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      if (!plan->tile_schedule.empty() || plan->schedule_adaptive_prefix_active) {
+        return RNS8_UNSUPPORTED_BACKEND;
+      }
+      const rns8_status operand_status = validate_sparse_finite_device_operands(*ctx, *plan, modulus, *A, *B, *C);
+      if (operand_status != RNS8_SUCCESS) {
+        return operand_status;
+      }
+      const rns8_status status = rns8::detail::amdgpu_builtins_gemm_finite_u8_sparse_a_device(
+          ctx->device_id,
+          A->hip_packed_values,
+          A->hip_packed_indices,
+          B->hip_residues,
+          C->hip_residues,
+          plan->desc.m,
+          plan->desc.n,
+          plan->desc.k,
+          B->desc.cols,
+          C->desc.cols,
+          modulus);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      rns8::detail::api::mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
       C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+      return RNS8_SUCCESS;
     }
-    return status;
+#endif
+    return RNS8_UNSUPPORTED_BACKEND;
   });
 }

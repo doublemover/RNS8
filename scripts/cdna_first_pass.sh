@@ -478,7 +478,7 @@ else
   (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/target_validation_report.py --target-status "${STATUS_JSON}" --out-dir "${TARGET_REPORT_DIR}" "${CAPTURE}")
 fi
 
-if [[ -n "${CDNA_RANK_SCENARIOS}" ]]; then
+if [[ "${CDNA_SKIP_RANK_SCENARIOS}" -eq 0 && -n "${CDNA_RANK_SCENARIOS}" ]]; then
   RANK_SCENARIO_ROOT="${CDNA_OUT_DIR}/rank-scenarios"
   cdna_split_devices "${CDNA_RANK_SCENARIOS}" RANK_SCENARIO_LIST
   mkdir -p "${RANK_SCENARIO_ROOT}"

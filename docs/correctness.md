@@ -237,14 +237,16 @@ Implemented correctness coverage:
 - CTest coverage asserts that non-enabled accelerator configurations report
   unsupported status rather than silently selecting another backend. CK and
   rocWMMA additionally have opt-in exact CPU/direct-HIP differential coverage
-  under their Windows `gfx1100` presets. AMDGPU builtins expose public disabled
-  capability metadata until real compiled kernels exist.
+  under their Windows `gfx1100` presets. AMDGPU builtins have opt-in compiled
+  MFMA/WMMA dense runtime coverage and explicit sparse-A SMFMAC/SWMMAC dispatch
+  where the target supports it.
 - Sparse-A v1 correctness starts from explicit descriptor validation:
   A-side only, 4:2 K groups, dense B, K divisible by four, exactly two nonzero
   values per group, canonical ascending indices, explicit byte signedness, and
   semantic identity. The current sparse CPU GEMM expands sparse A into dense
   CPU reference storage before running exact GEMM; sparse accelerator dispatch
-  remains unsupported until SMFMAC/SWMMAC kernels have exact parity evidence.
+  remains explicit sparse-A only and still requires SMFMAC/SWMMAC target parity
+  evidence before any performance claim.
 
 Not yet implemented:
 

@@ -3,6 +3,7 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   capability.struct_size = sizeof(capability);
   capability.abi_version = RNS8_ABI_VERSION;
   fill_backend_capability_info(plan.backend, capability);
+  plan.backend_target_id = target_id_for_plan_context(plan, ctx);
   plan.backend_selected_kernel = selected_kernel_for_plan(plan);
   plan.backend_library = capability.library_name;
   plan.backend_library_version = capability.library_version;
@@ -16,7 +17,6 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   plan.backend_epilogue_mode = epilogue_mode_for_plan(plan);
   plan.backend_workspace_mode = workspace_mode_for_plan(plan);
   plan.backend_isa_evidence = isa_evidence_for_plan(plan);
-  plan.backend_target_id = target_id_for_plan_context(plan, ctx);
   plan.backend_workspace_required_bytes = workspace_required_bytes_for_plan(plan);
   plan.backend_performance_validated = capability.performance_validated;
   plan.backend_accumulator_k_block_size = accumulator_k_block_size_for_plan(plan);
@@ -76,7 +76,7 @@ bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend
     case RNS8_BACKEND_AMDGPU_BUILTINS:
 #if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
-      return rns8::detail::hip_direct_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
+      return rns8::detail::amdgpu_builtins_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
 #else
       return false;
 #endif

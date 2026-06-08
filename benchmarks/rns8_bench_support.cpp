@@ -33,7 +33,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
-      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
+      << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|amdgpu-builtins|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
       << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
       << "                  [--modulus M]\n"
       << "                  [--device N] [--m M] [--n N] [--k K]\n"

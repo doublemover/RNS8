@@ -373,7 +373,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.selected_kernel,
           sizeof(info.selected_kernel),
-          "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+          "amdgpu_builtin_matrix_core_target_family_runtime_dispatch_v1");
       set_text(info.library_name, sizeof(info.library_name), "AMDGPU builtins");
       set_text(info.library_version, sizeof(info.library_version), "compiled_target_specific");
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_AMDGPU_BUILTINS");
@@ -384,13 +384,13 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.workspace_mode,
           sizeof(info.workspace_mode),
-          "resident_device_buffers_with_amdgpu_builtin_pack_workspace");
+          "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace");
       set_text(info.isa_evidence, sizeof(info.isa_evidence), "amdgpu_builtin_matrix_isa_gate_no_divide");
       set_text(info.status, sizeof(info.status), "implemented_opt_in_amdgpu_builtin_backend");
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in target-specific AMDGPU builtin backend using compiled MFMA/WMMA/SMFMAC/SWMMAC kernels with exact CPU parity.");
+          "Opt-in target-specific AMDGPU builtin backend using compiled dense MFMA/WMMA kernels and explicit sparse-A SMFMAC/SWMMAC kernels; promotion still requires exact CPU parity and measured timings.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

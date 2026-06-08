@@ -272,8 +272,8 @@ typedef struct rns8_backend_capability_info {
   char library_name[64];
   char library_version[64];
   char enable_flag[64];
-  char epilogue_mode[64];
-  char workspace_mode[64];
+  char epilogue_mode[96];
+  char workspace_mode[96];
   char isa_evidence[128];
   char status[128];
   char detail[256];
@@ -295,8 +295,8 @@ typedef struct rns8_plan_backend_info {
   char accelerator_library[64];
   char accelerator_version[64];
   char capability_status[128];
-  char epilogue_mode[64];
-  char workspace_mode[64];
+  char epilogue_mode[96];
+  char workspace_mode[96];
   char isa_evidence[128];
   char autotune_key[1024];
   uint64_t accumulator_k_block_size;

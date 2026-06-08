@@ -6,11 +6,11 @@ from typing import Any
 
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
 
-BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma"]
+BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 HOST_API_BATCH_BACKENDS = ["hip-direct"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
-EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
-FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"]
+EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
+FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
 WRAP64_ROCWMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
 BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
