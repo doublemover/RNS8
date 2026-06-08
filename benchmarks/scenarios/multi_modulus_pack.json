@@ -24,12 +24,14 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 3,
       "next_op_hint": "final-export",
       "metadata": {
         "workflow_name": "multi_modulus_pack",
+        "promotion_scope": "execution_path_evidence",
+        "cache_promotion_blocker": "pack_prefix_sweep_requires_same_contract_release_baselines",
         "prefix": 3
       }
     },
@@ -55,12 +57,14 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 5,
       "next_op_hint": "final-export",
       "metadata": {
         "workflow_name": "multi_modulus_pack",
+        "promotion_scope": "execution_path_evidence",
+        "cache_promotion_blocker": "pack_prefix_sweep_requires_same_contract_release_baselines",
         "prefix": 5
       }
     },
@@ -86,12 +90,14 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
       "next_op_hint": "final-export",
       "metadata": {
         "workflow_name": "multi_modulus_pack",
+        "promotion_scope": "execution_path_evidence",
+        "cache_promotion_blocker": "pack_prefix_sweep_requires_same_contract_release_baselines",
         "prefix": 9
       }
     },
@@ -117,7 +123,7 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "execution_path_evidence",
       "exact_wide_limb_counts": [
         4
       ],
@@ -126,6 +132,8 @@
       "next_op_hint": "final-export",
       "metadata": {
         "workflow_name": "multi_modulus_pack",
+        "promotion_scope": "execution_path_evidence",
+        "cache_promotion_blocker": "pack_prefix_sweep_requires_same_contract_release_baselines",
         "prefix": 20
       }
     }

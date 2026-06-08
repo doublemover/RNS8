@@ -67,6 +67,16 @@ for item in repeated_b_items:
     if item.promotion_eligibility == "reuse_contract_evidence_only":
         assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
 
+multi_modulus_items = catalog["multi-modulus-pack"]
+assert multi_modulus_items
+assert {item.promotion_eligibility for item in multi_modulus_items} == {"execution_path_evidence"}
+for item in multi_modulus_items:
+    assert item.metadata and item.metadata["promotion_scope"] == "execution_path_evidence"
+    assert (
+        item.metadata["cache_promotion_blocker"]
+        == "pack_prefix_sweep_requires_same_contract_release_baselines"
+    )
+
 bounded_rns_chain_release_items = [
     item
     for item in catalog["rns-chain"]

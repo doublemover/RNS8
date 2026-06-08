@@ -90,11 +90,23 @@ def main() -> int:
         _write(
             out / "rank-scenarios" / "all" / "review_report.json",
             {
+                "promotable_autotune_entries": [
+                    {
+                        "selected_backend": "ck",
+                        "selected_kernel": "ck_kernel",
+                        "median_end_to_end_us": 123,
+                        "selection_end_to_end_us": 123,
+                        "source_capture": str(scenarios / "c-ck.json"),
+                    }
+                ],
                 "groups": [
                     {
                         "semantics": "bounded_i64",
                         "shape": {"m": 64, "n": 64, "k": 64},
                         "contract_key": "release-candidate-contract",
+                        "required_baselines": ["cpu-reference", "hip-direct", "hip-vector-alu-int64"],
+                        "missing_required_baselines": ["hip-vector-alu-int64"],
+                        "scenario_promotion_scopes": ["release_review_candidate"],
                         "candidates": [
                             {
                                 "backend": "ck",
@@ -106,6 +118,16 @@ def main() -> int:
                                 "speedup_vs_vector_alu": 1.2,
                                 "capture": str(scenarios / "c-ck.json"),
                                 "promotion_blockers": ["not_faster_than_direct_hip"],
+                                "prepacked_reuse_review": {
+                                    "setup_inclusive_median_end_to_end_us": 150.0,
+                                    "prepack_setup_us": 27.0,
+                                    "same_backend_nonreuse_backend": "ck",
+                                    "same_backend_nonreuse_median_end_to_end_us": 140.0,
+                                    "best_nonreuse_backend": "hip-direct",
+                                    "best_nonreuse_median_end_to_end_us": 100.0,
+                                    "speedup_vs_same_backend_setup_inclusive": 0.9333333333333333,
+                                    "speedup_vs_best_nonreuse_setup_inclusive": 0.6666666666666666,
+                                },
                             },
                             {
                                 "backend": "hip-direct",
@@ -168,6 +190,7 @@ def main() -> int:
 
         lines = summary.build_summary(out)
         text = "\n".join(lines)
+        normalized = text.replace("\\", "/")
         assert "FAILED_CAPTURES 1" in text
         assert "rns8_create_plan: range error" in text
         assert "CHECKSUM_MISMATCH_GROUPS 1" in text
@@ -177,9 +200,16 @@ def main() -> int:
         assert "not_faster_than_direct_hip 1" in text
         assert "not_accelerator_backend 1" in text
         assert "scenario_scope_not_autotune_promotable 1" in text
+        assert "PROMOTABLE_AUTOTUNE_ENTRIES 1" in text
+        assert "backend=ck kernel=ck_kernel e2e=123 selection_e2e=123" in text
+        assert "MISSING_REQUIRED_BASELINE_GROUPS 1" in text
+        assert "missing=hip-vector-alu-int64" in text
+        assert "present=ck,ck,hip-direct" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
-        assert "ck semantics=bounded_i64 shape=64x64x64" in text
+        assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
+        assert "details=reuse_setup_e2e=150.0 prepack_setup=27.0 same_backend=ck" in text
+        assert "reuse_vs_best=0.6666666666666666" in text
         assert "FASTEST_PRODUCTION_ROUTES 1" in text
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text

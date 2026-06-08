@@ -20,6 +20,7 @@ REFERENCE_BACKEND_FAMILIES = {"cpu-reference", "wrap64-byte-limb", "hip-direct"}
 NON_ACTIONABLE_BLOCKERS = {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
 PROMOTABLE_SCOPES = {None, "release_review_candidate"}
 DEFAULT_MAX_ROUTE_ROWS = 40
+DEFAULT_MAX_DETAIL_ROWS = 80
 
 
 def _latest_cdna_out(root: Path) -> Path:
@@ -143,7 +144,54 @@ def _route_line(
     )
 
 
-def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) -> list[str]:
+def _group_backends(group: dict[str, Any]) -> list[str]:
+    candidates = group.get("candidates")
+    if not isinstance(candidates, list):
+        return []
+    return sorted(str(candidate.get("backend")) for candidate in candidates if isinstance(candidate, dict))
+
+
+def _blocker_text(values: Any) -> str:
+    return ",".join(str(item) for item in values) if isinstance(values, list) and values else "none"
+
+
+def _review_detail_text(candidate: dict[str, Any]) -> str:
+    details: list[str] = []
+    prepack = candidate.get("prepacked_reuse_review")
+    if isinstance(prepack, dict):
+        details.extend(
+            [
+                f"reuse_setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')}",
+                f"prepack_setup={prepack.get('prepack_setup_us')}",
+                f"same_backend={prepack.get('same_backend_nonreuse_backend')}",
+                f"same_e2e={prepack.get('same_backend_nonreuse_median_end_to_end_us')}",
+                f"best_nonreuse={prepack.get('best_nonreuse_backend')}",
+                f"best_e2e={prepack.get('best_nonreuse_median_end_to_end_us')}",
+                f"reuse_vs_same={prepack.get('speedup_vs_same_backend_setup_inclusive')}",
+                f"reuse_vs_best={prepack.get('speedup_vs_best_nonreuse_setup_inclusive')}",
+            ]
+        )
+    graph = candidate.get("hip_graph_replay_review")
+    if isinstance(graph, dict):
+        details.extend(
+            [
+                f"graph_setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')}",
+                f"graph_capture={graph.get('graph_capture_us')}",
+                f"graph_instantiate={graph.get('graph_instantiate_us')}",
+                f"graph_baseline={graph.get('baseline_backend')}",
+                f"baseline_e2e={graph.get('baseline_setup_inclusive_median_end_to_end_us')}",
+                f"graph_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')}",
+            ]
+        )
+    return " ".join(details) if details else "none"
+
+
+def build_summary(
+    out: Path,
+    *,
+    max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS,
+    max_detail_rows: int = DEFAULT_MAX_DETAIL_ROWS,
+) -> list[str]:
     lines = [f"HEAD {_git_head()}", f"OUT {out}"]
     isa_index = load_isa_index([out])
 
@@ -182,11 +230,18 @@ def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) ->
     blocker_counts: Counter[str] = Counter()
     actionable_counts: Counter[str] = Counter()
     actionable_rows: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
+    promotable_entries: list[tuple[str, dict[str, Any]]] = []
+    missing_baseline_rows: list[tuple[str, dict[str, Any]]] = []
     production_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
     accelerator_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for path in out.rglob("review_report.json"):
         report = _load_json(path)
+        for entry in report.get("promotable_autotune_entries", []):
+            if isinstance(entry, dict):
+                promotable_entries.append((str(path.relative_to(out)), entry))
         for group in report.get("groups", []):
+            if group.get("missing_required_baselines"):
+                missing_baseline_rows.append((str(path.relative_to(out)), group))
             production = group.get("fastest_production_route")
             if isinstance(production, dict):
                 production_routes.append((group, production))
@@ -202,6 +257,33 @@ def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) ->
     lines.append("REVIEW_BLOCKER_COUNTS")
     for blocker, count in blocker_counts.most_common():
         lines.append(f"{blocker} {count}")
+    lines.append(f"PROMOTABLE_AUTOTUNE_ENTRIES {len(promotable_entries)}")
+    for report_path, entry in promotable_entries[:max_detail_rows]:
+        lines.append(
+            "  "
+            f"review={report_path} "
+            f"backend={entry.get('selected_backend')} "
+            f"kernel={entry.get('selected_kernel')} "
+            f"e2e={entry.get('median_end_to_end_us')} "
+            f"selection_e2e={entry.get('selection_end_to_end_us')} "
+            f"source={_relative_capture(out, entry.get('source_capture'))}"
+        )
+    if len(promotable_entries) > max_detail_rows:
+        lines.append(f"  ... {len(promotable_entries) - max_detail_rows} more")
+    lines.append(f"MISSING_REQUIRED_BASELINE_GROUPS {len(missing_baseline_rows)}")
+    for report_path, group in missing_baseline_rows[:max_detail_rows]:
+        lines.append(
+            "  "
+            f"review={report_path} "
+            f"semantics={group.get('semantics')} "
+            f"shape={_shape_text(group)} "
+            f"missing={_blocker_text(group.get('missing_required_baselines'))} "
+            f"required={_blocker_text(group.get('required_baselines'))} "
+            f"present={_blocker_text(_group_backends(group))} "
+            f"scopes={_blocker_text(group.get('scenario_promotion_scopes'))}"
+        )
+    if len(missing_baseline_rows) > max_detail_rows:
+        lines.append(f"  ... {len(missing_baseline_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():
@@ -209,10 +291,11 @@ def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) ->
     else:
         lines.append("none 0")
     lines.append(f"ACTIONABLE_PROMOTION_CANDIDATES {len(actionable_rows)}")
-    for _report_path, _contract_key, group, candidate in actionable_rows:
+    for report_path, contract_key, group, candidate in actionable_rows[:max_detail_rows]:
         blockers = ",".join(_actionable_blockers(candidate))
         lines.append(
             "  "
+            f"review={report_path} "
             f"{candidate.get('backend')} "
             f"semantics={group.get('semantics')} "
             f"shape={_shape_text(group)} "
@@ -221,8 +304,12 @@ def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) ->
             f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
             f"vs_vector={candidate.get('speedup_vs_vector_alu')} "
             f"blockers={blockers} "
-            f"capture={_relative_capture(out, candidate.get('capture'))}"
+            f"details={_review_detail_text(candidate)} "
+            f"capture={_relative_capture(out, candidate.get('capture'))} "
+            f"contract={contract_key}"
         )
+    if len(actionable_rows) > max_detail_rows:
+        lines.append(f"  ... {len(actionable_rows) - max_detail_rows} more")
     lines.append(f"FASTEST_PRODUCTION_ROUTES {len(production_routes)}")
     for group, candidate in production_routes[:max_route_rows]:
         lines.append(_route_line(out, "production", group, candidate, isa_index))
@@ -241,13 +328,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("out", nargs="?", type=Path, help="sweep output directory; defaults to latest temp/cdna-*mi300x-*")
     parser.add_argument("--temp-root", type=Path, default=Path("temp"))
     parser.add_argument("--max-route-rows", type=int, default=DEFAULT_MAX_ROUTE_ROWS)
+    parser.add_argument("--max-detail-rows", type=int, default=DEFAULT_MAX_DETAIL_ROWS)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     out = args.out if args.out is not None else _latest_cdna_out(args.temp_root)
-    for line in build_summary(out, max_route_rows=args.max_route_rows):
+    for line in build_summary(out, max_route_rows=args.max_route_rows, max_detail_rows=args.max_detail_rows):
         print(line)
     return 0
 
