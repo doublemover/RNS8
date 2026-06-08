@@ -23,6 +23,9 @@ rns8_status materialize_native_matrix_as_direct_rns(
     if (source->backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && source->backend != RNS8_BACKEND_HIP_DIRECT) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (source->source_version == 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
     if (target->backend != RNS8_BACKEND_HIP_DIRECT || source->desc.semantics != plan->desc.semantics ||
         target->desc.semantics != plan->desc.semantics || source->desc.rows != target->desc.rows ||
         source->desc.cols != target->desc.cols) {

@@ -293,6 +293,10 @@ inspection commands.
   groups with final checksum parity and explicit control-mode metadata.
 - Constraint: do not add generic algebra API shims; keep this as a concrete
   domain-transition implementation.
+- Local progress: the device bridge now rejects zero-version native producers
+  before materializing Direct-HIP RNS input storage, leaves the target
+  unmodified on stale-source rejection, and stamps successful handoff outputs
+  with the producer source version.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 

@@ -933,6 +933,9 @@ elision flags.
 Successful bounded persistent GEMM writes an internal deterministic output
 version to C from the packed A/B source versions, and rejected GEMM dispatch
 must not mutate C's existing version.
+Native-to-RNS device handoff requires a nonzero native producer source version
+and copies that version onto the materialized Direct-HIP RNS input; zero-version
+native outputs are treated as stale/unidentified producers and rejected.
 
 Exact-wide limb export layout is row-major by element. `ld` is a leading
 dimension in matrix elements, not in limbs. For element `(row, col)`, limb

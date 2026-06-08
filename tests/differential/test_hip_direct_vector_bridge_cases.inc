@@ -358,6 +358,14 @@ TEST_CASE("vector ALU native output materializes as Direct-HIP RNS input") {
     REQUIRE(rns8_gemm_rns(vector, vector_plan, vector_a, vector_b, vector_c, vector_workspace) == RNS8_SUCCESS);
     REQUIRE(vector_c->device_native_current);
     CHECK_FALSE(vector_c->device_residues_current);
+    const uint64_t produced_source_version = vector_c->source_version;
+    REQUIRE(produced_source_version != 0);
+    vector_c->source_version = 0;
+    CHECK(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK_FALSE(hip_a->device_residues_current);
+    CHECK(hip_a->source_version == 0);
+    vector_c->source_version = produced_source_version;
     REQUIRE(rns8::detail::materialize_native_matrix_as_direct_rns(hip, hip_plan, vector_c, hip_a) == RNS8_SUCCESS);
     CHECK(hip_a->device_residues_current);
     CHECK_FALSE(hip_a->device_native_current);
