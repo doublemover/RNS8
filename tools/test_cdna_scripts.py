@@ -168,6 +168,8 @@ def main() -> int:
                 "0",
                 "--out-dir",
                 str(accelerators),
+                "--rank-scenarios",
+                "vector-to-rns-chain",
             ]
         ),
         "accelerators dry-run",
@@ -177,10 +179,14 @@ def main() -> int:
     accelerator_plan = (REPO_ROOT / accelerators / "command-plan.txt").read_text(encoding="utf-8")
     assert "linux-cdna-accelerators-release" in accelerator_plan
     assert "--accelerators" in accelerator_plan
+    assert "gpu_isa_report" in accelerator_plan
+    assert "--backend all" in accelerator_plan
+    assert "--isa-report" in accelerator_plan
+    assert "rank_scenario_vector-to-rns-chain" in accelerator_plan
     assert (REPO_ROOT / accelerators / "benchmark-schema.log").exists()
     assert (REPO_ROOT / accelerators / "target-validation" / "target-validation-report.md").exists()
 
-    skip_rank = root / "first-pass-skip-rank"
+    skip_rank = out_root / "first-pass-skip-rank"
     _require_ok(
         _run(
             [
