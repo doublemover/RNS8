@@ -229,7 +229,10 @@ inspection commands.
   cannot be treated as reusable cache evidence. Reuse reports now distinguish
   legacy persistent-residency source identity from public runtime-cache source
   identity, so production B-cache selector readiness cannot be inferred from
-  allocation metadata alone.
+  allocation metadata alone. Benchmark schema validation now also requires
+  runtime B-cache metadata to match the capture backend, semantics, B operand
+  shape, prefix, finite modulus, cache source version, cache-key hash, and
+  byte-size envelope before a capture can count as production-cache evidence.
 - Required evidence: API/unit tests for identity rejection, stale version
   rejection, unsupported backend/shape rejection, and release captures proving
   setup-inclusive wins.

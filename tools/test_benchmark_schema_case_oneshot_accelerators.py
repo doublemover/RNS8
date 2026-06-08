@@ -81,6 +81,115 @@ bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["cache_
 )
 expect_invalid(bad_runtime_cache_zero_source, "runtime prepack cache captures must report nonzero source_version")
 
+rocwmma_runtime_b_cache = add_helper_lane_fields(copy.deepcopy(v4_rocwmma_i64))
+rocwmma_runtime_b_cache["pack_mode"] = "prepacked_reuse_b"
+rocwmma_runtime_b_cache["reuse_packed_inputs"] = True
+rocwmma_runtime_b_cache["prepack_reuse_operands"] = ["B"]
+rocwmma_runtime_b_cache["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+rocwmma_runtime_b_cache["prepack_setup_us"] = 123
+rocwmma_runtime_b_cache["avg_prepack_setup_us"] = 123.0
+rocwmma_runtime_b_cache["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
+rocwmma_runtime_b_cache["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+rocwmma_runtime_b_cache["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+rocwmma_runtime_b_cache["timing_metadata"]["phase_availability"]["prepack_setup"] = {
+    "timed": True,
+    "timing_key": "prepack_setup_us",
+    "scope": "one_time_before_warmups",
+    "reason": "B prepack cache created once before warmups and reused for each measured repeat",
+}
+rocwmma_runtime_b_cache["reuse_contract"] = {
+    "enabled": True,
+    "operand_role": "B",
+    "source_version_inputs": "runtime_prepack_cache.source_version_and_cache_key",
+    "setup_scope": "runtime_prepack_cache",
+    "setup_cost_us": 123.0,
+    "setup_amortized_us": 61.5,
+    "repeat_median_end_to_end_us": rocwmma_runtime_b_cache["timing_summary_us"]["end_to_end"]["median"],
+    "setup_inclusive_median_end_to_end_us": rocwmma_runtime_b_cache["timing_summary_us"]["end_to_end"]["median"]
+    + 61.5,
+    "setup_inclusive_policy": "one_time_setup_amortized_over_measured_repeats",
+    "measured_repeat_count": rocwmma_runtime_b_cache["repeats"],
+    "break_even_repeat_count": None,
+    "output_domain": "native_i64_u64_host",
+    "next_op": "host_export",
+    "target_fingerprint": "gfx1100",
+    "backend_fingerprint": "rocwmma",
+    "kernel_fingerprint": rocwmma_runtime_b_cache["selected_kernel"],
+    "workspace_fingerprint": "runtime_b_cache_fixture_workspace",
+    "production_runtime_prepack_cache_available": True,
+    "setup_inclusive_cache_promotion_candidate": True,
+    "promotion_eligible": False,
+    "invalidation_reasons": ["source_version_changed"],
+    "runtime_prepack_cache": {
+        "source": "rns8_get_prepack_cache_info",
+        "backend": "rocwmma",
+        "semantics": "bounded_i64",
+        "operand_role": "B",
+        "cache_key_valid": True,
+        "reusable_prepack_cache_available": True,
+        "production_prepack_cache_available": True,
+        "hip_device_id": 0,
+        "matrix_rows": rocwmma_runtime_b_cache["k"],
+        "matrix_cols": rocwmma_runtime_b_cache["n"],
+        "k": rocwmma_runtime_b_cache["k"],
+        "max_prefix": rocwmma_runtime_b_cache["prefix"],
+        "finite_modulus": 0,
+        "source_version": 5,
+        "plan_fingerprint": 123,
+        "cache_key_hash": 456,
+        "device_bytes": 2048,
+        "operand_pack_bytes": 1024,
+        "matrix_layout_version": "rns_centered_residue_planes_v1",
+        "operand_layout_version": "rns_i8_tile_swizzled_b_v1",
+        "cache_scope": "runtime_production_b_prepack_cache",
+        "cache_key": "prepack-v2;backend=rocwmma;operand=B;source_version=5;hash=456",
+        "detail": "synthetic schema fixture",
+    },
+}
+validate_capture(rocwmma_runtime_b_cache)
+
+bad_runtime_cache_backend = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_backend["reuse_contract"]["runtime_prepack_cache"]["backend"] = "ck"
+expect_invalid(bad_runtime_cache_backend, "runtime prepack cache backend must match backend_selected")
+
+bad_runtime_cache_semantics = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_semantics["reuse_contract"]["runtime_prepack_cache"]["semantics"] = "bounded_u64"
+expect_invalid(bad_runtime_cache_semantics, "runtime prepack cache semantics must match capture semantics")
+
+bad_runtime_cache_rows = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_rows["reuse_contract"]["runtime_prepack_cache"]["matrix_rows"] = (
+    rocwmma_runtime_b_cache["k"] + 1
+)
+expect_invalid(bad_runtime_cache_rows, "runtime prepack cache matrix_rows must match capture k for B operand")
+
+bad_runtime_cache_cols = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_cols["reuse_contract"]["runtime_prepack_cache"]["matrix_cols"] = (
+    rocwmma_runtime_b_cache["n"] + 1
+)
+expect_invalid(bad_runtime_cache_cols, "runtime prepack cache matrix_cols must match capture n for B operand")
+
+bad_runtime_cache_prefix = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_prefix["reuse_contract"]["runtime_prepack_cache"]["max_prefix"] = (
+    rocwmma_runtime_b_cache["prefix"] - 1
+)
+expect_invalid(bad_runtime_cache_prefix, "runtime prepack cache max_prefix must match capture prefix")
+
+bad_runtime_cache_key = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_key["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
+    "prepack-v2;backend=rocwmma;operand=B;hash=456"
+)
+expect_invalid(bad_runtime_cache_key, "runtime prepack cache cache_key must include source_version")
+
+bad_runtime_cache_hash = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_hash["reuse_contract"]["runtime_prepack_cache"]["cache_key_hash"] = 0
+expect_invalid(bad_runtime_cache_hash, "runtime prepack cache cache_key_hash must be nonzero")
+
+bad_runtime_cache_bytes = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_bytes["reuse_contract"]["runtime_prepack_cache"]["operand_pack_bytes"] = (
+    rocwmma_runtime_b_cache["reuse_contract"]["runtime_prepack_cache"]["device_bytes"] + 1
+)
+expect_invalid(bad_runtime_cache_bytes, "runtime prepack cache operand_pack_bytes must not exceed device_bytes")
+
 bad_reused_metadata_strategy = copy.deepcopy(reused_ck_i64)
 bad_reused_metadata_strategy["timing_metadata"]["prepack_reuse_strategy"] = "none"
 expect_invalid(bad_reused_metadata_strategy, "timing_metadata.prepack_reuse_strategy")

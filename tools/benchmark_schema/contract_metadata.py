@@ -215,6 +215,33 @@ def validate_contract_metadata(self: Any) -> None:
                     source_version = runtime_cache.get("source_version")
                     if _is_int(source_version) and source_version <= 0:
                         self._error("runtime prepack cache captures must report nonzero source_version")
+                    if runtime_cache.get("backend") != self.data.get("backend_selected"):
+                        self._error("runtime prepack cache backend must match backend_selected")
+                    if runtime_cache.get("semantics") != self.data.get("semantics"):
+                        self._error("runtime prepack cache semantics must match capture semantics")
+                    if runtime_cache.get("matrix_rows") != self.data.get("k"):
+                        self._error("runtime prepack cache matrix_rows must match capture k for B operand")
+                    if runtime_cache.get("matrix_cols") != self.data.get("n"):
+                        self._error("runtime prepack cache matrix_cols must match capture n for B operand")
+                    if runtime_cache.get("max_prefix") != self.data.get("prefix"):
+                        self._error("runtime prepack cache max_prefix must match capture prefix")
+                    expected_modulus = self.data.get("finite_modulus") or 0
+                    if runtime_cache.get("finite_modulus") != expected_modulus:
+                        self._error("runtime prepack cache finite_modulus must match capture finite_modulus")
+                    if _is_int(source_version) and f"source_version={source_version}" not in runtime_cache.get(
+                        "cache_key", ""
+                    ):
+                        self._error("runtime prepack cache cache_key must include source_version")
+                    if runtime_cache.get("cache_key_hash") == 0:
+                        self._error("runtime prepack cache cache_key_hash must be nonzero")
+                    device_bytes = runtime_cache.get("device_bytes")
+                    operand_pack_bytes = runtime_cache.get("operand_pack_bytes")
+                    if _is_int(device_bytes) and device_bytes <= 0:
+                        self._error("runtime prepack cache device_bytes must be positive")
+                    if _is_int(operand_pack_bytes) and operand_pack_bytes <= 0:
+                        self._error("runtime prepack cache operand_pack_bytes must be positive")
+                    if _is_int(device_bytes) and _is_int(operand_pack_bytes) and operand_pack_bytes > device_bytes:
+                        self._error("runtime prepack cache operand_pack_bytes must not exceed device_bytes")
                     if (
                         runtime_cache.get("production_prepack_cache_available") is True
                         and self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}
