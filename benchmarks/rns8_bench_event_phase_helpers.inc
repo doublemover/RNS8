@@ -94,6 +94,11 @@ void append_accelerator_deep_event_phases(
     append_ck_deep_event_phases(phases, prefix_count, zero_output_tiles);
   } else if (selected_backend == RNS8_BACKEND_ROCWMMA && !args.wrap64_rocwmma_candidate) {
     append_rocwmma_deep_event_phases(phases, prefix_count, use_prepacked_b_cache, zero_output_tiles);
+  } else if (selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    const char* matrix_core_label = amdgpu_builtin_matrix_core_event_label(args, result);
+    if (phases.empty() || phases.back() != matrix_core_label) {
+      phases.push_back(matrix_core_label);
+    }
   }
 }
 

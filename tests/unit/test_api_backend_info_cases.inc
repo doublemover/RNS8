@@ -29,6 +29,42 @@ TEST_CASE("AMDGPU builtins CDNA MFMA route selection is conservative") {
   CHECK(rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(128, 128, 128));
 }
 
+TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
+  rns8_plan plan{};
+  plan.backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+  plan.desc.semantics = RNS8_BOUNDED_I64;
+  plan.desc.m = 64;
+  plan.desc.n = 64;
+  plan.desc.k = 64;
+  plan.backend_target_id = "gfx942";
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+
+  plan.desc.m = 128;
+  plan.desc.n = 128;
+  plan.desc.k = 128;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1");
+
+  plan.backend_target_id = "gfx1100";
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
+
+  plan.backend_target_id = "gfx1201";
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
+
+  plan.desc.semantics = RNS8_FINITE_FIELD_U8;
+  plan.desc.finite_modulus = 251;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
+}
+
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
   const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA, RNS8_BACKEND_AMDGPU_BUILTINS};
