@@ -251,6 +251,11 @@ def build_summary(
     }
     rocm_version = rocm_version_from_logs(hipconfig, rocm_version_files, rocm_package_versions)
     hip_version = hip_version_from_logs(hipconfig, hipcc, rocm_package_versions)
+    matrix_instruction_log = read_log(log_dir, "amd_matrix_instruction_report")
+    matrix_instruction_dir = log_dir / "amd-matrix-instructions"
+    matrix_instruction_reports = sorted(
+        path.relative_to(log_dir).as_posix() for path in matrix_instruction_dir.glob("*") if path.is_file()
+    )
 
     return {
         "schema_version": 1,
@@ -277,6 +282,8 @@ def build_summary(
         "rccl_ready": bool(rccl_header and rccl_library),
         "rccl_tests_ready": bool(rccl_tests),
         "rccl_tests": rccl_tests,
+        "amd_matrix_instruction_calculator_ready": "AMD matrix instruction report: PASS" in matrix_instruction_log,
+        "amd_matrix_instruction_reports": matrix_instruction_reports,
         "raw_logs": sorted(str(path.name) for path in log_dir.glob("*.log")),
     }
 

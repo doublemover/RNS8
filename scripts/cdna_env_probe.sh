@@ -41,6 +41,16 @@ cdna_repo_capture rocprofv3_avail_pmcs rocprofv3-avail list --pmc || true
 cdna_repo_capture cmake_presets "${CDNA_CMAKE_BIN}" --list-presets || true
 cdna_repo_capture check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json || true
 cdna_repo_capture rccl_discovery bash -lc 'set -u; for p in /opt/rocm/include/rccl/rccl.h /opt/rocm/include/rccl.h /opt/rocm/lib/librccl.so /opt/rocm/lib64/librccl.so; do if [[ -e "$p" ]]; then echo "$p"; fi; done; for t in all_reduce_perf all_gather_perf broadcast_perf reduce_scatter_perf; do if command -v "$t" >/dev/null 2>&1; then echo "$t=$(command -v "$t")"; else echo "$t=not-found"; fi; done' || true
+if [[ -f "${CDNA_REPO_ROOT}/temp/amd_matrix_instruction_calculator/matrix_calculator.py" ]]; then
+  cdna_repo_capture amd_matrix_instruction_report \
+    "${PYTHON_BIN}" tools/amd_matrix_instruction_report.py \
+    --calculator temp/amd_matrix_instruction_calculator/matrix_calculator.py \
+    --architectures gfx942,gfx1100 \
+    --out-dir "${CDNA_OUT_DIR}/amd-matrix-instructions" \
+    --markdown || true
+else
+  printf 'AMD matrix instruction calculator not found at temp/amd_matrix_instruction_calculator/matrix_calculator.py\n' >"${CDNA_OUT_DIR}/amd_matrix_instruction_report.log"
+fi
 
 summary_args=(
   "${PYTHON_BIN}" tools/cdna_env_summary.py

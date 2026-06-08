@@ -123,6 +123,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(gpu_isa_report_self_test PROPERTIES LABELS "benchmark;evidence;isa")
 
   add_test(
+    NAME amd_matrix_instruction_report_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_amd_matrix_instruction_report.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(amd_matrix_instruction_report_self_test PROPERTIES LABELS "benchmark;evidence;isa")
+
+  add_test(
     NAME target_validation_report_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_target_validation_report.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

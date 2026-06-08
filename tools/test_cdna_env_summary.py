@@ -90,6 +90,18 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp_name:
         root = Path(tmp_name)
+        _write(root / "amd_matrix_instruction_report.log", "AMD matrix instruction report: PASS\n")
+        _write(root / "amd-matrix-instructions" / "amd-matrix-instruction-report.json", "{}\n")
+        _write(root / "amd-matrix-instructions" / "amd-matrix-instruction-report.md", "# report\n")
+        summary = _summary(root, "0")
+        assert summary["amd_matrix_instruction_calculator_ready"] is True
+        assert summary["amd_matrix_instruction_reports"] == [
+            "amd-matrix-instructions/amd-matrix-instruction-report.json",
+            "amd-matrix-instructions/amd-matrix-instruction-report.md",
+        ]
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        root = Path(tmp_name)
         _indexed_logs(root, 1)
         summary = _summary(root, "0")
         physical = {item["physical_device_id"]: item for item in summary["physical_devices"]}
