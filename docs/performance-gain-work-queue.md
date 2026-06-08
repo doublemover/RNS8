@@ -216,7 +216,10 @@ inspection commands.
   caches.
 - Local status: bounded i64/u64 rocWMMA B caches are the only production-cache
   eligible public surface; exact-wide rocWMMA B caches remain reusable
-  evidence-only while preserving cached-GEMM correctness coverage.
+  evidence-only while preserving cached-GEMM correctness coverage. Runtime
+  cache creation and cache metadata now require a nonzero operand
+  `source_version`; zero-version operands remain key-inspectable only and
+  cannot be treated as reusable cache evidence.
 - Required evidence: API/unit tests for identity rejection, stale version
   rejection, unsupported backend/shape rejection, and release captures proving
   setup-inclusive wins.

@@ -848,7 +848,10 @@ id, selected kernel, B prepack kernel variant, semantic, prefix-schedule hash,
 tile shape, K-block, operand role, source version, finite modulus, device id,
 matrix layout, and operand layout, and it rejects incompatible role, shape,
 backend, semantic, layout, device id, currentness, source-version, and
-finite-modulus inputs before returning a key. `rns8_get_prepack_cache_info`
+finite-modulus inputs before returning a key. Operands with `source_version=0`
+can still report diagnostic key material, but they do not advertise reusable or
+production runtime-cache eligibility and `rns8_create_prepack_cache` rejects
+them. `rns8_get_prepack_cache_info`
 reports the created runtime cache's matching key/hash material, device id, and
 allocation byte contract. The created rocWMMA B cache reports production
 eligibility only when the same key material, source version, device, shape,

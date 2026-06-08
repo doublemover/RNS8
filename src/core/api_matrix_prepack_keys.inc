@@ -304,6 +304,7 @@ bool rocwmma_b_prepack_cache_production_supported(const rns8_plan& plan) {
 
 bool rocwmma_b_prepack_cache_production_supported(const rns8_prepack_cache& cache) {
   return cache.operand_role == RNS8_OPERAND_B && cache.backend == RNS8_BACKEND_ROCWMMA &&
+         cache.source_version != 0 &&
          rocwmma_b_prepack_cache_production_semantics(cache.semantics);
 }
 
@@ -351,6 +352,7 @@ bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan
   std::size_t b_pack_bytes = 0;
   std::size_t total_cache_bytes = 0;
   return rocwmma_b_prepack_bytes_for_plan(plan, b_pack_bytes, total_cache_bytes) &&
+         cache.source_version != 0 &&
          cache.backend == plan.backend && cache.semantics == plan.desc.semantics &&
          cache.operand_role == RNS8_OPERAND_B && cache.rows == plan.desc.k && cache.cols == plan.desc.n &&
          cache.k == plan.desc.k && cache.tile_m == plan.desc.tile_m && cache.tile_n == plan.desc.tile_n &&

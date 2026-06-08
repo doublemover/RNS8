@@ -37,9 +37,11 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->semantics = plan->desc.semantics;
     out->operand_role = operand_role;
     out->cache_key_valid = 1;
-    const bool reusable_cache = operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan);
+    const bool stable_source_version = matrix->source_version != 0;
+    const bool reusable_cache =
+        stable_source_version && operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan);
     const bool production_cache =
-        operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_production_supported(*plan);
+        stable_source_version && operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_production_supported(*plan);
     out->reusable_prepack_cache_available = reusable_cache ? 1u : 0u;
     out->production_prepack_cache_available = production_cache ? 1u : 0u;
     out->flags = 0;
@@ -57,14 +59,17 @@ rns8_status rns8_get_prepack_cache_key_info(
     set_text(
         out->cache_scope,
         sizeof(out->cache_scope),
-        production_cache ? "validated_production_b_prepack_cache_key"
-        : reusable_cache ? "validated_reusable_b_prepack_cache_key_evidence_only"
-                         : "validated_key_no_production_cache");
+        !stable_source_version ? "validated_key_unstable_source_version_no_runtime_cache"
+        : production_cache       ? "validated_production_b_prepack_cache_key"
+        : reusable_cache         ? "validated_reusable_b_prepack_cache_key_evidence_only"
+                                 : "validated_key_no_production_cache");
     set_text(out->cache_key, sizeof(out->cache_key), cache_key);
     set_text(
         out->detail,
         sizeof(out->detail),
-        production_cache
+        !stable_source_version
+            ? "Plan and operand matrix are compatible for prepack cache keying, but source_version=0 cannot identify a reusable runtime cache."
+        : production_cache
             ? "Plan and B operand matrix are compatible with the production rocWMMA reusable B prepack cache."
         : reusable_cache
             ? "Plan and B operand matrix are compatible with a reusable rocWMMA B prepack cache, but this semantic contract is not production-promotable yet."
@@ -91,7 +96,7 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
-        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current) {
+        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0) {
       return RNS8_INVALID_ARGUMENT;
     }
 
@@ -182,8 +187,10 @@ rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_pr
     out->semantics = cache->semantics;
     out->operand_role = cache->operand_role;
     out->cache_key_valid = cache->cache_key_hash != 0 && !cache->cache_key.empty() ? 1u : 0u;
-    out->reusable_prepack_cache_available = 1;
-    out->production_prepack_cache_available = rocwmma_b_prepack_cache_production_supported(*cache) ? 1u : 0u;
+    const bool stable_source_version = cache->source_version != 0;
+    out->reusable_prepack_cache_available = stable_source_version ? 1u : 0u;
+    out->production_prepack_cache_available =
+        stable_source_version && rocwmma_b_prepack_cache_production_supported(*cache) ? 1u : 0u;
     out->flags = 0;
     out->hip_device_id = cache->hip_device_id;
     out->reserved0 = 0;
@@ -202,13 +209,16 @@ rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_pr
     set_text(
         out->cache_scope,
         sizeof(out->cache_scope),
-        out->production_prepack_cache_available ? "runtime_production_b_prepack_cache"
-                                                : "runtime_reusable_b_prepack_cache");
+        !stable_source_version ? "runtime_unstable_source_prepack_cache_rejected"
+        : out->production_prepack_cache_available ? "runtime_production_b_prepack_cache"
+                                                  : "runtime_reusable_b_prepack_cache");
     set_text(out->cache_key, sizeof(out->cache_key), cache->cache_key);
     set_text(
         out->detail,
         sizeof(out->detail),
-        out->production_prepack_cache_available
+        !stable_source_version
+            ? "Runtime prepack cache metadata has source_version=0 and is not eligible for reusable execution or promotion."
+        : out->production_prepack_cache_available
             ? "Created production reusable rocWMMA B prepack cache with source-version, device, layout, and plan-fingerprint key material."
             : "Created reusable accelerator prepack cache outside the production cache eligibility surface.");
     return RNS8_SUCCESS;

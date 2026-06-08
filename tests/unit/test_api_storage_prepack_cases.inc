@@ -346,6 +346,43 @@ TEST_CASE("public prepack cache key info validates operand role and source versi
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("public prepack cache info rejects zero source-version reuse eligibility") {
+  rns8_prepack_cache cache{};
+  cache.backend = RNS8_BACKEND_ROCWMMA;
+  cache.semantics = RNS8_BOUNDED_I64;
+  cache.operand_role = RNS8_OPERAND_B;
+  cache.rows = 4;
+  cache.cols = 4;
+  cache.k = 4;
+  cache.tile_m = 128;
+  cache.tile_n = 128;
+  cache.prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  cache.source_version = 0;
+  cache.plan_fingerprint = 123;
+  cache.cache_key_hash = 456;
+  cache.cache_key = "prepack-v2;backend=rocwmma;operand=B;source_version=0;hash=456";
+  cache.target_id = "gfx942";
+  cache.selected_kernel = "rocwmma_rns_gemm_v1";
+  cache.prepack_kernel_variant = "rocwmma_rns_i8_tile_swizzled_b_prepack_v1";
+  cache.matrix_layout_version = "rns_centered_residue_planes_v1";
+  cache.operand_layout_version = "rns_i8_tile_swizzled_b_v1";
+  cache.hip_device_id = 0;
+  cache.device_data = reinterpret_cast<void*>(uintptr_t{0x1});
+  cache.device_bytes = 64;
+  cache.operand_pack_bytes = 64;
+
+  rns8_prepack_cache_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_prepack_cache_info(&cache, &info) == RNS8_SUCCESS);
+
+  CHECK(info.cache_key_valid == 1);
+  CHECK(info.reusable_prepack_cache_available == 0);
+  CHECK(info.production_prepack_cache_available == 0);
+  CHECK(info.source_version == 0);
+  CHECK(std::string(info.cache_scope) == "runtime_unstable_source_prepack_cache_rejected");
+}
+
 TEST_CASE("public prepack cache key info rejects finite modulus mismatch") {
   rns8_context* cpu = create_cpu_context();
   rns8_gemm_desc desc{};

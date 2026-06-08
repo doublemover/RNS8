@@ -212,6 +212,9 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error("runtime prepack cache captures must report cache_key_valid=true")
                     if runtime_cache.get("reusable_prepack_cache_available") is not True:
                         self._error("runtime prepack cache captures must report reusable_prepack_cache_available=true")
+                    source_version = runtime_cache.get("source_version")
+                    if _is_int(source_version) and source_version <= 0:
+                        self._error("runtime prepack cache captures must report nonzero source_version")
                     if (
                         runtime_cache.get("production_prepack_cache_available") is True
                         and self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}

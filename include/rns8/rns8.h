@@ -759,7 +759,9 @@ RNS8_API rns8_status rns8_get_resident_lifetime_info(
  * i64/u64 RNS path; exact-wide rocWMMA caches remain reusable/evidence-only
  * until same-contract setup-inclusive promotion evidence exists. Incompatible
  * plan, operand role, matrix shape, storage layout, finite-modulus, backend,
- * device id, or currentness are rejected before returning a key.
+ * device id, or currentness are rejected before returning a key. Matrices with
+ * source_version=0 can report diagnostic key material, but cannot advertise a
+ * reusable runtime cache because they do not carry stable source identity.
  */
 RNS8_API rns8_status rns8_get_prepack_cache_key_info(
     const rns8_plan* plan,
@@ -771,9 +773,11 @@ RNS8_API rns8_status rns8_get_prepack_cache_key_info(
  * Create or destroy a reusable accelerator prepack cache. Current runtime code
  * supports a narrow rocWMMA B-operand RNS cache for non-tiled plans with
  * K <= 65536. Only bounded i64/u64 caches are production-eligible; exact-wide
- * caches are reusable/evidence-only. Unsupported roles, backends, or shapes
- * return RNS8_UNSUPPORTED_BACKEND instead of silently falling back to transient
- * pack workspaces.
+ * caches are reusable/evidence-only. Cache creation requires the operand
+ * matrix to carry a nonzero source_version; source_version=0 is rejected
+ * because stale B identity cannot be proven. Unsupported roles, backends, or
+ * shapes return RNS8_UNSUPPORTED_BACKEND instead of silently falling back to
+ * transient pack workspaces.
  */
 RNS8_API rns8_status rns8_create_prepack_cache(
     rns8_context* ctx,

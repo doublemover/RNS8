@@ -74,6 +74,13 @@ bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_operands"] = ["B"]
 bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
 expect_invalid(bad_reused_strategy_backend, "backend_selected=rocwmma")
 
+bad_runtime_cache_zero_source = copy.deepcopy(bad_reused_strategy_backend)
+bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["source_version"] = 0
+bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
+    "prepack-v2;backend=rocwmma;operand=B;source_version=0;hash=456"
+)
+expect_invalid(bad_runtime_cache_zero_source, "runtime prepack cache captures must report nonzero source_version")
+
 bad_reused_metadata_strategy = copy.deepcopy(reused_ck_i64)
 bad_reused_metadata_strategy["timing_metadata"]["prepack_reuse_strategy"] = "none"
 expect_invalid(bad_reused_metadata_strategy, "timing_metadata.prepack_reuse_strategy")
