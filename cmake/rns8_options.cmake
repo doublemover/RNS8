@@ -77,8 +77,8 @@ endif()
 if(RNS8_ENABLE_AMDGPU_BUILTINS)
   message(
     STATUS
-      "RNS8 AMDGPU builtin public backend API is enabled, but runtime kernels remain unavailable until "
-      "RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE is defined by compiled MFMA/WMMA/SMFMAC/SWMMAC sources."
+      "RNS8 AMDGPU builtin public backend API requested; runtime kernels are compiled later when the "
+      "target-specific MFMA/WMMA/SMFMAC/SWMMAC HIP source is included."
   )
 endif()
 

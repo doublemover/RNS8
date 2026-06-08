@@ -14,6 +14,8 @@ assert benchmark_sweep.backend_allowed_for("exact-wide-signed", parsed, "ck") is
 assert benchmark_sweep.backend_allowed_for("exact-wide-unsigned", parsed, "hip-vector-alu-int64") is False
 assert benchmark_sweep.backend_allowed_for("exact-wide-signed", adaptive, "ck") is False
 assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "hipblaslt") is False
+assert benchmark_sweep.backend_allowed_for("bounded-i64", adaptive, "amdgpu-builtins") is False
+assert benchmark_sweep.backend_allowed_for("bounded-u64", adaptive, "amdgpu-builtins") is False
 assert benchmark_sweep.backend_allowed_for("bounded-u64", parsed, "ck") is False
 assert "ck" not in benchmark_sweep.default_backends_for("bounded-u64", parsed)
 assert benchmark_sweep.cli_backend("rocwmma") == "rocwmma"
@@ -179,7 +181,7 @@ ordinary_requested_item = next(
     if item.name == "bounded-i64-256"
 )
 ordinary_backends = benchmark_sweep.scenario_backends_for_item(backend_filter_args, ordinary_requested_item)
-assert ordinary_backends == ["cpu", "hip-direct", "amdgpu-builtins"]
+assert ordinary_backends == ["cpu", "hip-direct"]
 locked_requested_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
 locked_backends = benchmark_sweep.scenario_backends_for_item(backend_filter_args, locked_requested_item)
 assert locked_backends == ["hip-direct"]

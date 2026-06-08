@@ -43,7 +43,7 @@ std::string context_target(rns8_context* ctx) {
 }
 
 bool sparse_runtime_target(const std::string& target) {
-  return target == "gfx942" || target == "gfx1200" || target == "gfx1201";
+  return target.rfind("gfx942", 0) == 0 || target.rfind("gfx1200", 0) == 0 || target.rfind("gfx1201", 0) == 0;
 }
 
 rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind backend) {

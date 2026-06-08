@@ -222,7 +222,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
           std::string(capability.selected_kernel) ==
           "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled");
       CHECK(std::string(capability.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_disabled");
-      CHECK(std::string(capability.workspace_mode) == "amdgpu_builtin_pack_workspace_disabled");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);

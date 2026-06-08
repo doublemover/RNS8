@@ -364,7 +364,7 @@ def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
             return False
         if semantics == "bounded-u64" and backend == "ck":
             return False
-        if case.bound_mode == "per-tile" and backend == "hipblaslt":
+        if case.bound_mode == "per-tile" and backend in {"hipblaslt", "amdgpu-builtins"}:
             return False
         return True
     return False
