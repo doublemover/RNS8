@@ -265,7 +265,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
       !rns_matrix_storage_matches(
           matrix, plan.backend, matrix.desc.rows, matrix.desc.cols, rns_storage_prefix_for_plan(plan)) ||
       !bounded_native_storage_matches(matrix, plan.desc.semantics, matrix.desc.rows, matrix.desc.cols) ||
-      !bounded_native_state_current(matrix)) {
+      !bounded_native_state_current(matrix) || matrix.source_version == 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);

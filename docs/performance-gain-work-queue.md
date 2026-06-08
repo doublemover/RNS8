@@ -333,7 +333,10 @@ inspection commands.
 - Local progress: the device bridge now rejects zero-version native producers
   before materializing Direct-HIP RNS input storage, leaves the target
   unmodified on stale-source rejection, and stamps successful handoff outputs
-  with the producer source version.
+  with the producer source version. The public AUTO Direct-HIP materialization
+  path now applies the same nonzero source-version guard before converting
+  current native bounded storage into RNS residues, so cache/reuse evidence
+  cannot be generated from anonymous native producers.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 

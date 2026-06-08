@@ -366,6 +366,12 @@ TEST_CASE("AUTO direct-HIP RNS GEMM converts current native bounded inputs to RN
 
     rns8::test::set_device_residues_current(*a_matrix, false);
     rns8::test::set_device_residues_current(*b_matrix, false);
+    const uint64_t a_source_version = a_matrix->source_version;
+    a_matrix->source_version = 0;
+    CHECK(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK_FALSE(a_matrix->device_residues_current);
+    CHECK_FALSE(c_matrix->device_residues_current);
+    a_matrix->source_version = a_source_version;
     REQUIRE(rns8_gemm_rns(auto_ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
     CHECK(a_matrix->device_residues_current);
     CHECK(b_matrix->device_residues_current);
