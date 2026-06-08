@@ -202,7 +202,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                             if name == "rocwmma"
                             else (
                                 "candidate evidence only; AMDGPU builtin validation requires "
-                                "RNS8_ENABLE_AMDGPU_BUILTINS=ON plus exact CPU differential and ISA checks"
+                                "the explicit windows-amdgpu-builtins-debug build/test preset, exact CPU "
+                                "differentials, and ISA checks"
                                 if name == "amdgpu_builtins"
                                 else "candidate evidence only; backend remains disabled until a real exact correctness "
                                 "backend has target capability checks and exact CPU differentials"

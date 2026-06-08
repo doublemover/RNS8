@@ -18,6 +18,7 @@ BENCH_FOR = {
     "hipblaslt": REPO_ROOT / "build" / "windows-msvc-hipblaslt-release" / "rns8-bench.exe",
     "ck": REPO_ROOT / "build" / "windows-msvc-ck-release" / "rns8-bench.exe",
     "rocwmma": REPO_ROOT / "build" / "windows-msvc-rocwmma-release" / "rns8-bench.exe",
+    "amdgpu-builtins": REPO_ROOT / "build" / "windows-msvc-amdgpu-builtins-release" / "rns8-bench.exe",
 }
 
 BUILD_PRESETS = (
@@ -25,6 +26,7 @@ BUILD_PRESETS = (
     "windows-hipblaslt-release",
     "windows-ck-release",
     "windows-rocwmma-release",
+    "windows-amdgpu-builtins-release",
 )
 
 SCENARIOS = (
@@ -70,6 +72,12 @@ CONFIG = pending_validation.PendingValidationConfig(
             name="rocwmma",
             backend="rocwmma",
             build_tree=REPO_ROOT / "build" / "windows-msvc-rocwmma-release",
+            target="gfx1100",
+        ),
+        pending_validation.IsaReportSpec(
+            name="amdgpu-builtins",
+            backend="amdgpu-builtins",
+            build_tree=REPO_ROOT / "build" / "windows-msvc-amdgpu-builtins-release",
             target="gfx1100",
         ),
     ),

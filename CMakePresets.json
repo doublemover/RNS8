@@ -204,6 +204,29 @@
       }
     },
     {
+      "name": "windows-msvc-amdgpu-builtins-debug",
+      "displayName": "Windows MSVC + HIP SDK + AMDGPU builtins (Debug)",
+      "description": "Windows gfx1100 opt-in AMDGPU builtin WMMA backend build with target-specific HIP builtin kernels.",
+      "inherits": "windows-msvc-hip-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-amdgpu-builtins-debug",
+      "cacheVariables": {
+        "RNS8_ENABLE_HIPBLASLT": "OFF",
+        "RNS8_ENABLE_CK": "OFF",
+        "RNS8_ENABLE_ROCWMMA": "OFF",
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "ON"
+      }
+    },
+    {
+      "name": "windows-msvc-amdgpu-builtins-release",
+      "displayName": "Windows MSVC + HIP SDK + AMDGPU builtins (Release)",
+      "description": "Windows gfx1100 opt-in AMDGPU builtin WMMA backend release build for reviewed performance captures.",
+      "inherits": "windows-msvc-amdgpu-builtins-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-amdgpu-builtins-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "linux-rocm-debug",
       "displayName": "Linux ROCm + native packages (Debug)",
       "description": "Linux ROCm production/profiling validation preset using system packages and native CMake discovery only. Represented only until run on a real Linux ROCm host with supported hardware.",
@@ -393,6 +416,14 @@
       "configurePreset": "windows-msvc-rocwmma-release"
     },
     {
+      "name": "windows-amdgpu-builtins-debug",
+      "configurePreset": "windows-msvc-amdgpu-builtins-debug"
+    },
+    {
+      "name": "windows-amdgpu-builtins-release",
+      "configurePreset": "windows-msvc-amdgpu-builtins-release"
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-rocm-debug"
     },
@@ -506,6 +537,20 @@
     {
       "name": "windows-rocwmma-release",
       "configurePreset": "windows-msvc-rocwmma-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-amdgpu-builtins-debug",
+      "configurePreset": "windows-msvc-amdgpu-builtins-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-amdgpu-builtins-release",
+      "configurePreset": "windows-msvc-amdgpu-builtins-release",
       "output": {
         "outputOnFailure": true
       }

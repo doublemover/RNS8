@@ -50,9 +50,9 @@ ctest --preset cpu-debug --output-on-failure
 
 ## Optional Accelerators
 
-hipBLASLt, CK, and rocWMMA are opt-in Windows `gfx1100` correctness backends.
-They are not required for CPU or direct-HIP correctness. Dedicated presets
-enable and test each one:
+hipBLASLt, CK, rocWMMA, and AMDGPU builtins are opt-in Windows `gfx1100`
+correctness backends. They are not required for CPU or direct-HIP correctness.
+Dedicated presets enable and test each one:
 
 ```powershell
 python tools\windows_dev.py cmake --preset windows-msvc-hipblaslt-debug
@@ -66,6 +66,10 @@ python tools\windows_dev.py ctest --preset windows-ck-debug --output-on-failure
 python tools\windows_dev.py cmake --preset windows-msvc-rocwmma-debug
 python tools\windows_dev.py cmake --build --preset windows-rocwmma-debug
 python tools\windows_dev.py ctest --preset windows-rocwmma-debug --output-on-failure
+
+python tools\windows_dev.py cmake --preset windows-msvc-amdgpu-builtins-debug
+python tools\windows_dev.py cmake --build --preset windows-amdgpu-builtins-debug
+python tools\windows_dev.py ctest --preset windows-amdgpu-builtins-debug --output-on-failure
 ```
 
 Dependency-only probes are separate from backend validation:

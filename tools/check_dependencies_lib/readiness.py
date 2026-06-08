@@ -369,7 +369,7 @@ def correctness_backend_validation_status(
                 "evidence_class": "implemented_correctness_backend",
                 "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
                 "validated_by_this_report": False,
-                "validation_source": "AMDGPU builtin build, exact CPU/direct-HIP differentials, ISA gate, and benchmark schema fixtures, not dependency discovery",
+                "validation_source": "windows-amdgpu-builtins-debug build, exact CPU/direct-HIP differentials, ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
         },
         "candidate_accelerators": accelerator_summary,
