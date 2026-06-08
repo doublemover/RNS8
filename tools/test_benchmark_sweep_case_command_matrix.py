@@ -274,6 +274,37 @@ assert all("--max-prefix" in entry.command and "9" in entry.command for entry in
 assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
 assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-production-baselines-")
 
+with tempfile.TemporaryDirectory() as temp_dir:
+    lint_root = Path(temp_dir) / "scenario-lint"
+    lint_completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().with_name("benchmark_sweep.py")),
+            "--lint-scenarios",
+            "--scenario",
+            "release-candidates",
+            "--out-root",
+            str(lint_root),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert lint_completed.returncode == 0, lint_completed.stderr
+    lint_output = json.loads(lint_completed.stdout)
+    assert lint_output["scenario_lint"] == "ok"
+    assert lint_output["scenario_entries"] > 0
+    assert lint_output["scenario_request"] == ["release-candidates"]
+    assert (lint_root / "scenario_manifest.json").exists()
+    assert (lint_root / "scenario_manifest.md").exists()
+    assert not (lint_root / "review_report.json").exists()
+    lint_manifest = json.loads((lint_root / "scenario_manifest.json").read_text(encoding="utf-8"))
+    assert lint_manifest["scenario_request"] == ["release-candidates"]
+    assert {
+        entry["promotion_eligibility"] for entry in lint_manifest["entries"]
+    } == {"release_review_candidate"}
+
 reuse_contract_args = copy.copy(scenario_args)
 reuse_contract_args.backends = ["hipblaslt"]
 reuse_contract_args.scenario = ["reuse-contract"]

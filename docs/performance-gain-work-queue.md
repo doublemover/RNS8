@@ -715,6 +715,13 @@ inspection commands.
   checksum policy, graph/reuse evidence scopes, and backend support.
 - Required evidence: Python scenario-catalog tests and a dry planning command
   or equivalent manifest generation that fails before paid VM work.
+- Local progress: `benchmark_sweep.py --lint-scenarios` now performs a
+  no-execute catalog lint that defaults to `--scenario all`, generates the same
+  scenario command entries and manifest as real sweeps using a placeholder
+  `rns8-bench` path when none is supplied, prints a compact JSON summary, and
+  exits before capture execution or review. The command-matrix test invokes the
+  real CLI for `--scenario release-candidates` and verifies that only release
+  candidates appear in the manifest and no review report is written.
 - Constraint: do not make scripts permissive to hide invalid contracts.
 
 ### Rank 113 - GPU Event Coverage Completion

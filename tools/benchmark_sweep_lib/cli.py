@@ -30,6 +30,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
     parser.add_argument(
+        "--lint-scenarios",
+        action="store_true",
+        help=(
+            "load scenario data, generate the scenario command manifest, and exit without executing captures or "
+            "reviewing results; defaults to --scenario all when no scenario selector is provided"
+        ),
+    )
+    parser.add_argument(
         "--capture-root",
         type=Path,
         action="append",
@@ -384,6 +392,23 @@ def main() -> int:
     args = parse_args()
     args.out_root = Path(args.out_root)
     args.out_root.mkdir(parents=True, exist_ok=True)
+
+    if args.lint_scenarios:
+        if not args.scenario:
+            args.scenario = ["all"]
+        if args.bench is None:
+            args.bench = Path("rns8-bench")
+        entries = sweep_command_entries(args)
+        scenario_paths = write_scenario_manifest(entries, args, args.out_root)
+        output = {
+            "scenario_lint": "ok",
+            "scenario_entries": len(entries),
+            "scenario_request": list(args.scenario or []),
+        }
+        if scenario_paths is not None:
+            output.update(scenario_paths)
+        print(json.dumps(output, indent=2))
+        return 0
 
     capture_paths = review_capture_paths(args)
     entries: list[SweepCommand] = []
