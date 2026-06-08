@@ -71,13 +71,14 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, RNS8_BACKEND_ROCWMMA, result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, 1, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, 1, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, RNS8_BACKEND_ROCWMMA, result.gpu_events);
       }
@@ -109,6 +110,7 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -206,13 +208,14 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -242,6 +245,7 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

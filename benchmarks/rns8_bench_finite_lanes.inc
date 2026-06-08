@@ -367,16 +367,20 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
     } else if (use_native_a_reuse_b) {
       begin_gpu_event_phase(collect_gpu_events);
+      const auto pack_a_start = std::chrono::steady_clock::now();
       status = run_timed_status_operation("finite_native_a_h2d", [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(finite native A)", status);
+      const auto pack_a_end = std::chrono::steady_clock::now();
+      pack_operand_timing.a_us = elapsed_us(pack_a_start, pack_a_end);
       if (collect_gpu_events) {
         collect_finite_native_a_pack_gpu_events(result.gpu_events);
       }
@@ -384,7 +388,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
       pack_end = std::chrono::steady_clock::now();
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -452,6 +456,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

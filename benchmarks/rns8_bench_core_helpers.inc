@@ -724,6 +724,45 @@ void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const Pac
   }
 }
 
+struct PackOperandTiming {
+  uint64_t a_us = 0;
+  uint64_t b_us = 0;
+};
+
+template <typename PackA, typename PackB>
+PackOperandTiming pack_per_repeat_inputs_timed(
+    const Args& args,
+    uint64_t source_version,
+    const PackA& pack_a,
+    const PackB& pack_b) {
+  PackOperandTiming timing{};
+  if (!args.reuse_packed_a) {
+    const auto start = std::chrono::steady_clock::now();
+    pack_a(source_version);
+    const auto end = std::chrono::steady_clock::now();
+    timing.a_us = elapsed_us(start, end);
+  }
+  if (!args.reuse_packed_b) {
+    const auto start = std::chrono::steady_clock::now();
+    pack_b(source_version);
+    const auto end = std::chrono::steady_clock::now();
+    timing.b_us = elapsed_us(start, end);
+  }
+  return timing;
+}
+
+void record_pack_operand_timing(TimingSamples* samples, uint64_t pack_a_us, uint64_t pack_b_us) {
+  if (!samples) {
+    return;
+  }
+  samples->pack_a_us.push_back(pack_a_us);
+  samples->pack_b_us.push_back(pack_b_us);
+}
+
+void record_pack_operand_timing(TimingSamples* samples, const PackOperandTiming& timing) {
+  record_pack_operand_timing(samples, timing.a_us, timing.b_us);
+}
+
 std::string prepack_reuse_operand_text(const Args& args) {
   if (args.reuse_packed_a && args.reuse_packed_b) {
     return "A and B";

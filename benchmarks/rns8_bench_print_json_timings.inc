@@ -23,6 +23,12 @@
   }
   std::cout << ",\n";
   std::cout << "  \"avg_pack_us\": " << avg_pack_us << ",\n";
+  if (pack_a_timing_available) {
+    std::cout << "  \"avg_pack_a_us\": " << avg_pack_a_us << ",\n";
+  }
+  if (pack_b_timing_available) {
+    std::cout << "  \"avg_pack_b_us\": " << avg_pack_b_us << ",\n";
+  }
   std::cout << "  \"avg_pack_per_task_us\": "
             << (avg_pack_us / task_count_denominator) << ",\n";
   std::cout << "  \"avg_rns_gemm_us\": " << avg_gemm_us << ",\n";
@@ -60,6 +66,16 @@
   std::cout << "    \"pack\": ";
   print_u64_array(result.samples.pack_us);
   std::cout << ",\n";
+  if (pack_a_timing_available) {
+    std::cout << "    \"pack_a\": ";
+    print_u64_array(result.samples.pack_a_us);
+    std::cout << ",\n";
+  }
+  if (pack_b_timing_available) {
+    std::cout << "    \"pack_b\": ";
+    print_u64_array(result.samples.pack_b_us);
+    std::cout << ",\n";
+  }
   std::cout << "    \"rns_gemm\": ";
   print_u64_array(result.samples.gemm_us);
   std::cout << ",\n";
@@ -81,6 +97,12 @@
   }
   print_single_timing_summary("matrix_alloc", result.matrix_alloc_us, true);
   print_timing_summary("pack", result.samples.pack_us, true);
+  if (pack_a_timing_available) {
+    print_timing_summary("pack_a", result.samples.pack_a_us, true);
+  }
+  if (pack_b_timing_available) {
+    print_timing_summary("pack_b", result.samples.pack_b_us, true);
+  }
   print_timing_summary("rns_gemm", result.samples.gemm_us, true);
   print_timing_summary("crt_export", result.samples.export_us, true);
   print_timing_summary("end_to_end", result.samples.end_to_end_us, false);

@@ -191,12 +191,16 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
       uint64_t pack_total_us = 0;
+      PackOperandTiming pack_operand_timing{};
       uint64_t gemm_total_us = 0;
       uint64_t export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      const PackOperandTiming initial_pack_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing.a_us += initial_pack_timing.a_us;
+      pack_operand_timing.b_us += initial_pack_timing.b_us;
       force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
       auto phase_end = std::chrono::steady_clock::now();
       pack_total_us += elapsed_us(phase_start, phase_end);
@@ -221,7 +225,9 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
           status = rns8_pack_u64(ctx, a_matrix, C.data(), ldc, source_version + chain_index + 2);
           if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(intermediate chain output)", status);
           phase_end = std::chrono::steady_clock::now();
-          pack_total_us += elapsed_us(phase_start, phase_end);
+          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          pack_operand_timing.a_us += intermediate_pack_us;
+          pack_total_us += intermediate_pack_us;
         }
       }
       latest_output_matrix = c_matrix;
@@ -234,6 +240,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       const auto repeat_end = std::chrono::steady_clock::now();
       if (samples) {
         samples->pack_us.push_back(pack_total_us);
+        record_pack_operand_timing(samples, pack_operand_timing);
         samples->gemm_us.push_back(gemm_total_us);
         samples->export_us.push_back(export_total_us);
         samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
@@ -242,13 +249,14 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
     } else if (use_uniform_small_i8_ab_transient) {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_bounded_uniform_small_i8_ab_transient_pack_gpu_events(result.gpu_events);
       }
@@ -256,7 +264,10 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       pack_end = std::chrono::steady_clock::now();
     } else if (use_uniform_small_i8_ab_reuse_a) {
       begin_gpu_event_phase(collect_gpu_events);
+      const auto pack_b_start = std::chrono::steady_clock::now();
       pack_b_input(source_version);
+      const auto pack_b_end = std::chrono::steady_clock::now();
+      pack_operand_timing.b_us = elapsed_us(pack_b_start, pack_b_end);
       if (collect_gpu_events) {
         collect_bounded_uniform_small_i8_ab_reuse_a_pack_gpu_events(result.gpu_events);
       }
@@ -264,10 +275,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       pack_end = std::chrono::steady_clock::now();
     } else if (use_native_b_reuse_a) {
       begin_gpu_event_phase(collect_gpu_events);
+      const auto pack_b_start = std::chrono::steady_clock::now();
       status = run_timed_status_operation(bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label(), [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_b.ptr, B.data(), native_b_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native B)", status);
+      const auto pack_b_end = std::chrono::steady_clock::now();
+      pack_operand_timing.b_us = elapsed_us(pack_b_start, pack_b_end);
       if (collect_gpu_events) {
         collect_bounded_native_b_reuse_a_pack_gpu_events(result.gpu_events);
       }
@@ -275,6 +289,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       pack_end = std::chrono::steady_clock::now();
     } else if (use_native_a_reuse_b) {
       begin_gpu_event_phase(collect_gpu_events);
+      const auto pack_a_start = std::chrono::steady_clock::now();
       status = run_timed_status_operation(bounded_native_a_reuse_b_pack_h2d_label(args), [&]() {
         return use_uniform_small_i8_ab_reuse_b
             ? rns8::detail::hip_direct_copy_host_to_device(
@@ -282,6 +297,8 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
             : rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_a.ptr, A.data(), native_a_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native A)", status);
+      const auto pack_a_end = std::chrono::steady_clock::now();
+      pack_operand_timing.a_us = elapsed_us(pack_a_start, pack_a_end);
       if (collect_gpu_events) {
         collect_bounded_native_a_pack_gpu_events(args, result.gpu_events);
       }
@@ -289,7 +306,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       pack_end = std::chrono::steady_clock::now();
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       force_native_to_rns_bridge_after_pack(args, a_matrix, b_matrix);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
@@ -454,6 +471,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       samples->pack_us.push_back(
           (reuses_all_packed_inputs(args) || skip_all_zero_direct_hip_input_pack) ? 0
                                                                                   : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

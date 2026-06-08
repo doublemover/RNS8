@@ -154,18 +154,29 @@ BenchmarkResult run_vector_to_rns_chain(
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
+    uint64_t pack_a_us = 0;
+    uint64_t pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
+    auto operand_pack_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
       return pack_vector_to_rns_chain_operand(vector_ctx, vector_a, A.data(), args.k, source_version);
     });
     if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer A)", status);
+    auto operand_pack_end = std::chrono::steady_clock::now();
+    pack_a_us += elapsed_us(operand_pack_start, operand_pack_end);
+    operand_pack_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
       return pack_vector_to_rns_chain_operand(vector_ctx, vector_b, B.data(), args.n, source_version);
     });
     if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer B)", status);
+    operand_pack_end = std::chrono::steady_clock::now();
+    pack_b_us += elapsed_us(operand_pack_start, operand_pack_end);
     if (!args.reuse_packed_b) {
+      operand_pack_start = std::chrono::steady_clock::now();
       status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
       if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain direct B)", status);
+      operand_pack_end = std::chrono::steady_clock::now();
+      pack_b_us += elapsed_us(operand_pack_start, operand_pack_end);
     }
     if (collect_gpu_events) {
       collect_vector_to_rns_chain_pack_gpu_events(args, result.gpu_events, args.reuse_packed_b);
@@ -213,6 +224,7 @@ BenchmarkResult run_vector_to_rns_chain(
 
     if (samples) {
       samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_a_us, pack_b_us);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

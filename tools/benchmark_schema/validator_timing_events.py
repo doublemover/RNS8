@@ -58,6 +58,22 @@ class ValidatorTimingEventsMixin:
                 else:
                     parsed.append(float(value))
             result[phase] = parsed
+        for phase in sorted(OPTIONAL_REPEATED_TIMING_PHASES):
+            if phase not in raw:
+                continue
+            values = raw.get(phase)
+            if not isinstance(values, list):
+                self._error(f"raw_timings_us.{phase} must be an array")
+                continue
+            if len(values) != repeats:
+                self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {repeats}")
+            parsed: list[float] = []
+            for index, value in enumerate(values):
+                if not _is_int(value) or value < 0:
+                    self._error(f"raw_timings_us.{phase}[{index}] must be a nonnegative integer")
+                else:
+                    parsed.append(float(value))
+            result[phase] = parsed
         return result
 
     def _validate_timing_summaries(
@@ -106,6 +122,10 @@ class ValidatorTimingEventsMixin:
         fields.insert(1, ("avg_scheduling_us", "scheduling"))
         if PER_TILE_TIMING_PHASE in self._timing_phases():
             fields.insert(2, ("avg_tile_bound_scan_us", PER_TILE_TIMING_PHASE))
+        if "pack_a" in raw_timings:
+            fields.append(("avg_pack_a_us", "pack_a"))
+        if "pack_b" in raw_timings:
+            fields.append(("avg_pack_b_us", "pack_b"))
         for field, phase in fields:
             value = self._require(field, "number")
             values = raw_timings.get(phase)

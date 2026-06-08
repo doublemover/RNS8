@@ -52,6 +52,7 @@ TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "
 GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
+OPTIONAL_REPEATED_TIMING_PHASES = {"pack_a", "pack_b"}
 TILE_SCHEDULE_ZERO_OUTPUT = 0x00000001
 TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT = 0x00000002
 TILE_SCHEDULE_KNOWN_FLAGS = TILE_SCHEDULE_ZERO_OUTPUT | TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT

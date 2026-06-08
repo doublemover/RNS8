@@ -253,6 +253,17 @@ inspection commands.
   `multi-modulus-pack`, `direct-hip-reuse-expansion`, and skinny scenarios.
 - Promotion rule: pack optimization must improve setup-inclusive end-to-end, not
   only the isolated pack event.
+- Local progress: top-level benchmark timing can now emit optional
+  `raw_timings_us.pack_a` and `raw_timings_us.pack_b` phases, plus matching
+  summaries and averages, for resident bounded, exact-wide, finite-u8, wrap64,
+  vector-ALU, and vector-to-RNS chain captures. `raw_timings_us.pack` remains
+  the aggregate measured phase, so existing setup-inclusive comparisons stay
+  stable while pack-bound diagnostics identify the operand side that needs
+  kernel or reuse work.
+- Remaining work: add task-level split timing for host-batch/grouped-dispatch
+  captures, GPU-event split labels for Direct-HIP pack kernels that currently
+  report only aggregate pack, and then implement the actual coalesced/vectorized
+  pack kernels or pack-elision routes selected by the new evidence.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 

@@ -98,7 +98,10 @@ class ValidatorBaseFieldsMixin:
         self._validate_residue_current_timings(raw_timings)
         self._validate_bounded_oneshot_timings(raw_timings)
         self._validate_all_zero_direct_hip_adaptive_timings(raw_timings)
-        self._validate_timing_summaries(raw_timings, "timing_summary_us", self._timing_phases())
+        timing_summary_phases = self._timing_phases() + [
+            phase for phase in sorted(OPTIONAL_REPEATED_TIMING_PHASES) if phase in raw_timings
+        ]
+        self._validate_timing_summaries(raw_timings, "timing_summary_us", timing_summary_phases)
         self._validate_top_level_averages(raw_timings)
         self._validate_gpu_events()
 

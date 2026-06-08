@@ -151,6 +151,24 @@ bad_schedule_summary = copy.deepcopy(v4_adaptive_u64)
 bad_schedule_summary["raw_timings_us"]["scheduling"] = [6]
 expect_invalid(bad_schedule_summary, "timing_summary_us.scheduling.avg")
 
+split_pack_timing = copy.deepcopy(bounded)
+split_repeats = split_pack_timing["repeats"]
+split_pack_timing["raw_timings_us"]["pack_a"] = [11 + 2 * index for index in range(split_repeats)]
+split_pack_timing["raw_timings_us"]["pack_b"] = [7 + index for index in range(split_repeats)]
+split_pack_timing["timing_summary_us"]["pack_a"] = summary(split_pack_timing["raw_timings_us"]["pack_a"])
+split_pack_timing["timing_summary_us"]["pack_b"] = summary(split_pack_timing["raw_timings_us"]["pack_b"])
+split_pack_timing["avg_pack_a_us"] = split_pack_timing["timing_summary_us"]["pack_a"]["avg"]
+split_pack_timing["avg_pack_b_us"] = split_pack_timing["timing_summary_us"]["pack_b"]["avg"]
+validate_capture(split_pack_timing)
+
+bad_split_pack_summary = copy.deepcopy(split_pack_timing)
+bad_split_pack_summary["timing_summary_us"]["pack_a"]["avg"] = 999.0
+expect_invalid(bad_split_pack_summary, "timing_summary_us.pack_a.avg")
+
+bad_split_pack_length = copy.deepcopy(split_pack_timing)
+bad_split_pack_length["raw_timings_us"]["pack_b"] = [1]
+expect_invalid(bad_split_pack_length, "raw_timings_us.pack_b length")
+
 missing_tile_bound_scan = copy.deepcopy(v4_adaptive_u64)
 del missing_tile_bound_scan["raw_timings_us"]["tile_bound_scan"]
 expect_invalid(missing_tile_bound_scan, "raw_timings_us.tile_bound_scan must be an array")

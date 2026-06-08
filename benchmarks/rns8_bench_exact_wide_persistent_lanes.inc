@@ -127,12 +127,16 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
       uint64_t pack_total_us = 0;
+      PackOperandTiming pack_operand_timing{};
       uint64_t gemm_total_us = 0;
       uint64_t export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      const PackOperandTiming initial_pack_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing.a_us += initial_pack_timing.a_us;
+      pack_operand_timing.b_us += initial_pack_timing.b_us;
       auto phase_end = std::chrono::steady_clock::now();
       pack_total_us += elapsed_us(phase_start, phase_end);
 
@@ -158,7 +162,9 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
             fail_status("pack_exact_wide_signed_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          pack_total_us += elapsed_us(phase_start, phase_end);
+          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          pack_operand_timing.a_us += intermediate_pack_us;
+          pack_total_us += intermediate_pack_us;
         }
       }
       latest_output_matrix = c_matrix;
@@ -171,6 +177,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       const auto repeat_end = std::chrono::steady_clock::now();
       if (samples) {
         samples->pack_us.push_back(pack_total_us);
+        record_pack_operand_timing(samples, pack_operand_timing);
         samples->gemm_us.push_back(gemm_total_us);
         samples->export_us.push_back(export_total_us);
         samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
@@ -179,13 +186,14 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -250,6 +258,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -432,12 +441,16 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
       uint64_t pack_total_us = 0;
+      PackOperandTiming pack_operand_timing{};
       uint64_t gemm_total_us = 0;
       uint64_t export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      const PackOperandTiming initial_pack_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing.a_us += initial_pack_timing.a_us;
+      pack_operand_timing.b_us += initial_pack_timing.b_us;
       auto phase_end = std::chrono::steady_clock::now();
       pack_total_us += elapsed_us(phase_start, phase_end);
 
@@ -463,7 +476,9 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
             fail_status("pack_exact_wide_unsigned_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          pack_total_us += elapsed_us(phase_start, phase_end);
+          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          pack_operand_timing.a_us += intermediate_pack_us;
+          pack_total_us += intermediate_pack_us;
         }
       }
       latest_output_matrix = c_matrix;
@@ -476,6 +491,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       const auto repeat_end = std::chrono::steady_clock::now();
       if (samples) {
         samples->pack_us.push_back(pack_total_us);
+        record_pack_operand_timing(samples, pack_operand_timing);
         samples->gemm_us.push_back(gemm_total_us);
         samples->export_us.push_back(export_total_us);
         samples->end_to_end_us.push_back(elapsed_us(repeat_start, repeat_end));
@@ -484,13 +500,14 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     }
     const auto pack_start = repeat_start;
     auto pack_end = pack_start;
+    PackOperandTiming pack_operand_timing{};
     if (reuses_all_packed_inputs(args)) {
       if (collect_gpu_events) {
         record_reused_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_per_repeat_inputs(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -555,6 +572,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
     if (samples) {
       samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

@@ -123,6 +123,8 @@ struct Args {
 
 struct TimingSamples {
   std::vector<uint64_t> pack_us;
+  std::vector<uint64_t> pack_a_us;
+  std::vector<uint64_t> pack_b_us;
   std::vector<uint64_t> gemm_us;
   std::vector<uint64_t> export_us;
   std::vector<uint64_t> end_to_end_us;

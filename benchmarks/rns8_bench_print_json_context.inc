@@ -1,4 +1,8 @@
   const double avg_pack_us = average(result.samples.pack_us);
+  const bool pack_a_timing_available = !result.samples.pack_a_us.empty();
+  const bool pack_b_timing_available = !result.samples.pack_b_us.empty();
+  const double avg_pack_a_us = pack_a_timing_available ? average(result.samples.pack_a_us) : 0.0;
+  const double avg_pack_b_us = pack_b_timing_available ? average(result.samples.pack_b_us) : 0.0;
   const double avg_gemm_us = average(result.samples.gemm_us);
   const double avg_export_us = average(result.samples.export_us);
   const double avg_end_to_end_us = average(result.samples.end_to_end_us);

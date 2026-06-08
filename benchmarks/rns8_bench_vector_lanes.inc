@@ -42,15 +42,23 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
+    uint64_t pack_a_us = 0;
+    uint64_t pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
+    const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
       return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    const auto pack_a_end = std::chrono::steady_clock::now();
+    pack_a_us = elapsed_us(pack_a_start, pack_a_end);
+    const auto pack_b_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
       return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    pack_b_us = elapsed_us(pack_b_start, pack_b_end);
     if (collect_gpu_events) {
       collect_pack_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result.gpu_events);
     }
@@ -108,6 +116,7 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
 
     if (samples) {
       samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_a_us, pack_b_us);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
@@ -171,15 +180,23 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
+    uint64_t pack_a_us = 0;
+    uint64_t pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
+    const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
       return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_a.ptr, A.data(), a_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector A)", status);
+    const auto pack_a_end = std::chrono::steady_clock::now();
+    pack_a_us = elapsed_us(pack_a_start, pack_a_end);
+    const auto pack_b_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
       return rns8::detail::hip_direct_copy_host_to_device(args.device_id, d_b.ptr, B.data(), b_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(vector B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    pack_b_us = elapsed_us(pack_b_start, pack_b_end);
     if (collect_gpu_events) {
       collect_pack_gpu_events(args, RNS8_BACKEND_HIP_VECTOR_ALU_INT64, result.gpu_events);
     }
@@ -237,6 +254,7 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
 
     if (samples) {
       samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+      record_pack_operand_timing(samples, pack_a_us, pack_b_us);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
       samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));
