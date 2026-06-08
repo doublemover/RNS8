@@ -288,7 +288,11 @@ inspection commands.
   kernel launch.
   Grouped-dispatch slab pack captures now split the existing A-then-B slab
   uploads and pack kernels into matching A/B GPU event labels while preserving
-  aggregate pack labels.
+  aggregate pack labels. Direct-HIP exact-wide prefix18 now uses fixed-prefix
+  i64/u64 residue pack launchers for both single and grouped pack paths instead
+  of falling through to the generic per-plane pack kernel; this matches the
+  prefix18 export specialization and avoids reloading each source element once
+  per modulus plane on prefix18 exact-wide captures.
 - Remaining work: implement the actual coalesced/vectorized pack kernels or
   pack-elision routes selected by the new split evidence.
 
