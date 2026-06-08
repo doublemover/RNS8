@@ -51,7 +51,8 @@
         "cpu",
         "hip-direct",
         "hip-vector-alu-int64",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -111,7 +112,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",

@@ -22,7 +22,8 @@
       "rationale": "compares persistent matrix setup against public one-shot transient input paths",
       "backends": [
         "cpu",
-        "hip-direct"
+        "hip-direct",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate"
@@ -73,7 +74,8 @@
       "rationale": "compares persistent matrix setup against public one-shot transient input paths",
       "backends": [
         "cpu",
-        "hip-direct"
+        "hip-direct",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate"

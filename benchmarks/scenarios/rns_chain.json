@@ -25,7 +25,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -97,7 +98,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -170,7 +172,8 @@
         "cpu",
         "hip-direct",
         "hipblaslt",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -244,7 +247,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -323,7 +327,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",

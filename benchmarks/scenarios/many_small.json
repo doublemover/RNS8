@@ -26,7 +26,8 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -137,7 +138,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -223,7 +225,8 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -300,7 +303,8 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -378,7 +382,8 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -455,7 +460,8 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -533,7 +539,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -616,7 +623,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -699,7 +707,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
@@ -782,7 +791,8 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma"
+        "rocwmma",
+        "amdgpu-builtins"
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
