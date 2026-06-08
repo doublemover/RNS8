@@ -29,11 +29,11 @@ def main() -> int:
     expect(deps.command_required_for_host("rocminfo", "Linux") is True, "rocminfo should be Linux ROCm-required")
     expect(deps.command_required_for_host("hipconfig", "Linux") is False, "hipconfig should be Linux diagnostic-only")
     expect(
-        deps.command_version_ok("cmake", "cmake version 3.22.1")[0] is False,
+        deps.command_version_ok("cmake", "cmake version 3.21.7")[0] is False,
         "CMake below the project minimum must fail dependency readiness",
     )
     expect(
-        deps.command_version_ok("cmake", "cmake version 3.28.0")[0] is True,
+        deps.command_version_ok("cmake", "cmake version 3.22.1")[0] is True,
         "CMake at the project minimum should satisfy dependency readiness",
     )
     with patch("check_dependencies_lib.system.shutil.which", side_effect=lambda name: "/usr/bin/python3" if name == "python3" else None):

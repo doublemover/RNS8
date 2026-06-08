@@ -137,7 +137,7 @@ requirements.
 Required everywhere:
 
 - C++17 compiler.
-- CMake 3.28 or newer.
+- CMake 3.22 or newer.
 - Ninja or another explicitly supported generator.
 - Python 3.11 or newer for benchmarks, plotting, and result analysis.
 - Git.

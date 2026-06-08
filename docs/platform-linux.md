@@ -49,13 +49,11 @@ intended native-package install surface is:
 sudo apt install cmake ninja-build g++ python3 python3-venv python3-pip catch2 nlohmann-json3-dev libboost-all-dev rocm rocm-hip-sdk rocm-developer-tools rocminfo rocm-smi-lib amd-smi-lib rocprofiler-sdk rocprofiler-compute rocm-bandwidth-test rccl-dev rocwmma-dev hipblaslt-dev composablekernel-dev
 ```
 
-RNS8 requires CMake 3.28 or newer. Some hosted Ubuntu images still provide
-older distro CMake packages, for example Ubuntu 22.04's `cmake` package is too
-old for this repo's preset schema and `cmake_minimum_required`. The CDNA
-wrappers resolve a usable CMake before running presets and, when necessary,
-bootstrap a private Python-package CMake under ignored `temp/cdna-tools/`.
-For system-wide CMake instead, install a newer package from Kitware's APT
-repository and verify:
+RNS8 requires CMake 3.22 or newer, matching Ubuntu 22.04's distro CMake. The
+CDNA wrappers still resolve a usable CMake before running presets and, when
+necessary on older images, bootstrap a private Python-package CMake under
+ignored `temp/cdna-tools/`. For system-wide CMake, install any package at or
+above the project minimum and verify:
 
 ```bash
 cmake --version
@@ -167,6 +165,12 @@ real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
 Windows vcpkg or local workstation paths. It is a configure/build surface only;
 CDNA performance readiness still requires target-validation and release-review
 captures.
+
+The dedicated accelerator first-pass command is:
+
+```bash
+bash scripts/cdna_accelerators.sh --devices 0 --out-dir temp/cdna-accelerators-real
+```
 
 GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`
 internals on some optimization levels. Treat those as non-blocking compiler

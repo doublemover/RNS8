@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 HOST_NEUTRAL_CORE_COMMANDS = ["cmake", "ninja", "git", "python"]
-CMAKE_MINIMUM_VERSION = "3.28.0"
+CMAKE_MINIMUM_VERSION = "3.22.0"
 WINDOWS_CORE_COMMANDS = ["vcpkg"]
 CORE_COMMANDS = HOST_NEUTRAL_CORE_COMMANDS + WINDOWS_CORE_COMMANDS
 WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]

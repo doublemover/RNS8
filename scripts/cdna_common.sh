@@ -14,7 +14,7 @@ CDNA_SKIP_BUILD=0
 CDNA_DRY_RUN=0
 CDNA_ACCELERATORS=0
 CDNA_BENCH_ARGV=()
-CDNA_CMAKE_MIN_VERSION="3.28.0"
+CDNA_CMAKE_MIN_VERSION="3.22.0"
 CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-v3.5.4}"
 CDNA_CMAKE_BIN=""
 CDNA_CTEST_BIN=""
@@ -323,7 +323,7 @@ cdna_probe_catch2_v3() {
   local probe_log="${probe_root}/probe.log"
   mkdir -p "${probe_src}" "${probe_build}"
   cat >"${probe_src}/CMakeLists.txt" <<'EOF'
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.22)
 project(rns8_catch2_probe LANGUAGES CXX)
 find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
