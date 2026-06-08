@@ -1,3 +1,35 @@
+def runtime_prepack_cache_key(capture: dict, cache: dict) -> str:
+    return (
+        "prepack-v2"
+        f";backend={cache['backend']}"
+        ";target_id=gfx1100"
+        ";kernel=rocwmma_rns_gemm_v1"
+        ";prepack_kernel=rocwmma_rns_i8_tile_swizzled_b_prepack_v1"
+        f";semantics={cache['semantics']}"
+        ";prefix_schedule_hash=999"
+        f";tile_m={capture['tile_m']}"
+        f";tile_n={capture['tile_n']}"
+        ";operand_tile_m=16"
+        ";operand_tile_n=16"
+        ";k_block_size=64"
+        ";k_block_cap=65536"
+        f";operand={cache['operand_role']}"
+        f";m={capture['m']}"
+        f";n={capture['n']}"
+        f";k={capture['k']}"
+        f";source_version={cache['source_version']}"
+        f";hip_device_id={cache['hip_device_id']}"
+        f";matrix_rows={cache['matrix_rows']}"
+        f";matrix_cols={cache['matrix_cols']}"
+        f";prefix={cache['max_prefix']}"
+        f";finite_modulus={cache['finite_modulus']}"
+        f";matrix_layout={cache['matrix_layout_version']}"
+        f";operand_layout={cache['operand_layout_version']}"
+        f";plan_fingerprint={cache['plan_fingerprint']}"
+        f";hash={cache['cache_key_hash']}"
+    )
+
+
 bad_reused_pack = copy.deepcopy(reused_ck_i64)
 bad_reused_pack["raw_timings_us"]["pack"][0] = 1
 expect_invalid(bad_reused_pack, "zero-valued repeats")
@@ -63,12 +95,16 @@ bad_reused_strategy_backend["reuse_contract"] = {
         "matrix_layout_version": "rns_centered_residue_planes_v1",
         "operand_layout_version": "rns_i8_tile_swizzled_b_v1",
         "cache_scope": "runtime_production_b_prepack_cache",
-        "cache_key": "prepack-v2;backend=rocwmma;operand=B;source_version=1;hash=456",
+        "cache_key": "",
         "detail": "synthetic schema fixture",
     },
     "promotion_eligible": False,
     "invalidation_reasons": ["source_version_changed"],
 }
+bad_reused_strategy_backend["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = runtime_prepack_cache_key(
+    bad_reused_strategy_backend,
+    bad_reused_strategy_backend["reuse_contract"]["runtime_prepack_cache"],
+)
 bad_reused_strategy_backend["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
 bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_operands"] = ["B"]
 bad_reused_strategy_backend["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
@@ -76,8 +112,9 @@ expect_invalid(bad_reused_strategy_backend, "backend_selected=rocwmma")
 
 bad_runtime_cache_zero_source = copy.deepcopy(bad_reused_strategy_backend)
 bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["source_version"] = 0
-bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
-    "prepack-v2;backend=rocwmma;operand=B;source_version=0;hash=456"
+bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = runtime_prepack_cache_key(
+    bad_runtime_cache_zero_source,
+    bad_runtime_cache_zero_source["reuse_contract"]["runtime_prepack_cache"],
 )
 expect_invalid(bad_runtime_cache_zero_source, "runtime prepack cache captures must report nonzero source_version")
 
@@ -142,10 +179,14 @@ rocwmma_runtime_b_cache["reuse_contract"] = {
         "matrix_layout_version": "rns_centered_residue_planes_v1",
         "operand_layout_version": "rns_i8_tile_swizzled_b_v1",
         "cache_scope": "runtime_production_b_prepack_cache",
-        "cache_key": "prepack-v2;backend=rocwmma;operand=B;source_version=5;hash=456",
+        "cache_key": "",
         "detail": "synthetic schema fixture",
     },
 }
+rocwmma_runtime_b_cache["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = runtime_prepack_cache_key(
+    rocwmma_runtime_b_cache,
+    rocwmma_runtime_b_cache["reuse_contract"]["runtime_prepack_cache"],
+)
 validate_capture(rocwmma_runtime_b_cache)
 
 bad_runtime_cache_backend = copy.deepcopy(rocwmma_runtime_b_cache)
@@ -178,7 +219,46 @@ bad_runtime_cache_key = copy.deepcopy(rocwmma_runtime_b_cache)
 bad_runtime_cache_key["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
     "prepack-v2;backend=rocwmma;operand=B;hash=456"
 )
-expect_invalid(bad_runtime_cache_key, "runtime prepack cache cache_key must include source_version")
+expect_invalid(
+    bad_runtime_cache_key,
+    "runtime prepack cache cache_key must include source_version=5",
+)
+
+bad_runtime_cache_key_shape = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_key_shape["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
+    bad_runtime_cache_key_shape["reuse_contract"]["runtime_prepack_cache"]["cache_key"].replace(
+        f";matrix_rows={rocwmma_runtime_b_cache['k']};",
+        ";matrix_rows=999;",
+    )
+)
+expect_invalid(
+    bad_runtime_cache_key_shape,
+    f"runtime prepack cache cache_key must include matrix_rows={rocwmma_runtime_b_cache['k']}",
+)
+
+bad_runtime_cache_key_layout = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_key_layout["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
+    bad_runtime_cache_key_layout["reuse_contract"]["runtime_prepack_cache"]["cache_key"].replace(
+        ";operand_layout=rns_i8_tile_swizzled_b_v1;",
+        ";operand_layout=stale_layout;",
+    )
+)
+expect_invalid(
+    bad_runtime_cache_key_layout,
+    "runtime prepack cache cache_key must include operand_layout=rns_i8_tile_swizzled_b_v1",
+)
+
+bad_runtime_cache_key_plan = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_runtime_cache_key_plan["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (
+    bad_runtime_cache_key_plan["reuse_contract"]["runtime_prepack_cache"]["cache_key"].replace(
+        ";plan_fingerprint=123;",
+        ";plan_fingerprint=999;",
+    )
+)
+expect_invalid(
+    bad_runtime_cache_key_plan,
+    "runtime prepack cache cache_key must include plan_fingerprint=123",
+)
 
 bad_runtime_cache_hash = copy.deepcopy(rocwmma_runtime_b_cache)
 bad_runtime_cache_hash["reuse_contract"]["runtime_prepack_cache"]["cache_key_hash"] = 0

@@ -129,7 +129,7 @@ def capture(
 
 
 def runtime_b_cache(source_version: int = 1, production: bool = True) -> dict:
-    return {
+    cache = {
         "source": "rns8_get_prepack_cache_info",
         "backend": "rocwmma",
         "semantics": "bounded_i64",
@@ -153,9 +153,39 @@ def runtime_b_cache(source_version: int = 1, production: bool = True) -> dict:
         "cache_scope": "runtime_production_b_prepack_cache"
         if production
         else "runtime_reusable_b_prepack_cache",
-        "cache_key": f"prepack-v2;backend=rocwmma;operand=B;source_version={source_version};hash=456",
+        "cache_key": "",
         "detail": "synthetic runtime cache fixture",
     }
+    cache["cache_key"] = (
+        "prepack-v2"
+        ";backend=rocwmma"
+        ";target_id=gfx1100"
+        ";kernel=rocwmma_rns_gemm_v1"
+        ";prepack_kernel=rocwmma_rns_i8_tile_swizzled_b_prepack_v1"
+        ";semantics=bounded_i64"
+        ";prefix_schedule_hash=999"
+        ";tile_m=128"
+        ";tile_n=128"
+        ";operand_tile_m=16"
+        ";operand_tile_n=16"
+        ";k_block_size=64"
+        ";k_block_cap=65536"
+        ";operand=B"
+        ";m=1024"
+        ";n=1024"
+        ";k=1024"
+        f";source_version={source_version}"
+        ";hip_device_id=0"
+        ";matrix_rows=1024"
+        ";matrix_cols=1024"
+        ";prefix=9"
+        ";finite_modulus=0"
+        ";matrix_layout=rns_centered_residue_planes_v1"
+        ";operand_layout=rns_i8_tile_swizzled_b_v1"
+        ";plan_fingerprint=123"
+        ";hash=456"
+    )
+    return cache
 
 
 def main() -> int:

@@ -233,6 +233,10 @@ inspection commands.
   runtime B-cache metadata to match the capture backend, semantics, B operand
   shape, prefix, finite modulus, cache source version, cache-key hash, and
   byte-size envelope before a capture can count as production-cache evidence.
+  The serialized `prepack-v2` cache key itself must carry the same backend,
+  semantic, shape, prefix, source-version, device, layout-version,
+  plan-fingerprint, and hash identity so stale side metadata cannot certify a
+  mismatched runtime cache.
 - Required evidence: API/unit tests for identity rejection, stale version
   rejection, unsupported backend/shape rejection, and release captures proving
   setup-inclusive wins.

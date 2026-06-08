@@ -100,6 +100,20 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 
 
+def _prepack_cache_key_fields(cache_key: str) -> dict[str, str] | None:
+    if not isinstance(cache_key, str) or not cache_key.startswith("prepack-v2;"):
+        return None
+    fields: dict[str, str] = {}
+    for part in cache_key.split(";")[1:]:
+        if "=" not in part:
+            return None
+        key, value = part.split("=", 1)
+        if not key or key in fields:
+            return None
+        fields[key] = value
+    return fields
+
+
 def validate_contract_metadata(self: Any) -> None:
     reuse = self.data.get("reuse_contract")
     if reuse is not None:
@@ -228,12 +242,47 @@ def validate_contract_metadata(self: Any) -> None:
                     expected_modulus = self.data.get("finite_modulus") or 0
                     if runtime_cache.get("finite_modulus") != expected_modulus:
                         self._error("runtime prepack cache finite_modulus must match capture finite_modulus")
-                    if _is_int(source_version) and f"source_version={source_version}" not in runtime_cache.get(
-                        "cache_key", ""
-                    ):
-                        self._error("runtime prepack cache cache_key must include source_version")
                     if runtime_cache.get("cache_key_hash") == 0:
                         self._error("runtime prepack cache cache_key_hash must be nonzero")
+                    cache_key_fields = _prepack_cache_key_fields(runtime_cache.get("cache_key", ""))
+                    if cache_key_fields is None:
+                        self._error("runtime prepack cache cache_key must be a prepack-v2 serialized identity")
+                    else:
+                        expected_cache_fields = {
+                            "backend": runtime_cache.get("backend"),
+                            "semantics": runtime_cache.get("semantics"),
+                            "operand": runtime_cache.get("operand_role"),
+                            "m": self.data.get("m"),
+                            "n": self.data.get("n"),
+                            "k": self.data.get("k"),
+                            "source_version": runtime_cache.get("source_version"),
+                            "hip_device_id": runtime_cache.get("hip_device_id"),
+                            "matrix_rows": runtime_cache.get("matrix_rows"),
+                            "matrix_cols": runtime_cache.get("matrix_cols"),
+                            "prefix": runtime_cache.get("max_prefix"),
+                            "finite_modulus": runtime_cache.get("finite_modulus"),
+                            "matrix_layout": runtime_cache.get("matrix_layout_version"),
+                            "operand_layout": runtime_cache.get("operand_layout_version"),
+                            "plan_fingerprint": runtime_cache.get("plan_fingerprint"),
+                            "hash": runtime_cache.get("cache_key_hash"),
+                        }
+                        for key, expected in expected_cache_fields.items():
+                            if cache_key_fields.get(key) != str(expected):
+                                self._error(f"runtime prepack cache cache_key must include {key}={expected}")
+                        for key in [
+                            "target_id",
+                            "kernel",
+                            "prepack_kernel",
+                            "prefix_schedule_hash",
+                            "tile_m",
+                            "tile_n",
+                            "operand_tile_m",
+                            "operand_tile_n",
+                            "k_block_size",
+                            "k_block_cap",
+                        ]:
+                            if not cache_key_fields.get(key):
+                                self._error(f"runtime prepack cache cache_key must include nonempty {key}")
                     device_bytes = runtime_cache.get("device_bytes")
                     operand_pack_bytes = runtime_cache.get("operand_pack_bytes")
                     if _is_int(device_bytes) and device_bytes <= 0:
