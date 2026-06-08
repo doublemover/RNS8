@@ -379,6 +379,30 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   CHECK(packing.production_prepack_cache_available == 1);
 
   rns8_destroy_plan(plan);
+
+  rns8_gemm_desc exact_desc{};
+  exact_desc.struct_size = sizeof(exact_desc);
+  exact_desc.abi_version = RNS8_ABI_VERSION;
+  exact_desc.semantics = RNS8_EXACT_WIDE_SIGNED;
+  exact_desc.bound_kind = RNS8_BOUND_NONE;
+  exact_desc.requested_backend = RNS8_BACKEND_ROCWMMA;
+  exact_desc.m = m;
+  exact_desc.n = n;
+  exact_desc.k = k;
+  exact_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+
+  rns8_plan* exact_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &exact_desc, &exact_plan) == RNS8_SUCCESS);
+  rns8_plan_packing_info exact_packing{};
+  exact_packing.struct_size = sizeof(exact_packing);
+  exact_packing.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_plan_packing_info(exact_plan, &exact_packing) == RNS8_SUCCESS);
+  CHECK((exact_packing.next_op_flags & RNS8_NEXT_OP_REUSABLE_B_PREPACK) != 0);
+  CHECK(exact_packing.reusable_prepack_cache_available == 1);
+  CHECK(exact_packing.production_prepack_cache_available == 0);
+  CHECK(std::string(exact_packing.prepack_cache_scope) == "reusable_b_prepack_cache_evidence_only");
+
+  rns8_destroy_plan(exact_plan);
   rns8_destroy_context(ctx);
 }
 #endif

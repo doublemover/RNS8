@@ -824,9 +824,11 @@ transient A workspace and, for eligible non-tiled RNS B operands with
 `K <= 65536`, a reusable `rns_i8_tile_swizzled_b_v1` B prepack cache path. The
 cache is a measured-runtime surface, not a performance claim by itself: it must
 still be benchmarked as one-time B setup plus repeated GEMM, and
-`production_prepack_cache_available` is true only for that qualified rocWMMA
-B-cache surface. CPU, direct-HIP, and wrap64 reference plans report resident
-layouts without transient pack workspaces.
+`production_prepack_cache_available` is true only for qualified bounded i64/u64
+rocWMMA B-cache plans. Exact-wide rocWMMA B caches are reusable/evidence-only
+until their own setup-inclusive release evidence exists. CPU, direct-HIP, and
+wrap64 reference plans report resident layouts without transient pack
+workspaces.
 For autotune exact-hit inspection, `rns8-inspect` also reports an internal
 `plan_lowering` object derived from backend, packing, and schedule metadata so
 review can distinguish final export, residue-chain continuation, native-chain

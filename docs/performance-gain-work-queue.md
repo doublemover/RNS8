@@ -198,6 +198,9 @@ inspection commands.
   rejection, backend/target mismatch rejection, cache-key serialization,
   packing-info metadata, and autotune/review visibility for production-capable
   caches.
+- Local status: bounded i64/u64 rocWMMA B caches are the only production-cache
+  eligible public surface; exact-wide rocWMMA B caches remain reusable
+  evidence-only while preserving cached-GEMM correctness coverage.
 - Required evidence: API/unit tests for identity rejection, stale version
   rejection, unsupported backend/shape rejection, and release captures proving
   setup-inclusive wins.

@@ -692,9 +692,11 @@ RNS8_API rns8_status rns8_get_plan_backend_info(
 /*
  * Report the concrete packing and resident-layout contract for a created plan.
  * The byte counts are derived from the selected backend and plan shape.
- * rocWMMA reports a production B-side prepack cache for the narrow validated
- * non-tiled RNS path; other accelerator backends report transient
- * per-dispatch pack workspaces unless a public cache surface is implemented.
+ * rocWMMA reports a production B-side prepack cache only for the bounded
+ * i64/u64 non-tiled RNS path. Other rocWMMA RNS plans may report reusable
+ * cache keying as evidence-only, and other accelerator backends report
+ * transient per-dispatch pack workspaces unless a public cache surface is
+ * implemented.
  */
 RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
@@ -750,10 +752,11 @@ RNS8_API rns8_status rns8_get_resident_lifetime_info(
 
 /*
  * Validate and report deterministic key material for a reusable prepack cache
- * entry. The current production cache surface is the rocWMMA B-operand RNS
- * path; incompatible plan, operand role, matrix shape, storage layout,
- * finite-modulus, backend, device id, or currentness are rejected before
- * returning a key.
+ * entry. The current production cache surface is the rocWMMA B-operand bounded
+ * i64/u64 RNS path; exact-wide rocWMMA caches remain reusable/evidence-only
+ * until same-contract setup-inclusive promotion evidence exists. Incompatible
+ * plan, operand role, matrix shape, storage layout, finite-modulus, backend,
+ * device id, or currentness are rejected before returning a key.
  */
 RNS8_API rns8_status rns8_get_prepack_cache_key_info(
     const rns8_plan* plan,
@@ -762,11 +765,12 @@ RNS8_API rns8_status rns8_get_prepack_cache_key_info(
     rns8_prepack_cache_key_info* out);
 
 /*
- * Create or destroy a reusable accelerator prepack cache. Current production
- * runtime code supports a narrow rocWMMA B-operand RNS cache for non-tiled
- * plans with K <= 65536; unsupported roles, backends, or shapes return
- * RNS8_UNSUPPORTED_BACKEND instead of silently falling back to transient pack
- * workspaces.
+ * Create or destroy a reusable accelerator prepack cache. Current runtime code
+ * supports a narrow rocWMMA B-operand RNS cache for non-tiled plans with
+ * K <= 65536. Only bounded i64/u64 caches are production-eligible; exact-wide
+ * caches are reusable/evidence-only. Unsupported roles, backends, or shapes
+ * return RNS8_UNSUPPORTED_BACKEND instead of silently falling back to transient
+ * pack workspaces.
  */
 RNS8_API rns8_status rns8_create_prepack_cache(
     rns8_context* ctx,

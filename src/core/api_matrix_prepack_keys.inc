@@ -289,6 +289,24 @@ bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan) {
          plan.desc.k <= static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) && plan_schedule_contract_matches(plan);
 }
 
+namespace {
+
+bool rocwmma_b_prepack_cache_production_semantics(rns8_semantics semantics) {
+  return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
+}
+
+}  // namespace
+
+bool rocwmma_b_prepack_cache_production_supported(const rns8_plan& plan) {
+  return rocwmma_b_prepack_cache_supported(plan) &&
+         rocwmma_b_prepack_cache_production_semantics(plan.desc.semantics);
+}
+
+bool rocwmma_b_prepack_cache_production_supported(const rns8_prepack_cache& cache) {
+  return cache.operand_role == RNS8_OPERAND_B && cache.backend == RNS8_BACKEND_ROCWMMA &&
+         rocwmma_b_prepack_cache_production_semantics(cache.semantics);
+}
+
 bool rocwmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes) {
   b_pack_bytes = 0;
   total_cache_bytes = 0;

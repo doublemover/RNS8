@@ -423,6 +423,10 @@ std::string prepack_target_id_for_context(const rns8_context& ctx);
 
 bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan);
 
+bool rocwmma_b_prepack_cache_production_supported(const rns8_plan& plan);
+
+bool rocwmma_b_prepack_cache_production_supported(const rns8_prepack_cache& cache);
+
 bool prepack_operand_matrix_compatible(
     const rns8_plan& plan,
     const rns8_matrix& matrix,
@@ -443,8 +447,6 @@ std::string build_prepack_cache_key(
     uint64_t cache_key_hash,
     const std::string& matrix_layout_version,
     const std::string& operand_layout_version);
-
-bool rocwmma_b_prepack_cache_supported(const rns8_plan& plan);
 
 bool rocwmma_b_prepack_bytes_for_plan(const rns8_plan& plan, std::size_t& b_pack_bytes, std::size_t& total_cache_bytes);
 

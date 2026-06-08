@@ -468,13 +468,19 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "rns_i8_tile_swizzled_b_v1");
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
       if (rocwmma_b_prepack_cache_supported(*plan)) {
+        const bool production_cache = rocwmma_b_prepack_cache_production_supported(*plan);
         out->reusable_prepack_cache_available = 1;
-        out->production_prepack_cache_available = 1;
-        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "production_reusable_b_prepack_cache");
+        out->production_prepack_cache_available = production_cache ? 1u : 0u;
+        set_text(
+            out->prepack_cache_scope,
+            sizeof(out->prepack_cache_scope),
+            production_cache ? "production_reusable_b_prepack_cache" : "reusable_b_prepack_cache_evidence_only");
         set_text(
             out->detail,
             sizeof(out->detail),
-            "rocWMMA supports the production B-side prepack cache for this non-tiled RNS plan; A remains transient per dispatch and cache keys reject stale source versions, target, shape, prefix, and layout mismatches.");
+            production_cache
+                ? "rocWMMA supports the production B-side prepack cache for this bounded non-tiled RNS plan; A remains transient per dispatch and cache keys reject stale source versions, target, shape, prefix, and layout mismatches."
+                : "rocWMMA supports a reusable B-side prepack cache for this RNS plan, but production cache promotion is deferred until same-contract setup-inclusive evidence exists for this semantic contract.");
       } else {
         set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
         set_text(
