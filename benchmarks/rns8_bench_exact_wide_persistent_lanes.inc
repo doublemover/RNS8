@@ -21,6 +21,9 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
+  if (args.sparse_a_4_to_2) {
+    fill_sparse_a_4_to_2_bounded_i64_input(args, A, rng);
+  }
 
   BenchmarkResult result{};
   auto desc = gemm_desc(args, 0);
@@ -31,8 +34,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
+  apply_rns_sparse_a_4_to_2_backend_metadata(args, result, 0);
   capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  const bool use_sparse_a_4_to_2 = rns_sparse_a_4_to_2_path(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -42,6 +47,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
+  rns8_sparse_matrix* sparse_a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
@@ -53,8 +59,14 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
-  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  if (use_sparse_a_4_to_2) {
+    rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
+    status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+  } else {
+    status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  }
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
@@ -71,6 +83,12 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
+    if (use_sparse_a_4_to_2) {
+      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      return;
+    }
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
   };
@@ -212,21 +230,27 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
           result_cache ? result_cache_dirty_regions.data() : nullptr;
       const uint32_t dirty_region_count =
           result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
-      status = run_rns_gemm_with_optional_b_cache(
-          ctx,
-          plan,
-          lhs_matrix,
-          b_matrix,
-          b_prepack_cache,
-          out_matrix,
-          workspace,
-          result_cache,
-          dirty_regions,
-          dirty_region_count);
+      if (use_sparse_a_4_to_2) {
+        status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+      } else {
+        status = run_rns_gemm_with_optional_b_cache(
+            ctx,
+            plan,
+            lhs_matrix,
+            b_matrix,
+            b_prepack_cache,
+            out_matrix,
+            workspace,
+            result_cache,
+            dirty_regions,
+            dirty_region_count);
+      }
       if (status != RNS8_SUCCESS) {
         fail_status(
-            result_cache ? "rns8_gemm_rns_incremental"
-                         : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+            use_sparse_a_4_to_2
+                ? "rns8_gemm_rns_sparse_a"
+                : result_cache ? "rns8_gemm_rns_incremental"
+                               : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
             status);
       }
       final_output_matrix = out_matrix;
@@ -307,7 +331,12 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
-  rns8_destroy_matrix(a_matrix);
+  if (a_matrix) {
+    rns8_destroy_matrix(a_matrix);
+  }
+  if (sparse_a_matrix) {
+    rns8_destroy_sparse_matrix(sparse_a_matrix);
+  }
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
   return result;
@@ -336,6 +365,9 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       UINT64_C(0x5a5a5a5a5a5a5a5a));
   for (auto& value : A) value = dist(rng);
   for (auto& value : B) value = dist(rng);
+  if (args.sparse_a_4_to_2) {
+    fill_sparse_a_4_to_2_bounded_u64_input(args, A, rng);
+  }
 
   BenchmarkResult result{};
   auto desc = gemm_desc(args, 0);
@@ -346,8 +378,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
+  apply_rns_sparse_a_4_to_2_backend_metadata(args, result, 0);
   capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  const bool use_sparse_a_4_to_2 = rns_sparse_a_4_to_2_path(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -357,6 +391,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
+  rns8_sparse_matrix* sparse_a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   rns8_matrix* scratch_matrix = nullptr;
@@ -368,8 +403,14 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
-  status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  if (use_sparse_a_4_to_2) {
+    rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
+    status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+  } else {
+    status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+  }
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
@@ -386,6 +427,12 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
+    if (use_sparse_a_4_to_2) {
+      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      return;
+    }
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
   };
@@ -527,21 +574,27 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
           result_cache ? result_cache_dirty_regions.data() : nullptr;
       const uint32_t dirty_region_count =
           result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
-      status = run_rns_gemm_with_optional_b_cache(
-          ctx,
-          plan,
-          lhs_matrix,
-          b_matrix,
-          b_prepack_cache,
-          out_matrix,
-          workspace,
-          result_cache,
-          dirty_regions,
-          dirty_region_count);
+      if (use_sparse_a_4_to_2) {
+        status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+      } else {
+        status = run_rns_gemm_with_optional_b_cache(
+            ctx,
+            plan,
+            lhs_matrix,
+            b_matrix,
+            b_prepack_cache,
+            out_matrix,
+            workspace,
+            result_cache,
+            dirty_regions,
+            dirty_region_count);
+      }
       if (status != RNS8_SUCCESS) {
         fail_status(
-            result_cache ? "rns8_gemm_rns_incremental"
-                         : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+            use_sparse_a_4_to_2
+                ? "rns8_gemm_rns_sparse_a"
+                : result_cache ? "rns8_gemm_rns_incremental"
+                               : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
             status);
       }
       final_output_matrix = out_matrix;
@@ -622,7 +675,12 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   }
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
-  rns8_destroy_matrix(a_matrix);
+  if (a_matrix) {
+    rns8_destroy_matrix(a_matrix);
+  }
+  if (sparse_a_matrix) {
+    rns8_destroy_sparse_matrix(sparse_a_matrix);
+  }
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
   return result;

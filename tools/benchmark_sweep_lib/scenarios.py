@@ -353,12 +353,24 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             metadata=_metadata(raw, label=label),
         )
         if item.sparse_a_4_to_2:
-            if item.semantics not in {"finite-u8-ring", "finite-u8-field", "bounded-i64", "bounded-u64"}:
-                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8 or bounded RNS semantics")
+            if item.semantics not in {
+                "finite-u8-ring",
+                "finite-u8-field",
+                "bounded-i64",
+                "bounded-u64",
+                "exact-wide-signed",
+                "exact-wide-unsigned",
+            }:
+                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8, bounded RNS, or exact-wide RNS semantics")
             if item.case.k % 4 != 0:
                 raise SystemExit(f"{label}.sparse_a_4_to_2 requires K divisible by 4")
-            if item.semantics in {"bounded-i64", "bounded-u64"} and item.case.input_profile != "uniform-small":
-                raise SystemExit(f"{label}.sparse_a_4_to_2 bounded RNS scenarios require uniform-small input_profile")
+            if item.semantics in {
+                "bounded-i64",
+                "bounded-u64",
+                "exact-wide-signed",
+                "exact-wide-unsigned",
+            } and item.case.input_profile != "uniform-small":
+                raise SystemExit(f"{label}.sparse_a_4_to_2 RNS scenarios require uniform-small input_profile")
             if item.pack_mode != "per_repeat_repack":
                 raise SystemExit(f"{label}.sparse_a_4_to_2 cannot use packed-input reuse in this pass")
             supported_backends = {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"}

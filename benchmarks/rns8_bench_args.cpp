@@ -462,15 +462,17 @@ Args parse_args(int argc, char** argv) {
   }
   if (args.sparse_a_4_to_2) {
     const bool supported_sparse_semantics =
-        finite_benchmark_semantics(args.semantics) || bounded_benchmark_semantics(args.semantics);
+        finite_benchmark_semantics(args.semantics) || bounded_benchmark_semantics(args.semantics) ||
+        exact_wide_benchmark_semantics(args.semantics);
     if (!supported_sparse_semantics) {
-      usage_error("--sparse-a-4-to-2 currently requires finite-u8, bounded-i64, or bounded-u64 semantics");
+      usage_error(
+          "--sparse-a-4-to-2 currently requires finite-u8, bounded-i64/u64, or exact-wide signed/unsigned semantics");
     }
     if (args.k % 4 != 0) {
       usage_error("--sparse-a-4-to-2 requires K divisible by 4");
     }
-    if (bounded_benchmark_semantics(args.semantics) && args.input_profile != InputProfile::UniformSmall) {
-      usage_error("--sparse-a-4-to-2 bounded RNS captures currently require --input-profile uniform-small");
+    if (rns_chain_benchmark_semantics(args.semantics) && args.input_profile != InputProfile::UniformSmall) {
+      usage_error("--sparse-a-4-to-2 RNS captures currently require --input-profile uniform-small");
     }
     if (args.sparse_a_4_to_2_dense_baseline && args.backend == RNS8_BACKEND_CPU_REFERENCE) {
       usage_error("--sparse-a-4-to-2-dense-baseline requires a GPU dense baseline backend");
@@ -487,7 +489,7 @@ Args parse_args(int argc, char** argv) {
         args.residue_channel_fusion || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       usage_error(
-          "--sparse-a-4-to-2 supports only persistent single-capture finite-u8 or bounded RNS runs in this pass");
+          "--sparse-a-4-to-2 supports only persistent single-capture finite-u8, bounded RNS, or exact-wide RNS runs in this pass");
     }
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&

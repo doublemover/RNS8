@@ -58,14 +58,20 @@ const char* benchmark_name(const Args& args) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return "rns8_wrap_u64_persistent_byte_limb";
   }
-  if (args.sparse_a_4_to_2) {
-    return "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue";
-  }
   if (finite_benchmark_semantics(args.semantics)) {
+    if (args.sparse_a_4_to_2) {
+      return "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue";
+    }
     return "rns8_finite_u8_persistent_residue";
   }
   if (exact_wide_benchmark_semantics(args.semantics)) {
+    if (args.sparse_a_4_to_2) {
+      return "rns8_exact_wide_explicit_sparse_a_4_to_2_persistent_rns";
+    }
     return "rns8_exact_wide_persistent_rns";
+  }
+  if (args.sparse_a_4_to_2) {
+    return "rns8_bounded_explicit_sparse_a_4_to_2_persistent_rns";
   }
   return "rns8_bounded_gemm_persistent_rns";
 }
@@ -115,6 +121,18 @@ const char* input_distribution(const Args& args) {
   if (args.input_profile == InputProfile::AdaptiveBands) {
     return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
                                                         : "unsigned_adaptive_bands_0_16";
+  }
+  if (args.sparse_a_4_to_2 && args.semantics == BenchSemantics::ExactWideSigned) {
+    return "signed_i64_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
+  }
+  if (args.sparse_a_4_to_2 && args.semantics == BenchSemantics::ExactWideUnsigned) {
+    return "unsigned_u64_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
+  }
+  if (args.sparse_a_4_to_2 && args.semantics == BenchSemantics::BoundedI64) {
+    return "signed_i64_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
+  }
+  if (args.sparse_a_4_to_2 && args.semantics == BenchSemantics::BoundedU64) {
+    return "unsigned_u64_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
   }
   if (finite_benchmark_semantics(args.semantics)) {
     if (args.sparse_a_4_to_2) {

@@ -428,9 +428,13 @@ inspection commands.
   centered RNS sparse planes, route CPU/AMDGPU builtin captures through
   `rns8_gemm_rns_sparse_a`, keep dense-baseline captures on the dense path for
   the same sparse-shaped input, and schema-validate tiny CPU sparse bounded
-  captures. CPU sparse-A contract tests now cover finite-u8, bounded i64/u64,
-  and exact-wide signed/unsigned expand-to-dense parity against the dense CPU
-  reference, including source version stamping on sparse RNS GEMM outputs.
+  captures. Exact-wide signed/unsigned benchmark lanes now use the same
+  explicit sparse-A RNS storage path for CPU/AMDGPU builtin captures, with
+  matching dense Direct-HIP and dense AMDGPU baseline rows for the expanded
+  sparse-shaped input. CPU sparse-A contract tests now cover finite-u8, bounded
+  i64/u64, and exact-wide signed/unsigned expand-to-dense parity against the
+  dense CPU reference, including source version stamping on sparse RNS GEMM
+  outputs.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 

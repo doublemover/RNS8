@@ -79,7 +79,7 @@ bool finite_sparse_a_4_to_2_path(const Args& args, const BenchmarkResult& result
 
 bool rns_sparse_a_4_to_2_path(const Args& args, const BenchmarkResult& result) {
   return args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline &&
-         bounded_benchmark_semantics(args.semantics) &&
+         rns_chain_benchmark_semantics(args.semantics) &&
          result.backend_info_available &&
          (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE ||
           result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS);
@@ -159,6 +159,8 @@ std::string bounded_direct_hip_skinny_gemv_n1_autotune_key(
       << ";n=" << args.n
       << ";k=" << args.k
       << ";bound=" << bound
+      << ";exact_wide_limb_count="
+      << (exact_wide_benchmark_semantics(args.semantics) ? args.exact_wide_limb_count : 0)
       << ";input_profile=" << input_profile_name(args)
       << ";prefix=" << RNS8_DEFAULT_BOUNDED_PREFIX
       << ";tile_m=" << args.tile_m

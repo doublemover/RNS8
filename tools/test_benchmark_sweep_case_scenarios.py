@@ -257,16 +257,25 @@ with tempfile.TemporaryDirectory() as temp_dir:
 
     exact_wide_item = copy.deepcopy(bounded_item)
     exact_wide_item["semantics"] = "exact-wide-signed"
-    exact_wide_item["name"] = "exact-wide-sparse-a-invalid"
+    exact_wide_item["name"] = "exact-wide-sparse-a-valid"
     exact_wide_item["exact_wide_limb_counts"] = [4]
     payload["items"] = [exact_wide_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    loaded_exact_wide_sparse = benchmark_sweep.load_scenario_data_family(scenario_path)
+    assert loaded_exact_wide_sparse[0].semantics == "exact-wide-signed"
+    assert loaded_exact_wide_sparse[0].sparse_a_4_to_2 is True
+
+    wrap_item = copy.deepcopy(bounded_item)
+    wrap_item["semantics"] = "wrap-u64"
+    wrap_item["name"] = "wrap64-sparse-a-invalid"
+    payload["items"] = [wrap_item]
     scenario_path.write_text(json.dumps(payload), encoding="utf-8")
     try:
         benchmark_sweep.load_scenario_data_family(scenario_path)
     except SystemExit as exc:
-        assert "sparse_a_4_to_2 requires finite-u8 or bounded RNS semantics" in str(exc)
+        assert "sparse_a_4_to_2 requires finite-u8, bounded RNS, or exact-wide RNS semantics" in str(exc)
     else:
-        raise AssertionError("expected exact-wide sparse-A scenario to fail until its benchmark lane is implemented")
+        raise AssertionError("expected wrap64 sparse-A scenario to fail validation")
 
     bad_item = copy.deepcopy(payload["items"][0])
     bad_item["sparse_a_4_to_2"] = False
