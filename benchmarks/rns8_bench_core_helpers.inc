@@ -990,17 +990,10 @@ bool maybe_create_reusable_b_prepack_cache(
     rns8_prepack_cache** out,
     BenchmarkResult& result) {
   *out = nullptr;
-  rns8_prepack_cache_key_info key{};
-  key.struct_size = sizeof(key);
-  key.abi_version = RNS8_ABI_VERSION;
-  const rns8_status key_status = rns8_get_prepack_cache_key_info(plan, b_matrix, RNS8_OPERAND_B, &key);
-  if (key_status != RNS8_SUCCESS) {
-    fail_status("rns8_get_prepack_cache_key_info(B)", key_status);
-  }
-  if (key.reusable_prepack_cache_available == 0) {
+  const rns8_status cache_status = rns8_create_prepack_cache(ctx, plan, b_matrix, RNS8_OPERAND_B, out);
+  if (cache_status == RNS8_UNSUPPORTED_BACKEND) {
     return false;
   }
-  const rns8_status cache_status = rns8_create_prepack_cache(ctx, plan, b_matrix, RNS8_OPERAND_B, out);
   if (cache_status != RNS8_SUCCESS) {
     fail_status("rns8_create_prepack_cache(B)", cache_status);
   }

@@ -193,6 +193,11 @@ inspection commands.
   B tiles, avoid repeated descriptor/setup work, key cache identity by backend,
   target, shape, prefix, modulus set, signedness, source version, layout
   version, and selected kernel.
+- Local progress: benchmark-owned repeated-B cache setup no longer performs a
+  separate public key-info query before creating the reusable B prepack cache;
+  `rns8_create_prepack_cache` is the measured production path, unsupported
+  plans stay on persistent matrix residency, and successful cache captures still
+  emit `rns8_get_prepack_cache_info` metadata for review/cache-key visibility.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.
