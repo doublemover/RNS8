@@ -461,6 +461,9 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             self._error(f"hip_graph_replay captures must set hip_graph_replay.{key}=true")
     if graph.get("status") != "available":
         self._error("hip_graph_replay captures must set hip_graph_replay.status=available")
+    for key in ["capture_us", "instantiate_us"]:
+        if _is_int(graph.get(key)) and graph.get(key) <= 0:
+            self._error(f"hip_graph_replay.{key} must be positive for executed graph replay captures")
     if graph.get("graph_launches_per_measured_repeat") != 1:
         self._error("hip_graph_replay captures must launch one graph per measured repeat")
     if _is_int(repeats) and _is_int(warmups) and graph.get("total_graph_launches") != repeats + warmups:

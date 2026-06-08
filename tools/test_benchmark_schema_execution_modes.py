@@ -117,6 +117,22 @@ def main() -> int:
     bad_graph_launches["hip_graph_replay"]["total_graph_launches"] += 1
     expect_invalid(bad_graph_launches, "hip_graph_replay.total_graph_launches must equal warmups + repeats")
 
+    bad_graph_capture_time = copy.deepcopy(graph)
+    bad_graph_capture_time["hip_graph_replay"]["capture_us"] = 0
+    bad_graph_capture_time["timing_metadata"]["hip_graph_capture_us"] = 0
+    expect_invalid(
+        bad_graph_capture_time,
+        "hip_graph_replay.capture_us must be positive for executed graph replay captures",
+    )
+
+    bad_graph_instantiate_time = copy.deepcopy(graph)
+    bad_graph_instantiate_time["hip_graph_replay"]["instantiate_us"] = 0
+    bad_graph_instantiate_time["timing_metadata"]["hip_graph_instantiate_us"] = 0
+    expect_invalid(
+        bad_graph_instantiate_time,
+        "hip_graph_replay.instantiate_us must be positive for executed graph replay captures",
+    )
+
     bad_graph_plan_identity = copy.deepcopy(graph)
     bad_graph_plan_identity["hip_graph_replay"]["plan_identity"] = "stale-plan-identity"
     expect_invalid(

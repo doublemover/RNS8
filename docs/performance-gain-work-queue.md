@@ -256,7 +256,9 @@ inspection commands.
   the precomputed boolean. Benchmark schema validation now binds graph replay
   captures to the selected plan autotune key and fixed m/n/k descriptor
   identity, so stale graph captures cannot be reused across shape or plan
-  changes.
+  changes. Executed graph captures must now report positive capture and
+  instantiate timings, so zero setup placeholders cannot pass as break-even
+  evidence.
 - Required evidence: `hip-graph-replay` release captures with checksum parity,
   graph availability metadata, setup-inclusive comparison, and no missing
   non-graph baseline.
