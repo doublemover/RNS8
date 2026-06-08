@@ -463,7 +463,9 @@ inspection commands.
   outputs. The AMD matrix-instruction calculator report now labels sparse
   SMFMAC/SWMMAC candidates as requiring this explicit sparse-A 4:2 contract
   instead of stale future-only wording, while still forbidding implicit dense
-  GEMM routing to sparse instructions.
+  GEMM routing to sparse instructions. Sparse public API tests now also reject
+  mismatched RNS/finite sparse contracts and wrong finite moduli before
+  mutating output source versions or residue contents.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 

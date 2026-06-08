@@ -524,3 +524,131 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense exact-wide reference") {
   run_unsigned();
   rns8_destroy_context(ctx);
 }
+
+TEST_CASE("sparse APIs reject mismatched sparse contracts without mutating output") {
+  rns8_context* ctx = create_cpu_context();
+
+  auto bounded = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 4);
+  bounded.bound = 64;
+  rns8_plan* bounded_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &bounded, &bounded_plan) == RNS8_SUCCESS);
+  rns8_workspace* bounded_workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, bounded_plan, &bounded_workspace) == RNS8_SUCCESS);
+
+  auto bounded_b_desc = bounded_matrix_desc(4, 1, RNS8_BOUNDED_I64);
+  auto bounded_c_desc = bounded_matrix_desc(1, 1, RNS8_BOUNDED_I64);
+  rns8_matrix* bounded_b = nullptr;
+  rns8_matrix* bounded_c = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &bounded_b_desc, &bounded_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &bounded_c_desc, &bounded_c) == RNS8_SUCCESS);
+  const std::vector<int64_t> b_values = {1, 2, 3, 4};
+  REQUIRE(rns8_pack_i64(ctx, bounded_b, b_values.data(), 1, 22) == RNS8_SUCCESS);
+  bounded_c->source_version = 7001;
+  for (auto& residue : bounded_c->residues) {
+    residue = static_cast<int8_t>(-77);
+  }
+
+  rns8_sparse_matrix_desc finite_sparse_desc{};
+  finite_sparse_desc.struct_size = sizeof(finite_sparse_desc);
+  finite_sparse_desc.abi_version = RNS8_ABI_VERSION;
+  finite_sparse_desc.semantics = RNS8_FINITE_RING_U8;
+  finite_sparse_desc.bound_kind = RNS8_BOUND_NONE;
+  finite_sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  finite_sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  finite_sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  finite_sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8;
+  finite_sparse_desc.rows = 1;
+  finite_sparse_desc.expanded_k = 4;
+  finite_sparse_desc.group_size = 4;
+  finite_sparse_desc.nonzeros_per_group = 2;
+  finite_sparse_desc.finite_modulus = 251;
+  rns8_sparse_matrix* finite_sparse_a = nullptr;
+  REQUIRE(rns8_create_sparse_matrix(ctx, &finite_sparse_desc, &finite_sparse_a) == RNS8_SUCCESS);
+  const std::vector<uint8_t> finite_sparse_values = {5, 0, 7, 0};
+  REQUIRE(
+      rns8_pack_sparse_a_4_to_2_matrix_u8(
+          ctx, finite_sparse_a, finite_sparse_values.data(), finite_sparse_desc.expanded_k, 11) ==
+      RNS8_SUCCESS);
+
+  CHECK(
+      rns8_gemm_rns_sparse_a(ctx, bounded_plan, finite_sparse_a, bounded_b, bounded_c, bounded_workspace) ==
+      RNS8_INVALID_ARGUMENT);
+  CHECK(bounded_c->source_version == 7001);
+  for (const auto residue : bounded_c->residues) {
+    CHECK(residue == static_cast<int8_t>(-77));
+  }
+  CHECK_FALSE(bounded_c->device_residues_current);
+
+  auto finite = finite_gemm_desc(RNS8_FINITE_RING_U8, 1, 1, 4, 251);
+  rns8_plan* finite_plan = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &finite, &finite_plan) == RNS8_SUCCESS);
+  rns8_workspace* finite_workspace = nullptr;
+  REQUIRE(rns8_create_workspace(ctx, finite_plan, &finite_workspace) == RNS8_SUCCESS);
+
+  auto finite_b_desc = finite_matrix_desc(4, 1, RNS8_FINITE_RING_U8);
+  auto finite_c_desc = finite_matrix_desc(1, 1, RNS8_FINITE_RING_U8);
+  rns8_matrix* finite_b = nullptr;
+  rns8_matrix* finite_c = nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &finite_b_desc, &finite_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &finite_c_desc, &finite_c) == RNS8_SUCCESS);
+  const std::vector<uint8_t> finite_b_values = {1, 2, 3, 4};
+  REQUIRE(rns8_pack_finite_u8(ctx, finite_b, 251, finite_b_values.data(), 1, 33) == RNS8_SUCCESS);
+  finite_c->source_version = 8001;
+  for (auto& residue : finite_c->residues) {
+    residue = static_cast<int8_t>(-66);
+  }
+
+  rns8_sparse_matrix_desc bounded_sparse_desc{};
+  bounded_sparse_desc.struct_size = sizeof(bounded_sparse_desc);
+  bounded_sparse_desc.abi_version = RNS8_ABI_VERSION;
+  bounded_sparse_desc.semantics = RNS8_BOUNDED_I64;
+  bounded_sparse_desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  bounded_sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  bounded_sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  bounded_sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  bounded_sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+  bounded_sparse_desc.rows = 1;
+  bounded_sparse_desc.expanded_k = 4;
+  bounded_sparse_desc.group_size = 4;
+  bounded_sparse_desc.nonzeros_per_group = 2;
+  bounded_sparse_desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  rns8_sparse_matrix* bounded_sparse_a = nullptr;
+  REQUIRE(rns8_create_sparse_matrix(ctx, &bounded_sparse_desc, &bounded_sparse_a) == RNS8_SUCCESS);
+  const std::vector<int64_t> bounded_a_native = {3, 0, -5, 0};
+  rns8_matrix* dense_bounded_a = nullptr;
+  auto bounded_a_desc = bounded_matrix_desc(1, 4, RNS8_BOUNDED_I64);
+  REQUIRE(rns8_create_matrix(ctx, &bounded_a_desc, &dense_bounded_a) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx, dense_bounded_a, bounded_a_native.data(), 4, 44) == RNS8_SUCCESS);
+  REQUIRE(
+      rns8_pack_sparse_a_4_to_2_matrix_u8(
+          ctx,
+          bounded_sparse_a,
+          reinterpret_cast<const uint8_t*>(dense_bounded_a->residues.data()),
+          dense_bounded_a->desc.cols,
+          dense_bounded_a->source_version) == RNS8_SUCCESS);
+
+  CHECK(
+      rns8_gemm_finite_u8_sparse_a(ctx, finite_plan, 251, bounded_sparse_a, finite_b, finite_c, finite_workspace) ==
+      RNS8_INVALID_ARGUMENT);
+  CHECK(
+      rns8_gemm_finite_u8_sparse_a(ctx, finite_plan, 257, finite_sparse_a, finite_b, finite_c, finite_workspace) ==
+      RNS8_INVALID_ARGUMENT);
+  CHECK(finite_c->source_version == 8001);
+  for (const auto residue : finite_c->residues) {
+    CHECK(residue == static_cast<int8_t>(-66));
+  }
+  CHECK_FALSE(finite_c->device_residues_current);
+
+  rns8_destroy_matrix(dense_bounded_a);
+  rns8_destroy_sparse_matrix(bounded_sparse_a);
+  rns8_destroy_matrix(finite_c);
+  rns8_destroy_matrix(finite_b);
+  rns8_destroy_workspace(finite_workspace);
+  rns8_destroy_plan(finite_plan);
+  rns8_destroy_sparse_matrix(finite_sparse_a);
+  rns8_destroy_matrix(bounded_c);
+  rns8_destroy_matrix(bounded_b);
+  rns8_destroy_workspace(bounded_workspace);
+  rns8_destroy_plan(bounded_plan);
+  rns8_destroy_context(ctx);
+}
