@@ -93,7 +93,6 @@ if(RNS8_PROBE_ACCELERATORS)
   message(STATUS "RNS8 rocWMMA candidate evidence: ${RNS8_ROCWMMA_EVIDENCE}")
   message(STATUS "RNS8 rocWMMA compile probe: ${RNS8_ROCWMMA_COMPILE_PROBE_STATUS}")
   message(STATUS "RNS8 rocWMMA primitive probe: ${RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS}")
-  message(STATUS "RNS8 AMDGPU builtin candidate evidence: disabled until target-specific exact kernels exist")
   message(
     STATUS
       "RNS8 accelerator backend enablement flags: "

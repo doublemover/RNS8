@@ -1,22 +1,6 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-  set(RNS8_FAIL_FAST_ACCELERATOR_FLAGS)
-  foreach(RNS8_ACCELERATOR_ENABLE_FLAG ${RNS8_FAIL_FAST_ACCELERATOR_FLAGS})
-    string(TOLOWER "${RNS8_ACCELERATOR_ENABLE_FLAG}" RNS8_ACCELERATOR_ENABLE_NAME)
-    add_test(
-      NAME "accelerator_fail_fast_${RNS8_ACCELERATOR_ENABLE_NAME}"
-      COMMAND
-        "${CMAKE_COMMAND}"
-        "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-        "-DRNS8_ACCEL_FAIL_FAST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/accelerator-fail-fast/${RNS8_ACCELERATOR_ENABLE_FLAG}"
-        "-DRNS8_ACCELERATOR_ENABLE_FLAG=${RNS8_ACCELERATOR_ENABLE_FLAG}"
-        "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
-        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/accelerator_enable_fail_fast.cmake"
-    )
-    set_tests_properties("accelerator_fail_fast_${RNS8_ACCELERATOR_ENABLE_NAME}" PROPERTIES LABELS "accelerator;fail-fast")
-  endforeach()
-
   add_test(
     NAME benchmark_schema_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema.py"
