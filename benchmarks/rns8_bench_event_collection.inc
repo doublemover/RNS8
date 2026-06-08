@@ -162,6 +162,20 @@ bool collect_direct_hip_grouped_dispatch_pack_gpu_events(
 
 void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  if (args.sparse_a_4_to_2 && finite_benchmark_semantics(args.semantics)) {
+    const double sparse_values_h2d = sum_event_label(events, samples, "pack", "sparse_a_values_h2d");
+    const double sparse_indices_h2d = sum_event_label(events, samples, "pack", "sparse_a_indices_h2d");
+    const double dense_b_h2d = sum_event_label(events, samples, "pack", "finite_pack_h2d");
+    const double dense_b_kernel = sum_event_label(events, samples, "pack", "finite_pack_kernel");
+    if (events.complete) {
+      push_gpu_event_value(events, "sparse_a_values_h2d", sparse_values_h2d);
+      push_gpu_event_value(events, "sparse_a_indices_h2d", sparse_indices_h2d);
+      push_gpu_event_value(events, "finite_pack_h2d", dense_b_h2d);
+      push_gpu_event_value(events, "finite_pack_kernel", dense_b_kernel);
+      push_gpu_event_value(events, "pack", sparse_values_h2d + sparse_indices_h2d + dense_b_h2d + dense_b_kernel);
+    }
+    return;
+  }
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     const auto h2d_samples = event_label_values(samples, "residue_h2d_sync");
     std::size_t h2d_index = 0;
@@ -379,9 +393,9 @@ void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
-void collect_amdgpu_builtin_gemm_gpu_events(const BenchmarkResult& result, GpuEventSamples& events) {
+void collect_amdgpu_builtin_gemm_gpu_events(const Args& args, const BenchmarkResult& result, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const char* label = amdgpu_builtin_matrix_core_event_label(result);
+  const char* label = amdgpu_builtin_matrix_core_event_label(args, result);
   const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
     push_gpu_event_value(events, label, kernel);
@@ -667,7 +681,7 @@ void collect_rns_gemm_gpu_events(
   } else if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     collect_vector_alu_gemm_gpu_events(args, events);
   } else if (selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
-    collect_amdgpu_builtin_gemm_gpu_events(result, events);
+    collect_amdgpu_builtin_gemm_gpu_events(args, result, events);
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     collect_finite_direct_gemm_gpu_events(events);
   } else if (native_to_rns_bridge_path(args, result, selected_backend)) {

@@ -42,6 +42,32 @@ void fill_finite_u8_input(std::mt19937_64& rng, const Args& args, std::vector<ui
   }
 }
 
+uint8_t sample_nonzero_finite_u8_input(std::mt19937_64& rng, const Args& args) {
+  const uint32_t high = args.finite_modulus == 256 ? 255u : static_cast<uint32_t>(args.finite_modulus - 1u);
+  std::uniform_int_distribution<uint32_t> nonzero(1, high);
+  return static_cast<uint8_t>(nonzero(rng));
+}
+
+void fill_sparse_a_4_to_2_finite_u8_input(std::mt19937_64& rng, const Args& args, std::vector<uint8_t>& values) {
+  if (args.k % 4 != 0 || values.size() != checked_elements(args.m, args.k, "sparse A")) {
+    usage_error("internal sparse-A 4:2 fixture shape mismatch");
+  }
+  std::fill(values.begin(), values.end(), uint8_t{0});
+  std::uniform_int_distribution<uint32_t> first_dist(0, 3);
+  std::uniform_int_distribution<uint32_t> second_offset_dist(1, 3);
+  for (int64_t row = 0; row < args.m; ++row) {
+    for (int64_t group = 0; group < args.k / 4; ++group) {
+      const uint32_t first = first_dist(rng);
+      const uint32_t second = (first + second_offset_dist(rng)) % 4u;
+      const uint32_t lo = std::min(first, second);
+      const uint32_t hi = std::max(first, second);
+      const std::size_t base = static_cast<std::size_t>(row * args.k + group * 4);
+      values[base + lo] = sample_nonzero_finite_u8_input(rng, args);
+      values[base + hi] = sample_nonzero_finite_u8_input(rng, args);
+    }
+  }
+}
+
 BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint64_t bound) {
   (void)bound;
   std::mt19937_64 rng(args.seed);
@@ -297,7 +323,11 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   std::vector<uint8_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
   std::vector<uint8_t> C(output_elements(args, "C"), 0x5au);
-  fill_finite_u8_input(rng, args, A);
+  if (args.sparse_a_4_to_2) {
+    fill_sparse_a_4_to_2_finite_u8_input(rng, args, A);
+  } else {
+    fill_finite_u8_input(rng, args, A);
+  }
   fill_finite_u8_input(rng, args, B);
 
   BenchmarkResult result{};
@@ -310,8 +340,10 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   capture_backend_info(plan, result);
   capture_packing_and_lowering_info(args, plan, result);
   apply_finite_native_a_reuse_b_backend_metadata(args, result);
+  apply_finite_sparse_a_4_to_2_backend_metadata(args, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = finite_native_a_reuse_b_path(args, result);
+  const bool use_sparse_a_4_to_2 = finite_sparse_a_4_to_2_path(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
@@ -321,6 +353,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
+  rns8_sparse_matrix* sparse_a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   rns8_result_cache* result_cache = nullptr;
@@ -332,7 +365,24 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   const std::size_t native_a_bytes = use_native_a_reuse_b ? checked_bytes(A.size(), sizeof(uint8_t), "native A") : 0;
-  if (use_native_a_reuse_b) {
+  if (use_sparse_a_4_to_2) {
+    rns8_sparse_matrix_desc sparse_desc{};
+    sparse_desc.struct_size = sizeof(sparse_desc);
+    sparse_desc.abi_version = RNS8_ABI_VERSION;
+    sparse_desc.semantics = c_semantics(args.semantics);
+    sparse_desc.bound_kind = RNS8_BOUND_NONE;
+    sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+    sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+    sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+    sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8;
+    sparse_desc.rows = args.m;
+    sparse_desc.expanded_k = args.k;
+    sparse_desc.group_size = 4;
+    sparse_desc.nonzeros_per_group = 2;
+    sparse_desc.finite_modulus = args.finite_modulus;
+    status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+  } else if (use_native_a_reuse_b) {
     native_a.allocate(args.device_id, native_a_bytes, "hip_direct_allocate(finite native A)");
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
@@ -352,6 +402,11 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
+    if (use_sparse_a_4_to_2) {
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, A.data(), args.k, source_version);
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      return;
+    }
     if (use_native_a_reuse_b) {
       fail_status("rns8_pack_finite_u8(A native-A reuse-B path)", RNS8_INVALID_ARGUMENT);
     }
@@ -424,7 +479,10 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
         collect_finite_native_a_gemm_gpu_events(result.gpu_events);
       }
     } else {
-      if (result_cache) {
+      if (use_sparse_a_4_to_2) {
+        status = rns8_gemm_finite_u8_sparse_a(
+            ctx, plan, args.finite_modulus, sparse_a_matrix, b_matrix, c_matrix, workspace);
+      } else if (result_cache) {
         status = rns8_gemm_finite_u8_incremental(
             ctx,
             plan,
@@ -440,7 +498,10 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
         status = rns8_gemm_finite_u8(ctx, plan, args.finite_modulus, a_matrix, b_matrix, c_matrix, workspace);
       }
       if (status != RNS8_SUCCESS) {
-        fail_status(result_cache ? "rns8_gemm_finite_u8_incremental" : "rns8_gemm_finite_u8", status);
+        fail_status(
+            use_sparse_a_4_to_2 ? "rns8_gemm_finite_u8_sparse_a"
+                                : result_cache ? "rns8_gemm_finite_u8_incremental" : "rns8_gemm_finite_u8",
+            status);
       }
       if (collect_gpu_events) {
         if (result_cache) {
@@ -504,6 +565,9 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   rns8_destroy_matrix(b_matrix);
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);
+  }
+  if (sparse_a_matrix) {
+    rns8_destroy_sparse_matrix(sparse_a_matrix);
   }
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);

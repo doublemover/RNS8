@@ -58,6 +58,9 @@ const char* benchmark_name(const Args& args) {
   if (args.semantics == BenchSemantics::WrapU64Mod2_64) {
     return "rns8_wrap_u64_persistent_byte_limb";
   }
+  if (args.sparse_a_4_to_2) {
+    return "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue";
+  }
   if (finite_benchmark_semantics(args.semantics)) {
     return "rns8_finite_u8_persistent_residue";
   }
@@ -114,6 +117,9 @@ const char* input_distribution(const Args& args) {
                                                         : "unsigned_adaptive_bands_0_16";
   }
   if (finite_benchmark_semantics(args.semantics)) {
+    if (args.sparse_a_4_to_2) {
+      return "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group";
+    }
     switch (args.input_profile) {
       case InputProfile::FiniteBinary:
         return "u8_binary_0_1";

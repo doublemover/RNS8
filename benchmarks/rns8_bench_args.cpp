@@ -355,6 +355,8 @@ Args parse_args(int argc, char** argv) {
                arg == "--vector-native-to-rns-chain-host-repack-control") {
       args.vector_to_rns_chain = true;
       args.vector_to_rns_chain_host_repack_control = true;
+    } else if (arg == "--sparse-a-4-to-2" || arg == "--sparse-a-4to2") {
+      args.sparse_a_4_to_2 = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -412,6 +414,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--native-to-rns-bridge]\n"
           << "                  [--vector-to-rns-chain]\n"
           << "                  [--vector-to-rns-chain-host-repack-control]\n"
+          << "                  [--sparse-a-4-to-2]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--cpu-threads N]\n"
@@ -452,6 +455,22 @@ Args parse_args(int argc, char** argv) {
     }
   } else if (!valid_tile_size(args.tile_m) || !valid_tile_size(args.tile_n)) {
     usage_error("tile dimensions must be powers of two from 64 through 512");
+  }
+  if (args.sparse_a_4_to_2) {
+    if (!finite_benchmark_semantics(args.semantics)) {
+      usage_error("--sparse-a-4-to-2 currently requires finite-u8 semantics");
+    }
+    if (args.k % 4 != 0) {
+      usage_error("--sparse-a-4-to-2 requires K divisible by 4");
+    }
+    if (args.backend != RNS8_BACKEND_CPU_REFERENCE && args.backend != RNS8_BACKEND_AMDGPU_BUILTINS) {
+      usage_error("--sparse-a-4-to-2 currently requires --backend cpu or --backend amdgpu-builtins");
+    }
+    if (args.oneshot || grouped_task_executor_requested_for_args(args) || args.hip_graph_replay ||
+        args.reuse_packed_inputs || args.reuse_packed_a || args.reuse_packed_b ||
+        args.incremental_result_cache != "none") {
+      usage_error("--sparse-a-4-to-2 supports only persistent single-capture finite-u8 runs in this pass");
+    }
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
       args.backend != RNS8_BACKEND_HIP_DIRECT && args.backend != RNS8_BACKEND_AUTO && !args.wrap64_rocwmma_candidate) {

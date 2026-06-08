@@ -97,8 +97,9 @@ def vector_gpu_event_phases(semantics: object, selected_kernel: object) -> list[
     ]
 
 
-def amdgpu_builtin_gpu_event_label(selected_kernel: object) -> str:
+def amdgpu_builtin_gpu_event_label(selected_kernel: object, semantics: object = None) -> str:
     kernel = selected_kernel if isinstance(selected_kernel, str) else ""
+    finite = semantics in {"finite_ring_u8", "finite_field_u8"}
     if "cdna3_mfma_i32_32x32x16_i8" in kernel:
         return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel"
     if "cdna3_mfma_i32_16x16x32_i8_finite" in kernel:
@@ -114,14 +115,22 @@ def amdgpu_builtin_gpu_event_label(selected_kernel: object) -> str:
     if "rdna4_wmma_i32_16x16x16_iu8" in kernel:
         return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel"
     if "cdna3_smfmac_i32_16x16x64_i8" in kernel:
-        return "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel"
+        return (
+            "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"
+            if finite
+            else "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel"
+        )
     if "rdna4_swmmac_i32_16x16x32_iu8" in kernel:
-        return "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel"
+        return (
+            "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"
+            if finite
+            else "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel"
+        )
     return "amdgpu_builtin_rns_matrix_core_kernel"
 
 
-def amdgpu_builtin_deep_gpu_event_phases(selected_kernel: object) -> list[str]:
-    return [amdgpu_builtin_gpu_event_label(selected_kernel)]
+def amdgpu_builtin_deep_gpu_event_phases(selected_kernel: object, semantics: object = None) -> list[str]:
+    return [amdgpu_builtin_gpu_event_label(selected_kernel, semantics)]
 
 
 def is_deep_accelerator_gpu_event_label(phase: str) -> bool:

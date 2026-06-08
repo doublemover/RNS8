@@ -64,6 +64,7 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
         "u8_small_centered_minus2_2_mod_q",
         "u8_full_uniform_0_modulus_minus_1",
         "u8_uniform_0_modulus_minus_1",
+        "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group",
     }
     if distribution not in allowed_distributions:
         self._error("finite-u8 captures must use a registered finite input_distribution")

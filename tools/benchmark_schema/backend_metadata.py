@@ -53,9 +53,16 @@ def validate_backend_metadata(self: Any) -> None:
     if not isinstance(metadata, dict):
         return
     selected_backend = self.data.get("backend_selected")
+    selected_kernel_for_source = self.data.get("selected_kernel")
+    sparse_a_capture = (
+        self.data.get("benchmark") == "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue"
+        or (isinstance(selected_kernel_for_source, str) and "sparse_a" in selected_kernel_for_source)
+    )
     expected_source = (
         "rns8_bench_wrap64_rocwmma_candidate"
         if self._is_wrap64_rocwmma_candidate()
+        else "rns8_bench_explicit_sparse_a_4_to_2_path"
+        if sparse_a_capture
         else "rns8_bench_public_oneshot_api"
         if self._is_public_oneshot_capture()
         else "rns8_bench_residue_channel_fusion_path"
@@ -229,12 +236,22 @@ def validate_backend_metadata(self: Any) -> None:
             )
         if not str(metadata.get("epilogue_mode", "")).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report an amdgpu_builtin_* epilogue")
-        if metadata.get("workspace_mode") != "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace":
+        expected_workspace = (
+            "resident_sparse_a_explicit_4_to_2_contract_dense_b_finite_u8"
+            if "sparse_a" in amdgpu_kernel
+            else "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+        )
+        if metadata.get("workspace_mode") != expected_workspace:
             self._error(
-                "amdgpu-builtins captures must use workspace_mode=resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+                f"amdgpu-builtins captures must use workspace_mode={expected_workspace}"
             )
-        if metadata.get("isa_evidence") != "amdgpu_builtin_matrix_isa_gate_no_divide":
-            self._error("amdgpu-builtins captures must use isa_evidence=amdgpu_builtin_matrix_isa_gate_no_divide")
+        expected_isa = (
+            "amdgpu_builtin_sparse_a_matrix_core_isa_gate_no_divide"
+            if "sparse_a" in amdgpu_kernel
+            else "amdgpu_builtin_matrix_isa_gate_no_divide"
+        )
+        if metadata.get("isa_evidence") != expected_isa:
+            self._error(f"amdgpu-builtins captures must use isa_evidence={expected_isa}")
         bool_expected = {
             "accelerator_backend": True,
             "correctness_backend": True,

@@ -98,6 +98,7 @@ struct Args {
   bool native_to_rns_bridge = false;
   bool vector_to_rns_chain = false;
   bool vector_to_rns_chain_host_repack_control = false;
+  bool sparse_a_4_to_2 = false;
   NextOpHint next_op_hint = NextOpHint::Auto;
   bool residue_channel_fusion = false;
   std::string modulus_set = "default";

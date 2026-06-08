@@ -209,7 +209,7 @@ class ValidatorTimingEventsMixin:
         return vector_gpu_event_phases(self.data.get("semantics"), self.data.get("selected_kernel"))
 
     def _amdgpu_builtin_deep_gpu_event_phases(self) -> list[str]:
-        return amdgpu_builtin_deep_gpu_event_phases(self.data.get("selected_kernel"))
+        return amdgpu_builtin_deep_gpu_event_phases(self.data.get("selected_kernel"), self.data.get("semantics"))
 
     def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
         backend = self.data.get("backend_selected")
@@ -219,7 +219,17 @@ class ValidatorTimingEventsMixin:
         use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
         gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
-            phases = ["finite_pack_h2d", "finite_pack_kernel", "pack"]
+            selected_kernel = self.data.get("selected_kernel")
+            if backend == "amdgpu-builtins" and isinstance(selected_kernel, str) and "sparse_a" in selected_kernel:
+                phases = [
+                    "sparse_a_values_h2d",
+                    "sparse_a_indices_h2d",
+                    "finite_pack_h2d",
+                    "finite_pack_kernel",
+                    "pack",
+                ]
+            else:
+                phases = ["finite_pack_h2d", "finite_pack_kernel", "pack"]
             if backend != "amdgpu-builtins":
                 phases.extend(["rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"])
                 return phases
