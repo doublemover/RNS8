@@ -14,7 +14,23 @@ assert report["review_mode"] == "release"
 assert report["group_count"] == 1
 assert len(report["promotable_autotune_entries"]) == 1
 assert report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert report["summary"]["group_count"] == 1
+assert report["summary"]["promotable_autotune_entry_count"] == 1
+assert report["summary"]["missing_required_baseline_group_count"] == 0
+assert report["summary"]["checksum_mismatch_group_count"] == 0
+assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
+assert report["summary"]["fastest_accelerator_route_counts"] == {"ck": 1}
+assert report["summary"]["direct_hip_production_wins"] == []
+assert report["summary"]["loss_phase_counts"] == {}
+assert report["summary"]["next_work"] == []
 group = report["groups"][0]
+assert group["shape_family"] == "rectangular"
+assert group["scenario_families"] == []
+assert group["scenario_names"] == []
+assert len(group["phase_ratio_summary"]) == 3
+ck_phase_summary = next(item for item in group["phase_ratio_summary"] if item["backend"] == "ck")
+assert ck_phase_summary["slowest_phase_vs_direct_hip"] is None
+assert ck_phase_summary["phase_speedups_vs_direct_hip"]["end_to_end"] > 1.0
 assert group["missing_required_baselines"] == []
 assert group["release_review_satisfied"] is True
 assert group["source_metadata"]["target_ids"] == ["gfx1100"]

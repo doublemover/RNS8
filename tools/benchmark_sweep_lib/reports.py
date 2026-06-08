@@ -91,6 +91,38 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         f"- cache_write: `{report.get('cache_write', {}).get('status')}`",
         "",
     ]
+    summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+    if summary:
+        lines.extend(
+            [
+                "## Review Summary",
+                "",
+                f"- missing_required_baseline_groups: `{summary.get('missing_required_baseline_group_count')}`",
+                f"- checksum_mismatch_groups: `{summary.get('checksum_mismatch_group_count')}`",
+                f"- fastest_production_route_counts: `{summary.get('fastest_production_route_counts')}`",
+                f"- fastest_accelerator_route_counts: `{summary.get('fastest_accelerator_route_counts')}`",
+                f"- loss_phase_counts: `{summary.get('loss_phase_counts')}`",
+                f"- bottleneck_counts: `{summary.get('bottleneck_counts')}`",
+                "",
+                "| priority | next work | reason |",
+                "|---|---|---|",
+            ]
+        )
+        next_work = summary.get("next_work") if isinstance(summary.get("next_work"), list) else []
+        if next_work:
+            for row in next_work:
+                if not isinstance(row, dict):
+                    continue
+                lines.append(
+                    "| {priority} | {work} | {reason} |".format(
+                        priority=row.get("priority"),
+                        work=row.get("work"),
+                        reason=row.get("reason"),
+                    )
+                )
+        else:
+            lines.append("| none | none | no actionable next work reported |")
+        lines.append("")
     for group in report.get("groups", []):
         shape = group.get("shape", {})
         modulus = group.get("finite_modulus")
@@ -98,6 +130,11 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         if modulus is not None:
             title += f" mod {modulus}"
         lines.extend([f"## {title}", ""])
+        lines.append(f"- shape_family: `{group.get('shape_family') or 'unknown'}`")
+        scenario_families = group.get("scenario_families") or []
+        scenario_names = group.get("scenario_names") or []
+        lines.append(f"- scenario_families: `{','.join(scenario_families) if scenario_families else 'none'}`")
+        lines.append(f"- scenario_names: `{','.join(scenario_names) if scenario_names else 'none'}`")
         missing = group.get("missing_required_baselines") or []
         missing_targets = group.get("missing_gpu_targets") or []
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
@@ -162,6 +199,16 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
             lines.append(f"- fastest_accelerator_route: `{accelerator['backend']}/{accelerator['selected_kernel']}`")
         else:
             lines.append("- fastest_accelerator_route: `none`")
+        phase_ratio_rows = group.get("phase_ratio_summary") if isinstance(group.get("phase_ratio_summary"), list) else []
+        if phase_ratio_rows:
+            compact_phase_rows = []
+            for row in phase_ratio_rows:
+                if not isinstance(row, dict):
+                    continue
+                phase = row.get("slowest_phase_vs_direct_hip") or "none"
+                ratio = row.get("slowest_phase_candidate_over_direct")
+                compact_phase_rows.append(f"{row.get('backend')}:{phase}:{ratio}")
+            lines.append(f"- phase_ratio_summary: `{';'.join(compact_phase_rows)}`")
         lines.append("")
         lines.append(
             "| backend | kernel | target | e2e median us | bottleneck | promotable | cache | blockers | primary loss phase |"

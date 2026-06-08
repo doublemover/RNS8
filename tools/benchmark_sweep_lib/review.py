@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import hashlib
-from collections import defaultdict
+import json
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -129,6 +129,238 @@ def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: di
             "speedup_vs_vector_alu": (vector_value / value) if vector_value and value else None,
         }
     return result
+
+
+def scenario_values(items: list[dict[str, Any]], key: str) -> list[str]:
+    values = set()
+    for item in items:
+        scenario = item.get("scenario_metadata")
+        if not isinstance(scenario, dict):
+            continue
+        value = scenario.get(key)
+        if isinstance(value, str) and value:
+            values.add(value)
+    return sorted(values)
+
+
+def shape_family(m: Any, n: Any, k: Any) -> str:
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in (m, n, k)):
+        return "unknown"
+    if n == 1:
+        return "skinny_n1"
+    if n <= 16:
+        return "skinny_n_le16"
+    if m == n == k:
+        if m <= 128:
+            return "small_square"
+        if m <= 512:
+            return "medium_square"
+        if m <= 1024:
+            return "large_square"
+        return "very_large_square"
+    if m == n:
+        return "square_mn_rectangular_k"
+    if max(m, n, k) >= 2048:
+        return "large_rectangular"
+    return "rectangular"
+
+
+def phase_ratio_summary_for_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = candidate.get("phase_diagnostics")
+    phase_speedups: dict[str, Any] = {}
+    slowest_phase = None
+    slowest_ratio = 0.0
+    if isinstance(diagnostics, dict):
+        for phase in PHASES:
+            item = diagnostics.get(phase)
+            if not isinstance(item, dict):
+                continue
+            speedup = item.get("speedup_vs_direct_hip")
+            phase_speedups[phase] = speedup
+            if isinstance(speedup, (int, float)) and speedup > 0:
+                candidate_over_direct = 1.0 / float(speedup)
+                if candidate_over_direct > 1.0 and candidate_over_direct > slowest_ratio:
+                    slowest_ratio = candidate_over_direct
+                    slowest_phase = phase
+    return {
+        "backend": candidate.get("backend"),
+        "selected_kernel": candidate.get("selected_kernel"),
+        "slowest_phase_vs_direct_hip": slowest_phase,
+        "slowest_phase_candidate_over_direct": slowest_ratio if slowest_phase else None,
+        "phase_speedups_vs_direct_hip": phase_speedups,
+    }
+
+
+def compact_candidate_route(group: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    shape = group.get("shape") if isinstance(group.get("shape"), dict) else {}
+    return {
+        "semantics": group.get("semantics"),
+        "shape": shape,
+        "shape_family": group.get("shape_family"),
+        "scenario_families": group.get("scenario_families") or [],
+        "backend": candidate.get("backend"),
+        "selected_kernel": candidate.get("selected_kernel"),
+        "median_end_to_end_us": candidate.get("median_end_to_end_us"),
+        "selection_end_to_end_us": candidate.get("selection_end_to_end_us"),
+        "speedup_vs_direct_hip": candidate.get("speedup_vs_direct_hip"),
+        "primary_loss_phase_vs_direct_hip": candidate.get("primary_loss_phase_vs_direct_hip"),
+        "bottleneck": candidate.get("bottleneck"),
+        "capture": candidate.get("capture"),
+    }
+
+
+def review_next_work(
+    *,
+    missing_baseline_count: int,
+    checksum_mismatch_count: int,
+    actionable_blockers: Counter[str],
+    loss_phase_counts: Counter[str],
+    bottleneck_counts: Counter[str],
+    direct_hip_wins: int,
+    promotable_count: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if checksum_mismatch_count:
+        rows.append(
+            {
+                "priority": "P0",
+                "work": "fix_checksum_mismatches_before_performance_promotion",
+                "reason": f"{checksum_mismatch_count} review groups have candidate checksum mismatches",
+            }
+        )
+    if missing_baseline_count:
+        rows.append(
+            {
+                "priority": "P0",
+                "work": "fix_missing_required_baselines_or_reclassify_invalid_scenarios",
+                "reason": f"{missing_baseline_count} review groups are missing required baselines",
+            }
+        )
+    for blocker, work in [
+        ("reuse_not_faster_than_same_backend_setup_inclusive", "reduce_prepack_setup_or_reuse_steady_state_cost"),
+        ("reuse_not_faster_than_best_nonreuse_setup_inclusive", "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence"),
+        ("graph_not_faster_than_non_graph_setup_inclusive", "improve_graph_replay_break_even_or_keep_graph_benchmark_only"),
+        ("missing_graph_setup_inclusive_timing", "fix_graph_setup_inclusive_timing_metadata"),
+        ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
+        ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
+    ]:
+        count = actionable_blockers.get(blocker, 0)
+        if count:
+            rows.append({"priority": "P1", "work": work, "reason": f"{blocker}={count}"})
+    for phase, count in loss_phase_counts.most_common(3):
+        rows.append(
+            {
+                "priority": "P1",
+                "work": f"optimize_{phase}_phase",
+                "reason": f"{count} actionable accelerator candidates report {phase} as primary loss phase",
+            }
+        )
+    has_unresolved_work = (
+        checksum_mismatch_count
+        or missing_baseline_count
+        or actionable_blockers
+        or loss_phase_counts
+        or direct_hip_wins
+        or promotable_count == 0
+    )
+    if has_unresolved_work:
+        for bottleneck, count in bottleneck_counts.most_common(3):
+            if bottleneck == "unknown":
+                continue
+            rows.append(
+                {
+                    "priority": "P1",
+                    "work": f"address_{bottleneck}",
+                    "reason": f"{count} fastest routes or actionable candidates classify as {bottleneck}",
+                }
+            )
+    if direct_hip_wins and promotable_count == 0:
+        rows.append(
+            {
+                "priority": "P1",
+                "work": "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases",
+                "reason": f"Direct HIP is fastest production route in {direct_hip_wins} groups and no accelerator entries promoted",
+            }
+        )
+    return rows
+
+
+def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[dict[str, Any]]) -> dict[str, Any]:
+    blocker_counts: Counter[str] = Counter()
+    actionable_blockers: Counter[str] = Counter()
+    loss_phase_counts: Counter[str] = Counter()
+    loss_rows: list[dict[str, Any]] = []
+    bottleneck_counts: Counter[str] = Counter()
+    production_counts: Counter[str] = Counter()
+    accelerator_counts: Counter[str] = Counter()
+    direct_hip_winners: list[dict[str, Any]] = []
+    setup_sensitive: list[dict[str, Any]] = []
+    missing_baseline_count = 0
+    checksum_mismatch_count = 0
+
+    for group in groups:
+        if group.get("missing_required_baselines"):
+            missing_baseline_count += 1
+        if group.get("checksum_mismatches"):
+            checksum_mismatch_count += 1
+        production = group.get("fastest_production_route")
+        if isinstance(production, dict):
+            production_counts.update([str(production.get("backend"))])
+            bottleneck = production.get("bottleneck") if isinstance(production.get("bottleneck"), dict) else {}
+            bottleneck_class = str(bottleneck.get("class") or "unknown")
+            bottleneck_counts.update([bottleneck_class])
+            if production.get("backend") == "hip-direct":
+                direct_hip_winners.append(compact_candidate_route(group, production))
+        accelerator = group.get("fastest_accelerator_route")
+        if isinstance(accelerator, dict):
+            accelerator_counts.update([str(accelerator.get("backend"))])
+        for candidate in group.get("candidates", []):
+            blockers = candidate.get("promotion_blockers") if isinstance(candidate.get("promotion_blockers"), list) else []
+            blocker_counts.update(str(item) for item in blockers)
+            if candidate.get("accelerator_backend") is True and candidate.get("scenario_promotion_scope") in {None, "release_review_candidate"}:
+                actionable = [str(item) for item in blockers if str(item) not in {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}]
+                actionable_blockers.update(actionable)
+                phase = candidate.get("primary_loss_phase_vs_direct_hip")
+                if isinstance(phase, str) and phase:
+                    loss_phase_counts.update([phase])
+                    loss_rows.append(compact_candidate_route(group, candidate))
+                bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+                bottleneck_class = str(bottleneck.get("class") or "unknown")
+                bottleneck_counts.update([bottleneck_class])
+            if isinstance(candidate.get("prepacked_reuse_review"), dict) or isinstance(candidate.get("hip_graph_replay_review"), dict):
+                setup_sensitive.append(
+                    {
+                        **compact_candidate_route(group, candidate),
+                        "prepacked_reuse_review": candidate.get("prepacked_reuse_review"),
+                        "hip_graph_replay_review": candidate.get("hip_graph_replay_review"),
+                        "promotion_blockers": candidate.get("promotion_blockers") or [],
+                    }
+                )
+
+    return {
+        "group_count": len(groups),
+        "promotable_autotune_entry_count": len(promotable_entries),
+        "missing_required_baseline_group_count": missing_baseline_count,
+        "checksum_mismatch_group_count": checksum_mismatch_count,
+        "review_blocker_counts": dict(blocker_counts.most_common()),
+        "actionable_blocker_counts": dict(actionable_blockers.most_common()),
+        "loss_phase_counts": dict(loss_phase_counts.most_common()),
+        "bottleneck_counts": dict(bottleneck_counts.most_common()),
+        "fastest_production_route_counts": dict(production_counts.most_common()),
+        "fastest_accelerator_route_counts": dict(accelerator_counts.most_common()),
+        "direct_hip_production_wins": direct_hip_winners,
+        "loss_phase_examples": loss_rows[:40],
+        "setup_sensitive_candidates": setup_sensitive[:40],
+        "next_work": review_next_work(
+            missing_baseline_count=missing_baseline_count,
+            checksum_mismatch_count=checksum_mismatch_count,
+            actionable_blockers=actionable_blockers,
+            loss_phase_counts=loss_phase_counts,
+            bottleneck_counts=bottleneck_counts,
+            direct_hip_wins=len(direct_hip_winners),
+            promotable_count=len(promotable_entries),
+        ),
+    }
 
 
 def release_capture_satisfied(capture: dict[str, Any]) -> bool:
@@ -993,13 +1225,17 @@ def review_captures(
                     }
                 )
 
+        group_shape = {"m": items[0].get("m"), "n": items[0].get("n"), "k": items[0].get("k")}
         groups.append(
             {
                 "contract_key": key,
                 "semantics": semantics,
                 "finite_modulus": items[0].get("finite_modulus"),
-                "shape": {"m": items[0].get("m"), "n": items[0].get("n"), "k": items[0].get("k")},
+                "shape": group_shape,
+                "shape_family": shape_family(group_shape.get("m"), group_shape.get("n"), group_shape.get("k")),
                 "capture_count": len(items),
+                "scenario_families": scenario_values(items, "family"),
+                "scenario_names": scenario_values(items, "name"),
                 "source_metadata": group_source_metadata(items),
                 "review_mode": review_mode,
                 "release_review_satisfied": release_review_satisfied,
@@ -1054,6 +1290,7 @@ def review_captures(
                 "checksum_consistent": checksum_consistent,
                 "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
+                "phase_ratio_summary": [phase_ratio_summary_for_candidate(candidate) for candidate in candidates],
                 "fastest_promotable": fastest,
                 "fastest_production_route": fastest_production_route,
                 "fastest_accelerator_route": fastest_accelerator_route,
@@ -1072,6 +1309,7 @@ def review_captures(
         "group_count": len(groups),
         "groups": groups,
         "promotable_autotune_entries": promotable_entries,
+        "summary": build_review_summary(groups, promotable_entries),
         "cache_write": {
             "requested": False,
             "path": None,

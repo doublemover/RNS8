@@ -90,6 +90,19 @@ def main() -> int:
         _write(
             out / "rank-scenarios" / "all" / "review_report.json",
             {
+                "summary": {
+                    "next_work": [
+                        {
+                            "priority": "P1",
+                            "work": "reduce_prepack_setup_or_reuse_steady_state_cost",
+                            "reason": "reuse_not_faster_than_same_backend_setup_inclusive=1",
+                        }
+                    ],
+                    "fastest_production_route_counts": {"hip-direct": 1},
+                    "fastest_accelerator_route_counts": {"ck": 1},
+                    "loss_phase_counts": {"pack": 1},
+                    "bottleneck_counts": {"pack_bound": 1, "mixed_bound": 1},
+                },
                 "promotable_autotune_entries": [
                     {
                         "selected_backend": "ck",
@@ -103,6 +116,7 @@ def main() -> int:
                     {
                         "semantics": "bounded_i64",
                         "shape": {"m": 64, "n": 64, "k": 64},
+                        "shape_family": "small_square",
                         "contract_key": "release-candidate-contract",
                         "required_baselines": ["cpu-reference", "hip-direct", "hip-vector-alu-int64"],
                         "missing_required_baselines": ["hip-vector-alu-int64"],
@@ -116,6 +130,8 @@ def main() -> int:
                                 "median_end_to_end_us": 123,
                                 "speedup_vs_direct_hip": 0.8,
                                 "speedup_vs_vector_alu": 1.2,
+                                "primary_loss_phase_vs_direct_hip": "pack",
+                                "bottleneck": {"class": "pack_bound", "phase": "pack"},
                                 "capture": str(scenarios / "c-ck.json"),
                                 "promotion_blockers": ["not_faster_than_direct_hip"],
                                 "prepacked_reuse_review": {
@@ -205,6 +221,17 @@ def main() -> int:
         assert "MISSING_REQUIRED_BASELINE_GROUPS 1" in text
         assert "missing=hip-vector-alu-int64" in text
         assert "present=ck,ck,hip-direct" in text
+        assert "ROUTE_SUMMARY" in text
+        assert "fastest_production hip-direct 1" in text
+        assert "fastest_accelerator ck 1" in text
+        assert "DIRECT_HIP_PRODUCTION_WINS 1" in text
+        assert "shape_family=small_square" in text
+        assert "LOSS_PHASE_COUNTS" in text
+        assert "pack 1" in text
+        assert "BOTTLENECK_COUNTS" in text
+        assert "pack_bound 1" in text
+        assert "NEXT_WORK 1" in text
+        assert "work=reduce_prepack_setup_or_reuse_steady_state_cost" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized

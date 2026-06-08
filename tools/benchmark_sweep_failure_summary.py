@@ -234,8 +234,19 @@ def build_summary(
     missing_baseline_rows: list[tuple[str, dict[str, Any]]] = []
     production_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
     accelerator_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    production_route_counts: Counter[str] = Counter()
+    accelerator_route_counts: Counter[str] = Counter()
+    loss_phase_counts: Counter[str] = Counter()
+    bottleneck_counts: Counter[str] = Counter()
+    direct_hip_production_wins: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    next_work_rows: list[tuple[str, dict[str, Any]]] = []
     for path in out.rglob("review_report.json"):
         report = _load_json(path)
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        if isinstance(summary.get("next_work"), list):
+            for row in summary["next_work"]:
+                if isinstance(row, dict):
+                    next_work_rows.append((str(path.relative_to(out)), row))
         for entry in report.get("promotable_autotune_entries", []):
             if isinstance(entry, dict):
                 promotable_entries.append((str(path.relative_to(out)), entry))
@@ -245,15 +256,26 @@ def build_summary(
             production = group.get("fastest_production_route")
             if isinstance(production, dict):
                 production_routes.append((group, production))
+                production_route_counts.update([str(production.get("backend"))])
+                bottleneck = production.get("bottleneck") if isinstance(production.get("bottleneck"), dict) else {}
+                bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
+                if production.get("backend") == "hip-direct":
+                    direct_hip_production_wins.append((str(path.relative_to(out)), group, production))
             accelerator = group.get("fastest_accelerator_route")
             if isinstance(accelerator, dict):
                 accelerator_routes.append((group, accelerator))
+                accelerator_route_counts.update([str(accelerator.get("backend"))])
             for candidate in group.get("candidates", []):
                 blocker_counts.update(candidate.get("promotion_blockers", []))
                 blockers = _actionable_blockers(candidate)
                 if blockers:
                     actionable_counts.update(blockers)
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
+                    phase = candidate.get("primary_loss_phase_vs_direct_hip")
+                    if isinstance(phase, str) and phase:
+                        loss_phase_counts.update([phase])
+                    bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+                    bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
     lines.append("REVIEW_BLOCKER_COUNTS")
     for blocker, count in blocker_counts.most_common():
         lines.append(f"{blocker} {count}")
@@ -284,6 +306,54 @@ def build_summary(
         )
     if len(missing_baseline_rows) > max_detail_rows:
         lines.append(f"  ... {len(missing_baseline_rows) - max_detail_rows} more")
+    lines.append("ROUTE_SUMMARY")
+    if production_route_counts:
+        for backend, count in production_route_counts.most_common():
+            lines.append(f"fastest_production {backend} {count}")
+    else:
+        lines.append("fastest_production none 0")
+    if accelerator_route_counts:
+        for backend, count in accelerator_route_counts.most_common():
+            lines.append(f"fastest_accelerator {backend} {count}")
+    else:
+        lines.append("fastest_accelerator none 0")
+    lines.append(f"DIRECT_HIP_PRODUCTION_WINS {len(direct_hip_production_wins)}")
+    for report_path, group, candidate in direct_hip_production_wins[:max_detail_rows]:
+        lines.append(
+            "  "
+            f"review={report_path} "
+            f"semantics={group.get('semantics')} "
+            f"shape={_shape_text(group)} "
+            f"shape_family={group.get('shape_family') or 'unknown'} "
+            f"e2e={candidate.get('median_end_to_end_us')} "
+            f"bottleneck={candidate.get('bottleneck')} "
+            f"capture={_relative_capture(out, candidate.get('capture'))}"
+        )
+    if len(direct_hip_production_wins) > max_detail_rows:
+        lines.append(f"  ... {len(direct_hip_production_wins) - max_detail_rows} more")
+    lines.append("LOSS_PHASE_COUNTS")
+    if loss_phase_counts:
+        for phase, count in loss_phase_counts.most_common():
+            lines.append(f"{phase} {count}")
+    else:
+        lines.append("none 0")
+    lines.append("BOTTLENECK_COUNTS")
+    if bottleneck_counts:
+        for bottleneck, count in bottleneck_counts.most_common():
+            lines.append(f"{bottleneck} {count}")
+    else:
+        lines.append("none 0")
+    lines.append(f"NEXT_WORK {len(next_work_rows)}")
+    for report_path, row in next_work_rows[:max_detail_rows]:
+        lines.append(
+            "  "
+            f"review={report_path} "
+            f"priority={row.get('priority')} "
+            f"work={row.get('work')} "
+            f"reason={row.get('reason')}"
+        )
+    if len(next_work_rows) > max_detail_rows:
+        lines.append(f"  ... {len(next_work_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():
