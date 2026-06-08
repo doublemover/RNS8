@@ -787,5 +787,10 @@ inspection commands.
   stable VM command shapes, and no brittle shell-array one-liners in docs.
 - Required evidence: CLI tests for progress/review-only/capture-root paths and
   VM usage notes that produce the same supported summary output.
+- Local progress: `benchmark_sweep.py --review-only --capture-root ...` is
+  covered by a subprocess command-matrix test that copies schema-valid captures,
+  runs without `--bench`, and verifies review JSON/Markdown output. This is the
+  supported review-refresh path for VM captures and replaces shell-expanded
+  `--capture` arrays.
 - Constraint: diagnostics must not change benchmark semantics or promotion
   strictness.

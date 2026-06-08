@@ -235,6 +235,43 @@ with tempfile.TemporaryDirectory() as tmp_name:
     assert "direct-hip|gfx942" in isa_index
     assert "direct-hip|*" in isa_index
 
+with tempfile.TemporaryDirectory() as tmp_name:
+    root = Path(tmp_name)
+    out_root = root / "review-refresh"
+    scenario_root = out_root / "scenarios" / "release-candidates"
+    scenario_root.mkdir(parents=True)
+    for name, fixture in [
+        ("bounded-hip-direct.json", "v4_bounded_i64_adaptive_hip.json"),
+        ("bounded-ck.json", "v4_bounded_i64_ck.json"),
+    ]:
+        path = scenario_root / name
+        path.write_text((FIXTURE_DIR / fixture).read_text(encoding="utf-8"), encoding="utf-8")
+
+    review_completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().with_name("benchmark_sweep.py")),
+            "--review-only",
+            "--review-mode",
+            "release",
+            "--out-root",
+            str(out_root),
+            "--capture-root",
+            str(scenario_root),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert review_completed.returncode == 0, review_completed.stderr
+    review_output = json.loads(review_completed.stdout)
+    assert review_output["captures"] == 2
+    assert review_output["review_report"] == str(out_root / "review_report.json")
+    assert review_output["markdown_report"] == str(out_root / "review_report.md")
+    assert (out_root / "review_report.json").exists()
+    assert (out_root / "review_report.md").exists()
+
 exact_variant_args = copy.copy(exact_args)
 exact_variant_args.backends = ["cpu"]
 exact_variant_args.include_exact_wide_limb_variants = True
