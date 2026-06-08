@@ -691,10 +691,10 @@ RNS8_API rns8_status rns8_get_plan_backend_info(
 
 /*
  * Report the concrete packing and resident-layout contract for a created plan.
- * The byte counts are derived from the selected backend and plan shape. Current
- * accelerator backends use transient per-dispatch pack workspaces; no reusable
- * production prepack cache is reported until a real cache is implemented and
- * validated.
+ * The byte counts are derived from the selected backend and plan shape.
+ * rocWMMA reports a production B-side prepack cache for the narrow validated
+ * non-tiled RNS path; other accelerator backends report transient
+ * per-dispatch pack workspaces unless a public cache surface is implemented.
  */
 RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
@@ -749,10 +749,10 @@ RNS8_API rns8_status rns8_get_resident_lifetime_info(
     rns8_resident_lifetime_info* out);
 
 /*
- * Validate and report deterministic key material for a future reusable prepack
- * cache entry. This does not create a cache or report production cache
- * availability; it rejects incompatible plan, operand role, matrix shape,
- * storage layout, finite-modulus, backend, device id, or currentness before
+ * Validate and report deterministic key material for a reusable prepack cache
+ * entry. The current production cache surface is the rocWMMA B-operand RNS
+ * path; incompatible plan, operand role, matrix shape, storage layout,
+ * finite-modulus, backend, device id, or currentness are rejected before
  * returning a key.
  */
 RNS8_API rns8_status rns8_get_prepack_cache_key_info(
@@ -778,8 +778,7 @@ RNS8_API rns8_status rns8_create_prepack_cache(
 /*
  * Report deterministic metadata for a created reusable prepack cache. This is
  * a read-only inspection API: it exposes the cache key, source version, device
- * id, layout versions, and allocation byte counts without making the cache a
- * production autotune artifact.
+ * id, layout versions, production eligibility, and allocation byte counts.
  */
 RNS8_API rns8_status rns8_get_prepack_cache_info(
     const rns8_prepack_cache* cache,

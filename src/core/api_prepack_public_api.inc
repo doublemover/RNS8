@@ -39,7 +39,7 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->cache_key_valid = 1;
     out->reusable_prepack_cache_available =
         (operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan)) ? 1u : 0u;
-    out->production_prepack_cache_available = 0;
+    out->production_prepack_cache_available = out->reusable_prepack_cache_available;
     out->flags = 0;
     out->hip_device_id = matrix->hip_device_id;
     out->reserved0 = 0;
@@ -52,12 +52,18 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->cache_key_hash = cache_key_hash;
     set_text(out->matrix_layout_version, sizeof(out->matrix_layout_version), matrix_layout_version);
     set_text(out->operand_layout_version, sizeof(out->operand_layout_version), operand_layout_version);
-    set_text(out->cache_scope, sizeof(out->cache_scope), "validated_key_no_production_cache");
+    set_text(
+        out->cache_scope,
+        sizeof(out->cache_scope),
+        out->production_prepack_cache_available ? "validated_production_b_prepack_cache_key"
+                                                : "validated_key_no_production_cache");
     set_text(out->cache_key, sizeof(out->cache_key), cache_key);
     set_text(
         out->detail,
         sizeof(out->detail),
-        "Plan and operand matrix are compatible for future prepack cache keying; no production cache is available.");
+        out->production_prepack_cache_available
+            ? "Plan and B operand matrix are compatible with the production rocWMMA reusable B prepack cache."
+            : "Plan and operand matrix are compatible for prepack cache keying, but no production cache is available for this role.");
     return RNS8_SUCCESS;
   });
 }
@@ -172,7 +178,11 @@ rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_pr
     out->operand_role = cache->operand_role;
     out->cache_key_valid = cache->cache_key_hash != 0 && !cache->cache_key.empty() ? 1u : 0u;
     out->reusable_prepack_cache_available = 1;
-    out->production_prepack_cache_available = 0;
+    out->production_prepack_cache_available = cache->operand_role == RNS8_OPERAND_B &&
+                                                     cache->backend == RNS8_BACKEND_ROCWMMA &&
+                                                     cache->semantics != RNS8_WRAP_U64_MOD_2_64
+                                                 ? 1u
+                                                 : 0u;
     out->flags = 0;
     out->hip_device_id = cache->hip_device_id;
     out->reserved0 = 0;
@@ -188,12 +198,18 @@ rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_pr
     out->operand_pack_bytes = static_cast<uint64_t>(cache->operand_pack_bytes);
     set_text(out->matrix_layout_version, sizeof(out->matrix_layout_version), cache->matrix_layout_version);
     set_text(out->operand_layout_version, sizeof(out->operand_layout_version), cache->operand_layout_version);
-    set_text(out->cache_scope, sizeof(out->cache_scope), "runtime_reusable_b_prepack_cache");
+    set_text(
+        out->cache_scope,
+        sizeof(out->cache_scope),
+        out->production_prepack_cache_available ? "runtime_production_b_prepack_cache"
+                                                : "runtime_reusable_b_prepack_cache");
     set_text(out->cache_key, sizeof(out->cache_key), cache->cache_key);
     set_text(
         out->detail,
         sizeof(out->detail),
-        "Created reusable accelerator prepack cache; no production cache availability is reported.");
+        out->production_prepack_cache_available
+            ? "Created production reusable rocWMMA B prepack cache with source-version, device, layout, and plan-fingerprint key material."
+            : "Created reusable accelerator prepack cache outside the production cache eligibility surface.");
     return RNS8_SUCCESS;
   });
 }

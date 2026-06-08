@@ -41,10 +41,31 @@ for path in scenario_files:
             assert key in item["case"]
 repeated_b_items = catalog["repeated-b"]
 assert repeated_b_items
-assert {item.promotion_eligibility for item in repeated_b_items} == {"reuse_contract_evidence_only"}
-assert {item.pack_mode for item in repeated_b_items} == {"prepacked_reuse_b"}
+assert {item.promotion_eligibility for item in repeated_b_items} == {
+    "release_review_candidate",
+    "reuse_contract_evidence_only",
+}
+assert {item.pack_mode for item in repeated_b_items} == {"per_repeat_repack", "prepacked_reuse_b"}
+production_reuse_items = [
+    item
+    for item in repeated_b_items
+    if item.promotion_eligibility == "release_review_candidate" and item.pack_mode == "prepacked_reuse_b"
+]
+assert production_reuse_items
+for item in production_reuse_items:
+    assert item.backends == ("rocwmma",)
+    assert item.metadata and item.metadata["reuse_contract_role"] == "stable_b_production_candidate"
+baseline_items = [
+    item
+    for item in repeated_b_items
+    if item.promotion_eligibility == "release_review_candidate" and item.pack_mode == "per_repeat_repack"
+]
+assert baseline_items
+for item in baseline_items:
+    assert {"cpu", "hip-direct", "hip-vector-alu-int64", "rocwmma"}.issubset(set(item.backends))
 for item in repeated_b_items:
-    assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
+    if item.promotion_eligibility == "reuse_contract_evidence_only":
+        assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
 
 bounded_rns_chain_release_items = [
     item

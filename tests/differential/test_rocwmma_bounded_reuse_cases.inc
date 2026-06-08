@@ -108,8 +108,8 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   packing.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_packing_info(rocwmma_plan, &packing) == RNS8_SUCCESS);
   CHECK(packing.reusable_prepack_cache_available == 1);
-  CHECK(packing.production_prepack_cache_available == 0);
-  CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
+  CHECK(packing.production_prepack_cache_available == 1);
+  CHECK(std::string(packing.prepack_cache_scope) == "production_reusable_b_prepack_cache");
 
   rns8_plan_schedule_info schedule{};
   schedule.struct_size = sizeof(schedule);
@@ -123,7 +123,8 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   key.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_prepack_cache_key_info(rocwmma_plan, rocwmma_b, RNS8_OPERAND_B, &key) == RNS8_SUCCESS);
   CHECK(key.reusable_prepack_cache_available == 1);
-  CHECK(key.production_prepack_cache_available == 0);
+  CHECK(key.production_prepack_cache_available == 1);
+  CHECK(std::string(key.cache_scope) == "validated_production_b_prepack_cache_key");
   CHECK(key.hip_device_id == default_visible_hip_test_device());
   CHECK(key.max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   CHECK(std::string(key.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
@@ -164,7 +165,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(cache_info.operand_role == RNS8_OPERAND_B);
   CHECK(cache_info.cache_key_valid == 1);
   CHECK(cache_info.reusable_prepack_cache_available == 1);
-  CHECK(cache_info.production_prepack_cache_available == 0);
+  CHECK(cache_info.production_prepack_cache_available == 1);
   CHECK(cache_info.hip_device_id == 0);
   CHECK(cache_info.reserved0 == 0);
   CHECK(cache_info.matrix_rows == k);
@@ -179,7 +180,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(cache_info.operand_pack_bytes > 0);
   CHECK(std::string(cache_info.matrix_layout_version) == std::string(key.matrix_layout_version));
   CHECK(std::string(cache_info.operand_layout_version) == std::string(key.operand_layout_version));
-  CHECK(std::string(cache_info.cache_scope) == "runtime_reusable_b_prepack_cache");
+  CHECK(std::string(cache_info.cache_scope) == "runtime_production_b_prepack_cache");
   CHECK(std::string(cache_info.cache_key) == std::string(key.cache_key));
 
   rns8_prepack_cache_info bad_cache_info{};

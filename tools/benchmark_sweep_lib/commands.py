@@ -248,6 +248,7 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
         or item.cpu_small_shape_selector != "none"
         or item.incremental_result_cache != "none"
         or metadata.get("workflow_name") == "finite_u8_generic_modulus"
+        or metadata.get("reuse_contract_role") == "stable_b_production_candidate"
     )
     if args.backends:
         requested = list(dict.fromkeys(args.backends))

@@ -259,15 +259,20 @@ scenario_args.semantics = None
 scenario_args.case = None
 scenario_args.scenario = ["repeated-b"]
 scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
-assert len(scenario_entries) == 2
-assert [entry.scenario["name"] for entry in scenario_entries] == ["bounded-i64-512", "bounded-i64-1024"]
+assert len(scenario_entries) == 4
+assert [entry.scenario["name"] for entry in scenario_entries] == [
+    "bounded-i64-512-production-baselines",
+    "bounded-i64-1024-production-baselines",
+    "bounded-i64-512",
+    "bounded-i64-1024",
+]
 assert all(entry.scenario["family"] == "repeated-b" for entry in scenario_entries)
-assert all(entry.scenario["pack_mode"] == "prepacked_reuse_b" for entry in scenario_entries)
-assert all("--reuse-packed-b" in entry.command for entry in scenario_entries)
+assert {entry.scenario["pack_mode"] for entry in scenario_entries} == {"per_repeat_repack", "prepacked_reuse_b"}
+assert sum(1 for entry in scenario_entries if "--reuse-packed-b" in entry.command) == 2
 assert all("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in scenario_entries)
 assert all("--max-prefix" in entry.command and "9" in entry.command for entry in scenario_entries)
 assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
-assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-")
+assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-production-baselines-")
 
 reuse_contract_args = copy.copy(scenario_args)
 reuse_contract_args.backends = ["hipblaslt"]

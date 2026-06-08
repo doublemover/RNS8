@@ -151,12 +151,11 @@ inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 64> selected_kernels{{
+inline constexpr std::array<std::string_view, 63> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
-    "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1",

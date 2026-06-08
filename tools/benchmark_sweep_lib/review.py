@@ -20,9 +20,15 @@ from .capture_metadata import (
     capture_contract_key,
     capture_device,
     capture_execution_mode,
+    capture_export_variant_name,
+    capture_grouped_dispatch_strategy,
+    capture_grouped_dispatch_task_count,
+    capture_host_api_batch_size,
     capture_hip_toolchain,
     capture_pack_mode,
+    capture_reconstruction_variant_name,
     capture_timing_metadata,
+    capture_checksum_policy,
     group_source_metadata,
     median_phase,
     normalized_compiler_identity,
@@ -62,6 +68,13 @@ def residue_chain_group(items: list[dict[str, Any]]) -> bool:
 REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
 GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
 CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
+REUSE_PACK_MODES = {"prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
+GRAPH_REPLAY_EXECUTION_MODES = {
+    "hip_graph_replay_resident_rns_chain",
+    "hip_graph_replay_bounded_pack_gemm_export",
+    "hip_graph_replay_finite_u8_pack_gemm_export",
+    "hip_graph_replay_wrap64_pack_gemm_export",
+}
 
 
 def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
@@ -93,10 +106,10 @@ def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
 def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) -> list[str]:
     if not any(autotune_promotable_scope(item) for item in items):
         return []
-    if reuse_evidence_group(items):
+    if reuse_evidence_group(items) or any(capture_prepacked_reuse(item) for item in items):
         return []
     scopes = {capture_scenario_promotion_scope(item) for item in items}
-    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES:
+    if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES or any(capture_hip_graph_replay(item) for item in items):
         return []
     required = required_baselines(semantics)
     if semantics in {"bounded_i64", "bounded_u64"} and residue_chain_group(items):
@@ -133,6 +146,273 @@ def capture_checksum(capture: dict[str, Any] | None) -> Any:
     if capture.get("checksum_u64") is not None:
         return capture.get("checksum_u64")
     return capture.get("checksum")
+
+
+def capture_prepacked_reuse(capture: dict[str, Any]) -> bool:
+    return capture_pack_mode(capture) in REUSE_PACK_MODES or capture.get("reuse_packed_inputs") is True
+
+
+def capture_hip_graph_replay(capture: dict[str, Any]) -> bool:
+    return capture_execution_mode(capture) in GRAPH_REPLAY_EXECUTION_MODES
+
+
+def numeric_capture_value(capture: dict[str, Any], key: str) -> float | None:
+    value = capture.get(key)
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def graph_numeric_value(capture: dict[str, Any], key: str) -> float | None:
+    graph = capture.get("hip_graph_replay")
+    if not isinstance(graph, dict):
+        return None
+    value = graph.get(key)
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> float | None:
+    setup = 0.0
+    if capture_prepacked_reuse(capture):
+        prepack = numeric_capture_value(capture, "avg_prepack_setup_us")
+        if prepack is None:
+            prepack = numeric_capture_value(capture, "prepack_setup_us")
+        if prepack is None:
+            return None
+        setup += prepack
+    if include_graph_setup:
+        capture_us = graph_numeric_value(capture, "capture_us")
+        instantiate_us = graph_numeric_value(capture, "instantiate_us")
+        if capture_us is None or instantiate_us is None:
+            return None
+        setup += capture_us + instantiate_us
+    return setup
+
+
+def setup_inclusive_end_to_end_us(capture: dict[str, Any], *, include_graph_setup: bool = False) -> float | None:
+    median = median_phase(capture, "end_to_end")
+    repeats = normalized_positive_int(capture.get("repeats"))
+    if median is None or repeats is None:
+        return None
+    setup = setup_cost_us(capture, include_graph_setup=include_graph_setup)
+    if setup is None:
+        return None
+    return median + setup / float(repeats)
+
+
+def selection_end_to_end_us(capture: dict[str, Any]) -> float | None:
+    if capture_hip_graph_replay(capture):
+        return setup_inclusive_end_to_end_us(capture, include_graph_setup=True)
+    if capture_prepacked_reuse(capture):
+        return setup_inclusive_end_to_end_us(capture)
+    return median_phase(capture, "end_to_end")
+
+
+def setup_comparison_key(capture: dict[str, Any], *, include_pack_mode: bool) -> str:
+    tile_bounds = capture.get("tile_bounds_u64")
+    tile_hash = tile_bounds.get("hash_u64") if isinstance(tile_bounds, dict) else None
+    wrap64_contract = capture.get("semantics") == "wrap_u64_mod_2_64"
+    tile_m = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_m")
+    tile_n = "wrap64_semantic_contract" if wrap64_contract else capture.get("tile_n")
+    timing_metadata = capture_timing_metadata(capture)
+    output_policy = capture.get("output_policy")
+    requested_next_op = capture.get("requested_next_op")
+    residue_output_mode = capture.get("residue_output_mode", "host_export")
+    next_op_contract = (
+        "host_export"
+        if residue_output_mode == "host_export"
+        else requested_next_op.get("resolved")
+        if isinstance(requested_next_op, dict)
+        else None
+    )
+    parts = [
+        f"checksum_policy={capture_checksum_policy(capture)}",
+        f"host_api_batch_size={capture_host_api_batch_size(capture)}",
+        f"grouped_dispatch_task_count={capture_grouped_dispatch_task_count(capture)}",
+        f"grouped_dispatch_strategy={capture_grouped_dispatch_strategy(capture)}",
+        f"semantics={capture.get('semantics')}",
+        f"finite_modulus={capture.get('finite_modulus')}",
+        f"bound_kind={capture.get('bound_kind')}",
+        f"bound_mode={capture.get('bound_mode')}",
+        f"bound={capture.get('bound')}",
+        f"bound_source={capture_bound_source(capture)}",
+        f"m={capture.get('m')}",
+        f"n={capture.get('n')}",
+        f"k={capture.get('k')}",
+        f"output_logical_ld={capture.get('output_logical_ld', capture.get('n'))}",
+        f"output_ld_padding={capture.get('output_ld_padding', 0)}",
+        f"prefix={capture.get('prefix')}",
+        f"layout={capture.get('layout')}",
+        f"tile_m={tile_m}",
+        f"tile_n={tile_n}",
+        f"k_block={capture.get('k_block_size')}",
+        f"exact_wide_limb_count={capture.get('exact_wide_limb_count')}",
+        f"residue_chain_length={capture.get('residue_chain_length', 1)}",
+        f"residue_output_mode={residue_output_mode}",
+        f"seed={capture.get('seed')}",
+        f"input_distribution={capture.get('input_distribution')}",
+        f"next_op_contract={next_op_contract}",
+        f"output_policy={output_policy.get('destination_layout') if isinstance(output_policy, dict) else None}",
+        f"status_handling={output_policy.get('status_handling') if isinstance(output_policy, dict) else None}",
+        f"export_variant={capture_export_variant_name(capture)}",
+        f"reconstruction_variant={capture_reconstruction_variant_name(capture)}",
+        f"fusion_mode={timing_metadata.get('fusion_mode') if isinstance(timing_metadata, dict) else None}",
+        f"residue_group_width={timing_metadata.get('residue_group_width') if isinstance(timing_metadata, dict) else None}",
+        f"tile_hash={tile_hash}",
+    ]
+    if include_pack_mode:
+        parts.extend(
+            [
+                f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
+                f"pack_mode={capture_pack_mode(capture)}",
+            ]
+        )
+    return ";".join(str(part) for part in parts)
+
+
+def fastest_capture(captures: list[dict[str, Any]], *, include_graph_setup: bool = False) -> dict[str, Any] | None:
+    timed = [
+        capture
+        for capture in captures
+        if setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup) is not None
+    ]
+    if not timed:
+        return None
+    return min(
+        timed,
+        key=lambda capture: setup_inclusive_end_to_end_us(capture, include_graph_setup=include_graph_setup)
+        or float("inf"),
+    )
+
+
+def graph_status_available(capture: dict[str, Any]) -> bool:
+    graph = capture.get("hip_graph_replay")
+    return (
+        isinstance(graph, dict)
+        and graph.get("status") == "available"
+        and graph.get("capture_status") == "replayed"
+    )
+
+
+def build_setup_baseline_indexes(
+    captures: list[dict[str, Any]],
+) -> tuple[
+    dict[tuple[str, str], list[dict[str, Any]]],
+    dict[str, list[dict[str, Any]]],
+    dict[tuple[str, str], list[dict[str, Any]]],
+]:
+    nonreuse_by_key_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    nonreuse_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    graph_baseline_by_key_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for capture in captures:
+        family = backend_family_id(backend_id(capture))
+        if not correctness_anchor_reference_capture(capture) and not capture_hip_graph_replay(capture):
+            graph_key = setup_comparison_key(capture, include_pack_mode=True)
+            graph_baseline_by_key_backend[(graph_key, family)].append(capture)
+        if capture_prepacked_reuse(capture) or capture_hip_graph_replay(capture):
+            continue
+        if correctness_anchor_reference_capture(capture):
+            continue
+        key = setup_comparison_key(capture, include_pack_mode=False)
+        nonreuse_by_key_backend[(key, family)].append(capture)
+        if family != "cpu-reference":
+            nonreuse_by_key[key].append(capture)
+    return nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend
+
+
+def checksum_match_blockers(
+    candidate: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    *,
+    label: str,
+) -> list[str]:
+    if baseline is None:
+        return []
+    candidate_checksum = capture_checksum(candidate)
+    baseline_checksum = capture_checksum(baseline)
+    if candidate_checksum is None or baseline_checksum is None:
+        return []
+    if candidate_checksum != baseline_checksum:
+        return [f"checksum_mismatch_vs_{label}"]
+    return []
+
+
+def prepacked_reuse_review(
+    capture: dict[str, Any],
+    same_backend_baseline: dict[str, Any] | None,
+    best_nonreuse_baseline: dict[str, Any] | None,
+) -> dict[str, Any]:
+    candidate_setup = setup_inclusive_end_to_end_us(capture)
+    same_backend_time = median_phase(same_backend_baseline, "end_to_end") if same_backend_baseline else None
+    best_nonreuse_time = median_phase(best_nonreuse_baseline, "end_to_end") if best_nonreuse_baseline else None
+    blockers: list[str] = []
+    if same_backend_baseline is None:
+        blockers.append("missing_same_backend_nonreuse_baseline")
+    elif not release_capture_satisfied(same_backend_baseline):
+        blockers.append("same_backend_nonreuse_not_release_review")
+    if best_nonreuse_baseline is None:
+        blockers.append("missing_best_nonreuse_contract_baseline")
+    elif not release_capture_satisfied(best_nonreuse_baseline):
+        blockers.append("best_nonreuse_not_release_review")
+    if candidate_setup is None:
+        blockers.append("missing_prepack_setup_inclusive_timing")
+    if same_backend_time is not None and candidate_setup is not None and candidate_setup >= same_backend_time:
+        blockers.append("reuse_not_faster_than_same_backend_setup_inclusive")
+    if best_nonreuse_time is not None and candidate_setup is not None and candidate_setup >= best_nonreuse_time:
+        blockers.append("reuse_not_faster_than_best_nonreuse_setup_inclusive")
+    blockers.extend(checksum_match_blockers(capture, same_backend_baseline, label="same_backend_nonreuse"))
+    blockers.extend(checksum_match_blockers(capture, best_nonreuse_baseline, label="best_nonreuse"))
+    return {
+        "setup_inclusive_median_end_to_end_us": candidate_setup,
+        "prepack_setup_us": setup_cost_us(capture, include_graph_setup=False),
+        "same_backend_nonreuse_backend": backend_family_id(backend_id(same_backend_baseline)) if same_backend_baseline else None,
+        "same_backend_nonreuse_capture": same_backend_baseline.get("_path") if same_backend_baseline else None,
+        "same_backend_nonreuse_median_end_to_end_us": same_backend_time,
+        "best_nonreuse_backend": backend_family_id(backend_id(best_nonreuse_baseline)) if best_nonreuse_baseline else None,
+        "best_nonreuse_capture": best_nonreuse_baseline.get("_path") if best_nonreuse_baseline else None,
+        "best_nonreuse_median_end_to_end_us": best_nonreuse_time,
+        "speedup_vs_same_backend_setup_inclusive": (
+            same_backend_time / candidate_setup
+            if same_backend_time is not None and candidate_setup not in (None, 0.0)
+            else None
+        ),
+        "speedup_vs_best_nonreuse_setup_inclusive": (
+            best_nonreuse_time / candidate_setup
+            if best_nonreuse_time is not None and candidate_setup not in (None, 0.0)
+            else None
+        ),
+        "blockers": sorted(set(blockers)),
+    }
+
+
+def hip_graph_replay_review(
+    capture: dict[str, Any],
+    baseline: dict[str, Any] | None,
+) -> dict[str, Any]:
+    graph_setup = setup_inclusive_end_to_end_us(capture, include_graph_setup=True)
+    baseline_setup = setup_inclusive_end_to_end_us(baseline) if baseline else None
+    blockers: list[str] = []
+    if baseline is None:
+        blockers.append("missing_same_contract_non_graph_baseline")
+    elif not release_capture_satisfied(baseline):
+        blockers.append("non_graph_baseline_not_release_review")
+    if graph_setup is None or baseline_setup is None:
+        blockers.append("missing_graph_setup_inclusive_timing")
+    if not graph_status_available(capture):
+        blockers.append("graph_replay_not_available")
+    if graph_setup is not None and baseline_setup is not None and graph_setup >= baseline_setup:
+        blockers.append("graph_not_faster_than_non_graph_setup_inclusive")
+    blockers.extend(checksum_match_blockers(capture, baseline, label="non_graph_baseline"))
+    return {
+        "setup_inclusive_median_end_to_end_us": graph_setup,
+        "graph_capture_us": graph_numeric_value(capture, "capture_us"),
+        "graph_instantiate_us": graph_numeric_value(capture, "instantiate_us"),
+        "baseline_backend": backend_family_id(backend_id(baseline)) if baseline else None,
+        "baseline_capture": baseline.get("_path") if baseline else None,
+        "baseline_setup_inclusive_median_end_to_end_us": baseline_setup,
+        "speedup_vs_non_graph_setup_inclusive": (
+            baseline_setup / graph_setup if baseline_setup is not None and graph_setup not in (None, 0.0) else None
+        ),
+        "blockers": sorted(set(blockers)),
+    }
 
 
 def reference_checksum_for_group(by_backend: dict[str, dict[str, Any]]) -> tuple[str | None, Any]:
@@ -393,7 +673,7 @@ def review_route_candidate(candidate: dict[str, Any]) -> bool:
         scope in {None, "release_review_candidate"}
         and candidate.get("release_review_capture") is True
         and candidate.get("checksum_matches_reference") is True
-        and candidate.get("median_end_to_end_us") is not None
+        and candidate.get("selection_end_to_end_us") is not None
         and not (blockers & fatal)
     )
 
@@ -407,7 +687,7 @@ def fastest_route(candidates: list[dict[str, Any]], *, accelerator_only: bool) -
     ]
     if not route_candidates:
         return None
-    return min(route_candidates, key=lambda item: item["median_end_to_end_us"])
+    return min(route_candidates, key=lambda item: item["selection_end_to_end_us"])
 
 
 def review_captures(
@@ -418,6 +698,7 @@ def review_captures(
 ) -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
+    nonreuse_by_key_backend, nonreuse_by_key, graph_baseline_by_key_backend = build_setup_baseline_indexes(captures)
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for capture in captures:
         grouped[capture_contract_key(capture)].append(capture)
@@ -554,22 +835,45 @@ def review_captures(
         candidates = []
         for item in items:
             backend = backend_id(item)
+            backend_family = backend_family_id(backend)
             metadata = capture_backend_metadata(item)
             accelerator = metadata.get("accelerator_backend") is True
             internal_candidate = backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND
             execution_mode = capture_execution_mode(item)
             oneshot_capture = execution_mode == "public_oneshot_transient_native_inputs"
             host_api_batch_capture = execution_mode == "benchmark_host_api_batch"
-            hip_graph_replay_capture = execution_mode == "hip_graph_replay_resident_rns_chain"
+            hip_graph_replay_capture = capture_hip_graph_replay(item)
             end_to_end = median_phase(item, "end_to_end")
+            selection_e2e = selection_end_to_end_us(item)
             timed_cpu_capture = (
                 cpu_capture
                 if cpu_capture is not None and not correctness_anchor_reference_capture(cpu_capture)
                 else None
             )
+            setup_key = setup_comparison_key(item, include_pack_mode=False)
+            graph_key = setup_comparison_key(item, include_pack_mode=True)
+            same_backend_nonreuse = fastest_capture(nonreuse_by_key_backend.get((setup_key, backend_family), []))
+            best_nonreuse = fastest_capture(nonreuse_by_key.get(setup_key, []))
+            graph_non_graph_baseline = fastest_capture(
+                graph_baseline_by_key_backend.get((graph_key, backend_family), []),
+            )
+            direct_baseline = direct_capture or fastest_capture(nonreuse_by_key_backend.get((setup_key, "hip-direct"), []))
+            vector_baseline = vector_capture or fastest_capture(
+                nonreuse_by_key_backend.get((setup_key, "hip-vector-alu-int64"), [])
+            )
             cpu = median_phase(timed_cpu_capture, "end_to_end") if timed_cpu_capture else None
-            direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
-            vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
+            direct = median_phase(direct_baseline, "end_to_end") if direct_baseline else None
+            vector = median_phase(vector_baseline, "end_to_end") if vector_baseline else None
+            prepack_review = (
+                prepacked_reuse_review(item, same_backend_nonreuse, best_nonreuse)
+                if capture_prepacked_reuse(item)
+                else None
+            )
+            graph_review = (
+                hip_graph_replay_review(item, graph_non_graph_baseline)
+                if hip_graph_replay_capture
+                else None
+            )
             if autotune_promotable_scope(item):
                 blockers = promotion_blockers(
                     missing=missing,
@@ -596,16 +900,20 @@ def review_captures(
                     duplicate_backends=duplicate_backends,
                     accelerator=accelerator,
                     internal_candidate=internal_candidate,
-                    prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
+                    prepacked_reuse=False,
                     oneshot_capture=oneshot_capture,
                     host_api_batch_capture=host_api_batch_capture,
-                    hip_graph_replay_capture=hip_graph_replay_capture,
+                    hip_graph_replay_capture=False,
                     gpu_events_available=capture_gpu_events_available(item),
-                    end_to_end=end_to_end,
+                    end_to_end=selection_e2e,
                     cpu=cpu,
                     direct=direct,
                     vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
                 )
+                if prepack_review is not None:
+                    blockers.extend(prepack_review["blockers"])
+                if graph_review is not None:
+                    blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
             item_checksum = capture_checksum(item)
@@ -634,14 +942,18 @@ def review_captures(
                     and item_checksum == checksum_reference
                 ),
                 "median_end_to_end_us": end_to_end,
-                "phase_diagnostics": phase_ratios(item, direct_capture, vector_capture),
-                "speedup_vs_direct_hip": (direct / end_to_end) if direct and end_to_end else None,
-                "speedup_vs_vector_alu": (vector / end_to_end) if vector and end_to_end else None,
+                "selection_end_to_end_us": selection_e2e,
+                "setup_comparison_key": setup_key,
+                "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
+                "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
+                "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
+                "prepacked_reuse_review": prepack_review,
+                "hip_graph_replay_review": graph_review,
                 "matrix_instruction_histogram": matrix_instruction_histogram(item, isa_index),
                 "promotable": promotable,
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
-                "primary_loss_phase_vs_direct_hip": None if promotable else primary_loss_phase(item, direct_capture),
+                "primary_loss_phase_vs_direct_hip": None if promotable else primary_loss_phase(item, direct_baseline),
                 "bottleneck": bottleneck_classification(item),
                 "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
             }
@@ -653,7 +965,7 @@ def review_captures(
         fastest = None
         promotable_candidates = [item for item in candidates if item["promotable"]]
         if promotable_candidates:
-            fastest = min(promotable_candidates, key=lambda item: item["median_end_to_end_us"])
+            fastest = min(promotable_candidates, key=lambda item: item["selection_end_to_end_us"])
             for item in candidates:
                 if item is not fastest and item["promotable"]:
                     item["promotable"] = False
@@ -670,6 +982,7 @@ def review_captures(
                         "selected_backend": fastest["backend"],
                         "selected_kernel": fastest["selected_kernel"],
                         "median_end_to_end_us": fastest["median_end_to_end_us"],
+                        "selection_end_to_end_us": fastest["selection_end_to_end_us"],
                         "target_id": candidate_source_metadata(source).get("target_id"),
                         "hip_sdk_or_rocm_version": candidate_source_metadata(source).get("hip_sdk_or_rocm_version"),
                         "accelerator_library": metadata.get("accelerator_library"),
@@ -846,6 +1159,12 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "export_cache_visibility": export_variant.get("cache_visibility"),
         "export_stale_entry_reason": export_variant.get("stale_entry_reason"),
         "cache_scope": "runtime_exact_autotune" if default_export_contract else "selector_review_only_non_default",
+        "pack_mode": capture_pack_mode(capture),
+        "reuse_packed_inputs": capture_prepacked_reuse(capture),
+        "prepack_reuse_operands": capture.get("prepack_reuse_operands"),
+        "prepack_reuse_strategy": capture.get("prepack_reuse_strategy"),
+        "prepack_setup_us": numeric_capture_value(capture, "avg_prepack_setup_us"),
+        "setup_inclusive_median_end_to_end_us": selection_end_to_end_us(capture),
         "measured_medians_us": {
             "pack": median("pack"),
             "rns_gemm": median("rns_gemm"),

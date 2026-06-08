@@ -3,6 +3,142 @@
   "family": "repeated-b",
   "items": [
     {
+      "name": "bounded-i64-512-production-baselines",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same mathematical workload without prepacked-B reuse",
+      "output_domain": "host_export",
+      "rationale": "release baselines for setup-inclusive repeated-B production promotion",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "per_repeat_repack",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "same_contract_nonreuse_baseline",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
+    },
+    {
+      "name": "bounded-i64-512-production-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same B operand reused through the public rocWMMA B prepack cache",
+      "output_domain": "host_export",
+      "rationale": "setup-inclusive production candidate for the explicit B-side prepack cache",
+      "backends": [
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "stable_b_production_candidate",
+        "reuse_contract": "bounded_i64_rhs_rocwmma_prepack_cache_before_warmups",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-production-baselines",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same mathematical workload without prepacked-B reuse",
+      "output_domain": "host_export",
+      "rationale": "larger release baselines for setup-inclusive repeated-B production promotion",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "per_repeat_repack",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "same_contract_nonreuse_baseline",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-production-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "bounded-i64-1024",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "same B operand reused through the public rocWMMA B prepack cache",
+      "output_domain": "host_export",
+      "rationale": "larger setup-inclusive production candidate for the explicit B-side prepack cache",
+      "backends": [
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "pack_mode": "prepacked_reuse_b",
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "stable_b_production_candidate",
+        "reuse_contract": "bounded_i64_rhs_rocwmma_prepack_cache_before_warmups",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
+    },
+    {
       "name": "bounded-i64-512",
       "semantics": "bounded-i64",
       "case": {

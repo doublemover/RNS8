@@ -73,8 +73,10 @@ ISA evidence, and autotune key.
 accelerator pack workspace bytes. It also reports the selected input/output
 domain, whether a successful GEMM leaves host or device output current, and
 next-operation flags for final export, RNS continuation, native continuation,
-native-to-RNS conversion eligibility, and reusable B prepack availability. No
-current backend reports a reusable production prepack cache.
+native-to-RNS conversion eligibility, and reusable B prepack availability.
+rocWMMA reports production B-side prepack-cache availability only for the
+narrow validated non-tiled RNS path; other accelerator backends still report
+transient per-dispatch packing or resident direct input layouts.
 
 `rns8_get_grouped_dispatch_contract_info` reports the current Direct-HIP
 same-shape grouped descriptor contract for a created plan: task count,

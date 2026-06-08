@@ -173,6 +173,110 @@ assert "not_release_review" not in anchor_ck_candidate["promotion_blockers"]
 assert "missing_warmup_count" not in anchor_ck_candidate["promotion_blockers"]
 assert "repeat_count_mismatch" not in anchor_ck_candidate["promotion_blockers"]
 assert "not_faster_than_cpu_reference" not in anchor_ck_candidate["promotion_blockers"]
+
+reuse_baseline_metadata = {
+    "family": "repeated-b",
+    "name": "bounded-i64-512-production-baselines",
+    "promotion_eligibility": "release_review_candidate",
+    "output_domain": "host_export",
+    "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "same_contract_nonreuse_baseline",
+    },
+}
+reuse_candidate_metadata = copy.deepcopy(reuse_baseline_metadata)
+reuse_candidate_metadata["name"] = "bounded-i64-512-production-reuse-b"
+reuse_candidate_metadata["metadata"]["reuse_contract_role"] = "stable_b_production_candidate"
+
+reuse_cpu = bounded_capture("cpu-reference", 5000)
+reuse_direct = bounded_capture("hip-direct", 800)
+reuse_vector = bounded_capture("hip-vector-alu-int64", 900)
+reuse_rocwmma_baseline = bounded_capture("rocwmma", 900)
+for item in [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline]:
+    item["scenario_metadata"] = copy.deepcopy(reuse_baseline_metadata)
+reuse_rocwmma_candidate = copy.deepcopy(reuse_rocwmma_baseline)
+reuse_rocwmma_candidate["_path"] = "rocwmma-reuse-b-production.json"
+reuse_rocwmma_candidate["scenario_metadata"] = copy.deepcopy(reuse_candidate_metadata)
+reuse_rocwmma_candidate["reuse_packed_inputs"] = True
+reuse_rocwmma_candidate["pack_mode"] = "prepacked_reuse_b"
+reuse_rocwmma_candidate["prepack_reuse_operands"] = ["B"]
+reuse_rocwmma_candidate["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+reuse_rocwmma_candidate["prepack_setup_us"] = 90
+reuse_rocwmma_candidate["avg_prepack_setup_us"] = 90.0
+reuse_rocwmma_candidate["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
+reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_operands"] = ["B"]
+reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
+set_phase(reuse_rocwmma_candidate, 600)
+reuse_report = benchmark_sweep.review_captures(
+    [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, reuse_rocwmma_candidate],
+    review_mode="release",
+)
+reuse_candidate_group = next(
+    group
+    for group in reuse_report["groups"]
+    if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
+)
+reuse_candidate = reuse_candidate_group["candidates"][0]
+assert reuse_candidate["promotable"] is True
+assert reuse_candidate["selection_end_to_end_us"] == 610.0
+assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"] == 900.0
+assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
+assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
+assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
+assert reuse_report["promotable_autotune_entries"][0]["selected_backend"] == "rocwmma"
+assert reuse_report["promotable_autotune_entries"][0]["selection_end_to_end_us"] == 610.0
+
+slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
+slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
+slow_reuse_candidate["prepack_setup_us"] = 3600
+slow_reuse_candidate["avg_prepack_setup_us"] = 3600.0
+slow_reuse_report = benchmark_sweep.review_captures(
+    [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, slow_reuse_candidate],
+    review_mode="release",
+)
+slow_group = next(
+    group
+    for group in slow_reuse_report["groups"]
+    if any(candidate["capture"] == "rocwmma-reuse-b-slow.json" for candidate in group["candidates"])
+)
+slow_candidate = slow_group["candidates"][0]
+assert slow_candidate["promotable"] is False
+assert "reuse_not_faster_than_best_nonreuse_setup_inclusive" in slow_candidate["promotion_blockers"]
+
+graph_baseline = mark_reused_pack(bounded_capture("hip-direct", 1000))
+graph_baseline["scenario_metadata"] = {
+    "family": "hip-graph-replay",
+    "name": "bounded-i64-full-pack-export-512-baseline",
+    "promotion_eligibility": "release_review_candidate",
+    "output_domain": "host_export",
+    "metadata": {"workflow_name": "hip_graph_replay", "graph_role": "same_contract_non_graph_baseline"},
+}
+graph_candidate = copy.deepcopy(graph_baseline)
+graph_candidate["_path"] = "hip-direct-graph.json"
+graph_candidate["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+graph_candidate["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_bounded_pack_gemm_export"
+graph_candidate["scenario_metadata"] = copy.deepcopy(graph_baseline["scenario_metadata"])
+graph_candidate["scenario_metadata"]["name"] = "bounded-i64-full-pack-export-512-graph"
+graph_candidate["scenario_metadata"]["metadata"]["graph_role"] = "graph_replay_candidate"
+graph_candidate["hip_graph_replay"] = {
+    "requested": True,
+    "used": True,
+    "status": "available",
+    "capture_status": "replayed",
+    "capture_us": 10.0,
+    "instantiate_us": 8.0,
+}
+set_phase(graph_candidate, 900)
+graph_report = benchmark_sweep.review_captures([graph_baseline, graph_candidate], review_mode="release")
+graph_group = next(
+    group
+    for group in graph_report["groups"]
+    if any(candidate["capture"] == "hip-direct-graph.json" for candidate in group["candidates"])
+)
+graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
+assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
+assert graph_review["setup_inclusive_median_end_to_end_us"] == 900.0 + 29.0 / 9.0
+assert graph_review["blockers"] == []
 assert group["missing_hip_driver_versions"] == []
 assert group["hip_driver_version_complete"] is True
 assert group["hip_driver_version_compatible"] is True
@@ -587,7 +691,9 @@ assert reuse_report["promotable_autotune_entries"] == []
 reuse_blockers = {
     candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_group["candidates"]
 }
-assert "prepacked_reuse_not_autotune_promotable" in reuse_blockers["ck"]
+assert "missing_same_backend_nonreuse_baseline" in reuse_blockers["ck"]
+assert "missing_best_nonreuse_contract_baseline" in reuse_blockers["ck"]
+assert "prepacked_reuse_not_autotune_promotable" not in reuse_blockers["ck"]
 
 reuse_a_report = benchmark_sweep.review_captures(
     [mark_reused_a_pack(ck), mark_reused_a_pack(direct), mark_reused_a_pack(cpu)],
@@ -600,7 +706,9 @@ assert reuse_a_group["source_metadata"]["prepack_reuse_operands"] == ["A"]
 reuse_a_blockers = {
     candidate["backend"]: candidate["promotion_blockers"] for candidate in reuse_a_group["candidates"]
 }
-assert "prepacked_reuse_not_autotune_promotable" in reuse_a_blockers["ck"]
+assert "missing_same_backend_nonreuse_baseline" in reuse_a_blockers["ck"]
+assert "missing_best_nonreuse_contract_baseline" in reuse_a_blockers["ck"]
+assert "prepacked_reuse_not_autotune_promotable" not in reuse_a_blockers["ck"]
 
 reuse_evidence_direct = mark_reused_a_pack(direct)
 reuse_evidence_direct["scenario_metadata"] = {

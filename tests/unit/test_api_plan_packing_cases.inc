@@ -375,8 +375,8 @@ TEST_CASE("rocWMMA plan packing info reports transient workspace and reusable B 
   CHECK(std::string(packing.a_layout_version) == "rocwmma_a_rowmajor_i8_m16_kblock65536_v1");
   CHECK(std::string(packing.b_layout_version) == "rns_i8_tile_swizzled_b_v1");
   CHECK(packing.reusable_prepack_cache_available == 1);
-  CHECK(std::string(packing.prepack_cache_scope) == "reusable_b_prepack_cache");
-  CHECK(packing.production_prepack_cache_available == 0);
+  CHECK(std::string(packing.prepack_cache_scope) == "production_reusable_b_prepack_cache");
+  CHECK(packing.production_prepack_cache_available == 1);
 
   rns8_destroy_plan(plan);
   rns8_destroy_context(ctx);

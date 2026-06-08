@@ -469,11 +469,12 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
       if (rocwmma_b_prepack_cache_supported(*plan)) {
         out->reusable_prepack_cache_available = 1;
-        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "reusable_b_prepack_cache");
+        out->production_prepack_cache_available = 1;
+        set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "production_reusable_b_prepack_cache");
         set_text(
             out->detail,
             sizeof(out->detail),
-            "rocWMMA supports a reusable B prepack cache for this non-tiled RNS plan; A remains transient per dispatch and no production cache is reported.");
+            "rocWMMA supports the production B-side prepack cache for this non-tiled RNS plan; A remains transient per dispatch and cache keys reject stale source versions, target, shape, prefix, and layout mismatches.");
       } else {
         set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
         set_text(
