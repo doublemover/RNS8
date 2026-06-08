@@ -620,6 +620,17 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error(f"hip_graph_replay.capture_status must be one of {sorted(GRAPH_REPLAY_STATUSES)}")
             if graph.get("requested") is True and graph.get("promotion_eligible") is not False:
                 self._error("hip_graph_replay requested captures must set promotion_eligible=false")
+            if graph.get("requested") is True:
+                metadata = self.data.get("backend_metadata")
+                expected_plan_identity = metadata.get("autotune_key") if isinstance(metadata, dict) else None
+                if isinstance(expected_plan_identity, str) and graph.get("plan_identity") != expected_plan_identity:
+                    self._error("hip_graph_replay.plan_identity must match backend_metadata.autotune_key")
+                expected_descriptor = (
+                    f"fixed_plan_workspace_descriptor:m={self.data.get('m')};"
+                    f"n={self.data.get('n')};k={self.data.get('k')}"
+                )
+                if graph.get("descriptor_identity") != expected_descriptor:
+                    self._error("hip_graph_replay.descriptor_identity must match capture m/n/k")
 
     adaptive = self.data.get("adaptive_grouped_scheduler")
     if adaptive is not None:

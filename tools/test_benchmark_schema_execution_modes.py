@@ -117,6 +117,22 @@ def main() -> int:
     bad_graph_launches["hip_graph_replay"]["total_graph_launches"] += 1
     expect_invalid(bad_graph_launches, "hip_graph_replay.total_graph_launches must equal warmups + repeats")
 
+    bad_graph_plan_identity = copy.deepcopy(graph)
+    bad_graph_plan_identity["hip_graph_replay"]["plan_identity"] = "stale-plan-identity"
+    expect_invalid(
+        bad_graph_plan_identity,
+        "hip_graph_replay.plan_identity must match backend_metadata.autotune_key",
+    )
+
+    bad_graph_descriptor_identity = copy.deepcopy(graph)
+    bad_graph_descriptor_identity["hip_graph_replay"]["descriptor_identity"] = (
+        "fixed_plan_workspace_descriptor:m=64;n=65;k=64"
+    )
+    expect_invalid(
+        bad_graph_descriptor_identity,
+        "hip_graph_replay.descriptor_identity must match capture m/n/k",
+    )
+
     full_graph = as_hip_graph_full_bounded_capture(direct_hip_base)
     validate_capture(full_graph)
 

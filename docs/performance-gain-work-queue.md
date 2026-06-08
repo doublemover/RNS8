@@ -253,7 +253,10 @@ inspection commands.
   summaries now emit graph total setup, baseline total setup, setup overhead,
   steady-state delta, declared repeats, break-even repeat count, and computed
   declared-repeat break-even satisfaction even when older review JSON omitted
-  the precomputed boolean.
+  the precomputed boolean. Benchmark schema validation now binds graph replay
+  captures to the selected plan autotune key and fixed m/n/k descriptor
+  identity, so stale graph captures cannot be reused across shape or plan
+  changes.
 - Required evidence: `hip-graph-replay` release captures with checksum parity,
   graph availability metadata, setup-inclusive comparison, and no missing
   non-graph baseline.

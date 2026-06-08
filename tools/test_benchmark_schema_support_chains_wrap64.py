@@ -906,7 +906,7 @@ def as_hip_graph_full_wrap64_capture(capture: dict) -> dict:
         "used": True,
         "status": "available",
         "scope": "direct_hip_wrap64_pack_gemm_export",
-        "descriptor_identity": "fixed_wrap64_byte_limb_descriptor:m=4;n=4;k=8",
+        "descriptor_identity": "fixed_plan_workspace_descriptor:m=4;n=4;k=8",
         "plan_identity": graph["backend_metadata"]["autotune_key"],
         "setup_scope": "benchmark_hip_graph_replay_wrap64_pack_gemm_export",
         "capture_status": "replayed",
