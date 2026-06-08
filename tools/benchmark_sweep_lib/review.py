@@ -642,8 +642,16 @@ def prepacked_reuse_review(
     best_nonreuse_baseline: dict[str, Any] | None,
 ) -> dict[str, Any]:
     candidate_setup = setup_inclusive_end_to_end_us(capture)
+    candidate_median = median_phase(capture, "end_to_end")
     same_backend_time = median_phase(same_backend_baseline, "end_to_end") if same_backend_baseline else None
     best_nonreuse_time = median_phase(best_nonreuse_baseline, "end_to_end") if best_nonreuse_baseline else None
+    prepack_setup = setup_cost_us(capture, include_graph_setup=False)
+    declared_repeats = normalized_positive_int(capture.get("repeats"))
+    setup_amortized = (
+        prepack_setup / float(declared_repeats)
+        if prepack_setup is not None and declared_repeats is not None
+        else None
+    )
     blockers: list[str] = []
     if same_backend_baseline is None:
         blockers.append("missing_same_backend_nonreuse_baseline")
@@ -663,7 +671,15 @@ def prepacked_reuse_review(
     blockers.extend(checksum_match_blockers(capture, best_nonreuse_baseline, label="best_nonreuse"))
     return {
         "setup_inclusive_median_end_to_end_us": candidate_setup,
-        "prepack_setup_us": setup_cost_us(capture, include_graph_setup=False),
+        "candidate_median_end_to_end_us": candidate_median,
+        "prepack_setup_us": prepack_setup,
+        "declared_repeat_count": declared_repeats,
+        "setup_amortized_us": setup_amortized,
+        "setup_share_of_setup_inclusive": (
+            setup_amortized / candidate_setup
+            if setup_amortized is not None and candidate_setup not in (None, 0.0)
+            else None
+        ),
         "same_backend_nonreuse_backend": backend_family_id(backend_id(same_backend_baseline)) if same_backend_baseline else None,
         "same_backend_nonreuse_capture": same_backend_baseline.get("_path") if same_backend_baseline else None,
         "same_backend_nonreuse_median_end_to_end_us": same_backend_time,
@@ -716,13 +732,30 @@ def hip_graph_replay_review(
     blockers.extend(checksum_match_blockers(capture, baseline, label="non_graph_baseline"))
     return {
         "setup_inclusive_median_end_to_end_us": graph_setup,
+        "candidate_median_end_to_end_us": graph_median,
         "graph_capture_us": graph_numeric_value(capture, "capture_us"),
         "graph_instantiate_us": graph_numeric_value(capture, "instantiate_us"),
         "graph_total_setup_us": graph_total_setup,
+        "graph_setup_amortized_us": (
+            graph_total_setup / float(declared_repeats)
+            if graph_total_setup is not None and declared_repeats is not None
+            else None
+        ),
+        "graph_setup_share_of_setup_inclusive": (
+            (graph_total_setup / float(declared_repeats)) / graph_setup
+            if graph_total_setup is not None and declared_repeats is not None and graph_setup not in (None, 0.0)
+            else None
+        ),
         "baseline_backend": backend_family_id(backend_id(baseline)) if baseline else None,
         "baseline_capture": baseline.get("_path") if baseline else None,
+        "baseline_median_end_to_end_us": baseline_median,
         "baseline_total_setup_us": baseline_total_setup,
         "baseline_setup_inclusive_median_end_to_end_us": baseline_setup,
+        "baseline_setup_share_of_setup_inclusive": (
+            (baseline_total_setup / float(declared_repeats)) / baseline_setup
+            if baseline_total_setup is not None and declared_repeats is not None and baseline_setup not in (None, 0.0)
+            else None
+        ),
         "steady_state_delta_us": (
             baseline_median - graph_median if baseline_median is not None and graph_median is not None else None
         ),

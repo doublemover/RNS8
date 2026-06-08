@@ -170,7 +170,11 @@ def main() -> int:
                                 "promotion_blockers": ["not_faster_than_direct_hip"],
                                 "prepacked_reuse_review": {
                                     "setup_inclusive_median_end_to_end_us": 150.0,
+                                    "candidate_median_end_to_end_us": 147.0,
                                     "prepack_setup_us": 27.0,
+                                    "declared_repeat_count": 9,
+                                    "setup_amortized_us": 3.0,
+                                    "setup_share_of_setup_inclusive": 0.02,
                                     "same_backend_nonreuse_backend": "ck",
                                     "same_backend_nonreuse_median_end_to_end_us": 140.0,
                                     "best_nonreuse_backend": "hip-direct",
@@ -187,12 +191,17 @@ def main() -> int:
                                 },
                                 "hip_graph_replay_review": {
                                     "setup_inclusive_median_end_to_end_us": 151.0,
+                                    "candidate_median_end_to_end_us": 144.0,
                                     "graph_capture_us": 13.0,
                                     "graph_instantiate_us": 17.0,
                                     "graph_total_setup_us": 57.0,
+                                    "graph_setup_amortized_us": 6.333333333333333,
+                                    "graph_setup_share_of_setup_inclusive": 0.04194260485651214,
                                     "baseline_backend": "hip-direct",
+                                    "baseline_median_end_to_end_us": 141.0,
                                     "baseline_total_setup_us": 27.0,
                                     "baseline_setup_inclusive_median_end_to_end_us": 144.0,
+                                    "baseline_setup_share_of_setup_inclusive": 0.020833333333333332,
                                     "break_even_repeat_count": 4,
                                     "declared_repeat_count": 9,
                                     "speedup_vs_non_graph_setup_inclusive": 0.9536423841059603,
@@ -321,7 +330,8 @@ def main() -> int:
         assert "none 0" in text
         assert (
             "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
-            "setup_e2e=150.0 prepack_setup=27.0 same_backend=ck same_e2e=140.0 "
+            "setup_e2e=150.0 steady_e2e=147.0 prepack_setup=27.0 declared_repeats=9 "
+            "setup_amortized=3.0 setup_share=0.02 same_backend=ck same_e2e=140.0 "
             "best_nonreuse=hip-direct best_e2e=100.0"
         ) in text
         assert (
@@ -334,8 +344,11 @@ def main() -> int:
         assert "HIP_GRAPH_REPLAY_BLOCKER_COUNTS" in text
         assert (
             "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
-            "setup_e2e=151.0 graph_setup=57.0 capture_us=13.0 instantiate_us=17.0 "
-            "baseline=hip-direct baseline_setup=27.0 baseline_e2e=144.0 "
+            "setup_e2e=151.0 steady_e2e=144.0 graph_setup=57.0 "
+            "graph_setup_amortized=6.333333333333333 graph_setup_share=0.04194260485651214 "
+            "capture_us=13.0 instantiate_us=17.0 "
+            "baseline=hip-direct baseline_steady_e2e=141.0 baseline_setup=27.0 baseline_e2e=144.0 "
+            "baseline_setup_share=0.020833333333333332 "
             "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=None"
         ) in text
         assert "speedup_vs_baseline=0.9536423841059603 blockers=none" in text
@@ -356,8 +369,13 @@ def main() -> int:
             "details=phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8 "
             "pack_split=pack_a:70.0,pack_b:30.0 reuse_setup_e2e=150.0"
         ) in text
-        assert "reuse_setup_e2e=150.0 prepack_setup=27.0 same_backend=ck" in text
+        assert "reuse_setup_e2e=150.0 reuse_steady_e2e=147.0 prepack_setup=27.0 reuse_repeats=9" in text
+        assert "setup_amortized=3.0 setup_share=0.02 same_backend=ck" in text
         assert "reuse_vs_best=0.6666666666666666" in text
+        assert "graph_setup_e2e=151.0 graph_steady_e2e=144.0 graph_capture=13.0" in text
+        assert "graph_setup_amortized=6.333333333333333 graph_setup_share=0.04194260485651214" in text
+        assert "baseline_steady_e2e=141.0 baseline_total_setup=27.0 baseline_e2e=144.0" in text
+        assert "baseline_setup_share=0.020833333333333332" in text
         assert "graph_total_setup=57.0" in text
         assert "baseline_total_setup=27.0" in text
         assert "graph_break_even_repeats=4" in text

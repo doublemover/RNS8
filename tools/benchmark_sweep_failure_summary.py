@@ -226,7 +226,11 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
         details.extend(
             [
                 f"reuse_setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')}",
+                f"reuse_steady_e2e={prepack.get('candidate_median_end_to_end_us')}",
                 f"prepack_setup={prepack.get('prepack_setup_us')}",
+                f"reuse_repeats={prepack.get('declared_repeat_count')}",
+                f"setup_amortized={prepack.get('setup_amortized_us')}",
+                f"setup_share={prepack.get('setup_share_of_setup_inclusive')}",
                 f"same_backend={prepack.get('same_backend_nonreuse_backend')}",
                 f"same_e2e={prepack.get('same_backend_nonreuse_median_end_to_end_us')}",
                 f"best_nonreuse={prepack.get('best_nonreuse_backend')}",
@@ -240,12 +244,17 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
         details.extend(
             [
                 f"graph_setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')}",
+                f"graph_steady_e2e={graph.get('candidate_median_end_to_end_us')}",
                 f"graph_capture={graph.get('graph_capture_us')}",
                 f"graph_instantiate={graph.get('graph_instantiate_us')}",
                 f"graph_total_setup={graph.get('graph_total_setup_us')}",
+                f"graph_setup_amortized={graph.get('graph_setup_amortized_us')}",
+                f"graph_setup_share={graph.get('graph_setup_share_of_setup_inclusive')}",
                 f"graph_baseline={graph.get('baseline_backend')}",
+                f"baseline_steady_e2e={graph.get('baseline_median_end_to_end_us')}",
                 f"baseline_total_setup={graph.get('baseline_total_setup_us')}",
                 f"baseline_e2e={graph.get('baseline_setup_inclusive_median_end_to_end_us')}",
+                f"baseline_setup_share={graph.get('baseline_setup_share_of_setup_inclusive')}",
                 f"graph_break_even_repeats={graph.get('break_even_repeat_count')}",
                 f"graph_declared_repeats={graph.get('declared_repeat_count')}",
                 f"graph_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')}",
@@ -280,7 +289,11 @@ def _prepack_reuse_line(
         f"shape={_shape_text(group)} "
         f"kernel={candidate.get('selected_kernel')} "
         f"setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')} "
+        f"steady_e2e={prepack.get('candidate_median_end_to_end_us')} "
         f"prepack_setup={prepack.get('prepack_setup_us')} "
+        f"declared_repeats={prepack.get('declared_repeat_count')} "
+        f"setup_amortized={prepack.get('setup_amortized_us')} "
+        f"setup_share={prepack.get('setup_share_of_setup_inclusive')} "
         f"same_backend={prepack.get('same_backend_nonreuse_backend')} "
         f"same_e2e={prepack.get('same_backend_nonreuse_median_end_to_end_us')} "
         f"best_nonreuse={prepack.get('best_nonreuse_backend')} "
@@ -309,12 +322,17 @@ def _graph_replay_line(
         f"shape={_shape_text(group)} "
         f"kernel={candidate.get('selected_kernel')} "
         f"setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')} "
+        f"steady_e2e={graph.get('candidate_median_end_to_end_us')} "
         f"graph_setup={graph.get('graph_total_setup_us')} "
+        f"graph_setup_amortized={graph.get('graph_setup_amortized_us')} "
+        f"graph_setup_share={graph.get('graph_setup_share_of_setup_inclusive')} "
         f"capture_us={graph.get('graph_capture_us')} "
         f"instantiate_us={graph.get('graph_instantiate_us')} "
         f"baseline={graph.get('baseline_backend')} "
+        f"baseline_steady_e2e={graph.get('baseline_median_end_to_end_us')} "
         f"baseline_setup={graph.get('baseline_total_setup_us')} "
         f"baseline_e2e={graph.get('baseline_setup_inclusive_median_end_to_end_us')} "
+        f"baseline_setup_share={graph.get('baseline_setup_share_of_setup_inclusive')} "
         f"break_even_repeats={graph.get('break_even_repeat_count')} "
         f"declared_repeats={graph.get('declared_repeat_count')} "
         f"declared_meets_break_even={graph.get('declared_repeats_meet_break_even')} "
