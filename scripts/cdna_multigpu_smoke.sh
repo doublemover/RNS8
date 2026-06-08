@@ -25,10 +25,7 @@ if [[ "${#DEVICE_LIST[@]}" -eq 0 ]]; then
 fi
 WORLD_SIZE="${#DEVICE_LIST[@]}"
 CTEST_DEVICE="${DEVICE_LIST[0]}"
-CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}")
-if [[ -n "${CDNA_NINJA_BIN}" ]]; then
-  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
-fi
+CONFIGURED_AMDGPU_TARGETS=""
 ENV_DIR="${CDNA_OUT_DIR}/env"
 STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
@@ -45,6 +42,15 @@ if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
   ENV_PROBE_ARGS+=(--accelerators)
 fi
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
+
+CONFIGURED_AMDGPU_TARGETS="$(cdna_active_target_from_summary "${PYTHON_BIN}" "${ENV_DIR}/cdna-env-summary.json" "${CTEST_DEVICE}" 2>/dev/null || true)"
+if [[ -z "${CONFIGURED_AMDGPU_TARGETS}" ]]; then
+  CONFIGURED_AMDGPU_TARGETS="gfx942"
+fi
+CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}" "-DRNS8_AMDGPU_TARGETS=${CONFIGURED_AMDGPU_TARGETS}")
+if [[ -n "${CDNA_NINJA_BIN}" ]]; then
+  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
+fi
 
 cdna_resolve_catch2
 
@@ -84,11 +90,27 @@ for rank in "${!DEVICE_LIST[@]}"; do
     RNS8_WORLD_SIZE="${WORLD_SIZE}" \
     "${CDNA_DEFAULT_BENCH_CMD[@]}"
   if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    cdna_progress "shard_${rank}_capture" planned env \
+      ROCR_VISIBLE_DEVICES="${device}" \
+      HIP_VISIBLE_DEVICES="${device}" \
+      RNS8_MULTI_GPU_MODE=embarrassingly_parallel_shards \
+      RNS8_RANK="${rank}" \
+      RNS8_WORLD_SIZE="${WORLD_SIZE}" \
+      "${CDNA_DEFAULT_BENCH_CMD[@]}"
+    cdna_progress "shard_${rank}_schema" planned "${PYTHON_BIN}" tools/benchmark_schema.py "${capture}"
     printf '{"dry_run": true, "rank": %s, "world_size": %s, "device": "%s"}\n' "${rank}" "${WORLD_SIZE}" "${device}" >"${capture}"
     printf 'dry-run schema validation for %s\n' "${capture}" >"${schema_log}"
   else
+    cdna_progress "shard_${rank}_capture" start env \
+      ROCR_VISIBLE_DEVICES="${device}" \
+      HIP_VISIBLE_DEVICES="${device}" \
+      RNS8_MULTI_GPU_MODE=embarrassingly_parallel_shards \
+      RNS8_RANK="${rank}" \
+      RNS8_WORLD_SIZE="${WORLD_SIZE}" \
+      "${CDNA_DEFAULT_BENCH_CMD[@]}"
     (
       cd "${CDNA_REPO_ROOT}"
+      start_seconds="$(date +%s)"
       env \
         ROCR_VISIBLE_DEVICES="${device}" \
         HIP_VISIBLE_DEVICES="${device}" \
@@ -96,7 +118,13 @@ for rank in "${!DEVICE_LIST[@]}"; do
         RNS8_RANK="${rank}" \
         RNS8_WORLD_SIZE="${WORLD_SIZE}" \
         "${CDNA_DEFAULT_BENCH_CMD[@]}" >"${capture}"
+      stop_seconds="$(date +%s)"
+      cdna_progress "shard_${rank}_capture" "done $((stop_seconds - start_seconds))s"
+      start_seconds="$(date +%s)"
+      cdna_progress "shard_${rank}_schema" start "${PYTHON_BIN}" tools/benchmark_schema.py "${capture}"
       "${PYTHON_BIN}" tools/benchmark_schema.py "${capture}" >"${schema_log}" 2>&1
+      stop_seconds="$(date +%s)"
+      cdna_progress "shard_${rank}_schema" "done $((stop_seconds - start_seconds))s"
     ) &
     PIDS+=("$!")
   fi
@@ -119,6 +147,7 @@ CDNA_WORLD_SIZE="${WORLD_SIZE}" \
 CDNA_DRY_RUN_VALUE="${CDNA_DRY_RUN}" \
 CDNA_BUILD_STATUS="${BUILD_STATUS}" \
 CDNA_CTEST_STATUS="${CTEST_STATUS}" \
+CDNA_CONFIGURED_AMDGPU_TARGETS="${CONFIGURED_AMDGPU_TARGETS}" \
 "${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
@@ -202,7 +231,8 @@ for rank, device in enumerate(devices):
             "rocprofv3_ready": summary.get("rocprofv3_ready"),
             "rccl_ready": summary.get("rccl_ready"),
             "rccl_tests_ready": summary.get("rccl_tests_ready"),
-            "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
+            "configured_amdgpu_targets": os.environ.get("CDNA_CONFIGURED_AMDGPU_TARGETS")
+            or capture.get("configured_amdgpu_targets"),
             "validation": {
                 "build": os.environ["CDNA_BUILD_STATUS"],
                 "ctest": os.environ["CDNA_CTEST_STATUS"],

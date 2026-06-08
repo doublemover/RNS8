@@ -19,7 +19,7 @@
       "cacheVariables": {
         "RNS8_ENABLE_HIP": "ON",
         "RNS8_HIP_ROOT": "/opt/rocm",
-        "RNS8_AMDGPU_TARGETS": "gfx90a;gfx942;gfx950",
+        "RNS8_AMDGPU_TARGETS": "gfx942",
         "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
         "RNS8_ROCM_DEPS_BUILD_ROOT": "",
         "RNS8_ROCM_DEPS_INSTALL_ROOT": "",

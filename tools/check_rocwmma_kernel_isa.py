@@ -21,7 +21,21 @@ WMMA_SYMBOL_MARKERS = [
     "rocwmma_i8_residue_gemm",
     "rocwmma_wrap64_byte_gemm36_candidate",
 ]
-REQUIRED_WMMA_MNEMONIC = "v_wmma_i32_16x16x16_iu8"
+RDNA_REQUIRED_MNEMONICS = ["v_wmma_i32_16x16x16_iu8"]
+CDNA_REQUIRED_MNEMONICS = [
+    "v_mfma_i32_16x16x16_i8",
+    "v_mfma_i32_16x16x32_i8",
+    "v_mfma_i32_16x16x64_i8",
+    "v_mfma_i32_32x32x8_i8",
+    "v_mfma_i32_32x32x16_i8",
+    "v_mfma_i32_32x32x32_i8",
+]
+
+
+def required_matrix_mnemonics(amdgpu_target: str) -> list[str]:
+    if amdgpu_target.startswith("gfx9"):
+        return CDNA_REQUIRED_MNEMONICS
+    return RDNA_REQUIRED_MNEMONICS
 
 
 def wmma_symbols(objdump: str, code_object: Path) -> list[str]:
@@ -30,10 +44,11 @@ def wmma_symbols(objdump: str, code_object: Path) -> list[str]:
 
 def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str) -> tuple[int, list[str], list[str]]:
     disassembly = disassemble_code_object(objdump, code_object, amdgpu_target)
-    wmma_count = disassembly.count(REQUIRED_WMMA_MNEMONIC)
+    required = required_matrix_mnemonics(amdgpu_target)
+    matrix_count = sum(disassembly.count(mnemonic) for mnemonic in required)
     forbidden_stores = forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE)
     forbidden_divides = forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
-    return wmma_count, forbidden_stores, forbidden_divides
+    return matrix_count, forbidden_stores, forbidden_divides
 
 
 def main() -> int:
@@ -44,9 +59,12 @@ def main() -> int:
     )
     with extracted_device_code_object(config, "rns8-rocwmma-isa-", "rocwmma_backend_kernels.fatbin") as code_object:
         symbols = wmma_symbols(config.objdump, code_object)
-        wmma_count, forbidden_stores, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
-        if wmma_count <= 0:
-            raise RuntimeError(f"rocWMMA object does not contain required {REQUIRED_WMMA_MNEMONIC} matrix instructions")
+        matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
+        required = required_matrix_mnemonics(config.target)
+        if matrix_count <= 0:
+            raise RuntimeError(
+                f"rocWMMA object does not contain required matrix instructions: {', '.join(required)}"
+            )
         if forbidden_stores:
             raise RuntimeError(
                 "rocWMMA object contains forbidden INT32 global/buffer stores:\n" + "\n".join(forbidden_stores[:20])
@@ -63,7 +81,7 @@ def main() -> int:
     print(f"- rocWMMA fused/candidate kernel symbols: {len(symbols)}")
     for symbol in symbols:
         print(f"  - {symbol}")
-    print(f"- {REQUIRED_WMMA_MNEMONIC} instructions: {wmma_count}")
+    print(f"- target matrix instructions: {matrix_count}")
     print("- no global_store_dword/buffer_store_dword instructions")
     print("- no v/s reciprocal, divide, or remainder instructions")
     return 0

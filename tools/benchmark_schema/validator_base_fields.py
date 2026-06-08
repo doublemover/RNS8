@@ -529,7 +529,7 @@ class ValidatorBaseFieldsMixin:
                 "accelerator_version": "repo-local release/rocm-rel-7.1",
                 "capability_status": "implemented_opt_in_ck_backend",
                 "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
-                "isa_evidence": "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+                "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
             }
             for key, value in expected.items():
                 if metadata.get(key) != value:
@@ -562,7 +562,7 @@ class ValidatorBaseFieldsMixin:
                     "capability_status": "internal_wrap64_matrix_engine_candidate",
                     "epilogue_mode": "low64_wrap_export",
                     "workspace_mode": "benchmark_owned_compact_byte_limb_device_buffers",
-                    "isa_evidence": "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide",
+                    "isa_evidence": "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_int32_global_store_no_divide",
                 }
                 for key, value in expected.items():
                     if metadata.get(key) != value:
@@ -584,7 +584,7 @@ class ValidatorBaseFieldsMixin:
                     "accelerator_version": "repo-local release/rocm-rel-7.1",
                     "capability_status": "implemented_opt_in_rocwmma_backend",
                     "workspace_mode": "resident_device_buffers_with_rocwmma_pack_workspace",
-                    "isa_evidence": "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide",
+                    "isa_evidence": "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide",
                 }
                 for key, value in expected.items():
                     if metadata.get(key) != value:

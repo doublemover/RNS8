@@ -304,12 +304,12 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
-          "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
+          "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
       set_text(info.status, sizeof(info.status), "implemented_opt_in_ck_backend");
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in CK backend using WMMA CShuffle int8 GEMM with fused centered-residue epilogue specialized for mod 256/255/251.");
+          "Opt-in CK backend using target-selected CShuffle int8 matrix GEMM with fused centered-residue epilogue specialized for mod 256/255/251.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif
@@ -338,12 +338,12 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
-          "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide");
+          "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide");
       set_text(info.status, sizeof(info.status), "implemented_opt_in_rocwmma_backend");
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in rocWMMA backend using signed int8 WMMA GEMM with fused centered-residue reduction specialized for mod 256/255/251.");
+          "Opt-in rocWMMA backend using signed int8 matrix GEMM with fused centered-residue reduction specialized for mod 256/255/251.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

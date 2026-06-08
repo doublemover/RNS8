@@ -119,7 +119,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_canonical_pack_workspace");
       CHECK(std::string(capability.isa_evidence) ==
-            "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
+            "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
@@ -142,7 +142,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
           "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace");
-      CHECK(std::string(capability.isa_evidence) == "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide");
+      CHECK(std::string(capability.isa_evidence) == "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);

@@ -63,9 +63,11 @@ def validate(schema: Path, capture: Path) -> None:
 
 
 def write_reviewed_cache(path: Path, capture: dict) -> dict:
+    device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
+    target_id = benchmark_sweep.normalized_target_id(device.get("gcn_arch")) or "cpu"
     entry = benchmark_sweep.cache_entry_from_capture(
         capture,
-        "reviewed_release_same_contract_fastest_windows_gfx1100",
+        benchmark_sweep.reviewed_release_status_for_target(target_id),
     )
     if not entry.get("key"):
         raise SystemExit("explicit backend capture did not report an autotune key")

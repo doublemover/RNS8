@@ -393,6 +393,28 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
   return false;
 }
 
+bool cdna_target_id(const std::string& target_id) {
+  return target_id == "gfx90a" || target_id == "gfx942" || target_id == "gfx950";
+}
+
+std::string expected_reviewed_validation_status(const std::string& target_id) {
+  if (target_id == "gfx1100") {
+    return "reviewed_release_same_contract_fastest_windows_gfx1100";
+  }
+  if (cdna_target_id(target_id)) {
+    return "reviewed_release_same_contract_fastest_linux_" + target_id;
+  }
+  if (target_id.rfind("gfx", 0) == 0) {
+    return "reviewed_release_same_contract_fastest_target_" + target_id;
+  }
+  return {};
+}
+
+bool reviewed_validation_status_matches_target(const AutotuneCacheEntry& entry) {
+  const std::string expected = expected_reviewed_validation_status(entry.target_id);
+  return !expected.empty() && entry.validation_status == expected;
+}
+
 const char* expected_accumulator_type_for_entry(const AutotuneCacheEntry& entry) {
   if (entry.selected_backend == "hip-vector-alu-int64") {
     return "software_192bit_limb";
@@ -660,6 +682,9 @@ const AutotuneCacheEntry* find_validated_autotune_entry(
   if (!validated_entry_identity_failure(*hit).empty()) {
     return nullptr;
   }
+  if (!reviewed_validation_status_matches_target(*hit)) {
+    return nullptr;
+  }
   return hit;
 }
 
@@ -755,6 +780,9 @@ std::string autotune_selection_rationale(
     }
     if (const std::string failure = validated_runtime_identity_failure(*hit, runtime); !failure.empty()) {
       return "exact_cache_hit_rejected_identity:" + failure;
+    }
+    if (hit->validation_status.rfind("reviewed_release_", 0) == 0 && !reviewed_validation_status_matches_target(*hit)) {
+      return "exact_cache_hit_rejected_validation_status_target_mismatch:" + hit->validation_status;
     }
     return "exact_cache_hit_rejected_validation_status:" + hit->validation_status;
   }

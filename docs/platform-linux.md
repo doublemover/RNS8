@@ -161,13 +161,16 @@ Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
 clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
 That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
 real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
-`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx90a;gfx942;gfx950`, and no
-Windows vcpkg or local workstation paths. It is a configure/build surface only;
-CDNA performance readiness still requires target-validation and release-review
-captures. The preset leaves `RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=OFF`
-because that internal byte-limb wrap64 candidate is not a public backend or
-AUTO-selected accelerator; public rocWMMA bounded, exact-wide, and finite-u8
-tests remain enabled when `RNS8_ENABLE_ROCWMMA=ON`.
+`RNS8_HIP_ROOT=/opt/rocm`, an active `RNS8_AMDGPU_TARGETS` value matching the
+detected validation GPU such as `gfx942`, and no Windows vcpkg or local
+workstation paths. Wider CDNA family intent belongs in
+`RNS8_ROCM_COVERAGE_TARGETS`, not the active offload list for a single-GPU
+validation host. It is a configure/build surface only; CDNA performance
+readiness still requires target-validation and release-review captures. The
+preset leaves `RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=OFF` because that
+internal byte-limb wrap64 candidate is not a public backend or AUTO-selected
+accelerator; public rocWMMA bounded, exact-wide, and finite-u8 tests remain
+enabled when `RNS8_ENABLE_ROCWMMA=ON`.
 
 The dedicated accelerator first-pass command is:
 

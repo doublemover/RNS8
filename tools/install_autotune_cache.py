@@ -94,6 +94,17 @@ def target_class_for_id(target_id: str | None) -> str:
     return "unknown" if target else "missing"
 
 
+def reviewed_release_status_for_target(target_id: str | None) -> str:
+    target = (target_id or "").lower()
+    if target == "gfx1100":
+        return "reviewed_release_same_contract_fastest_windows_gfx1100"
+    if target in LINUX_CDNA_TARGETS:
+        return f"reviewed_release_same_contract_fastest_linux_{target}"
+    if target.startswith("gfx"):
+        return f"reviewed_release_same_contract_fastest_target_{target}"
+    return ""
+
+
 def require_string(item: dict[str, Any], name: str) -> str:
     value = item.get(name)
     if not isinstance(value, str) or not value:
@@ -251,6 +262,9 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             raise AutotuneCacheInstallError("performance_validated must be true")
         if not validation_status.startswith(REVIEWED_RELEASE_PREFIX):
             raise AutotuneCacheInstallError("validation_status must start with reviewed_release_")
+        expected_validation_status = reviewed_release_status_for_target(target_id)
+        if not expected_validation_status or validation_status != expected_validation_status:
+            raise AutotuneCacheInstallError("validation_status_target_mismatch")
         if require_int(entry, "schema_version", minimum=0) != 1:
             raise AutotuneCacheInstallError("entry schema_version must be 1")
         if not reviewed_backend_supports_semantic_contract(selected_backend, semantic_contract):

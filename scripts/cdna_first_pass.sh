@@ -25,6 +25,7 @@ STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
 VERIFY_BIN="$(cdna_binary_path "${PRESET}" "rns8-verify")"
 BENCH_BIN="$(cdna_binary_path "${PRESET}" "rns8-bench")"
+CONFIGURED_AMDGPU_TARGETS=""
 DEPS_STATUS="not_run"
 DEPS_EXIT_CODE=0
 BUILD_STATUS="not_run"
@@ -62,6 +63,7 @@ cdna_first_pass_failure_report() {
   CDNA_DEPS_JSON="${DEPS_JSON}" \
   CDNA_DEPS_STATUS="${DEPS_STATUS}" \
   CDNA_DEPS_EXIT_CODE="${DEPS_EXIT_CODE}" \
+  CDNA_CONFIGURED_AMDGPU_TARGETS="${CONFIGURED_AMDGPU_TARGETS}" \
   CDNA_FAILURE_PHASE="${CDNA_CURRENT_PHASE}" \
   CDNA_FAILURE_COMMAND="${failed_command}" \
   CDNA_FAILURE_LINE="${failed_line}" \
@@ -170,7 +172,7 @@ record = {
     "rocprofv3_ready": summary.get("rocprofv3_ready"),
     "rccl_ready": summary.get("rccl_ready"),
     "rccl_tests_ready": summary.get("rccl_tests_ready"),
-    "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
+    "configured_amdgpu_targets": os.environ.get("CDNA_CONFIGURED_AMDGPU_TARGETS") or capture.get("configured_amdgpu_targets"),
     "dependency_check": {
         "status": validation["dependency_check"],
         "checker_exit_code": int(os.environ["CDNA_DEPS_EXIT_CODE"]),
@@ -211,10 +213,6 @@ CDNA_CURRENT_PHASE="cmake_resolve"
 cdna_resolve_cmake_tools "${PYTHON_BIN}"
 CDNA_CURRENT_PHASE="ninja_resolve"
 cdna_resolve_ninja
-CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}")
-if [[ -n "${CDNA_NINJA_BIN}" ]]; then
-  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
-fi
 
 ENV_PROBE_ARGS=(--out-dir "${ENV_DIR}" --devices "${DEVICE}")
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
@@ -225,6 +223,16 @@ if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
 fi
 CDNA_CURRENT_PHASE="env_probe"
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
+
+CONFIGURED_AMDGPU_TARGETS="$(cdna_active_target_from_summary "${PYTHON_BIN}" "${ENV_DIR}/cdna-env-summary.json" "${DEVICE}" 2>/dev/null || true)"
+if [[ -z "${CONFIGURED_AMDGPU_TARGETS}" ]]; then
+  CONFIGURED_AMDGPU_TARGETS="gfx942"
+fi
+
+CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}" "-DRNS8_AMDGPU_TARGETS=${CONFIGURED_AMDGPU_TARGETS}")
+if [[ -n "${CDNA_NINJA_BIN}" ]]; then
+  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
+fi
 
 cdna_note_command check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes"
 CDNA_CURRENT_PHASE="check_dependencies"
@@ -313,15 +321,25 @@ SMOKE_STATUS=$([[ "${CDNA_DRY_RUN}" -eq 1 ]] && printf '%s' "planned" || printf 
 cdna_default_bench_command "${BENCH_BIN}"
 cdna_note_command rns8_bench_capture env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+  cdna_progress rns8_bench_capture planned env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
   printf '{"dry_run": true, "planned_capture": "%s"}\n' "${CAPTURE}" >"${CAPTURE}"
+  cdna_progress benchmark_schema planned "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}"
   printf 'dry-run schema validation for %s\n' "${CAPTURE}" >"${SCHEMA_LOG}"
   CAPTURE_STATUS="planned"
 else
   CDNA_CURRENT_PHASE="benchmark"
   CAPTURE_STATUS="running"
+  start_seconds="$(date +%s)"
+  cdna_progress rns8_bench_capture start env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
   (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}") >"${CAPTURE}"
+  stop_seconds="$(date +%s)"
+  cdna_progress rns8_bench_capture "done $((stop_seconds - start_seconds))s"
   CDNA_CURRENT_PHASE="schema"
+  start_seconds="$(date +%s)"
+  cdna_progress benchmark_schema start "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}"
   (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
+  stop_seconds="$(date +%s)"
+  cdna_progress benchmark_schema "done $((stop_seconds - start_seconds))s"
   CAPTURE_STATUS="pass"
 fi
 
@@ -338,6 +356,7 @@ CDNA_CAPTURE_STATUS="${CAPTURE_STATUS}" \
 CDNA_DEPS_JSON="${DEPS_JSON}" \
 CDNA_DEPS_STATUS="${DEPS_STATUS}" \
 CDNA_DEPS_EXIT_CODE="${DEPS_EXIT_CODE}" \
+CDNA_CONFIGURED_AMDGPU_TARGETS="${CONFIGURED_AMDGPU_TARGETS}" \
 "${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
@@ -425,7 +444,7 @@ record = {
     "rocprofv3_ready": summary.get("rocprofv3_ready"),
     "rccl_ready": summary.get("rccl_ready"),
     "rccl_tests_ready": summary.get("rccl_tests_ready"),
-    "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
+    "configured_amdgpu_targets": os.environ.get("CDNA_CONFIGURED_AMDGPU_TARGETS") or capture.get("configured_amdgpu_targets"),
     "dependency_check": {
         "status": os.environ["CDNA_DEPS_STATUS"],
         "checker_exit_code": int(os.environ["CDNA_DEPS_EXIT_CODE"]),

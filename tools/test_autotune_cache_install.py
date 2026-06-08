@@ -12,6 +12,11 @@ from pathlib import Path
 import install_autotune_cache
 
 
+def case_key_suffix(key_suffix: str) -> str:
+    case_id = key_suffix.removeprefix("-")
+    return f";case_id={case_id}" if case_id else ""
+
+
 def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
     semantics = "finite_ring_u8" if finite_modulus else "bounded_i64"
     selected_kernel = (
@@ -28,12 +33,12 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
         if finite_modulus
         else "ck_fused_i32_to_centered_residue_then_crt_export"
     )
-    target_id = f"gfx1100{key_suffix}"
+    target_id = "gfx1100"
     finite = f";finite_modulus={finite_modulus}" if finite_modulus else ""
     key = (
         f"backend=ck;target_id={target_id};version=repo-local release/rocm-rel-7.1;semantics={semantics};"
         f"m=512;n=512;k=512{finite};layout=row_major;k_block_size=512;tile_m=128;tile_n=128;"
-        f"kernel={selected_kernel};epilogue={epilogue}"
+        f"kernel={selected_kernel};epilogue={epilogue}{case_key_suffix(key_suffix)}"
     )
     return {
         "key": key,
@@ -54,7 +59,7 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
         "workspace_bytes": 4096,
         "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
         "performance_validated": True,
-        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "validation_status": install_autotune_cache.reviewed_release_status_for_target(target_id),
         "schema_version": 1,
         "updated_utc": "2026-06-03T00:00:00Z",
     }
@@ -68,7 +73,7 @@ def vector_entry(
     n: int = 512,
     k: int = 512,
 ) -> dict:
-    target_id = f"gfx1100{key_suffix}"
+    target_id = "gfx1100"
     signed = semantics == "bounded_i64"
     gemv_n1 = n == 1 and k >= 4096
     selected_kernel = (
@@ -84,7 +89,7 @@ def vector_entry(
     key = (
         f"backend=hip-vector-alu-int64;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
         f"semantics={semantics};m={m};n={n};k={k};layout=row_major;k_block_size={k};tile_m=128;tile_n=128;"
-        f"kernel={selected_kernel};epilogue={epilogue}"
+        f"kernel={selected_kernel};epilogue={epilogue}{case_key_suffix(key_suffix)}"
     )
     return {
         "key": key,
@@ -105,7 +110,7 @@ def vector_entry(
         "workspace_bytes": 0,
         "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
         "performance_validated": True,
-        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "validation_status": install_autotune_cache.reviewed_release_status_for_target(target_id),
         "schema_version": 1,
         "updated_utc": "2026-06-03T00:00:00Z",
     }
@@ -114,11 +119,12 @@ def vector_entry(
 def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -> dict:
     selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
     epilogue = "ck_fused_i32_to_centered_residue_rns_output"
-    target_id = f"gfx1100{key_suffix}"
+    target_id = "gfx1100"
     key = (
         f"backend=ck;target_id={target_id};version=repo-local release/rocm-rel-7.1;"
         "semantics=exact_wide_unsigned;m=1024;n=1024;k=1024;layout=row_major;"
         f"k_block_size=1024;tile_m=128;tile_n=128;kernel={selected_kernel};epilogue={epilogue}"
+        f"{case_key_suffix(key_suffix)}"
     )
     cache_scope = "runtime_exact_autotune"
     selector_key = None
@@ -160,7 +166,7 @@ def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -
         "cache_scope": cache_scope,
         "measured_medians_us": {"pack": 1.0, "rns_gemm": 2.0, "crt_export": 3.0, "end_to_end": 4.0},
         "performance_validated": True,
-        "validation_status": "reviewed_release_same_contract_fastest_windows_gfx1100",
+        "validation_status": install_autotune_cache.reviewed_release_status_for_target(target_id),
         "schema_version": 1,
         "updated_utc": "2026-06-03T00:00:00Z",
     }
@@ -440,7 +446,8 @@ def main() -> int:
 
         cdna = copy.deepcopy(replacement)
         cdna["target_id"] = "gfx942"
-        cdna["key"] = cdna["key"].replace("target_id=gfx1100-old", "target_id=gfx942")
+        cdna["validation_status"] = install_autotune_cache.reviewed_release_status_for_target(cdna["target_id"])
+        cdna["key"] = cdna["key"].replace("target_id=gfx1100", "target_id=gfx942", 1)
         cdna_source = root / "cdna-source.json"
         write_cache(cdna_source, [cdna])
         cdna_ledger_missing_target = root / "cdna-missing-target-ledger.json"

@@ -79,7 +79,14 @@ if(RNS8_PROBE_ACCELERATORS)
   message(STATUS "RNS8 rocWMMA compile probe: ${RNS8_ROCWMMA_COMPILE_PROBE_STATUS}")
   message(STATUS "RNS8 rocWMMA primitive probe: ${RNS8_ROCWMMA_PRIMITIVE_PROBE_STATUS}")
   message(STATUS "RNS8 AMDGPU builtin candidate evidence: disabled until target-specific exact kernels exist")
-  message(STATUS "RNS8 accelerator backend enablement: disabled")
+  message(
+    STATUS
+      "RNS8 accelerator backend enablement flags: "
+      "hipBLASLt=${RNS8_ENABLE_HIPBLASLT}; "
+      "CK=${RNS8_ENABLE_CK}; "
+      "rocWMMA=${RNS8_ENABLE_ROCWMMA}; "
+      "AMDGPU_BUILTINS=${RNS8_ENABLE_AMDGPU_BUILTINS}"
+  )
 endif()
 
 find_path(

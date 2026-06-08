@@ -11,6 +11,7 @@ from benchmark_sweep_lib.capture_metadata import (
     capture_prepack_reuse_operands,
     capture_prepack_reuse_strategy,
     median_phase,
+    normalized_target_id,
     selected_kernel,
 )
 from benchmark_sweep_lib.cli import main, parse_args
@@ -57,6 +58,7 @@ from benchmark_sweep_lib.review import (
     phase_ratios,
     promotion_blockers,
     required_baselines,
+    reviewed_release_status_for_target,
     review_captures,
     write_promoted_cache_entries,
 )

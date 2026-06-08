@@ -19,10 +19,7 @@ cdna_resolve_cmake_tools "${PYTHON_BIN}"
 cdna_resolve_ninja
 DEVICES="$(cdna_discover_devices)"
 DEVICE="$(cdna_first_device "${DEVICES}")"
-CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}")
-if [[ -n "${CDNA_NINJA_BIN}" ]]; then
-  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
-fi
+CONFIGURED_AMDGPU_TARGETS=""
 ENV_DIR="${CDNA_OUT_DIR}/env"
 CAPTURE="${CDNA_OUT_DIR}/bounded-i64-hip-direct-smoke.json"
 SCHEMA_LOG="${CDNA_OUT_DIR}/benchmark-schema.log"
@@ -38,6 +35,15 @@ if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
 fi
 cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${ENV_PROBE_ARGS[@]}"
 
+CONFIGURED_AMDGPU_TARGETS="$(cdna_active_target_from_summary "${PYTHON_BIN}" "${ENV_DIR}/cdna-env-summary.json" "${DEVICE}" 2>/dev/null || true)"
+if [[ -z "${CONFIGURED_AMDGPU_TARGETS}" ]]; then
+  CONFIGURED_AMDGPU_TARGETS="gfx942"
+fi
+CMAKE_CONFIGURE_CMD=("${CDNA_CMAKE_BIN}" --preset "${PRESET}" "-DRNS8_AMDGPU_TARGETS=${CONFIGURED_AMDGPU_TARGETS}")
+if [[ -n "${CDNA_NINJA_BIN}" ]]; then
+  CMAKE_CONFIGURE_CMD+=("-DCMAKE_MAKE_PROGRAM=${CDNA_NINJA_BIN}")
+fi
+
 cdna_resolve_catch2
 
 if [[ "${CDNA_SKIP_BUILD}" -eq 0 ]]; then
@@ -51,11 +57,21 @@ cdna_repo_run hip_smoke env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES
 cdna_default_bench_command "${BENCH_BIN}"
 cdna_note_command rns8_bench_capture env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+  cdna_progress rns8_bench_capture planned env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
   printf '{"dry_run": true, "planned_capture": "%s"}\n' "${CAPTURE}" >"${CAPTURE}"
+  cdna_progress benchmark_schema planned "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}"
   printf 'dry-run schema validation for %s\n' "${CAPTURE}" >"${SCHEMA_LOG}"
 else
+  start_seconds="$(date +%s)"
+  cdna_progress rns8_bench_capture start env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}"
   (cd "${CDNA_REPO_ROOT}" && env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${CDNA_DEFAULT_BENCH_CMD[@]}") >"${CAPTURE}"
+  stop_seconds="$(date +%s)"
+  cdna_progress rns8_bench_capture "done $((stop_seconds - start_seconds))s"
+  start_seconds="$(date +%s)"
+  cdna_progress benchmark_schema start "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}"
   (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/benchmark_schema.py "${CAPTURE}") >"${SCHEMA_LOG}" 2>&1
+  stop_seconds="$(date +%s)"
+  cdna_progress benchmark_schema "done $((stop_seconds - start_seconds))s"
 fi
 
 echo "CDNA smoke output: ${CDNA_OUT_DIR}"

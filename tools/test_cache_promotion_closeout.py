@@ -33,19 +33,20 @@ def candidate_capture() -> dict:
 
 def cache_entry_from_capture(capture: dict, *, selector_review_only: bool = False, target_id: str | None = None) -> dict:
     metadata = capture["backend_metadata"]
+    resolved_target_id = target_id or capture["device"]["gcn_arch"]
     entry = {
         "schema_version": 1,
         "key": metadata["autotune_key"],
         "selected_backend": capture["backend_selected"],
         "selected_kernel": capture["selected_kernel"],
-        "target_id": target_id or capture["device"]["gcn_arch"],
+        "target_id": resolved_target_id,
         "hip_sdk_or_library_version": "fixture",
         "semantic_contract": capture["semantics"],
         "layout": "row_major",
         "prefix_schedule_hash": "fixture-prefix",
         "epilogue": metadata["epilogue_mode"],
         "kernel_family": capture["selected_kernel"],
-        "validation_status": "reviewed_release_fixture",
+        "validation_status": install_autotune_cache.reviewed_release_status_for_target(resolved_target_id),
         "performance_validated": True,
         "shape": {"m": capture["m"], "n": capture["n"], "k": capture["k"]},
         "k_block_size": capture["k_block_size"],

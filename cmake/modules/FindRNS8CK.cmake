@@ -62,6 +62,7 @@ if(RNS8_CK_INCLUDE_DIR)
     "#define CK_ENABLE_FP64 ON\n"
     "#define CK_ENABLE_DL_KERNELS ON\n"
     "#define CK_ENABLE_DPP_KERNELS ON\n"
+    "#define CK_USE_XDL ON\n"
     "#define CK_USE_WMMA ON\n"
     "#endif\n"
   )
@@ -129,7 +130,42 @@ if(RNS8_CK_INCLUDE_DIR)
     else()
       set(_RNS8_CK_PRIMITIVE_OBJECT "${_RNS8_CK_PROBE_DIR}/ck_primitive_probe.o")
     endif()
-    file(WRITE "${_RNS8_CK_PRIMITIVE_SOURCE}" [=[
+    if(_RNS8_CK_TARGET MATCHES "^gfx9")
+      file(WRITE "${_RNS8_CK_PRIMITIVE_SOURCE}" [=[
+#include <cstdint>
+#include <ck/ck.hpp>
+#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp>
+#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
+    Row, Col, Row, int8_t, int8_t, int8_t, int32_t, int32_t, PassThrough, PassThrough, PassThrough,
+    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+    1, 256, 128, 128, 64, 16, 16, 32, 32, 4, 2,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, true,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+    1, 1, S<1, 32, 1, 4>, 16>;
+
+extern "C" float rns8_ck_i8_xdl_primitive_probe(const int8_t* a, const int8_t* b, int8_t* c) {
+  auto arg = DeviceGemmInstance::MakeArgument(
+      a, b, c, 64, 128, 64, 64, 64, 128, PassThrough{}, PassThrough{}, PassThrough{});
+  if (!DeviceGemmInstance::IsSupportedArgument(arg) || !DeviceGemmInstance::IsValidCompilationParameter()) {
+    return -1.0f;
+  }
+  auto invoker = DeviceGemmInstance::MakeInvoker();
+  return invoker.Run(arg);
+}
+]=])
+    else()
+      file(WRITE "${_RNS8_CK_PRIMITIVE_SOURCE}" [=[
 #include <cstdint>
 #include <ck/ck.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
@@ -162,6 +198,7 @@ extern "C" float rns8_ck_i8_wmma_primitive_probe(const int8_t* a, const int8_t* 
   return invoker.Run(arg);
 }
 ]=])
+    endif()
     execute_process(
       COMMAND
         "${RNS8_CK_HIPCC}"

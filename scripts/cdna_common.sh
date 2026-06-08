@@ -384,14 +384,33 @@ cdna_note_command() {
   } >>"$(cdna_plan_file)"
 }
 
+cdna_progress() {
+  local label="$1"
+  local status="$2"
+  shift 2
+  printf '[%s] %s %s' "$(date -u +%H:%M:%S)" "${label}" "${status}" >&2
+  if [[ $# -gt 0 ]]; then
+    printf ': ' >&2
+    cdna_command_line "$@" >&2
+  fi
+  printf '\n' >&2
+}
+
 cdna_run() {
   local label="$1"
   shift
   cdna_note_command "${label}" "$@"
   if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    cdna_progress "${label}" "planned" "$@"
     return 0
   fi
+  local start_seconds
+  start_seconds="$(date +%s)"
+  cdna_progress "${label}" "start" "$@"
   "$@"
+  local stop_seconds
+  stop_seconds="$(date +%s)"
+  cdna_progress "${label}" "done $((stop_seconds - start_seconds))s"
 }
 
 cdna_run_capture() {
@@ -400,6 +419,7 @@ cdna_run_capture() {
   local log_path="${CDNA_OUT_DIR}/${label}.log"
   cdna_note_command "${label}" "$@"
   if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    cdna_progress "${label}" "planned" "$@"
     printf 'dry-run: ' >"${log_path}"
     cdna_command_line "$@" >>"${log_path}"
     printf '\n' >>"${log_path}"
@@ -409,7 +429,13 @@ cdna_run_capture() {
     printf 'command not found: %s\n' "$1" >"${log_path}"
     return 127
   fi
+  local start_seconds
+  start_seconds="$(date +%s)"
+  cdna_progress "${label}" "start" "$@"
   "$@" >"${log_path}" 2>&1
+  local stop_seconds
+  stop_seconds="$(date +%s)"
+  cdna_progress "${label}" "done $((stop_seconds - start_seconds))s"
 }
 
 cdna_repo_run() {
@@ -420,7 +446,15 @@ cdna_repo_run_artifact_command() {
   local label="$1"
   shift
   cdna_note_command "${label}" "$@"
+  if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+    cdna_progress "${label}" "planned" "$@"
+  else
+    cdna_progress "${label}" "start" "$@"
+  fi
   (cd "${CDNA_REPO_ROOT}" && "$@")
+  if [[ "${CDNA_DRY_RUN}" -ne 1 ]]; then
+    cdna_progress "${label}" "done"
+  fi
 }
 
 cdna_repo_capture() {
@@ -471,6 +505,52 @@ cdna_first_device() {
   local parsed=()
   cdna_split_devices "${devices}" parsed
   printf '%s\n' "${parsed[0]:-0}"
+}
+
+cdna_active_target_from_summary() {
+  local python_bin="$1"
+  local summary_path="$2"
+  local device="$3"
+  "${python_bin}" - "${summary_path}" "${device}" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+try:
+    summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    summary = {}
+device = sys.argv[2]
+
+def concrete_target(value):
+    if not isinstance(value, str) or not value:
+        return None
+    target = value.split(":", 1)[0]
+    if not target.startswith("gfx"):
+        return None
+    if target in {"gfx9", "gfx10", "gfx11", "gfx12"}:
+        return None
+    return target
+
+for item in summary.get("physical_devices", []):
+    if not isinstance(item, dict):
+        continue
+    if str(item.get("physical_device_id")) == str(device):
+        target = concrete_target(item.get("target_arch"))
+        if target:
+            print(target)
+            raise SystemExit(0)
+targets = summary.get("rocminfo_gfx_targets")
+if isinstance(targets, list):
+    for target in targets:
+        target = concrete_target(target)
+        if target:
+            print(target)
+            raise SystemExit(0)
+raise SystemExit(1)
+PY
 }
 
 cdna_build_dir_for_preset() {

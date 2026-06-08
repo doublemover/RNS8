@@ -64,6 +64,20 @@ std::filesystem::path unique_cache_fixture_path(const char* stem) {
   return std::filesystem::temp_directory_path() / (std::string(stem) + "-" + std::to_string(tick) + ".json");
 }
 
+std::string reviewed_release_status_for_target(const char* target_id) {
+  const std::string target = target_id ? target_id : "";
+  if (target == "gfx1100") {
+    return "reviewed_release_same_contract_fastest_windows_gfx1100";
+  }
+  if (target == "gfx90a" || target == "gfx942" || target == "gfx950") {
+    return "reviewed_release_same_contract_fastest_linux_" + target;
+  }
+  if (target.rfind("gfx", 0) == 0) {
+    return "reviewed_release_same_contract_fastest_target_" + target;
+  }
+  return "reviewed_release_unknown_target";
+}
+
 rns8_gemm_desc exact_desc(rns8_semantics semantics, int64_t m, int64_t n, int64_t k) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);

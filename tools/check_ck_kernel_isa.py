@@ -17,12 +17,24 @@ from isa_common import (
 )
 
 
-CK_SYMBOL_MARKER = "kernel_gemm_wmma"
-REQUIRED_WMMA_MNEMONIC = "v_wmma_i32_16x16x16_iu8"
+CK_SYMBOL_MARKERS = ["kernel_gemm_wmma", "kernel_gemm_xdl_cshuffle"]
+RDNA_REQUIRED_MNEMONICS = ["v_wmma_i32_16x16x16_iu8"]
+CDNA_REQUIRED_MNEMONICS = [
+    "v_mfma_i32_16x16x32_i8",
+    "v_mfma_i32_16x16x64_i8",
+    "v_mfma_i32_32x32x16_i8",
+    "v_mfma_i32_32x32x32_i8",
+]
 
 
 def ck_symbols(objdump: str, code_object: Path) -> list[str]:
-    return symbols_matching_markers(objdump, code_object, [CK_SYMBOL_MARKER], "CK GEMM WMMA symbols")
+    return symbols_matching_markers(objdump, code_object, CK_SYMBOL_MARKERS, "CK GEMM matrix symbols")
+
+
+def required_matrix_mnemonics(amdgpu_target: str) -> list[str]:
+    if amdgpu_target.startswith("gfx9"):
+        return CDNA_REQUIRED_MNEMONICS
+    return RDNA_REQUIRED_MNEMONICS
 
 
 def scan_disassembly(
@@ -31,33 +43,35 @@ def scan_disassembly(
     amdgpu_target: str,
     symbols: list[str],
 ) -> tuple[int, list[str], list[str]]:
-    wmma_count = 0
+    required = required_matrix_mnemonics(amdgpu_target)
+    matrix_count = 0
     forbidden_stores: list[str] = []
     forbidden_divides: list[str] = []
     for symbol in symbols:
         disassembly = disassemble_code_object(objdump, code_object, amdgpu_target, symbol)
-        wmma_count += disassembly.count(REQUIRED_WMMA_MNEMONIC)
+        matrix_count += sum(disassembly.count(mnemonic) for mnemonic in required)
         forbidden_stores.extend(
             f"{symbol}: {line}" for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE)
         )
         forbidden_divides.extend(
             f"{symbol}: {line}" for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
         )
-    return wmma_count, forbidden_stores, forbidden_divides
+    return matrix_count, forbidden_stores, forbidden_divides
 
 
 def main() -> int:
     config = parse_isa_tool_config(__doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object")
     with extracted_device_code_object(config, "rns8-ck-isa-", "ck_backend_kernels.fatbin") as code_object:
         symbols = ck_symbols(config.objdump, code_object)
-        wmma_count, forbidden_stores, forbidden_divides = scan_disassembly(
+        matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(
             config.objdump,
             code_object,
             config.target,
             symbols,
         )
-        if wmma_count <= 0:
-            raise RuntimeError(f"CK object does not contain required {REQUIRED_WMMA_MNEMONIC} matrix instructions")
+        required = required_matrix_mnemonics(config.target)
+        if matrix_count <= 0:
+            raise RuntimeError(f"CK object does not contain required matrix instructions: {', '.join(required)}")
         if forbidden_stores:
             raise RuntimeError(
                 "CK object contains forbidden INT32 global/buffer stores:\n" + "\n".join(forbidden_stores[:20])
@@ -71,8 +85,8 @@ def main() -> int:
     print("CK ISA check: PASS")
     print(f"object: {config.host_object}")
     print(f"target: {config.target}")
-    print(f"- CK GEMM WMMA symbols: {len(symbols)}")
-    print(f"- {REQUIRED_WMMA_MNEMONIC} instructions: {wmma_count}")
+    print(f"- CK GEMM matrix symbols: {len(symbols)}")
+    print(f"- target matrix instructions: {matrix_count}")
     print("- no global_store_dword/buffer_store_dword instructions")
     print("- no v/s reciprocal, divide, or remainder instructions")
     return 0

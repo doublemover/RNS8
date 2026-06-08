@@ -216,6 +216,50 @@ struct CenteredModulo {
   }
 };
 
+#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
+    Row,
+    Col,
+    Row,
+    int8_t,
+    int8_t,
+    int8_t,
+    int32_t,
+    int32_t,
+    PassThrough,
+    PassThrough,
+    CenteredModulo,
+    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+    1,
+    256,
+    128,
+    128,
+    64,
+    16,
+    16,
+    32,
+    32,
+    4,
+    2,
+    S<4, 32, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    16,
+    16,
+    true,
+    S<4, 32, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    8,
+    8,
+    true,
+    1,
+    1,
+    S<1, 32, 1, 4>,
+    16>;
+#else
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
     Row,
     Col,
@@ -257,6 +301,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
     1,
     S<1, 32, 1, 4>,
     8>;
+#endif
 
 uint32_t modulus_reciprocal_u32(uint16_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / static_cast<uint32_t>(modulus));

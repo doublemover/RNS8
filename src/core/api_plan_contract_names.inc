@@ -296,10 +296,10 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
     return "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256";
   }
   if (plan.backend == RNS8_BACKEND_CK) {
-    return "ck_wmma_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide";
+    return "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide";
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
-    return "rocwmma_i8_wmma_isa_gate_no_int32_global_store_no_divide";
+    return "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide";
   }
   return "not_applicable_cpu";
 }

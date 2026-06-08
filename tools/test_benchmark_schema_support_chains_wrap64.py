@@ -958,7 +958,7 @@ def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
             "epilogue_mode": "low64_wrap_export",
             "workspace_mode": "benchmark_owned_compact_byte_limb_device_buffers",
             "workspace_required_bytes": 640,
-            "isa_evidence": "rocwmma_wrap64_byte_gemm36_wmma_isa_gate_no_int32_global_store_no_divide",
+            "isa_evidence": "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_int32_global_store_no_divide",
             "autotune_key": (
                 "backend=rocwmma-wrap64-candidate;target_id=gfx1100;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
                 "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"

@@ -656,6 +656,17 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
     }
 
 
+def reviewed_release_status_for_target(target_id: str | None) -> str:
+    target = str(target_id or "")
+    if target == "gfx1100":
+        return "reviewed_release_same_contract_fastest_windows_gfx1100"
+    if target in {"gfx90a", "gfx942", "gfx950"}:
+        return f"reviewed_release_same_contract_fastest_linux_{target}"
+    if target.startswith("gfx"):
+        return f"reviewed_release_same_contract_fastest_target_{target}"
+    return "reviewed_release_unknown_target"
+
+
 def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str, Any]], path: Path) -> int:
     promotable = report.get("promotable_autotune_entries")
     if not isinstance(promotable, list) or not promotable:
@@ -668,7 +679,9 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
         capture = by_path.get(str(item.get("source_capture")))
         if not capture:
             continue
-        entry = cache_entry_from_capture(capture, "reviewed_release_same_contract_fastest_windows_gfx1100")
+        device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
+        target_id = normalized_target_id(device.get("gcn_arch")) or "cpu"
+        entry = cache_entry_from_capture(capture, reviewed_release_status_for_target(target_id))
         if entry.get("key"):
             entries.append(entry)
     if not entries:

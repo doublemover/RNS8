@@ -5,7 +5,11 @@ constexpr int kRns8MaxSupportedPrefix = 28;
 constexpr int kRns8WmmaTileM = 16;
 constexpr int kRns8WmmaTileN = 16;
 constexpr int kRns8WmmaTileK = 16;
-constexpr int kRns8WmmaWaveThreads = 32;
+#ifndef RNS8_ROCWMMA_WAVE_THREADS
+#define RNS8_ROCWMMA_WAVE_THREADS 32
+#endif
+static_assert(RNS8_ROCWMMA_WAVE_THREADS == 32 || RNS8_ROCWMMA_WAVE_THREADS == 64);
+constexpr int kRns8WmmaWaveThreads = RNS8_ROCWMMA_WAVE_THREADS;
 constexpr int kRns8SignedSafeInt32KBlock = 65536;
 constexpr int kRns8MaxInt = 2147483647;
 constexpr uint32_t kRns8TileScheduleZeroOutput = 0x00000001u;
