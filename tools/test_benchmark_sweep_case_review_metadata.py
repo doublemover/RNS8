@@ -1,3 +1,6 @@
+from benchmark_sweep_lib.review import build_review_summary
+
+
 ck = finite_capture("ck", 190)
 direct = finite_capture("hip-direct", 300)
 cpu = finite_capture("cpu-reference", 500)
@@ -22,6 +25,10 @@ assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
 assert report["summary"]["fastest_accelerator_route_counts"] == {"ck": 1}
 assert report["summary"]["direct_hip_production_wins"] == []
 assert report["summary"]["loss_phase_counts"] == {}
+assert report["summary"]["loss_phase_by_backend"] == {}
+assert report["summary"]["loss_phase_by_semantics"] == {}
+assert report["summary"]["loss_phase_by_shape_family"] == {}
+assert report["summary"]["loss_phase_by_scenario_family"] == {}
 assert report["summary"]["next_work"] == []
 group = report["groups"][0]
 assert group["shape_family"] == "rectangular"
@@ -58,6 +65,101 @@ assert group["checksum_reference_backend"] == "cpu-reference"
 assert group["checksum_reference"] == 987654321
 assert group["checksum_consistent"] is True
 assert group["checksum_mismatches"] == []
+
+summary_fixture_group = {
+    "semantics": "bounded_i64",
+    "shape": {"m": 64, "n": 64, "k": 64},
+    "shape_family": "small_square",
+    "scenario_families": ["repeated-b"],
+    "missing_required_baselines": ["hip-vector-alu-int64"],
+    "checksum_mismatches": ["ck"],
+    "fastest_production_route": {
+        "backend": "hip-direct",
+        "selected_kernel": "direct_kernel",
+        "median_end_to_end_us": 100.0,
+        "bottleneck": {"class": "pack_bound", "phase": "pack"},
+        "capture": "direct.json",
+    },
+    "fastest_accelerator_route": {
+        "backend": "ck",
+        "selected_kernel": "ck_kernel",
+        "median_end_to_end_us": 140.0,
+        "bottleneck": {"class": "pack_bound", "phase": "pack"},
+        "capture": "ck.json",
+    },
+    "candidates": [
+        {
+            "backend": "ck",
+            "accelerator_backend": True,
+            "scenario_promotion_scope": "release_review_candidate",
+            "selected_kernel": "ck_kernel",
+            "median_end_to_end_us": 140.0,
+            "speedup_vs_direct_hip": 0.71,
+            "speedup_vs_vector_alu": 0.8,
+            "primary_loss_phase_vs_direct_hip": "pack",
+            "bottleneck": {"class": "pack_bound", "phase": "pack"},
+            "capture": "ck.json",
+            "promotion_blockers": [
+                "reuse_not_faster_than_same_backend_setup_inclusive",
+                "reuse_not_faster_than_best_nonreuse_setup_inclusive",
+                "graph_not_faster_than_non_graph_setup_inclusive",
+                "missing_graph_setup_inclusive_timing",
+                "not_faster_than_direct_hip",
+                "not_faster_than_vector_alu",
+            ],
+            "prepacked_reuse_review": {
+                "setup_inclusive_median_end_to_end_us": 180.0,
+                "same_backend_nonreuse_median_end_to_end_us": 150.0,
+            },
+            "hip_graph_replay_review": {
+                "setup_inclusive_median_end_to_end_us": None,
+                "baseline_setup_inclusive_median_end_to_end_us": 120.0,
+            },
+        },
+        {
+            "backend": "hip-direct",
+            "accelerator_backend": False,
+            "scenario_promotion_scope": "release_review_candidate",
+            "promotion_blockers": ["not_accelerator_backend"],
+        },
+        {
+            "backend": "ck",
+            "accelerator_backend": True,
+            "scenario_promotion_scope": "proxy_evidence_only",
+            "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
+        },
+    ],
+}
+summary_fixture = build_review_summary([summary_fixture_group], [])
+assert summary_fixture["missing_required_baseline_group_count"] == 1
+assert summary_fixture["checksum_mismatch_group_count"] == 1
+assert summary_fixture["review_blocker_counts"]["not_accelerator_backend"] == 1
+assert summary_fixture["review_blocker_counts"]["scenario_scope_not_autotune_promotable"] == 1
+assert summary_fixture["actionable_blocker_counts"]["not_faster_than_direct_hip"] == 1
+assert summary_fixture["actionable_blocker_counts"]["not_faster_than_vector_alu"] == 1
+assert summary_fixture["actionable_blocker_counts"]["graph_not_faster_than_non_graph_setup_inclusive"] == 1
+assert summary_fixture["actionable_blocker_counts"]["missing_graph_setup_inclusive_timing"] == 1
+assert summary_fixture["loss_phase_counts"] == {"pack": 1}
+assert summary_fixture["loss_phase_by_backend"] == {"ck": {"pack": 1}}
+assert summary_fixture["loss_phase_by_semantics"] == {"bounded_i64": {"pack": 1}}
+assert summary_fixture["loss_phase_by_shape_family"] == {"small_square": {"pack": 1}}
+assert summary_fixture["loss_phase_by_scenario_family"] == {"repeated-b": {"pack": 1}}
+assert summary_fixture["fastest_production_route_counts"] == {"hip-direct": 1}
+assert summary_fixture["fastest_accelerator_route_counts"] == {"ck": 1}
+assert len(summary_fixture["direct_hip_production_wins"]) == 1
+assert len(summary_fixture["setup_sensitive_candidates"]) == 1
+next_work_items = {row["work"] for row in summary_fixture["next_work"]}
+assert "fix_checksum_mismatches_before_performance_promotion" in next_work_items
+assert "fix_missing_required_baselines_or_reclassify_invalid_scenarios" in next_work_items
+assert "reduce_prepack_setup_or_reuse_steady_state_cost" in next_work_items
+assert "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence" in next_work_items
+assert "improve_graph_replay_break_even_or_keep_graph_benchmark_only" in next_work_items
+assert "fix_graph_setup_inclusive_timing_metadata" in next_work_items
+assert "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner" in next_work_items
+assert "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion" in next_work_items
+assert "optimize_pack_phase" in next_work_items
+assert "address_pack_bound" in next_work_items
+assert "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases" in next_work_items
 
 checksum_bad_ck = copy.deepcopy(ck)
 checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1

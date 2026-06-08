@@ -102,6 +102,10 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
                 f"- fastest_production_route_counts: `{summary.get('fastest_production_route_counts')}`",
                 f"- fastest_accelerator_route_counts: `{summary.get('fastest_accelerator_route_counts')}`",
                 f"- loss_phase_counts: `{summary.get('loss_phase_counts')}`",
+                f"- loss_phase_by_backend: `{summary.get('loss_phase_by_backend')}`",
+                f"- loss_phase_by_semantics: `{summary.get('loss_phase_by_semantics')}`",
+                f"- loss_phase_by_shape_family: `{summary.get('loss_phase_by_shape_family')}`",
+                f"- loss_phase_by_scenario_family: `{summary.get('loss_phase_by_scenario_family')}`",
                 f"- bottleneck_counts: `{summary.get('bottleneck_counts')}`",
                 "",
                 "| priority | next work | reason |",
@@ -123,6 +127,34 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         else:
             lines.append("| none | none | no actionable next work reported |")
         lines.append("")
+        setup_rows = summary.get("setup_sensitive_candidates")
+        if isinstance(setup_rows, list) and setup_rows:
+            lines.extend(
+                [
+                    "| backend | shape | family | prepack setup e2e us | graph setup e2e us | blockers |",
+                    "|---|---|---|---|---|---|",
+                ]
+            )
+            for row in setup_rows[:20]:
+                if not isinstance(row, dict):
+                    continue
+                shape = row.get("shape") if isinstance(row.get("shape"), dict) else {}
+                prepack = row.get("prepacked_reuse_review")
+                graph = row.get("hip_graph_replay_review")
+                prepack_e2e = prepack.get("setup_inclusive_median_end_to_end_us") if isinstance(prepack, dict) else ""
+                graph_e2e = graph.get("setup_inclusive_median_end_to_end_us") if isinstance(graph, dict) else ""
+                blockers = row.get("promotion_blockers") if isinstance(row.get("promotion_blockers"), list) else []
+                lines.append(
+                    "| {backend} | {shape} | {family} | {prepack_e2e} | {graph_e2e} | {blockers} |".format(
+                        backend=row.get("backend"),
+                        shape=f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}",
+                        family=row.get("shape_family") or "unknown",
+                        prepack_e2e=prepack_e2e,
+                        graph_e2e=graph_e2e,
+                        blockers=",".join(str(item) for item in blockers) if blockers else "none",
+                    )
+                )
+            lines.append("")
     for group in report.get("groups", []):
         shape = group.get("shape", {})
         modulus = group.get("finite_modulus")

@@ -88,6 +88,15 @@ def _shape_text(group: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _scenario_families(group: dict[str, Any]) -> list[str]:
+    families = group.get("scenario_families")
+    if isinstance(families, list):
+        result = [str(item) for item in families if isinstance(item, str) and item]
+        if result:
+            return result
+    return ["unknown"]
+
+
 def _candidate_histogram(
     candidate: dict[str, Any],
     isa_index: dict[str, list[dict[str, Any]]] | None,
@@ -237,6 +246,10 @@ def build_summary(
     production_route_counts: Counter[str] = Counter()
     accelerator_route_counts: Counter[str] = Counter()
     loss_phase_counts: Counter[str] = Counter()
+    loss_phase_by_backend: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_semantics: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_shape_family: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_scenario_family: Counter[tuple[str, str]] = Counter()
     bottleneck_counts: Counter[str] = Counter()
     direct_hip_production_wins: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     next_work_rows: list[tuple[str, dict[str, Any]]] = []
@@ -273,7 +286,14 @@ def build_summary(
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
                     phase = candidate.get("primary_loss_phase_vs_direct_hip")
                     if isinstance(phase, str) and phase:
+                        backend = str(candidate.get("backend") or "unknown")
+                        semantics = str(group.get("semantics") or "unknown")
+                        shape_family = str(group.get("shape_family") or "unknown")
                         loss_phase_counts.update([phase])
+                        loss_phase_by_backend.update([(backend, phase)])
+                        loss_phase_by_semantics.update([(semantics, phase)])
+                        loss_phase_by_shape_family.update([(shape_family, phase)])
+                        loss_phase_by_scenario_family.update((family, phase) for family in _scenario_families(group))
                     bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
                     bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
     lines.append("REVIEW_BLOCKER_COUNTS")
@@ -337,6 +357,30 @@ def build_summary(
             lines.append(f"{phase} {count}")
     else:
         lines.append("none 0")
+    lines.append("LOSS_PHASE_BY_BACKEND")
+    if loss_phase_by_backend:
+        for (backend, phase), count in loss_phase_by_backend.most_common():
+            lines.append(f"{backend} {phase} {count}")
+    else:
+        lines.append("none none 0")
+    lines.append("LOSS_PHASE_BY_SEMANTICS")
+    if loss_phase_by_semantics:
+        for (semantics, phase), count in loss_phase_by_semantics.most_common():
+            lines.append(f"{semantics} {phase} {count}")
+    else:
+        lines.append("none none 0")
+    lines.append("LOSS_PHASE_BY_SHAPE_FAMILY")
+    if loss_phase_by_shape_family:
+        for (shape_family, phase), count in loss_phase_by_shape_family.most_common():
+            lines.append(f"{shape_family} {phase} {count}")
+    else:
+        lines.append("none none 0")
+    lines.append("LOSS_PHASE_BY_SCENARIO_FAMILY")
+    if loss_phase_by_scenario_family:
+        for (family, phase), count in loss_phase_by_scenario_family.most_common():
+            lines.append(f"{family} {phase} {count}")
+    else:
+        lines.append("none none 0")
     lines.append("BOTTLENECK_COUNTS")
     if bottleneck_counts:
         for bottleneck, count in bottleneck_counts.most_common():

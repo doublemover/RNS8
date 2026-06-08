@@ -117,6 +117,7 @@ def main() -> int:
                         "semantics": "bounded_i64",
                         "shape": {"m": 64, "n": 64, "k": 64},
                         "shape_family": "small_square",
+                        "scenario_families": ["summary-test"],
                         "contract_key": "release-candidate-contract",
                         "required_baselines": ["cpu-reference", "hip-direct", "hip-vector-alu-int64"],
                         "missing_required_baselines": ["hip-vector-alu-int64"],
@@ -228,6 +229,14 @@ def main() -> int:
         assert "shape_family=small_square" in text
         assert "LOSS_PHASE_COUNTS" in text
         assert "pack 1" in text
+        assert "LOSS_PHASE_BY_BACKEND" in text
+        assert "ck pack 1" in text
+        assert "LOSS_PHASE_BY_SEMANTICS" in text
+        assert "bounded_i64 pack 1" in text
+        assert "LOSS_PHASE_BY_SHAPE_FAMILY" in text
+        assert "small_square pack 1" in text
+        assert "LOSS_PHASE_BY_SCENARIO_FAMILY" in text
+        assert "summary-test pack 1" in text
         assert "BOTTLENECK_COUNTS" in text
         assert "pack_bound 1" in text
         assert "NEXT_WORK 1" in text

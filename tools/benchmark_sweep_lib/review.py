@@ -209,6 +209,22 @@ def compact_candidate_route(group: dict[str, Any], candidate: dict[str, Any]) ->
     }
 
 
+def nested_counter(counter: Counter[tuple[str, str]]) -> dict[str, dict[str, int]]:
+    nested: dict[str, dict[str, int]] = {}
+    for (outer, inner), count in counter.most_common():
+        nested.setdefault(outer, {})[inner] = count
+    return nested
+
+
+def group_scenario_families(group: dict[str, Any]) -> list[str]:
+    families = group.get("scenario_families")
+    if isinstance(families, list):
+        result = [str(item) for item in families if isinstance(item, str) and item]
+        if result:
+            return result
+    return ["unknown"]
+
+
 def review_next_work(
     *,
     missing_baseline_count: int,
@@ -289,6 +305,10 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
     blocker_counts: Counter[str] = Counter()
     actionable_blockers: Counter[str] = Counter()
     loss_phase_counts: Counter[str] = Counter()
+    loss_phase_by_backend: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_semantics: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_shape_family: Counter[tuple[str, str]] = Counter()
+    loss_phase_by_scenario_family: Counter[tuple[str, str]] = Counter()
     loss_rows: list[dict[str, Any]] = []
     bottleneck_counts: Counter[str] = Counter()
     production_counts: Counter[str] = Counter()
@@ -322,7 +342,14 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
                 actionable_blockers.update(actionable)
                 phase = candidate.get("primary_loss_phase_vs_direct_hip")
                 if isinstance(phase, str) and phase:
+                    backend = str(candidate.get("backend") or "unknown")
+                    semantics = str(group.get("semantics") or "unknown")
+                    family = str(group.get("shape_family") or "unknown")
                     loss_phase_counts.update([phase])
+                    loss_phase_by_backend.update([(backend, phase)])
+                    loss_phase_by_semantics.update([(semantics, phase)])
+                    loss_phase_by_shape_family.update([(family, phase)])
+                    loss_phase_by_scenario_family.update((scenario_family, phase) for scenario_family in group_scenario_families(group))
                     loss_rows.append(compact_candidate_route(group, candidate))
                 bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
                 bottleneck_class = str(bottleneck.get("class") or "unknown")
@@ -345,6 +372,10 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         "review_blocker_counts": dict(blocker_counts.most_common()),
         "actionable_blocker_counts": dict(actionable_blockers.most_common()),
         "loss_phase_counts": dict(loss_phase_counts.most_common()),
+        "loss_phase_by_backend": nested_counter(loss_phase_by_backend),
+        "loss_phase_by_semantics": nested_counter(loss_phase_by_semantics),
+        "loss_phase_by_shape_family": nested_counter(loss_phase_by_shape_family),
+        "loss_phase_by_scenario_family": nested_counter(loss_phase_by_scenario_family),
         "bottleneck_counts": dict(bottleneck_counts.most_common()),
         "fastest_production_route_counts": dict(production_counts.most_common()),
         "fastest_accelerator_route_counts": dict(accelerator_counts.most_common()),
