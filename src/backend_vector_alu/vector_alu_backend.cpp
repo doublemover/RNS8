@@ -54,6 +54,10 @@ bool checked_vector_shape(int64_t m, int64_t n, int64_t k) {
          n <= std::numeric_limits<int>::max() && k <= std::numeric_limits<int>::max();
 }
 
+bool vector_gemv_n1_shape(int64_t n, int64_t k) {
+  return n == 1 && k >= 4096;
+}
+
 }  // namespace
 
 rns8_status vector_alu_gemm_i64_device(
@@ -69,7 +73,9 @@ rns8_status vector_alu_gemm_i64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const int status = run_timed_device_code("vector_alu_i64_kernel", [&]() {
+  const char* event_label = vector_gemv_n1_shape(n, k) ? "vector_alu_i64_gemv_n1_kernel"
+                                                       : "vector_alu_i64_kernel";
+  const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_i64_gemm_device(
         device_id,
         static_cast<const int64_t*>(device_a),
@@ -107,7 +113,9 @@ rns8_status vector_alu_gemm_u64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const int status = run_timed_device_code("vector_alu_u64_kernel", [&]() {
+  const char* event_label = vector_gemv_n1_shape(n, k) ? "vector_alu_u64_gemv_n1_kernel"
+                                                       : "vector_alu_u64_kernel";
+  const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_u64_gemm_device(
         device_id,
         static_cast<const uint64_t*>(device_a),

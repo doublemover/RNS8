@@ -442,8 +442,8 @@
               << "\",\n";
     std::cout << "        \"reason\": \""
               << (vector_to_rns_chain_host_repack_control_requested(args)
-                      ? "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, vector_alu_output_d2h, vector_to_rns_host_repack_a, and rns_gemm_kernel_group GPU event phases inside rns_gemm"
-                      : "measured as vector_alu_i64_kernel or vector_alu_u64_kernel, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm")
+                      ? "measured as the selected vector-ALU kernel event, vector_alu_output_d2h, vector_to_rns_host_repack_a, and rns_gemm_kernel_group GPU event phases inside rns_gemm"
+                      : "measured as the selected vector-ALU kernel event, native_i64_to_rns_kernel or native_u64_to_rns_kernel, and rns_gemm_kernel_group GPU event phases inside rns_gemm")
               << "\"\n";
     std::cout << "      },\n";
   }

@@ -424,8 +424,7 @@ void collect_hipblaslt_gemm_gpu_events(const Args& args, GpuEventSamples& events
 
 void collect_vector_alu_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const char* kernel_label =
-      args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_kernel" : "vector_alu_u64_kernel";
+  const char* kernel_label = vector_to_rns_chain_kernel_label(args);
   const double status_memset = optional_event_label(samples, "vector_alu_status_memset");
   const double kernel = sum_event_label(events, samples, "rns_gemm", kernel_label);
   const double status_d2h = optional_event_label(samples, "vector_alu_status_d2h");

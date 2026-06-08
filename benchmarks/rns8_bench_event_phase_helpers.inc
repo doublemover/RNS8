@@ -86,6 +86,10 @@ bool native_to_rns_bridge_path(
 }
 
 const char* vector_to_rns_chain_kernel_label(const Args& args) {
+  if (vector_alu_gemv_n1_shape(args)) {
+    return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_gemv_n1_kernel"
+                                                        : "vector_alu_u64_gemv_n1_kernel";
+  }
   return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_kernel" : "vector_alu_u64_kernel";
 }
 
@@ -172,8 +176,7 @@ std::vector<std::string> gpu_event_phase_order(
         "oneshot_api_gpu"};
   }
   if (args.vector_alu_baseline || selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
-    const char* kernel =
-        args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_kernel" : "vector_alu_u64_kernel";
+    const char* kernel = vector_to_rns_chain_kernel_label(args);
     return {
         "vector_alu_pack_a_h2d",
         "vector_alu_pack_b_h2d",

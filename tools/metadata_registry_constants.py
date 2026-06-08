@@ -6,6 +6,7 @@ BENCHMARK_EXECUTION_MODES = {
     'benchmark_grouped_dispatch_evidence',
     'benchmark_hip_graph_replay_evidence',
     'benchmark_host_api_batch',
+    'benchmark_owned_vector_alu_gemv_n1_native_buffers',
     'benchmark_owned_vector_alu_native_buffers',
     'benchmark_streaming_overlap_resident_b_pipeline',
     'direct_hip_skinny_gemv_n1_resident_rns',
@@ -16,6 +17,7 @@ BENCHMARK_EXECUTION_MODES = {
     'internal_wrap64_rocwmma_candidate',
     'persistent_resident_matrices',
     'public_oneshot_transient_native_inputs',
+    'public_runtime_vector_alu_gemv_n1_native_buffers',
     'public_runtime_vector_alu_native_buffers',
     'residue_chain_final_host_export',
     'residue_chain_independent_final_host_export',
@@ -343,12 +345,14 @@ GROUPED_DISPATCH_EVENTS = {
     'rns_gemm_kernel_group',
 }
 VECTOR_ALU_GPU_EVENT_LABELS = {
+    'vector_alu_i64_gemv_n1_kernel',
     'vector_alu_i64_kernel',
     'vector_alu_output_d2h',
     'vector_alu_pack_a_h2d',
     'vector_alu_pack_b_h2d',
     'vector_alu_status_d2h',
     'vector_alu_status_memset',
+    'vector_alu_u64_gemv_n1_kernel',
     'vector_alu_u64_kernel',
 }
 HIPBLASLT_GPU_EVENT_LABELS = {

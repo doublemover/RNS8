@@ -63,7 +63,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
       return rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
-    const int kernel_status = rns8::detail::run_timed_device_code("vector_alu_i64_kernel", [&]() {
+    const char* kernel_label = vector_to_rns_chain_kernel_label(args);
+    const int kernel_status = rns8::detail::run_timed_device_code(kernel_label, [&]() {
       return rns8_bench_vector_i64_gemm_device(
           args.device_id,
           static_cast<const int64_t*>(d_a.ptr),
@@ -191,7 +192,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
       return rns8::detail::hip_direct_zero(args.device_id, d_status.ptr, status_bytes);
     });
     if (status != RNS8_SUCCESS) fail_status("hip_direct_zero(vector status)", status);
-    const int kernel_status = rns8::detail::run_timed_device_code("vector_alu_u64_kernel", [&]() {
+    const char* kernel_label = vector_to_rns_chain_kernel_label(args);
+    const int kernel_status = rns8::detail::run_timed_device_code(kernel_label, [&]() {
       return rns8_bench_vector_u64_gemm_device(
           args.device_id,
           static_cast<const uint64_t*>(d_a.ptr),

@@ -525,14 +525,24 @@ bool oneshot_benchmark_mode(const Args& args) {
   return args.oneshot;
 }
 
+bool vector_alu_gemv_n1_shape(const Args& args) {
+  return bounded_benchmark_semantics(args.semantics) && args.n == 1 && args.k >= 4096;
+}
+
 const char* benchmark_execution_mode_name(const Args& args) {
   if (args.oneshot) {
     return "public_oneshot_transient_native_inputs";
   }
   if (args.vector_alu_baseline) {
+    if (vector_alu_gemv_n1_shape(args)) {
+      return "benchmark_owned_vector_alu_gemv_n1_native_buffers";
+    }
     return "benchmark_owned_vector_alu_native_buffers";
   }
   if (runtime_vector_alu_backend(args)) {
+    if (vector_alu_gemv_n1_shape(args)) {
+      return "public_runtime_vector_alu_gemv_n1_native_buffers";
+    }
     return "public_runtime_vector_alu_native_buffers";
   }
   if (native_to_rns_bridge_requested(args)) {

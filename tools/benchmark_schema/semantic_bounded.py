@@ -372,6 +372,22 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
     expected_native_layout = (
         "native_i64_rowmajor_v1" if semantics == "bounded_i64" else "native_u64_rowmajor_v1"
     )
+    if self._is_vector_alu_gemv_n1_capture():
+        expected_modes = {
+            "public_runtime_vector_alu_gemv_n1_native_buffers",
+            "benchmark_owned_vector_alu_gemv_n1_native_buffers",
+        }
+        if self._benchmark_execution_mode() not in expected_modes:
+            self._error("vector-ALU GEMV N=1 captures must use a vector-GEMV execution mode")
+        packing = self.data.get("plan_packing")
+        if isinstance(packing, dict):
+            if packing.get("output_domain_name") != "native_i64_u64_current":
+                self._error(
+                    "vector-ALU GEMV N=1 captures must declare plan_packing.output_domain_name="
+                    "native_i64_u64_current"
+                )
+            if packing.get("output_device_current") is not True:
+                self._error("vector-ALU GEMV N=1 captures must leave native output current on device")
     if self._is_vector_alu_runtime_capture():
         if packed_layout != expected_native_layout:
             self._error(f"{semantics} runtime vector captures must use packed_layout_version={expected_native_layout}")

@@ -18,6 +18,8 @@ vector_gemv["n"] = 1
 vector_gemv["k"] = 4096
 vector_gemv["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
 vector_gemv["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
+vector_gemv["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_n1_native_buffers"
+vector_gemv["timing_metadata"]["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_n1_native_buffers"
 vector_gemv["backend_metadata"]["autotune_key"] = (
     vector_gemv["backend_metadata"]["autotune_key"]
     .replace(";m=16;", ";m=128;")
@@ -28,6 +30,14 @@ vector_gemv["backend_metadata"]["autotune_key"] = (
 )
 vector_gemv["backend_metadata"]["accumulator_safety"]["k_block_size"] = 4096
 vector_gemv["k_block_size"] = 4096
+vector_gemv_phases = vector_gemv["timing_metadata"]["gpu_event_phase_order"]
+vector_gemv_phases[vector_gemv_phases.index("vector_alu_u64_kernel")] = "vector_alu_u64_gemv_n1_kernel"
+vector_gemv["gpu_event_timings_us"]["vector_alu_u64_gemv_n1_kernel"] = (
+    vector_gemv["gpu_event_timings_us"].pop("vector_alu_u64_kernel")
+)
+vector_gemv["gpu_event_timing_summary_us"]["vector_alu_u64_gemv_n1_kernel"] = (
+    vector_gemv["gpu_event_timing_summary_us"].pop("vector_alu_u64_kernel")
+)
 validate_capture(vector_gemv)
 
 direct_hip_skinny_gemv = as_direct_hip_bounded_skinny_gemv_n1_capture(v4_ck_i64)

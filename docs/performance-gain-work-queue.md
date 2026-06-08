@@ -108,6 +108,13 @@ inspection commands.
 - Implementation scope: add `hip_vector_alu_*_gemv_n1` routing and benchmark
   metadata for native exact i64/u64 GEMV, with exact status checks and
   explicit output-domain metadata.
+- Local implementation status: implemented for `N=1,K>=4096` native exact
+  vector-ALU captures with
+  `public_runtime_vector_alu_gemv_n1_native_buffers` /
+  `benchmark_owned_vector_alu_gemv_n1_native_buffers`, selected
+  `hip_vector_alu_*_gemv_n1_exact_192b_v1` kernels, GEMV-specific GPU event
+  labels, native output-domain packing metadata, and local Windows HIP
+  signed/unsigned schema-validated smokes.
 - Required evidence: `skinny-gemv` release groups with CPU, Direct HIP,
   vector-ALU, and accelerator comparators; vector-ALU rows must not be compared
   against exact-wide, finite-u8, or wrap64 contracts.
