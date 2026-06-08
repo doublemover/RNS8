@@ -924,6 +924,12 @@ The original plan-only pack sketch was replaced during the Phase 0 scaffold:
 packing needs an explicit matrix descriptor because A, B, and C have different
 dimensions. Hidden pack-role inference is not allowed in the ABI.
 For bounded RNS matrices, `source_version` is caller-supplied pack metadata.
+For HIP-resident direct-input storage, repeating a successful pack with the
+same nonzero `source_version`, matching semantic storage, and already-current
+device data is an idempotent no-op; a changed source must use a changed source
+version so the backend performs a new H2D pack. `rns8_get_plan_packing_info`
+reports this capability through source-versioned input and same-version pack
+elision flags.
 Successful bounded persistent GEMM writes an internal deterministic output
 version to C from the packed A/B source versions, and rejected GEMM dispatch
 must not mutate C's existing version.

@@ -95,10 +95,13 @@ def validate_helper_lane_metadata(self: Any) -> None:
                 "production_prepack_cache_available",
                 "output_host_current",
                 "output_device_current",
+                "source_versioned_inputs",
+                "same_source_version_pack_elision_available",
             ]:
                 if not isinstance(plan_packing.get(key), bool):
                     self._error(f"plan_packing.{key} must be a boolean")
             for key in [
+                "flags",
                 "next_op_flags",
                 "a_pack_workspace_bytes",
                 "b_pack_workspace_bytes",

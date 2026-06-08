@@ -329,6 +329,9 @@ typedef enum rns8_next_op_flags {
   RNS8_NEXT_OP_REUSABLE_B_PREPACK = 1u << 4
 } rns8_next_op_flags;
 
+#define RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS 0x00000001u
+#define RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION 0x00000002u
+
 typedef struct rns8_plan_packing_info {
   uint64_t struct_size;
   uint32_t abi_version;

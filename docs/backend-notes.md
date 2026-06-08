@@ -74,6 +74,10 @@ accelerator pack workspace bytes. It also reports the selected input/output
 domain, whether a successful GEMM leaves host or device output current, and
 next-operation flags for final export, RNS continuation, native continuation,
 native-to-RNS conversion eligibility, and reusable B prepack availability.
+The `flags` field records source-versioned resident input contracts; Direct-HIP
+and AMDGPU builtin plans set same-source-version pack elision when a repeated
+nonzero source version can reuse already-current device-resident RNS or byte-limb
+storage without another host-to-device copy or pack kernel launch.
 rocWMMA reports production B-side prepack-cache availability only for bounded
 i64/u64 non-tiled RNS plans. Exact-wide rocWMMA plans can still expose reusable
 B-cache keying and correctness evidence, but remain evidence-only until their

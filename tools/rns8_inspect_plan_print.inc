@@ -55,6 +55,11 @@ void print_plan_packing_text(const rns8_plan_packing_info& packing) {
   std::cout << "autotune_plan_production_prepack: " << packing.production_prepack_cache_available << "\n";
   std::cout << "autotune_plan_input_domain:       " << output_domain_name(packing.input_domain) << "\n";
   std::cout << "autotune_plan_output_domain:      " << output_domain_name(packing.output_domain) << "\n";
+  std::cout << "autotune_plan_source_versioned:   "
+            << ((packing.flags & RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS) ? 1 : 0) << "\n";
+  std::cout << "autotune_plan_pack_elision:       "
+            << ((packing.flags & RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION) ? 1 : 0) << "\n";
+  std::cout << "autotune_plan_packing_flags:      " << packing.flags << "\n";
   std::cout << "autotune_plan_next_op_flags:      " << packing.next_op_flags << "\n";
   std::cout << "autotune_plan_total_pack_bytes:   " << packing.total_transient_workspace_bytes << "\n";
   std::cout << "autotune_plan_prepack_scope:      " << packing.prepack_cache_scope << "\n";
@@ -81,6 +86,11 @@ void print_plan_packing_json(const rns8_plan_packing_info& packing, bool trailin
   std::cout << "      \"output_domain_name\": \"" << json_escape(packing.output_domain_name) << "\",\n";
   std::cout << "      \"output_host_current\": " << (packing.output_host_current ? "true" : "false") << ",\n";
   std::cout << "      \"output_device_current\": " << (packing.output_device_current ? "true" : "false") << ",\n";
+  std::cout << "      \"source_versioned_inputs\": "
+            << ((packing.flags & RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS) ? "true" : "false") << ",\n";
+  std::cout << "      \"same_source_version_pack_elision_available\": "
+            << ((packing.flags & RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION) ? "true" : "false") << ",\n";
+  std::cout << "      \"flags\": " << packing.flags << ",\n";
   std::cout << "      \"next_op_flags\": " << packing.next_op_flags << ",\n";
   std::cout << "      \"next_op_hint\": \"" << json_escape(packing.next_op_hint) << "\",\n";
   std::cout << "      \"a_pack_workspace_bytes\": " << packing.a_pack_workspace_bytes << ",\n";

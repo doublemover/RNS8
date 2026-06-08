@@ -270,6 +270,11 @@ inspection commands.
   signed/unsigned, and finite-u8 captures. Direct-HIP host-batch GPU event
   captures now split the per-task A/B H2D and pack-kernel labels while also
   preserving aggregate pack labels for existing setup-inclusive comparisons.
+  Direct-HIP, wrap64 Direct-HIP, finite-u8 Direct-HIP, and AMDGPU builtin
+  resident-input plans now advertise source-versioned same-version pack elision
+  through `rns8_get_plan_packing_info`; repeated nonzero imports with unchanged
+  `source_version` and already-current device storage return before H2D or pack
+  kernel launch.
   Grouped-dispatch slab pack captures now split the existing A-then-B slab
   uploads and pack kernels into matching A/B GPU event labels while preserving
   aggregate pack labels.

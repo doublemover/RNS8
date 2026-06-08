@@ -127,6 +127,30 @@ TEST_CASE("direct HIP public wrap64 byte-limb path matches CPU reference") {
   CHECK_FALSE(hip_a->host_byte_limbs_current);
   CHECK_FALSE(hip_b->host_byte_limbs_current);
 
+  std::vector<uint64_t> changed_A = A;
+  changed_A[0] = 123456789ull;
+  rns8::detail::hip_direct_timing_set_enabled(true);
+  rns8::detail::hip_direct_timing_reset();
+  REQUIRE(rns8_pack_u64(hip, hip_a, changed_A.data(), lda, 7) == RNS8_SUCCESS);
+  auto same_source_pack_events = rns8::detail::hip_direct_timing_snapshot();
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  CHECK_FALSE(has_timing_label(same_source_pack_events, "pack_h2d"));
+  CHECK_FALSE(has_timing_label(same_source_pack_events, "pack_kernel"));
+  REQUIRE(rns8_gemm_wrap_u64(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_wrap_u64(cpu, cpu_plan, cpu_a, cpu_b, cpu_out, cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_wrap_u64(cpu, cpu_plan, cpu_out, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  std::fill(hip_c.begin(), hip_c.end(), 0x1111111111111111ull);
+  REQUIRE(rns8_export_wrap_u64(hip, hip_plan, hip_out, hip_c.data(), ldc) == RNS8_SUCCESS);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] == cpu_c[static_cast<std::size_t>(row * ldc + col)]);
+    }
+    for (int64_t col = n; col < ldc; ++col) {
+      CHECK(hip_c[static_cast<std::size_t>(row * ldc + col)] == 0x1111111111111111ull);
+    }
+  }
+  std::fill(hip_c.begin(), hip_c.end(), 0xdeadbeefdeadbeefull);
+
   CHECK(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_out, hip_workspace) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_gemm_wrap_u64(cpu, cpu_plan, cpu_a, cpu_b, cpu_out, cpu_workspace) == RNS8_SUCCESS);
   rns8::detail::hip_direct_timing_set_enabled(true);

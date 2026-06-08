@@ -2,6 +2,32 @@
 
 using namespace rns8::detail::api;
 
+namespace {
+
+bool same_source_device_residue_pack_current(const rns8_context& ctx, const rns8_matrix& matrix, uint64_t source_version) {
+  return source_version != 0 && matrix.source_version == source_version && hip_resident_rns_backend(ctx.backend) &&
+         matrix.device_residues_current && !should_populate_native_on_pack(ctx, matrix);
+}
+
+bool same_source_device_byte_limb_pack_current(
+    const rns8_context& ctx,
+    const rns8_matrix& matrix,
+    uint64_t source_version) {
+  return source_version != 0 && matrix.source_version == source_version && ctx.backend == RNS8_BACKEND_HIP_DIRECT &&
+         matrix.device_byte_limbs_current;
+}
+
+bool same_source_finite_device_residue_pack_current(
+    const rns8_context& ctx,
+    const rns8_matrix& matrix,
+    uint16_t modulus,
+    uint64_t source_version) {
+  return source_version != 0 && matrix.source_version == source_version && matrix.finite_modulus == modulus &&
+         hip_resident_rns_backend(ctx.backend) && matrix.device_residues_current;
+}
+
+}  // namespace
+
 rns8_status rns8_pack_i64(
     rns8_context* ctx,
     rns8_matrix* matrix,
@@ -39,6 +65,9 @@ rns8_status rns8_pack_i64(
       return RNS8_INVALID_ARGUMENT;
     }
     if (hip_resident_rns_backend(ctx->backend)) {
+      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
+        return RNS8_SUCCESS;
+      }
       const rns8_status status = rns8::detail::hip_direct_pack_i64_device(
           ctx->device_id,
           src,
@@ -112,6 +141,9 @@ rns8_status rns8_pack_u64(
         rns8::detail::pack_wrap_u64_matrix(*matrix, src, ld);
         mark_host_byte_limbs_current(*matrix);
       } else if (ctx->backend == RNS8_BACKEND_HIP_DIRECT) {
+        if (same_source_device_byte_limb_pack_current(*ctx, *matrix, source_version)) {
+          return RNS8_SUCCESS;
+        }
         const rns8_status status = rns8::detail::wrap64_hip_pack_u64_device(
             ctx->device_id,
             src,
@@ -133,6 +165,9 @@ rns8_status rns8_pack_u64(
     } else if (hip_resident_rns_backend(ctx->backend)) {
       if (matrix->hip_device_id != ctx->device_id) {
         return RNS8_INVALID_ARGUMENT;
+      }
+      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
+        return RNS8_SUCCESS;
       }
       const rns8_status status = rns8::detail::hip_direct_pack_u64_device(
           ctx->device_id,
@@ -187,6 +222,9 @@ rns8_status rns8_pack_finite_u8(
     if (hip_resident_rns_backend(ctx->backend)) {
       if (matrix->hip_device_id != ctx->device_id) {
         return RNS8_INVALID_ARGUMENT;
+      }
+      if (same_source_finite_device_residue_pack_current(*ctx, *matrix, modulus, source_version)) {
+        return RNS8_SUCCESS;
       }
       const rns8_status status = rns8::detail::hip_direct_pack_finite_u8_device(
           ctx->device_id,

@@ -494,6 +494,8 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       out->uses_transient_pack_workspace = 0;
       out->uses_matrix_engine_pack_layout = 1;
+      out->flags |= RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS |
+                    RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION;
       set_text(out->a_layout_version, sizeof(out->a_layout_version), "amdgpu_builtin_a_centered_i8_matrix_core_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "amdgpu_builtin_b_centered_i8_matrix_core_v1");
       set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
@@ -524,11 +526,13 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     set_text(out->b_layout_version, sizeof(out->b_layout_version), persistent_layout_version_for_plan(*plan));
     set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
+      out->flags |= RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS |
+                    RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION;
       set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "device_resident_no_prepack_cache");
       set_text(
           out->detail,
           sizeof(out->detail),
-          "Direct HIP consumes persistent device-resident matrix storage directly; no transient matrix-engine pack workspace or reusable prepack cache.");
+          "Direct HIP consumes persistent device-resident matrix storage directly; same nonzero source-version imports can elide repeated device packs when resident storage is already current; no transient matrix-engine pack workspace or reusable prepack cache.");
     } else if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "host_byte_limb_no_prepack_cache");
       set_text(

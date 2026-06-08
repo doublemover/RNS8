@@ -72,6 +72,15 @@ TEST_CASE("direct HIP finite u8 persistent matrices match CPU and reuse resident
     rns8::detail::hip_direct_allocation_counters_reset();
     REQUIRE(rns8_pack_finite_u8(hip, hip_a, item.modulus, A.data(), lda, 1) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_finite_u8(hip, hip_b, item.modulus, B.data(), ldb, 2) == RNS8_SUCCESS);
+    std::vector<uint8_t> changed_A = A;
+    changed_A[0] = static_cast<uint8_t>((changed_A[0] + 17u) & 0xffu);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8_pack_finite_u8(hip, hip_a, item.modulus, changed_A.data(), lda, 1) == RNS8_SUCCESS);
+    auto same_source_pack_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK_FALSE(has_timing_label(same_source_pack_events, "finite_pack_h2d"));
+    CHECK_FALSE(has_timing_label(same_source_pack_events, "finite_pack_kernel"));
     REQUIRE(rns8_gemm_finite_u8(hip, hip_plan, item.modulus, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
     REQUIRE(rns8_export_finite_u8(hip, hip_plan, item.modulus, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
     const auto warmed_snapshot = capture_finite_resident_snapshot(hip_a, hip_b, hip_c, hip_workspace);

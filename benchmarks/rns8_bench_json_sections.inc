@@ -25,6 +25,11 @@ void print_plan_packing_json(const BenchmarkResult& result) {
   std::cout << "    \"output_domain_name\": \"" << json_escape(packing.output_domain_name) << "\",\n";
   std::cout << "    \"output_host_current\": " << (packing.output_host_current ? "true" : "false") << ",\n";
   std::cout << "    \"output_device_current\": " << (packing.output_device_current ? "true" : "false") << ",\n";
+  std::cout << "    \"source_versioned_inputs\": "
+            << ((packing.flags & RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS) ? "true" : "false") << ",\n";
+  std::cout << "    \"same_source_version_pack_elision_available\": "
+            << ((packing.flags & RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION) ? "true" : "false") << ",\n";
+  std::cout << "    \"flags\": " << packing.flags << ",\n";
   std::cout << "    \"next_op_flags\": " << packing.next_op_flags << ",\n";
   std::cout << "    \"next_op_hint\": \"" << json_escape(packing.next_op_hint) << "\",\n";
   std::cout << "    \"a_pack_workspace_bytes\": " << packing.a_pack_workspace_bytes << ",\n";
