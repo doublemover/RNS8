@@ -429,6 +429,52 @@ def _sparse_a_route_line(
     )
 
 
+MATRIX_CORE_FAMILIES = {"mfma", "smfmac", "wmma", "swmmac"}
+MATRIX_CORE_MNEMONIC_PREFIXES = ("v_mfma", "v_smfmac", "v_wmma", "v_swmmac")
+
+
+def _matrix_core_route_active(candidate: dict[str, Any]) -> bool:
+    family = candidate.get("matrix_instruction_family")
+    if isinstance(family, str) and family.lower() in MATRIX_CORE_FAMILIES:
+        return True
+    kernel = str(candidate.get("selected_kernel") or "")
+    if any(f"_{family}_" in kernel for family in MATRIX_CORE_FAMILIES):
+        return True
+    histogram = candidate.get("matrix_instruction_histogram")
+    if isinstance(histogram, dict):
+        return any(str(key).startswith(MATRIX_CORE_MNEMONIC_PREFIXES) for key, value in histogram.items() if value)
+    return False
+
+
+def _matrix_core_route_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
+    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
+    blockers = _blocker_text(candidate.get("promotion_blockers"))
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"tile_shape_variant={candidate.get('tile_shape_variant') or 'default'} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"e2e={candidate.get('median_end_to_end_us')} "
+        f"pack={medians.get('pack')} "
+        f"rns_gemm={medians.get('rns_gemm')} "
+        f"crt_export={medians.get('crt_export')} "
+        f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
+        f"matrix_meta={_matrix_metadata_text(candidate)} "
+        f"matrix_isa={_histogram_text(candidate, isa_index)} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def build_summary(
     out: Path,
     *,
@@ -497,6 +543,9 @@ def build_summary(
     export_kernel_counts: Counter[str] = Counter()
     sparse_a_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     sparse_a_route_counts: Counter[str] = Counter()
+    matrix_core_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    matrix_core_family_counts: Counter[str] = Counter()
+    matrix_core_backend_counts: Counter[str] = Counter()
     review_report_count = 0
     for path in out.rglob("review_report.json"):
         review_report_count += 1
@@ -547,6 +596,10 @@ def build_summary(
                 if _sparse_a_route_active(group, candidate):
                     sparse_a_route_rows.append((str(path.relative_to(out)), group, candidate))
                     sparse_a_route_counts.update([str(candidate.get("backend") or "unknown")])
+                if _matrix_core_route_active(candidate):
+                    matrix_core_route_rows.append((str(path.relative_to(out)), group, candidate))
+                    matrix_core_family_counts.update([str(candidate.get("matrix_instruction_family") or "unknown")])
+                    matrix_core_backend_counts.update([str(candidate.get("backend") or "unknown")])
                 if blockers:
                     actionable_counts.update(blockers)
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
@@ -709,6 +762,23 @@ def build_summary(
         lines.append(_sparse_a_route_line(out, report_path, group, candidate, isa_index))
     if len(sparse_a_route_rows) > max_detail_rows:
         lines.append(f"  ... {len(sparse_a_route_rows) - max_detail_rows} more")
+    lines.append(f"MATRIX_CORE_ROUTE_ROWS {len(matrix_core_route_rows)}")
+    lines.append("MATRIX_CORE_FAMILY_COUNTS")
+    if matrix_core_family_counts:
+        for family, count in matrix_core_family_counts.most_common():
+            lines.append(f"{family} {count}")
+    else:
+        lines.append("none 0")
+    lines.append("MATRIX_CORE_BACKEND_COUNTS")
+    if matrix_core_backend_counts:
+        for backend, count in matrix_core_backend_counts.most_common():
+            lines.append(f"{backend} {count}")
+    else:
+        lines.append("none 0")
+    for report_path, group, candidate in matrix_core_route_rows[:max_detail_rows]:
+        lines.append(_matrix_core_route_line(out, report_path, group, candidate, isa_index))
+    if len(matrix_core_route_rows) > max_detail_rows:
+        lines.append(f"  ... {len(matrix_core_route_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():

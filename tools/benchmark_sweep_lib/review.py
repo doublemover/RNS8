@@ -1323,6 +1323,11 @@ def review_captures(
                 "setup_comparison_key": setup_key,
                 "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
                 "phase_medians_us": phase_medians_for_capture(item),
+                "tile_shape_variant": (
+                    item.get("tile_shape_variant", {}).get("name")
+                    if isinstance(item.get("tile_shape_variant"), dict)
+                    else None
+                ),
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
                 "exact_output_contract": (

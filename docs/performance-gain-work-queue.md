@@ -74,6 +74,9 @@ inspection commands.
   Direct-HIP production wins, loss-phase aggregation by backend/semantic/
   shape/scenario, setup-inclusive reuse/graph details, next-work rows, and
   compact per-phase ratio diagnostics for route and actionable-candidate lines.
+  It also has dedicated matrix-core route rows for MFMA, SMFMAC, WMMA, and
+  SWMMAC candidates so CDNA/RDNA matrix-core evidence is visible without
+  digging through review JSON.
 - Required evidence: Python tests for summary formatting, synthetic review
   fixtures for every blocker family, and one VM refresh proving zero failed
   captures, zero comparable checksum mismatches, and no hidden missing-baseline

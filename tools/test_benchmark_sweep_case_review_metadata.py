@@ -4,6 +4,8 @@ from benchmark_sweep_lib.review import build_review_summary
 ck = finite_capture("ck", 190)
 direct = finite_capture("hip-direct", 300)
 cpu = finite_capture("cpu-reference", 500)
+for capture in (ck, direct, cpu):
+    capture["tile_shape_variant"] = {"name": "finite-ring-u8-default-128x128", "tile_m": 128, "tile_n": 128, "tile_k": 256}
 smoke_report = benchmark_sweep.review_captures([ck, direct, cpu])
 assert smoke_report["schema_version"] == 3
 assert smoke_report["review_mode"] == "smoke"
@@ -31,6 +33,8 @@ assert report["summary"]["loss_phase_by_shape_family"] == {}
 assert report["summary"]["loss_phase_by_scenario_family"] == {}
 assert report["summary"]["next_work"] == []
 group = report["groups"][0]
+ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
+assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
 assert group["shape_family"] == "rectangular"
 assert group["scenario_families"] == []
 assert group["scenario_names"] == []

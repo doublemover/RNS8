@@ -150,6 +150,12 @@ def main() -> int:
                                     "crt_export": 3.0,
                                     "end_to_end": 123.0,
                                 },
+                                "tile_shape_variant": "amdgpu-cdna3-mfma-16x16x32",
+                                "matrix_instruction_family": "mfma",
+                                "matrix_instruction_shape": "16x16x32",
+                                "matrix_instruction_dtype": "i8",
+                                "matrix_instruction_sparsity": "dense",
+                                "matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 2},
                                 "exact_output_contract": {
                                     "kernel_identity": "hip_direct_export_exact_wide_signed_tree_crt_limbs_device",
                                     "status_policy": "range_checked_status_buffer",
@@ -427,6 +433,20 @@ def main() -> int:
             "e2e=120.0 pack=45.0 rns_gemm=55.0 crt_export=20.0"
         ) in text
         assert "matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
+        assert "MATRIX_CORE_ROUTE_ROWS 3" in text
+        assert "MATRIX_CORE_FAMILY_COUNTS" in text
+        assert "mfma 2" in text
+        assert "smfmac 1" in text
+        assert "MATRIX_CORE_BACKEND_COUNTS" in text
+        assert "ck 1" in text
+        assert "amdgpu-builtins-sparse-a-runtime 1" in text
+        assert "amdgpu-builtins-dense-sparse-a-input 1" in text
+        assert (
+            "backend=ck semantics=bounded_i64 shape=64x64x64 "
+            "tile_shape_variant=amdgpu-cdna3-mfma-16x16x32 kernel=ck_kernel "
+            "e2e=123 pack=100.0 rns_gemm=20.0 crt_export=3.0"
+        ) in text
+        assert "primary_loss=pack matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
