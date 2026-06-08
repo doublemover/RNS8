@@ -228,16 +228,45 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
 
 
 def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> list[str]:
-    backends = list(item.backends or default_backends_for(item.semantics, item.case))
+    declared_backends = list(item.backends or default_backends_for(item.semantics, item.case))
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    scenario_backend_locked = (
+        item.oneshot
+        or item.host_api_batch_size > 1
+        or item.hip_graph_replay
+        or item.native_to_rns_bridge
+        or item.vector_to_rns_chain
+        or item.residue_channel_fusion
+        or item.grouped_dispatch_tasks > 1
+        or item.resident_lifetime
+        or item.workspace_arena
+        or item.adaptive_grouped_scheduler
+        or item.streaming_overlap
+        or bool(item.resident_redesign_candidate)
+        or item.verification_amortization != "none"
+        or item.error_detection_policy != "none"
+        or item.cpu_small_shape_selector != "none"
+        or item.incremental_result_cache != "none"
+        or metadata.get("workflow_name") == "finite_u8_generic_modulus"
+    )
+    if args.backends:
+        requested = list(dict.fromkeys(args.backends))
+        if scenario_backend_locked:
+            backends = [backend for backend in declared_backends if backend in requested]
+        else:
+            backends = [
+                backend
+                for backend in requested
+                if backend_allowed_for(item.semantics, item.case, backend)
+            ]
+    else:
+        backends = declared_backends
     if item.host_api_batch_size > 1:
         backends = [backend for backend in backends if backend in HOST_API_BATCH_BACKENDS]
     if item.hip_graph_replay:
         backends = [backend for backend in backends if backend == "hip-direct"]
     if item.semantics == "wrap-u64" and item.include_wrap64_candidate and args.include_wrap64_rocwmma_candidate:
         backends.append(WRAP64_ROCWMMA_CANDIDATE_BACKEND)
-    if args.backends:
-        requested = set(args.backends)
-        backends = [backend for backend in backends if backend in requested]
     return list(dict.fromkeys(backends))
 
 

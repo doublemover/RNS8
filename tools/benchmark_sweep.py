@@ -21,6 +21,7 @@ from benchmark_sweep_lib.commands import (
     default_backends_for,
     default_sweep_command_entries,
     scenario_args_for_item,
+    scenario_backends_for_item,
     scenario_catalog,
     scenario_sweep_command_entries,
     sweep_command_entries,

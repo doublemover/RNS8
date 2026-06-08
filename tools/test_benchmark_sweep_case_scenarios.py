@@ -170,6 +170,19 @@ scenario_base_args = argparse.Namespace(
     next_op_hint=None,
     residue_channel_fusion=False,
 )
+backend_filter_args = copy.copy(scenario_base_args)
+backend_filter_args.backends = ["cpu", "hip-direct", "amdgpu-builtins"]
+backend_filter_args.include_wrap64_rocwmma_candidate = False
+ordinary_requested_item = next(
+    item
+    for item in catalog["adaptive-bands"]
+    if item.name == "bounded-i64-256"
+)
+ordinary_backends = benchmark_sweep.scenario_backends_for_item(backend_filter_args, ordinary_requested_item)
+assert ordinary_backends == ["cpu", "hip-direct", "amdgpu-builtins"]
+locked_requested_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
+locked_backends = benchmark_sweep.scenario_backends_for_item(backend_filter_args, locked_requested_item)
+assert locked_backends == ["hip-direct"]
 fusion_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, fusion_item)
 fusion_command = benchmark_sweep.command_for(
     Path("rns8-bench"),
