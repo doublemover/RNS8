@@ -276,6 +276,7 @@ def review_next_work(
         ("reuse_not_faster_than_best_nonreuse_setup_inclusive", "reduce_prepack_setup_or_raise_declared_reuse_count_with_contract_evidence"),
         ("graph_not_faster_than_non_graph_setup_inclusive", "improve_graph_replay_break_even_or_keep_graph_benchmark_only"),
         ("missing_graph_setup_inclusive_timing", "fix_graph_setup_inclusive_timing_metadata"),
+        ("missing_amdgpu_builtin_matrix_isa_histogram", "attach_compiled_matrix_isa_reports_before_builtin_promotion"),
         ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
         ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
     ]:

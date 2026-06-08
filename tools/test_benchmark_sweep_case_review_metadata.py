@@ -107,6 +107,8 @@ amdgpu_missing_isa_candidate = next(
 )
 assert amdgpu_missing_isa_report["promotable_autotune_entries"] == []
 assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candidate["promotion_blockers"]
+amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
+assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
 
 amdgpu_isa_index = {
     "amdgpu-builtins|gfx1100": [
