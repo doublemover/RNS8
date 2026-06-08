@@ -15,6 +15,8 @@ from benchmark_sweep_lib.review import capture_checksum
 
 
 REFERENCE_BACKEND_FAMILIES = {"cpu-reference", "wrap64-byte-limb", "hip-direct"}
+NON_ACTIONABLE_BLOCKERS = {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
+PROMOTABLE_SCOPES = {None, "release_review_candidate"}
 
 
 def _latest_cdna_out(root: Path) -> Path:
@@ -53,6 +55,28 @@ def _reference_checksum(rows: list[tuple[str, Any, Path]]) -> tuple[str | None, 
     return None, None
 
 
+def _relative_capture(out: Path, value: Any) -> str:
+    if not value:
+        return "unknown"
+    path = Path(str(value))
+    try:
+        return str(path.relative_to(out))
+    except ValueError:
+        return str(path)
+
+
+def _actionable_blockers(candidate: dict[str, Any]) -> list[str]:
+    scope = candidate.get("scenario_promotion_scope")
+    if scope not in PROMOTABLE_SCOPES:
+        return []
+    if candidate.get("accelerator_backend") is not True:
+        return []
+    blockers = candidate.get("promotion_blockers")
+    if not isinstance(blockers, list):
+        return []
+    return [str(item) for item in blockers if str(item) not in NON_ACTIONABLE_BLOCKERS]
+
+
 def build_summary(out: Path) -> list[str]:
     lines = [f"HEAD {_git_head()}", f"OUT {out}"]
 
@@ -89,14 +113,46 @@ def build_summary(out: Path) -> list[str]:
             lines.append(f"  {backend}\t{checksum}\t{path.relative_to(out)}")
 
     blocker_counts: Counter[str] = Counter()
+    actionable_counts: Counter[str] = Counter()
+    actionable_rows: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
     for path in out.rglob("review_report.json"):
         report = _load_json(path)
         for group in report.get("groups", []):
             for candidate in group.get("candidates", []):
                 blocker_counts.update(candidate.get("promotion_blockers", []))
+                blockers = _actionable_blockers(candidate)
+                if blockers:
+                    actionable_counts.update(blockers)
+                    actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
     lines.append("REVIEW_BLOCKER_COUNTS")
     for blocker, count in blocker_counts.most_common():
         lines.append(f"{blocker} {count}")
+    lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
+    if actionable_counts:
+        for blocker, count in actionable_counts.most_common():
+            lines.append(f"{blocker} {count}")
+    else:
+        lines.append("none 0")
+    lines.append(f"ACTIONABLE_PROMOTION_CANDIDATES {len(actionable_rows)}")
+    for _report_path, _contract_key, group, candidate in actionable_rows:
+        blockers = ",".join(_actionable_blockers(candidate))
+        shape = group.get("shape")
+        if isinstance(shape, dict):
+            shape_text = f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}"
+        else:
+            shape_text = "unknown"
+        lines.append(
+            "  "
+            f"{candidate.get('backend')} "
+            f"semantics={group.get('semantics')} "
+            f"shape={shape_text} "
+            f"kernel={candidate.get('selected_kernel')} "
+            f"e2e={candidate.get('median_end_to_end_us')} "
+            f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
+            f"vs_vector={candidate.get('speedup_vs_vector_alu')} "
+            f"blockers={blockers} "
+            f"capture={_relative_capture(out, candidate.get('capture'))}"
+        )
     return lines
 
 

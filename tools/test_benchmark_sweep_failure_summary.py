@@ -89,7 +89,40 @@ def main() -> int:
         _write(scenarios / "bad.failed.json", failed)
         _write(
             out / "rank-scenarios" / "all" / "review_report.json",
-            {"groups": [{"candidates": [{"promotion_blockers": ["checksum_mismatch_vs_reference"]}]}]},
+            {
+                "groups": [
+                    {
+                        "semantics": "bounded_i64",
+                        "shape": {"m": 64, "n": 64, "k": 64},
+                        "contract_key": "release-candidate-contract",
+                        "candidates": [
+                            {
+                                "backend": "ck",
+                                "accelerator_backend": True,
+                                "scenario_promotion_scope": "release_review_candidate",
+                                "selected_kernel": "ck_kernel",
+                                "median_end_to_end_us": 123,
+                                "speedup_vs_direct_hip": 0.8,
+                                "speedup_vs_vector_alu": 1.2,
+                                "capture": str(scenarios / "c-ck.json"),
+                                "promotion_blockers": ["not_faster_than_direct_hip"],
+                            },
+                            {
+                                "backend": "hip-direct",
+                                "accelerator_backend": False,
+                                "scenario_promotion_scope": "release_review_candidate",
+                                "promotion_blockers": ["not_accelerator_backend"],
+                            },
+                            {
+                                "backend": "ck",
+                                "accelerator_backend": True,
+                                "scenario_promotion_scope": "proxy_evidence_only",
+                                "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
+                            },
+                        ],
+                    }
+                ]
+            },
         )
 
         lines = summary.build_summary(out)
@@ -100,7 +133,12 @@ def main() -> int:
         assert "workflow-c" in text
         assert "workflow-a" not in text
         assert "workflow-b" not in text
-        assert "checksum_mismatch_vs_reference 1" in text
+        assert "not_faster_than_direct_hip 1" in text
+        assert "not_accelerator_backend 1" in text
+        assert "scenario_scope_not_autotune_promotable 1" in text
+        assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
+        assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
+        assert "ck semantics=bounded_i64 shape=64x64x64" in text
 
     print("benchmark sweep failure summary self-test: PASS")
     return 0
