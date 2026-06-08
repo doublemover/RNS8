@@ -459,7 +459,10 @@ inspection commands.
   differential coverage now includes bounded i64/u64 and exact-wide
   signed/unsigned sparse-A RNS paths against the dense AMDGPU builtin path for
   the same sparse-shaped native input; it builds locally and skips on RDNA3,
-  then executes on CDNA3 SMFMAC or RDNA4 SWMMAC targets.
+  then executes on CDNA3 SMFMAC or RDNA4 SWMMAC targets. Benchmark schema
+  validation now distinguishes finite-u8 sparse workspace/events from bounded
+  and exact-wide RNS sparse workspace/events, including sparse-A value/index
+  upload phases for RNS sparse captures.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 

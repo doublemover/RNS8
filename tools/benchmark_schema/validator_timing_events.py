@@ -216,11 +216,16 @@ class ValidatorTimingEventsMixin:
         if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
             return None
         semantics = self.data.get("semantics")
+        selected_kernel = self.data.get("selected_kernel")
+        sparse_amdgpu_capture = (
+            backend == "amdgpu-builtins"
+            and isinstance(selected_kernel, str)
+            and "sparse_a" in selected_kernel
+        )
         use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
         gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
-            selected_kernel = self.data.get("selected_kernel")
-            if backend == "amdgpu-builtins" and isinstance(selected_kernel, str) and "sparse_a" in selected_kernel:
+            if sparse_amdgpu_capture:
                 phases = [
                     "sparse_a_values_h2d",
                     "sparse_a_indices_h2d",
@@ -237,6 +242,8 @@ class ValidatorTimingEventsMixin:
             phases = ["pack_h2d", "pack_kernel", "pack"]
         else:
             phases = ["pack_h2d", "pack_kernel", "pack"]
+        if sparse_amdgpu_capture and semantics not in {"finite_ring_u8", "finite_field_u8"}:
+            phases = ["sparse_a_values_h2d", "sparse_a_indices_h2d", *phases]
         prefix_count = self._gpu_event_selected_prefix_count()
         schedule = self.data.get("schedule_metadata")
         zero_output_tiles = (

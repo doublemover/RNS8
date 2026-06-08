@@ -233,8 +233,13 @@ def validate_backend_metadata(self: Any) -> None:
             )
         if not str(metadata.get("epilogue_mode", "")).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report an amdgpu_builtin_* epilogue")
+        finite_sparse_capture = self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
         expected_workspace = (
-            "resident_sparse_a_explicit_4_to_2_contract_dense_b_finite_u8"
+            (
+                "resident_sparse_a_explicit_4_to_2_contract_dense_b_finite_u8"
+                if finite_sparse_capture
+                else "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+            )
             if "sparse_a" in amdgpu_kernel
             else "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
         )
