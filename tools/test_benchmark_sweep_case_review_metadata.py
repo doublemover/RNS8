@@ -104,6 +104,39 @@ assert {
     candidate["backend"] for candidate in implementation_split_group["candidates"]
 } == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
 
+bounded_chain_ck = bounded_capture("ck", 200)
+bounded_chain_direct = bounded_capture("hip-direct", 450)
+bounded_chain_cpu = bounded_capture("cpu-reference", 5000)
+chain_metadata = {
+    "family": "rns-chain",
+    "name": "bounded-i64-chain3",
+    "promotion_eligibility": "release_review_candidate",
+    "output_domain": "residue_current_rns",
+    "metadata": {
+        "workflow_name": "rns_gemm_chain",
+        "output_domain_requirement": "lazy_export",
+    },
+}
+for item in [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu]:
+    item["scenario_metadata"] = copy.deepcopy(chain_metadata)
+    item["residue_chain_length"] = 3
+    item["residue_output_mode"] = "residue_current_rns"
+    item["requested_next_op"] = {
+        "requested": "rns-gemm",
+        "resolved": "rns-gemm",
+        "source": "scenario_contract",
+    }
+chain_report = benchmark_sweep.review_captures(
+    [bounded_chain_ck, bounded_chain_direct, bounded_chain_cpu],
+    review_mode="release",
+)
+chain_group = chain_report["groups"][0]
+chain_ck_candidate = next(item for item in chain_group["candidates"] if item["backend"] == "ck")
+assert chain_group["required_baselines"] == ["cpu-reference", "hip-direct"]
+assert chain_group["missing_required_baselines"] == []
+assert "missing_required_baselines" not in chain_ck_candidate["promotion_blockers"]
+assert "hip-vector-alu-int64" not in chain_group["required_baselines"]
+
 eventless_ck = finite_capture("ck", 190)
 remove_gpu_events(eventless_ck)
 eventless_report = benchmark_sweep.review_captures([eventless_ck, direct, cpu], review_mode="release")

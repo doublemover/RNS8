@@ -51,6 +51,14 @@ def required_baselines(semantics: Any) -> list[str]:
     return []
 
 
+def residue_chain_group(items: list[dict[str, Any]]) -> bool:
+    for item in items:
+        value = item.get("residue_chain_length", 1)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 1:
+            return True
+    return False
+
+
 REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
 GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
 CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
@@ -90,7 +98,10 @@ def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) ->
     scopes = {capture_scenario_promotion_scope(item) for item in items}
     if scopes & GRAPH_EVIDENCE_PROMOTION_SCOPES:
         return []
-    return required_baselines(semantics)
+    required = required_baselines(semantics)
+    if semantics in {"bounded_i64", "bounded_u64"} and residue_chain_group(items):
+        required = [backend for backend in required if backend != "hip-vector-alu-int64"]
+    return required
 
 
 def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any]:

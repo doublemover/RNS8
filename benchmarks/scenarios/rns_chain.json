@@ -21,6 +21,7 @@
       "output_domain": "residue_current_rns",
       "rationale": "measures lazy-export benefit without confusing it with host-output timing",
       "backends": [
+        "cpu",
         "hip-direct",
         "hipblaslt",
         "ck",
@@ -59,7 +60,7 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 3,
       "metadata": {
@@ -67,6 +68,7 @@
         "phase_label": "residue_current_chain_reuse_b",
         "reuse_profile": "chain_current_residue_output_reused_b",
         "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "promotion_scope": "reuse_contract_evidence_only",
         "output_domain_requirement": "lazy_export",
         "lowering_role": "native_rns_chain",
         "setup_cost_policy": "prepack_setup_us_excluded_from_per_repeat_included_in_review"
@@ -91,6 +93,7 @@
       "output_domain": "residue_current_rns",
       "rationale": "separates longer residue-current chain scheduling from ordinary one-shot host export",
       "backends": [
+        "cpu",
         "hip-direct",
         "hipblaslt",
         "ck",
@@ -130,7 +133,7 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 4,
       "metadata": {
@@ -138,6 +141,7 @@
         "phase_label": "residue_current_chain_reuse_b",
         "reuse_profile": "chain_current_residue_output_reused_b",
         "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "promotion_scope": "reuse_contract_evidence_only",
         "output_domain_requirement": "lazy_export",
         "lowering_role": "native_rns_chain",
         "chain_depth": 4,
@@ -163,6 +167,7 @@
       "output_domain": "residue_current_rns",
       "rationale": "checks whether unsigned bounded chain behavior tracks signed chain behavior before a public chain planner exists",
       "backends": [
+        "cpu",
         "hip-direct",
         "hipblaslt",
         "rocwmma"
@@ -201,7 +206,7 @@
         "hip-direct"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 3,
       "metadata": {
@@ -209,6 +214,7 @@
         "phase_label": "residue_current_chain_reuse_b",
         "reuse_profile": "chain_current_residue_output_reused_b",
         "reuse_contract": "stable_chain_rhs_prepacked_before_warmups",
+        "promotion_scope": "reuse_contract_evidence_only",
         "output_domain_requirement": "lazy_export",
         "lowering_role": "native_rns_chain",
         "chain_depth": 3,

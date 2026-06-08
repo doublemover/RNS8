@@ -28,10 +28,17 @@
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
-      "max_prefix": 9
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "reuse_contract_evidence_only",
+        "reuse_contract": "bounded_i64_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
     },
     {
       "name": "bounded-i64-1024",
@@ -59,10 +66,17 @@
         "rocwmma"
       ],
       "review_mode_expectation": "smoke",
-      "promotion_eligibility": "release_review_candidate",
+      "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
-      "max_prefix": 9
+      "max_prefix": 9,
+      "metadata": {
+        "workflow_name": "repeated_b",
+        "reuse_contract_role": "stable_b_candidate",
+        "promotion_scope": "reuse_contract_evidence_only",
+        "reuse_contract": "bounded_i64_rhs_prepacked_before_warmups",
+        "validation_contract": "setup_inclusive_reuse_b_vs_same_backend_and_fastest_baseline"
+      }
     }
   ]
 }

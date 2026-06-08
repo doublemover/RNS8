@@ -39,6 +39,36 @@ for path in scenario_files:
         assert isinstance(item.get("promotion_eligibility"), str) and item["promotion_eligibility"]
         for key in ["name", "m", "n", "k", "tile_m", "tile_n", "bound_mode", "input_profile"]:
             assert key in item["case"]
+repeated_b_items = catalog["repeated-b"]
+assert repeated_b_items
+assert {item.promotion_eligibility for item in repeated_b_items} == {"reuse_contract_evidence_only"}
+assert {item.pack_mode for item in repeated_b_items} == {"prepacked_reuse_b"}
+for item in repeated_b_items:
+    assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
+
+bounded_rns_chain_release_items = [
+    item
+    for item in catalog["rns-chain"]
+    if item.semantics in {"bounded-i64", "bounded-u64"}
+    and item.promotion_eligibility == "release_review_candidate"
+]
+assert bounded_rns_chain_release_items
+for item in bounded_rns_chain_release_items:
+    assert item.residue_chain_length > 1
+    assert item.pack_mode == "per_repeat_repack"
+    assert "cpu" in item.backends, f"{item.name} must include a CPU correctness anchor"
+    assert "hip-direct" in item.backends
+    assert "hip-vector-alu-int64" not in item.backends
+
+bounded_rns_chain_reuse_items = [
+    item
+    for item in catalog["rns-chain"]
+    if item.semantics in {"bounded-i64", "bounded-u64"} and item.pack_mode != "per_repeat_repack"
+]
+assert bounded_rns_chain_reuse_items
+for item in bounded_rns_chain_reuse_items:
+    assert item.promotion_eligibility == "reuse_contract_evidence_only"
+    assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
 for scenario_name in [
     "bound-discovery",
     "generated-prefix-reducers",
