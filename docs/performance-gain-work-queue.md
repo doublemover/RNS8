@@ -341,6 +341,11 @@ inspection commands.
   register pressure, and K-blocking decide end-to-end value.
 - Implementation scope: tune 16x16x32 versus 32x32x16, K-block policies,
   swizzled B layouts, LDS staging, accumulator pressure, and occupancy.
+- Current implementation status: explicit `amdgpu-cdna3-mfma-16x16x32` and
+  `amdgpu-cdna3-mfma-32x32x16` tile-shape variants force the AMDGPU builtin
+  dense CDNA3 runtime down each MFMA path and record the selected kernel in
+  benchmark metadata; LDS, K-block, swizzled-layout, and occupancy tuning still
+  need measured follow-through.
 - Required evidence: `tile-shape-sweeps`, `k-block-tile-variants`, and
   `layout-search` release captures plus ISA/resource/counter reports.
 - Promotion rule: no tile variant promotes without same-contract default

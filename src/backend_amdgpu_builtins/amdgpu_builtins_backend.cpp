@@ -24,7 +24,8 @@ extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int lda,
     int ldb,
     int ldc,
-    int prefix);
+    int prefix,
+    int dense_kernel_variant);
 
 extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int device_id,
@@ -37,7 +38,8 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int lda,
     int ldb,
     int ldc,
-    int modulus);
+    int modulus,
+    int dense_kernel_variant);
 
 extern "C" int rns8_amdgpu_builtin_gemm_rns_sparse_a_device(
     int device_id,
@@ -69,6 +71,9 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
 namespace rns8::detail {
 
 namespace {
+
+thread_local amdgpu_builtins_dense_kernel_variant g_dense_kernel_variant_override =
+    amdgpu_builtins_dense_kernel_variant::auto_select;
 
 bool fits_int_argument(int64_t value) {
   return value >= 0 && value <= static_cast<int64_t>(std::numeric_limits<int>::max());
@@ -116,6 +121,18 @@ bool amdgpu_target_is_rdna4(const char* target) {
   return target && (std::strncmp(target, "gfx1200", 7) == 0 || std::strncmp(target, "gfx1201", 7) == 0);
 }
 
+bool use_cdna3_mfma_32x32x16_for_override(int64_t m, int64_t n, int64_t k) {
+  switch (g_dense_kernel_variant_override) {
+    case amdgpu_builtins_dense_kernel_variant::cdna3_mfma_16x16x32:
+      return false;
+    case amdgpu_builtins_dense_kernel_variant::cdna3_mfma_32x32x16:
+      return true;
+    case amdgpu_builtins_dense_kernel_variant::auto_select:
+      return amdgpu_builtins_use_cdna3_mfma_32x32x16(m, n, k);
+  }
+  return amdgpu_builtins_use_cdna3_mfma_32x32x16(m, n, k);
+}
+
 const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_t m, int64_t n, int64_t k) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && \
     RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && \
@@ -133,7 +150,7 @@ const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_
                     : "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
-      if (!finite && amdgpu_builtins_use_cdna3_mfma_32x32x16(m, n, k)) {
+      if (!finite && use_cdna3_mfma_32x32x16_for_override(m, n, k)) {
         return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
       }
       return finite ? "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
@@ -220,6 +237,10 @@ bool amdgpu_builtins_use_cdna3_mfma_32x32x16(int64_t m, int64_t n, int64_t k) {
   return m >= 128 && n >= 128 && k >= 128;
 }
 
+void amdgpu_builtins_set_dense_kernel_variant_override(amdgpu_builtins_dense_kernel_variant variant) {
+  g_dense_kernel_variant_override = variant;
+}
+
 rns8_status amdgpu_builtins_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -254,7 +275,8 @@ rns8_status amdgpu_builtins_gemm_rns_device(
         static_cast<int>(lda),
         static_cast<int>(ldb),
         static_cast<int>(ldc),
-        static_cast<int>(prefix));
+        static_cast<int>(prefix),
+        static_cast<int>(g_dense_kernel_variant_override));
   });
   return status_from_device_code(code);
 #else
@@ -307,7 +329,8 @@ rns8_status amdgpu_builtins_gemm_finite_u8_device(
         static_cast<int>(lda),
         static_cast<int>(ldb),
         static_cast<int>(ldc),
-        static_cast<int>(modulus));
+        static_cast<int>(modulus),
+        static_cast<int>(g_dense_kernel_variant_override));
   });
   return status_from_device_code(code);
 #else

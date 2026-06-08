@@ -147,6 +147,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch finite)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
   capture_packing_and_lowering_info(args, plan, result);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
@@ -338,6 +339,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
   if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
+  apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
   capture_packing_and_lowering_info(args, plan, result);
   apply_finite_native_a_reuse_b_backend_metadata(args, result);
   apply_finite_sparse_a_4_to_2_backend_metadata(args, result);

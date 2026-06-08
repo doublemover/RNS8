@@ -382,6 +382,61 @@ void apply_finite_native_a_reuse_b_backend_metadata(const Args& args, BenchmarkR
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 
+bool amdgpu_builtin_cdna3_dense_variant_name(const Args& args) {
+  return args.tile_shape_variant == "amdgpu-cdna3-mfma-16x16x32" ||
+         args.tile_shape_variant == "amdgpu-cdna3-mfma-32x32x16";
+}
+
+rns8::detail::amdgpu_builtins_dense_kernel_variant amdgpu_builtin_dense_variant_for_args(const Args& args) {
+  if (args.tile_shape_variant == "amdgpu-cdna3-mfma-16x16x32") {
+    return rns8::detail::amdgpu_builtins_dense_kernel_variant::cdna3_mfma_16x16x32;
+  }
+  if (args.tile_shape_variant == "amdgpu-cdna3-mfma-32x32x16") {
+    return rns8::detail::amdgpu_builtins_dense_kernel_variant::cdna3_mfma_32x32x16;
+  }
+  return rns8::detail::amdgpu_builtins_dense_kernel_variant::auto_select;
+}
+
+void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, BenchmarkResult& result) {
+  rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(amdgpu_builtin_dense_variant_for_args(args));
+  if (!amdgpu_builtin_cdna3_dense_variant_name(args)) {
+    return;
+  }
+  if (result.backend_info.backend != RNS8_BACKEND_AMDGPU_BUILTINS || finite_benchmark_semantics(args.semantics)) {
+    usage_error("amdgpu-cdna3 MFMA tile-shape variants require dense RNS --backend amdgpu-builtins");
+  }
+  if (result.target_id.rfind("gfx942", 0) != 0) {
+    usage_error("amdgpu-cdna3 MFMA tile-shape variants require a gfx942 CDNA3 target");
+  }
+  const char* kernel =
+      args.tile_shape_variant == "amdgpu-cdna3-mfma-32x32x16"
+          ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1"
+          : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(
+      result.backend_info.epilogue_mode,
+      sizeof(result.backend_info.epilogue_mode),
+      "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+  std::ostringstream out;
+  out << "backend=amdgpu-builtins"
+      << ";target_id=" << benchmark_key_target_id(result)
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";prefix=" << selected_execution_prefix(args, result)
+      << ";requested_max_prefix=" << benchmark_prefix(args)
+      << ";prefix_policy=" << prefix_policy_name(args, result)
+      << ";tile_m=" << args.tile_m
+      << ";tile_n=" << args.tile_n
+      << ";tile_shape_variant=" << args.tile_shape_variant;
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
+      << ";epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
+  const std::string key = out.str();
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+}
+
 const char* finite_sparse_a_4_to_2_kernel(const BenchmarkResult& result) {
   if (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return "cpu_reference_sparse_a_4_to_2_expand_then_finite_u8_gemm_v1";

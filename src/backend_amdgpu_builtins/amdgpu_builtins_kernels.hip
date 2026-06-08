@@ -584,6 +584,16 @@ bool use_cdna3_mfma_32x32x16(int m, int n, int k) {
   return m >= 128 && n >= 128 && k >= 128;
 }
 
+bool use_cdna3_mfma_32x32x16(int m, int n, int k, int dense_kernel_variant) {
+  if (dense_kernel_variant == 1) {
+    return false;
+  }
+  if (dense_kernel_variant == 2) {
+    return true;
+  }
+  return use_cdna3_mfma_32x32x16(m, n, k);
+}
+
 template <bool Finite>
 int launch_dense(
     int device_id,
@@ -596,7 +606,8 @@ int launch_dense(
     int lda,
     int ldb,
     int ldc,
-    int plane_count_or_modulus) {
+    int plane_count_or_modulus,
+    int dense_kernel_variant) {
   rns8_amdgpu_arch_kind kind{};
   const int arch_status = active_device_arch_kind(device_id, kind);
   if (arch_status != 0) {
@@ -605,7 +616,7 @@ int launch_dense(
   hipError_t err = hipSuccess;
   switch (kind) {
     case rns8_amdgpu_arch_kind::cdna3:
-      if (!Finite && use_cdna3_mfma_32x32x16(m, n, k)) {
+      if (!Finite && use_cdna3_mfma_32x32x16(m, n, k, dense_kernel_variant)) {
         const dim3 grid(
             (static_cast<unsigned>(n) + 31u) / 32u,
             (static_cast<unsigned>(m) + 31u) / 32u,
@@ -810,13 +821,25 @@ extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int lda,
     int ldb,
     int ldc,
-    int prefix) {
+    int prefix,
+    int dense_kernel_variant) {
   if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
       prefix <= 0 || prefix > kRns8DefaultModulusCount) {
     return 1;
   }
   return launch_dense<false>(
-      device_id, device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc, prefix);
+      device_id,
+      device_a_residues,
+      device_b_residues,
+      device_c_residues,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      prefix,
+      dense_kernel_variant);
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
@@ -830,13 +853,25 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int lda,
     int ldb,
     int ldc,
-    int modulus) {
+    int modulus,
+    int dense_kernel_variant) {
   if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
       !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
     return 1;
   }
   return launch_dense<true>(
-      device_id, device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc, modulus);
+      device_id,
+      device_a_residues,
+      device_b_residues,
+      device_c_residues,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      modulus,
+      dense_kernel_variant);
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_rns_sparse_a_device(

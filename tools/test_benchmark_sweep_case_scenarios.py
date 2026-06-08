@@ -325,6 +325,19 @@ tile_command = benchmark_sweep.command_for(
     tile_args,
 )
 assert "--tile-shape-variant" in tile_command and "direct-hip-bounded-512-64x64" in tile_command
+amdgpu_mfma_tile_items = [
+    item
+    for item in catalog["tile-shape-sweeps"]
+    if item.tile_shape_variant.startswith("amdgpu-cdna3-mfma-")
+]
+assert {item.tile_shape_variant for item in amdgpu_mfma_tile_items} == {
+    "amdgpu-cdna3-mfma-16x16x32",
+    "amdgpu-cdna3-mfma-32x32x16",
+}
+for item in amdgpu_mfma_tile_items:
+    assert item.backends == ("amdgpu-builtins",)
+    assert item.promotion_eligibility == "tile_shape_evidence_only"
+    assert item.metadata and item.metadata["resource_report_required"] == "mfma_isa_histogram_and_phase_timings"
 graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
 assert len(catalog["hip-graph-replay"]) == 36
 assert {item.review_mode_expectation for item in catalog["hip-graph-replay"]} == {"release"}
