@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
+
 from benchmark_sweep_lib.capture_metadata import backend_family_id, backend_id, capture_contract_key
 from benchmark_sweep_lib.review import capture_checksum
 
@@ -85,9 +87,28 @@ def _shape_text(group: dict[str, Any]) -> str:
     return "unknown"
 
 
-def _histogram_text(candidate: dict[str, Any]) -> str:
+def _candidate_histogram(
+    candidate: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None,
+) -> dict[str, Any]:
     histogram = candidate.get("matrix_instruction_histogram")
-    if not isinstance(histogram, dict) or not histogram:
+    if isinstance(histogram, dict) and histogram:
+        return histogram
+    if isa_index is None:
+        return {}
+    source = candidate.get("source_metadata")
+    target = source.get("target_id") if isinstance(source, dict) else None
+    resources = lookup_isa_resources(isa_index, candidate.get("backend"), target)
+    fallback = resources.get("isa_matrix_instruction_histogram")
+    return fallback if isinstance(fallback, dict) else {}
+
+
+def _histogram_text(
+    candidate: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
+    histogram = _candidate_histogram(candidate, isa_index)
+    if not histogram:
         return "none"
     items = sorted((str(key), value) for key, value in histogram.items() if isinstance(value, int) and value > 0)
     if not items:
@@ -95,7 +116,13 @@ def _histogram_text(candidate: dict[str, Any]) -> str:
     return ",".join(f"{key}:{value}" for key, value in items[:8])
 
 
-def _route_line(out: Path, label: str, group: dict[str, Any], candidate: dict[str, Any]) -> str:
+def _route_line(
+    out: Path,
+    label: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
     bottleneck = candidate.get("bottleneck")
     bottleneck_text = "unknown"
     if isinstance(bottleneck, dict):
@@ -111,13 +138,14 @@ def _route_line(out: Path, label: str, group: dict[str, Any], candidate: dict[st
         f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
         f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
         f"bottleneck={bottleneck_text} "
-        f"matrix_isa={_histogram_text(candidate)} "
+        f"matrix_isa={_histogram_text(candidate, isa_index)} "
         f"capture={_relative_capture(out, candidate.get('capture'))}"
     )
 
 
 def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) -> list[str]:
     lines = [f"HEAD {_git_head()}", f"OUT {out}"]
+    isa_index = load_isa_index([out])
 
     failed = sorted(out.rglob("*.failed.json"))
     lines.append(f"FAILED_CAPTURES {len(failed)}")
@@ -197,12 +225,12 @@ def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) ->
         )
     lines.append(f"FASTEST_PRODUCTION_ROUTES {len(production_routes)}")
     for group, candidate in production_routes[:max_route_rows]:
-        lines.append(_route_line(out, "production", group, candidate))
+        lines.append(_route_line(out, "production", group, candidate, isa_index))
     if len(production_routes) > max_route_rows:
         lines.append(f"  ... {len(production_routes) - max_route_rows} more")
     lines.append(f"FASTEST_ACCELERATOR_ROUTES {len(accelerator_routes)}")
     for group, candidate in accelerator_routes[:max_route_rows]:
-        lines.append(_route_line(out, "accelerator", group, candidate))
+        lines.append(_route_line(out, "accelerator", group, candidate, isa_index))
     if len(accelerator_routes) > max_route_rows:
         lines.append(f"  ... {len(accelerator_routes) - max_route_rows} more")
     return lines

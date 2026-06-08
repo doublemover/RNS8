@@ -29,6 +29,7 @@ BACKEND_OBJECT_MARKERS = {
     "hipblaslt": ["hipblaslt_kernels"],
     "ck": ["ck_backend_kernels"],
     "rocwmma": ["rocwmma_backend_kernels"],
+    "amdgpu-builtins": ["amdgpu_builtins_kernels"],
     "wrap64": ["wrap64_hip_kernels"],
     "vector-alu": ["vector_alu_kernels", "hip_vector_alu_baseline_kernels"],
 }
@@ -37,6 +38,14 @@ BACKEND_SYMBOL_MARKERS = {
     "hipblaslt": ["rns8_hipblaslt", "pack_transpose", "reduce_i32_to_centered"],
     "ck": ["kernel_gemm_wmma", "ck_"],
     "rocwmma": ["rocwmma_i8_residue_gemm", "rocwmma_wrap64_byte_gemm36_candidate"],
+    "amdgpu-builtins": [
+        "cdna3_dense_mfma_kernel",
+        "rdna3_dense_wmma_kernel",
+        "rdna4_dense_wmma_kernel",
+        "cdna3_sparse_smfmac_kernel",
+        "rdna4_sparse_swmmac_kernel",
+        "rns8_amdgpu_builtin",
+    ],
     "wrap64": ["rns8_wrap64"],
     "vector-alu": ["gemm_i64_kernel", "gemm_u64_kernel", "rns8_vector_alu"],
 }
@@ -477,7 +486,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--backend",
         default="all",
-        choices=["all", "direct-hip", "hipblaslt", "ck", "rocwmma", "wrap64", "vector-alu"],
+        choices=["all", "direct-hip", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins", "wrap64", "vector-alu"],
     )
     parser.add_argument("--target", required=True, help="AMDGPU target id, for example gfx1100")
     parser.add_argument("--hipcc", type=Path, help="HIP compiler path; sibling LLVM tools are preferred")

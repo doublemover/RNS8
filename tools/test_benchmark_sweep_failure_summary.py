@@ -147,11 +147,22 @@ def main() -> int:
                             "speedup_vs_direct_hip": 0.8,
                             "primary_loss_phase_vs_direct_hip": "pack",
                             "bottleneck": {"class": "pack_bound", "phase": "pack"},
-                            "matrix_instruction_histogram": {"v_mfma": 2},
+                            "matrix_instruction_histogram": {},
                             "capture": str(scenarios / "c-ck.json"),
                         },
                     }
                 ]
+            },
+        )
+        _write(
+            out / "isa-reports" / "ck_backend_kernels-gfx942-ck-isa-summary.json",
+            {
+                "backend": "ck",
+                "target": "gfx942",
+                "instruction_totals": {
+                    "matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 2},
+                    "matrix_instruction_families": ["mfma"],
+                },
             },
         )
 
@@ -173,7 +184,7 @@ def main() -> int:
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
         assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
-        assert "matrix_isa=v_mfma:2" in text
+        assert "matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
 
     print("benchmark sweep failure summary self-test: PASS")
     return 0

@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from evidence_database_lib.isa import lookup_isa_resources
+
 from .capture_metadata import (
     backend_id,
     backend_family_id,
@@ -313,7 +315,10 @@ def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
     return ["scenario_scope_not_autotune_promotable"]
 
 
-def matrix_instruction_histogram(capture: dict[str, Any]) -> dict[str, Any]:
+def matrix_instruction_histogram(
+    capture: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
     direct = capture.get("matrix_instruction_histogram")
     if isinstance(direct, dict):
         return direct
@@ -329,6 +334,12 @@ def matrix_instruction_histogram(capture: dict[str, Any]) -> dict[str, Any]:
             histogram = report.get(nested_key)
             if isinstance(histogram, dict):
                 return histogram
+    if isa_index is not None:
+        target = capture_device(capture).get("gcn_arch") or capture.get("configured_amdgpu_targets")
+        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target)
+        histogram = resources.get("isa_matrix_instruction_histogram")
+        if isinstance(histogram, dict):
+            return histogram
     return {}
 
 
@@ -388,7 +399,12 @@ def fastest_route(candidates: list[dict[str, Any]], *, accelerator_only: bool) -
     return min(route_candidates, key=lambda item: item["median_end_to_end_us"])
 
 
-def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
+def review_captures(
+    captures: list[dict[str, Any]],
+    *,
+    review_mode: str = "smoke",
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -610,7 +626,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "phase_diagnostics": phase_ratios(item, direct_capture, vector_capture),
                 "speedup_vs_direct_hip": (direct / end_to_end) if direct and end_to_end else None,
                 "speedup_vs_vector_alu": (vector / end_to_end) if vector and end_to_end else None,
-                "matrix_instruction_histogram": matrix_instruction_histogram(item),
+                "matrix_instruction_histogram": matrix_instruction_histogram(item, isa_index),
                 "promotable": promotable,
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",

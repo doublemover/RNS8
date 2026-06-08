@@ -23,9 +23,11 @@ CAPTURE="${CDNA_OUT_DIR}/bounded-i64-hip-direct-smoke.json"
 SCHEMA_LOG="${CDNA_OUT_DIR}/benchmark-schema.log"
 STATUS_JSON="${CDNA_OUT_DIR}/target-status.json"
 TARGET_REPORT_DIR="${CDNA_OUT_DIR}/target-validation"
+ISA_REPORT_DIR="${CDNA_OUT_DIR}/isa-reports"
 VERIFY_BIN="$(cdna_binary_path "${PRESET}" "rns8-verify")"
 BENCH_BIN="$(cdna_binary_path "${PRESET}" "rns8-bench")"
 CONFIGURED_AMDGPU_TARGETS=""
+CDNA_REVIEW_ISA_ARGV=()
 DEPS_STATUS="not_run"
 DEPS_EXIT_CODE=0
 BUILD_STATUS="not_run"
@@ -313,6 +315,30 @@ else
   CTEST_STATUS="pass"
 fi
 
+if [[ "${CDNA_ACCELERATORS}" -eq 1 ]]; then
+  CDNA_CURRENT_PHASE="gpu_isa_report"
+  ISA_TARGET="${CONFIGURED_AMDGPU_TARGETS%%;*}"
+  ISA_TARGET="${ISA_TARGET%%,*}"
+  ISA_REPORT_CMD=(
+    "${PYTHON_BIN}"
+    tools/gpu_isa_report.py
+    --build-tree "$(cdna_build_dir_for_preset "${PRESET}")"
+    --backend all
+    --target "${ISA_TARGET}"
+    --scratch-root "${CDNA_OUT_DIR}/isa-scratch"
+    --out-dir "${ISA_REPORT_DIR}"
+  )
+  if [[ -x /opt/rocm/bin/hipcc ]]; then
+    ISA_REPORT_CMD+=(--hipcc /opt/rocm/bin/hipcc)
+  fi
+  MATRIX_REPORT_JSON="${ENV_DIR}/amd-matrix-instructions/amd-matrix-instruction-report.json"
+  if [[ -f "${MATRIX_REPORT_JSON}" ]]; then
+    ISA_REPORT_CMD+=(--matrix-instruction-report "${MATRIX_REPORT_JSON}")
+  fi
+  cdna_repo_run gpu_isa_report "${ISA_REPORT_CMD[@]}"
+  CDNA_REVIEW_ISA_ARGV=(--isa-report "${ISA_REPORT_DIR}")
+fi
+
 CDNA_CURRENT_PHASE="hip_smoke"
 SMOKE_STATUS="running"
 cdna_repo_run hip_smoke env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" "${VERIFY_BIN}" --hip-smoke
@@ -494,6 +520,7 @@ if [[ "${CDNA_SKIP_RANK_SCENARIOS}" -eq 0 && -n "${CDNA_RANK_SCENARIOS}" ]]; the
       --warmups 3 \
       --repeats 9 \
       --seed 20260606 \
+      "${CDNA_REVIEW_ISA_ARGV[@]}" \
       "${CDNA_SWEEP_ARGV[@]}" \
       --skip-existing
     if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
@@ -509,6 +536,7 @@ if [[ "${CDNA_SKIP_RANK_SCENARIOS}" -eq 0 && -n "${CDNA_RANK_SCENARIOS}" ]]; the
           --warmups 3 \
           --repeats 9 \
           --seed 20260606 \
+          "${CDNA_REVIEW_ISA_ARGV[@]}" \
           "${CDNA_SWEEP_ARGV[@]}" \
           --skip-existing)
     fi

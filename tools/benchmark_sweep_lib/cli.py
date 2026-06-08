@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+from evidence_database_lib.isa import load_isa_index
+
 from .commands import scenario_names, sweep_command_entries
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
@@ -26,6 +28,13 @@ def parse_args() -> argparse.Namespace:
         help="ignored output directory for raw captures and review report",
     )
     parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
+    parser.add_argument(
+        "--isa-report",
+        type=Path,
+        action="append",
+        default=[],
+        help="gpu_isa_report.py JSON summary or directory of *-isa-summary.json reports to attach to review candidates",
+    )
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
     parser.add_argument(
         "--skip-existing",
@@ -356,7 +365,8 @@ def main() -> int:
         execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)
-    report = review_captures(captures, review_mode=args.review_mode)
+    isa_index = load_isa_index(args.isa_report) if args.isa_report else None
+    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index)
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:

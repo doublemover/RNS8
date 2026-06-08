@@ -18,7 +18,7 @@ def normalized_backend(value: Any) -> str | None:
 def normalized_target(value: Any) -> str | None:
     if not isinstance(value, str) or not value or value.lower() in {"none", "unknown"}:
         return None
-    return value.lower()
+    return value.lower().split(";", 1)[0].split(",", 1)[0].split(":", 1)[0]
 
 
 def isa_index_key(backend: str, target: str | None) -> str:
@@ -55,6 +55,10 @@ def summarize_isa_report(path: Path, report: dict[str, Any]) -> dict[str, Any]:
         summary[row_key] = numeric_value(totals.get(source_key))
     for source_key, row_key in ISA_MAX_FIELDS.items():
         summary[row_key] = numeric_value(totals.get(source_key))
+    histogram = totals.get("matrix_instruction_histogram")
+    summary["isa_matrix_instruction_histogram"] = histogram if isinstance(histogram, dict) else {}
+    families = totals.get("matrix_instruction_families")
+    summary["isa_matrix_instruction_families"] = families if isinstance(families, list) else []
     return summary
 
 
@@ -120,6 +124,21 @@ def aggregate_isa_resources(reports: list[dict[str, Any]]) -> dict[str, Any]:
     for key in ISA_MAX_FIELDS.values():
         values = [numeric_value(report.get(key)) for report in reports]
         aggregate[key] = max((value for value in values if value is not None), default=None)
+    histogram: dict[str, int] = {}
+    families: set[str] = set()
+    for report in reports:
+        report_histogram = report.get("isa_matrix_instruction_histogram")
+        if isinstance(report_histogram, dict):
+            for name, count in report_histogram.items():
+                try:
+                    histogram[str(name)] = histogram.get(str(name), 0) + int(count)
+                except (TypeError, ValueError):
+                    continue
+        report_families = report.get("isa_matrix_instruction_families")
+        if isinstance(report_families, list):
+            families.update(str(item) for item in report_families if item)
+    aggregate["isa_matrix_instruction_histogram"] = dict(sorted(histogram.items()))
+    aggregate["isa_matrix_instruction_families"] = sorted(families)
     return aggregate
 
 

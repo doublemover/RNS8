@@ -20,6 +20,7 @@ def main() -> int:
         path.endswith("/opt/rocm/llvm/bin/llvm-objcopy") or path.endswith("/opt/rocm/llvm/bin/llvm-objcopy.exe")
         for path in rocm_candidates
     )
+    assert gpu_isa_report.backend_for_object(Path("amdgpu_builtins_kernels.o"), "all") == "amdgpu-builtins"
 
     readobj_output = """
 AMDGPU Metadata: ---
