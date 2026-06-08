@@ -27,7 +27,7 @@ CDNA_REQUIRED_MNEMONICS = [
     "v_mfma_i32_32x32x16_i8",
     "v_mfma_i32_32x32x32_i8",
 ]
-CDNA_CK_INTERNAL_BLOCK_MAP_RCP_RE = re.compile(r"\bv_rcp_iflag_f32\b")
+CDNA_CK_INTERNAL_BLOCK_MAP_RCP_RE = re.compile(r"\bv_rcp_iflag_f32(?:_[a-z0-9]+)?\b")
 
 
 def required_symbol_markers(amdgpu_target: str) -> list[str]:

@@ -174,7 +174,8 @@ hipError_t launch_add_centered(
   return hipGetLastError();
 }
 
-int run_ck_tile_modulus(
+template <typename CElementwiseOperation>
+int run_ck_tile_modulus_impl(
     const int8_t* a,
     const int8_t* b,
     int8_t* c,
@@ -189,7 +190,8 @@ int run_ck_tile_modulus(
     int ldc,
     int modulus,
     uint32_t reciprocal,
-    int prefix_index) {
+    int prefix_index,
+    CElementwiseOperation epilogue) {
   char pack_a_label[64];
   char pack_b_label[64];
   char matmul_label[64];
@@ -247,7 +249,8 @@ int run_ck_tile_modulus(
     const bool write_workspace_output = padded_output || have_accumulated;
     int8_t* output = write_workspace_output ? temp_c : c;
     const int output_ld = write_workspace_output ? gemm_n : ldc;
-    auto arg = DeviceGemmInstance::MakeArgument(
+    using GemmInstance = DeviceGemmInstanceFor<CElementwiseOperation>;
+    auto arg = GemmInstance::MakeArgument(
         a_workspace,
         b_workspace,
         output,
@@ -259,13 +262,13 @@ int run_ck_tile_modulus(
         output_ld,
         PassThrough{},
         PassThrough{},
-        CenteredModulo{modulus, reciprocal});
-    if (!DeviceGemmInstance::IsSupportedArgument(arg)) {
+        epilogue);
+    if (!GemmInstance::IsSupportedArgument(arg)) {
       return ck_unsupported_backend;
     }
     const int matmul_status = timed_ck_operation(matmul_timing_label, matmul_alias, [&]() {
       try {
-        auto invoker = DeviceGemmInstance::MakeInvoker();
+        auto invoker = GemmInstance::MakeInvoker();
         (void)invoker.Run(arg);
       } catch (const std::exception&) {
         return ck_backend_failure;
@@ -296,3 +299,71 @@ int run_ck_tile_modulus(
   return ck_success;
 }
 
+int run_ck_tile_modulus(
+    const int8_t* a,
+    const int8_t* b,
+    int8_t* c,
+    int8_t* a_workspace,
+    int8_t* b_workspace,
+    int8_t* temp_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t reciprocal,
+    int prefix_index) {
+  return run_ck_tile_modulus_impl(
+      a,
+      b,
+      c,
+      a_workspace,
+      b_workspace,
+      temp_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      modulus,
+      reciprocal,
+      prefix_index,
+      CenteredModulo{modulus, reciprocal});
+}
+
+template <uint32_t Modulus>
+int run_ck_tile_modulus_fixed(
+    const int8_t* a,
+    const int8_t* b,
+    int8_t* c,
+    int8_t* a_workspace,
+    int8_t* b_workspace,
+    int8_t* temp_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int prefix_index) {
+  return run_ck_tile_modulus_impl(
+      a,
+      b,
+      c,
+      a_workspace,
+      b_workspace,
+      temp_c,
+      m,
+      n,
+      k,
+      lda,
+      ldb,
+      ldc,
+      static_cast<int>(Modulus),
+      modulus_reciprocal_u32(static_cast<uint16_t>(Modulus)),
+      prefix_index,
+      CenteredModuloFixed<Modulus>{});
+}

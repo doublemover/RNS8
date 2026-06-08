@@ -108,6 +108,55 @@ int run_ck_finite(
   if (modulus < 2 || modulus > 256) {
     return ck_invalid_argument;
   }
+  switch (modulus) {
+    case 251:
+      return run_ck_tile_modulus_fixed<251>(
+          a,
+          b,
+          c,
+          a_workspace,
+          b_workspace,
+          temp_c,
+          static_cast<int>(m),
+          static_cast<int>(n),
+          static_cast<int>(k),
+          static_cast<int>(lda),
+          static_cast<int>(ldb),
+          static_cast<int>(ldc),
+          -1);
+    case 255:
+      return run_ck_tile_modulus_fixed<255>(
+          a,
+          b,
+          c,
+          a_workspace,
+          b_workspace,
+          temp_c,
+          static_cast<int>(m),
+          static_cast<int>(n),
+          static_cast<int>(k),
+          static_cast<int>(lda),
+          static_cast<int>(ldb),
+          static_cast<int>(ldc),
+          -1);
+    case 256:
+      return run_ck_tile_modulus_fixed<256>(
+          a,
+          b,
+          c,
+          a_workspace,
+          b_workspace,
+          temp_c,
+          static_cast<int>(m),
+          static_cast<int>(n),
+          static_cast<int>(k),
+          static_cast<int>(lda),
+          static_cast<int>(ldb),
+          static_cast<int>(ldc),
+          -1);
+    default:
+      break;
+  }
   return run_ck_tile_modulus(
       a,
       b,

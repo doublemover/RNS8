@@ -225,8 +225,18 @@ struct CenteredModulo {
   }
 };
 
+template <uint32_t Modulus>
+struct CenteredModuloFixed {
+  template <typename Y, typename X>
+  __host__ __device__ void operator()(Y& y, const X& x) const {
+    y = static_cast<Y>(
+        rns8::detail::finite_u8::reduce_to_centered_fixed_i32<Modulus>(static_cast<int32_t>(x)));
+  }
+};
+
 #if RNS8_CK_USE_XDL
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
+template <typename CElementwiseOperation>
+using DeviceGemmInstanceFor = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
     Row,
     Col,
     Row,
@@ -237,7 +247,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
     int32_t,
     PassThrough,
     PassThrough,
-    CenteredModulo,
+    CElementwiseOperation,
     ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     1,
     256,
@@ -269,7 +279,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
     S<1, 32, 1, 4>,
     16>;
 #else
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
+template <typename CElementwiseOperation>
+using DeviceGemmInstanceFor = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
     Row,
     Col,
     Row,
@@ -280,7 +291,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
     int32_t,
     PassThrough,
     PassThrough,
-    CenteredModulo,
+    CElementwiseOperation,
     ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     1,
     128,
@@ -311,6 +322,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
     S<1, 32, 1, 4>,
     8>;
 #endif
+
+using DeviceGemmInstance = DeviceGemmInstanceFor<CenteredModulo>;
 
 uint32_t modulus_reciprocal_u32(uint16_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / static_cast<uint32_t>(modulus));

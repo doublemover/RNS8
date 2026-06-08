@@ -146,6 +146,17 @@ void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<u
     CHECK(actual[i] == expected[i]);
   }
 }
+
+void require_same_u8(const std::vector<uint8_t>& expected, const std::vector<uint8_t>& actual) {
+  REQUIRE(expected.size() == actual.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    if (actual[i] != expected[i]) {
+      CAPTURE(i);
+      CHECK(static_cast<unsigned>(actual[i]) == static_cast<unsigned>(expected[i]));
+      return;
+    }
+  }
+}
 #endif
 
 }  // namespace
@@ -356,8 +367,8 @@ TEST_CASE("CK finite u8 backend matches CPU and direct HIP across padded strides
               hip, &hip_desc, 251, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_finite_field_u8_oneshot(
               ck, &ck_desc, 251, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
-  CHECK(hip_out == cpu_out);
-  CHECK(ck_out == cpu_out);
+  require_same_u8(cpu_out, hip_out);
+  require_same_u8(cpu_out, ck_out);
 
   rns8_destroy_context(ck);
   rns8_destroy_context(hip);
@@ -421,8 +432,8 @@ TEST_CASE("CK finite u8 K-split preserves centered accumulation") {
           RNS8_SUCCESS);
   REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ck, &ck_desc, 256, A.data(), k, B.data(), n, ck_out.data(), n) ==
           RNS8_SUCCESS);
-  CHECK(hip_out == cpu_out);
-  CHECK(ck_out == cpu_out);
+  require_same_u8(cpu_out, hip_out);
+  require_same_u8(cpu_out, ck_out);
 
   rns8_destroy_context(ck);
   rns8_destroy_context(hip);
