@@ -46,6 +46,9 @@ from .config import (
     WRAP64_ROCWMMA_CANDIDATE_BACKEND,
 )
 
+DIAGNOSTIC_PHASES = tuple(PHASES) + ("pack_a", "pack_b")
+
+
 def required_baselines(semantics: Any) -> list[str]:
     if semantics in {"bounded_i64", "bounded_u64"}:
         return ["cpu-reference", "hip-direct", "hip-vector-alu-int64"]
@@ -120,7 +123,7 @@ def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) ->
 
 def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any]:
     result: dict[str, Any] = {}
-    for phase in PHASES:
+    for phase in DIAGNOSTIC_PHASES:
         value = median_phase(item, phase)
         direct_value = median_phase(direct, phase) if direct else None
         vector_value = median_phase(vector, phase) if vector else None
@@ -129,6 +132,15 @@ def phase_ratios(item: dict[str, Any], direct: dict[str, Any] | None, vector: di
             "speedup_vs_direct_hip": (direct_value / value) if direct_value and value else None,
             "speedup_vs_vector_alu": (vector_value / value) if vector_value and value else None,
         }
+    return result
+
+
+def phase_medians_for_capture(capture: dict[str, Any]) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for phase in DIAGNOSTIC_PHASES:
+        value = median_phase(capture, phase)
+        if value is not None:
+            result[phase] = value
     return result
 
 
@@ -1038,7 +1050,7 @@ def review_captures(
         direct_capture = by_backend.get("hip-direct")
         vector_capture = by_backend.get("hip-vector-alu-int64")
         phase_medians = {
-            f"{backend_id(item)}/{selected_kernel(item)}": {phase: median_phase(item, phase) for phase in PHASES}
+            f"{backend_id(item)}/{selected_kernel(item)}": phase_medians_for_capture(item)
             for item in items
         }
         gpu_targets = {
@@ -1263,6 +1275,7 @@ def review_captures(
                 "selection_end_to_end_us": selection_e2e,
                 "setup_comparison_key": setup_key,
                 "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
+                "phase_medians_us": phase_medians_for_capture(item),
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
                 "prepacked_reuse_review": prepack_review,

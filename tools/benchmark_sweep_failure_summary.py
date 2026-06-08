@@ -127,6 +127,18 @@ def _histogram_text(
     return ",".join(f"{key}:{value}" for key, value in items[:8])
 
 
+def _pack_split_text(candidate: dict[str, Any]) -> str:
+    medians = candidate.get("phase_medians_us")
+    if not isinstance(medians, dict):
+        return "none"
+    values: list[str] = []
+    for phase in ("pack_a", "pack_b"):
+        value = medians.get(phase)
+        if isinstance(value, (int, float)):
+            values.append(f"{phase}:{float(value)}")
+    return ",".join(values) if values else "none"
+
+
 def _route_line(
     out: Path,
     label: str,
@@ -149,6 +161,7 @@ def _route_line(
         f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
         f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
         f"bottleneck={bottleneck_text} "
+        f"pack_split={_pack_split_text(candidate)} "
         f"matrix_isa={_histogram_text(candidate, isa_index)} "
         f"capture={_relative_capture(out, candidate.get('capture'))}"
     )
@@ -167,6 +180,9 @@ def _blocker_text(values: Any) -> str:
 
 def _review_detail_text(candidate: dict[str, Any]) -> str:
     details: list[str] = []
+    pack_split = _pack_split_text(candidate)
+    if pack_split != "none":
+        details.append(f"pack_split={pack_split}")
     prepack = candidate.get("prepacked_reuse_review")
     if isinstance(prepack, dict):
         details.extend(

@@ -260,8 +260,10 @@ inspection commands.
   the aggregate measured phase, so existing setup-inclusive comparisons stay
   stable while pack-bound diagnostics identify the operand side that needs
   kernel or reuse work. Promoted autotune cache entries and `rns8-inspect`
-  cache-hit output preserve `pack_a` and `pack_b` medians when present, so the
-  diagnosis survives review/cache installation.
+  cache-hit output preserve `pack_a` and `pack_b` medians when present. Release
+  review candidates and the supported failure-summary tool now also print the
+  split pack medians, so the diagnosis survives review refresh, cache
+  installation, and compact VM triage output.
 - Remaining work: add task-level split timing for host-batch/grouped-dispatch
   captures, GPU-event split labels for Direct-HIP pack kernels that currently
   report only aggregate pack, and then implement the actual coalesced/vectorized
