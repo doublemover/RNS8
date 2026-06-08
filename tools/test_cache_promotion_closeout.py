@@ -69,7 +69,7 @@ def cache_entry_from_capture(capture: dict, *, selector_review_only: bool = Fals
             "semantics=bounded_i64;backend=ck;target_id=gfx1100;prefix=9;limb_count=0;"
             "signedness=signed;output_layout=scalar_i64;status_policy=range_checked_status_buffer;"
             "d2h_policy=host_ld_padded;final_output_mode=final_host_output;"
-            "selected_kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+            "selected_kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
         )
         selector_hash = install_autotune_cache.selector_key_hash(selector_key)
         entry["export_variant"] = "compact-d2h-export-candidate"

@@ -11,11 +11,11 @@
 
 namespace {
 
-constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2";
+constexpr const char* kCkBoundedKernel = "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
 constexpr const char* kCkBoundedOldKernel = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1";
 constexpr const char* kCkBoundedEpilogue = "ck_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kCkFiniteKernel = "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
-constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
 constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
 constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";

@@ -247,7 +247,7 @@ def make_capture(tmp: Path, backend: str, median: float, suffix: str, *, pack_mo
         "hip-direct": "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
         "hip-vector-alu-int64": "hip_vector_alu_i64_exact_192b_v1",
         "hipblaslt": HIPBLASLT_KERNEL,
-        "ck": "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+        "ck": "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
         "rocwmma": "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
     }
     stem = f"{backend}-{suffix}".replace(":", "-")

@@ -292,7 +292,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.selected_kernel,
           sizeof(info.selected_kernel),
-          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
+          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
       set_text(info.library_name, sizeof(info.library_name), "Composable Kernel");
       set_text(info.library_version, sizeof(info.library_version), "repo-local release/rocm-rel-7.1");
       set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_CK");
@@ -313,7 +313,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.detail,
           sizeof(info.detail),
-          "Opt-in CK backend using target-selected CShuffle int8 matrix GEMM with fused centered-residue epilogue specialized for mod 256/255/251; bounded-u64 is not exposed until an unsigned exactness contract is validated.");
+          "Opt-in CK backend using target-selected CShuffle int8 matrix GEMM with fused centered-residue epilogue dispatched through compile-time static reducers for every supported byte modulus in the default RNS ladder and finite-u8 allow-list; bounded-u64 is not exposed until an unsigned exactness contract is validated.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

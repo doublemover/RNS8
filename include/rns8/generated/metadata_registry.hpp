@@ -149,12 +149,12 @@ inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
 }};
 
 inline constexpr std::array<std::string_view, 52> selected_kernels{{
-    "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
-    "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
-    "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+    "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
+    "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+    "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
     "cpu_reference",
     "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_native_a_finite_u8_gemm_mod251_v1",

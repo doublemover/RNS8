@@ -468,7 +468,7 @@ stale_ck_rns_kernel["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_i
 stale_ck_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_rns_kernel["backend_metadata"][
     "autotune_key"
 ].replace(
-    "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+    "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
     "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
 )
 expect_invalid(stale_ck_rns_kernel, "CK captures must report a known CK selected_kernel")
@@ -481,7 +481,7 @@ stale_ck_tiled_rns_kernel["backend_metadata"][
 stale_ck_tiled_rns_kernel["backend_metadata"]["autotune_key"] = stale_ck_tiled_rns_kernel["backend_metadata"][
     "autotune_key"
 ].replace(
-    "kernel=ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+    "kernel=ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
     "kernel=ck_wmma_cshuffle_tiled_i8_i32_centered_epilogue_v1",
 )
 expect_invalid(stale_ck_tiled_rns_kernel, "CK captures must report a known CK selected_kernel")

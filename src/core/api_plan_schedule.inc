@@ -15,7 +15,7 @@ std::string ck_finite_selected_kernel(uint32_t finite_modulus) {
     case 256:
       return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
     default:
-      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+      return "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
   }
 }
 

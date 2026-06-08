@@ -68,7 +68,7 @@ def main() -> int:
         expect_text(ck.stdout, "capability_status: implemented_opt_in_ck_backend", "ck")
         expect_text(
             ck.stdout,
-            "selected_kernel:   ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+            "selected_kernel:   ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
             "ck",
         )
         expect_text(ck.stdout, "exact_validated:   1", "ck")

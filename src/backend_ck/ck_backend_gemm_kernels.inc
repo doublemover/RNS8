@@ -299,44 +299,6 @@ int run_ck_tile_modulus_impl(
   return ck_success;
 }
 
-int run_ck_tile_modulus(
-    const int8_t* a,
-    const int8_t* b,
-    int8_t* c,
-    int8_t* a_workspace,
-    int8_t* b_workspace,
-    int8_t* temp_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t reciprocal,
-    int prefix_index) {
-  if (!ck_static_modulus_supported(static_cast<uint32_t>(modulus))) {
-    return ck_unsupported_backend;
-  }
-  return run_ck_tile_modulus_impl(
-      a,
-      b,
-      c,
-      a_workspace,
-      b_workspace,
-      temp_c,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc,
-      modulus,
-      reciprocal,
-      prefix_index,
-      CenteredModulo{modulus, reciprocal});
-}
-
 template <uint32_t Modulus>
 int run_ck_tile_modulus_fixed(
     const int8_t* a,
@@ -369,4 +331,63 @@ int run_ck_tile_modulus_fixed(
       modulus_reciprocal_u32(static_cast<uint16_t>(Modulus)),
       prefix_index,
       CenteredModuloFixed<Modulus>{});
+}
+
+int run_ck_tile_modulus(
+    const int8_t* a,
+    const int8_t* b,
+    int8_t* c,
+    int8_t* a_workspace,
+    int8_t* b_workspace,
+    int8_t* temp_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int modulus,
+    uint32_t reciprocal,
+    int prefix_index) {
+  (void)reciprocal;
+#define RNS8_CK_FIXED_MODULUS_CASE(modulus_value)                                                        \
+  case modulus_value:                                                                                    \
+    return run_ck_tile_modulus_fixed<modulus_value>(                                                     \
+        a, b, c, a_workspace, b_workspace, temp_c, m, n, k, lda, ldb, ldc, prefix_index)
+
+  switch (modulus) {
+    RNS8_CK_FIXED_MODULUS_CASE(256);
+    RNS8_CK_FIXED_MODULUS_CASE(255);
+    RNS8_CK_FIXED_MODULUS_CASE(253);
+    RNS8_CK_FIXED_MODULUS_CASE(251);
+    RNS8_CK_FIXED_MODULUS_CASE(247);
+    RNS8_CK_FIXED_MODULUS_CASE(243);
+    RNS8_CK_FIXED_MODULUS_CASE(241);
+    RNS8_CK_FIXED_MODULUS_CASE(239);
+    RNS8_CK_FIXED_MODULUS_CASE(233);
+    RNS8_CK_FIXED_MODULUS_CASE(229);
+    RNS8_CK_FIXED_MODULUS_CASE(227);
+    RNS8_CK_FIXED_MODULUS_CASE(223);
+    RNS8_CK_FIXED_MODULUS_CASE(217);
+    RNS8_CK_FIXED_MODULUS_CASE(211);
+    RNS8_CK_FIXED_MODULUS_CASE(199);
+    RNS8_CK_FIXED_MODULUS_CASE(197);
+    RNS8_CK_FIXED_MODULUS_CASE(193);
+    RNS8_CK_FIXED_MODULUS_CASE(191);
+    RNS8_CK_FIXED_MODULUS_CASE(181);
+    RNS8_CK_FIXED_MODULUS_CASE(179);
+    RNS8_CK_FIXED_MODULUS_CASE(173);
+    RNS8_CK_FIXED_MODULUS_CASE(167);
+    RNS8_CK_FIXED_MODULUS_CASE(163);
+    RNS8_CK_FIXED_MODULUS_CASE(157);
+    RNS8_CK_FIXED_MODULUS_CASE(151);
+    RNS8_CK_FIXED_MODULUS_CASE(149);
+    RNS8_CK_FIXED_MODULUS_CASE(139);
+    RNS8_CK_FIXED_MODULUS_CASE(137);
+    RNS8_CK_FIXED_MODULUS_CASE(131);
+    RNS8_CK_FIXED_MODULUS_CASE(127);
+    default:
+      return ck_unsupported_backend;
+  }
+#undef RNS8_CK_FIXED_MODULUS_CASE
 }

@@ -106,12 +106,12 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_CK) {
     if (!plan.tile_schedule.empty()) {
-      return "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2";
+      return "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3";
     }
     if (uses_finite_storage(plan.desc.semantics)) {
       return ck_finite_selected_kernel(plan.desc.finite_modulus);
     }
-    return "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2";
+    return "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     if (!plan.tile_schedule.empty()) {

@@ -11,7 +11,7 @@ constexpr accelerator_backend_descriptor kCkDescriptor{
     "ck",
     "Composable Kernel",
     "RNS8_ENABLE_CK",
-    "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2_disabled",
+    "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3_disabled",
     "ck_fused_i32_to_centered_residue_disabled",
     "resident_device_buffers_with_ck_pack_workspace_disabled",
     "not_validated",

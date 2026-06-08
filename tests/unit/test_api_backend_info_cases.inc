@@ -115,7 +115,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
       CHECK(
           std::string(capability.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
+          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
 #if RNS8_CK_USE_XDL
       CHECK(std::string(capability.workspace_mode) ==
@@ -167,7 +167,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.status) == "not_enabled_in_this_build");
       CHECK(
           std::string(capability.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2_disabled");
+          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3_disabled");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue_disabled");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);

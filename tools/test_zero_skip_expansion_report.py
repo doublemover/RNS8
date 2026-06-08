@@ -71,7 +71,7 @@ def main() -> int:
     ck_fallback = set_row_col_proofs(
         ck_fixture,
         backend="ck",
-        kernel="ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+        kernel="ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
         proof_source="caller_provided_zero_proofs",
     )
     rocwmma_fallback = set_row_col_proofs(

@@ -190,14 +190,14 @@ def reviewed_kernel_supported_for_contract(
     if selected_backend == "ck":
         if semantic_contract in FINITE_U8_SEMANTICS:
             return selected_kernel == CK_FINITE_SPECIALIZED_KERNELS.get(
-                finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+                finite_modulus, "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
             )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
-            return selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+            return selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
         if semantic_contract in BOUNDED_SEMANTICS:
             return selected_kernel in {
-                "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
-                "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+                "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+                "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
             }
     if selected_backend == "rocwmma":
         if semantic_contract in FINITE_U8_SEMANTICS:

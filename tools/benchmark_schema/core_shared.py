@@ -123,7 +123,7 @@ DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS = {
     255: "direct_hip_native_finite_u8_gemm_mod255_v1",
     256: "direct_hip_native_finite_u8_gemm_mod256_v1",
 }
-CK_FINITE_GENERIC_KERNEL = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+CK_FINITE_GENERIC_KERNEL = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
 CK_FINITE_SPECIALIZED_KERNELS = {
     251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",

@@ -645,7 +645,7 @@ class ValidatorScheduleMixin:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3
             expected_kernels = {
                 "hip-direct": direct_hip_expected_kernel,
-                "ck": "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2",
+                "ck": "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
             }
             expected_kernel = expected_kernels.get(selected_backend)

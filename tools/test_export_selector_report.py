@@ -19,7 +19,7 @@ def write_capture(path: Path, capture: dict) -> None:
 
 def reviewable_fixed_limb_capture() -> dict:
     capture = add_helper_lane_fields(as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json")))
-    selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+    selected_kernel = "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
     capture["selected_kernel"] = selected_kernel
     capture["backend_selected"] = "ck"
     capture["backend_requested"] = "ck"

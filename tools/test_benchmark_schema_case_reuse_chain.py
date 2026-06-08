@@ -11,13 +11,13 @@ validate_capture(direct_hip_finite_oneshot)
 direct_hip_finite_native_a_reuse_b = as_direct_hip_finite_native_a_reuse_b_capture(v4_finite_ring_ck)
 validate_capture(direct_hip_finite_native_a_reuse_b)
 stale_ck_finite_mod255 = copy.deepcopy(v4_finite_ring_ck)
-stale_ck_finite_mod255["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
-stale_ck_finite_mod255["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+stale_ck_finite_mod255["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
+stale_ck_finite_mod255["backend_metadata"]["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
 stale_ck_finite_mod255["backend_metadata"]["autotune_key"] = stale_ck_finite_mod255["backend_metadata"][
     "autotune_key"
 ].replace(
     "kernel=ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
-    "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+    "kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
 )
 expect_invalid(
     stale_ck_finite_mod255,

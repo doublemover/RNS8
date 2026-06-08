@@ -290,7 +290,7 @@ std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
     case 256:
       return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
     default:
-      return "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1";
+      return "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
   }
 }
 
@@ -334,11 +334,11 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
       return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2";
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2" ||
-             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_mod251_255_256_centered_epilogue_v2";
+      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3" ||
+             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3";
     }
   }
   if (entry.selected_backend == "rocwmma") {

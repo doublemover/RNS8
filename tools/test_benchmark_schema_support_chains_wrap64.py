@@ -98,7 +98,7 @@ def as_exact_wide_capture(capture: dict) -> dict:
     exact["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
         "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
         "epilogue=ck_fused_i32_to_centered_residue_rns_output"
         ),
         exact,
@@ -425,7 +425,7 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
         "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2;"
+        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
         "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
         ),
         chain,

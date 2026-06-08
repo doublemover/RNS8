@@ -379,9 +379,9 @@ expect_invalid(bad_ck_finite_kernel, "CK finite-u8 modulus 256 captures")
 
 unsupported_ck_finite_modulus = copy.deepcopy(v4_finite_ring_ck)
 unsupported_ck_finite_modulus["finite_modulus"] = 2
-unsupported_ck_finite_modulus["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+unsupported_ck_finite_modulus["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
 unsupported_ck_finite_modulus["backend_metadata"]["selected_kernel"] = (
-    "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+    "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
 )
 unsupported_ck_finite_modulus["backend_metadata"]["autotune_key"] = unsupported_ck_finite_modulus[
     "backend_metadata"
@@ -390,7 +390,7 @@ unsupported_ck_finite_modulus["backend_metadata"]["autotune_key"] = unsupported_
     "finite_modulus=2",
 ).replace(
     "kernel=ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
-    "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+    "kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
 )
 expect_invalid(unsupported_ck_finite_modulus, "unsupported by the static CK reducer set")
 

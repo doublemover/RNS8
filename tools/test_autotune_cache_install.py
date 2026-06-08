@@ -24,9 +24,9 @@ def entry(key_suffix: str = "", *, finite_modulus: int = 0) -> dict:
             251: "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
             255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
             256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
-        }.get(finite_modulus, "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1")
+        }.get(finite_modulus, "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2")
         if finite_modulus
-        else "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+        else "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
     )
     epilogue = (
         "ck_fused_i32_to_centered_residue_then_canonical_u8_export"
@@ -117,7 +117,7 @@ def vector_entry(
 
 
 def exact_wide_entry(key_suffix: str = "", *, export_variant: str = "default") -> dict:
-    selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
+    selected_kernel = "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
     epilogue = "ck_fused_i32_to_centered_residue_rns_output"
     target_id = "gfx1100"
     key = (
@@ -488,11 +488,11 @@ def main() -> int:
             raise AssertionError("invalid finite cache entry was accepted")
 
         stale_finite_kernel = entry("-finite256", finite_modulus=256)
-        stale_finite_kernel["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
-        stale_finite_kernel["kernel_family"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+        stale_finite_kernel["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
+        stale_finite_kernel["kernel_family"] = "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
         stale_finite_kernel["key"] = stale_finite_kernel["key"].replace(
             "kernel=ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
-            "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+            "kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
         )
         stale_finite_source = root / "stale-finite-kernel.json"
         write_cache(stale_finite_source, [stale_finite_kernel])
@@ -607,7 +607,7 @@ def main() -> int:
             {
                 "key": stale_kernel["key"]
                 .replace(
-                    "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+                    "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
                     "kernel=rocwmma_wrap64_byte_gemm36_candidate_v0",
                 ),
                 "selected_kernel": "rocwmma_wrap64_byte_gemm36_candidate_v0",
@@ -627,7 +627,7 @@ def main() -> int:
         stale_bounded_v1["selected_kernel"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
         stale_bounded_v1["kernel_family"] = "ck_wmma_cshuffle_i8_i32_centered_epilogue_v1"
         stale_bounded_v1["key"] = stale_bounded_v1["key"].replace(
-            "kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
+            "kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
             "kernel=ck_wmma_cshuffle_i8_i32_centered_epilogue_v1",
         )
         stale_bounded_v1_source = root / "stale-bounded-v1.json"
