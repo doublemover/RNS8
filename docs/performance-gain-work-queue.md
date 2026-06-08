@@ -278,6 +278,12 @@ inspection commands.
 - Implementation scope: make full-path graph capture cover H2D, pack kernels,
   GEMM, residue reduction/export, status, and D2H on explicit streams where
   safe; reject paths with unstable handles, scratch, or source versions.
+- Local status: benchmark schema validation now requires full-path bounded,
+  finite-u8, and wrap64 graph replay captures to carry ordered pack, GEMM,
+  export, and end-to-end phase metadata. The phase notes must explicitly name
+  the graph-covered pack/GEMM/export/status/D2H work for the relevant semantic
+  path, so a wall-clock graph row cannot pass as full-path evidence while
+  omitting export/status or output-transfer coverage.
 - Required evidence: graph/non-graph same-contract release groups with event
   labels and setup-inclusive break-even analysis.
 - Do not promote: graph-only rows or graph captures without same-contract

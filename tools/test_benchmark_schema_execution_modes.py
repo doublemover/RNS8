@@ -166,6 +166,30 @@ def main() -> int:
         "bounded pack/GEMM/export hip_graph_replay captures must set hip_graph_replay.scope",
     )
 
+    bad_full_graph_phase_note = copy.deepcopy(full_graph)
+    bad_full_graph_phase_note["timing_metadata"]["phase_notes"]["crt_export"] = (
+        "captured inside one HIP Graph launch including export kernel only"
+    )
+    expect_invalid(
+        bad_full_graph_phase_note,
+        "bounded pack/GEMM/export hip_graph_replay phase note crt_export must describe",
+    )
+
+    bad_full_graph_phase_order = copy.deepcopy(full_graph)
+    bad_full_graph_phase_order["timing_metadata"]["phase_order"] = [
+        "planning",
+        "scheduling",
+        "matrix_alloc",
+        "pack",
+        "crt_export",
+        "rns_gemm",
+        "end_to_end",
+    ]
+    expect_invalid(
+        bad_full_graph_phase_order,
+        "bounded pack/GEMM/export hip_graph_replay phase_order must preserve pack, rns_gemm, crt_export, end_to_end order",
+    )
+
     finite_graph = as_hip_graph_full_finite_capture(direct_hip_base)
     validate_capture(finite_graph)
 
@@ -185,6 +209,15 @@ def main() -> int:
         "finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
     )
 
+    bad_finite_graph_phase_note = copy.deepcopy(finite_graph)
+    bad_finite_graph_phase_note["timing_metadata"]["phase_notes"]["end_to_end"] = (
+        "measured duration for one hipGraphLaunch plus stream synchronization"
+    )
+    expect_invalid(
+        bad_finite_graph_phase_note,
+        "finite-u8 pack/GEMM/export hip_graph_replay phase note end_to_end must describe",
+    )
+
     wrap64_graph = as_hip_graph_full_wrap64_capture(wrap64_base)
     validate_capture(wrap64_graph)
 
@@ -195,6 +228,15 @@ def main() -> int:
     expect_invalid(
         bad_wrap64_graph_policy,
         "wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
+    )
+
+    bad_wrap64_graph_phase_note = copy.deepcopy(wrap64_graph)
+    bad_wrap64_graph_phase_note["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "captured inside one HIP Graph launch with generic GEMM work"
+    )
+    expect_invalid(
+        bad_wrap64_graph_phase_note,
+        "wrap64 pack/GEMM/export hip_graph_replay phase note rns_gemm must describe",
     )
 
     print("benchmark schema execution-mode self-test: PASS")

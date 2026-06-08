@@ -31,6 +31,39 @@ def _close(actual: float, expected: float) -> bool:
     return math.isclose(float(actual), float(expected), rel_tol=1.0e-5, abs_tol=1.0e-2)
 
 
+def _require_graph_full_path_phase_metadata(
+    self: Any,
+    metadata: Any,
+    *,
+    label: str,
+    required_notes: dict[str, list[str]],
+) -> None:
+    if not isinstance(metadata, dict):
+        self._error(f"{label} hip_graph_replay captures must include timing_metadata")
+        return
+    phase_order = metadata.get("phase_order")
+    required_order = ["pack", "rns_gemm", "crt_export", "end_to_end"]
+    if not isinstance(phase_order, list) or any(phase not in phase_order for phase in required_order):
+        self._error(f"{label} hip_graph_replay captures must include pack/rns_gemm/crt_export/end_to_end phase_order")
+    elif [phase for phase in phase_order if phase in required_order] != required_order:
+        self._error(f"{label} hip_graph_replay phase_order must preserve pack, rns_gemm, crt_export, end_to_end order")
+    notes = metadata.get("phase_notes")
+    if not isinstance(notes, dict):
+        self._error(f"{label} hip_graph_replay captures must include timing_metadata.phase_notes")
+        return
+    for phase, required_substrings in required_notes.items():
+        note = notes.get(phase)
+        if not isinstance(note, str):
+            self._error(f"{label} hip_graph_replay phase note {phase} must be a string")
+            continue
+        missing = [substring for substring in required_substrings if substring not in note]
+        if missing:
+            self._error(
+                f"{label} hip_graph_replay phase note {phase} must describe "
+                + ", ".join(required_substrings)
+            )
+
+
 def validate_grouped_dispatch_metadata(self: Any) -> None:
     grouped = self.data.get("grouped_dispatch")
     is_grouped = self._is_grouped_dispatch_capture()
@@ -531,6 +564,17 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             or "pack, one RNS GEMM, export status, export kernel, and output D2H" not in caveat
         ):
             self._error("bounded pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+        _require_graph_full_path_phase_metadata(
+            self,
+            metadata,
+            label="bounded pack/GEMM/export",
+            required_notes={
+                "pack": ["captured inside one HIP Graph launch"],
+                "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP bounded"],
+                "crt_export": ["status memset", "export kernel", "status D2H", "output D2H"],
+                "end_to_end": ["hipGraphLaunch", "pack", "RNS GEMM", "export", "status", "D2H"],
+            },
+        )
     elif finite_full_graph:
         if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
             self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use finite-u8 semantics")
@@ -567,6 +611,17 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             or "finite-u8 pack, one modular GEMM, canonical finite export, and output D2H" not in caveat
         ):
             self._error("finite-u8 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+        _require_graph_full_path_phase_metadata(
+            self,
+            metadata,
+            label="finite-u8 pack/GEMM/export",
+            required_notes={
+                "pack": ["captured inside one HIP Graph launch"],
+                "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP finite-u8"],
+                "crt_export": ["finite export kernel", "output D2H"],
+                "end_to_end": ["hipGraphLaunch", "finite-u8", "pack", "modular GEMM", "canonical export", "D2H"],
+            },
+        )
     elif wrap64_full_graph:
         if self.data.get("semantics") != "wrap_u64_mod_2_64":
             self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use wrap_u64_mod_2_64 semantics")
@@ -601,6 +656,17 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             or "wrap64 byte-limb pack, byte-GEMM36, low64 export, and output D2H" not in caveat
         ):
             self._error("wrap64 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+        _require_graph_full_path_phase_metadata(
+            self,
+            metadata,
+            label="wrap64 pack/GEMM/export",
+            required_notes={
+                "pack": ["captured inside one HIP Graph launch"],
+                "rns_gemm": ["captured inside one HIP Graph launch", "wrap64 byte-limb"],
+                "crt_export": ["wrap64 low64 export kernel", "output D2H"],
+                "end_to_end": ["hipGraphLaunch", "wrap64", "byte-limb pack", "byte-GEMM36", "low64 export", "D2H"],
+            },
+        )
 
     if not isinstance(metadata, dict):
         return
