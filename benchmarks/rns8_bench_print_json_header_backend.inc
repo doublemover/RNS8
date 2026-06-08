@@ -50,6 +50,24 @@
   std::cout << "    \"autotune_key\": ";
   print_json_string_or_null(result.backend_info.autotune_key);
   std::cout << ",\n";
+  if (result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    const char* matrix_family = amdgpu_builtin_matrix_instruction_family(selected_kernel);
+    const char* matrix_shape = amdgpu_builtin_matrix_instruction_shape(selected_kernel);
+    const char* matrix_dtype = amdgpu_builtin_matrix_instruction_dtype(selected_kernel);
+    const char* matrix_sparsity = amdgpu_builtin_matrix_sparsity(selected_kernel);
+    std::cout << "    \"matrix_instruction_family\": ";
+    print_json_string_or_null(matrix_family);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_instruction_shape\": ";
+    print_json_string_or_null(matrix_shape);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_instruction_dtype\": ";
+    print_json_string_or_null(matrix_dtype);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_instruction_sparsity\": ";
+    print_json_string_or_null(matrix_sparsity);
+    std::cout << ",\n";
+  }
   std::cout << "    \"accumulator_safety\": {\n";
   std::cout << "      \"input_domain\": ";
   print_json_string_or_null(result.backend_info.accumulator_input_domain);

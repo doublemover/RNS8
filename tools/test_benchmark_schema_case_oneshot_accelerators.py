@@ -287,6 +287,51 @@ bad_rocwmma_events = copy.deepcopy(v4_rocwmma_adaptive_u64)
 bad_rocwmma_events["timing_metadata"]["gpu_event_timing_source_scope"] = "rocwmma_default_stream"
 expect_invalid(bad_rocwmma_events, "accelerator_backend_default_stream_deep_kernel_events")
 
+amdgpu_builtins = copy.deepcopy(v4_ck_i64)
+amdgpu_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+amdgpu_builtins["backend_requested"] = "amdgpu-builtins"
+amdgpu_builtins["backend_selected"] = "amdgpu-builtins"
+amdgpu_builtins["selected_kernel"] = amdgpu_kernel
+amdgpu_metadata = amdgpu_builtins["backend_metadata"]
+amdgpu_metadata["source"] = "rns8_get_plan_backend_info"
+amdgpu_metadata["selected_kernel"] = amdgpu_kernel
+amdgpu_metadata["accelerator_backend"] = True
+amdgpu_metadata["correctness_backend"] = True
+amdgpu_metadata["matrix_engine_backend"] = True
+amdgpu_metadata["compiled_kernel_available"] = True
+amdgpu_metadata["exact_differential_validated"] = True
+amdgpu_metadata["performance_validated"] = False
+amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
+amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
+amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
+amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export"
+amdgpu_metadata[
+    "workspace_mode"
+] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+amdgpu_metadata["workspace_required_bytes"] = 0
+amdgpu_metadata["isa_evidence"] = "amdgpu_builtin_matrix_isa_gate_no_divide"
+amdgpu_metadata["matrix_instruction_family"] = "wmma"
+amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
+amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
+amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
+apply_int32_accumulator_contract(amdgpu_builtins)
+amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
+    amdgpu_metadata["autotune_key"]
+    .replace("backend=ck", "backend=amdgpu-builtins")
+    .replace("kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3", f"kernel={amdgpu_kernel}")
+    .replace("epilogue=ck_fused_centered_residue", "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export"),
+    amdgpu_builtins,
+)
+validate_capture(amdgpu_builtins)
+
+bad_amdgpu_family = copy.deepcopy(amdgpu_builtins)
+bad_amdgpu_family["backend_metadata"]["matrix_instruction_family"] = "mfma"
+expect_invalid(bad_amdgpu_family, "backend_metadata.matrix_instruction_family=wmma")
+
+bad_amdgpu_sparsity = copy.deepcopy(amdgpu_builtins)
+bad_amdgpu_sparsity["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
+expect_invalid(bad_amdgpu_sparsity, "backend_metadata.matrix_instruction_sparsity=dense")
+
 bad_hip_target = copy.deepcopy(v4_ck_i64)
 bad_hip_target["device"]["gcn_arch"] = "unknown"
 expect_invalid(bad_hip_target, "HIP backend captures must include non-placeholder device.gcn_arch")

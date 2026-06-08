@@ -215,7 +215,14 @@ def with_accumulator_key_fields(key: str, capture: dict) -> str:
         }
     ]
     target = capture.get("device", {}).get("gcn_arch", "cpu")
-    if capture.get("backend_selected") not in {"hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"}:
+    if capture.get("backend_selected") not in {
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma",
+        "amdgpu-builtins",
+        "hip-vector-alu-int64",
+    }:
         target = "cpu"
     if target in {"", "none", "unknown"}:
         target = "cpu"

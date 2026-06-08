@@ -193,6 +193,75 @@ const char* selected_kernel_name(
   return nullptr;
 }
 
+const char* amdgpu_builtin_matrix_instruction_family(const char* selected_kernel) {
+  if (!selected_kernel) {
+    return nullptr;
+  }
+  const std::string kernel(selected_kernel);
+  if (kernel.find("_mfma_") != std::string::npos) {
+    return "mfma";
+  }
+  if (kernel.find("_smfmac_") != std::string::npos) {
+    return "smfmac";
+  }
+  if (kernel.find("_swmmac_") != std::string::npos) {
+    return "swmmac";
+  }
+  if (kernel.find("_wmma_") != std::string::npos) {
+    return "wmma";
+  }
+  return nullptr;
+}
+
+const char* amdgpu_builtin_matrix_instruction_shape(const char* selected_kernel) {
+  if (!selected_kernel) {
+    return nullptr;
+  }
+  const std::string kernel(selected_kernel);
+  if (kernel.find("32x32x32") != std::string::npos) {
+    return "32x32x32";
+  }
+  if (kernel.find("32x32x16") != std::string::npos) {
+    return "32x32x16";
+  }
+  if (kernel.find("16x16x64") != std::string::npos) {
+    return "16x16x64";
+  }
+  if (kernel.find("16x16x32") != std::string::npos) {
+    return "16x16x32";
+  }
+  if (kernel.find("16x16x16") != std::string::npos) {
+    return "16x16x16";
+  }
+  return nullptr;
+}
+
+const char* amdgpu_builtin_matrix_instruction_dtype(const char* selected_kernel) {
+  if (!selected_kernel) {
+    return nullptr;
+  }
+  const std::string kernel(selected_kernel);
+  if (kernel.find("_iu4") != std::string::npos) {
+    return "iu4";
+  }
+  if (kernel.find("_iu8") != std::string::npos) {
+    return "iu8";
+  }
+  if (kernel.find("_i8") != std::string::npos) {
+    return "i8";
+  }
+  return nullptr;
+}
+
+const char* amdgpu_builtin_matrix_sparsity(const char* selected_kernel) {
+  const char* family = amdgpu_builtin_matrix_instruction_family(selected_kernel);
+  if (!family) {
+    return nullptr;
+  }
+  const std::string family_name(family);
+  return family_name == "smfmac" || family_name == "swmmac" ? "structured_4_2" : "dense";
+}
+
 int64_t benchmark_k_block_size(const Args& args, const BenchmarkResult& result) {
   if (result.backend_info_available && result.backend_info.accumulator_k_block_size > 0 &&
       result.backend_info.accumulator_k_block_size <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {

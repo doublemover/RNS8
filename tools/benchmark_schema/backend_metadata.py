@@ -16,6 +16,38 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _amdgpu_builtin_matrix_family(selected_kernel: str) -> str | None:
+    if "_mfma_" in selected_kernel:
+        return "mfma"
+    if "_smfmac_" in selected_kernel:
+        return "smfmac"
+    if "_swmmac_" in selected_kernel:
+        return "swmmac"
+    if "_wmma_" in selected_kernel:
+        return "wmma"
+    return None
+
+
+def _amdgpu_builtin_matrix_shape(selected_kernel: str) -> str | None:
+    for shape in ("32x32x32", "32x32x16", "16x16x64", "16x16x32", "16x16x16"):
+        if shape in selected_kernel:
+            return shape
+    return None
+
+
+def _amdgpu_builtin_matrix_dtype(selected_kernel: str) -> str | None:
+    for dtype in ("iu4", "iu8", "i8"):
+        if f"_{dtype}" in selected_kernel:
+            return dtype
+    return None
+
+
+def _amdgpu_builtin_matrix_sparsity(family: str | None) -> str | None:
+    if family is None:
+        return None
+    return "structured_4_2" if family in {"smfmac", "swmmac"} else "dense"
+
+
 def validate_backend_metadata(self: Any) -> None:
     metadata = self._require("backend_metadata", "dict")
     if not isinstance(metadata, dict):
@@ -177,6 +209,18 @@ def validate_backend_metadata(self: Any) -> None:
             metadata.get("selected_kernel")
         ).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report a registered amdgpu_builtin_* selected_kernel")
+        amdgpu_kernel = str(metadata.get("selected_kernel") or "")
+        expected_matrix = {
+            "matrix_instruction_family": _amdgpu_builtin_matrix_family(amdgpu_kernel),
+            "matrix_instruction_shape": _amdgpu_builtin_matrix_shape(amdgpu_kernel),
+            "matrix_instruction_dtype": _amdgpu_builtin_matrix_dtype(amdgpu_kernel),
+        }
+        expected_matrix["matrix_instruction_sparsity"] = _amdgpu_builtin_matrix_sparsity(
+            expected_matrix["matrix_instruction_family"]
+        )
+        for key, value in expected_matrix.items():
+            if metadata.get(key) != value:
+                self._error(f"amdgpu-builtins captures must use backend_metadata.{key}={value}")
         if metadata.get("accelerator_library") != "AMDGPU builtins":
             self._error("amdgpu-builtins captures must use accelerator_library=AMDGPU builtins")
         if metadata.get("capability_status") != "implemented_opt_in_amdgpu_builtin_backend":

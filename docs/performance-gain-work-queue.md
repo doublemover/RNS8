@@ -303,6 +303,13 @@ inspection commands.
 - Required evidence: targeted GPU differential tests, ISA histograms proving
   MFMA use, no forbidden divide/remainder/reciprocal in hot symbols, and release
   comparisons against Direct HIP, hipBLASLt, CK, and rocWMMA.
+- Local progress: AMDGPU builtin captures now emit schema-checked
+  `backend_metadata.matrix_instruction_family`,
+  `matrix_instruction_shape`, `matrix_instruction_dtype`, and
+  `matrix_instruction_sparsity` derived from the selected builtin kernel.
+  Local `gfx1100` smoke captures report the RDNA3 dense WMMA route as
+  `wmma/16x16x16/iu8/dense`; compiled ISA reports remain the proof of the
+  actual instruction histogram.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
