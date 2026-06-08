@@ -477,12 +477,48 @@ host_batch_report = benchmark_sweep.review_captures(
     [ck, host_batch_ck, direct, cpu],
     review_mode="release",
 )
-host_batch_group = host_batch_report["groups"][0]
+assert host_batch_report["group_count"] == 2
+host_batch_group = next(
+    group
+    for group in host_batch_report["groups"]
+    if any(candidate["backend"] == "ck-hostbatch" for candidate in group["candidates"])
+)
 assert host_batch_group["duplicate_backends"] == []
 host_batch_blockers = {
     candidate["backend"]: candidate["promotion_blockers"] for candidate in host_batch_group["candidates"]
 }
 assert "host_api_batch_not_autotune_promotable" in host_batch_blockers["ck-hostbatch"]
+
+scenario_a_cpu = copy.deepcopy(cpu)
+scenario_a_direct = copy.deepcopy(direct)
+scenario_b_cpu = copy.deepcopy(cpu)
+scenario_b_direct = copy.deepcopy(direct)
+scenario_a_cpu["checksum_u64"] = 111
+scenario_a_direct["checksum_u64"] = 111
+scenario_b_cpu["checksum_u64"] = 222
+scenario_b_direct["checksum_u64"] = 222
+for item in [scenario_a_cpu, scenario_a_direct]:
+    item["scenario_metadata"] = {
+        "family": "many-small",
+        "name": "bounded-i64-64-proxy",
+        "promotion_eligibility": "release_review_candidate",
+        "output_domain": "host_export",
+        "metadata": {"workflow_name": "many_small"},
+    }
+for item in [scenario_b_cpu, scenario_b_direct]:
+    item["scenario_metadata"] = {
+        "family": "small-oneshot",
+        "name": "bounded-i64-64-oneshot",
+        "promotion_eligibility": "release_review_candidate",
+        "output_domain": "host_export",
+        "metadata": {"workflow_name": "small_oneshot"},
+    }
+scenario_split_report = benchmark_sweep.review_captures(
+    [scenario_a_cpu, scenario_a_direct, scenario_b_cpu, scenario_b_direct],
+    review_mode="release",
+)
+assert scenario_split_report["group_count"] == 2
+assert all(group["checksum_mismatches"] == [] for group in scenario_split_report["groups"])
 
 reuse_report = benchmark_sweep.review_captures(
     [mark_reused_pack(ck), mark_reused_pack(direct), mark_reused_pack(cpu)],

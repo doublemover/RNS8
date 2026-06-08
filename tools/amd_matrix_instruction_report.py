@@ -147,10 +147,10 @@ def _rdna_integer_constraints(family: str | None, operand: str | None) -> dict[s
     if family not in {"wmma", "swmmac"} or operand not in {"iu8", "iu4"}:
         return {}
     return {
-        "neg_bit_29": "A operand signedness: 0 means unsigned, 1 means signed",
-        "neg_bit_30": "B operand signedness: 0 means unsigned, 1 means signed",
-        "neg_bit_31": "must be zero for integer WMMA/SWMMAC",
-        "neg_hi_bits": "must be zero for integer WMMA/SWMMAC",
+        "NEG[0]": "A operand signedness: 0 means unsigned, 1 means signed",
+        "NEG[1]": "B operand signedness: 0 means unsigned, 1 means signed",
+        "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+        "NEG_HI": "must be zero for integer WMMA/SWMMAC",
         "opsel": "RDNA4 SWMMAC OPSEL selects sparse compression index groups; not a dense RNS8 contract",
     }
 
@@ -625,10 +625,10 @@ def build_report(
         "layout_capture_status": "enabled" if layout_root is not None else "disabled",
         "architectures": summaries,
         "rdna_integer_modifier_policy": {
-            "neg_bit_29": "A operand signedness: 0 unsigned, 1 signed",
-            "neg_bit_30": "B operand signedness: 0 unsigned, 1 signed",
-            "neg_bit_31": "must be zero for integer WMMA/SWMMAC",
-            "neg_hi_bits": "must be zero for integer WMMA/SWMMAC",
+            "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+            "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+            "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+            "NEG_HI": "must be zero for integer WMMA/SWMMAC",
         },
         "rns8_implications": [
             "Use this report to choose matrix-core candidates and register-layout investigations; still verify compiled objects with gpu_isa_report and exact CPU comparisons.",

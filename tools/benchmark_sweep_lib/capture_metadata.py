@@ -23,6 +23,11 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     else:
         next_op_contract = requested_next_op.get("resolved") if isinstance(requested_next_op, dict) else None
     parts = [
+        f"scenario_identity={capture_scenario_identity(capture)}",
+        f"checksum_policy={capture_checksum_policy(capture)}",
+        f"host_api_batch_size={capture_host_api_batch_size(capture)}",
+        f"grouped_dispatch_task_count={capture_grouped_dispatch_task_count(capture)}",
+        f"grouped_dispatch_strategy={capture_grouped_dispatch_strategy(capture)}",
         f"semantics={capture.get('semantics')}",
         f"finite_modulus={capture.get('finite_modulus')}",
         f"bound_kind={capture.get('bound_kind')}",
@@ -56,6 +61,65 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"tile_hash={tile_hash}",
     ]
     return ";".join(str(part) for part in parts)
+
+
+def capture_scenario_identity(capture: dict[str, Any]) -> str:
+    scenario = capture.get("scenario_metadata")
+    if not isinstance(scenario, dict):
+        return "unspecified"
+    family = scenario.get("family")
+    name = scenario.get("name")
+    eligibility = scenario.get("promotion_eligibility")
+    output_domain = scenario.get("output_domain")
+    evidence_scope = scenario.get("evidence_scope")
+    metadata = scenario.get("metadata")
+    workflow = metadata.get("workflow_name") if isinstance(metadata, dict) else None
+    return ";".join(
+        [
+            f"family={family}",
+            f"name={name}",
+            f"promotion={eligibility}",
+            f"output_domain={output_domain}",
+            f"workflow={workflow}",
+            f"evidence_scope={evidence_scope}",
+        ]
+    )
+
+
+def capture_checksum_policy(capture: dict[str, Any]) -> str:
+    grouped = capture.get("grouped_dispatch")
+    if isinstance(grouped, dict):
+        task_contract = grouped.get("task_descriptor_contract")
+        if isinstance(task_contract, dict) and isinstance(task_contract.get("checksum_policy"), str):
+            return task_contract["checksum_policy"]
+    host_batch = capture.get("host_api_batch")
+    if isinstance(host_batch, dict) and isinstance(host_batch.get("checksum_policy"), str):
+        return host_batch["checksum_policy"]
+    return "single_final_output_checksum"
+
+
+def capture_host_api_batch_size(capture: dict[str, Any]) -> int:
+    host_batch = capture.get("host_api_batch")
+    if isinstance(host_batch, dict) and host_batch.get("enabled") is True:
+        value = host_batch.get("batch_size")
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+    return 1
+
+
+def capture_grouped_dispatch_task_count(capture: dict[str, Any]) -> int:
+    grouped = capture.get("grouped_dispatch")
+    if isinstance(grouped, dict) and grouped.get("requested") is True:
+        value = grouped.get("task_count")
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+    return 1
+
+
+def capture_grouped_dispatch_strategy(capture: dict[str, Any]) -> str:
+    grouped = capture.get("grouped_dispatch")
+    if isinstance(grouped, dict) and grouped.get("requested") is True:
+        value = grouped.get("execution_strategy")
+        return value if isinstance(value, str) and value else "unknown"
+    return "none"
 
 
 def capture_export_variant_name(capture: dict[str, Any]) -> str:
@@ -120,7 +184,14 @@ def normalized_target_id(value: Any) -> str | None:
 
 
 def backend_family_id(backend: str) -> str:
-    for suffix in ("-oneshot", "-hostbatch", "-hipgraph", "-hipgraph-pack-export"):
+    for suffix in (
+        "-oneshot",
+        "-hostbatch",
+        "-hipgraph",
+        "-hipgraph-pack-export",
+        "-hipgraph-finite-pack-export",
+        "-hipgraph-wrap64-pack-export",
+    ):
         if backend.endswith(suffix):
             return backend[: -len(suffix)]
     return backend

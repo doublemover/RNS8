@@ -1509,6 +1509,13 @@ time by at least 1.15x at N >= 16384 with memory overhead <= 2.2x.
 Decision: support only when the input workload already satisfies the hardware
 structured sparsity pattern.
 
+RNS8 sparse v1 is an explicit A-side 4:2 K-structured byte contract for future
+SMFMAC/SWMMAC experiments. Dense GEMM calls never route to sparse matrix-core
+instructions implicitly. Callers must provide or derive canonical A compression
+metadata, with two nonzero values per group of four K entries, ascending 2-bit
+indices, dense B, and explicit signedness. RNS8 validates and can round-trip
+this packed form before any accelerator kernel may claim sparse evidence.
+
 Ship rule: sparse path ships only if it improves end-to-end exact GEMM by at
 least 1.5x after packing overhead.
 

@@ -135,6 +135,22 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("expected stale scenario promotion scope to fail validation")
 
+    payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "generated_prefix_reducers.json").read_text(encoding="utf-8"))
+    bad_item = copy.deepcopy(payload["items"][0])
+    bad_item["name"] = "bounded-i64-invalid-prefix1"
+    bad_item["max_prefix"] = 1
+    bad_item["prefix_policy"] = "fixed-requested"
+    bad_item["output_domain"] = "host_export"
+    bad_item["next_op_hint"] = "final-export"
+    payload["items"] = [bad_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        benchmark_sweep.load_scenario_data_family(scenario_path)
+    except SystemExit as exc:
+        assert "cannot host-export bounded-i64 uniform-small" in str(exc)
+    else:
+        raise AssertionError("expected invalid fixed-prefix host-export scenario to fail validation")
+
 fusion_item = catalog["residue-channel-fusion"][0]
 assert fusion_item.residue_channel_fusion is True
 assert fusion_item.next_op_hint == "final-export"

@@ -125,6 +125,42 @@ typedef struct rns8_matrix_desc {
   uint32_t flags;
 } rns8_matrix_desc;
 
+typedef enum rns8_sparse_contract {
+  RNS8_SPARSE_NONE = 0,
+  RNS8_SPARSE_A_4_TO_2_STRUCTURED_K = 1
+} rns8_sparse_contract;
+
+typedef enum rns8_sparse_operand {
+  RNS8_SPARSE_OPERAND_A = 1
+} rns8_sparse_operand;
+
+typedef enum rns8_sparse_index_layout {
+  RNS8_SPARSE_INDEX_LAYOUT_NONE = 0,
+  RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1 = 1
+} rns8_sparse_index_layout;
+
+typedef enum rns8_sparse_value_signedness {
+  RNS8_SPARSE_VALUE_SIGNEDNESS_UNSPECIFIED = 0,
+  RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8 = 1,
+  RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8 = 2
+} rns8_sparse_value_signedness;
+
+typedef struct rns8_sparse_matrix_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_sparse_contract contract;
+  rns8_sparse_operand sparse_operand;
+  rns8_sparse_index_layout index_layout;
+  rns8_sparse_value_signedness value_signedness;
+  int64_t rows;
+  int64_t expanded_k;
+  uint32_t group_size;
+  uint32_t nonzeros_per_group;
+  /* Reserved for future hard-cut ABI versions. Must be zero. */
+  uint32_t flags;
+  uint32_t reserved0;
+} rns8_sparse_matrix_desc;
+
 typedef struct rns8_plan_schedule_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -760,6 +796,34 @@ RNS8_API rns8_status rns8_pack_finite_u8(
     const uint8_t* src,
     int64_t ld,
     uint64_t source_version);
+
+/*
+ * Explicit A-side 4:2 structured sparsity helpers for future SMFMAC/SWMMAC
+ * paths. They do not route dense GEMM calls to sparse hardware. A valid v1
+ * contract requires RNS8_SPARSE_A_4_TO_2_STRUCTURED_K, sparse operand A,
+ * canonical 2-bit K-group indices, group_size = 4, nonzeros_per_group = 2,
+ * row-major dense A with expanded_k divisible by 4, and explicit byte
+ * signedness. Packed values are two bytes per K group in ascending index
+ * order; packed_indices stores idx0 | (idx1 << 2).
+ */
+RNS8_API rns8_status rns8_sparse_a_4_to_2_layout_counts(
+    const rns8_sparse_matrix_desc* desc,
+    uint64_t* group_count,
+    uint64_t* packed_value_count);
+
+RNS8_API rns8_status rns8_pack_sparse_a_4_to_2_u8(
+    const rns8_sparse_matrix_desc* desc,
+    const uint8_t* dense_a,
+    int64_t dense_ld,
+    uint8_t* packed_values,
+    uint8_t* packed_indices);
+
+RNS8_API rns8_status rns8_expand_sparse_a_4_to_2_u8(
+    const rns8_sparse_matrix_desc* desc,
+    const uint8_t* packed_values,
+    const uint8_t* packed_indices,
+    uint8_t* dense_a,
+    int64_t dense_ld);
 
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,

@@ -12,6 +12,74 @@ from metadata_registry_constants import (
 
 from .config import ScenarioItem, SweepCase
 
+DEFAULT_MODULI = (
+    256,
+    255,
+    253,
+    251,
+    247,
+    239,
+    233,
+    229,
+    227,
+    223,
+    217,
+    211,
+    199,
+    197,
+    193,
+    191,
+    181,
+    179,
+    173,
+    167,
+    163,
+    157,
+    151,
+    149,
+    139,
+    137,
+    131,
+    127,
+)
+
+
+def _default_prefix_product(prefix: int) -> int:
+    product = 1
+    for modulus in DEFAULT_MODULI[:prefix]:
+        product *= modulus
+    return product
+
+
+def _required_static_uniform_small_prefix(semantics: str, k: int) -> int | None:
+    if semantics not in {"bounded-i64", "bounded-u64"}:
+        return None
+    output_bound = k * 16 * 16
+    required_range = output_bound * 2 if semantics == "bounded-i64" else output_bound
+    for prefix in range(1, len(DEFAULT_MODULI) + 1):
+        if _default_prefix_product(prefix) > required_range:
+            return prefix
+    return None
+
+
+def _validate_fixed_prefix_static_host_export(item: ScenarioItem, *, label: str) -> None:
+    if (
+        item.prefix_policy != "fixed-requested"
+        or item.max_prefix is None
+        or item.case.input_profile != "uniform-small"
+        or item.output_domain != "host_export"
+        or item.next_op_hint not in {None, "final-export"}
+    ):
+        return
+    required_prefix = _required_static_uniform_small_prefix(item.semantics, item.case.k)
+    if required_prefix is None or item.max_prefix >= required_prefix:
+        return
+    raise SystemExit(
+        f"{label} fixed-requested max_prefix={item.max_prefix} cannot host-export "
+        f"{item.semantics} uniform-small k={item.case.k}; required_prefix={required_prefix}"
+    )
+
+
 def _optional_tuple(value: Any, *, label: str) -> tuple[Any, ...] | None:
     if value is None:
         return None
@@ -174,115 +242,111 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             raise SystemExit(f"{label}.resident_redesign_dimensions requires resident_redesign_candidate")
         if resident_candidate and not resident_dimensions:
             raise SystemExit(f"{label}.resident_redesign_candidate requires resident_redesign_dimensions")
-        items.append(
-            ScenarioItem(
-                family,
-                _required_string(raw, "name", label=label),
-                _required_string(raw, "semantics", label=label),
-                _case_from_data(raw.get("case"), cases, label=f"{label}.case"),
-                _required_string(raw, "evidence_scope", label=label),
-                _required_string(raw, "output_domain", label=label),
-                _required_string(raw, "rationale", label=label),
-                _scenario_review_mode(raw, label=label),
-                _promotion_eligibility(raw, label=label),
-                backends=_optional_tuple(raw.get("backends"), label=f"{label}.backends"),
-                pack_mode=_required_string(raw, "pack_mode", label=label) if "pack_mode" in raw else "per_repeat_repack",
-                finite_moduli=_finite_moduli(raw.get("finite_moduli"), label=f"{label}.finite_moduli"),
-                exact_wide_limb_counts=_exact_wide_limb_counts(
-                    raw.get("exact_wide_limb_counts"),
-                    label=f"{label}.exact_wide_limb_counts",
-                ),
-                residue_chain_length=_required_int(raw, "residue_chain_length", label=label, positive=True)
-                if "residue_chain_length" in raw
-                else 1,
-                residue_chain_final_export=_bool_or_default(
-                    raw,
-                    "residue_chain_final_export",
-                    label=label,
-                    default=False,
-                ),
-                residue_chain_independent_final_export=_bool_or_default(
-                    raw,
-                    "residue_chain_independent_final_export",
-                    label=label,
-                    default=False,
-                ),
-                output_ld_padding=_required_int(raw, "output_ld_padding", label=label)
-                if "output_ld_padding" in raw
-                else 0,
-                host_api_batch_size=_required_int(raw, "host_api_batch_size", label=label, positive=True)
-                if "host_api_batch_size" in raw
-                else 1,
-                oneshot=_bool_or_default(raw, "oneshot", label=label, default=False),
-                native_to_rns_bridge=_bool_or_default(raw, "native_to_rns_bridge", label=label, default=False),
-                vector_to_rns_chain=_bool_or_default(raw, "vector_to_rns_chain", label=label, default=False),
-                vector_to_rns_chain_host_repack_control=_bool_or_default(
-                    raw,
-                    "vector_to_rns_chain_host_repack_control",
-                    label=label,
-                    default=False,
-                ),
-                prefix_policy=_optional_string(raw, "prefix_policy", label=label),
-                max_prefix=_optional_int(raw, "max_prefix", label=label),
-                bound_source=_optional_string(raw, "bound_source", label=label),
-                next_op_hint=_optional_string(raw, "next_op_hint", label=label),
-                residue_channel_fusion=_bool_or_default(
-                    raw,
-                    "residue_channel_fusion",
-                    label=label,
-                    default=False,
-                ),
-                modulus_set=_required_string(raw, "modulus_set", label=label) if "modulus_set" in raw else "default",
-                tile_shape_variant=_required_string(raw, "tile_shape_variant", label=label)
-                if "tile_shape_variant" in raw
-                else "default",
-                export_variant=_required_string(raw, "export_variant", label=label)
-                if "export_variant" in raw
-                else "default",
-                reconstruction_variant=_required_string(raw, "reconstruction_variant", label=label)
-                if "reconstruction_variant" in raw
-                else "default_garner",
-                grouped_dispatch_tasks=grouped_tasks,
-                hip_graph_replay=_bool_or_default(raw, "hip_graph_replay", label=label, default=False),
-                workload_proxy=_required_string(raw, "workload_proxy", label=label)
-                if "workload_proxy" in raw
-                else "none",
-                resident_lifetime=_bool_or_default(raw, "resident_lifetime", label=label, default=False),
-                workspace_arena=_bool_or_default(raw, "workspace_arena", label=label, default=False),
-                adaptive_grouped_scheduler=_bool_or_default(
-                    raw,
-                    "adaptive_grouped_scheduler",
-                    label=label,
-                    default=False,
-                ),
-                streaming_overlap=_bool_or_default(raw, "streaming_overlap", label=label, default=False),
-                k_block_policy=_required_string(raw, "k_block_policy", label=label)
-                if "k_block_policy" in raw
-                else "auto",
-                resident_redesign_candidate=resident_candidate,
-                resident_redesign_dimensions=resident_dimensions,
-                release_gate=_required_string(raw, "release_gate", label=label) if "release_gate" in raw else "none",
-                verification_amortization=_required_string(raw, "verification_amortization", label=label)
-                if "verification_amortization" in raw
-                else "none",
-                error_detection_policy=_required_string(raw, "error_detection_policy", label=label)
-                if "error_detection_policy" in raw
-                else "none",
-                cpu_small_shape_selector=_required_string(raw, "cpu_small_shape_selector", label=label)
-                if "cpu_small_shape_selector" in raw
-                else "none",
-                incremental_result_cache=_required_string(raw, "incremental_result_cache", label=label)
-                if "incremental_result_cache" in raw
-                else "none",
-                include_wrap64_candidate=_bool_or_default(
-                    raw,
-                    "include_wrap64_candidate",
-                    label=label,
-                    default=False,
-                ),
-                metadata=_metadata(raw, label=label),
-            )
+        item = ScenarioItem(
+            family,
+            _required_string(raw, "name", label=label),
+            _required_string(raw, "semantics", label=label),
+            _case_from_data(raw.get("case"), cases, label=f"{label}.case"),
+            _required_string(raw, "evidence_scope", label=label),
+            _required_string(raw, "output_domain", label=label),
+            _required_string(raw, "rationale", label=label),
+            _scenario_review_mode(raw, label=label),
+            _promotion_eligibility(raw, label=label),
+            backends=_optional_tuple(raw.get("backends"), label=f"{label}.backends"),
+            pack_mode=_required_string(raw, "pack_mode", label=label) if "pack_mode" in raw else "per_repeat_repack",
+            finite_moduli=_finite_moduli(raw.get("finite_moduli"), label=f"{label}.finite_moduli"),
+            exact_wide_limb_counts=_exact_wide_limb_counts(
+                raw.get("exact_wide_limb_counts"),
+                label=f"{label}.exact_wide_limb_counts",
+            ),
+            residue_chain_length=_required_int(raw, "residue_chain_length", label=label, positive=True)
+            if "residue_chain_length" in raw
+            else 1,
+            residue_chain_final_export=_bool_or_default(
+                raw,
+                "residue_chain_final_export",
+                label=label,
+                default=False,
+            ),
+            residue_chain_independent_final_export=_bool_or_default(
+                raw,
+                "residue_chain_independent_final_export",
+                label=label,
+                default=False,
+            ),
+            output_ld_padding=_required_int(raw, "output_ld_padding", label=label)
+            if "output_ld_padding" in raw
+            else 0,
+            host_api_batch_size=_required_int(raw, "host_api_batch_size", label=label, positive=True)
+            if "host_api_batch_size" in raw
+            else 1,
+            oneshot=_bool_or_default(raw, "oneshot", label=label, default=False),
+            native_to_rns_bridge=_bool_or_default(raw, "native_to_rns_bridge", label=label, default=False),
+            vector_to_rns_chain=_bool_or_default(raw, "vector_to_rns_chain", label=label, default=False),
+            vector_to_rns_chain_host_repack_control=_bool_or_default(
+                raw,
+                "vector_to_rns_chain_host_repack_control",
+                label=label,
+                default=False,
+            ),
+            prefix_policy=_optional_string(raw, "prefix_policy", label=label),
+            max_prefix=_optional_int(raw, "max_prefix", label=label),
+            bound_source=_optional_string(raw, "bound_source", label=label),
+            next_op_hint=_optional_string(raw, "next_op_hint", label=label),
+            residue_channel_fusion=_bool_or_default(
+                raw,
+                "residue_channel_fusion",
+                label=label,
+                default=False,
+            ),
+            modulus_set=_required_string(raw, "modulus_set", label=label) if "modulus_set" in raw else "default",
+            tile_shape_variant=_required_string(raw, "tile_shape_variant", label=label)
+            if "tile_shape_variant" in raw
+            else "default",
+            export_variant=_required_string(raw, "export_variant", label=label)
+            if "export_variant" in raw
+            else "default",
+            reconstruction_variant=_required_string(raw, "reconstruction_variant", label=label)
+            if "reconstruction_variant" in raw
+            else "default_garner",
+            grouped_dispatch_tasks=grouped_tasks,
+            hip_graph_replay=_bool_or_default(raw, "hip_graph_replay", label=label, default=False),
+            workload_proxy=_required_string(raw, "workload_proxy", label=label) if "workload_proxy" in raw else "none",
+            resident_lifetime=_bool_or_default(raw, "resident_lifetime", label=label, default=False),
+            workspace_arena=_bool_or_default(raw, "workspace_arena", label=label, default=False),
+            adaptive_grouped_scheduler=_bool_or_default(
+                raw,
+                "adaptive_grouped_scheduler",
+                label=label,
+                default=False,
+            ),
+            streaming_overlap=_bool_or_default(raw, "streaming_overlap", label=label, default=False),
+            k_block_policy=_required_string(raw, "k_block_policy", label=label) if "k_block_policy" in raw else "auto",
+            resident_redesign_candidate=resident_candidate,
+            resident_redesign_dimensions=resident_dimensions,
+            release_gate=_required_string(raw, "release_gate", label=label) if "release_gate" in raw else "none",
+            verification_amortization=_required_string(raw, "verification_amortization", label=label)
+            if "verification_amortization" in raw
+            else "none",
+            error_detection_policy=_required_string(raw, "error_detection_policy", label=label)
+            if "error_detection_policy" in raw
+            else "none",
+            cpu_small_shape_selector=_required_string(raw, "cpu_small_shape_selector", label=label)
+            if "cpu_small_shape_selector" in raw
+            else "none",
+            incremental_result_cache=_required_string(raw, "incremental_result_cache", label=label)
+            if "incremental_result_cache" in raw
+            else "none",
+            include_wrap64_candidate=_bool_or_default(
+                raw,
+                "include_wrap64_candidate",
+                label=label,
+                default=False,
+            ),
+            metadata=_metadata(raw, label=label),
         )
+        _validate_fixed_prefix_static_host_export(item, label=label)
+        items.append(item)
     return items
 
 

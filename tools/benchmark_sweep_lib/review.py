@@ -305,7 +305,9 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         for item in items:
             backend_counts[backend_id(item)] += 1
         duplicate_backends = sorted(backend for backend, count in backend_counts.items() if count > 1)
-        by_backend = {backend_id(item): item for item in items}
+        by_backend: dict[str, dict[str, Any]] = {}
+        for item in items:
+            by_backend.setdefault(backend_id(item), item)
         semantics = items[0].get("semantics")
         required = required_baselines_for_group(semantics, items)
         missing = [backend for backend in required if backend not in by_backend]

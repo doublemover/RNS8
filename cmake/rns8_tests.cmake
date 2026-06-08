@@ -102,6 +102,13 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set_tests_properties(benchmark_sweep_self_test PROPERTIES LABELS "benchmark;sweep;autotune")
 
   add_test(
+    NAME benchmark_sweep_failure_summary_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_sweep_failure_summary.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(benchmark_sweep_failure_summary_self_test PROPERTIES LABELS "benchmark;sweep;evidence")
+
+  add_test(
     NAME evidence_database_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_evidence_database.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

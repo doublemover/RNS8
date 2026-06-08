@@ -204,7 +204,8 @@ Available instructions in the CDNA3 architecture:
     assert rdna_dense.wavefront_register_usage["32"]["d"] == 8
     assert rdna_dense.wavefront_register_usage["64"]["d"] == 4
     assert rdna_dense.gprs_d == 4
-    assert rdna_dense.rdna_integer_modifier_constraints["neg_bit_31"].startswith("must be zero")
+    assert rdna_dense.rdna_integer_modifier_constraints["NEG[2]"].startswith("must be zero")
+    assert rdna_dense.rdna_integer_modifier_constraints["NEG[0]"].startswith("A operand")
     assert rdna4_sparse.instruction_family == "swmmac"
     assert rdna4_sparse.category == "sparse_i8_i32_matrix_core"
     assert rdna4_sparse.modifier_support["opsel_supported"] is True

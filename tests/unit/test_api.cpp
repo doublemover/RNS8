@@ -24,6 +24,7 @@ namespace {
 #include "test_api_exact_wide_cases.inc"
 #include "test_api_backend_info_cases.inc"
 #include "test_api_storage_prepack_cases.inc"
+#include "test_api_sparse_cases.inc"
 #include "test_api_plan_packing_cases.inc"
 #include "test_api_export_plan_cases.inc"
 #include "test_api_result_cache_cases.inc"

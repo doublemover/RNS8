@@ -886,9 +886,7 @@ rns8_status rns8_gemm_rns(
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
         mark_output_host_residues_current(*C);
-        if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-          C->source_version = gemm_output_source_version(*A, *B);
-        }
+        C->source_version = gemm_output_source_version(*A, *B);
       }
       return status;
     }
@@ -933,9 +931,7 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       mark_output_device_residues_current(*C);
-      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-        C->source_version = gemm_output_source_version(*A, *B);
-      }
+      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
@@ -967,9 +963,7 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       mark_output_device_residues_current(*C);
-      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-        C->source_version = gemm_output_source_version(*A, *B);
-      }
+      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1014,9 +1008,7 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       mark_output_device_residues_current(*C);
-      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-        C->source_version = gemm_output_source_version(*A, *B);
-      }
+      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1061,9 +1053,7 @@ rns8_status rns8_gemm_rns(
         return status;
       }
       mark_output_device_residues_current(*C);
-      if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-        C->source_version = gemm_output_source_version(*A, *B);
-      }
+      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1170,9 +1160,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
       return status;
     }
     mark_output_device_residues_current(*C);
-    if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
-      C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
-    }
+    C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
     return RNS8_SUCCESS;
   });
 }
