@@ -227,16 +227,17 @@ def promotion_blockers(
         blockers.append("hip_graph_replay_not_autotune_promotable")
     if accelerator and not gpu_events_available:
         blockers.append("missing_required_gpu_events")
-    if end_to_end is None:
-        blockers.append("missing_end_to_end_timing")
-    if cpu is not None and end_to_end is not None and end_to_end >= cpu:
-        blockers.append("not_faster_than_cpu_reference")
-    if direct is None:
-        blockers.append("missing_direct_hip_timing")
-    elif end_to_end is not None and end_to_end >= direct:
-        blockers.append("not_faster_than_direct_hip")
-    if vector is not None and end_to_end is not None and end_to_end >= vector:
-        blockers.append("not_faster_than_vector_alu")
+    if accelerator:
+        if end_to_end is None:
+            blockers.append("missing_end_to_end_timing")
+        if cpu is not None and end_to_end is not None and end_to_end >= cpu:
+            blockers.append("not_faster_than_cpu_reference")
+        if direct is None:
+            blockers.append("missing_direct_hip_timing")
+        elif end_to_end is not None and end_to_end >= direct:
+            blockers.append("not_faster_than_direct_hip")
+        if vector is not None and end_to_end is not None and end_to_end >= vector:
+            blockers.append("not_faster_than_vector_alu")
     return blockers
 
 

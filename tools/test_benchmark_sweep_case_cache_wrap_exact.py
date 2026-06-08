@@ -28,7 +28,7 @@ blockers_by_backend = {
 }
 assert "not_accelerator_backend" in blockers_by_backend["hip-direct"]
 assert "not_accelerator_backend" in blockers_by_backend["wrap64-byte-limb"]
-assert "not_faster_than_direct_hip" in blockers_by_backend["wrap64-byte-limb"]
+assert "not_faster_than_direct_hip" not in blockers_by_backend["wrap64-byte-limb"]
 
 wrap64_candidate = wrap64_capture(benchmark_sweep.WRAP64_ROCWMMA_CANDIDATE_BACKEND, 150)
 validate_capture(wrap64_candidate)
