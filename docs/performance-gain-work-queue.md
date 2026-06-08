@@ -485,7 +485,10 @@ inspection commands.
   then executes on CDNA3 SMFMAC or RDNA4 SWMMAC targets. Benchmark schema
   validation now distinguishes finite-u8 sparse workspace/events from bounded
   and exact-wide RNS sparse workspace/events, including sparse-A value/index
-  upload phases for RNS sparse captures.
+  upload phases for RNS sparse captures. Sparse bounded, finite-u8, and
+  exact-wide AMDGPU differential shapes now use non-multiple M/N with
+  K-divisible-by-4 inputs, so CDNA3 SMFMAC and RDNA4 SWMMAC runtime gates cover
+  sparse tile tails instead of only exact 16x16 output tiles.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 

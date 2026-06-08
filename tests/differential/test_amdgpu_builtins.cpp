@@ -616,9 +616,9 @@ TEST_CASE("AMDGPU builtin explicit sparse-A bounded backend matches dense backen
     SKIP("AMDGPU sparse-A builtin runtime requires CDNA3 SMFMAC or RDNA4 SWMMAC target");
   }
 
-  constexpr int64_t m = 16;
-  constexpr int64_t n = 16;
-  constexpr int64_t k = 32;
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 36;
 
   auto run_signed = [&]() {
     std::vector<int64_t> A(static_cast<std::size_t>(m * k), 0);
@@ -784,9 +784,9 @@ TEST_CASE("AMDGPU builtin explicit sparse-A finite u8 backend matches dense back
     SKIP("AMDGPU sparse-A builtin runtime requires CDNA3 SMFMAC or RDNA4 SWMMAC target");
   }
 
-  constexpr int64_t m = 16;
-  constexpr int64_t n = 16;
-  constexpr int64_t k = 32;
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 36;
   std::vector<uint8_t> A(static_cast<std::size_t>(m * k), 0);
   std::vector<uint8_t> B(static_cast<std::size_t>(k * n));
   for (int64_t row = 0; row < m; ++row) {
@@ -879,9 +879,9 @@ TEST_CASE("AMDGPU builtin explicit sparse-A exact-wide backend matches dense bac
     SKIP("AMDGPU sparse-A builtin runtime requires CDNA3 SMFMAC or RDNA4 SWMMAC target");
   }
 
-  constexpr int64_t m = 16;
-  constexpr int64_t n = 16;
-  constexpr int64_t k = 32;
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 36;
   constexpr uint32_t limb_count = 3;
   constexpr int64_t limb_ld = n;
 
