@@ -272,7 +272,57 @@ def main() -> int:
                             "matrix_instruction_sparsity": "dense",
                             "capture": str(scenarios / "c-ck.json"),
                         },
-                    }
+                    },
+                    {
+                        "semantics": "finite_ring_u8",
+                        "shape": {"m": 128, "n": 128, "k": 128},
+                        "shape_family": "sparse_a_4_to_2_128",
+                        "scenario_families": ["sparse-a-4-to-2"],
+                        "contract_key": "sparse-a-contract",
+                        "required_baselines": ["cpu-reference", "hip-direct", "amdgpu-builtins-dense-sparse-a-input"],
+                        "missing_required_baselines": [],
+                        "scenario_promotion_scopes": ["execution_path_evidence"],
+                        "candidates": [
+                            {
+                                "backend": "amdgpu-builtins-sparse-a-runtime",
+                                "accelerator_backend": True,
+                                "scenario_promotion_scope": "execution_path_evidence",
+                                "selected_kernel": "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+                                "median_end_to_end_us": 90.0,
+                                "phase_medians_us": {
+                                    "pack": 30.0,
+                                    "rns_gemm": 40.0,
+                                    "crt_export": 20.0,
+                                },
+                                "matrix_instruction_family": "smfmac",
+                                "matrix_instruction_shape": "16x16x64",
+                                "matrix_instruction_dtype": "i8",
+                                "matrix_instruction_sparsity": "structured_4_2",
+                                "matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 3},
+                                "capture": str(scenarios / "sparse-runtime.json"),
+                                "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
+                            },
+                            {
+                                "backend": "amdgpu-builtins-dense-sparse-a-input",
+                                "accelerator_backend": True,
+                                "scenario_promotion_scope": "execution_path_evidence",
+                                "selected_kernel": "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+                                "median_end_to_end_us": 120.0,
+                                "phase_medians_us": {
+                                    "pack": 45.0,
+                                    "rns_gemm": 55.0,
+                                    "crt_export": 20.0,
+                                },
+                                "matrix_instruction_family": "mfma",
+                                "matrix_instruction_shape": "16x16x32",
+                                "matrix_instruction_dtype": "i8",
+                                "matrix_instruction_sparsity": "dense",
+                                "matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 2},
+                                "capture": str(scenarios / "sparse-dense.json"),
+                                "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
+                            },
+                        ],
+                    },
                 ]
             },
         )
@@ -300,7 +350,7 @@ def main() -> int:
         assert "workflow-b" not in text
         assert "not_faster_than_direct_hip 1" in text
         assert "not_accelerator_backend 1" in text
-        assert "scenario_scope_not_autotune_promotable 1" in text
+        assert "scenario_scope_not_autotune_promotable 3" in text
         assert "PROMOTABLE_AUTOTUNE_ENTRIES 1" in text
         assert "backend=ck kernel=ck_kernel e2e=123 selection_e2e=123" in text
         assert "MISSING_REQUIRED_BASELINE_GROUPS 1" in text
@@ -361,6 +411,22 @@ def main() -> int:
             "crt_export=3.0 e2e=123"
         ) in text
         assert "status_policy=range_checked_status_buffer d2h_policy=compact_contiguous final_mode=final_host_output" in text
+        assert "SPARSE_A_ROUTE_ROWS 2" in text
+        assert "SPARSE_A_ROUTE_COUNTS" in text
+        assert "amdgpu-builtins-sparse-a-runtime 1" in text
+        assert "amdgpu-builtins-dense-sparse-a-input 1" in text
+        assert (
+            "backend=amdgpu-builtins-sparse-a-runtime semantics=finite_ring_u8 shape=128x128x128 "
+            "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1 "
+            "e2e=90.0 pack=30.0 rns_gemm=40.0 crt_export=20.0"
+        ) in text
+        assert "matrix_meta=smfmac/16x16x64/i8/structured_4_2 matrix_isa=v_smfmac_i32_16x16x64_i8:3" in text
+        assert (
+            "backend=amdgpu-builtins-dense-sparse-a-input semantics=finite_ring_u8 shape=128x128x128 "
+            "kernel=amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1 "
+            "e2e=120.0 pack=45.0 rns_gemm=55.0 crt_export=20.0"
+        ) in text
+        assert "matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
@@ -417,6 +483,7 @@ def main() -> int:
         assert "CHECKSUM_MISMATCH_GROUPS 0" in clean_lines
         assert "REVIEW_REPORTS 1" in clean_lines
         assert "MISSING_REQUIRED_BASELINE_GROUPS 0" in clean_lines
+        assert "SPARSE_A_ROUTE_ROWS 0" in clean_lines
         assert summary.clean_gate_failures(clean_lines) == []
 
     print("benchmark sweep failure summary self-test: PASS")

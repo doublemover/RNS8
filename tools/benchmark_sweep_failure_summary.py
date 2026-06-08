@@ -390,6 +390,45 @@ def _export_route_line(
     )
 
 
+def _sparse_a_route_active(group: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    families = set(_scenario_families(group))
+    backend = str(candidate.get("backend") or "")
+    kernel = str(candidate.get("selected_kernel") or "")
+    return (
+        "sparse-a-4-to-2" in families
+        or "sparse-a" in backend
+        or "dense-sparse-a-input" in backend
+        or "sparse_a" in kernel
+    )
+
+
+def _sparse_a_route_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+    isa_index: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
+    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
+    blockers = _blocker_text(candidate.get("promotion_blockers"))
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"e2e={candidate.get('median_end_to_end_us')} "
+        f"pack={medians.get('pack')} "
+        f"rns_gemm={medians.get('rns_gemm')} "
+        f"crt_export={medians.get('crt_export')} "
+        f"matrix_meta={_matrix_metadata_text(candidate)} "
+        f"matrix_isa={_histogram_text(candidate, isa_index)} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def build_summary(
     out: Path,
     *,
@@ -456,6 +495,8 @@ def build_summary(
     graph_replay_blockers: Counter[str] = Counter()
     export_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     export_kernel_counts: Counter[str] = Counter()
+    sparse_a_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    sparse_a_route_counts: Counter[str] = Counter()
     review_report_count = 0
     for path in out.rglob("review_report.json"):
         review_report_count += 1
@@ -503,6 +544,9 @@ def build_summary(
                         else {}
                     )
                     export_kernel_counts.update([str(export.get("selected_kernel") or exact.get("kernel_identity") or "unknown")])
+                if _sparse_a_route_active(group, candidate):
+                    sparse_a_route_rows.append((str(path.relative_to(out)), group, candidate))
+                    sparse_a_route_counts.update([str(candidate.get("backend") or "unknown")])
                 if blockers:
                     actionable_counts.update(blockers)
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
@@ -654,6 +698,17 @@ def build_summary(
         lines.append(_export_route_line(out, report_path, group, candidate))
     if len(export_route_rows) > max_detail_rows:
         lines.append(f"  ... {len(export_route_rows) - max_detail_rows} more")
+    lines.append(f"SPARSE_A_ROUTE_ROWS {len(sparse_a_route_rows)}")
+    lines.append("SPARSE_A_ROUTE_COUNTS")
+    if sparse_a_route_counts:
+        for backend, count in sparse_a_route_counts.most_common():
+            lines.append(f"{backend} {count}")
+    else:
+        lines.append("none 0")
+    for report_path, group, candidate in sparse_a_route_rows[:max_detail_rows]:
+        lines.append(_sparse_a_route_line(out, report_path, group, candidate, isa_index))
+    if len(sparse_a_route_rows) > max_detail_rows:
+        lines.append(f"  ... {len(sparse_a_route_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():
