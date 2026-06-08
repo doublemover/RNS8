@@ -82,7 +82,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     if (should_probe_reusable_b_prepack_cache(args) &&
-        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
       result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
     }
     const auto prepack_end = std::chrono::steady_clock::now();
@@ -396,7 +396,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
     if (should_probe_reusable_b_prepack_cache(args) &&
-        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache)) {
+        maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
       result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
     }
     const auto prepack_end = std::chrono::steady_clock::now();

@@ -137,6 +137,64 @@ def validate_contract_metadata(self: Any) -> None:
             invalidation = reuse.get("invalidation_reasons")
             if not isinstance(invalidation, list) or not all(isinstance(item, str) for item in invalidation):
                 self._error("reuse_contract.invalidation_reasons must be an array of strings")
+            runtime_cache = reuse.get("runtime_prepack_cache")
+            if self.data.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache" and runtime_cache is None:
+                self._error("rocwmma reusable B-cache captures must include reuse_contract.runtime_prepack_cache")
+            if runtime_cache is not None:
+                if not isinstance(runtime_cache, dict):
+                    self._error("reuse_contract.runtime_prepack_cache must be an object or null")
+                else:
+                    for key in [
+                        "source",
+                        "backend",
+                        "semantics",
+                        "operand_role",
+                        "matrix_layout_version",
+                        "operand_layout_version",
+                        "cache_scope",
+                        "cache_key",
+                        "detail",
+                    ]:
+                        if not isinstance(runtime_cache.get(key), str):
+                            self._error(f"reuse_contract.runtime_prepack_cache.{key} must be a string")
+                    for key in [
+                        "cache_key_valid",
+                        "reusable_prepack_cache_available",
+                        "production_prepack_cache_available",
+                    ]:
+                        if not isinstance(runtime_cache.get(key), bool):
+                            self._error(f"reuse_contract.runtime_prepack_cache.{key} must be a boolean")
+                    for key in [
+                        "hip_device_id",
+                        "matrix_rows",
+                        "matrix_cols",
+                        "k",
+                        "max_prefix",
+                        "finite_modulus",
+                        "source_version",
+                        "plan_fingerprint",
+                        "cache_key_hash",
+                        "device_bytes",
+                        "operand_pack_bytes",
+                    ]:
+                        value = runtime_cache.get(key)
+                        if not _is_int(value):
+                            self._error(f"reuse_contract.runtime_prepack_cache.{key} must be an integer")
+                    if runtime_cache.get("source") != "rns8_get_prepack_cache_info":
+                        self._error("reuse_contract.runtime_prepack_cache.source must be rns8_get_prepack_cache_info")
+                    if runtime_cache.get("backend") != "rocwmma":
+                        self._error("runtime prepack cache captures must report backend=rocwmma")
+                    if runtime_cache.get("operand_role") != "B":
+                        self._error("runtime prepack cache captures must report operand_role=B")
+                    if runtime_cache.get("cache_key_valid") is not True:
+                        self._error("runtime prepack cache captures must report cache_key_valid=true")
+                    if runtime_cache.get("reusable_prepack_cache_available") is not True:
+                        self._error("runtime prepack cache captures must report reusable_prepack_cache_available=true")
+                    if (
+                        runtime_cache.get("production_prepack_cache_available") is True
+                        and self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}
+                    ):
+                        self._error("runtime production prepack cache is allowed only for bounded i64/u64 captures")
 
     exact_output = self.data.get("exact_output_contract")
     if exact_output is not None:

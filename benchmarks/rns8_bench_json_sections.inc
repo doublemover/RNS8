@@ -383,6 +383,40 @@ void print_reuse_contract_json(
   std::cout << ",\n";
   std::cout << "    \"workspace_fingerprint\": \"" << result.backend_info.workspace_required_bytes
             << "B:" << json_escape(result.backend_info.workspace_mode) << "\",\n";
+  std::cout << "    \"runtime_prepack_cache\": ";
+  if (!result.prepack_cache_info_available) {
+    std::cout << "null";
+  } else {
+    const auto& cache = result.prepack_cache_info;
+    std::cout << "{\n";
+    std::cout << "      \"source\": \"rns8_get_prepack_cache_info\",\n";
+    std::cout << "      \"backend\": \"" << backend_name(cache.backend) << "\",\n";
+    std::cout << "      \"semantics\": \"" << c_semantics_name(cache.semantics) << "\",\n";
+    std::cout << "      \"operand_role\": \"" << (cache.operand_role == RNS8_OPERAND_B ? "B" : "A") << "\",\n";
+    std::cout << "      \"cache_key_valid\": " << (cache.cache_key_valid ? "true" : "false") << ",\n";
+    std::cout << "      \"reusable_prepack_cache_available\": "
+              << (cache.reusable_prepack_cache_available ? "true" : "false") << ",\n";
+    std::cout << "      \"production_prepack_cache_available\": "
+              << (cache.production_prepack_cache_available ? "true" : "false") << ",\n";
+    std::cout << "      \"hip_device_id\": " << cache.hip_device_id << ",\n";
+    std::cout << "      \"matrix_rows\": " << cache.matrix_rows << ",\n";
+    std::cout << "      \"matrix_cols\": " << cache.matrix_cols << ",\n";
+    std::cout << "      \"k\": " << cache.k << ",\n";
+    std::cout << "      \"max_prefix\": " << cache.max_prefix << ",\n";
+    std::cout << "      \"finite_modulus\": " << cache.finite_modulus << ",\n";
+    std::cout << "      \"source_version\": " << cache.source_version << ",\n";
+    std::cout << "      \"plan_fingerprint\": " << cache.plan_fingerprint << ",\n";
+    std::cout << "      \"cache_key_hash\": " << cache.cache_key_hash << ",\n";
+    std::cout << "      \"device_bytes\": " << cache.device_bytes << ",\n";
+    std::cout << "      \"operand_pack_bytes\": " << cache.operand_pack_bytes << ",\n";
+    std::cout << "      \"matrix_layout_version\": \"" << json_escape(cache.matrix_layout_version) << "\",\n";
+    std::cout << "      \"operand_layout_version\": \"" << json_escape(cache.operand_layout_version) << "\",\n";
+    std::cout << "      \"cache_scope\": \"" << json_escape(cache.cache_scope) << "\",\n";
+    std::cout << "      \"cache_key\": \"" << json_escape(cache.cache_key) << "\",\n";
+    std::cout << "      \"detail\": \"" << json_escape(cache.detail) << "\"\n";
+    std::cout << "    }";
+  }
+  std::cout << ",\n";
   std::cout << "    \"promotion_eligible\": " << (!reuse_enabled ? "true" : "false") << ",\n";
   std::cout << "    \"invalidation_reasons\": [";
   bool first = true;

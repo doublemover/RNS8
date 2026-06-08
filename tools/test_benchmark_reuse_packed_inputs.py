@@ -100,6 +100,18 @@ def main() -> int:
         assert capture["prepack_reuse_operands"] == ["B"]
         assert capture["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
         assert capture["timing_metadata"]["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
+        runtime_cache = capture["reuse_contract"]["runtime_prepack_cache"]
+        assert runtime_cache["source"] == "rns8_get_prepack_cache_info"
+        assert runtime_cache["backend"] == "rocwmma"
+        assert runtime_cache["semantics"] == "bounded_i64"
+        assert runtime_cache["operand_role"] == "B"
+        assert runtime_cache["cache_key_valid"] is True
+        assert runtime_cache["reusable_prepack_cache_available"] is True
+        assert runtime_cache["production_prepack_cache_available"] is True
+        assert runtime_cache["source_version"] == 1
+        assert runtime_cache["cache_key_hash"] != 0
+        assert runtime_cache["device_bytes"] >= runtime_cache["operand_pack_bytes"] > 0
+        assert "source_version=1" in runtime_cache["cache_key"]
         assert capture["timing_metadata"]["gpu_event_timing"] is True
         assert "rns_gemm_prepacked_b_kernel_group" in capture["timing_metadata"]["gpu_event_phase_order"]
         assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]

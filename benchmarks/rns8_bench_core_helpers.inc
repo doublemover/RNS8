@@ -987,7 +987,8 @@ bool maybe_create_reusable_b_prepack_cache(
     rns8_context* ctx,
     const rns8_plan* plan,
     rns8_matrix* b_matrix,
-    rns8_prepack_cache** out) {
+    rns8_prepack_cache** out,
+    BenchmarkResult& result) {
   *out = nullptr;
   rns8_prepack_cache_key_info key{};
   key.struct_size = sizeof(key);
@@ -1003,6 +1004,14 @@ bool maybe_create_reusable_b_prepack_cache(
   if (cache_status != RNS8_SUCCESS) {
     fail_status("rns8_create_prepack_cache(B)", cache_status);
   }
+  result.prepack_cache_info = {};
+  result.prepack_cache_info.struct_size = sizeof(result.prepack_cache_info);
+  result.prepack_cache_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status info_status = rns8_get_prepack_cache_info(*out, &result.prepack_cache_info);
+  if (info_status != RNS8_SUCCESS) {
+    fail_status("rns8_get_prepack_cache_info(B)", info_status);
+  }
+  result.prepack_cache_info_available = true;
   return true;
 }
 

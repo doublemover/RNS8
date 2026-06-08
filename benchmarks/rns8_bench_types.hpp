@@ -231,6 +231,8 @@ struct BenchmarkResult {
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
+  rns8_prepack_cache_info prepack_cache_info{};
+  bool prepack_cache_info_available = false;
   bool hip_graph_replay_requested = false;
   bool hip_graph_replay_available = false;
   bool hip_graph_replay_used = false;
