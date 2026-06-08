@@ -244,7 +244,9 @@ inspection commands.
   non-graph baseline cost, and break-even repeat count.
 - Local status: graph reports, release review metadata, and compact failure
   summaries now emit graph total setup, baseline total setup, setup overhead,
-  steady-state delta, declared repeats, and break-even repeat count.
+  steady-state delta, declared repeats, break-even repeat count, and computed
+  declared-repeat break-even satisfaction even when older review JSON omitted
+  the precomputed boolean.
 - Required evidence: `hip-graph-replay` release captures with checksum parity,
   graph availability metadata, setup-inclusive comparison, and no missing
   non-graph baseline.

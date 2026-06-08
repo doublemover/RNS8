@@ -241,6 +241,7 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
         )
     graph = candidate.get("hip_graph_replay_review")
     if isinstance(graph, dict):
+        declared_meets_break_even = _declared_repeats_meet_break_even(graph)
         details.extend(
             [
                 f"graph_setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')}",
@@ -257,10 +258,27 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
                 f"baseline_setup_share={graph.get('baseline_setup_share_of_setup_inclusive')}",
                 f"graph_break_even_repeats={graph.get('break_even_repeat_count')}",
                 f"graph_declared_repeats={graph.get('declared_repeat_count')}",
+                f"graph_declared_meets_break_even={declared_meets_break_even}",
                 f"graph_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')}",
             ]
         )
     return " ".join(details) if details else "none"
+
+
+def _declared_repeats_meet_break_even(graph: dict[str, Any]) -> Any:
+    explicit = graph.get("declared_repeats_meet_break_even")
+    if explicit is not None:
+        return explicit
+    declared = graph.get("declared_repeat_count")
+    break_even = graph.get("break_even_repeat_count")
+    if (
+        isinstance(declared, int)
+        and not isinstance(declared, bool)
+        and isinstance(break_even, int)
+        and not isinstance(break_even, bool)
+    ):
+        return declared >= break_even
+    return None
 
 
 def _prepack_reuse_line(
@@ -314,6 +332,7 @@ def _graph_replay_line(
     graph: dict[str, Any],
 ) -> str:
     blockers = _blocker_text(graph.get("blockers"))
+    declared_meets_break_even = _declared_repeats_meet_break_even(graph)
     return (
         "  "
         f"review={report_path} "
@@ -335,7 +354,7 @@ def _graph_replay_line(
         f"baseline_setup_share={graph.get('baseline_setup_share_of_setup_inclusive')} "
         f"break_even_repeats={graph.get('break_even_repeat_count')} "
         f"declared_repeats={graph.get('declared_repeat_count')} "
-        f"declared_meets_break_even={graph.get('declared_repeats_meet_break_even')} "
+        f"declared_meets_break_even={declared_meets_break_even} "
         f"speedup_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')} "
         f"blockers={blockers} "
         f"capture={_relative_capture(out, candidate.get('capture'))}"

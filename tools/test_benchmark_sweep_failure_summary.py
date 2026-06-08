@@ -405,7 +405,7 @@ def main() -> int:
             "capture_us=13.0 instantiate_us=17.0 "
             "baseline=hip-direct baseline_steady_e2e=141.0 baseline_setup=27.0 baseline_e2e=144.0 "
             "baseline_setup_share=0.020833333333333332 "
-            "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=None"
+            "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=True"
         ) in text
         assert "speedup_vs_baseline=0.9536423841059603 blockers=none" in text
         assert "EXPORT_CRT_ROUTE_ROWS 1" in text
@@ -466,6 +466,7 @@ def main() -> int:
         assert "baseline_total_setup=27.0" in text
         assert "graph_break_even_repeats=4" in text
         assert "graph_declared_repeats=9" in text
+        assert "graph_declared_meets_break_even=True" in text
         assert "FASTEST_PRODUCTION_ROUTES 1" in text
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
