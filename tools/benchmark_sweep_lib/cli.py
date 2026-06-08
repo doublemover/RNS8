@@ -78,8 +78,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--scenario",
         action="append",
-        choices=[*scenario_names(), "all"],
-        help="run a named scenario corpus family; repeatable, or use all",
+        choices=[*scenario_names(), "all", "release-candidates"],
+        help="run a named scenario corpus family; repeatable, or use all/release-candidates",
     )
     parser.add_argument("--backend", dest="backends", action="append", help="backend to sweep; repeatable")
     parser.add_argument("--semantics", action="append", help="benchmark semantics to sweep; repeatable")

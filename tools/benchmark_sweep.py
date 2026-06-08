@@ -23,6 +23,7 @@ from benchmark_sweep_lib.commands import (
     scenario_args_for_item,
     scenario_backends_for_item,
     scenario_catalog,
+    selected_scenario_items,
     scenario_sweep_command_entries,
     sweep_command_entries,
     sweep_commands,

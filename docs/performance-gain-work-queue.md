@@ -80,6 +80,10 @@ inspection commands.
   groups.
 - Do not promote: evidence-only rows, graph-only rows, smoke captures,
   internal candidates, or raw per-repeat reuse timings.
+- Supported VM shortcut: `benchmark_sweep.py --scenario release-candidates`
+  runs only scenario rows whose promotion scope is `release_review_candidate`;
+  use `--scenario all` only when deliberately collecting exhaustive evidence
+  and accepting evidence-only blocker noise.
 
 ### Rank 80 - CDNA Skinny GEMV Direct-HIP Route
 

@@ -33,6 +33,8 @@ from .scenarios import load_scenario_data_catalog
 
 FINITE_SEMANTICS = {"finite-u8-ring", "finite-u8-field"}
 CPU_REFERENCE_CAPTURE_BACKENDS = {"cpu", "wrap64-byte-limb"}
+SPECIAL_SCENARIO_SELECTORS = ("all", "release-candidates")
+RELEASE_CANDIDATE_PROMOTION_SCOPE = "release_review_candidate"
 
 VISIBILITY_ENV_OPTIONS = {
     "hip_visible_devices": "HIP_VISIBLE_DEVICES",
@@ -162,14 +164,21 @@ def selected_scenario_items(args: argparse.Namespace) -> list[ScenarioItem]:
     requested = list(dict.fromkeys(getattr(args, "scenario", []) or []))
     if not requested:
         return []
+    for selector in SPECIAL_SCENARIO_SELECTORS:
+        if selector in requested and len(requested) > 1:
+            raise SystemExit(f"--scenario {selector} cannot be combined with other --scenario values")
     catalog = scenario_catalog()
-    unknown = [name for name in requested if name != "all" and name not in catalog]
+    unknown = [name for name in requested if name not in SPECIAL_SCENARIO_SELECTORS and name not in catalog]
     if unknown:
-        raise SystemExit(f"--scenario must be one of {scenario_names() + ['all']}, got {unknown}")
-    names = scenario_names() if "all" in requested else requested
+        raise SystemExit(f"--scenario must be one of {scenario_names() + list(SPECIAL_SCENARIO_SELECTORS)}, got {unknown}")
+    names = scenario_names() if any(name in {"all", "release-candidates"} for name in requested) else requested
+    release_candidates_only = "release-candidates" in requested and "all" not in requested
     items: list[ScenarioItem] = []
     for name in names:
-        items.extend(catalog[name])
+        for item in catalog[name]:
+            if release_candidates_only and item.promotion_eligibility != RELEASE_CANDIDATE_PROMOTION_SCOPE:
+                continue
+            items.append(item)
     return items
 
 

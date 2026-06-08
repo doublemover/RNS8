@@ -39,6 +39,22 @@ for path in scenario_files:
         assert isinstance(item.get("promotion_eligibility"), str) and item["promotion_eligibility"]
         for key in ["name", "m", "n", "k", "tile_m", "tile_n", "bound_mode", "input_profile"]:
             assert key in item["case"]
+release_candidate_items = benchmark_sweep.selected_scenario_items(
+    argparse.Namespace(scenario=["release-candidates"])
+)
+assert release_candidate_items
+assert {
+    item.promotion_eligibility for item in release_candidate_items
+} == {"release_review_candidate"}
+all_scenario_items = benchmark_sweep.selected_scenario_items(argparse.Namespace(scenario=["all"]))
+assert len(all_scenario_items) > len(release_candidate_items)
+assert any(item.promotion_eligibility != "release_review_candidate" for item in all_scenario_items)
+try:
+    benchmark_sweep.selected_scenario_items(argparse.Namespace(scenario=["release-candidates", "repeated-b"]))
+except SystemExit as exc:
+    assert "cannot be combined" in str(exc)
+else:
+    raise AssertionError("expected release-candidates selector combination to fail validation")
 repeated_b_items = catalog["repeated-b"]
 assert repeated_b_items
 assert {item.promotion_eligibility for item in repeated_b_items} == {
