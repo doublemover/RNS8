@@ -4,6 +4,7 @@
     "resident_device_buffers",
     "resident_device_buffers_with_hipblaslt_scratch",
     "resident_device_buffers_with_ck_canonical_pack_workspace",
+    "resident_device_buffers_with_ck_centered_pack_workspace",
     "resident_device_buffers_with_rocwmma_pack_workspace",
     "benchmark_owned_compact_byte_limb_device_buffers",
     "transient_native_inputs_to_resident_rns_output",

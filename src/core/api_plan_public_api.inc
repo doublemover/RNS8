@@ -425,7 +425,10 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
               out->total_transient_workspace_bytes)) {
         return RNS8_RANGE_ERROR;
       }
-#if RNS8_CK_SHAPE_ALIGNMENT == 128
+#if RNS8_CK_USE_XDL
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_centered_rowmajor_i8_m128_kblock32768_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_centered_colmajor_i8_n128_kblock32768_v1");
+#elif RNS8_CK_SHAPE_ALIGNMENT == 128
       set_text(out->a_layout_version, sizeof(out->a_layout_version), "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1");
       set_text(out->b_layout_version, sizeof(out->b_layout_version), "ck_b_canonical_colmajor_i8_n128_kblock32768_v1");
 #else
@@ -437,7 +440,11 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
       set_text(
           out->detail,
           sizeof(out->detail),
+#if RNS8_CK_USE_XDL
+          "CK packs A/B into transient centered signed INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
+#else
           "CK packs A/B into transient canonical INT8 workspaces and uses temporary centered output storage; no reusable production prepack cache.");
+#endif
       return RNS8_SUCCESS;
     }
 

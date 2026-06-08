@@ -19,7 +19,7 @@
     "epilogue_mode": "ck_fused_i32_to_centered_residue_then_crt_export",
     "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
     "workspace_required_bytes": 20480,
-    "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+    "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_divide",
     "autotune_key": "backend=ck;target_id=gfx1100;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=32768;kernel=ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2;epilogue=ck_fused_i32_to_centered_residue_then_crt_export",
     "accumulator_safety": {
       "input_domain": "centered_i8_rns_residue_planes",

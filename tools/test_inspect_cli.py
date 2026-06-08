@@ -75,7 +75,7 @@ def main() -> int:
         expect_text(ck.stdout, "perf_validated:    0", "ck")
         expect_text(
             ck.stdout,
-            "isa_evidence:      ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+            "isa_evidence:      ck_cshuffle_int8_matrix_isa_gate_no_divide",
             "ck",
         )
     else:

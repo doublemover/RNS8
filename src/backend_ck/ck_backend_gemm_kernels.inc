@@ -1,4 +1,4 @@
-__global__ void pack_a_canonical_rowmajor_kernel(
+__global__ void pack_a_rowmajor_kernel(
     const int8_t* a,
     int8_t* packed,
     int rows,
@@ -16,7 +16,7 @@ __global__ void pack_a_canonical_rowmajor_kernel(
   const int row = index / gemm_k_block;
   const int kk = index - row * gemm_k_block;
   packed[row * gemm_k_block + kk] =
-      row < rows && kk < valid_k_block ? canonical_byte_from_centered_device(a[row * lda + k_offset + kk], modulus)
+      row < rows && kk < valid_k_block ? ck_input_byte_from_centered_device(a[row * lda + k_offset + kk], modulus)
                                        : 0;
 }
 
@@ -38,7 +38,7 @@ __global__ void pack_b_colmajor_kernel(
   const int kk = index % gemm_k_block;
   const int col = index / gemm_k_block;
   packed[col * gemm_k_block + kk] =
-      col < n && kk < valid_k_block ? canonical_byte_from_centered_device(b[(k_offset + kk) * ldb + col], modulus)
+      col < n && kk < valid_k_block ? ck_input_byte_from_centered_device(b[(k_offset + kk) * ldb + col], modulus)
                                     : 0;
 }
 
@@ -93,7 +93,7 @@ hipError_t launch_pack_a(
   const int block = 256;
   const int grid = (total + block - 1) / block;
   hipLaunchKernelGGL(
-      pack_a_canonical_rowmajor_kernel,
+      pack_a_rowmajor_kernel,
       dim3(grid),
       dim3(block),
       0,

@@ -385,3 +385,11 @@ __device__ int8_t canonical_byte_from_centered_device(int8_t residue, int modulu
       rns8::detail::finite_u8::canonical_from_centered(residue, static_cast<uint32_t>(modulus)));
 }
 
+__device__ int8_t ck_input_byte_from_centered_device(int8_t residue, int modulus) {
+#if RNS8_CK_USE_XDL
+  (void)modulus;
+  return residue;
+#else
+  return canonical_byte_from_centered_device(residue, modulus);
+#endif
+}

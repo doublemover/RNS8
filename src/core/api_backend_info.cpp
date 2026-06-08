@@ -300,11 +300,15 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.workspace_mode,
           sizeof(info.workspace_mode),
+#if RNS8_CK_USE_XDL
+          "resident_device_buffers_with_ck_centered_pack_workspace");
+#else
           "resident_device_buffers_with_ck_canonical_pack_workspace");
+#endif
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
-          "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide");
+          "ck_cshuffle_int8_matrix_isa_gate_no_divide");
       set_text(info.status, sizeof(info.status), "implemented_opt_in_ck_backend");
       set_text(
           info.detail,

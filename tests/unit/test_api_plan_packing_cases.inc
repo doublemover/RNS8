@@ -256,7 +256,7 @@ TEST_CASE("hipBLASLt plan packing info reports transient pack and scratch bytes"
 #endif
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
-TEST_CASE("CK plan packing info reports canonical transient pack workspace") {
+TEST_CASE("CK plan packing info reports target-specific transient pack workspace") {
   constexpr int64_t m = 64;
   constexpr int64_t n = 128;
   constexpr int64_t k = 64;
@@ -306,7 +306,10 @@ TEST_CASE("CK plan packing info reports canonical transient pack workspace") {
   CHECK(packing.accumulator_workspace_bytes == static_cast<uint64_t>(padded_m * padded_n));
   CHECK(packing.library_workspace_bytes == 0);
   CHECK(packing.total_transient_workspace_bytes == backend.workspace_required_bytes);
-#if RNS8_CK_SHAPE_ALIGNMENT == 128
+#if RNS8_CK_USE_XDL
+  CHECK(std::string(packing.a_layout_version) == "ck_a_centered_rowmajor_i8_m128_kblock32768_v1");
+  CHECK(std::string(packing.b_layout_version) == "ck_b_centered_colmajor_i8_n128_kblock32768_v1");
+#elif RNS8_CK_SHAPE_ALIGNMENT == 128
   CHECK(std::string(packing.a_layout_version) == "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1");
   CHECK(std::string(packing.b_layout_version) == "ck_b_canonical_colmajor_i8_n128_kblock32768_v1");
 #else

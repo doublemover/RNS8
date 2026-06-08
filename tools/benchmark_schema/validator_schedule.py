@@ -712,7 +712,6 @@ class ValidatorScheduleMixin:
                 )
             expected_workspaces = {
                 "cpu-reference": "host_reference_workspace",
-                "ck": "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "rocwmma": "resident_device_buffers_with_rocwmma_pack_workspace",
                 "hip-vector-alu-int64": (
                     "native_device_i64_u64_buffers"
@@ -723,13 +722,19 @@ class ValidatorScheduleMixin:
             expected_workspace = expected_workspaces.get(
                 self.data.get("backend_selected"), "resident_device_buffers_with_active_prefix_tiled_schedule"
             )
-            if backend_metadata.get("workspace_mode") != expected_workspace:
+            if self.data.get("backend_selected") == "ck":
+                if backend_metadata.get("workspace_mode") not in {
+                    "resident_device_buffers_with_ck_canonical_pack_workspace",
+                    "resident_device_buffers_with_ck_centered_pack_workspace",
+                }:
+                    self._error("per-tile adaptive CK captures must use a known CK pack workspace mode")
+            elif backend_metadata.get("workspace_mode") != expected_workspace:
                 self._error(
                     f"per-tile adaptive captures must use backend_metadata.workspace_mode={expected_workspace}"
                 )
             expected_isas = {
                 "cpu-reference": "not_applicable_cpu",
-                "ck": "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+                "ck": "ck_cshuffle_int8_matrix_isa_gate_no_divide",
                 "rocwmma": "rocwmma_i8_matrix_isa_gate_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }

@@ -528,12 +528,16 @@ class ValidatorBaseFieldsMixin:
                 "accelerator_library": "Composable Kernel",
                 "accelerator_version": "repo-local release/rocm-rel-7.1",
                 "capability_status": "implemented_opt_in_ck_backend",
-                "workspace_mode": "resident_device_buffers_with_ck_canonical_pack_workspace",
-                "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
+                "isa_evidence": "ck_cshuffle_int8_matrix_isa_gate_no_divide",
             }
             for key, value in expected.items():
                 if metadata.get(key) != value:
                     self._error(f"CK captures must use backend_metadata.{key}={value}")
+            if metadata.get("workspace_mode") not in {
+                "resident_device_buffers_with_ck_canonical_pack_workspace",
+                "resident_device_buffers_with_ck_centered_pack_workspace",
+            }:
+                self._error("CK captures must use a known CK pack workspace mode")
             if metadata.get("selected_kernel") not in CK_SELECTED_KERNELS:
                 self._error("CK captures must report a known CK selected_kernel")
             bool_expected = {
