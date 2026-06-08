@@ -132,6 +132,16 @@ def main() -> int:
                                 "speedup_vs_direct_hip": 0.8,
                                 "speedup_vs_vector_alu": 1.2,
                                 "primary_loss_phase_vs_direct_hip": "pack",
+                                "phase_diagnostics": {
+                                    "slowest_phase_vs_direct_hip": "pack",
+                                    "slowest_phase_candidate_over_direct": 2.0,
+                                    "phase_speedups_vs_direct_hip": {
+                                        "pack": 0.5,
+                                        "rns_gemm": 1.5,
+                                        "crt_export": 2.0,
+                                        "end_to_end": 0.8,
+                                    },
+                                },
                                 "phase_medians_us": {
                                     "pack": 100.0,
                                     "pack_a": 70.0,
@@ -205,6 +215,16 @@ def main() -> int:
                             "median_end_to_end_us": 123,
                             "speedup_vs_direct_hip": 0.8,
                             "primary_loss_phase_vs_direct_hip": "pack",
+                            "phase_diagnostics": {
+                                "slowest_phase_vs_direct_hip": "pack",
+                                "slowest_phase_candidate_over_direct": 2.0,
+                                "phase_speedups_vs_direct_hip": {
+                                    "pack": 0.5,
+                                    "rns_gemm": 1.5,
+                                    "crt_export": 2.0,
+                                    "end_to_end": 0.8,
+                                },
+                            },
                             "phase_medians_us": {
                                 "pack": 100.0,
                                 "pack_a": 70.0,
@@ -277,7 +297,11 @@ def main() -> int:
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
-        assert "details=pack_split=pack_a:70.0,pack_b:30.0 reuse_setup_e2e=150.0" in text
+        assert "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8" in text
+        assert (
+            "details=phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8 "
+            "pack_split=pack_a:70.0,pack_b:30.0 reuse_setup_e2e=150.0"
+        ) in text
         assert "reuse_setup_e2e=150.0 prepack_setup=27.0 same_backend=ck" in text
         assert "reuse_vs_best=0.6666666666666666" in text
         assert "graph_total_setup=57.0" in text
@@ -288,6 +312,7 @@ def main() -> int:
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
         assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
+        assert "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8" in text
         assert "pack_split=pack_a:70.0,pack_b:30.0 matrix_meta=mfma/16x16x32/i8/dense matrix_isa=" in text
         assert "matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
         assert summary.clean_gate_failures(lines) == [

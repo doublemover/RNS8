@@ -151,6 +151,27 @@ def _matrix_metadata_text(candidate: dict[str, Any]) -> str:
     return "/".join(str(value or "unknown") for value in values)
 
 
+def _phase_ratio_text(candidate: dict[str, Any]) -> str:
+    diagnostics = candidate.get("phase_diagnostics")
+    if not isinstance(diagnostics, dict):
+        return "none"
+    parts: list[str] = []
+    slowest = diagnostics.get("slowest_phase_vs_direct_hip")
+    slowest_ratio = diagnostics.get("slowest_phase_candidate_over_direct")
+    if isinstance(slowest, str) and slowest:
+        parts.append(f"slowest={slowest}:{slowest_ratio}")
+    speedups = diagnostics.get("phase_speedups_vs_direct_hip")
+    if isinstance(speedups, dict):
+        ordered: list[str] = []
+        for phase in ("pack", "rns_gemm", "crt_export", "end_to_end"):
+            value = speedups.get(phase)
+            if isinstance(value, (int, float)):
+                ordered.append(f"{phase}:{float(value)}")
+        if ordered:
+            parts.append("speedups=" + ",".join(ordered))
+    return " ".join(parts) if parts else "none"
+
+
 def _route_line(
     out: Path,
     label: str,
@@ -173,6 +194,7 @@ def _route_line(
         f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
         f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
         f"bottleneck={bottleneck_text} "
+        f"phase_ratios={_phase_ratio_text(candidate)} "
         f"pack_split={_pack_split_text(candidate)} "
         f"matrix_meta={_matrix_metadata_text(candidate)} "
         f"matrix_isa={_histogram_text(candidate, isa_index)} "
@@ -193,6 +215,9 @@ def _blocker_text(values: Any) -> str:
 
 def _review_detail_text(candidate: dict[str, Any]) -> str:
     details: list[str] = []
+    phase_ratios = _phase_ratio_text(candidate)
+    if phase_ratios != "none":
+        details.append(f"phase_ratios={phase_ratios}")
     pack_split = _pack_split_text(candidate)
     if pack_split != "none":
         details.append(f"pack_split={pack_split}")

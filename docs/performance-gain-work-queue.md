@@ -70,6 +70,10 @@ inspection commands.
   review reports with scenario/backend/semantic/shape-family loss aggregation,
   phase-ratio summaries, setup-inclusive reuse/graph details, direct-HIP winner
   reporting, and a compact "next work" section.
+- Local progress: `benchmark_sweep_failure_summary.py` now prints route counts,
+  Direct-HIP production wins, loss-phase aggregation by backend/semantic/
+  shape/scenario, setup-inclusive reuse/graph details, next-work rows, and
+  compact per-phase ratio diagnostics for route and actionable-candidate lines.
 - Required evidence: Python tests for summary formatting, synthetic review
   fixtures for every blocker family, and one VM refresh proving zero failed
   captures, zero comparable checksum mismatches, and no hidden missing-baseline
