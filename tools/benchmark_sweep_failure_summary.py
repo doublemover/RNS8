@@ -254,6 +254,65 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
     return " ".join(details) if details else "none"
 
 
+def _prepack_reuse_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+    prepack: dict[str, Any],
+) -> str:
+    blockers = _blocker_text(prepack.get("blockers"))
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')} "
+        f"prepack_setup={prepack.get('prepack_setup_us')} "
+        f"same_backend={prepack.get('same_backend_nonreuse_backend')} "
+        f"same_e2e={prepack.get('same_backend_nonreuse_median_end_to_end_us')} "
+        f"best_nonreuse={prepack.get('best_nonreuse_backend')} "
+        f"best_e2e={prepack.get('best_nonreuse_median_end_to_end_us')} "
+        f"reuse_vs_same={prepack.get('speedup_vs_same_backend_setup_inclusive')} "
+        f"reuse_vs_best={prepack.get('speedup_vs_best_nonreuse_setup_inclusive')} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
+def _graph_replay_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+    graph: dict[str, Any],
+) -> str:
+    blockers = _blocker_text(graph.get("blockers"))
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')} "
+        f"graph_setup={graph.get('graph_total_setup_us')} "
+        f"capture_us={graph.get('graph_capture_us')} "
+        f"instantiate_us={graph.get('graph_instantiate_us')} "
+        f"baseline={graph.get('baseline_backend')} "
+        f"baseline_setup={graph.get('baseline_total_setup_us')} "
+        f"baseline_e2e={graph.get('baseline_setup_inclusive_median_end_to_end_us')} "
+        f"break_even_repeats={graph.get('break_even_repeat_count')} "
+        f"declared_repeats={graph.get('declared_repeat_count')} "
+        f"declared_meets_break_even={graph.get('declared_repeats_meet_break_even')} "
+        f"speedup_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def build_summary(
     out: Path,
     *,
@@ -314,6 +373,10 @@ def build_summary(
     bottleneck_counts: Counter[str] = Counter()
     direct_hip_production_wins: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     next_work_rows: list[tuple[str, dict[str, Any]]] = []
+    prepack_reuse_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    prepack_reuse_blockers: Counter[str] = Counter()
+    graph_replay_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    graph_replay_blockers: Counter[str] = Counter()
     review_report_count = 0
     for path in out.rglob("review_report.json"):
         review_report_count += 1
@@ -344,6 +407,14 @@ def build_summary(
             for candidate in group.get("candidates", []):
                 blocker_counts.update(candidate.get("promotion_blockers", []))
                 blockers = _actionable_blockers(candidate)
+                prepack = candidate.get("prepacked_reuse_review")
+                if isinstance(prepack, dict):
+                    prepack_reuse_rows.append((str(path.relative_to(out)), group, candidate, prepack))
+                    prepack_reuse_blockers.update(str(item) for item in prepack.get("blockers", []) if item)
+                graph = candidate.get("hip_graph_replay_review")
+                if isinstance(graph, dict):
+                    graph_replay_rows.append((str(path.relative_to(out)), group, candidate, graph))
+                    graph_replay_blockers.update(str(item) for item in graph.get("blockers", []) if item)
                 if blockers:
                     actionable_counts.update(blockers)
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
@@ -462,6 +533,28 @@ def build_summary(
         )
     if len(next_work_rows) > max_detail_rows:
         lines.append(f"  ... {len(next_work_rows) - max_detail_rows} more")
+    lines.append(f"PREPACK_REUSE_REVIEWS {len(prepack_reuse_rows)}")
+    lines.append("PREPACK_REUSE_BLOCKER_COUNTS")
+    if prepack_reuse_blockers:
+        for blocker, count in prepack_reuse_blockers.most_common():
+            lines.append(f"{blocker} {count}")
+    else:
+        lines.append("none 0")
+    for report_path, group, candidate, prepack in prepack_reuse_rows[:max_detail_rows]:
+        lines.append(_prepack_reuse_line(out, report_path, group, candidate, prepack))
+    if len(prepack_reuse_rows) > max_detail_rows:
+        lines.append(f"  ... {len(prepack_reuse_rows) - max_detail_rows} more")
+    lines.append(f"HIP_GRAPH_REPLAY_REVIEWS {len(graph_replay_rows)}")
+    lines.append("HIP_GRAPH_REPLAY_BLOCKER_COUNTS")
+    if graph_replay_blockers:
+        for blocker, count in graph_replay_blockers.most_common():
+            lines.append(f"{blocker} {count}")
+    else:
+        lines.append("none 0")
+    for report_path, group, candidate, graph in graph_replay_rows[:max_detail_rows]:
+        lines.append(_graph_replay_line(out, report_path, group, candidate, graph))
+    if len(graph_replay_rows) > max_detail_rows:
+        lines.append(f"  ... {len(graph_replay_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():

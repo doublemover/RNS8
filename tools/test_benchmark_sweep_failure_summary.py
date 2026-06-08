@@ -294,6 +294,24 @@ def main() -> int:
         assert "pack_bound 1" in text
         assert "NEXT_WORK 1" in text
         assert "work=reduce_prepack_setup_or_reuse_steady_state_cost" in text
+        assert "PREPACK_REUSE_REVIEWS 1" in text
+        assert "PREPACK_REUSE_BLOCKER_COUNTS" in text
+        assert "none 0" in text
+        assert (
+            "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
+            "setup_e2e=150.0 prepack_setup=27.0 same_backend=ck same_e2e=140.0 "
+            "best_nonreuse=hip-direct best_e2e=100.0"
+        ) in text
+        assert "reuse_vs_best=0.6666666666666666 blockers=none" in text
+        assert "HIP_GRAPH_REPLAY_REVIEWS 1" in text
+        assert "HIP_GRAPH_REPLAY_BLOCKER_COUNTS" in text
+        assert (
+            "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
+            "setup_e2e=151.0 graph_setup=57.0 capture_us=13.0 instantiate_us=17.0 "
+            "baseline=hip-direct baseline_setup=27.0 baseline_e2e=144.0 "
+            "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=None"
+        ) in text
+        assert "speedup_vs_baseline=0.9536423841059603 blockers=none" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
