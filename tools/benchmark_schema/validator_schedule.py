@@ -726,7 +726,7 @@ class ValidatorScheduleMixin:
             expected_epilogues = {
                 "ck": "ck_fused_i32_to_centered_residue_then_crt_export",
                 "rocwmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
-                "amdgpu-builtins": "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export",
+                "amdgpu-builtins": "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
                 "hip-vector-alu-int64": "direct_int64_export",
             }
             expected_epilogue = expected_epilogues.get(

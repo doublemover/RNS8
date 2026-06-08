@@ -422,7 +422,7 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
       return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
+      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
     }
   }
   return false;

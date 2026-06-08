@@ -380,7 +380,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.epilogue_mode,
           sizeof(info.epilogue_mode),
-          "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+          "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
       set_text(
           info.workspace_mode,
           sizeof(info.workspace_mode),

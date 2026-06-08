@@ -346,7 +346,7 @@ amdgpu_metadata["performance_validated"] = False
 amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
 amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
 amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
-amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export"
+amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export"
 amdgpu_metadata[
     "workspace_mode"
 ] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
@@ -361,7 +361,10 @@ amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
     amdgpu_metadata["autotune_key"]
     .replace("backend=ck", "backend=amdgpu-builtins")
     .replace("kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3", f"kernel={amdgpu_kernel}")
-    .replace("epilogue=ck_fused_centered_residue", "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export"),
+    .replace(
+        "epilogue=ck_fused_centered_residue",
+        "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
+    ),
     amdgpu_builtins,
 )
 validate_capture(amdgpu_builtins)

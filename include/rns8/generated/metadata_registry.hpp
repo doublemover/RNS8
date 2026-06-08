@@ -119,7 +119,7 @@ inline constexpr std::array<std::string_view, 4> epilogue_types{{
 inline constexpr std::array<std::string_view, 18> backend_epilogue_modes{{
     "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
-    "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export",
+    "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
     "ck_fused_i32_to_centered_residue_rns_output",
     "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
     "ck_fused_i32_to_centered_residue_then_crt_export",

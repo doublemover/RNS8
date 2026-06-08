@@ -188,7 +188,7 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       return "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
     }
-    return "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
+    return "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
   }
   if (uses_finite_storage(plan.desc.semantics)) {
     return "fused_centered_residue_then_canonical_u8_export";

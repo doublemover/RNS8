@@ -416,7 +416,7 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
   set_backend_text(
       result.backend_info.epilogue_mode,
       sizeof(result.backend_info.epilogue_mode),
-      "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+      "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
   std::ostringstream out;
   out << "backend=amdgpu-builtins"
       << ";target_id=" << benchmark_key_target_id(result)
@@ -432,7 +432,7 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
       << ";tile_shape_variant=" << args.tile_shape_variant;
   append_accumulator_key_fields(out, result.backend_info);
   out << ";kernel=" << kernel
-      << ";epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
+      << ";epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
   const std::string key = out.str();
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }

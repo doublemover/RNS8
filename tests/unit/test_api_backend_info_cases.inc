@@ -182,7 +182,9 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(
           std::string(capability.selected_kernel) ==
           "amdgpu_builtin_matrix_core_target_family_runtime_dispatch_v1");
-      CHECK(std::string(capability.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+      CHECK(
+          std::string(capability.epilogue_mode) ==
+          "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace");
       CHECK(std::string(capability.isa_evidence) == "amdgpu_builtin_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
