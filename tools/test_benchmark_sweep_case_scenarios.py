@@ -572,6 +572,14 @@ assert (
     )
     == "amdgpu-builtins-sparse-a-runtime"
 )
+sparse_runtime_backend = benchmark_sweep.backend_id(
+    {
+        "backend_selected": "amdgpu-builtins",
+        "selected_kernel": "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+        "scenario_metadata": {"sparse_a_4_to_2": True},
+    }
+)
+assert backend_family_id(sparse_runtime_backend) == "amdgpu-builtins"
 assert (
     benchmark_sweep.backend_id(
         {
@@ -582,6 +590,14 @@ assert (
     )
     == "amdgpu-builtins-dense-sparse-a-input"
 )
+dense_sparse_backend = benchmark_sweep.backend_id(
+    {
+        "backend_selected": "amdgpu-builtins",
+        "selected_kernel": "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+        "scenario_metadata": {"sparse_a_4_to_2": True, "sparse_a_4_to_2_dense_baseline": True},
+    }
+)
+assert backend_family_id(dense_sparse_backend) == "amdgpu-builtins"
 
 with tempfile.TemporaryDirectory() as temp_dir:
     capture_path = Path(temp_dir) / "capture.json"

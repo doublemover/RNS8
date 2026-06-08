@@ -492,7 +492,11 @@ inspection commands.
   AMDGPU dense sparse-input baseline rows. Review backend ids separate
   `amdgpu-builtins-sparse-a-runtime` from
   `amdgpu-builtins-dense-sparse-a-input` to avoid duplicate-backend blockers
-  while keeping both rows in the same sparse contract group. AMDGPU builtin
+  while keeping both rows in the same sparse contract group. Sparse synthetic
+  backend IDs now normalize back to the `amdgpu-builtins` family for ISA
+  sidecar/resource lookup, so sparse runtime and dense sparse-input rows can
+  display MFMA/SMFMAC histograms from the shared compiled-object report instead
+  of falling back to `matrix_isa=none`. AMDGPU builtin
   differential coverage now includes bounded i64/u64 and exact-wide
   signed/unsigned sparse-A RNS paths against the dense AMDGPU builtin path for
   the same sparse-shaped native input; it builds locally and skips on RDNA3,

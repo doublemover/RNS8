@@ -191,6 +191,8 @@ def normalized_target_id(value: Any) -> str | None:
 
 def backend_family_id(backend: str) -> str:
     for suffix in (
+        "-dense-sparse-a-input",
+        "-sparse-a-runtime",
         "-oneshot",
         "-hostbatch",
         "-hipgraph",
