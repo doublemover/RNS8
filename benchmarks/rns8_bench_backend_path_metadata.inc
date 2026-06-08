@@ -31,6 +31,27 @@ bool bounded_native_b_reuse_a_u64_large_colpair_path(const Args& args, const Ben
          !result.schedule_info.adaptive_skip_active;
 }
 
+bool bounded_direct_hip_skinny_gemv_n1_path(const Args& args, const BenchmarkResult& result) {
+  return (args.semantics == BenchSemantics::BoundedI64 ||
+          args.semantics == BenchSemantics::BoundedU64) &&
+         args.n == 1 && args.residue_chain_length == 1 &&
+         args.bound_mode == BoundMode::Global &&
+         !args.oneshot && !args.streaming_overlap && !args.hip_graph_replay &&
+         !args.native_to_rns_bridge && !args.vector_to_rns_chain &&
+         !args.vector_alu_baseline && !args.wrap64_rocwmma_candidate &&
+         !args.transient_uniform_small_inputs && !args.residue_channel_fusion &&
+         !args.residue_chain_final_export && !args.residue_chain_independent_final_export &&
+         !args.reuse_packed_inputs && !args.reuse_packed_a && !args.reuse_packed_b &&
+         !args.incremental_result_cache.empty() && args.incremental_result_cache == "none" &&
+         result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
+         result.schedule_info_available &&
+         result.schedule_info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
+         result.schedule_info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
+         result.schedule_info.prefix_group_count == 1 &&
+         !result.schedule_info.adaptive_prefix_active &&
+         !result.schedule_info.adaptive_skip_active;
+}
+
 bool bounded_uniform_small_i8_ab_transient_path(const Args& args, const BenchmarkResult& result) {
   return (bounded_uniform_small_i8_ab_transient_requested(args) ||
           bounded_residue_channel_fusion_requested(args)) &&
@@ -49,6 +70,9 @@ bool finite_native_a_reuse_b_path(const Args& args, const BenchmarkResult& resul
 }
 
 const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResult& result) {
+  if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
+    return "direct_hip_skinny_gemv_n1_resident_rns";
+  }
   if (bounded_native_a_reuse_b_requested(args) && !bounded_native_a_reuse_b_path(args, result)) {
     return "persistent_resident_matrices";
   }
@@ -66,6 +90,9 @@ const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResul
 }
 
 const char* backend_metadata_source(const Args& args, const BenchmarkResult& result) {
+  if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
+    return "rns8_bench_skinny_gemv_n1_path";
+  }
   if (bounded_native_a_reuse_b_requested(args) && !bounded_native_a_reuse_b_path(args, result)) {
     return "rns8_get_plan_backend_info";
   }
@@ -80,6 +107,50 @@ const char* backend_metadata_source(const Args& args, const BenchmarkResult& res
     return "rns8_get_plan_backend_info";
   }
   return backend_metadata_source(args);
+}
+
+const char* bounded_direct_hip_skinny_gemv_n1_kernel(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedI64
+      ? "direct_hip_prefix9_rns_gemv_n1_i64_v1"
+      : "direct_hip_prefix9_rns_gemv_n1_u64_v1";
+}
+
+const char* bounded_direct_hip_skinny_gemv_n1_epilogue() {
+  return "resident_rns_gemv_n1_centered_residue_then_crt_export";
+}
+
+const char* bounded_direct_hip_skinny_gemv_n1_workspace() {
+  return "resident_rns_inputs_skinny_n1_output";
+}
+
+std::string bounded_direct_hip_skinny_gemv_n1_autotune_key(
+    const Args& args,
+    const BenchmarkResult& result,
+    const char* kernel,
+    const char* epilogue,
+    uint64_t bound) {
+  std::ostringstream out;
+  out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";bound=" << bound
+      << ";input_profile=" << input_profile_name(args)
+      << ";prefix=" << RNS8_DEFAULT_BOUNDED_PREFIX
+      << ";tile_m=" << args.tile_m
+      << ";tile_n=" << args.tile_n
+      << ";groups=" << result.schedule_info.prefix_group_count
+      << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
+      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";schedule_flags=" << result.schedule_info.flags
+      << ";zero_output_tiles=" << result.zero_output_tile_count
+      << ";execution=direct_hip_skinny_gemv_n1_resident_rns";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
+      << ";epilogue=" << epilogue;
+  return out.str();
 }
 
 std::string bounded_native_a_reuse_b_autotune_key(
@@ -197,6 +268,26 @@ void apply_bounded_native_a_reuse_b_backend_metadata(const Args& args, Benchmark
       sizeof(result.backend_info.workspace_mode),
       "transient_native_a_resident_rns_b_output");
   const std::string key = bounded_native_a_reuse_b_autotune_key(args, result, kernel, epilogue, bound);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+}
+
+void apply_bounded_direct_hip_skinny_gemv_n1_backend_metadata(
+    const Args& args,
+    BenchmarkResult& result,
+    uint64_t bound) {
+  if (!bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
+    return;
+  }
+  result.backend_info.performance_validated = 0;
+  const char* kernel = bounded_direct_hip_skinny_gemv_n1_kernel(args);
+  const char* epilogue = bounded_direct_hip_skinny_gemv_n1_epilogue();
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
+  set_backend_text(
+      result.backend_info.workspace_mode,
+      sizeof(result.backend_info.workspace_mode),
+      bounded_direct_hip_skinny_gemv_n1_workspace());
+  const std::string key = bounded_direct_hip_skinny_gemv_n1_autotune_key(args, result, kernel, epilogue, bound);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 

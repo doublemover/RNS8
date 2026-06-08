@@ -33,6 +33,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(args, result, bound);
   apply_bounded_native_b_reuse_a_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_transient_backend_metadata(args, result, bound);
+  apply_bounded_direct_hip_skinny_gemv_n1_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
@@ -42,6 +43,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const bool use_uniform_small_i8_ab_reuse = use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_reuse_b;
   const bool use_uniform_small_i8_ab_device_inputs =
       use_uniform_small_i8_ab_reuse || use_uniform_small_i8_ab_transient;
+  const bool use_direct_hip_skinny_gemv_n1 = bounded_direct_hip_skinny_gemv_n1_path(args, result);
   std::vector<int8_t> uniform_small_a;
   std::vector<int8_t> uniform_small_b;
   if (use_uniform_small_i8_ab_device_inputs) {
@@ -359,6 +361,20 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
         } else {
           collect_bounded_native_a_gemm_gpu_events(args, result.gpu_events);
         }
+      }
+    } else if (use_direct_hip_skinny_gemv_n1) {
+      status = rns8::detail::hip_direct_gemv_n1_rns_prefix9_matrix(
+          args.device_id,
+          a_matrix,
+          b_matrix,
+          c_matrix,
+          args.m,
+          args.k,
+          source_version);
+      if (status != RNS8_SUCCESS) fail_status("hip_direct_gemv_n1_rns_prefix9_matrix", status);
+      final_output_matrix = c_matrix;
+      if (collect_gpu_events) {
+        collect_bounded_direct_hip_skinny_gemv_n1_gpu_events(result.gpu_events);
       }
     } else {
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {

@@ -211,6 +211,10 @@ DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_KERNELS = {
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_U64_LARGE_COLPAIR_KERNEL = (
     "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
 )
+DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_KERNELS = {
+    "bounded_i64": "direct_hip_prefix9_rns_gemv_n1_i64_v1",
+    "bounded_u64": "direct_hip_prefix9_rns_gemv_n1_u64_v1",
+}
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
     "uniform_small_i8_ab_resident_b_residue_then_crt_export"
@@ -221,6 +225,7 @@ DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_EPILOGUE = (
     "width3_residue_fusion_transient_then_crt_export"
 )
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE = "resident_a_native_b_centered_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_EPILOGUE = "resident_rns_gemv_n1_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_WORKSPACE = "transient_i8_b_resident_i8_a_rns_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE = "transient_i8_a_transient_i8_b_rns_output"
@@ -228,6 +233,7 @@ DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE = (
     "width3_residue_fusion_transient_i8_inputs"
 )
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_WORKSPACE = "transient_native_b_resident_rns_a_output"
+DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_WORKSPACE = "resident_rns_inputs_skinny_n1_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_canonical_u8_export"

@@ -325,6 +325,48 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
                             "direct-HIP bounded native-B reuse-A backend_metadata.autotune_key "
                             f"must include {key}={value}"
                         )
+    if self._is_direct_hip_bounded_skinny_gemv_n1_capture():
+        if bound_mode != "global":
+            self._error("direct-HIP skinny GEMV N=1 captures must use bound_mode=global")
+        if residue_chain_length != 1 or residue_output_mode != "host_export":
+            self._error("direct-HIP skinny GEMV N=1 captures must use host_export residue_chain_length=1")
+        expected_kernel = DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_KERNELS[semantics]
+        expected_epilogue = DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_EPILOGUE
+        if self.data.get("selected_kernel") != expected_kernel:
+            self._error(
+                "direct-HIP skinny GEMV N=1 captures must use "
+                f"selected_kernel={expected_kernel}"
+            )
+        if isinstance(backend_metadata, dict):
+            if backend_metadata.get("epilogue_mode") != expected_epilogue:
+                self._error(
+                    "direct-HIP skinny GEMV N=1 captures must use "
+                    f"backend_metadata.epilogue_mode={expected_epilogue}"
+                )
+            if backend_metadata.get("workspace_mode") != DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_WORKSPACE:
+                self._error(
+                    "direct-HIP skinny GEMV N=1 captures must use "
+                    f"backend_metadata.workspace_mode={DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_WORKSPACE}"
+                )
+            if backend_metadata.get("isa_evidence") != DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE:
+                self._error(
+                    "direct-HIP skinny GEMV N=1 captures must use "
+                    f"backend_metadata.isa_evidence={DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE}"
+                )
+            autotune_key = backend_metadata.get("autotune_key")
+            if isinstance(autotune_key, str):
+                normalized_key = f";{autotune_key};"
+                required_parts = {
+                    "kernel": expected_kernel,
+                    "epilogue": expected_epilogue,
+                    "execution": "direct_hip_skinny_gemv_n1_resident_rns",
+                }
+                for key, value in required_parts.items():
+                    if f";{key}={value};" not in normalized_key:
+                        self._error(
+                            "direct-HIP skinny GEMV N=1 backend_metadata.autotune_key "
+                            f"must include {key}={value}"
+                        )
     if _is_int(prefix) and prefix <= 0:
         self._error(f"{semantics} captures must use a positive prefix")
     expected_native_layout = (

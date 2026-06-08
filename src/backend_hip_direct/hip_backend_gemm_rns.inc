@@ -438,3 +438,68 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
 #endif
 }
 
+rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
+    int device_id,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t k,
+    uint64_t source_version) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!A || !B || !C || !A->device_residues_current || !B->device_residues_current ||
+      !A->hip_residues || !B->hip_residues || !C->hip_residues ||
+      (A->desc.semantics != RNS8_BOUNDED_I64 && A->desc.semantics != RNS8_BOUNDED_U64) ||
+      A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
+      A->desc.bound_kind != B->desc.bound_kind || A->desc.bound_kind != C->desc.bound_kind ||
+      A->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || B->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
+      C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || m <= 0 || k <= 0 || A->desc.rows != m ||
+      A->desc.cols != k || B->desc.rows != k || B->desc.cols != 1 || C->desc.rows != m ||
+      C->desc.cols != 1 || A->desc.logical_ld < k || B->desc.logical_ld < 1 ||
+      C->desc.logical_ld < 1 || m > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max() || A->desc.logical_ld > std::numeric_limits<int>::max() ||
+      B->desc.logical_ld > std::numeric_limits<int>::max() ||
+      C->desc.logical_ld > std::numeric_limits<int>::max()) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) {
+    return device_status;
+  }
+  const int code = rns8::detail::run_timed_device_code("rns_gemv_n1_kernel_group", [&]() {
+    const int launch_status = rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
+        static_cast<const int8_t*>(A->hip_residues),
+        static_cast<const int8_t*>(B->hip_residues),
+        static_cast<int8_t*>(C->hip_residues),
+        static_cast<int>(m),
+        static_cast<int>(k),
+        static_cast<int>(A->desc.logical_ld),
+        static_cast<int>(B->desc.logical_ld),
+        static_cast<int>(C->desc.logical_ld),
+        static_cast<int>(RNS8_DEFAULT_BOUNDED_PREFIX),
+        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    if (launch_status != static_cast<int>(hipSuccess)) {
+      return launch_status;
+    }
+    const hipError_t sync_status = hipDeviceSynchronize();
+    return sync_status == hipSuccess ? 0 : static_cast<int>(sync_status);
+  });
+  if (code != 0) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  mark_device_residue_output_current(C);
+  C->finite_modulus = 0;
+  C->source_version = source_version;
+  C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;
+  (void)A;
+  (void)B;
+  (void)C;
+  (void)m;
+  (void)k;
+  (void)source_version;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

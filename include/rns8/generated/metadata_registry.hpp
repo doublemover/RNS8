@@ -6,13 +6,14 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 25> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 26> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
     "benchmark_host_api_batch",
     "benchmark_owned_vector_alu_native_buffers",
     "benchmark_streaming_overlap_resident_b_pipeline",
+    "direct_hip_skinny_gemv_n1_resident_rns",
     "hip_graph_replay_bounded_pack_gemm_export",
     "hip_graph_replay_finite_u8_pack_gemm_export",
     "hip_graph_replay_resident_rns_chain",
@@ -151,7 +152,7 @@ inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 63> selected_kernels{{
+inline constexpr std::array<std::string_view, 65> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -187,6 +188,8 @@ inline constexpr std::array<std::string_view, 63> selected_kernels{{
     "direct_hip_prefix9_grouped_rns_gemm_v1",
     "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",
     "direct_hip_prefix9_native_input_grouped_rns_gemm_v1",
+    "direct_hip_prefix9_rns_gemv_n1_i64_v1",
+    "direct_hip_prefix9_rns_gemv_n1_u64_v1",
     "direct_hip_tiled_active_prefix_rns_gemm_v2",
     "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
     "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3",

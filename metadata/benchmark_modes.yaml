@@ -22,6 +22,7 @@
     "transient_native_b_resident_a_reuse",
     "transient_uniform_small_i8_ab_inputs",
     "residue_channel_fusion_native_inputs",
+    "direct_hip_skinny_gemv_n1_resident_rns",
     "transient_uniform_small_i8_a_resident_i8_b_reuse",
     "transient_uniform_small_i8_b_resident_i8_a_reuse",
     "internal_wrap64_rocwmma_candidate",

@@ -14,6 +14,7 @@
     "pack_kernel",
     "pack",
     "rns_gemm_kernel_group",
+    "rns_gemv_n1_kernel_group",
     "rns_gemm",
     "crt_export_status_memset",
     "crt_export_kernel",

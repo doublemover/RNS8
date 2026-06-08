@@ -87,6 +87,11 @@ inspection commands.
   i64/u64, optimized for `N=1` and small-N; use vectorized/coalesced K loads,
   fixed-prefix generated reducers, deterministic status handling, and separate
   pack/GEMV/export event labels.
+- Local implementation status: implemented for fixed-prefix resident-RNS
+  bounded i64/u64 `N=1` captures as
+  `direct_hip_prefix9_rns_gemv_n1_i64_v1` and
+  `direct_hip_prefix9_rns_gemv_n1_u64_v1`; local Windows HIP smokes selected
+  the new `direct_hip_skinny_gemv_n1_resident_rns` route and schema-validated.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024` against CPU anchor, current tiled Direct HIP, vector-ALU
   where applicable, and rocWMMA; schema must report a GEMV selected kernel and

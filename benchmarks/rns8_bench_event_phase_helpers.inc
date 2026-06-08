@@ -348,6 +348,9 @@ std::vector<std::string> gpu_event_phase_order(
   if (bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
     gemm_phase = bounded_native_b_reuse_a_u64_large_colpair_event_label();
   }
+  if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
+    gemm_phase = "rns_gemv_n1_kernel_group";
+  }
   std::vector<std::string> phases;
   if (bounded_uniform_small_i8_ab_transient_path(args, result)) {
     gemm_phase = bounded_uniform_small_i8_ab_transient_event_label();
