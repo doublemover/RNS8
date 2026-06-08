@@ -188,8 +188,12 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
                 f"graph_setup_e2e={graph.get('setup_inclusive_median_end_to_end_us')}",
                 f"graph_capture={graph.get('graph_capture_us')}",
                 f"graph_instantiate={graph.get('graph_instantiate_us')}",
+                f"graph_total_setup={graph.get('graph_total_setup_us')}",
                 f"graph_baseline={graph.get('baseline_backend')}",
+                f"baseline_total_setup={graph.get('baseline_total_setup_us')}",
                 f"baseline_e2e={graph.get('baseline_setup_inclusive_median_end_to_end_us')}",
+                f"graph_break_even_repeats={graph.get('break_even_repeat_count')}",
+                f"graph_declared_repeats={graph.get('declared_repeat_count')}",
                 f"graph_vs_baseline={graph.get('speedup_vs_non_graph_setup_inclusive')}",
             ]
         )

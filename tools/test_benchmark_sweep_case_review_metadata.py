@@ -394,6 +394,13 @@ graph_group = next(
 graph_review = graph_group["candidates"][0]["hip_graph_replay_review"]
 assert graph_review["baseline_setup_inclusive_median_end_to_end_us"] == 1000.0 + 11.0 / 9.0
 assert graph_review["setup_inclusive_median_end_to_end_us"] == 900.0 + 29.0 / 9.0
+assert graph_review["baseline_total_setup_us"] == 11.0
+assert graph_review["graph_total_setup_us"] == 29.0
+assert graph_review["graph_setup_overhead_vs_baseline_us"] == 18.0
+assert graph_review["steady_state_delta_us"] == 100.0
+assert graph_review["break_even_repeat_count"] == 1
+assert graph_review["declared_repeat_count"] == 9
+assert graph_review["declared_repeats_meet_break_even"] is True
 assert graph_review["blockers"] == []
 assert group["missing_hip_driver_versions"] == []
 assert group["hip_driver_version_complete"] is True

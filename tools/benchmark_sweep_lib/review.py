@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -461,6 +462,31 @@ def setup_inclusive_end_to_end_us(capture: dict[str, Any], *, include_graph_setu
     return median + setup / float(repeats)
 
 
+def break_even_repeat_count(
+    *,
+    baseline_median_us: float | None,
+    candidate_median_us: float | None,
+    baseline_setup_us: float | None,
+    candidate_setup_us: float | None,
+) -> int | None:
+    if (
+        baseline_median_us is None
+        or candidate_median_us is None
+        or baseline_setup_us is None
+        or candidate_setup_us is None
+    ):
+        return None
+    if candidate_median_us == baseline_median_us:
+        return 1 if candidate_setup_us < baseline_setup_us else None
+    if candidate_median_us > baseline_median_us:
+        return None
+    steady_state_delta = baseline_median_us - candidate_median_us
+    setup_delta = candidate_setup_us - baseline_setup_us
+    if setup_delta <= 0:
+        return 1
+    return max(1, math.floor(setup_delta / steady_state_delta) + 1)
+
+
 def selection_end_to_end_us(capture: dict[str, Any]) -> float | None:
     if capture_hip_graph_replay(capture):
         return setup_inclusive_end_to_end_us(capture, include_graph_setup=True)
@@ -652,6 +678,18 @@ def hip_graph_replay_review(
 ) -> dict[str, Any]:
     graph_setup = setup_inclusive_end_to_end_us(capture, include_graph_setup=True)
     baseline_setup = setup_inclusive_end_to_end_us(baseline) if baseline else None
+    graph_median = median_phase(capture, "end_to_end")
+    baseline_median = median_phase(baseline, "end_to_end") if baseline else None
+    graph_total_setup = setup_cost_us(capture, include_graph_setup=True)
+    baseline_total_setup = setup_cost_us(baseline, include_graph_setup=False) if baseline else None
+    break_even_repeats = break_even_repeat_count(
+        baseline_median_us=baseline_median,
+        candidate_median_us=graph_median,
+        baseline_setup_us=baseline_total_setup,
+        candidate_setup_us=graph_total_setup,
+    )
+    raw_repeats = capture.get("repeats")
+    declared_repeats = raw_repeats if isinstance(raw_repeats, int) and not isinstance(raw_repeats, bool) and raw_repeats > 0 else None
     blockers: list[str] = []
     if baseline is None:
         blockers.append("missing_same_contract_non_graph_baseline")
@@ -668,9 +706,26 @@ def hip_graph_replay_review(
         "setup_inclusive_median_end_to_end_us": graph_setup,
         "graph_capture_us": graph_numeric_value(capture, "capture_us"),
         "graph_instantiate_us": graph_numeric_value(capture, "instantiate_us"),
+        "graph_total_setup_us": graph_total_setup,
         "baseline_backend": backend_family_id(backend_id(baseline)) if baseline else None,
         "baseline_capture": baseline.get("_path") if baseline else None,
+        "baseline_total_setup_us": baseline_total_setup,
         "baseline_setup_inclusive_median_end_to_end_us": baseline_setup,
+        "steady_state_delta_us": (
+            baseline_median - graph_median if baseline_median is not None and graph_median is not None else None
+        ),
+        "graph_setup_overhead_vs_baseline_us": (
+            graph_total_setup - baseline_total_setup
+            if graph_total_setup is not None and baseline_total_setup is not None
+            else None
+        ),
+        "break_even_repeat_count": break_even_repeats,
+        "declared_repeat_count": declared_repeats,
+        "declared_repeats_meet_break_even": (
+            declared_repeats >= break_even_repeats
+            if declared_repeats is not None and break_even_repeats is not None
+            else False
+        ),
         "speedup_vs_non_graph_setup_inclusive": (
             baseline_setup / graph_setup if baseline_setup is not None and graph_setup not in (None, 0.0) else None
         ),

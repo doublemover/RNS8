@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -132,8 +133,17 @@ def comparison_key(capture: dict[str, Any]) -> str:
 def setup_inclusive_per_repeat(capture: dict[str, Any], *, graph: bool) -> float | None:
     median = timing_summary_value(capture, "end_to_end", "median")
     repeats = capture.get("repeats")
-    setup = prepack_setup_us(capture)
+    setup = total_setup_us(capture, graph=graph)
     if median is None or not isinstance(repeats, int) or repeats <= 0 or setup is None:
+        return None
+    return median + setup / float(repeats)
+
+
+def total_setup_us(capture: dict[str, Any] | None, *, graph: bool) -> float | None:
+    if capture is None:
+        return None
+    setup = prepack_setup_us(capture)
+    if setup is None:
         return None
     if graph:
         graph_info = graph_metadata(capture)
@@ -142,7 +152,32 @@ def setup_inclusive_per_repeat(capture: dict[str, Any], *, graph: bool) -> float
         if capture_us is None or instantiate_us is None:
             return None
         setup += capture_us + instantiate_us
-    return median + setup / float(repeats)
+    return setup
+
+
+def break_even_repeat_count(
+    *,
+    baseline_median_us: float | None,
+    graph_median_us: float | None,
+    baseline_setup_us: float | None,
+    graph_setup_us: float | None,
+) -> int | None:
+    if (
+        baseline_median_us is None
+        or graph_median_us is None
+        or baseline_setup_us is None
+        or graph_setup_us is None
+    ):
+        return None
+    if graph_median_us == baseline_median_us:
+        return 1 if graph_setup_us < baseline_setup_us else None
+    if graph_median_us > baseline_median_us:
+        return None
+    steady_state_delta = baseline_median_us - graph_median_us
+    setup_delta = graph_setup_us - baseline_setup_us
+    if setup_delta <= 0:
+        return 1
+    return max(1, math.floor(setup_delta / steady_state_delta) + 1)
 
 
 def release_capture_satisfied(capture: dict[str, Any]) -> bool:
@@ -202,10 +237,20 @@ def shape(capture: dict[str, Any]) -> dict[str, Any]:
 def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any]:
     graph_setup = setup_inclusive_per_repeat(graph, graph=True)
     baseline_setup = setup_inclusive_per_repeat(baseline, graph=False) if baseline is not None else None
+    graph_total_setup = total_setup_us(graph, graph=True)
+    baseline_total_setup = total_setup_us(baseline, graph=False) if baseline is not None else None
     graph_median = timing_summary_value(graph, "end_to_end", "median")
     baseline_median = timing_summary_value(baseline, "end_to_end", "median") if baseline is not None else None
     speedup = baseline_setup / graph_setup if baseline_setup not in (None, 0.0) and graph_setup else None
     steady_speedup = baseline_median / graph_median if baseline_median not in (None, 0.0) and graph_median else None
+    break_even_repeats = break_even_repeat_count(
+        baseline_median_us=baseline_median,
+        graph_median_us=graph_median,
+        baseline_setup_us=baseline_total_setup,
+        graph_setup_us=graph_total_setup,
+    )
+    repeats = graph.get("repeats")
+    declared_repeat_count = repeats if isinstance(repeats, int) and repeats > 0 else None
 
     blockers: list[str] = []
     if baseline is None:
@@ -254,10 +299,27 @@ def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None
         "graph_instantiate_us": numeric_value(graph_info, "instantiate_us"),
         "graph_prepack_setup_us": prepack_setup_us(graph),
         "baseline_prepack_setup_us": prepack_setup_us(baseline) if baseline else None,
+        "graph_total_setup_us": graph_total_setup,
+        "baseline_total_setup_us": baseline_total_setup,
+        "graph_setup_overhead_vs_baseline_us": (
+            graph_total_setup - baseline_total_setup
+            if graph_total_setup is not None and baseline_total_setup is not None
+            else None
+        ),
         "graph_median_end_to_end_us": graph_median,
         "baseline_median_end_to_end_us": baseline_median,
+        "steady_state_delta_us": (
+            baseline_median - graph_median if baseline_median is not None and graph_median is not None else None
+        ),
         "graph_setup_inclusive_per_repeat_us": graph_setup,
         "baseline_setup_inclusive_per_repeat_us": baseline_setup,
+        "break_even_repeat_count": break_even_repeats,
+        "declared_repeat_count": declared_repeat_count,
+        "declared_repeats_meet_break_even": (
+            declared_repeat_count >= break_even_repeats
+            if declared_repeat_count is not None and break_even_repeats is not None
+            else False
+        ),
         "steady_state_speedup": steady_speedup,
         "setup_inclusive_speedup": speedup,
         "release_review_satisfied": not any(
@@ -308,6 +370,8 @@ def build_hip_graph_replay_report_from_captures(captures: list[dict[str, Any]]) 
         "baseline_gpu_events_available": sum(1 for item in comparisons if item["baseline_gpu_events_available"]),
         "graph_wall_clock_policy_valid": sum(1 for item in comparisons if item["graph_wall_clock_policy_valid"]),
         "checksum_matches": sum(1 for item in comparisons if item["checksum_match"]),
+        "break_even_available": sum(1 for item in comparisons if item["break_even_repeat_count"] is not None),
+        "declared_repeats_meet_break_even": sum(1 for item in comparisons if item["declared_repeats_meet_break_even"]),
         "decisions": dict(sorted(decision_counts.items())),
     }
     return {
@@ -366,15 +430,15 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
             "",
             "## Comparisons",
             "",
-            "| semantics | shape | graph setup-inclusive us | baseline setup-inclusive us | speedup | decision | blockers |",
-            "|---|---|---:|---:|---:|---|---|",
+            "| semantics | shape | graph setup-inclusive us | baseline setup-inclusive us | speedup | break-even repeats | decision | blockers |",
+            "|---|---|---:|---:|---:|---:|---|---|",
         ]
     )
     for item in report["comparisons"]:
         item_shape = item.get("shape", {})
         blockers = ",".join(item.get("blockers") or []) or "none"
         lines.append(
-            "| {semantics} | {m}x{n}x{k} chain{chain} | {graph_us} | {baseline_us} | {speedup} | {decision} | {blockers} |".format(
+            "| {semantics} | {m}x{n}x{k} chain{chain} | {graph_us} | {baseline_us} | {speedup} | {break_even} | {decision} | {blockers} |".format(
                 semantics=item.get("semantics"),
                 m=item_shape.get("m"),
                 n=item_shape.get("n"),
@@ -383,6 +447,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 graph_us=fmt(item.get("graph_setup_inclusive_per_repeat_us")),
                 baseline_us=fmt(item.get("baseline_setup_inclusive_per_repeat_us")),
                 speedup=fmt(item.get("setup_inclusive_speedup")),
+                break_even=fmt(item.get("break_even_repeat_count")),
                 decision=item.get("decision"),
                 blockers=blockers,
             )

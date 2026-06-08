@@ -106,6 +106,13 @@ def main() -> int:
     assert comparison["decision"] == "candidate_workload_win"
     assert comparison["baseline_setup_inclusive_per_repeat_us"] == 1010.0
     assert comparison["graph_setup_inclusive_per_repeat_us"] == 931.0
+    assert comparison["graph_total_setup_us"] == 279.0
+    assert comparison["baseline_total_setup_us"] == 90.0
+    assert comparison["graph_setup_overhead_vs_baseline_us"] == 189.0
+    assert comparison["steady_state_delta_us"] == 100.0
+    assert comparison["break_even_repeat_count"] == 2
+    assert comparison["declared_repeat_count"] == 9
+    assert comparison["declared_repeats_meet_break_even"] is True
     assert comparison["checksum_match"] is True
 
     slow_graph = capture(graph=True, median_us=1200.0, setup_us=90.0, name="slow-graph")
@@ -132,6 +139,7 @@ def main() -> int:
     assert full_comparison["graph_prepack_setup_us"] == 0.0
     assert full_comparison["baseline_setup_inclusive_per_repeat_us"] == 800.0
     assert full_comparison["graph_setup_inclusive_per_repeat_us"] == 741.0
+    assert full_comparison["break_even_repeat_count"] == 3
 
     wrap_baseline = capture(graph=False, median_us=700.0, setup_us=None, name="wrap-baseline", full_path=True)
     wrap_graph = capture(graph=True, median_us=650.0, setup_us=None, name="wrap-graph", full_path=True)

@@ -145,6 +145,18 @@ def main() -> int:
                                     "speedup_vs_same_backend_setup_inclusive": 0.9333333333333333,
                                     "speedup_vs_best_nonreuse_setup_inclusive": 0.6666666666666666,
                                 },
+                                "hip_graph_replay_review": {
+                                    "setup_inclusive_median_end_to_end_us": 151.0,
+                                    "graph_capture_us": 13.0,
+                                    "graph_instantiate_us": 17.0,
+                                    "graph_total_setup_us": 57.0,
+                                    "baseline_backend": "hip-direct",
+                                    "baseline_total_setup_us": 27.0,
+                                    "baseline_setup_inclusive_median_end_to_end_us": 144.0,
+                                    "break_even_repeat_count": 4,
+                                    "declared_repeat_count": 9,
+                                    "speedup_vs_non_graph_setup_inclusive": 0.9536423841059603,
+                                },
                             },
                             {
                                 "backend": "hip-direct",
@@ -247,6 +259,10 @@ def main() -> int:
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
         assert "details=reuse_setup_e2e=150.0 prepack_setup=27.0 same_backend=ck" in text
         assert "reuse_vs_best=0.6666666666666666" in text
+        assert "graph_total_setup=57.0" in text
+        assert "baseline_total_setup=27.0" in text
+        assert "graph_break_even_repeats=4" in text
+        assert "graph_declared_repeats=9" in text
         assert "FASTEST_PRODUCTION_ROUTES 1" in text
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
