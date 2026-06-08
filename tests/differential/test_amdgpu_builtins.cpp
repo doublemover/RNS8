@@ -91,6 +91,25 @@ rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind ba
   return desc;
 }
 
+rns8_gemm_desc exact_wide_desc(
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    rns8_semantics semantics,
+    rns8_backend_kind backend) {
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = semantics;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.requested_backend = backend;
+  desc.m = m;
+  desc.n = n;
+  desc.k = k;
+  desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
+  return desc;
+}
+
 rns8_matrix_desc finite_matrix_desc(int64_t rows, int64_t cols) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -101,6 +120,20 @@ rns8_matrix_desc finite_matrix_desc(int64_t rows, int64_t cols) {
   desc.semantics = RNS8_FINITE_FIELD_U8;
   desc.bound_kind = RNS8_BOUND_NONE;
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  return desc;
+}
+
+rns8_matrix_desc exact_wide_matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics) {
+  rns8_matrix_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.rows = rows;
+  desc.cols = cols;
+  desc.logical_ld = cols;
+  desc.semantics = semantics;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
   return desc;
 }
 
@@ -116,6 +149,17 @@ rns8_matrix_desc bounded_i64_matrix_desc(int64_t rows, int64_t cols) {
   desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   return desc;
+}
+
+void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<uint64_t>& actual) {
+  REQUIRE(expected.size() == actual.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    if (actual[i] != expected[i]) {
+      CAPTURE(i);
+      CHECK(actual[i] == expected[i]);
+      return;
+    }
+  }
 }
 
 }  // namespace
@@ -175,6 +219,132 @@ TEST_CASE("AMDGPU builtin dense bounded RNS backend matches CPU") {
   rns8_destroy_matrix(a);
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);
+  rns8_destroy_context(amdgpu);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
+  if (!amdgpu_builtins_available()) {
+    SKIP("AMDGPU builtin backend is not available on this device");
+  }
+
+  rns8_context* cpu = require_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* amdgpu = require_context(RNS8_BACKEND_AMDGPU_BUILTINS);
+  constexpr int64_t m = 16;
+  constexpr int64_t n = 16;
+  constexpr int64_t k = 32;
+  constexpr uint32_t limb_count = 3;
+  constexpr int64_t limb_ld = n;
+  std::vector<int64_t> signed_a(static_cast<std::size_t>(m * k), 0);
+  std::vector<int64_t> signed_b(static_cast<std::size_t>(k * n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      signed_a[static_cast<std::size_t>(row * k + col)] =
+          static_cast<int64_t>((row * 5 + col * 7 + 3) % 17) - 8;
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      signed_b[static_cast<std::size_t>(row * n + col)] =
+          static_cast<int64_t>((row * 11 + col * 13 + 5) % 19) - 9;
+    }
+  }
+  std::vector<uint64_t> unsigned_a(static_cast<std::size_t>(m * k), 0);
+  std::vector<uint64_t> unsigned_b(static_cast<std::size_t>(k * n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      unsigned_a[static_cast<std::size_t>(row * k + col)] =
+          static_cast<uint64_t>((row * 17 + col * 19 + 7) % 251 + 1);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      unsigned_b[static_cast<std::size_t>(row * n + col)] =
+          static_cast<uint64_t>((row * 23 + col * 29 + 11) % 239 + 1);
+    }
+  }
+
+  auto run_signed_backend = [&](rns8_context* ctx, rns8_backend_kind backend) {
+    auto desc = exact_wide_desc(m, n, k, RNS8_EXACT_WIDE_SIGNED, backend);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a = nullptr;
+    rns8_matrix* b = nullptr;
+    rns8_matrix* c = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      CHECK(std::string(info.selected_kernel).rfind("amdgpu_builtin_", 0) == 0);
+      CHECK(std::string(info.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
+      CHECK(info.accumulator_uses_int32_inner_product == 1);
+      CHECK(std::string(info.accumulator_type) == "int32");
+    }
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = exact_wide_matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED);
+    auto b_desc = exact_wide_matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED);
+    auto c_desc = exact_wide_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, a, signed_a.data(), k, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(ctx, b, signed_b.data(), n, 2) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
+    std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    rns8_destroy_matrix(c);
+    rns8_destroy_matrix(b);
+    rns8_destroy_matrix(a);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+    return limbs;
+  };
+
+  auto run_unsigned_backend = [&](rns8_context* ctx, rns8_backend_kind backend) {
+    auto desc = exact_wide_desc(m, n, k, RNS8_EXACT_WIDE_UNSIGNED, backend);
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a = nullptr;
+    rns8_matrix* b = nullptr;
+    rns8_matrix* c = nullptr;
+    REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      CHECK(std::string(info.selected_kernel).rfind("amdgpu_builtin_", 0) == 0);
+      CHECK(std::string(info.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
+      CHECK(info.accumulator_uses_int32_inner_product == 1);
+      CHECK(std::string(info.accumulator_type) == "int32");
+    }
+    REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = exact_wide_matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED);
+    auto b_desc = exact_wide_matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED);
+    auto c_desc = exact_wide_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
+    REQUIRE(rns8_create_matrix(ctx, &a_desc, &a) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &b_desc, &b) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(ctx, &c_desc, &c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(ctx, a, unsigned_a.data(), k, 1) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(ctx, b, unsigned_b.data(), n, 2) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
+    std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    rns8_destroy_matrix(c);
+    rns8_destroy_matrix(b);
+    rns8_destroy_matrix(a);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+    return limbs;
+  };
+
+  require_same_u64(run_signed_backend(cpu, RNS8_BACKEND_CPU_REFERENCE),
+                   run_signed_backend(amdgpu, RNS8_BACKEND_AMDGPU_BUILTINS));
+  require_same_u64(run_unsigned_backend(cpu, RNS8_BACKEND_CPU_REFERENCE),
+                   run_unsigned_backend(amdgpu, RNS8_BACKEND_AMDGPU_BUILTINS));
+
   rns8_destroy_context(amdgpu);
   rns8_destroy_context(cpu);
 }
