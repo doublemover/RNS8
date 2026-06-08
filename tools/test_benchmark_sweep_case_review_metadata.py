@@ -306,6 +306,23 @@ assert {
     candidate["backend"] for candidate in implementation_split_group["candidates"]
 } == {"ck", "cpu-reference", "hip-direct", "hip-vector-alu-int64"}
 
+missing_export_metadata_ck = copy.deepcopy(bounded_ck)
+missing_export_metadata_ck.pop("exact_output_contract", None)
+missing_export_metadata_ck.pop("export_variant", None)
+missing_export_metadata_ck.pop("reconstruction_variant", None)
+missing_export_metadata_report = benchmark_sweep.review_captures(
+    [missing_export_metadata_ck, bounded_direct, bounded_cpu, bounded_vector],
+    review_mode="release",
+)
+missing_export_metadata_group = missing_export_metadata_report["groups"][0]
+missing_export_metadata_candidate = next(
+    item for item in missing_export_metadata_group["candidates"] if item["backend"] == "ck"
+)
+assert missing_export_metadata_report["promotable_autotune_entries"] == []
+assert "missing_final_output_contract_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+assert "missing_export_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+assert "missing_reconstruction_variant_metadata" in missing_export_metadata_candidate["promotion_blockers"]
+
 bounded_chain_ck = bounded_capture("ck", 200)
 bounded_chain_direct = bounded_capture("hip-direct", 450)
 bounded_chain_cpu = bounded_capture("cpu-reference", 5000)

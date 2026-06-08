@@ -154,7 +154,10 @@ inspection commands.
   `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
   and `reconstruction_variant.kernel_identity`. Local Windows HIP fixed-prefix18
   signed/unsigned smokes selected the matching device export kernels and passed
-  schema validation.
+  schema validation. Release review now blocks accelerator final-output
+  promotion when bounded/exact-wide captures omit exact-output,
+  export-variant, or reconstruction-variant route identity, so raw RNS GEMM
+  wins cannot promote without CRT/export proof.
 - Required evidence: `exact-wide-export`, `export-bound-limb-variants`, and
   `reconstruction-zoo` release captures with exact CPU parity, Direct HIP,
   hipBLASLt, CK, rocWMMA, and AMDGPU builtin comparators where built.
@@ -180,7 +183,8 @@ inspection commands.
   and `reconstruction_variant.kernel_identity`, and grouped bounded captures now
   report the actual grouped export kernels plus `compact_contiguous` D2H policy.
   Local Windows HIP bounded i64/u64 normal and grouped smokes passed schema
-  validation.
+  validation. Release review requires those route-identity objects for
+  accelerator bounded final-output candidates before promotion.
 - Required evidence: repeated-B, large-release-validation, and export-bound
   scenarios with per-phase event labels for GEMM, CRT kernel, status memset,
   status D2H, output D2H, and end-to-end timing.

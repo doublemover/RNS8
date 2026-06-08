@@ -205,6 +205,65 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     return capture
 
 
+def attach_final_output_metadata(capture: dict) -> None:
+    semantics = capture.get("semantics")
+    selected_kernel = capture.get("selected_kernel") or capture.get("backend_metadata", {}).get("selected_kernel")
+    output_ld = capture.get("output_logical_ld", capture.get("n", 0))
+    exact_wide = semantics in {"exact_wide_signed", "exact_wide_unsigned"}
+    output_domain = "exact_wide_limb_host" if exact_wide else "native_i64_u64_host"
+    output_layout = "fixed_u64_limbs" if exact_wide else ("scalar_u64" if semantics == "bounded_u64" else "scalar_i64")
+    status_policy = "structurally_elided" if exact_wide else "required"
+    limb_count = capture.get("exact_wide_limb_count") if exact_wide else None
+    capture["exact_output_contract"] = {
+        "requested_final_output": output_domain,
+        "limb_count": limb_count,
+        "output_logical_ld": output_ld,
+        "status_policy": status_policy,
+        "kernel_identity": selected_kernel,
+        "output_domain_after_measured_repeats": output_domain,
+        "final_checksum_export_after_repeats": False,
+    }
+    capture["export_variant"] = {
+        "name": "default",
+        "source": "current_backend_export_path",
+        "selector_source": "test_fixture_selected_kernel",
+        "selector_key": (
+            f"backend={capture.get('backend_selected')};semantics={semantics};m={capture.get('m')};"
+            f"n={capture.get('n')};k={capture.get('k')};selected_kernel={selected_kernel}"
+        ),
+        "selector_policy": "fixture_final_output_export",
+        "semantic_contract": semantics,
+        "backend": capture.get("backend_selected"),
+        "target_id": capture.get("device", {}).get("gcn_arch", "none"),
+        "prefix_contract": f"prefix={capture.get('prefix', 0)}",
+        "signedness": "signed" if semantics in {"bounded_i64", "exact_wide_signed"} else "unsigned",
+        "output_layout": output_layout,
+        "limb_count": limb_count,
+        "status_policy": status_policy,
+        "selector_status_policy": "none" if exact_wide else "range_checked_status_buffer",
+        "d2h_policy": "host_ld_padded",
+        "final_output_mode": "final_host_output",
+        "cache_visibility": "fixture_release_review",
+        "stale_entry_reason": None,
+        "status_elision_reason": "full_width_limb_export" if exact_wide else None,
+        "requires_tile_metadata": False,
+        "all_zero_tiled_output": False,
+        "selected_kernel": selected_kernel,
+        "constants_placement": "backend_default",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
+    capture["reconstruction_variant"] = {
+        "name": "default_garner",
+        "family": "garner_fixed_prefix",
+        "prefix_count": capture.get("prefix", 0),
+        "kernel_identity": selected_kernel,
+        "controller": "public_export_api",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
+
+
 def remove_gpu_events(capture: dict) -> None:
     timing = capture["timing_metadata"]
     timing["gpu_event_timing"] = False
@@ -300,6 +359,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         capture = vector
     if backend != "hip-vector-alu-int64":
         metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
+    attach_final_output_metadata(capture)
     set_phase(capture, end_to_end)
     return capture
 
@@ -343,6 +403,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         ),
         capture,
     )
+    attach_final_output_metadata(capture)
     return capture
 
 

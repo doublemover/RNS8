@@ -80,6 +80,12 @@ GRAPH_REPLAY_EXECUTION_MODES = {
     "hip_graph_replay_wrap64_pack_gemm_export",
 }
 AMDGPU_BUILTIN_MATRIX_FAMILIES = {"mfma", "smfmac", "wmma", "swmmac"}
+FINAL_OUTPUT_EXPORT_SEMANTICS = {
+    "bounded_i64",
+    "bounded_u64",
+    "exact_wide_signed",
+    "exact_wide_unsigned",
+}
 
 
 def requires_amdgpu_builtin_matrix_isa_proof(backend_family: str, metadata: dict[str, Any]) -> bool:
@@ -115,6 +121,57 @@ def expected_amdgpu_builtin_matrix_mnemonic(capture: dict[str, Any], metadata: d
     ):
         return f"v_{family}_i32_{shape}_{dtype}"
     return None
+
+
+def final_output_export_metadata_blockers(
+    capture: dict[str, Any],
+    *,
+    semantics: Any,
+    accelerator: bool,
+) -> list[str]:
+    if not accelerator or semantics not in FINAL_OUTPUT_EXPORT_SEMANTICS:
+        return []
+    exact_output = capture.get("exact_output_contract")
+    if isinstance(exact_output, dict) and exact_output.get("output_domain_after_measured_repeats") == "rns_residue_current":
+        return []
+    if capture.get("residue_output_mode", "host_export") != "host_export":
+        return []
+
+    blockers: list[str] = []
+    if not isinstance(exact_output, dict):
+        blockers.append("missing_final_output_contract_metadata")
+    else:
+        if exact_output.get("requested_final_output") not in {"native_i64_u64_host", "exact_wide_limb_host"}:
+            blockers.append("final_output_contract_not_host_output")
+        if not isinstance(exact_output.get("kernel_identity"), str) or not exact_output.get("kernel_identity"):
+            blockers.append("missing_final_output_kernel_identity")
+
+    export_variant = capture.get("export_variant")
+    if not isinstance(export_variant, dict):
+        blockers.append("missing_export_variant_metadata")
+    else:
+        if not isinstance(export_variant.get("selected_kernel"), str) or not export_variant.get("selected_kernel"):
+            blockers.append("missing_export_kernel_identity")
+        if export_variant.get("final_output_mode") != "final_host_output":
+            blockers.append("export_variant_not_final_host_output")
+        if export_variant.get("output_layout") in {None, "unknown"}:
+            blockers.append("missing_export_output_layout")
+        if export_variant.get("d2h_policy") in {None, "unknown"}:
+            blockers.append("missing_export_d2h_policy")
+
+    reconstruction_variant = capture.get("reconstruction_variant")
+    if not isinstance(reconstruction_variant, dict):
+        blockers.append("missing_reconstruction_variant_metadata")
+    else:
+        if (
+            not isinstance(reconstruction_variant.get("kernel_identity"), str)
+            or not reconstruction_variant.get("kernel_identity")
+        ):
+            blockers.append("missing_reconstruction_kernel_identity")
+        prefix_count = reconstruction_variant.get("prefix_count")
+        if not isinstance(prefix_count, int) or isinstance(prefix_count, bool) or prefix_count < 0:
+            blockers.append("missing_reconstruction_prefix_count")
+    return blockers
 
 
 def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
@@ -311,6 +368,16 @@ def review_next_work(
             "missing_selected_amdgpu_builtin_matrix_instruction",
             "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction",
         ),
+        ("missing_final_output_contract_metadata", "attach_final_output_contract_metadata_before_promotion"),
+        ("missing_final_output_kernel_identity", "attach_final_output_kernel_identity_before_promotion"),
+        ("missing_export_variant_metadata", "attach_export_variant_metadata_before_promotion"),
+        ("missing_export_kernel_identity", "attach_export_kernel_identity_before_promotion"),
+        ("export_variant_not_final_host_output", "reclassify_residue_current_or_capture_final_host_output"),
+        ("missing_export_output_layout", "attach_export_output_layout_before_promotion"),
+        ("missing_export_d2h_policy", "attach_export_d2h_policy_before_promotion"),
+        ("missing_reconstruction_variant_metadata", "attach_reconstruction_variant_metadata_before_promotion"),
+        ("missing_reconstruction_kernel_identity", "attach_reconstruction_kernel_identity_before_promotion"),
+        ("missing_reconstruction_prefix_count", "attach_reconstruction_prefix_count_before_promotion"),
         ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
         ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
     ]:
@@ -1345,6 +1412,13 @@ def review_captures(
                     or matrix_histogram.get(expected_matrix_mnemonic, 0) <= 0
                 ):
                     blockers.append("missing_selected_amdgpu_builtin_matrix_instruction")
+            blockers.extend(
+                final_output_export_metadata_blockers(
+                    item,
+                    semantics=semantics,
+                    accelerator=accelerator,
+                )
+            )
             item_checksum = capture_checksum(item)
             if item_checksum is None:
                 blockers.append("missing_checksum")
