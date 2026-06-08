@@ -133,6 +133,12 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
     ]
     for name, count in database["summary"]["bottleneck_counts"].items():
         lines.append(f"| {name} | {count} |")
+    append_count_table(
+        lines,
+        heading="## Pack Split Dominance",
+        value_heading="dominant operand",
+        counts=Counter(database.get("summary", {}).get("pack_split_dominant_counts") or {}),
+    )
     skipped = database.get("skipped_invalid_captures") or []
     if skipped:
         lines.extend(["", "## Skipped Invalid Captures", "", "| capture | error |", "|---|---|"])
@@ -220,8 +226,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
             "",
             "## Rows",
             "",
-            "| scenario | semantics | backend | kernel | shape | bottleneck | e2e us | GOP/s | AI ops/B | ISA | blockers |",
-            "|---|---|---|---|---|---|---:|---:|---:|---|---|",
+            "| scenario | semantics | backend | kernel | shape | bottleneck | pack split | e2e us | GOP/s | AI ops/B | ISA | blockers |",
+            "|---|---|---|---|---|---|---|---:|---:|---:|---|---|",
         ]
     )
     rows = sorted(
@@ -236,13 +242,14 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         shape = f"{row.get('m')}x{row.get('n')}x{row.get('k')}"
         blockers = ",".join(str(item) for item in row.get("promotion_blockers") or [])
         lines.append(
-            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {e2e} | {gops} | {ai} | {isa} | {blockers} |".format(
+            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {pack_split} | {e2e} | {gops} | {ai} | {isa} | {blockers} |".format(
                 scenario=row.get("scenario_family"),
                 semantics=row.get("semantics"),
                 backend=row.get("backend"),
                 kernel=row.get("selected_kernel"),
                 shape=shape,
                 bottleneck=row.get("bottleneck_class"),
+                pack_split=row.get("pack_split_dominant_operand") or "",
                 e2e=format_number(row.get("median_end_to_end_us")),
                 gops=format_number(row.get("measured_gops")),
                 ai=format_number(row.get("arithmetic_intensity_ops_per_byte")),

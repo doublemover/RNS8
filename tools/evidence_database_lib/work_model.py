@@ -4,7 +4,7 @@ from collections import defaultdict
 from statistics import median
 from typing import Any
 
-from .config import OPTIMIZATION_HINTS, PHASES
+from .config import DIAGNOSTIC_PHASES, OPTIMIZATION_HINTS, PHASES
 from .io import event_medians, median_phase
 from .isa import normalized_backend, normalized_target, safe_float, sorted_strings
 
@@ -51,14 +51,20 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     else:
         logical_ops = 2 * m * n * k * max(planes, 1)
         residue_bytes = m * n * max(planes, 1)
-    input_bytes = (m * k + k * n) * native_input_bytes_per_element(capture)
+    input_a_bytes = m * k * native_input_bytes_per_element(capture)
+    input_b_bytes = k * n * native_input_bytes_per_element(capture)
+    input_bytes = input_a_bytes + input_b_bytes
     output_bytes = m * n * output_bytes_per_element(capture)
     estimated_bytes = input_bytes + output_bytes + residue_bytes
     gemm_us = median_phase(capture, "rns_gemm")
     pack_us = median_phase(capture, "pack")
+    pack_a_us = median_phase(capture, "pack_a")
+    pack_b_us = median_phase(capture, "pack_b")
     export_us = median_phase(capture, "crt_export")
     return {
         "estimated_ops": logical_ops,
+        "estimated_input_a_bytes": input_a_bytes,
+        "estimated_input_b_bytes": input_b_bytes,
         "estimated_input_bytes": input_bytes,
         "estimated_output_bytes": output_bytes,
         "estimated_residue_bytes": residue_bytes,
@@ -66,7 +72,37 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
         "arithmetic_intensity_ops_per_byte": (logical_ops / estimated_bytes) if estimated_bytes else None,
         "measured_gops": (logical_ops / (gemm_us * 1000.0)) if gemm_us and gemm_us > 0 else None,
         "pack_bandwidth_gbs": (input_bytes / (pack_us * 1000.0)) if pack_us and pack_us > 0 else None,
+        "pack_a_bandwidth_gbs": (input_a_bytes / (pack_a_us * 1000.0)) if pack_a_us and pack_a_us > 0 else None,
+        "pack_b_bandwidth_gbs": (input_b_bytes / (pack_b_us * 1000.0)) if pack_b_us and pack_b_us > 0 else None,
         "export_bandwidth_gbs": (output_bytes / (export_us * 1000.0)) if export_us and export_us > 0 else None,
+    }
+
+
+def pack_split_diagnostics(capture: dict[str, Any]) -> dict[str, str | float | None]:
+    pack_a = median_phase(capture, "pack_a")
+    pack_b = median_phase(capture, "pack_b")
+    total = sum(value for value in (pack_a, pack_b) if value is not None)
+    if total <= 0:
+        return {
+            "pack_split_dominant_operand": None,
+            "pack_a_share_of_split": None,
+            "pack_b_share_of_split": None,
+        }
+    a_share = (pack_a / total) if pack_a is not None else None
+    b_share = (pack_b / total) if pack_b is not None else None
+    if a_share is not None and b_share is not None:
+        if abs(a_share - b_share) <= 0.10:
+            dominant = "balanced"
+        else:
+            dominant = "A" if a_share > b_share else "B"
+    elif a_share is not None:
+        dominant = "A"
+    else:
+        dominant = "B"
+    return {
+        "pack_split_dominant_operand": dominant,
+        "pack_a_share_of_split": a_share,
+        "pack_b_share_of_split": b_share,
     }
 
 
@@ -94,7 +130,7 @@ def classify_event_bottleneck(events: dict[str, float]) -> tuple[str | None, flo
 
 
 def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
-    medians = {phase: median_phase(capture, phase) for phase in PHASES}
+    medians = {phase: median_phase(capture, phase) for phase in DIAGNOSTIC_PHASES}
     end_to_end = medians.get("end_to_end")
     phase_values = {phase: medians[phase] for phase in ("pack", "rns_gemm", "crt_export") if medians[phase]}
     phase_shares = {
@@ -138,6 +174,7 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
         "event_bottleneck_class": event_class,
         "event_bottleneck_share": event_share,
         "event_category_medians_us": event_categories,
+        **pack_split_diagnostics(capture),
     }
 
 
@@ -203,6 +240,12 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
         pack_bw_values = [
             value for value in (safe_float(row.get("pack_bandwidth_gbs")) for row in grouped_rows) if value is not None
         ]
+        pack_a_bw_values = [
+            value for value in (safe_float(row.get("pack_a_bandwidth_gbs")) for row in grouped_rows) if value is not None
+        ]
+        pack_b_bw_values = [
+            value for value in (safe_float(row.get("pack_b_bandwidth_gbs")) for row in grouped_rows) if value is not None
+        ]
         export_bw_values = [
             value for value in (safe_float(row.get("export_bandwidth_gbs")) for row in grouped_rows) if value is not None
         ]
@@ -223,6 +266,11 @@ def build_roofline_priority(rows: list[dict[str, Any]], *, limit: int = 24) -> l
                 "median_arithmetic_intensity_ops_per_byte": median_or_none(ai_values),
                 "median_measured_gops": median_or_none(gops_values),
                 "median_pack_bandwidth_gbs": median_or_none(pack_bw_values),
+                "median_pack_a_bandwidth_gbs": median_or_none(pack_a_bw_values),
+                "median_pack_b_bandwidth_gbs": median_or_none(pack_b_bw_values),
+                "pack_split_dominant_operands": sorted_strings(
+                    [row.get("pack_split_dominant_operand") for row in grouped_rows]
+                ),
                 "median_export_bandwidth_gbs": median_or_none(export_bw_values),
                 "bottleneck_classes": sorted_strings([row.get("bottleneck_class") for row in grouped_rows]),
                 "bottleneck_phases": sorted_strings([row.get("bottleneck_phase") for row in grouped_rows]),

@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from .config import PHASES
+from .config import DIAGNOSTIC_PHASES
 from .isa import lookup_isa_resources, lookup_metadata
 from .work_model import (
     build_roofline_priority,
@@ -145,7 +145,7 @@ def build_row(
         **bottleneck,
         **isa_resources,
     }
-    for phase in PHASES:
+    for phase in DIAGNOSTIC_PHASES:
         row[f"median_{phase}_us"] = row["phase_medians_us"].get(phase)
     row["roofline_target"] = roofline_target_for_row(row)
     row["optimization_hint"] = optimization_hint_for_target(str(row["roofline_target"]))
@@ -181,6 +181,11 @@ def build_database(
     bottleneck_counts = Counter(str(row.get("bottleneck_class")) for row in rows)
     scenario_counts = Counter(str(row.get("scenario_family") or "unlabeled") for row in rows)
     backend_counts = Counter(str(row.get("backend")) for row in rows)
+    pack_split_dominant_counts = Counter(
+        str(row.get("pack_split_dominant_operand"))
+        for row in rows
+        if row.get("pack_split_dominant_operand")
+    )
     isa_report_paths = sorted(
         {
             str(path)
@@ -199,6 +204,7 @@ def build_database(
             "bottleneck_counts": dict(sorted(bottleneck_counts.items())),
             "scenario_counts": dict(sorted(scenario_counts.items())),
             "backend_counts": dict(sorted(backend_counts.items())),
+            "pack_split_dominant_counts": dict(sorted(pack_split_dominant_counts.items())),
             "isa_report_count": len(isa_report_paths),
             "captures_with_isa_resources": sum(1 for row in rows if row.get("isa_report_count", 0) > 0),
             "roofline_priority": roofline_priority,

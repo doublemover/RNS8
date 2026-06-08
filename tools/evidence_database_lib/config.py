@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 PHASES = ("pack", "rns_gemm", "crt_export", "end_to_end")
+PACK_SPLIT_PHASES = ("pack_a", "pack_b")
+DIAGNOSTIC_PHASES = PHASES + PACK_SPLIT_PHASES
 SKIP_JSON_NAMES = {
     "review_report.json",
     "scenario_manifest.json",
@@ -73,9 +75,14 @@ CSV_FIELDS = [
     "workload_proxy_label",
     "output_domain",
     "median_pack_us",
+    "median_pack_a_us",
+    "median_pack_b_us",
     "median_rns_gemm_us",
     "median_crt_export_us",
     "median_end_to_end_us",
+    "pack_split_dominant_operand",
+    "pack_a_share_of_split",
+    "pack_b_share_of_split",
     "bottleneck_class",
     "bottleneck_phase",
     "bottleneck_share",
@@ -84,10 +91,14 @@ CSV_FIELDS = [
     "event_bottleneck_class",
     "event_bottleneck_share",
     "estimated_ops",
+    "estimated_input_a_bytes",
+    "estimated_input_b_bytes",
     "estimated_bytes",
     "arithmetic_intensity_ops_per_byte",
     "measured_gops",
     "pack_bandwidth_gbs",
+    "pack_a_bandwidth_gbs",
+    "pack_b_bandwidth_gbs",
     "export_bandwidth_gbs",
     "isa_evidence",
     "isa_report_count",

@@ -262,8 +262,10 @@ inspection commands.
   kernel or reuse work. Promoted autotune cache entries and `rns8-inspect`
   cache-hit output preserve `pack_a` and `pack_b` medians when present. Release
   review candidates and the supported failure-summary tool now also print the
-  split pack medians, so the diagnosis survives review refresh, cache
-  installation, and compact VM triage output.
+  split pack medians, and the evidence database records per-side pack medians,
+  bandwidth estimates, and dominant operand classification. The diagnosis now
+  survives review refresh, cache installation, compact VM triage output, and
+  durable JSON/CSV/Markdown evidence export.
 - Remaining work: add task-level split timing for host-batch/grouped-dispatch
   captures, GPU-event split labels for Direct-HIP pack kernels that currently
   report only aggregate pack, and then implement the actual coalesced/vectorized

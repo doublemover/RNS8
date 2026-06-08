@@ -158,6 +158,8 @@ def main() -> int:
         assert skipped_invalid[0]["capture_path"] == str(invalid_capture)
 
         captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
+        captures[0]["timing_summary_us"]["pack_a"] = {"avg": 24.0, "median": 24.0, "p95": 24.0}
+        captures[0]["timing_summary_us"]["pack_b"] = {"avg": 16.0, "median": 16.0, "p95": 16.0}
         database = evidence_database.build_database(
             captures,
             scenario_index=evidence_database.load_scenario_index([scenario_manifest]),
@@ -173,6 +175,7 @@ def main() -> int:
         assert database["summary"]["isa_report_count"] == 1
         assert database["summary"]["captures_with_isa_resources"] == 1
         assert database["summary"]["skipped_invalid_capture_count"] == 1
+        assert database["summary"]["pack_split_dominant_counts"] == {"A": 1}
         assert database["skipped_invalid_captures"] == skipped_invalid
         assert database["summary"]["roofline_priority"]
         assert database["summary"]["gpu_roofline_priority"]
@@ -211,8 +214,17 @@ def main() -> int:
         assert "key_switch_digit_aggregation" in hip_row["scenario_metadata_json"]
         assert hip_row["promotion_blockers"] == ["missing_required_baseline:cpu-reference"]
         assert hip_row["estimated_ops"] > 0
+        assert hip_row["estimated_input_a_bytes"] == 2048
+        assert hip_row["estimated_input_b_bytes"] == 2048
         assert hip_row["estimated_bytes"] > 0
         assert hip_row["arithmetic_intensity_ops_per_byte"] > 0
+        assert hip_row["median_pack_a_us"] == 24.0
+        assert hip_row["median_pack_b_us"] == 16.0
+        assert hip_row["pack_split_dominant_operand"] == "A"
+        assert hip_row["pack_a_share_of_split"] == 0.6
+        assert hip_row["pack_b_share_of_split"] == 0.4
+        assert hip_row["pack_a_bandwidth_gbs"] == 2048 / (24.0 * 1000.0)
+        assert hip_row["pack_b_bandwidth_gbs"] == 2048 / (16.0 * 1000.0)
         assert hip_row["bottleneck_class"] in {
             "compute_bound",
             "export_bound",
@@ -252,6 +264,9 @@ def main() -> int:
         csv_text = Path(outputs["evidence_rows_csv"]).read_text(encoding="utf-8")
         assert "scenario_family" in csv_text
         assert "isa_matrix_instruction_count" in csv_text
+        assert "median_pack_a_us" in csv_text
+        assert "pack_split_dominant_operand" in csv_text
+        assert "pack_a_bandwidth_gbs" in csv_text
         assert "isa_dense_integer_matrix_instruction_count" in csv_text
         assert "isa_wmma_count" in csv_text
         assert "scenario_source_role" in csv_text
@@ -259,6 +274,9 @@ def main() -> int:
         assert "scenario_large_shape_role" in csv_text
         assert "scenario_grouping_role" in csv_text
         assert "native_vector_to_rns_candidate" in csv_text
+        md_text = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
+        assert "## Pack Split Dominance" in md_text
+        assert "| A | 1 |" in md_text
         assert "exploratory_only" in csv_text
         assert "key_switch_digit_aggregation" in csv_text
         markdown = Path(outputs["evidence_summary"]).read_text(encoding="utf-8")
