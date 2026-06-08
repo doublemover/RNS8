@@ -461,11 +461,16 @@ Args parse_args(int argc, char** argv) {
     usage_error("tile dimensions must be powers of two from 64 through 512");
   }
   if (args.sparse_a_4_to_2) {
-    if (!finite_benchmark_semantics(args.semantics)) {
-      usage_error("--sparse-a-4-to-2 currently requires finite-u8 semantics");
+    const bool supported_sparse_semantics =
+        finite_benchmark_semantics(args.semantics) || bounded_benchmark_semantics(args.semantics);
+    if (!supported_sparse_semantics) {
+      usage_error("--sparse-a-4-to-2 currently requires finite-u8, bounded-i64, or bounded-u64 semantics");
     }
     if (args.k % 4 != 0) {
       usage_error("--sparse-a-4-to-2 requires K divisible by 4");
+    }
+    if (bounded_benchmark_semantics(args.semantics) && args.input_profile != InputProfile::UniformSmall) {
+      usage_error("--sparse-a-4-to-2 bounded RNS captures currently require --input-profile uniform-small");
     }
     if (args.sparse_a_4_to_2_dense_baseline && args.backend == RNS8_BACKEND_CPU_REFERENCE) {
       usage_error("--sparse-a-4-to-2-dense-baseline requires a GPU dense baseline backend");
@@ -477,8 +482,12 @@ Args parse_args(int argc, char** argv) {
     }
     if (args.oneshot || grouped_task_executor_requested_for_args(args) || args.hip_graph_replay ||
         args.reuse_packed_inputs || args.reuse_packed_a || args.reuse_packed_b ||
-        args.incremental_result_cache != "none") {
-      usage_error("--sparse-a-4-to-2 supports only persistent single-capture finite-u8 runs in this pass");
+        args.incremental_result_cache != "none" || args.residue_chain_length != 1 ||
+        args.native_to_rns_bridge || args.vector_to_rns_chain || args.transient_uniform_small_inputs ||
+        args.residue_channel_fusion || args.vector_alu_baseline ||
+        args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+      usage_error(
+          "--sparse-a-4-to-2 supports only persistent single-capture finite-u8 or bounded RNS runs in this pass");
     }
   }
   if (args.semantics == BenchSemantics::WrapU64Mod2_64 && args.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&

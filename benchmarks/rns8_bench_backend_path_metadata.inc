@@ -77,7 +77,18 @@ bool finite_sparse_a_4_to_2_path(const Args& args, const BenchmarkResult& result
           result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS);
 }
 
+bool rns_sparse_a_4_to_2_path(const Args& args, const BenchmarkResult& result) {
+  return args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline &&
+         bounded_benchmark_semantics(args.semantics) &&
+         result.backend_info_available &&
+         (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE ||
+          result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS);
+}
+
 const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResult& result) {
+  if (rns_sparse_a_4_to_2_path(args, result)) {
+    return "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns";
+  }
   if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
     return "direct_hip_skinny_gemv_n1_resident_rns";
   }
@@ -98,7 +109,7 @@ const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResul
 }
 
 const char* backend_metadata_source(const Args& args, const BenchmarkResult& result) {
-  if (finite_sparse_a_4_to_2_path(args, result)) {
+  if (finite_sparse_a_4_to_2_path(args, result) || rns_sparse_a_4_to_2_path(args, result)) {
     return "rns8_bench_explicit_sparse_a_4_to_2_path";
   }
   if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
@@ -495,6 +506,81 @@ void apply_finite_sparse_a_4_to_2_backend_metadata(const Args& args, BenchmarkRe
           ? "amdgpu_builtin_sparse_a_matrix_core_isa_gate_no_divide"
           : "cpu_reference_expand_sparse_a_then_dense_finite_u8");
   const std::string key = finite_sparse_a_4_to_2_autotune_key(args, result, kernel);
+  set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
+}
+
+const char* rns_sparse_a_4_to_2_kernel(const BenchmarkResult& result) {
+  if (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE) {
+    return "cpu_reference_sparse_a_4_to_2_expand_then_rns_gemm_v1";
+  }
+  if (result.target_id.rfind("gfx120", 0) == 0) {
+    return "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1";
+  }
+  return "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1";
+}
+
+std::string rns_sparse_a_4_to_2_autotune_key(
+    const Args& args,
+    const BenchmarkResult& result,
+    const char* kernel,
+    uint64_t bound) {
+  std::ostringstream out;
+  const uint32_t selected_prefix = selected_execution_prefix(args, result);
+  out << "backend=" << backend_name(result.backend_info.backend)
+      << ";target_id=" << benchmark_key_target_id(result)
+      << ";semantics=" << semantics_name(args.semantics)
+      << ";m=" << args.m
+      << ";n=" << args.n
+      << ";k=" << args.k
+      << ";bound=" << bound
+      << ";input_profile=" << input_profile_name(args)
+      << ";prefix=" << selected_prefix
+      << ";requested_max_prefix=" << benchmark_prefix(args)
+      << ";prefix_policy=" << prefix_policy_name(args, result)
+      << ";tile_m=" << args.tile_m
+      << ";tile_n=" << args.tile_n
+      << ";groups=" << result.schedule_info.prefix_group_count
+      << ";adaptive_prefix=" << result.schedule_info.adaptive_prefix_active
+      << ";adaptive_skip=" << result.schedule_info.adaptive_skip_active
+      << ";schedule_flags=" << result.schedule_info.flags
+      << ";zero_output_tiles=" << result.zero_output_tile_count
+      << ";sparse_contract=a_4_to_2_structured_k_v1"
+      << ";sparse_operand=A"
+      << ";sparse_group_size=4"
+      << ";sparse_nonzeros_per_group=2"
+      << ";sparse_index_layout=canonical_2bit_k_groups_v1"
+      << ";sparse_value_signedness=signed_i8"
+      << ";dense_operand=B";
+  append_accumulator_key_fields(out, result.backend_info);
+  out << ";kernel=" << kernel
+      << ";epilogue=sparse_a_centered_residue_rns_output";
+  return out.str();
+}
+
+void apply_rns_sparse_a_4_to_2_backend_metadata(const Args& args, BenchmarkResult& result, uint64_t bound) {
+  if (!rns_sparse_a_4_to_2_path(args, result)) {
+    return;
+  }
+  result.backend_info.performance_validated = 0;
+  const char* kernel = rns_sparse_a_4_to_2_kernel(result);
+  set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
+  set_backend_text(
+      result.backend_info.epilogue_mode,
+      sizeof(result.backend_info.epilogue_mode),
+      result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS
+          ? "amdgpu_builtin_sparse_a_fused_i32_to_centered_residue_rns_output"
+          : "centered_residue_rns_output");
+  set_backend_text(
+      result.backend_info.workspace_mode,
+      sizeof(result.backend_info.workspace_mode),
+      "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns");
+  set_backend_text(
+      result.backend_info.isa_evidence,
+      sizeof(result.backend_info.isa_evidence),
+      result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS
+          ? "amdgpu_builtin_sparse_a_matrix_core_isa_gate_no_divide"
+          : "cpu_reference_expand_sparse_a_then_dense_rns");
+  const std::string key = rns_sparse_a_4_to_2_autotune_key(args, result, kernel, bound);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 

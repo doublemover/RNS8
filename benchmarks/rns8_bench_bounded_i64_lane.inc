@@ -14,6 +14,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   const int64_t ldc = output_logical_ld(args);
   std::vector<int64_t> C(output_elements(args, "C"), INT64_C(0x5a5a5a5a5a5a5a5a));
   fill_bounded_i64_inputs(args, A, B, rng);
+  if (args.sparse_a_4_to_2) {
+    fill_sparse_a_4_to_2_bounded_i64_input(args, A, rng);
+  }
 
   BenchmarkResult result{};
   bound = resolve_bounded_global_bound(args, A, B, bound, result);
@@ -35,7 +38,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   apply_bounded_native_b_reuse_a_backend_metadata(args, result, bound);
   apply_bounded_uniform_small_i8_ab_transient_backend_metadata(args, result, bound);
   apply_bounded_direct_hip_skinny_gemv_n1_backend_metadata(args, result, bound);
+  apply_rns_sparse_a_4_to_2_backend_metadata(args, result, bound);
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
+  const bool use_sparse_a_4_to_2 = rns_sparse_a_4_to_2_path(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_b =
@@ -60,6 +65,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   result.plan_us = elapsed_us(plan_start, plan_end);
 
   rns8_matrix* a_matrix = nullptr;
+  rns8_sparse_matrix* sparse_a_matrix = nullptr;
   rns8_matrix* b_matrix = nullptr;
   rns8_matrix* c_matrix = nullptr;
   rns8_matrix* a_stream_matrix = nullptr;
@@ -88,7 +94,11 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
       use_uniform_small_i8_ab_device_inputs
           ? checked_bytes(uniform_small_b.size(), sizeof(int8_t), "uniform-small B")
           : 0;
-  if (use_uniform_small_i8_ab_device_inputs) {
+  if (use_sparse_a_4_to_2) {
+    rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
+    status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
+    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+  } else if (use_uniform_small_i8_ab_device_inputs) {
     uniform_small_a_device.allocate(args.device_id, uniform_small_a_bytes, "hip_direct_allocate(bounded i64 i8 A)");
     uniform_small_b_device.allocate(args.device_id, uniform_small_b_bytes, "hip_direct_allocate(bounded i64 i8 B)");
   } else if (use_native_a_reuse_b) {
@@ -121,7 +131,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   const bool use_result_cache_candidate =
       incremental_result_cache_runtime_candidate_requested(args, selected_backend) &&
-      !use_native_a_reuse_b && !use_uniform_small_i8_ab_transient &&
+      !use_sparse_a_4_to_2 && !use_native_a_reuse_b && !use_uniform_small_i8_ab_transient &&
       !use_uniform_small_i8_ab_reuse_a && !use_uniform_small_i8_ab_reuse_b &&
       !streaming_overlap_path && !skip_all_zero_direct_hip_input_pack;
   if (use_result_cache_candidate) {
@@ -132,6 +142,12 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
   const auto pack_a_input = [&](uint64_t source_version) {
+    if (use_sparse_a_4_to_2) {
+      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
+      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      return;
+    }
     if (use_uniform_small_i8_ab_reuse_a || use_uniform_small_i8_ab_transient) {
       (void)source_version;
       status = run_timed_status_operation("bounded_uniform_small_i8_a_h2d", [&]() {
@@ -397,21 +413,27 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
             result_cache ? result_cache_dirty_regions.data() : nullptr;
         const uint32_t dirty_region_count =
             result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
-        status = run_rns_gemm_with_optional_b_cache(
-            ctx,
-            plan,
-            lhs_matrix,
-            b_matrix,
-            b_prepack_cache,
-            out_matrix,
-            workspace,
-            result_cache,
-            dirty_regions,
-            dirty_region_count);
+        if (use_sparse_a_4_to_2) {
+          status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+        } else {
+          status = run_rns_gemm_with_optional_b_cache(
+              ctx,
+              plan,
+              lhs_matrix,
+              b_matrix,
+              b_prepack_cache,
+              out_matrix,
+              workspace,
+              result_cache,
+              dirty_regions,
+              dirty_region_count);
+        }
         if (status != RNS8_SUCCESS) {
           fail_status(
-              result_cache ? "rns8_gemm_rns_incremental"
-                           : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+              use_sparse_a_4_to_2
+                  ? "rns8_gemm_rns_sparse_a"
+                  : result_cache ? "rns8_gemm_rns_incremental"
+                                 : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
               status);
         }
         final_output_matrix = out_matrix;
@@ -546,6 +568,9 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   if (a_matrix) {
     rns8_destroy_matrix(a_matrix);
+  }
+  if (sparse_a_matrix) {
+    rns8_destroy_sparse_matrix(sparse_a_matrix);
   }
   rns8_destroy_workspace(workspace);
   rns8_destroy_plan(plan);

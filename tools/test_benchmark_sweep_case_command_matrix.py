@@ -391,18 +391,24 @@ sparse_args = copy.copy(scenario_args)
 sparse_args.backends = None
 sparse_args.scenario = ["sparse-a-4-to-2"]
 sparse_entries = benchmark_sweep.sweep_command_entries(sparse_args)
-assert len(sparse_entries) == 24
+assert len(sparse_entries) == 40
 assert {entry.scenario["family"] for entry in sparse_entries} == {"sparse-a-4-to-2"}
 assert {entry.scenario["sparse_a_4_to_2"] for entry in sparse_entries} == {True}
 assert {entry.scenario["backend"] for entry in sparse_entries} == {"cpu", "hip-direct", "amdgpu-builtins"}
-assert {entry.scenario["modulus"] for entry in sparse_entries} == {251, 255}
+assert {entry.scenario["modulus"] for entry in sparse_entries} == {None, 251, 255}
+assert {entry.scenario["semantics"] for entry in sparse_entries} == {
+    "bounded-i64",
+    "bounded-u64",
+    "finite-u8-field",
+    "finite-u8-ring",
+}
 assert all("--sparse-a-4-to-2" in entry.command for entry in sparse_entries)
 assert all("sparse-a-4to2" in entry.output.name for entry in sparse_entries)
 assert all("scenarios" in entry.output.parts and "sparse-a-4-to-2" in entry.output.parts for entry in sparse_entries)
 dense_sparse_entries = [
     entry for entry in sparse_entries if entry.scenario["sparse_a_4_to_2_dense_baseline"] is True
 ]
-assert len(dense_sparse_entries) == 6
+assert len(dense_sparse_entries) == 10
 assert {entry.scenario["backend"] for entry in dense_sparse_entries} == {"amdgpu-builtins"}
 assert all("--sparse-a-4-to-2-dense-baseline" in entry.command for entry in dense_sparse_entries)
 assert all("dense-baseline" in entry.output.name for entry in dense_sparse_entries)

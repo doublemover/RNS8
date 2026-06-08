@@ -48,6 +48,47 @@ void fill_bounded_u64_inputs(
   }
 }
 
+int64_t sample_nonzero_sparse_i64(std::mt19937_64& rng) {
+  std::uniform_int_distribution<int64_t> dist(-16, 15);
+  const int64_t value = dist(rng);
+  return value >= 0 ? value + 1 : value;
+}
+
+uint64_t sample_nonzero_sparse_u64(std::mt19937_64& rng) {
+  std::uniform_int_distribution<uint64_t> dist(1, 16);
+  return dist(rng);
+}
+
+void fill_sparse_a_4_to_2_bounded_i64_input(const Args& args, std::vector<int64_t>& A, std::mt19937_64& rng) {
+  std::fill(A.begin(), A.end(), int64_t{0});
+  std::uniform_int_distribution<uint32_t> first_lane_dist(0, 2);
+  for (int64_t row = 0; row < args.m; ++row) {
+    for (int64_t group = 0; group < args.k / 4; ++group) {
+      const uint32_t lo = first_lane_dist(rng);
+      std::uniform_int_distribution<uint32_t> second_lane_dist(lo + 1, 3);
+      const uint32_t hi = second_lane_dist(rng);
+      const std::size_t base = static_cast<std::size_t>(row * args.k + group * 4);
+      A[base + lo] = sample_nonzero_sparse_i64(rng);
+      A[base + hi] = sample_nonzero_sparse_i64(rng);
+    }
+  }
+}
+
+void fill_sparse_a_4_to_2_bounded_u64_input(const Args& args, std::vector<uint64_t>& A, std::mt19937_64& rng) {
+  std::fill(A.begin(), A.end(), uint64_t{0});
+  std::uniform_int_distribution<uint32_t> first_lane_dist(0, 2);
+  for (int64_t row = 0; row < args.m; ++row) {
+    for (int64_t group = 0; group < args.k / 4; ++group) {
+      const uint32_t lo = first_lane_dist(rng);
+      std::uniform_int_distribution<uint32_t> second_lane_dist(lo + 1, 3);
+      const uint32_t hi = second_lane_dist(rng);
+      const std::size_t base = static_cast<std::size_t>(row * args.k + group * 4);
+      A[base + lo] = sample_nonzero_sparse_u64(rng);
+      A[base + hi] = sample_nonzero_sparse_u64(rng);
+    }
+  }
+}
+
 int8_t uniform_small_i64_to_i8(int64_t value) {
   if (value < -16 || value > 16) {
     usage_error("uniform-small i64 fast path received an input outside [-16, 16]");
@@ -76,6 +117,56 @@ std::vector<int8_t> make_uniform_small_i8_inputs(const std::vector<uint64_t>& va
     packed[index] = uniform_small_u64_to_i8(values[index]);
   }
   return packed;
+}
+
+template <typename T>
+std::vector<uint8_t> make_sparse_a_4_to_2_rns_planes(
+    const Args& args,
+    uint32_t prefix,
+    const std::vector<T>& values) {
+  if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+    usage_error("sparse-A RNS packing requires a selected nonzero prefix");
+  }
+  std::vector<uint8_t> planes(
+      checked_elements(static_cast<int64_t>(prefix) * args.m, args.k, "sparse A RNS planes"));
+  for (uint32_t p = 0; p < prefix; ++p) {
+    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
+    for (int64_t row = 0; row < args.m; ++row) {
+      for (int64_t col = 0; col < args.k; ++col) {
+        const std::size_t dense_index = static_cast<std::size_t>(row * args.k + col);
+        int8_t residue = 0;
+        if constexpr (std::is_signed_v<T>) {
+          residue = rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
+        } else {
+          residue = rns8::detail::centered_residue(rns8::detail::cpp_int(values[dense_index]), modulus);
+        }
+        const std::size_t plane_index =
+            (static_cast<std::size_t>(p) * static_cast<std::size_t>(args.m) + static_cast<std::size_t>(row)) *
+                static_cast<std::size_t>(args.k) +
+            static_cast<std::size_t>(col);
+        planes[plane_index] = static_cast<uint8_t>(residue);
+      }
+    }
+  }
+  return planes;
+}
+
+rns8_sparse_matrix_desc sparse_a_4_to_2_rns_desc(const Args& args, uint32_t prefix) {
+  rns8_sparse_matrix_desc sparse_desc{};
+  sparse_desc.struct_size = sizeof(sparse_desc);
+  sparse_desc.abi_version = RNS8_ABI_VERSION;
+  sparse_desc.semantics = c_semantics(args.semantics);
+  sparse_desc.bound_kind = bound_kind(args);
+  sparse_desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  sparse_desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  sparse_desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  sparse_desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+  sparse_desc.rows = args.m;
+  sparse_desc.expanded_k = args.k;
+  sparse_desc.group_size = 4;
+  sparse_desc.nonzeros_per_group = 2;
+  sparse_desc.max_prefix = prefix;
+  return sparse_desc;
 }
 
 uint64_t benchmark_bound(const Args& args) {

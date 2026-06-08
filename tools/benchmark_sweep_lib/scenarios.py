@@ -353,22 +353,28 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             metadata=_metadata(raw, label=label),
         )
         if item.sparse_a_4_to_2:
-            if item.semantics not in {"finite-u8-ring", "finite-u8-field"}:
-                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8 semantics")
+            if item.semantics not in {"finite-u8-ring", "finite-u8-field", "bounded-i64", "bounded-u64"}:
+                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8 or bounded RNS semantics")
             if item.case.k % 4 != 0:
                 raise SystemExit(f"{label}.sparse_a_4_to_2 requires K divisible by 4")
+            if item.semantics in {"bounded-i64", "bounded-u64"} and item.case.input_profile != "uniform-small":
+                raise SystemExit(f"{label}.sparse_a_4_to_2 bounded RNS scenarios require uniform-small input_profile")
             if item.pack_mode != "per_repeat_repack":
                 raise SystemExit(f"{label}.sparse_a_4_to_2 cannot use packed-input reuse in this pass")
             supported_backends = {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"}
             unsupported = [backend for backend in item.backends or () if backend not in supported_backends]
             if unsupported:
-                raise SystemExit(f"{label}.sparse_a_4_to_2 supports only finite-u8 CPU/direct/accelerator backends")
+                raise SystemExit(f"{label}.sparse_a_4_to_2 supports only CPU/direct/accelerator backends")
             if (
                 item.oneshot
                 or item.host_api_batch_size > 1
                 or item.grouped_dispatch_tasks > 1
                 or item.hip_graph_replay
                 or item.incremental_result_cache != "none"
+                or item.residue_chain_length != 1
+                or item.native_to_rns_bridge
+                or item.vector_to_rns_chain
+                or item.residue_channel_fusion
             ):
                 raise SystemExit(
                     f"{label}.sparse_a_4_to_2 supports only persistent single-capture scenarios in this pass"

@@ -3,6 +3,7 @@
   "generated_namespace": "rns8_metadata",
   "benchmark_execution_modes": [
     "persistent_resident_matrices",
+    "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns",
     "public_oneshot_transient_native_inputs",
     "benchmark_owned_vector_alu_native_buffers",
     "benchmark_owned_vector_alu_gemv_n1_native_buffers",

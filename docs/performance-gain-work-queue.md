@@ -418,10 +418,14 @@ inspection commands.
 - Local progress: `rns8-bench --sparse-a-4-to-2` now generates explicit
   finite-u8 sparse-A 4:2 inputs, records the structured sparse input
   distribution, routes CPU through sparse expand-to-dense reference, and
-  validates CPU sparse captures through schema v4. CPU sparse-A contract tests
-  now cover finite-u8, bounded i64/u64, and exact-wide signed/unsigned
-  expand-to-dense parity against the dense CPU reference, including source
-  version stamping on sparse RNS GEMM outputs.
+  validates CPU sparse captures through schema v4. Bounded i64/u64 benchmark
+  lanes now also generate true 4:2 sparse native A inputs, pack them into signed
+  centered RNS sparse planes, route CPU/AMDGPU builtin captures through
+  `rns8_gemm_rns_sparse_a`, keep dense-baseline captures on the dense path for
+  the same sparse-shaped input, and schema-validate tiny CPU sparse bounded
+  captures. CPU sparse-A contract tests now cover finite-u8, bounded i64/u64,
+  and exact-wide signed/unsigned expand-to-dense parity against the dense CPU
+  reference, including source version stamping on sparse RNS GEMM outputs.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 

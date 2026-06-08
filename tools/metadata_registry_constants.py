@@ -19,6 +19,7 @@ BENCHMARK_EXECUTION_MODES = {
     'public_oneshot_transient_native_inputs',
     'public_runtime_vector_alu_gemv_n1_native_buffers',
     'public_runtime_vector_alu_native_buffers',
+    'resident_sparse_a_explicit_4_to_2_contract_dense_b_rns',
     'residue_chain_final_host_export',
     'residue_chain_independent_final_host_export',
     'residue_channel_fusion_native_inputs',

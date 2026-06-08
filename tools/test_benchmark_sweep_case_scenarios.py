@@ -243,6 +243,31 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("expected invalid sparse-A K shape to fail validation")
 
+    bounded_item = copy.deepcopy(payload["items"][0])
+    bounded_item["case"]["k"] = 128
+    bounded_item["semantics"] = "bounded-i64"
+    bounded_item["name"] = "bounded-i64-sparse-a-valid"
+    bounded_item["finite_moduli"] = [None]
+    bounded_item["backends"] = ["cpu", "amdgpu-builtins"]
+    payload["items"] = [bounded_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    loaded_bounded_sparse = benchmark_sweep.load_scenario_data_family(scenario_path)
+    assert loaded_bounded_sparse[0].semantics == "bounded-i64"
+    assert loaded_bounded_sparse[0].sparse_a_4_to_2 is True
+
+    exact_wide_item = copy.deepcopy(bounded_item)
+    exact_wide_item["semantics"] = "exact-wide-signed"
+    exact_wide_item["name"] = "exact-wide-sparse-a-invalid"
+    exact_wide_item["exact_wide_limb_counts"] = [4]
+    payload["items"] = [exact_wide_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        benchmark_sweep.load_scenario_data_family(scenario_path)
+    except SystemExit as exc:
+        assert "sparse_a_4_to_2 requires finite-u8 or bounded RNS semantics" in str(exc)
+    else:
+        raise AssertionError("expected exact-wide sparse-A scenario to fail until its benchmark lane is implemented")
+
     bad_item = copy.deepcopy(payload["items"][0])
     bad_item["sparse_a_4_to_2"] = False
     bad_item["sparse_a_4_to_2_dense_baseline"] = True

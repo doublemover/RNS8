@@ -163,16 +163,19 @@ bool collect_direct_hip_grouped_dispatch_pack_gpu_events(
 void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   if (args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline &&
-      finite_benchmark_semantics(args.semantics)) {
+      (finite_benchmark_semantics(args.semantics) || bounded_benchmark_semantics(args.semantics))) {
     const double sparse_values_h2d = sum_event_label(events, samples, "pack", "sparse_a_values_h2d");
     const double sparse_indices_h2d = sum_event_label(events, samples, "pack", "sparse_a_indices_h2d");
-    const double dense_b_h2d = sum_event_label(events, samples, "pack", "finite_pack_h2d");
-    const double dense_b_kernel = sum_event_label(events, samples, "pack", "finite_pack_kernel");
+    const bool finite = finite_benchmark_semantics(args.semantics);
+    const char* dense_b_h2d_label = finite ? "finite_pack_h2d" : "pack_h2d";
+    const char* dense_b_kernel_label = finite ? "finite_pack_kernel" : "pack_kernel";
+    const double dense_b_h2d = sum_event_label(events, samples, "pack", dense_b_h2d_label);
+    const double dense_b_kernel = sum_event_label(events, samples, "pack", dense_b_kernel_label);
     if (events.complete) {
       push_gpu_event_value(events, "sparse_a_values_h2d", sparse_values_h2d);
       push_gpu_event_value(events, "sparse_a_indices_h2d", sparse_indices_h2d);
-      push_gpu_event_value(events, "finite_pack_h2d", dense_b_h2d);
-      push_gpu_event_value(events, "finite_pack_kernel", dense_b_kernel);
+      push_gpu_event_value(events, dense_b_h2d_label, dense_b_h2d);
+      push_gpu_event_value(events, dense_b_kernel_label, dense_b_kernel);
       push_gpu_event_value(events, "pack", sparse_values_h2d + sparse_indices_h2d + dense_b_h2d + dense_b_kernel);
     }
     return;
