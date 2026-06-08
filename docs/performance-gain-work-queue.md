@@ -336,7 +336,11 @@ inspection commands.
   actual instruction histogram. AMDGPU builtin GPU-event capture now records
   the selected target-specific matrix-core label instead of a generic backend
   label, including local bounded and finite-u8 schema smokes for the RDNA3
-  WMMA route.
+  WMMA route. Local differential coverage now also compares AMDGPU builtin
+  exact-wide signed/unsigned RNS output against the CPU reference, and a tiny
+  benchmark smoke schema-validates the exact-wide RDNA3 WMMA selected kernel,
+  matrix metadata, and `amdgpu_builtin_fused_i32_to_centered_residue_rns_output`
+  epilogue.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
