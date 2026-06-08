@@ -463,8 +463,10 @@ Args parse_args(int argc, char** argv) {
     if (args.k % 4 != 0) {
       usage_error("--sparse-a-4-to-2 requires K divisible by 4");
     }
-    if (args.backend != RNS8_BACKEND_CPU_REFERENCE && args.backend != RNS8_BACKEND_AMDGPU_BUILTINS) {
-      usage_error("--sparse-a-4-to-2 currently requires --backend cpu or --backend amdgpu-builtins");
+    if (args.backend != RNS8_BACKEND_CPU_REFERENCE && args.backend != RNS8_BACKEND_HIP_DIRECT &&
+        args.backend != RNS8_BACKEND_HIPBLASLT && args.backend != RNS8_BACKEND_CK &&
+        args.backend != RNS8_BACKEND_ROCWMMA && args.backend != RNS8_BACKEND_AMDGPU_BUILTINS) {
+      usage_error("--sparse-a-4-to-2 currently requires a finite-u8 CPU, Direct-HIP, or accelerator backend");
     }
     if (args.oneshot || grouped_task_executor_requested_for_args(args) || args.hip_graph_replay ||
         args.reuse_packed_inputs || args.reuse_packed_a || args.reuse_packed_b ||

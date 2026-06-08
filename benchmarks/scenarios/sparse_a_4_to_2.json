@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "family": "sparse-a-4-to-2",
+  "items": [
+    {
+      "name": "finite-ring-sparse-a-small-128",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-sparse-a-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "explicit finite-u8 sparse-A 4:2 structured input contract",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "compares exact sparse-A CPU reference, dense Direct-HIP baseline on the same expanded input, and AMDGPU sparse runtime dispatch before sparse promotion is allowed",
+      "backends": ["cpu", "hip-direct", "amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "execution_path_evidence",
+      "finite_moduli": [251, 255],
+      "sparse_a_4_to_2": true,
+      "metadata": {
+        "workflow_name": "sparse_a_4_to_2_contract_evidence",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "sparse_a_4_to_2_128",
+        "sparse_contract": "a_4_to_2_structured_k_v1",
+        "sparse_operand": "A",
+        "dense_baseline_required": "same_expanded_sparse_input_direct_hip",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "finite-field-sparse-a-small-128",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-sparse-a-128",
+        "m": 128,
+        "n": 128,
+        "k": 128,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "explicit finite-field sparse-A 4:2 structured input contract",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps prime-field sparse-A evidence separate from finite-ring evidence while comparing CPU, dense Direct-HIP, and AMDGPU sparse routes",
+      "backends": ["cpu", "hip-direct", "amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "execution_path_evidence",
+      "finite_moduli": [251],
+      "sparse_a_4_to_2": true,
+      "metadata": {
+        "workflow_name": "sparse_a_4_to_2_contract_evidence",
+        "domain_family": "prime_field_u8",
+        "shape_family": "sparse_a_4_to_2_128",
+        "sparse_contract": "a_4_to_2_structured_k_v1",
+        "sparse_operand": "A",
+        "dense_baseline_required": "same_expanded_sparse_input_direct_hip",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "finite-ring-sparse-a-medium-512",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-sparse-a-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "medium explicit finite-u8 sparse-A 4:2 structured input contract",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "checks whether sparse-A setup and matrix-core runtime have any setup-inclusive chance after small-shape launch overhead is reduced",
+      "backends": ["cpu", "hip-direct", "amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "execution_path_evidence",
+      "finite_moduli": [251, 255],
+      "sparse_a_4_to_2": true,
+      "metadata": {
+        "workflow_name": "sparse_a_4_to_2_contract_evidence",
+        "domain_family": "finite_ring_u8",
+        "shape_family": "sparse_a_4_to_2_512",
+        "sparse_contract": "a_4_to_2_structured_k_v1",
+        "sparse_operand": "A",
+        "dense_baseline_required": "same_expanded_sparse_input_direct_hip",
+        "promotion_scope": "execution_path_evidence"
+      }
+    },
+    {
+      "name": "finite-field-sparse-a-medium-512",
+      "semantics": "finite-u8-field",
+      "case": {
+        "name": "finite-sparse-a-512",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "medium explicit finite-field sparse-A 4:2 structured input contract",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "keeps prime-field medium sparse-A evidence separate from finite-ring evidence and dense-input finite-u8 captures",
+      "backends": ["cpu", "hip-direct", "amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "execution_path_evidence",
+      "finite_moduli": [251],
+      "sparse_a_4_to_2": true,
+      "metadata": {
+        "workflow_name": "sparse_a_4_to_2_contract_evidence",
+        "domain_family": "prime_field_u8",
+        "shape_family": "sparse_a_4_to_2_512",
+        "sparse_contract": "a_4_to_2_structured_k_v1",
+        "sparse_operand": "A",
+        "dense_baseline_required": "same_expanded_sparse_input_direct_hip",
+        "promotion_scope": "execution_path_evidence"
+      }
+    }
+  ]
+}

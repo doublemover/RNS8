@@ -54,10 +54,7 @@ def validate_backend_metadata(self: Any) -> None:
         return
     selected_backend = self.data.get("backend_selected")
     selected_kernel_for_source = self.data.get("selected_kernel")
-    sparse_a_capture = (
-        self.data.get("benchmark") == "rns8_finite_u8_explicit_sparse_a_4_to_2_persistent_residue"
-        or (isinstance(selected_kernel_for_source, str) and "sparse_a" in selected_kernel_for_source)
-    )
+    sparse_a_capture = isinstance(selected_kernel_for_source, str) and "sparse_a" in selected_kernel_for_source
     expected_source = (
         "rns8_bench_wrap64_rocwmma_candidate"
         if self._is_wrap64_rocwmma_candidate()

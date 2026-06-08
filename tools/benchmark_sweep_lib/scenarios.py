@@ -289,6 +289,7 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 label=label,
                 default=False,
             ),
+            sparse_a_4_to_2=_bool_or_default(raw, "sparse_a_4_to_2", label=label, default=False),
             prefix_policy=_optional_string(raw, "prefix_policy", label=label),
             max_prefix=_optional_int(raw, "max_prefix", label=label),
             bound_source=_optional_string(raw, "bound_source", label=label),
@@ -345,6 +346,27 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             ),
             metadata=_metadata(raw, label=label),
         )
+        if item.sparse_a_4_to_2:
+            if item.semantics not in {"finite-u8-ring", "finite-u8-field"}:
+                raise SystemExit(f"{label}.sparse_a_4_to_2 requires finite-u8 semantics")
+            if item.case.k % 4 != 0:
+                raise SystemExit(f"{label}.sparse_a_4_to_2 requires K divisible by 4")
+            if item.pack_mode != "per_repeat_repack":
+                raise SystemExit(f"{label}.sparse_a_4_to_2 cannot use packed-input reuse in this pass")
+            supported_backends = {"cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"}
+            unsupported = [backend for backend in item.backends or () if backend not in supported_backends]
+            if unsupported:
+                raise SystemExit(f"{label}.sparse_a_4_to_2 supports only finite-u8 CPU/direct/accelerator backends")
+            if (
+                item.oneshot
+                or item.host_api_batch_size > 1
+                or item.grouped_dispatch_tasks > 1
+                or item.hip_graph_replay
+                or item.incremental_result_cache != "none"
+            ):
+                raise SystemExit(
+                    f"{label}.sparse_a_4_to_2 supports only persistent single-capture scenarios in this pass"
+                )
         _validate_fixed_prefix_static_host_export(item, label=label)
         items.append(item)
     return items

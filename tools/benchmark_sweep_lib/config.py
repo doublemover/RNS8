@@ -78,6 +78,7 @@ class ScenarioItem:
     native_to_rns_bridge: bool = False
     vector_to_rns_chain: bool = False
     vector_to_rns_chain_host_repack_control: bool = False
+    sparse_a_4_to_2: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None

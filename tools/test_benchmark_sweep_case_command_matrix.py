@@ -387,6 +387,19 @@ assert all("--reuse-packed-inputs" not in entry.command for entry in finite_full
 assert all("--semantics" in entry.command and "wrap-u64" in entry.command for entry in wrap64_full_path_graph_entries)
 assert all("--reuse-packed-inputs" not in entry.command for entry in wrap64_full_path_graph_entries)
 
+sparse_args = copy.copy(scenario_args)
+sparse_args.backends = None
+sparse_args.scenario = ["sparse-a-4-to-2"]
+sparse_entries = benchmark_sweep.sweep_command_entries(sparse_args)
+assert len(sparse_entries) == 18
+assert {entry.scenario["family"] for entry in sparse_entries} == {"sparse-a-4-to-2"}
+assert {entry.scenario["sparse_a_4_to_2"] for entry in sparse_entries} == {True}
+assert {entry.scenario["backend"] for entry in sparse_entries} == {"cpu", "hip-direct", "amdgpu-builtins"}
+assert {entry.scenario["modulus"] for entry in sparse_entries} == {251, 255}
+assert all("--sparse-a-4-to-2" in entry.command for entry in sparse_entries)
+assert all("sparse-a-4to2" in entry.output.name for entry in sparse_entries)
+assert all("scenarios" in entry.output.parts and "sparse-a-4-to-2" in entry.output.parts for entry in sparse_entries)
+
 skinny_args = copy.copy(scenario_args)
 skinny_args.backends = ["hip-vector-alu-int64"]
 skinny_args.scenario = ["skinny-gemv"]

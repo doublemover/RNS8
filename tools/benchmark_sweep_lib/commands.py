@@ -186,6 +186,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
     scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
+    scenario_args.sparse_a_4_to_2 = item.sparse_a_4_to_2
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -236,6 +237,7 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
         or item.hip_graph_replay
         or item.native_to_rns_bridge
         or item.vector_to_rns_chain
+        or item.sparse_a_4_to_2
         or item.residue_channel_fusion
         or item.grouped_dispatch_tasks > 1
         or item.resident_lifetime
@@ -301,6 +303,7 @@ def scenario_metadata(
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
+        "sparse_a_4_to_2": item.sparse_a_4_to_2,
         "next_op_hint": item.next_op_hint,
         "residue_channel_fusion": item.residue_channel_fusion,
         "modulus_set": item.modulus_set,
@@ -398,6 +401,7 @@ def capture_name(
     hip_graph_replay: bool = False,
     oneshot: bool = False,
     residue_chain_independent_final_export: bool = False,
+    sparse_a_4_to_2: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
@@ -418,6 +422,8 @@ def capture_name(
         parts.append("hipgraph")
     if oneshot:
         parts.append("oneshot")
+    if sparse_a_4_to_2:
+        parts.append("sparse-a-4to2")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
     elif pack_mode == "prepacked_reuse_a":
@@ -525,6 +531,8 @@ def command_for(
             command.append("--vector-to-rns-chain-host-repack-control")
         else:
             command.append("--vector-to-rns-chain")
+    if getattr(args, "sparse_a_4_to_2", False):
+        command.append("--sparse-a-4-to-2")
     modulus_set = getattr(args, "modulus_set", "default")
     if modulus_set and modulus_set != "default":
         command.extend(["--modulus-set", modulus_set])
@@ -928,6 +936,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         item.hip_graph_replay,
                         oneshot=item.oneshot,
                         residue_chain_independent_final_export=item.residue_chain_independent_final_export,
+                        sparse_a_4_to_2=item.sparse_a_4_to_2,
                     )
                     name = f"{item.family}-{item.name}-{base_name}"
                     command = command_for(

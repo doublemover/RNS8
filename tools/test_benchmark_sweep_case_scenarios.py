@@ -130,6 +130,7 @@ for scenario_name in [
     "cpu-small-shape-selector",
     "incremental-result-cache",
     "error-detecting-fast-path",
+    "sparse-a-4-to-2",
 ]:
     assert scenario_name in catalog
     assert catalog[scenario_name]
@@ -213,6 +214,18 @@ with tempfile.TemporaryDirectory() as temp_dir:
         assert "cannot host-export bounded-i64 uniform-small" in str(exc)
     else:
         raise AssertionError("expected invalid fixed-prefix host-export scenario to fail validation")
+
+    payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "sparse_a_4_to_2.json").read_text(encoding="utf-8"))
+    bad_item = copy.deepcopy(payload["items"][0])
+    bad_item["case"]["k"] = 130
+    payload["items"] = [bad_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        benchmark_sweep.load_scenario_data_family(scenario_path)
+    except SystemExit as exc:
+        assert "sparse_a_4_to_2 requires K divisible by 4" in str(exc)
+    else:
+        raise AssertionError("expected invalid sparse-A K shape to fail validation")
 
 fusion_item = catalog["residue-channel-fusion"][0]
 assert fusion_item.residue_channel_fusion is True
@@ -444,6 +457,22 @@ incremental_command = benchmark_sweep.command_for(
 )
 assert "--incremental-result-cache" in incremental_command
 assert "bounded_i64_dirty_tile_partial_recompute_research" in incremental_command
+sparse_item = catalog["sparse-a-4-to-2"][0]
+assert sparse_item.sparse_a_4_to_2 is True
+assert sparse_item.backends == ("cpu", "hip-direct", "amdgpu-builtins")
+sparse_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, sparse_item)
+sparse_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "amdgpu-builtins",
+    sparse_item.semantics,
+    sparse_item.case,
+    251,
+    None,
+    sparse_args,
+)
+assert "--sparse-a-4-to-2" in sparse_command
+assert "--modulus" in sparse_command and "251" in sparse_command
+assert sparse_item.metadata["sparse_contract"] == "a_4_to_2_structured_k_v1"
 
 with tempfile.TemporaryDirectory() as temp_dir:
     capture_path = Path(temp_dir) / "capture.json"
