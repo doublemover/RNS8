@@ -86,21 +86,35 @@ if(RNS8_ENABLE_HIP)
   find_package(RNS8HIP REQUIRED)
   file(
     GLOB
+    RNS8_COMMON_HIP_KERNEL_DEPENDS
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_common/*.hpp"
+  )
+  file(
+    GLOB
     RNS8_HIP_DIRECT_KERNEL_DEPENDS
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.cuh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/*.inc"
   )
-  set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
+  set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
   rns8_compile_hip_source(
     RNS8_HIP_DIRECT_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
   unset(RNS8_HIP_SOURCE_DEPENDS)
+  file(
+    GLOB
+    RNS8_WRAP64_HIP_KERNEL_DEPENDS
+    CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/*.hpp"
+  )
+  set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_WRAP64_HIP_KERNEL_DEPENDS})
   rns8_compile_hip_source(
     RNS8_WRAP64_HIP_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_wrap64/wrap64_hip_kernels.hip"
   )
+  unset(RNS8_HIP_SOURCE_DEPENDS)
   rns8_compile_hip_source(
     RNS8_VECTOR_ALU_KERNEL_OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_vector_alu/vector_alu_kernels.hip"
@@ -114,17 +128,25 @@ if(RNS8_ENABLE_HIP)
   )
   if(RNS8_ENABLE_HIPBLASLT)
     find_package(RNS8HIPBLASLT REQUIRED)
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS})
     rns8_compile_hip_source(
       RNS8_HIPBLASLT_KERNEL_OBJECT
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_kernels.hip"
     )
+    unset(RNS8_HIP_SOURCE_DEPENDS)
     list(APPEND RNS8_SOURCES src/backend_hipblaslt/hipblaslt_backend.cpp "${RNS8_HIPBLASLT_KERNEL_OBJECT}")
   endif()
   if(RNS8_ENABLE_CK)
     find_package(RNS8CK REQUIRED)
     rns8_apply_ck_wmma_no_divide_patch(RNS8_CK_WMMA_PATCH_INCLUDE_DIR RNS8_CK_WMMA_PATCHED_HEADER)
+    file(
+      GLOB
+      RNS8_CK_KERNEL_DEPENDS
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_ck/*.inc"
+    )
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_CK_WMMA_PATCH_INCLUDE_DIR}" "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
-    set(RNS8_HIP_SOURCE_DEPENDS "${RNS8_CK_WMMA_PATCHED_HEADER}")
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_CK_KERNEL_DEPENDS} "${RNS8_CK_WMMA_PATCHED_HEADER}")
     set(
       RNS8_HIP_SOURCE_COMPILE_OPTIONS
       "-DRNS8_CK_USE_XDL=${RNS8_CK_USE_XDL}"
@@ -144,6 +166,12 @@ if(RNS8_ENABLE_HIP)
   endif()
   if(RNS8_ENABLE_ROCWMMA)
     find_package(RNS8ROCWMMA REQUIRED)
+    file(
+      GLOB
+      RNS8_ROCWMMA_KERNEL_DEPENDS
+      CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/*.inc"
+    )
     set(RNS8_ROCWMMA_WAVE_THREADS 32)
     if(RNS8_AMDGPU_TARGETS)
       list(GET RNS8_AMDGPU_TARGETS 0 RNS8_ROCWMMA_ACTIVE_TARGET)
@@ -152,12 +180,14 @@ if(RNS8_ENABLE_HIP)
       endif()
     endif()
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_ROCWMMA_INCLUDE_DIR}")
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_ROCWMMA_KERNEL_DEPENDS})
     set(RNS8_HIP_SOURCE_COMPILE_OPTIONS "-DRNS8_ROCWMMA_WAVE_THREADS=${RNS8_ROCWMMA_WAVE_THREADS}")
     rns8_compile_hip_source(
       RNS8_ROCWMMA_KERNEL_OBJECT
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_backend_kernels.hip"
     )
     unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
+    unset(RNS8_HIP_SOURCE_DEPENDS)
     unset(RNS8_HIP_SOURCE_COMPILE_OPTIONS)
     list(APPEND RNS8_SOURCES "${RNS8_ROCWMMA_KERNEL_OBJECT}")
   endif()
