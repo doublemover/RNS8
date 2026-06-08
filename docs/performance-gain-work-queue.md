@@ -132,6 +132,14 @@ inspection commands.
   routes for exact-wide signed/unsigned, vectorized Garner/CRT constants,
   fixed-prefix specialization, per-cell limb export, deterministic first-error
   reporting, and selected export-kernel metadata.
+- Local implementation status: exact-wide Direct HIP device export routes and
+  fixed-prefix18/fixed-prefix20 selector kernels are implemented. Export kernel
+  identities are now registry-backed through `metadata/kernels.yaml`, generated
+  into Python/C++ metadata constants, and schema-checked across
+  `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
+  and `reconstruction_variant.kernel_identity`. Local Windows HIP fixed-prefix18
+  signed/unsigned smokes selected the matching device export kernels and passed
+  schema validation.
 - Required evidence: `exact-wide-export`, `export-bound-limb-variants`, and
   `reconstruction-zoo` release captures with exact CPU parity, Direct HIP,
   hipBLASLt, CK, rocWMMA, and AMDGPU builtin comparators where built.

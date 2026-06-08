@@ -561,6 +561,40 @@ ROCWMMA_SELECTED_KERNELS = {
     'rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2',
     'rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2',
 }
+EXACT_WIDE_SIGNED_EXPORT_KERNELS = {
+    'cpu_reference_export_exact_wide_signed_limbs',
+    'hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix18_variable_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix20_variable_limbs_device',
+    'hip_direct_export_exact_wide_signed_limbs_device',
+    'hip_direct_export_exact_wide_signed_tree_crt_limbs_device',
+}
+EXACT_WIDE_UNSIGNED_EXPORT_KERNELS = {
+    'cpu_reference_export_exact_wide_unsigned_limbs',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix18_variable_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix20_fixed_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device',
+}
+EXACT_WIDE_EXPORT_KERNELS = {
+    'cpu_reference_export_exact_wide_signed_limbs',
+    'cpu_reference_export_exact_wide_unsigned_limbs',
+    'hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix18_variable_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device',
+    'hip_direct_export_exact_wide_signed_fixed_prefix20_variable_limbs_device',
+    'hip_direct_export_exact_wide_signed_limbs_device',
+    'hip_direct_export_exact_wide_signed_tree_crt_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix18_variable_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix20_fixed_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_limbs_device',
+    'hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device',
+}
 COMPARISON_BASELINE_STATUSES = {
     'missing_reviewed_same_contract_baseline',
     'required_not_recorded',

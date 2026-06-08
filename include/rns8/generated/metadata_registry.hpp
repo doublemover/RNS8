@@ -222,5 +222,22 @@ inline constexpr std::array<std::string_view, 65> selected_kernels{{
     "rocwmma_wrap64_byte_gemm36_candidate_v0"
 }};
 
+inline constexpr std::array<std::string_view, 14> exact_wide_export_kernels{{
+    "cpu_reference_export_exact_wide_signed_limbs",
+    "cpu_reference_export_exact_wide_unsigned_limbs",
+    "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device",
+    "hip_direct_export_exact_wide_signed_fixed_prefix18_variable_limbs_device",
+    "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device",
+    "hip_direct_export_exact_wide_signed_fixed_prefix20_variable_limbs_device",
+    "hip_direct_export_exact_wide_signed_limbs_device",
+    "hip_direct_export_exact_wide_signed_tree_crt_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_fixed_prefix18_variable_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_fixed_prefix20_fixed_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_limbs_device",
+    "hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device"
+}};
+
 
 }  // namespace rns8::generated_metadata

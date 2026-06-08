@@ -104,5 +104,25 @@
       "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1",
       "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1"
     ]
+  },
+  "export_kernel_groups": {
+    "exact_wide_signed": [
+      "cpu_reference_export_exact_wide_signed_limbs",
+      "hip_direct_export_exact_wide_signed_limbs_device",
+      "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device",
+      "hip_direct_export_exact_wide_signed_fixed_prefix18_variable_limbs_device",
+      "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device",
+      "hip_direct_export_exact_wide_signed_fixed_prefix20_variable_limbs_device",
+      "hip_direct_export_exact_wide_signed_tree_crt_limbs_device"
+    ],
+    "exact_wide_unsigned": [
+      "cpu_reference_export_exact_wide_unsigned_limbs",
+      "hip_direct_export_exact_wide_unsigned_limbs_device",
+      "hip_direct_export_exact_wide_unsigned_fixed_prefix18_fixed_limbs_device",
+      "hip_direct_export_exact_wide_unsigned_fixed_prefix18_variable_limbs_device",
+      "hip_direct_export_exact_wide_unsigned_fixed_prefix20_fixed_limbs_device",
+      "hip_direct_export_exact_wide_unsigned_fixed_prefix20_variable_limbs_device",
+      "hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device"
+    ]
   }
 }

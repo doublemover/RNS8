@@ -95,6 +95,37 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
                         self._error(
                             f"exact-wide status-elided captures must report gpu_event_timings_us.{phase} as zero"
                         )
+    expected_export_kernels = (
+        EXACT_WIDE_SIGNED_EXPORT_KERNELS
+        if semantics == "exact_wide_signed"
+        else EXACT_WIDE_UNSIGNED_EXPORT_KERNELS
+    )
+    export_variant = self.data.get("export_variant")
+    export_kernel = None
+    if isinstance(export_variant, dict):
+        export_kernel = export_variant.get("selected_kernel")
+        if export_kernel not in expected_export_kernels:
+            self._error(
+                f"{semantics} export_variant.selected_kernel must be a registered exact-wide export kernel"
+            )
+    exact_output = self.data.get("exact_output_contract")
+    if isinstance(exact_output, dict):
+        contract_kernel = exact_output.get("kernel_identity")
+        if contract_kernel not in expected_export_kernels:
+            self._error(
+                f"{semantics} exact_output_contract.kernel_identity must be a registered exact-wide export kernel"
+            )
+        if export_kernel is not None and contract_kernel != export_kernel:
+            self._error("exact_output_contract.kernel_identity must match export_variant.selected_kernel")
+    reconstruction = self.data.get("reconstruction_variant")
+    if isinstance(reconstruction, dict):
+        reconstruction_kernel = reconstruction.get("kernel_identity")
+        if reconstruction_kernel not in expected_export_kernels:
+            self._error(
+                f"{semantics} reconstruction_variant.kernel_identity must be a registered exact-wide export kernel"
+            )
+        if export_kernel is not None and reconstruction_kernel != export_kernel:
+            self._error("reconstruction_variant.kernel_identity must match export_variant.selected_kernel")
     if isinstance(schedule, dict) and _is_int(prefix):
         if prefix_policy == "minimum_proven":
             if schedule.get("min_selected_prefix") != schedule.get("max_selected_prefix"):

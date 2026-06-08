@@ -148,6 +148,7 @@ def main() -> int:
         "status_policy": "structurally_elided",
         "output_domain_after_measured_repeats": "exact_wide_limb_host",
         "final_checksum_export_after_repeats": False,
+        "kernel_identity": "hip_direct_export_exact_wide_signed_limbs_device",
     }
     exact["export_variant"] = {
         "name": "default",
@@ -179,6 +180,15 @@ def main() -> int:
         "all_zero_tiled_output": False,
         "selected_kernel": "hip_direct_export_exact_wide_signed_limbs_device",
         "constants_placement": "backend_default",
+        "promotion_eligible": True,
+        "promotion_blocker": None,
+    }
+    exact["reconstruction_variant"] = {
+        "name": "default_garner",
+        "family": "garner_crt",
+        "controller": "exact_wide_device_export_selector",
+        "prefix_count": 20,
+        "kernel_identity": "hip_direct_export_exact_wide_signed_limbs_device",
         "promotion_eligible": True,
         "promotion_blocker": None,
     }
@@ -222,6 +232,39 @@ def main() -> int:
     stale_exact_domain = copy.deepcopy(exact)
     stale_exact_domain["exact_output_contract"]["requested_final_output"] = "linux_instinct_claim"
     expect_invalid(stale_exact_domain, "exact_output_contract.requested_final_output must be one of")
+
+    stale_export_kernel = copy.deepcopy(exact)
+    stale_export_kernel["export_variant"]["selected_kernel"] = "made_up_exact_wide_export_kernel"
+    stale_export_kernel["export_variant"]["selector_key"] = stale_export_kernel["export_variant"][
+        "selector_key"
+    ].replace(
+        "selected_kernel=hip_direct_export_exact_wide_signed_limbs_device",
+        "selected_kernel=made_up_exact_wide_export_kernel",
+    )
+    stale_export_kernel["exact_output_contract"]["kernel_identity"] = "made_up_exact_wide_export_kernel"
+    stale_export_kernel["reconstruction_variant"]["kernel_identity"] = "made_up_exact_wide_export_kernel"
+    expect_invalid(
+        stale_export_kernel,
+        "exact_wide_signed export_variant.selected_kernel must be a registered exact-wide export kernel",
+    )
+
+    stale_contract_kernel = copy.deepcopy(exact)
+    stale_contract_kernel["exact_output_contract"][
+        "kernel_identity"
+    ] = "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    expect_invalid(
+        stale_contract_kernel,
+        "exact_output_contract.kernel_identity must match export_variant.selected_kernel",
+    )
+
+    stale_reconstruction_kernel = copy.deepcopy(exact)
+    stale_reconstruction_kernel["reconstruction_variant"][
+        "kernel_identity"
+    ] = "hip_direct_export_exact_wide_signed_fixed_prefix18_fixed_limbs_device"
+    expect_invalid(
+        stale_reconstruction_kernel,
+        "reconstruction_variant.kernel_identity must match export_variant.selected_kernel",
+    )
 
     stale_export_layout = copy.deepcopy(exact)
     stale_export_layout["export_variant"]["output_layout"] = "device_magic"
