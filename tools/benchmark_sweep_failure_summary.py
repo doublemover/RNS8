@@ -324,6 +324,54 @@ def _graph_replay_line(
     )
 
 
+def _export_route_active(candidate: dict[str, Any]) -> bool:
+    if candidate.get("primary_loss_phase_vs_direct_hip") == "crt_export":
+        return True
+    export = candidate.get("export_variant")
+    if isinstance(export, dict) and export.get("name") not in (None, "default"):
+        return True
+    reconstruction = candidate.get("reconstruction_variant")
+    if isinstance(reconstruction, dict) and reconstruction.get("name") not in (None, "default_garner"):
+        return True
+    return False
+
+
+def _export_route_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+) -> str:
+    medians = candidate.get("phase_medians_us") if isinstance(candidate.get("phase_medians_us"), dict) else {}
+    export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
+    reconstruction = (
+        candidate.get("reconstruction_variant") if isinstance(candidate.get("reconstruction_variant"), dict) else {}
+    )
+    exact_output = (
+        candidate.get("exact_output_contract") if isinstance(candidate.get("exact_output_contract"), dict) else {}
+    )
+    blockers = _blocker_text(candidate.get("promotion_blockers"))
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"export_kernel={export.get('selected_kernel') or exact_output.get('kernel_identity')} "
+        f"export_variant={export.get('name')} "
+        f"reconstruction={reconstruction.get('name')} "
+        f"crt_export={medians.get('crt_export')} "
+        f"e2e={candidate.get('median_end_to_end_us')} "
+        f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
+        f"status_policy={export.get('selector_status_policy') or exact_output.get('status_policy')} "
+        f"d2h_policy={export.get('d2h_policy')} "
+        f"final_mode={export.get('final_output_mode') or exact_output.get('output_domain_after_measured_repeats')} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def build_summary(
     out: Path,
     *,
@@ -388,6 +436,8 @@ def build_summary(
     prepack_reuse_blockers: Counter[str] = Counter()
     graph_replay_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     graph_replay_blockers: Counter[str] = Counter()
+    export_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    export_kernel_counts: Counter[str] = Counter()
     review_report_count = 0
     for path in out.rglob("review_report.json"):
         review_report_count += 1
@@ -426,6 +476,15 @@ def build_summary(
                 if isinstance(graph, dict):
                     graph_replay_rows.append((str(path.relative_to(out)), group, candidate, graph))
                     graph_replay_blockers.update(str(item) for item in graph.get("blockers", []) if item)
+                if _export_route_active(candidate):
+                    export_route_rows.append((str(path.relative_to(out)), group, candidate))
+                    export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
+                    exact = (
+                        candidate.get("exact_output_contract")
+                        if isinstance(candidate.get("exact_output_contract"), dict)
+                        else {}
+                    )
+                    export_kernel_counts.update([str(export.get("selected_kernel") or exact.get("kernel_identity") or "unknown")])
                 if blockers:
                     actionable_counts.update(blockers)
                     actionable_rows.append((str(path.relative_to(out)), str(group.get("contract_key", "")), group, candidate))
@@ -566,6 +625,17 @@ def build_summary(
         lines.append(_graph_replay_line(out, report_path, group, candidate, graph))
     if len(graph_replay_rows) > max_detail_rows:
         lines.append(f"  ... {len(graph_replay_rows) - max_detail_rows} more")
+    lines.append(f"EXPORT_CRT_ROUTE_ROWS {len(export_route_rows)}")
+    lines.append("EXPORT_CRT_KERNEL_COUNTS")
+    if export_kernel_counts:
+        for kernel, count in export_kernel_counts.most_common():
+            lines.append(f"{kernel} {count}")
+    else:
+        lines.append("none 0")
+    for report_path, group, candidate in export_route_rows[:max_detail_rows]:
+        lines.append(_export_route_line(out, report_path, group, candidate))
+    if len(export_route_rows) > max_detail_rows:
+        lines.append(f"  ... {len(export_route_rows) - max_detail_rows} more")
     lines.append("ACTIONABLE_PROMOTION_BLOCKER_COUNTS")
     if actionable_counts:
         for blocker, count in actionable_counts.most_common():

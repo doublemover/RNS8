@@ -150,6 +150,21 @@ def main() -> int:
                                     "crt_export": 3.0,
                                     "end_to_end": 123.0,
                                 },
+                                "exact_output_contract": {
+                                    "kernel_identity": "hip_direct_export_exact_wide_signed_tree_crt_limbs_device",
+                                    "status_policy": "range_checked_status_buffer",
+                                    "output_domain_after_measured_repeats": "native_i64_u64_host",
+                                },
+                                "export_variant": {
+                                    "name": "tree-crt-export-candidate",
+                                    "selected_kernel": "hip_direct_export_exact_wide_signed_tree_crt_limbs_device",
+                                    "selector_status_policy": "range_checked_status_buffer",
+                                    "d2h_policy": "compact_contiguous",
+                                    "final_output_mode": "final_host_output",
+                                },
+                                "reconstruction_variant": {
+                                    "name": "tree_crt_candidate",
+                                },
                                 "bottleneck": {"class": "pack_bound", "phase": "pack"},
                                 "capture": str(scenarios / "c-ck.json"),
                                 "promotion_blockers": ["not_faster_than_direct_hip"],
@@ -324,6 +339,15 @@ def main() -> int:
             "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=None"
         ) in text
         assert "speedup_vs_baseline=0.9536423841059603 blockers=none" in text
+        assert "EXPORT_CRT_ROUTE_ROWS 1" in text
+        assert "EXPORT_CRT_KERNEL_COUNTS" in text
+        assert "hip_direct_export_exact_wide_signed_tree_crt_limbs_device 1" in text
+        assert (
+            "export_kernel=hip_direct_export_exact_wide_signed_tree_crt_limbs_device "
+            "export_variant=tree-crt-export-candidate reconstruction=tree_crt_candidate "
+            "crt_export=3.0 e2e=123"
+        ) in text
+        assert "status_policy=range_checked_status_buffer d2h_policy=compact_contiguous final_mode=final_host_output" in text
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized

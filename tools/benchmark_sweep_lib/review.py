@@ -1278,6 +1278,13 @@ def review_captures(
                 "phase_medians_us": phase_medians_for_capture(item),
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
+                "exact_output_contract": (
+                    item.get("exact_output_contract") if isinstance(item.get("exact_output_contract"), dict) else None
+                ),
+                "export_variant": item.get("export_variant") if isinstance(item.get("export_variant"), dict) else None,
+                "reconstruction_variant": (
+                    item.get("reconstruction_variant") if isinstance(item.get("reconstruction_variant"), dict) else None
+                ),
                 "prepacked_reuse_review": prepack_review,
                 "runtime_prepack_cache": (
                     item.get("reuse_contract", {}).get("runtime_prepack_cache")
