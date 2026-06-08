@@ -487,6 +487,7 @@ GENERATED_REDUCER_IDENTITIES = {
     'direct_hip_finite_modulus_251_fixed_reducer_v1',
     'direct_hip_finite_modulus_255_fixed_reducer_v1',
     'direct_hip_finite_modulus_256_fixed_reducer_v1',
+    'direct_hip_fixed_prefix_18_generated_reducer_v1',
     'direct_hip_fixed_prefix_1_generated_reducer_v1',
     'direct_hip_fixed_prefix_20_generated_reducer_v1',
     'direct_hip_fixed_prefix_2_generated_reducer_v1',

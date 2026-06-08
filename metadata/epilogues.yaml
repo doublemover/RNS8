@@ -37,6 +37,7 @@
     "direct_hip_fixed_prefix_7_generated_reducer_v1",
     "direct_hip_fixed_prefix_8_generated_reducer_v1",
     "direct_hip_fixed_prefix_9_generated_reducer_v1",
+    "direct_hip_fixed_prefix_18_generated_reducer_v1",
     "direct_hip_fixed_prefix_20_generated_reducer_v1",
     "direct_hip_finite_modulus_251_fixed_reducer_v1",
     "direct_hip_finite_modulus_255_fixed_reducer_v1",
@@ -51,7 +52,7 @@
       "epilogue_type": "crt_export",
       "backend_epilogue_mode": "fused_centered_residue_then_crt_export",
       "generated_reducer_identity": "direct_hip_fixed_prefix_9_generated_reducer_v1",
-      "generated_reducer_identity_pattern": "direct_hip_fixed_prefix_{1..9,20}_generated_reducer_v1",
+      "generated_reducer_identity_pattern": "direct_hip_fixed_prefix_{1..9,18,20}_generated_reducer_v1",
       "selected_kernel_examples": [
         "direct_hip_tiled_active_prefix_rns_gemm_v2",
         "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",

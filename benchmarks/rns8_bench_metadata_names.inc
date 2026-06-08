@@ -465,9 +465,9 @@ std::string generated_reducer_identity(const Args& args, const BenchmarkResult& 
     return "direct_hip_fixed_prefix_" + std::to_string(selected_prefix) + "_generated_reducer_v1";
   }
   if (exact_wide_benchmark_semantics(args.semantics) &&
-      selected_prefix == RNS8_MAX_SUPPORTED_PREFIX &&
+      (selected_prefix == 18 || selected_prefix == RNS8_MAX_SUPPORTED_PREFIX) &&
       result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {
-    return "direct_hip_fixed_prefix_20_generated_reducer_v1";
+    return "direct_hip_fixed_prefix_" + std::to_string(selected_prefix) + "_generated_reducer_v1";
   }
   if (finite_benchmark_semantics(args.semantics) &&
       result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT) {

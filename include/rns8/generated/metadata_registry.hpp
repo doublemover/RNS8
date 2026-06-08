@@ -137,10 +137,11 @@ inline constexpr std::array<std::string_view, 18> backend_epilogue_modes{{
     "separate_i32_scratch_reduce_then_crt_export"
 }};
 
-inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
+inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "direct_hip_finite_modulus_251_fixed_reducer_v1",
     "direct_hip_finite_modulus_255_fixed_reducer_v1",
     "direct_hip_finite_modulus_256_fixed_reducer_v1",
+    "direct_hip_fixed_prefix_18_generated_reducer_v1",
     "direct_hip_fixed_prefix_1_generated_reducer_v1",
     "direct_hip_fixed_prefix_20_generated_reducer_v1",
     "direct_hip_fixed_prefix_2_generated_reducer_v1",

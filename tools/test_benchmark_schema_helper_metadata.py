@@ -43,6 +43,12 @@ def main() -> int:
     add_timing_helper_fields(direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1")
     validate_capture(direct_reducer)
 
+    exact_wide_prefix18_reducer = copy.deepcopy(direct_reducer)
+    exact_wide_prefix18_reducer["timing_metadata"][
+        "generated_reducer_identity"
+    ] = "direct_hip_fixed_prefix_18_generated_reducer_v1"
+    validate_capture(exact_wide_prefix18_reducer)
+
     stale_reducer = copy.deepcopy(direct_reducer)
     stale_reducer["timing_metadata"]["generated_reducer_identity"] = "generic"
     expect_invalid(stale_reducer, "declared reducer identity")

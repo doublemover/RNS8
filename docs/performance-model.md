@@ -965,6 +965,7 @@ called out explicitly below.
 Direct-HIP generated/fixed reducer captures use declared identities such as
 `direct_hip_fixed_prefix_1_generated_reducer_v1` through
 `direct_hip_fixed_prefix_9_generated_reducer_v1` and
+`direct_hip_fixed_prefix_18_generated_reducer_v1` or
 `direct_hip_fixed_prefix_20_generated_reducer_v1`; stale generic reducer names
 are rejected for generated captures. The corresponding ISA gate is explanatory:
 generated reducers should avoid integer divide instructions and expose the
